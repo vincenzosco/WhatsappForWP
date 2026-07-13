@@ -1,0 +1,21 @@
+{
+  "name": "whatsapp-bridge",
+  "version": "1.0.0",
+  "description": "WhatsApp Bridge Server - Connects Windows Phone 8.1 WhatsApp app to actual WhatsApp servers via whatsapp-web.js",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "start:qr": "node server.js --show-qr",
+    "start:debug": "node server.js --debug"
+  },
+  "keywords": ["whatsapp", "bridge", "wp8", "windows-phone"],
+  "license": "MIT",
+  "dependencies": {
+    "whatsapp-web.js": "^1.25.0",
+    "qrcode-terminal": "^0.12.0",
+    "puppeteer": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,164 @@
+<Page
+    x:Class="WhatsappApp.Pages.ConnectionPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:WhatsappApp"
+    Background="#FFECE5DD">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
+        <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
+        <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF128C7E"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="BackButton" Grid.Column="0"
+                    Content="&#xE0C4;" FontFamily="Segoe MDL2 Assets"
+                    Foreground="White" Background="Transparent"
+                    Width="48" Height="48" Margin="0,4,0,0"
+                    Click="BackButton_Click"
+                    BorderThickness="0"/>
+
+            <TextBlock Grid.Column="1" Text="Impostazioni Server"
+                       Foreground="White" FontSize="20" FontWeight="SemiBold"
+                       VerticalAlignment="Center" Margin="8,0,0,4"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16,16,16,16">
+
+                <!-- Mode Selection -->
+                <TextBlock Text="Modalità di connessione" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
+                <Border Background="White" CornerRadius="8" Margin="0,4,0,0">
+                    <StackPanel Margin="12,8">
+                        <RadioButton x:Name="ClientModeRadio" Content="🔗  Modalità Client"
+                                     IsChecked="True" GroupName="Mode" FontSize="16"
+                                     Foreground="Black" Margin="0,4"
+                                     Checked="ClientMode_Checked"/>
+                        <TextBlock Text="Connetti a un server su PC" 
+                                   Foreground="#FF808080" FontSize="12" Margin="24,0,0,8"/>
+                        <RadioButton x:Name="ServerModeRadio" Content="📡  Modalità Server"
+                                     GroupName="Mode" FontSize="16"
+                                     Foreground="Black" Margin="0,4"
+                                     Checked="ServerMode_Checked"/>
+                        <TextBlock Text="Ospita il server sul telefono" 
+                                   Foreground="#FF808080" FontSize="12" Margin="24,0,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Server address (Client mode) -->
+                <StackPanel x:Name="ClientSettings" Visibility="Visible" Margin="0,8,0,0">
+                    <TextBlock Text="Indirizzo server" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
+                    <TextBox x:Name="ServerAddressBox" Text="192.168.1.100"
+                             PlaceholderText="es. 192.168.1.100"
+                             Background="White" FontSize="16" Margin="0,4,0,0"/>
+
+                    <TextBlock Text="Porta" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                    <TextBox x:Name="ServerPortBox" Text="8585"
+                             PlaceholderText="8585"
+                             Background="White" FontSize="16" Margin="0,4,0,0"/>
+                </StackPanel>
+
+                <!-- Server mode info -->
+                <StackPanel x:Name="ServerSettings" Visibility="Collapsed" Margin="0,8,0,0">
+                    <Border Background="White" CornerRadius="8">
+                        <StackPanel Margin="12">
+                            <TextBlock Text="📡 Server in ascolto sulla porta:" Foreground="Black" FontSize="14"/>
+                            <TextBlock x:Name="ServerPortInfoText" Text="8585"
+                                       Foreground="#FF128C7E" FontSize="28" FontWeight="Bold"
+                                       HorizontalAlignment="Center" Margin="0,8"/>
+                            <TextBlock Text="Assicurati che il firewall permetta la connessione" 
+                                       Foreground="#FF808080" FontSize="12"
+                                       TextWrapping="Wrap" TextAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
+                        <Grid Width="44" Height="44">
+                            <Ellipse Width="44" Height="44" Fill="#FF128C7E"/>
+                            <Button x:Name="ServerPortDownBtn" Content="−"
+                                    Foreground="White" Background="Transparent"
+                                    BorderThickness="0" FontSize="24" FontWeight="Bold"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    Click="ServerPortDown_Click"/>
+                        </Grid>
+                        <TextBlock x:Name="ServerPortValueText" Text="8585" FontSize="32" FontWeight="Bold"
+                                   Foreground="#FF075E54"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Width="80" TextAlignment="Center"/>
+                        <Grid Width="44" Height="44">
+                            <Ellipse Width="44" Height="44" Fill="#FF128C7E"/>
+                            <Button x:Name="ServerPortUpBtn" Content="+"
+                                    Foreground="White" Background="Transparent"
+                                    BorderThickness="0" FontSize="24" FontWeight="Bold"
+                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
+                                    Click="ServerPortUp_Click"/>
+                        </Grid>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Username -->
+                <TextBlock Text="Il tuo nome" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                <TextBox x:Name="UsernameBox" Text="Utente"
+                         Background="White" FontSize="16" Margin="0,4,0,0"/>
+
+                <!-- Connection status -->
+                <Border x:Name="StatusPanel" Background="#FFF0F0F0" CornerRadius="8" Margin="0,8,0,0"
+                        Visibility="Collapsed">
+                    <StackPanel Margin="12">
+                        <TextBlock x:Name="StatusIconText" Text="🔄" FontSize="24" HorizontalAlignment="Center"/>
+                        <TextBlock x:Name="StatusText" Text="Connessione in corso..."
+                                   Foreground="#FF128C7E" FontSize="14" TextAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Connect/Start Server Button -->
+                <Button x:Name="ActionButton" Content="🔗  Connetti al server"
+                        Background="{StaticResource WhatsAppAccentBrush}"
+                        Foreground="White" FontSize="18" FontWeight="SemiBold"
+                        Height="52" BorderThickness="0" Margin="0,12,0,0"
+                        Click="ActionButton_Click"/>
+
+                <Button x:Name="DisconnectButton" Content="⛔  Disconnetti"
+                        Background="#FFE53935"
+                        Foreground="White" FontSize="16"
+                        Height="44" BorderThickness="0" Margin="0,8,0,0"
+                        Visibility="Collapsed"
+                        Click="DisconnectButton_Click"/>
+
+                <!-- Server info box -->
+                <Border Background="White" CornerRadius="8" Margin="0,8,0,0">
+                    <StackPanel Margin="12">
+                        <TextBlock Text="💡 Come funziona" Foreground="#FF075E54" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="#FF606060" Margin="0,8,0,0">
+                        <Run Text="Questa app è un client WhatsApp gestito dalla community."/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="Modalità Client:" FontWeight="SemiBold"/>
+                        <Run Text=" Collegati al server PC (vedi progetto WhatsappServer) per inviare/ricevere messaggi in tempo reale."/>
+                        <LineBreak/><LineBreak/>
+                        <Run Text="Modalità Server:" FontWeight="SemiBold"/>
+                        <Run Text=" Ospita il server direttamente sul telefono. Altri dispositivi possono connettersi al tuo indirizzo IP."/>
+                        </TextBlock>
+                    </StackPanel>
+                </Border>
+
+                <!-- Version info -->
+                <TextBlock Text="WhatsApp Community Edition v1.0" 
+                           Foreground="#FF808080" FontSize="11"
+                           HorizontalAlignment="Center" Margin="0,16,0,16"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</Page>
