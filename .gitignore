@@ -1,0 +1,54 @@
+# Visual Studio
+.vs/
+*.suo
+*.sln.docstates
+*.user
+*.userosscache
+*.userprefs
+[Dd]ebug/
+[Rr]elease/
+[Dd]ebugPublic/
+[Rr]eleases/
+x64/
+x86/
+arm/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+# Visual Studio 2015+ cache files
+*.sdf
+*.ipch
+*.iobj
+*.ipdb
+
+# NuGet
+*.nupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+*.nuget.props
+*.nuget.targets
+
+# Node.js / Bridge
+WhatsappBridge/node_modules/
+WhatsappBridge/.wwebjs_auth/
+WhatsappBridge/.npm/
+WhatsappBridge/package-lock.json
+
+# Windows
+Thumbs.db
+*.log
+*.tmp
+
+# Build results
+[Dd]ebug/
+[Rr]elease/
+[Ww][Ii][Nn]32/
+[Aa][Rr][Mm]/
+x64/
+x86/
