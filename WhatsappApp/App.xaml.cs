@@ -15,6 +15,8 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Navigation;
+using WhatsappApp.Pages;
+using WhatsappApp.Services;
 
 // Il modello di applicazione vuota è documentato all'indirizzo http://go.microsoft.com/fwlink/?LinkId=391641
 
@@ -82,8 +84,10 @@ namespace WhatsappApp
                 rootFrame.ContentTransitions = null;
                 rootFrame.Navigated += this.RootFrame_FirstNavigated;
 
-                // Navigate to the main WhatsApp page
-                if (!rootFrame.Navigate(typeof(MainPage), e.Arguments))
+                // Navigate to the main page, or to the connection/setup page
+                // on first run (when no server address has been saved yet).
+                Type startPage = SettingsService.HasSavedSettings ? typeof(MainPage) : typeof(ConnectionPage);
+                if (!rootFrame.Navigate(startPage, e.Arguments))
                 {
                     throw new Exception("Failed to create initial page");
                 }

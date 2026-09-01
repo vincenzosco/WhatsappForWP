@@ -37,14 +37,20 @@ A simple TCP relay server that broadcasts messages between connected clients.
 - Displays connection logs and message previews
 - Written in .NET Framework 4.5.1
 
-### WhatsappBridge (Node.js Bridge Server)
+> **Note:** this relay is now merged into `WhatsappBridge/server.js`. The Node.js
+> unified server does both the TCP relay *and* the WhatsApp bridge in one process.
+> The .NET project is kept for reference / standalone use.
 
-A Node.js server that connects your Windows Phone 8.1 app to actual WhatsApp servers using the `whatsapp-web.js` library.
+### WhatsappBridge (Node.js Unified Server)
+
+A Node.js server that combines the TCP relay (`WhatsappServer`) and the WhatsApp bridge in a single process. It connects your Windows Phone 8.1 app to actual WhatsApp servers using the `whatsapp-web.js` library.
 
 **Features:**
 - Authenticates with WhatsApp Web via QR code scanning
 - Maintains session (no re-scan required after first login)
 - Relays text messages between your WP8 app and WhatsApp contacts
+- Relays messages between connected WP8 clients (local/community chats)
+- Encrypted connection (AES-256-GCM) between the app and the server
 - Image/media message support: sends and receives photos
 - Message queue: messages sent before WhatsApp is ready are queued and sent automatically
 - Graceful shutdown handling
@@ -66,9 +72,13 @@ On first run, scan the QR code with WhatsApp > Linked Devices.
 The TCP protocol uses length-prefixed JSON messages, compatible with Windows `DataWriter`/`DataReader`:
 
 - 4 bytes: message length (UInt32, Little Endian)
-- N bytes: UTF-8 JSON body
+- N bytes: encrypted payload
 
-The JSON body follows the `ChatMessage` schema:
+The payload is encrypted with **AES-256-GCM** using a pre-shared key (SHA-256 of a passphrase):
+12-byte random IV, ciphertext, 16-byte auth tag. The app and the server must use the
+same passphrase (`BRIDGE_KEY` env var on the server, constant in `CryptoHelper.cs` in the app).
+
+After decryption, the JSON body follows the `ChatMessage` schema:
 
 ```json
 {
