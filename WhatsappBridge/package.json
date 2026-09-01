@@ -1,7 +1,7 @@
 {
-  "name": "whatsapp-bridge",
-  "version": "1.0.0",
-  "description": "WhatsApp Bridge Server - Connects Windows Phone 8.1 WhatsApp app to actual WhatsApp servers via whatsapp-web.js",
+  "name": "whatsapp-unified-server",
+  "version": "1.2.0",
+  "description": "WhatsApp Unified Server - encrypted (AES-256-GCM) TCP relay between Windows Phone 8.1 clients + bridge to actual WhatsApp servers via whatsapp-web.js",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
