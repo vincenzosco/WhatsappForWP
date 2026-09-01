@@ -1,19 +1,30 @@
 /**
  * ============================================================================
- *  WhatsApp Community Bridge Server v1.0
+ *  WhatsApp Community Unified Server v1.1
  * ============================================================================
- *  Connects your Windows Phone 8.1 WhatsApp Community App to actual WhatsApp
- *  servers via the whatsapp-web.js library.
+ *  Single server that combines the two original components:
  *
- *  ⚠️  DISCLAIMER: This is an unofficial bridge. Using it violates WhatsApp's
+ *   1. WhatsappServer (.NET relay)  -> relays messages between connected
+ *      Windows Phone 8.1 clients, so phones can chat with each other.
+ *   2. WhatsappBridge (Node.js)     -> connects the WP8 app to real WhatsApp
+ *      servers via the whatsapp-web.js library.
+ *
+ *  Routing of messages coming from the WP8 app:
+ *   - Chat IDs mapped to a WhatsApp contact ("wa_...") are sent to WhatsApp.
+ *   - Any other chat ID is relayed to the other connected WP8 clients.
+ *
+ *  DISCLAIMER: This is an unofficial bridge. Using it violates WhatsApp's
  *     Terms of Service. Your account may be permanently banned. Use at your
  *     own risk and only with test/secondary phone numbers.
  *
- *  Protocol: TCP with length-prefixed JSON messages (same as WP8 app)
+ *  Protocol: TCP with length-prefixed frames (same as WP8 app)
  *  ┌─────────────────────────────────────────────┐
- *  │  4 bytes (UInt32 LE) = message length      │
- *  │  N bytes (UTF-8)     = ChatMessage JSON    │
+ *  │  4 bytes (UInt32 LE) = payload length       │
+ *  │  N bytes (UTF-8)     = encrypted payload    │
  *  └─────────────────────────────────────────────┘
+ *
+ *  The payload is AES-256-GCM encrypted (12-byte random IV + ciphertext with
+ *  a 16-byte auth tag) using a pre-shared key. See crypto-helper.js.
  *
  *  ChatMessage JSON uses DataContractJsonSerializer format:
  *  - Timestamps: "\/Date(epochMs)\/" (not ISO 8601!)
@@ -28,6 +39,7 @@
 const net = require('net');
 const path = require('path');
 const fs = require('fs');
+const cryptoHelper = require('./crypto-helper');
 const { Client, LocalAuth, MessageMedia } = require('whatsapp-web.js');
 
 // ─── Configuration ──────────────────────────────────────────────────────────
@@ -56,11 +68,11 @@ let qrCodeData = null;
 
 function log(level, ...args) {
   const ts = new Date().toISOString().replace('T', ' ').substring(0, 19);
-  const icons = { INFO: 'ℹ️', OK: '✅', WARN: '⚠️', ERR: '❌', MSG: '💬', QR: '📱', NET: '🔗' };
-  console.log(`${ts} ${icons[level] || '•'}`, ...args);
+  const tags = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
+  console.log(`${ts} ${tags[level] || ''}`, ...args);
 }
 
-function debug(...args) { if (DEBUG) console.log(`  🐛`, ...args); }
+function debug(...args) { if (DEBUG) console.log('  [DEBUG]', ...args); }
 
 // ─── Date Format ────────────────────────────────────────────────────────────
 // CRITICAL: WP8 uses DataContractJsonSerializer which ONLY understands
@@ -68,7 +80,7 @@ function debug(...args) { if (DEBUG) console.log(`  🐛`, ...args); }
 function formatDateForWp8(date) {
   const d = date || new Date();
   const epoch = d.getTime(); // milliseconds since Unix epoch
-  return `\\/Date(${epoch})\\/`;
+  return `\\/Date(${epoch})\\\\`;
 }
 
 // ─── TCP Protocol ───────────────────────────────────────────────────────────
@@ -81,11 +93,7 @@ function sendToWp8Clients(messageJson) {
   }
 
   const jsonStr = JSON.stringify(messageJson);
-  const jsonBuf = Buffer.from(jsonStr, 'utf8');
-  const lenBuf = Buffer.alloc(4);
-  lenBuf.writeUInt32LE(jsonBuf.length, 0); // Little Endian — matches Windows DataWriter
-
-  const packet = Buffer.concat([lenBuf, jsonBuf]);
+  const packet = cryptoHelper.buildFrame(jsonStr);
 
   const deadSockets = [];
   for (const sock of wp8Clients) {
@@ -101,15 +109,37 @@ function sendToWp8Clients(messageJson) {
     wp8Clients.delete(dead);
   }
 
-  debug(`📤 Inviato ${jsonBuf.length}B a ${wp8Clients.size} client(i) WP8`);
+  debug(`Inviato a ${wp8Clients.size} client(i) WP8`);
 }
 
 function sendToClient(socket, msg) {
   const jsonStr = JSON.stringify(msg);
-  const jsonBuf = Buffer.from(jsonStr, 'utf8');
-  const lenBuf = Buffer.alloc(4);
-  lenBuf.writeUInt32LE(jsonBuf.length, 0);
-  try { socket.write(Buffer.concat([lenBuf, jsonBuf])); } catch (e) { /* ignore */ }
+  try { socket.write(cryptoHelper.buildFrame(jsonStr)); } catch (e) { /* ignore */ }
+}
+
+/**
+ * Relays a raw message (exact bytes) from one WP8 client to all the other
+ * connected WP8 clients. This is the classic WhatsappServer (.NET) relay
+ * behavior, now merged into the unified server.
+ */
+function relayToWp8Clients(jsonStr, senderSocket) {
+  let relayed = 0;
+  const deadSockets = [];
+  for (const sock of wp8Clients) {
+    if (sock === senderSocket) continue;
+    try {
+      // Each recipient gets its own freshly encrypted frame (new random IV)
+      sock.write(cryptoHelper.buildFrame(jsonStr));
+      relayed++;
+    } catch (err) {
+      deadSockets.push(sock);
+    }
+  }
+  for (const dead of deadSockets) wp8Clients.delete(dead);
+
+  if (relayed > 0) {
+    debug(`Inoltrato a ${relayed} client(i) WP8 (relay locale)`);
+  }
 }
 
 // ─── ChatMessage Builder ────────────────────────────────────────────────────
@@ -153,7 +183,7 @@ function getChatIdForWhatsApp(waContactId) {
   const chatId = `wa_${digits}`;
   whatsappToChatId.set(waContactId, chatId);
   chatIdToWhatsapp.set(chatId, waContactId);
-  log('INFO', `Mappato contatto: ${waContactId} ↔ ${chatId}`);
+  log('INFO', `Mappato contatto: ${waContactId} <-> ${chatId}`);
   return chatId;
 }
 
@@ -184,10 +214,10 @@ function startTcpServer() {
 
     // Send initial connection status
     const statusText = isWhatsAppReady
-      ? '✅ Connesso a WhatsApp! Pronto per inviare e ricevere messaggi.'
+      ? 'Connesso a WhatsApp! Pronto per inviare e ricevere messaggi.'
       : qrCodeData
-        ? '📱 Scansiona il QR code con WhatsApp > Dispositivi collegati > Collega dispositivo.'
-        : '⏳ Avvio client WhatsApp in corso...';
+        ? 'Scansiona il QR code con WhatsApp > Dispositivi collegati > Collega dispositivo.'
+        : 'Avvio client WhatsApp in corso...';
 
     sendToClient(socket, buildChatMessage({
       text: statusText,
@@ -208,11 +238,12 @@ function startTcpServer() {
 
         if (dataBuffer.length < totalLen) break; // Wait for more data
 
-        const jsonBuf = dataBuffer.slice(4, totalLen);
+        const payload = dataBuffer.slice(4, totalLen);
         dataBuffer = dataBuffer.slice(totalLen);
 
         try {
-          const msg = JSON.parse(jsonBuf.toString('utf8'));
+          const jsonStr = cryptoHelper.decodePayload(payload);
+          const msg = JSON.parse(jsonStr);
 
           // Skip handshake messages (Type = System, ChatId = system)
           if (msg.Type === 3 && msg.ChatId === 'system') {
@@ -220,8 +251,8 @@ function startTcpServer() {
             // Send current status after handshake
             sendToClient(socket, buildChatMessage({
               text: isWhatsAppReady
-                ? '✅ Connesso a WhatsApp! Invia un messaggio per iniziare.'
-                : '⏳ WhatsApp non ancora connesso. Scannerizza il QR code quando appare.',
+                ? 'Connesso a WhatsApp! Invia un messaggio per iniziare.'
+                : 'WhatsApp non ancora connesso. Scannerizza il QR code quando appare.',
               chatId: 'system',
               type: 3,
               isIncoming: true
@@ -229,7 +260,7 @@ function startTcpServer() {
             continue;
           }
 
-          handleMessageFromWp8(msg);
+          handleMessageFromWp8(msg, jsonStr, socket);
         } catch (err) {
           log('ERR', `Errore parsing JSON dal client WP8: ${err.message}`);
         }
@@ -248,7 +279,7 @@ function startTcpServer() {
   });
 
   server.listen(TCP_PORT, '0.0.0.0', () => {
-    log('OK', `📡 Server TCP in ascolto sulla porta ${TCP_PORT}`);
+    log('OK', `Server TCP in ascolto sulla porta ${TCP_PORT}`);
     const interfaces = require('os').networkInterfaces();
     const addresses = [];
     Object.keys(interfaces).forEach(name => {
@@ -274,7 +305,7 @@ function startTcpServer() {
 // ─── WhatsApp Web Client ────────────────────────────────────────────────────
 
 async function startWhatsAppClient() {
-  log('INFO', '🚀 Avvio client WhatsApp Web...');
+  log('INFO', 'Avvio client WhatsApp Web...');
 
   if (!fs.existsSync(SESSION_DIR)) {
     fs.mkdirSync(SESSION_DIR, { recursive: true });
@@ -308,13 +339,13 @@ async function startWhatsAppClient() {
   // ── QR Code Event ──
   whatsappClient.on('qr', (qr) => {
     qrCodeData = qr;
-    log('QR', '📱 NUOVO QR CODE — Scansiona con WhatsApp!');
+    log('QR', 'NUOVO QR CODE - Scansiona con WhatsApp!');
 
-    // Display QR in terminal (with emoji for visibility)
+    // Display QR in terminal
     console.log('');
     console.log('╔══════════════════════════════════════════════════════════╗');
     console.log('║  SCANSIONA IL QR CODE CON WHATSAPP:                    ║');
-    console.log('║  WhatsApp > ⋮ > Dispositivi collegati                   ║');
+    console.log('║  WhatsApp > ... > Dispositivi collegati                 ║');
     console.log('╚══════════════════════════════════════════════════════════╝');
     try {
       const qrcode = require('qrcode-terminal');
@@ -326,7 +357,7 @@ async function startWhatsAppClient() {
 
     // Notify WP8 clients
     sendToWp8Clients(buildChatMessage({
-      text: '📱 QR Code pronto! Apri WhatsApp sul telefono → ⋮ → Dispositivi collegati → Collega dispositivo.\n\nInquadra il QR che appare nel terminale del server.',
+      text: 'QR Code pronto! Apri WhatsApp sul telefono > Dispositivi collegati > Collega dispositivo.\n\nInquadra il QR che appare nel terminale del server.',
       chatId: 'system',
       type: 3,
       isIncoming: true
@@ -337,10 +368,10 @@ async function startWhatsAppClient() {
   whatsappClient.on('ready', () => {
     isWhatsAppReady = true;
     qrCodeData = null;
-    log('OK', '✅ CLIENT WHATSAPP PRONTO!');
+    log('OK', 'CLIENT WHATSAPP PRONTO!');
 
     sendToWp8Clients(buildChatMessage({
-      text: '✅ Connesso a WhatsApp! Ora puoi inviare e ricevere messaggi in tempo reale.',
+      text: 'Connesso a WhatsApp! Ora puoi inviare e ricevere messaggi in tempo reale.',
       chatId: 'system',
       type: 3,
       isIncoming: true
@@ -363,9 +394,9 @@ async function startWhatsAppClient() {
   whatsappClient.on('authenticated', () => log('OK', 'Autenticazione WhatsApp completata!'));
 
   whatsappClient.on('auth_failure', (err) => {
-    log('ERR', `❌ Autenticazione WhatsApp fallita: ${err.message}`);
+    log('ERR', `Autenticazione WhatsApp fallita: ${err.message}`);
     sendToWp8Clients(buildChatMessage({
-      text: `❌ Autenticazione WhatsApp fallita: ${err.message}\nRiavvia il server per riprovare.`,
+      text: `Autenticazione WhatsApp fallita: ${err.message}\nRiavvia il server per riprovare.`,
       chatId: 'system',
       type: 3,
       isIncoming: true
@@ -383,7 +414,7 @@ async function startWhatsAppClient() {
       const timestamp = new Date((msg.timestamp || Math.floor(Date.now()/1000)) * 1000);
 
       if (msg.hasMedia) {
-        log('MSG', `📩 Da ${contactName}: ${msg.body ? msg.body.substring(0, 40) : '(media)'} [${msg.type}]`);
+        log('MSG', `Da ${contactName}: ${msg.body ? msg.body.substring(0, 40) : '(media)'} [${msg.type}]`);
 
         // Download media data
         const media = await msg.downloadMedia().catch(err => {
@@ -417,7 +448,7 @@ async function startWhatsAppClient() {
         } else {
           // Media download failed — send as text placeholder
           sendToWp8Clients(buildChatMessage({
-            text: msg.body || '📎 [Media non supportato]',
+            text: msg.body || '[Media non supportato]',
             senderId: msg.from,
             senderName: contactName,
             chatId: chatId,
@@ -428,7 +459,7 @@ async function startWhatsAppClient() {
           }));
         }
       } else if (msg.body) {
-        log('MSG', `📩 Da ${contactName}: ${msg.body.substring(0, 60)}`);
+        log('MSG', `Da ${contactName}: ${msg.body.substring(0, 60)}`);
 
         sendToWp8Clients(buildChatMessage({
           text: msg.body,
@@ -449,10 +480,10 @@ async function startWhatsAppClient() {
   // ── Disconnected Event ──
   whatsappClient.on('disconnected', (reason) => {
     isWhatsAppReady = false;
-    log('WARN', `⚠️ Client WhatsApp disconnesso: ${reason}`);
+    log('WARN', `Client WhatsApp disconnesso: ${reason}`);
     log('WARN', '   Il client tenterà di riconnettersi automaticamente.');
     sendToWp8Clients(buildChatMessage({
-      text: `⚠️ Disconnesso da WhatsApp: ${reason}\nRiconnessione automatica in corso...`,
+      text: `Disconnesso da WhatsApp: ${reason}\nRiconnessione automatica in corso...`,
       chatId: 'system',
       type: 3,
       isIncoming: true
@@ -463,10 +494,10 @@ async function startWhatsAppClient() {
   try {
     await whatsappClient.initialize();
   } catch (err) {
-    log('ERR', `❌ Errore inizializzazione WhatsApp: ${err.message}`);
+    log('ERR', `Errore inizializzazione WhatsApp: ${err.message}`);
     log('ERR', '   Verifica che Google Chrome/Chromium sia installato.');
     sendToWp8Clients(buildChatMessage({
-      text: `❌ Errore inizializzazione WhatsApp: ${err.message}\nVerifica che Chrome sia installato.`,
+      text: `Errore inizializzazione WhatsApp: ${err.message}\nVerifica che Chrome sia installato.`,
       chatId: 'system',
       type: 3,
       isIncoming: true
@@ -493,22 +524,22 @@ async function sendMessageToWhatsApp(waContactId, text, originalMsg) {
       // If there's caption text, send media with caption
       if (text && text.trim()) {
         await whatsappClient.sendMessage(waContactId, media, { caption: text });
-        log('MSG', `✅ Inviata immagine con didascalia a ${waContactId}`);
+        log('MSG', `Inviata immagine con didascalia a ${waContactId}`);
       } else {
         await whatsappClient.sendMessage(waContactId, media);
-        log('MSG', `✅ Inviata immagine a ${waContactId}`);
+        log('MSG', `Inviata immagine a ${waContactId}`);
       }
     } else if (text && text.trim()) {
       // Send text message
       await whatsappClient.sendMessage(waContactId, text);
-      log('MSG', `✅ Inviato a ${waContactId}: ${text.substring(0, 40)}`);
+      log('MSG', `Inviato a ${waContactId}: ${text.substring(0, 40)}`);
     }
   } catch (err) {
-    log('ERR', `❌ Errore invio a ${waContactId}: ${err.message}`);
+    log('ERR', `Errore invio a ${waContactId}: ${err.message}`);
     // Only notify WP8 if the original message wasn't queued
     if (isWhatsAppReady) {
       sendToWp8Clients(buildChatMessage({
-        text: `❌ Errore invio: ${err.message}`,
+        text: `Errore invio: ${err.message}`,
         chatId: originalMsg?.ChatId || 'system',
         type: 3,
         isIncoming: true
@@ -519,7 +550,7 @@ async function sendMessageToWhatsApp(waContactId, text, originalMsg) {
 
 // ─── Handle Messages from WP8 App ──────────────────────────────────────────
 
-async function handleMessageFromWp8(msg) {
+async function handleMessageFromWp8(msg, jsonStr, senderSocket) {
   // Validate message has text OR media
   const hasMedia = msg.MediaData && msg.MediaMimeType;
   if ((!msg.Text || !msg.Text.trim()) && !hasMedia) {
@@ -530,8 +561,8 @@ async function handleMessageFromWp8(msg) {
   // Map WP8 chat ID to WhatsApp contact ID
   let waContactId = chatIdToWhatsapp.get(msg.ChatId);
 
-  // If not found, try to search by name
-  if (!waContactId && msg.SenderName) {
+  // If not found, try to search by name (only for WhatsApp-style chat IDs)
+  if (!waContactId && msg.SenderName && String(msg.ChatId).startsWith('wa_')) {
     debug(`Chat ID "${msg.ChatId}" sconosciuto, cerco per nome "${msg.SenderName}"...`);
     try {
       const chats = await whatsappClient.getChats();
@@ -551,13 +582,15 @@ async function handleMessageFromWp8(msg) {
   }
 
   if (!waContactId) {
-    log('WARN', `Contatto non trovato per chat ID "${msg.ChatId}" (nome: "${msg.SenderName}")`);
-    sendToWp8Clients(buildChatMessage({
-      text: `❌ Contatto "${msg.SenderName}" non trovato. I messaggi arrivano prima che tu scriva.\nScrivi a un contatto esistente dalla rubrica WhatsApp.`,
-      chatId: msg.ChatId,
-      type: 3,
-      isIncoming: true
-    }));
+    // Not a WhatsApp chat: relay it to the other connected WP8 clients.
+    // This is the merged WhatsappServer (.NET relay) behavior.
+    const otherClients = [...wp8Clients].filter(s => s !== senderSocket);
+    if (otherClients.length > 0) {
+      log('NET', `Relay locale: "${msg.SenderName || 'Sconosciuto'}" -> chat "${msg.ChatId}" inoltrato a ${otherClients.length} client(i)`);
+      relayToWp8Clients(jsonStr, senderSocket);
+    } else {
+      log('WARN', `Contatto WhatsApp non trovato per "${msg.ChatId}" e nessun altro client WP8 connesso (messaggio non inoltrato)`);
+    }
     return;
   }
 
@@ -566,7 +599,7 @@ async function handleMessageFromWp8(msg) {
     log('INFO', `Messaggio in coda (WhatsApp non pronto): ${msg.Text.substring(0, 40)}`);
     pendingMessages.push({ chatId: waContactId, text: msg.Text, originalMsg: msg });
     sendToWp8Clients(buildChatMessage({
-      text: '⏳ WhatsApp non ancora connesso. Il messaggio verrà inviato automaticamente appena pronto.',
+      text: 'WhatsApp non ancora connesso. Il messaggio verrà inviato automaticamente appena pronto.',
       chatId: msg.ChatId,
       type: 3,
       isIncoming: true
@@ -585,14 +618,14 @@ async function main() {
   console.log('');
   console.log('╔═══════════════════════════════════════════════════════════╗');
   console.log('║                                                           ║');
-  console.log('║   WhatsApp Community Bridge Server v1.0                   ║');
-  console.log('║   ──────────────────────────────────────────              ║');
+  console.log('║   WhatsApp Community Unified Server v1.1                  ║');
+  console.log('║   -------------------------------------------             ║');
   console.log('║   Collega la tua app Windows Phone 8.1                    ║');
-  console.log('║   ai server WhatsApp reali!                              ║');
+  console.log('║   ai server WhatsApp reali e ad altri telefoni!           ║');
   console.log('║                                                           ║');
-  console.log('║   ⚠️  Attenzione: uso non ufficiale                      ║');
-  console.log('║      Rischio ban dell\'account WhatsApp                   ║');
-  console.log('║      Usa solo con numeri secondari/test                  ║');
+  console.log('║   Attenzione: uso non ufficiale                           ║');
+  console.log('║      Rischio ban dell\'account WhatsApp                    ║');
+  console.log('║      Usa solo con numeri secondari/test                   ║');
   console.log('║                                                           ║');
   console.log('╚═══════════════════════════════════════════════════════════╝');
   console.log('');
@@ -600,10 +633,11 @@ async function main() {
   log('INFO', `Node.js ${process.version}`);
   log('INFO', `Sessione: ${SESSION_DIR}`);
   log('INFO', `Porta:    ${TCP_PORT}`);
+  log('INFO', `Cifratura: AES-256-GCM ${cryptoHelper.ENCRYPTION_ENABLED ? 'ATTIVA' : 'DISATTIVATA (BRIDGE_ENCRYPTION=off)'}`);
   log('INFO', `Debug:   ${DEBUG ? 'ON' : 'OFF'}`);
   console.log('');
 
-  // Start TCP server (accepts WP8 client connections)
+  // Start TCP server (accepts WP8 client connections + relay)
   startTcpServer();
 
   // Start WhatsApp Web client (connects to real WhatsApp)
@@ -611,7 +645,7 @@ async function main() {
 
   // ── Graceful Shutdown ──
   const shutdown = async () => {
-    log('INFO', '🛑 Arresto in corso...');
+    log('INFO', 'Arresto in corso...');
     if (whatsappClient) {
       try { await whatsappClient.destroy(); } catch (e) { /* ignore */ }
     }
@@ -626,6 +660,6 @@ async function main() {
 // ─── Start ──────────────────────────────────────────────────────────────────
 
 main().catch(err => {
-  console.error('❌ ERRORE FATALE:', err);
+  console.error('ERRORE FATALE:', err);
   process.exit(1);
 });

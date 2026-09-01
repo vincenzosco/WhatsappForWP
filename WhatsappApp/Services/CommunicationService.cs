@@ -135,22 +135,18 @@ namespace WhatsappApp.Services
 
                 while (_isConnected)
                 {
-                    uint sizeFieldCount = await reader.LoadAsync(4);
-                    if (sizeFieldCount < 4) break;
+                    // Read one encrypted frame
+                    byte[] payload = await ReadFrameAsync(reader);
+                    if (payload == null) break;
 
-                    uint messageLength = reader.ReadUInt32();
-                    uint actualLength = await reader.LoadAsync(messageLength);
-                    if (actualLength < messageLength) break;
+                    // Forward the encrypted frame to the other clients
+                    // (same shared key, each frame carries its own IV)
+                    await BroadcastToAllClientsAsync(payload, socket);
 
-                    byte[] messageData = new byte[messageLength];
-                    reader.ReadBytes(messageData);
-                    string json = Encoding.UTF8.GetString(messageData, 0, messageData.Length);
-
-                    var message = ChatMessage.FromJson(json);
+                    // Decrypt for the local UI
+                    var message = DecryptToMessage(payload);
                     if (message != null)
                     {
-                        // Broadcast to other clients and dispatch to UI
-                        await BroadcastToAllClientsAsync(json, socket);
                         DispatchOnUiThread(() => MessageReceived?.Invoke(this, message));
                     }
                 }
@@ -199,7 +195,9 @@ namespace WhatsappApp.Services
                 _reader = new DataReader(_clientSocket.InputStream);
                 _reader.InputStreamOptions = InputStreamOptions.Partial;
 
-                // Send handshake with our identity
+                _isConnected = true;
+
+                // Send handshake with our identity (encrypted)
                 var handshake = new ChatMessage
                 {
                     Id = "handshake",
@@ -211,9 +209,8 @@ namespace WhatsappApp.Services
                     Type = MessageType.System,
                     IsIncoming = false
                 };
-                await SendMessageAsync(handshake);
+                await SendFrameAsync(_clientSocket, Encoding.UTF8.GetBytes(handshake.ToJson()));
 
-                _isConnected = true;
                 DispatchOnUiThread(() =>
                     ConnectionStatusChanged?.Invoke(this, "Connesso al server")
                 );
@@ -239,18 +236,10 @@ namespace WhatsappApp.Services
             {
                 while (_isConnected && _clientSocket != null && _reader != null)
                 {
-                    uint sizeFieldCount = await _reader.LoadAsync(4);
-                    if (sizeFieldCount < 4) break;
+                    byte[] payload = await ReadFrameAsync(_reader);
+                    if (payload == null) break;
 
-                    uint messageLength = _reader.ReadUInt32();
-                    uint actualLength = await _reader.LoadAsync(messageLength);
-                    if (actualLength < messageLength) break;
-
-                    byte[] messageData = new byte[messageLength];
-                    _reader.ReadBytes(messageData);
-                    string json = Encoding.UTF8.GetString(messageData, 0, messageData.Length);
-
-                    var message = ChatMessage.FromJson(json);
+                    var message = DecryptToMessage(payload);
                     if (message != null)
                     {
                         DispatchOnUiThread(() => MessageReceived?.Invoke(this, message));
@@ -293,12 +282,13 @@ namespace WhatsappApp.Services
 
                 if (_isServerMode)
                 {
-                    // Broadcast to all connected clients
-                    await BroadcastToAllClientsAsync(json, null);
+                    // Encrypt and broadcast to all connected clients
+                    byte[] payload = CryptoHelper.Encrypt(jsonBytes);
+                    await BroadcastToAllClientsAsync(payload, null);
                 }
                 else if (_clientSocket != null)
                 {
-                    await SendDataAsync(_clientSocket, jsonBytes);
+                    await SendFrameAsync(_clientSocket, jsonBytes);
                 }
             }
             catch (Exception ex)
@@ -309,10 +299,12 @@ namespace WhatsappApp.Services
             }
         }
 
-        private async Task BroadcastToAllClientsAsync(string json, StreamSocket excludeSocket)
+        /// <summary>
+        /// Broadcasts an already-encrypted payload to all connected clients
+        /// (except the excluded one).
+        /// </summary>
+        private async Task BroadcastToAllClientsAsync(byte[] payload, StreamSocket excludeSocket)
         {
-            byte[] data = Encoding.UTF8.GetBytes(json);
-
             // Snapshot the client list under lock, then release before async work
             List<StreamSocket> snapshot;
             lock (_serverClients)
@@ -329,8 +321,8 @@ namespace WhatsappApp.Services
                 try
                 {
                     var writer = new DataWriter(client.OutputStream);
-                    writer.WriteUInt32((uint)data.Length);
-                    writer.WriteBytes(data);
+                    writer.WriteUInt32((uint)payload.Length);
+                    writer.WriteBytes(payload);
                     await writer.StoreAsync();
                     await writer.FlushAsync();
                 }
@@ -351,13 +343,57 @@ namespace WhatsappApp.Services
             }
         }
 
-        private async Task SendDataAsync(StreamSocket socket, byte[] data)
+        /// <summary>
+        /// Encrypts the JSON bytes and writes one frame:
+        /// [4-byte UInt32LE payload length][encrypted payload].
+        /// </summary>
+        private async Task SendFrameAsync(StreamSocket socket, byte[] jsonBytes)
         {
+            byte[] payload = CryptoHelper.Encrypt(jsonBytes);
             var writer = new DataWriter(socket.OutputStream);
-            writer.WriteUInt32((uint)data.Length);
-            writer.WriteBytes(data);
+            writer.WriteUInt32((uint)payload.Length);
+            writer.WriteBytes(payload);
             await writer.StoreAsync();
             await writer.FlushAsync();
+        }
+
+        /// <summary>
+        /// Reads one complete frame: [4-byte length][payload].
+        /// Returns null when the connection is closed or the frame is incomplete.
+        /// </summary>
+        private async Task<byte[]> ReadFrameAsync(DataReader reader)
+        {
+            uint sizeFieldCount = await reader.LoadAsync(4);
+            if (sizeFieldCount < 4) return null;
+
+            uint payloadLength = reader.ReadUInt32();
+            uint actualLength = await reader.LoadAsync(payloadLength);
+            if (actualLength < payloadLength) return null;
+
+            byte[] payload = new byte[payloadLength];
+            reader.ReadBytes(payload);
+            return payload;
+        }
+
+        /// <summary>
+        /// Decrypts a frame payload and parses it into a ChatMessage.
+        /// Returns null on decrypt/parse failure (e.g. wrong key or tampering).
+        /// </summary>
+        private ChatMessage DecryptToMessage(byte[] payload)
+        {
+            try
+            {
+                byte[] jsonBytes = CryptoHelper.Decrypt(payload);
+                string json = Encoding.UTF8.GetString(jsonBytes, 0, jsonBytes.Length);
+                return ChatMessage.FromJson(json);
+            }
+            catch (Exception ex)
+            {
+                DispatchOnUiThread(() =>
+                    ErrorOccurred?.Invoke(this, $"Errore decifratura messaggio: {ex.Message}")
+                );
+                return null;
+            }
         }
 
         /// <summary>

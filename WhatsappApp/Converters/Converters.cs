@@ -40,7 +40,7 @@ namespace WhatsappApp.Converters
                 case Models.MessageStatus.Sent: return "\u2713";          // ✓
                 case Models.MessageStatus.Delivered: return "\u2713\u2713"; // ✓✓
                 case Models.MessageStatus.Read: return "\u2713\u2713";    // ✓✓ (blue)
-                case Models.MessageStatus.Failed: return "\u26A0";        // ⚠
+                case Models.MessageStatus.Failed: return "\u2717";        // ✗
                 default: return "";
             }
         }

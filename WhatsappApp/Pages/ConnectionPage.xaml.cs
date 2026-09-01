@@ -9,6 +9,7 @@ namespace WhatsappApp.Pages
     {
         private bool _isServerMode = false;
         private int _serverPort = 8585;
+        private bool _isFirstRun;
 
         public ConnectionPage()
         {
@@ -18,6 +19,33 @@ namespace WhatsappApp.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            _isFirstRun = !SettingsService.HasSavedSettings;
+
+            // Prefill the fields with the saved settings
+            string savedAddress = SettingsService.ServerAddress;
+            if (!string.IsNullOrEmpty(savedAddress))
+            {
+                ServerAddressBox.Text = savedAddress;
+            }
+
+            int savedPort = SettingsService.ServerPort;
+            if (savedPort > 0)
+            {
+                ServerPortBox.Text = savedPort.ToString();
+                _serverPort = savedPort;
+                ServerPortValueText.Text = savedPort.ToString();
+                ServerPortInfoText.Text = savedPort.ToString();
+            }
+
+            string savedUsername = SettingsService.Username;
+            if (!string.IsNullOrEmpty(savedUsername))
+            {
+                UsernameBox.Text = savedUsername;
+            }
+
+            PageTitleText.Text = _isFirstRun ? "Prima configurazione" : "Impostazioni Server";
+
             CommunicationService.Instance.ConnectionStatusChanged += OnConnectionStatusChanged;
             CommunicationService.Instance.ErrorOccurred += OnErrorOccurred;
         }
@@ -34,7 +62,7 @@ namespace WhatsappApp.Pages
             _isServerMode = false;
             ClientSettings.Visibility = Visibility.Visible;
             ServerSettings.Visibility = Visibility.Collapsed;
-            ActionButton.Content = "🔗  Connetti al server";
+            ActionButton.Content = "Connetti al server";
         }
 
         private void ServerMode_Checked(object sender, RoutedEventArgs e)
@@ -42,7 +70,7 @@ namespace WhatsappApp.Pages
             _isServerMode = true;
             ClientSettings.Visibility = Visibility.Collapsed;
             ServerSettings.Visibility = Visibility.Visible;
-            ActionButton.Content = "📡  Avvia server";
+            ActionButton.Content = "Avvia server";
             ServerPortValueText.Text = _serverPort.ToString();
             ServerPortInfoText.Text = _serverPort.ToString();
         }
@@ -61,7 +89,6 @@ namespace WhatsappApp.Pages
 
             if (_isServerMode)
             {
-                StatusIconText.Text = "📡";
                 StatusText.Text = $"Avvio server sulla porta {_serverPort}...";
                 await CommunicationService.Instance.StartServerAsync(username, _serverPort);
             }
@@ -70,24 +97,48 @@ namespace WhatsappApp.Pages
                 string address = ServerAddressBox.Text?.Trim();
                 if (string.IsNullOrEmpty(address)) address = "192.168.1.100";
 
-                StatusIconText.Text = "🔄";
-                StatusText.Text = $"Connessione a {address}:{_serverPort}...";
+                // Read the port from the client-mode port field
+                int port = _serverPort;
+                if (!string.IsNullOrEmpty(ServerPortBox.Text) &&
+                    int.TryParse(ServerPortBox.Text.Trim(), out int boxPort))
+                {
+                    port = boxPort;
+                    _serverPort = port;
+                }
+
+                StatusText.Text = $"Connessione a {address}:{port}...";
                 bool connected = await CommunicationService.Instance.ConnectToServerAsync(
-                    address, _serverPort, username);
+                    address, port, username);
 
                 if (connected)
                 {
-                    StatusIconText.Text = "✅";
-                    StatusText.Text = "✅ Connesso!";
+                    // Remember the settings for next time
+                    SettingsService.Save(address, port, username);
+
+                    StatusText.Text = "Connesso!";
                     ActionButton.Visibility = Visibility.Collapsed;
                     DisconnectButton.Visibility = Visibility.Visible;
+
+                    // Continue to the chat list (first run) or back to it (settings)
+                    ContinueToMainPage();
                 }
                 else
                 {
-                    StatusIconText.Text = "❌";
-                    StatusText.Text = "❌ Connessione fallita";
+                    StatusText.Text = "Connessione fallita";
                     ActionButton.IsEnabled = true;
                 }
+            }
+        }
+
+        private void ContinueToMainPage()
+        {
+            if (Frame.CanGoBack)
+            {
+                Frame.GoBack();
+            }
+            else
+            {
+                Frame.Navigate(typeof(MainPage));
             }
         }
 
@@ -105,7 +156,6 @@ namespace WhatsappApp.Pages
             StatusText.Text = status;
             if (status.Contains("Connesso") || status.Contains("avviato"))
             {
-                StatusIconText.Text = "✅";
                 ActionButton.Visibility = Visibility.Collapsed;
                 DisconnectButton.Visibility = Visibility.Visible;
             }
@@ -113,7 +163,6 @@ namespace WhatsappApp.Pages
 
         private void OnErrorOccurred(object sender, string error)
         {
-            StatusIconText.Text = "❌";
             StatusText.Text = error;
             ActionButton.IsEnabled = true;
         }
@@ -123,6 +172,11 @@ namespace WhatsappApp.Pages
             if (Frame.CanGoBack)
             {
                 Frame.GoBack();
+            }
+            else
+            {
+                // First run with no saved settings: allow skipping the setup
+                ContinueToMainPage();
             }
         }
 

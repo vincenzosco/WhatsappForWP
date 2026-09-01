@@ -94,7 +94,9 @@
     <Compile Include="Models\ServerConfig.cs" />
     <Compile Include="Converters\Converters.cs" />
     <Compile Include="Services\CommunicationService.cs" />
+    <Compile Include="Services\CryptoHelper.cs" />
     <Compile Include="Services\DataService.cs" />
+    <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>

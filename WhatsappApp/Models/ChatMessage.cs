@@ -148,9 +148,9 @@ namespace WhatsappApp.Models
         {
             get
             {
-                if (Type == MessageType.Image) return "🖼️ Foto";
-                if (Type == MessageType.Audio) return "🎵 Audio";
-                return "📎 File";
+                if (Type == MessageType.Image) return "Foto";
+                if (Type == MessageType.Audio) return "Audio";
+                return "File";
             }
         }
 

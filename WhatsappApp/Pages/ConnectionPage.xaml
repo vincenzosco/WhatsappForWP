@@ -31,7 +31,7 @@
                     Click="BackButton_Click"
                     BorderThickness="0"/>
 
-            <TextBlock Grid.Column="1" Text="Impostazioni Server"
+            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="Impostazioni Server"
                        Foreground="White" FontSize="20" FontWeight="SemiBold"
                        VerticalAlignment="Center" Margin="8,0,0,4"/>
         </Grid>
@@ -43,13 +43,13 @@
                 <TextBlock Text="Modalità di connessione" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
                 <Border Background="White" CornerRadius="8" Margin="0,4,0,0">
                     <StackPanel Margin="12,8">
-                        <RadioButton x:Name="ClientModeRadio" Content="🔗  Modalità Client"
+                        <RadioButton x:Name="ClientModeRadio" Content="Modalità Client"
                                      IsChecked="True" GroupName="Mode" FontSize="16"
                                      Foreground="Black" Margin="0,4"
                                      Checked="ClientMode_Checked"/>
                         <TextBlock Text="Connetti a un server su PC" 
                                    Foreground="#FF808080" FontSize="12" Margin="24,0,0,8"/>
-                        <RadioButton x:Name="ServerModeRadio" Content="📡  Modalità Server"
+                        <RadioButton x:Name="ServerModeRadio" Content="Modalità Server"
                                      GroupName="Mode" FontSize="16"
                                      Foreground="Black" Margin="0,4"
                                      Checked="ServerMode_Checked"/>
@@ -75,7 +75,7 @@
                 <StackPanel x:Name="ServerSettings" Visibility="Collapsed" Margin="0,8,0,0">
                     <Border Background="White" CornerRadius="8">
                         <StackPanel Margin="12">
-                            <TextBlock Text="📡 Server in ascolto sulla porta:" Foreground="Black" FontSize="14"/>
+                            <TextBlock Text="Server in ascolto sulla porta:" Foreground="Black" FontSize="14"/>
                             <TextBlock x:Name="ServerPortInfoText" Text="8585"
                                        Foreground="#FF128C7E" FontSize="28" FontWeight="Bold"
                                        HorizontalAlignment="Center" Margin="0,8"/>
@@ -118,20 +118,19 @@
                 <Border x:Name="StatusPanel" Background="#FFF0F0F0" CornerRadius="8" Margin="0,8,0,0"
                         Visibility="Collapsed">
                     <StackPanel Margin="12">
-                        <TextBlock x:Name="StatusIconText" Text="🔄" FontSize="24" HorizontalAlignment="Center"/>
                         <TextBlock x:Name="StatusText" Text="Connessione in corso..."
                                    Foreground="#FF128C7E" FontSize="14" TextAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Connect/Start Server Button -->
-                <Button x:Name="ActionButton" Content="🔗  Connetti al server"
+                <Button x:Name="ActionButton" Content="Connetti al server"
                         Background="{StaticResource WhatsAppAccentBrush}"
                         Foreground="White" FontSize="18" FontWeight="SemiBold"
                         Height="52" BorderThickness="0" Margin="0,12,0,0"
                         Click="ActionButton_Click"/>
 
-                <Button x:Name="DisconnectButton" Content="⛔  Disconnetti"
+                <Button x:Name="DisconnectButton" Content="Disconnetti"
                         Background="#FFE53935"
                         Foreground="White" FontSize="16"
                         Height="44" BorderThickness="0" Margin="0,8,0,0"
@@ -141,12 +140,12 @@
                 <!-- Server info box -->
                 <Border Background="White" CornerRadius="8" Margin="0,8,0,0">
                     <StackPanel Margin="12">
-                        <TextBlock Text="💡 Come funziona" Foreground="#FF075E54" FontSize="16" FontWeight="SemiBold"/>
+                        <TextBlock Text="Come funziona" Foreground="#FF075E54" FontSize="16" FontWeight="SemiBold"/>
                         <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="#FF606060" Margin="0,8,0,0">
                         <Run Text="Questa app è un client WhatsApp gestito dalla community."/>
                         <LineBreak/><LineBreak/>
                         <Run Text="Modalità Client:" FontWeight="SemiBold"/>
-                        <Run Text=" Collegati al server PC (vedi progetto WhatsappServer) per inviare/ricevere messaggi in tempo reale."/>
+                        <Run Text=" Collegati al server unificato del progetto (relay + bridge WhatsApp) per inviare/ricevere messaggi in tempo reale."/>
                         <LineBreak/><LineBreak/>
                         <Run Text="Modalità Server:" FontWeight="SemiBold"/>
                         <Run Text=" Ospita il server direttamente sul telefono. Altri dispositivi possono connettersi al tuo indirizzo IP."/>
