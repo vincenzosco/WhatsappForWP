@@ -15,7 +15,7 @@ The main client app with an authentic WhatsApp user interface.
 - Text messaging with Enter-to-send
 - Image attachment: pick photos from gallery and send them via the bridge
 - Image preview in chat bubbles (base64 over TCP)
-- Connection settings: connect to a PC bridge server, or self-host as a TCP relay
+- Connection settings: point the app at the GOWA adapter, then log in with a QR code or a phone pairing code
 - Italian language UI
 
 **Architecture:**
@@ -37,35 +37,53 @@ A simple TCP relay server that broadcasts messages between connected clients.
 - Displays connection logs and message previews
 - Written in .NET Framework 4.5.1
 
-> **Note:** this relay is now merged into `WhatsappBridge/server.js`. The Node.js
-> unified server does both the TCP relay *and* the WhatsApp bridge in one process.
-> The .NET project is kept for reference / standalone use.
+> **Note:** this relay is superseded by `WhatsappBridge/server.js`, which now
+> bridges the WP8 app to a self-hosted **GOWA** server instead of relaying to
+> other phones. The .NET project is kept for reference / standalone use.
 
-### WhatsappBridge (Node.js Unified Server)
+### GOWA Adapter (Node.js)
 
-A Node.js server that combines the TCP relay (`WhatsappServer`) and the WhatsApp bridge in a single process. It connects your Windows Phone 8.1 app to actual WhatsApp servers using the `whatsapp-web.js` library.
+A thin adapter that connects the Windows Phone 8.1 app to a self-hosted
+[GOWA](https://github.com/vincenzosco/go-whatsapp-web-multidevice) server
+(`go-whatsapp-web-multidevice`). It does **not** implement its own WhatsApp
+client any more: it uses GOWA's REST API and webhooks.
 
-**Features:**
-- Authenticates with WhatsApp Web via QR code scanning
-- Maintains session (no re-scan required after first login)
-- Relays text messages between your WP8 app and WhatsApp contacts
-- Relays messages between connected WP8 clients (local/community chats)
-- Encrypted connection (AES-256-GCM) between the app and the server
-- Image/media message support: sends and receives photos
-- Message queue: messages sent before WhatsApp is ready are queued and sent automatically
-- Graceful shutdown handling
+**Features**
 
-**Setup:**
+- Login via **QR code** or via **phone number pairing code**, both shown in the app
+- Keeps the encrypted (AES-256-GCM) TCP channel between app and adapter
+- Sends text and images through `POST /send/message` and `POST /send/image`
+- Receives incoming messages through a GOWA webhook (HMAC-verified)
+- Syncs contacts from `GET /user/my/contacts`
+
+**Setup**
+
+1. Start GOWA:
+
+```bash
+git clone https://github.com/vincenzosco/go-whatsapp-web-multidevice
+cd go-whatsapp-web-multidevice/src
+go run . rest --basic-auth=admin:admin --port=3000
+```
+
+2. Start the adapter:
 
 ```bash
 cd WhatsappBridge
+cp .env.example .env   # optional, or export the variables
 npm install
 npm start
 ```
 
-On first run, scan the QR code with WhatsApp > Linked Devices.
+The adapter registers its webhook on GOWA automatically. If that fails, start
+GOWA with `--webhook=http://<adapter-host>:8586/webhook`.
 
-**Requirements:** Node.js 18+, Google Chrome (or Chromium downloaded by Puppeteer).
+3. In the app, set the adapter address/port and tap **Connetti al server**, then
+   log in with the QR code or with your phone number.
+
+**Requirements:** Node.js 18.13+ and a reachable GOWA instance.
+
+Environment variables are documented in `WhatsappBridge/.env.example`.
 
 ## Protocol
 
@@ -84,9 +102,9 @@ After decryption, the JSON body follows the `ChatMessage` schema:
 {
   "Id": "msg_123",
   "Text": "Hello!",
-  "SenderId": "393401234567",
+  "SenderId": "393401234567@s.whatsapp.net",
   "SenderName": "Mario",
-  "ChatId": "wa_393401234567",
+  "ChatId": "393401234567@s.whatsapp.net",
   "Timestamp": "\/Date(1750000000000)\/",
   "Status": 1,
   "Type": 0,
@@ -100,24 +118,30 @@ After decryption, the JSON body follows the `ChatMessage` schema:
 Types: 0=Text, 1=Image, 2=Audio, 3=System
 Statuses: 0=Sending, 1=Sent, 2=Delivered, 3=Read, 4=Failed
 
+`Type = 3` frames are **control frames** (`ChatId = "system"`) used for the
+WhatsApp login flow: the app sends `login.qr` / `login.code` and the adapter
+answers with `qr` / `paircode` / `state` / `contact` / `error` frames. See
+`WhatsappBridge/README.md` for the full command table.
+
 ## Building
 
 ### WP8 App
 
 Open `WhatsappApp.sln` in Visual Studio 2015 with Windows Phone 8.1 SDK. Build and deploy to a Windows Phone 8.1 device or emulator.
 
-### Bridge Server
+### GOWA Adapter
 
 ```bash
 cd WhatsappBridge
 npm install
+npm test     # test unitari e di integrazione
 npm start
 ```
 
 ## Disclaimer
 
 - This is an unofficial project not affiliated with WhatsApp or Meta.
-- The bridge server uses unofficial methods to connect to WhatsApp Web, which violates WhatsApp's Terms of Service.
+- GOWA (and therefore this adapter) uses unofficial methods to connect to WhatsApp, which violates WhatsApp's Terms of Service.
 - Using this bridge may result in a permanent ban of your phone number.
 - Only use with test/secondary phone numbers.
 - For production use, refer to the official WhatsApp Business API.

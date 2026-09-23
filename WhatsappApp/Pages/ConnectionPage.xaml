@@ -31,7 +31,7 @@
                     Click="BackButton_Click"
                     BorderThickness="0"/>
 
-            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="Impostazioni Server"
+            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="Configurazione"
                        Foreground="White" FontSize="20" FontWeight="SemiBold"
                        VerticalAlignment="Center" Margin="8,0,0,4"/>
         </Grid>
@@ -39,91 +39,21 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,16,16,16">
 
-                <!-- Mode Selection -->
-                <TextBlock Text="Modalità di connessione" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
-                <Border Background="White" CornerRadius="8" Margin="0,4,0,0">
-                    <StackPanel Margin="12,8">
-                        <RadioButton x:Name="ClientModeRadio" Content="Modalità Client"
-                                     IsChecked="True" GroupName="Mode" FontSize="16"
-                                     Foreground="Black" Margin="0,4"
-                                     Checked="ClientMode_Checked"/>
-                        <TextBlock Text="Connetti a un server su PC" 
-                                   Foreground="#FF808080" FontSize="12" Margin="24,0,0,8"/>
-                        <RadioButton x:Name="ServerModeRadio" Content="Modalità Server"
-                                     GroupName="Mode" FontSize="16"
-                                     Foreground="Black" Margin="0,4"
-                                     Checked="ServerMode_Checked"/>
-                        <TextBlock Text="Ospita il server sul telefono" 
-                                   Foreground="#FF808080" FontSize="12" Margin="24,0,0,0"/>
-                    </StackPanel>
-                </Border>
+                <!-- Server (adapter) -->
+                <TextBlock Text="Server WhatsApp (adapter)" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
+                <TextBox x:Name="ServerAddressBox" Text="192.168.1.100"
+                         PlaceholderText="es. 192.168.1.100"
+                         Background="White" FontSize="16" Margin="0,4,0,0"/>
 
-                <!-- Server address (Client mode) -->
-                <StackPanel x:Name="ClientSettings" Visibility="Visible" Margin="0,8,0,0">
-                    <TextBlock Text="Indirizzo server" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
-                    <TextBox x:Name="ServerAddressBox" Text="192.168.1.100"
-                             PlaceholderText="es. 192.168.1.100"
-                             Background="White" FontSize="16" Margin="0,4,0,0"/>
+                <TextBlock Text="Porta TCP" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                <TextBox x:Name="ServerPortBox" Text="8585"
+                         PlaceholderText="8585"
+                         Background="White" FontSize="16" Margin="0,4,0,0"/>
 
-                    <TextBlock Text="Porta" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                    <TextBox x:Name="ServerPortBox" Text="8585"
-                             PlaceholderText="8585"
-                             Background="White" FontSize="16" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <!-- Server mode info -->
-                <StackPanel x:Name="ServerSettings" Visibility="Collapsed" Margin="0,8,0,0">
-                    <Border Background="White" CornerRadius="8">
-                        <StackPanel Margin="12">
-                            <TextBlock Text="Server in ascolto sulla porta:" Foreground="Black" FontSize="14"/>
-                            <TextBlock x:Name="ServerPortInfoText" Text="8585"
-                                       Foreground="#FF128C7E" FontSize="28" FontWeight="Bold"
-                                       HorizontalAlignment="Center" Margin="0,8"/>
-                            <TextBlock Text="Assicurati che il firewall permetta la connessione" 
-                                       Foreground="#FF808080" FontSize="12"
-                                       TextWrapping="Wrap" TextAlignment="Center"/>
-                        </StackPanel>
-                    </Border>
-
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,12,0,0">
-                        <Grid Width="44" Height="44">
-                            <Ellipse Width="44" Height="44" Fill="#FF128C7E"/>
-                            <Button x:Name="ServerPortDownBtn" Content="−"
-                                    Foreground="White" Background="Transparent"
-                                    BorderThickness="0" FontSize="24" FontWeight="Bold"
-                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                    Click="ServerPortDown_Click"/>
-                        </Grid>
-                        <TextBlock x:Name="ServerPortValueText" Text="8585" FontSize="32" FontWeight="Bold"
-                                   Foreground="#FF075E54"
-                                   VerticalAlignment="Center" HorizontalAlignment="Center"
-                                   Width="80" TextAlignment="Center"/>
-                        <Grid Width="44" Height="44">
-                            <Ellipse Width="44" Height="44" Fill="#FF128C7E"/>
-                            <Button x:Name="ServerPortUpBtn" Content="+"
-                                    Foreground="White" Background="Transparent"
-                                    BorderThickness="0" FontSize="24" FontWeight="Bold"
-                                    HorizontalAlignment="Stretch" VerticalAlignment="Stretch"
-                                    Click="ServerPortUp_Click"/>
-                        </Grid>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Username -->
-                <TextBlock Text="Il tuo nome" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,8,0,0"/>
+                <TextBlock Text="Il tuo nome" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
                 <TextBox x:Name="UsernameBox" Text="Utente"
                          Background="White" FontSize="16" Margin="0,4,0,0"/>
 
-                <!-- Connection status -->
-                <Border x:Name="StatusPanel" Background="#FFF0F0F0" CornerRadius="8" Margin="0,8,0,0"
-                        Visibility="Collapsed">
-                    <StackPanel Margin="12">
-                        <TextBlock x:Name="StatusText" Text="Connessione in corso..."
-                                   Foreground="#FF128C7E" FontSize="14" TextAlignment="Center"/>
-                    </StackPanel>
-                </Border>
-
-                <!-- Connect/Start Server Button -->
                 <Button x:Name="ActionButton" Content="Connetti al server"
                         Background="{StaticResource WhatsAppAccentBrush}"
                         Foreground="White" FontSize="18" FontWeight="SemiBold"
@@ -137,24 +67,82 @@
                         Visibility="Collapsed"
                         Click="DisconnectButton_Click"/>
 
-                <!-- Server info box -->
-                <Border Background="White" CornerRadius="8" Margin="0,8,0,0">
+                <!-- Status -->
+                <Border x:Name="StatusPanel" Background="#FFF0F0F0" CornerRadius="8" Margin="0,8,0,0"
+                        Visibility="Collapsed">
                     <StackPanel Margin="12">
-                        <TextBlock Text="Come funziona" Foreground="#FF075E54" FontSize="16" FontWeight="SemiBold"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="13" Foreground="#FF606060" Margin="0,8,0,0">
-                        <Run Text="Questa app è un client WhatsApp gestito dalla community."/>
-                        <LineBreak/><LineBreak/>
-                        <Run Text="Modalità Client:" FontWeight="SemiBold"/>
-                        <Run Text=" Collegati al server unificato del progetto (relay + bridge WhatsApp) per inviare/ricevere messaggi in tempo reale."/>
-                        <LineBreak/><LineBreak/>
-                        <Run Text="Modalità Server:" FontWeight="SemiBold"/>
-                        <Run Text=" Ospita il server direttamente sul telefono. Altri dispositivi possono connettersi al tuo indirizzo IP."/>
-                        </TextBlock>
+                        <TextBlock x:Name="StatusText" Text="Connessione in corso..."
+                                   Foreground="#FF128C7E" FontSize="14" TextAlignment="Center"
+                                   TextWrapping="Wrap"/>
                     </StackPanel>
                 </Border>
 
-                <!-- Version info -->
-                <TextBlock Text="WhatsApp Community Edition v1.0" 
+                <!-- WhatsApp login -->
+                <StackPanel x:Name="WhatsAppPanel" Visibility="Collapsed" Margin="0,16,0,0">
+                    <TextBlock Text="Connessione a WhatsApp" Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
+
+                    <Border Background="White" CornerRadius="8" Margin="0,4,0,0">
+                        <StackPanel Margin="12">
+                            <TextBlock x:Name="WhatsAppStateText" Text="Non connesso a WhatsApp"
+                                       Foreground="#FF606060" FontSize="14" TextWrapping="Wrap"
+                                       TextAlignment="Center"/>
+
+                            <!-- QR code login -->
+                            <Button x:Name="LoginQrButton" Content="Accedi con QR code"
+                                    Background="{StaticResource WhatsAppGreenBrush}"
+                                    Foreground="White" FontSize="16"
+                                    Height="44" BorderThickness="0" Margin="0,10,0,0"
+                                    Click="LoginQrButton_Click"/>
+
+                            <Image x:Name="QrImage" Width="240" Height="240" Margin="0,10,0,0"
+                                   Visibility="Collapsed" Stretch="Uniform"/>
+
+                            <TextBlock x:Name="QrInfoText" Foreground="#FF808080" FontSize="12"
+                                       TextWrapping="Wrap" TextAlignment="Center" Margin="0,6,0,0"/>
+
+                            <!-- Phone number login -->
+                            <TextBlock Text="oppure accedi con il tuo numero"
+                                       Foreground="#FF606060" FontSize="13"
+                                       HorizontalAlignment="Center" Margin="0,14,0,0"/>
+
+                            <TextBox x:Name="PhoneBox" PlaceholderText="Numero con prefisso, es. 393401234567"
+                                     Background="#FFF7F7F7" FontSize="16" Margin="0,6,0,0"/>
+
+                            <Button x:Name="LoginCodeButton" Content="Ottieni codice"
+                                    Background="{StaticResource WhatsAppGreenBrush}"
+                                    Foreground="White" FontSize="16"
+                                    Height="44" BorderThickness="0" Margin="0,8,0,0"
+                                    Click="LoginCodeButton_Click"/>
+
+                            <TextBlock x:Name="PairCodeText" Foreground="#FF075E54" FontSize="22"
+                                       FontWeight="Bold" TextAlignment="Center"
+                                       TextWrapping="Wrap" Margin="0,10,0,0"/>
+
+                            <Button x:Name="ContinueButton" Content="Continua"
+                                    Background="{StaticResource WhatsAppAccentBrush}"
+                                    Foreground="White" FontSize="18" FontWeight="SemiBold"
+                                    Height="48" BorderThickness="0" Margin="0,14,0,0"
+                                    IsEnabled="False"
+                                    Click="ContinueButton_Click"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- How to -->
+                    <Border Background="#FFF7F7F7" CornerRadius="8" Margin="0,8,0,0">
+                        <StackPanel Margin="12">
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#FF606060">
+                                <Run Text="QR code:" FontWeight="SemiBold"/>
+                                <Run Text=" apri WhatsApp sul telefono > Dispositivi collegati > Collega un dispositivo e inquadra il codice."/>
+                                <LineBreak/><LineBreak/>
+                                <Run Text="Numero:" FontWeight="SemiBold"/>
+                                <Run Text=" inserisci il numero internazionale, tocca Ottieni codice e digita il codice nelle impostazioni di WhatsApp."/>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Version -->
+                <TextBlock Text="WhatsApp Community Edition v2.0 (GOWA)"
                            Foreground="#FF808080" FontSize="11"
                            HorizontalAlignment="Center" Margin="0,16,0,16"/>
             </StackPanel>

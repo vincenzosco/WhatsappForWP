@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using Windows.Phone.UI.Input;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -21,6 +22,9 @@ namespace WhatsappApp
         {
             base.OnNavigatedTo(e);
             ChatListView.ItemsSource = DataService.Instance.Contacts;
+
+            if (CommunicationService.Instance.IsConnected)
+                _ = CommunicationService.Instance.SendControlAsync("contacts");
 
             // Register the hardware back button
             HardwareButtons.BackPressed += HardwareButtons_BackPressed;
@@ -65,9 +69,51 @@ namespace WhatsappApp
             // TODO: Show more options menu
         }
 
-        private void NewChatButton_Click(object sender, RoutedEventArgs e)
+        private async void NewChatButton_Click(object sender, RoutedEventArgs e)
         {
-            // TODO: Open new chat screen
+            var input = new TextBox
+            {
+                PlaceholderText = "Numero con prefisso internazionale, es. 393401234567"
+            };
+
+            var dialog = new ContentDialog
+            {
+                Title = "Nuova chat",
+                Content = input,
+                PrimaryButtonText = "Apri",
+                CloseButtonText = "Annulla"
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            string phone = (input.Text ?? "").Trim()
+                .Replace("+", "").Replace(" ", "").Replace("-", "");
+            if (phone.Length < 6 || !phone.All(char.IsDigit))
+            {
+                return;
+            }
+
+            string jid = phone.Contains("@") ? phone : phone + "@s.whatsapp.net";
+
+            var existing = DataService.Instance.Contacts.FirstOrDefault(c => c.Id == jid);
+            if (existing != null)
+            {
+                Frame.Navigate(typeof(ChatPage), existing);
+                return;
+            }
+
+            var contact = new Contact
+            {
+                Id = jid,
+                Name = "+" + phone,
+                Initials = phone.Substring(0, 2).ToUpper(),
+                AvatarColor = "#FF075E54",
+                IsOnline = false,
+                UnreadCount = 0
+            };
+            DataService.Instance.AddContact(contact);
+            Frame.Navigate(typeof(ChatPage), contact);
         }
     }
 }
