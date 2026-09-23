@@ -41,6 +41,12 @@ namespace WhatsappApp.Models
         private string _mediaData;      // base64-encoded media content
         private string _mediaMimeType;  // e.g. "image/jpeg", "image/png"
         private string _mediaFileName;  // optional filename
+        private string _command;        // control frame command (see adapter protocol)
+        private string _state;          // "disconnected" | "waiting" | "connected"
+        private string _pairCode;       // pairing code for phone-number login
+        private string _qrImageData;    // base64 PNG of the login QR code
+        private int _qrDuration;        // QR validity in seconds
+        private string _accountJid;     // WhatsApp JID of the logged-in account
 
         [DataMember]
         public string Id
@@ -129,6 +135,54 @@ namespace WhatsappApp.Models
         {
             get => _mediaFileName;
             set { _mediaFileName = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Comando dei frame di controllo inviati/ricevuti dall'adapter (Type = System).</summary>
+        [DataMember]
+        public string Command
+        {
+            get => _command;
+            set { _command = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Stato della connessione WhatsApp: "disconnected", "waiting" o "connected".</summary>
+        [DataMember]
+        public string State
+        {
+            get => _state;
+            set { _state = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Codice di abbinamento da inserire sul telefono (login via numero).</summary>
+        [DataMember]
+        public string PairCode
+        {
+            get => _pairCode;
+            set { _pairCode = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>QR code di login codificato in base64 (PNG).</summary>
+        [DataMember]
+        public string QrImageData
+        {
+            get => _qrImageData;
+            set { _qrImageData = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Durata di validità del QR code, in secondi.</summary>
+        [DataMember]
+        public int QrDuration
+        {
+            get => _qrDuration;
+            set { _qrDuration = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>JID dell'account WhatsApp collegato (es. 393401234567@s.whatsapp.net).</summary>
+        [DataMember]
+        public string AccountJid
+        {
+            get => _accountJid;
+            set { _accountJid = value; OnPropertyChanged(); }
         }
 
         public string FormattedTime

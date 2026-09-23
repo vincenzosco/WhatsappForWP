@@ -34,6 +34,7 @@ namespace WhatsappApp.Services
 
         // Events
         public event EventHandler<ChatMessage> MessageReceived;
+        public event EventHandler<ChatMessage> ControlMessageReceived;
         public event EventHandler<string> ConnectionStatusChanged;
         public event EventHandler<string> ErrorOccurred;
 
@@ -42,6 +43,12 @@ namespace WhatsappApp.Services
         public string MyUserId => _myUserId;
         public string MyUsername => _myUsername;
         public string ServerAddress => _serverAddress;
+
+        /// <summary>Stato della connessione WhatsApp: "disconnected", "waiting" o "connected".</summary>
+        public string WhatsAppState { get; private set; } = "disconnected";
+
+        /// <summary>JID dell'account WhatsApp collegato (vuoto se non connesso).</summary>
+        public string AccountJid { get; private set; } = "";
 
         private CommunicationService() { }
 
@@ -144,11 +151,7 @@ namespace WhatsappApp.Services
                     await BroadcastToAllClientsAsync(payload, socket);
 
                     // Decrypt for the local UI
-                    var message = DecryptToMessage(payload);
-                    if (message != null)
-                    {
-                        DispatchOnUiThread(() => MessageReceived?.Invoke(this, message));
-                    }
+                    DispatchMessage(DecryptToMessage(payload));
                 }
             }
             catch (Exception ex)
@@ -202,6 +205,7 @@ namespace WhatsappApp.Services
                 {
                     Id = "handshake",
                     Text = username,
+                    Command = "hello",
                     SenderId = _myUserId,
                     SenderName = username,
                     ChatId = "system",
@@ -239,11 +243,7 @@ namespace WhatsappApp.Services
                     byte[] payload = await ReadFrameAsync(_reader);
                     if (payload == null) break;
 
-                    var message = DecryptToMessage(payload);
-                    if (message != null)
-                    {
-                        DispatchOnUiThread(() => MessageReceived?.Invoke(this, message));
-                    }
+                    DispatchMessage(DecryptToMessage(payload));
                 }
             }
             catch (Exception ex)
@@ -296,6 +296,50 @@ namespace WhatsappApp.Services
                 DispatchOnUiThread(() =>
                     ErrorOccurred?.Invoke(this, $"Errore invio: {ex.Message}")
                 );
+            }
+        }
+
+        /// <summary>
+        /// Invia un frame di controllo all'adapter (stato, login QR/numero,
+        /// contatti, logout). Il payload va in Text quando serve.
+        /// </summary>
+        public async Task SendControlAsync(string command, string payload = null)
+        {
+            var message = new ChatMessage
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                Command = command,
+                Text = payload ?? "",
+                SenderId = _myUserId ?? "me",
+                SenderName = _myUsername ?? "Io",
+                ChatId = "system",
+                Timestamp = DateTime.Now,
+                Type = MessageType.System,
+                IsIncoming = false
+            };
+            await SendMessageAsync(message);
+        }
+
+        /// <summary>
+        /// Instrada un messaggio decifrato: i frame di controllo (Type = System)
+        /// vanno all'evento ControlMessageReceived, gli altri a MessageReceived.
+        /// </summary>
+        private void DispatchMessage(ChatMessage message)
+        {
+            if (message == null) return;
+
+            if (message.Type == MessageType.System)
+            {
+                if (message.Command == "state")
+                {
+                    WhatsAppState = string.IsNullOrEmpty(message.State) ? "disconnected" : message.State;
+                    AccountJid = message.AccountJid ?? "";
+                }
+                DispatchOnUiThread(() => ControlMessageReceived?.Invoke(this, message));
+            }
+            else
+            {
+                DispatchOnUiThread(() => MessageReceived?.Invoke(this, message));
             }
         }
 
@@ -402,6 +446,8 @@ namespace WhatsappApp.Services
         public void Disconnect()
         {
             _isConnected = false;
+            WhatsAppState = "disconnected";
+            AccountJid = "";
 
             lock (_serverClients)
             {

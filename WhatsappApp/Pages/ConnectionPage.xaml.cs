@@ -1,14 +1,18 @@
 using System;
+using System.Linq;
+using System.Threading.Tasks;
+using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media.Imaging;
+using Windows.UI.Xaml.Navigation;
+using WhatsappApp.Models;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
 {
     public sealed partial class ConnectionPage : Page
     {
-        private bool _isServerMode = false;
-        private int _serverPort = 8585;
         private bool _isFirstRun;
 
         public ConnectionPage()
@@ -22,32 +26,29 @@ namespace WhatsappApp.Pages
 
             _isFirstRun = !SettingsService.HasSavedSettings;
 
-            // Prefill the fields with the saved settings
             string savedAddress = SettingsService.ServerAddress;
             if (!string.IsNullOrEmpty(savedAddress))
-            {
                 ServerAddressBox.Text = savedAddress;
-            }
 
             int savedPort = SettingsService.ServerPort;
             if (savedPort > 0)
-            {
                 ServerPortBox.Text = savedPort.ToString();
-                _serverPort = savedPort;
-                ServerPortValueText.Text = savedPort.ToString();
-                ServerPortInfoText.Text = savedPort.ToString();
-            }
 
             string savedUsername = SettingsService.Username;
             if (!string.IsNullOrEmpty(savedUsername))
-            {
                 UsernameBox.Text = savedUsername;
-            }
 
             PageTitleText.Text = _isFirstRun ? "Prima configurazione" : "Impostazioni Server";
 
             CommunicationService.Instance.ConnectionStatusChanged += OnConnectionStatusChanged;
             CommunicationService.Instance.ErrorOccurred += OnErrorOccurred;
+            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+
+            if (CommunicationService.Instance.IsConnected)
+            {
+                ShowConnectedState();
+                _ = CommunicationService.Instance.SendControlAsync("status");
+            }
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -55,24 +56,7 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.ConnectionStatusChanged -= OnConnectionStatusChanged;
             CommunicationService.Instance.ErrorOccurred -= OnErrorOccurred;
-        }
-
-        private void ClientMode_Checked(object sender, RoutedEventArgs e)
-        {
-            _isServerMode = false;
-            ClientSettings.Visibility = Visibility.Visible;
-            ServerSettings.Visibility = Visibility.Collapsed;
-            ActionButton.Content = "Connetti al server";
-        }
-
-        private void ServerMode_Checked(object sender, RoutedEventArgs e)
-        {
-            _isServerMode = true;
-            ClientSettings.Visibility = Visibility.Collapsed;
-            ServerSettings.Visibility = Visibility.Visible;
-            ActionButton.Content = "Avvia server";
-            ServerPortValueText.Text = _serverPort.ToString();
-            ServerPortInfoText.Text = _serverPort.ToString();
+            CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
         }
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
@@ -84,68 +68,189 @@ namespace WhatsappApp.Pages
                 UsernameBox.Text = username;
             }
 
+            string address = ServerAddressBox.Text?.Trim();
+            if (string.IsNullOrEmpty(address)) address = "192.168.1.100";
+
+            int port = 8585;
+            int boxPort;
+            if (!string.IsNullOrEmpty(ServerPortBox.Text) &&
+                int.TryParse(ServerPortBox.Text.Trim(), out boxPort))
+            {
+                port = boxPort;
+            }
+
             StatusPanel.Visibility = Visibility.Visible;
             ActionButton.IsEnabled = false;
+            StatusText.Text = $"Connessione a {address}:{port}...";
 
-            if (_isServerMode)
+            bool connected = await CommunicationService.Instance.ConnectToServerAsync(address, port, username);
+            if (connected)
             {
-                StatusText.Text = $"Avvio server sulla porta {_serverPort}...";
-                await CommunicationService.Instance.StartServerAsync(username, _serverPort);
+                SettingsService.Save(address, port, username);
+                StatusText.Text = "Connesso!";
+                ShowConnectedState();
+                await CommunicationService.Instance.SendControlAsync("status");
             }
             else
             {
-                string address = ServerAddressBox.Text?.Trim();
-                if (string.IsNullOrEmpty(address)) address = "192.168.1.100";
-
-                // Read the port from the client-mode port field
-                int port = _serverPort;
-                if (!string.IsNullOrEmpty(ServerPortBox.Text) &&
-                    int.TryParse(ServerPortBox.Text.Trim(), out int boxPort))
-                {
-                    port = boxPort;
-                    _serverPort = port;
-                }
-
-                StatusText.Text = $"Connessione a {address}:{port}...";
-                bool connected = await CommunicationService.Instance.ConnectToServerAsync(
-                    address, port, username);
-
-                if (connected)
-                {
-                    // Remember the settings for next time
-                    SettingsService.Save(address, port, username);
-
-                    StatusText.Text = "Connesso!";
-                    ActionButton.Visibility = Visibility.Collapsed;
-                    DisconnectButton.Visibility = Visibility.Visible;
-
-                    // Continue to the chat list (first run) or back to it (settings)
-                    ContinueToMainPage();
-                }
-                else
-                {
-                    StatusText.Text = "Connessione fallita";
-                    ActionButton.IsEnabled = true;
-                }
+                StatusText.Text = "Connessione fallita";
+                ActionButton.IsEnabled = true;
             }
+        }
+
+        private void ShowConnectedState()
+        {
+            ActionButton.Visibility = Visibility.Collapsed;
+            DisconnectButton.Visibility = Visibility.Visible;
+            WhatsAppPanel.Visibility = Visibility.Visible;
+            ActionButton.IsEnabled = true;
+            UpdateLoginUi(CommunicationService.Instance.WhatsAppState, CommunicationService.Instance.AccountJid);
+        }
+
+        private void UpdateLoginUi(string state, string accountJid)
+        {
+            switch (state)
+            {
+                case "connected":
+                    WhatsAppStateText.Text = string.IsNullOrEmpty(accountJid)
+                        ? "WhatsApp connesso!"
+                        : $"Connesso come {accountJid.Split('@')[0]}";
+                    LoginQrButton.Visibility = Visibility.Collapsed;
+                    QrImage.Visibility = Visibility.Collapsed;
+                    PhoneBox.Visibility = Visibility.Collapsed;
+                    LoginCodeButton.Visibility = Visibility.Collapsed;
+                    QrInfoText.Text = "";
+                    ContinueButton.IsEnabled = true;
+                    break;
+
+                case "waiting":
+                    WhatsAppStateText.Text = "In attesa di abbinamento... segui le istruzioni qui sotto.";
+                    LoginQrButton.Visibility = Visibility.Visible;
+                    PhoneBox.Visibility = Visibility.Visible;
+                    LoginCodeButton.Visibility = Visibility.Visible;
+                    ContinueButton.IsEnabled = false;
+                    break;
+
+                default:
+                    WhatsAppStateText.Text = "Non connesso a WhatsApp. Accedi con QR code o con il numero.";
+                    LoginQrButton.Visibility = Visibility.Visible;
+                    PhoneBox.Visibility = Visibility.Visible;
+                    LoginCodeButton.Visibility = Visibility.Visible;
+                    QrImage.Visibility = Visibility.Collapsed;
+                    PairCodeText.Text = "";
+                    QrInfoText.Text = "";
+                    ContinueButton.IsEnabled = false;
+                    break;
+            }
+        }
+
+        private void OnControlMessageReceived(object sender, ChatMessage message)
+        {
+            if (message == null) return;
+
+            switch (message.Command)
+            {
+                case "state":
+                    UpdateLoginUi(message.State, message.AccountJid);
+                    break;
+
+                case "qr":
+                    ShowQrCode(message.QrImageData, message.QrDuration);
+                    break;
+
+                case "paircode":
+                    PairCodeText.Text = $"Codice: {message.PairCode}";
+                    WhatsAppStateText.Text = "Inserisci questo codice su WhatsApp > Dispositivi collegati > Collega un dispositivo > Collega con numero di telefono.";
+                    QrImage.Visibility = Visibility.Collapsed;
+                    break;
+
+                case "error":
+                    WhatsAppStateText.Text = message.Text;
+                    break;
+            }
+        }
+
+        private async void ShowQrCode(string base64, int duration)
+        {
+            if (string.IsNullOrEmpty(base64))
+            {
+                QrInfoText.Text = "QR code non disponibile.";
+                return;
+            }
+
+            try
+            {
+                QrImage.Source = await BitmapFromBase64Async(base64);
+                QrImage.Visibility = Visibility.Visible;
+                PairCodeText.Text = "";
+                QrInfoText.Text = duration > 0
+                    ? $"Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice (valido ~{duration}s)."
+                    : "Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice.";
+            }
+            catch (Exception ex)
+            {
+                QrInfoText.Text = $"Impossibile mostrare il QR code: {ex.Message}";
+            }
+        }
+
+        private static async Task<BitmapImage> BitmapFromBase64Async(string base64)
+        {
+            byte[] bytes = Convert.FromBase64String(base64);
+            using (var stream = new InMemoryRandomAccessStream())
+            {
+                using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+                {
+                    writer.WriteBytes(bytes);
+                    await writer.StoreAsync();
+                }
+                var bitmap = new BitmapImage();
+                stream.Seek(0);
+                await bitmap.SetSourceAsync(stream);
+                return bitmap;
+            }
+        }
+
+        private async void LoginQrButton_Click(object sender, RoutedEventArgs e)
+        {
+            PairCodeText.Text = "";
+            QrInfoText.Text = "Richiesta del QR code in corso...";
+            await CommunicationService.Instance.SendControlAsync("login.qr");
+        }
+
+        private async void LoginCodeButton_Click(object sender, RoutedEventArgs e)
+        {
+            string phone = (PhoneBox.Text ?? "").Trim();
+            phone = phone.Replace("+", "").Replace(" ", "").Replace("-", "");
+            if (phone.Length < 6 || !phone.All(char.IsDigit))
+            {
+                WhatsAppStateText.Text = "Inserisci un numero valido con prefisso internazionale (es. 393401234567).";
+                return;
+            }
+
+            QrImage.Visibility = Visibility.Collapsed;
+            QrInfoText.Text = "";
+            WhatsAppStateText.Text = "Richiesta del codice in corso...";
+            await CommunicationService.Instance.SendControlAsync("login.code", phone);
+        }
+
+        private void ContinueButton_Click(object sender, RoutedEventArgs e)
+        {
+            ContinueToMainPage();
         }
 
         private void ContinueToMainPage()
         {
             if (Frame.CanGoBack)
-            {
                 Frame.GoBack();
-            }
             else
-            {
                 Frame.Navigate(typeof(MainPage));
-            }
         }
 
         private void DisconnectButton_Click(object sender, RoutedEventArgs e)
         {
             CommunicationService.Instance.Disconnect();
             StatusPanel.Visibility = Visibility.Collapsed;
+            WhatsAppPanel.Visibility = Visibility.Collapsed;
             ActionButton.Visibility = Visibility.Visible;
             DisconnectButton.Visibility = Visibility.Collapsed;
             ActionButton.IsEnabled = true;
@@ -154,50 +259,24 @@ namespace WhatsappApp.Pages
         private void OnConnectionStatusChanged(object sender, string status)
         {
             StatusText.Text = status;
-            if (status.Contains("Connesso") || status.Contains("avviato"))
-            {
-                ActionButton.Visibility = Visibility.Collapsed;
-                DisconnectButton.Visibility = Visibility.Visible;
-            }
+            StatusPanel.Visibility = Visibility.Visible;
+            if (status != null && (status.Contains("Connesso") || status.Contains("avviato")))
+                ShowConnectedState();
         }
 
         private void OnErrorOccurred(object sender, string error)
         {
             StatusText.Text = error;
+            StatusPanel.Visibility = Visibility.Visible;
             ActionButton.IsEnabled = true;
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             if (Frame.CanGoBack)
-            {
                 Frame.GoBack();
-            }
             else
-            {
-                // First run with no saved settings: allow skipping the setup
                 ContinueToMainPage();
-            }
-        }
-
-        private void ServerPortDown_Click(object sender, RoutedEventArgs e)
-        {
-            if (_serverPort > 1024)
-            {
-                _serverPort -= 1;
-                ServerPortValueText.Text = _serverPort.ToString();
-                ServerPortInfoText.Text = _serverPort.ToString();
-            }
-        }
-
-        private void ServerPortUp_Click(object sender, RoutedEventArgs e)
-        {
-            if (_serverPort < 65535)
-            {
-                _serverPort += 1;
-                ServerPortValueText.Text = _serverPort.ToString();
-                ServerPortInfoText.Text = _serverPort.ToString();
-            }
         }
     }
 }

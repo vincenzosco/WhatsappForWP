@@ -1,21 +1,17 @@
 {
-  "name": "whatsapp-unified-server",
-  "version": "1.2.0",
-  "description": "WhatsApp Unified Server - encrypted (AES-256-GCM) TCP relay between Windows Phone 8.1 clients + bridge to actual WhatsApp servers via whatsapp-web.js",
+  "name": "whatsapp-gowa-adapter",
+  "version": "2.0.0",
+  "description": "Adapter tra l'app WhatsApp Windows Phone 8.1 e un server GOWA self-hosted (go-whatsapp-web-multidevice)",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "start:qr": "node server.js --show-qr",
-    "start:debug": "node server.js --debug"
+    "start:debug": "node server.js --debug",
+    "test": "node --test"
   },
-  "keywords": ["whatsapp", "bridge", "wp8", "windows-phone"],
+  "keywords": ["whatsapp", "gowa", "bridge", "wp8", "windows-phone"],
   "license": "MIT",
-  "dependencies": {
-    "whatsapp-web.js": "^1.25.0",
-    "qrcode-terminal": "^0.12.0",
-    "puppeteer": "^22.0.0"
-  },
+  "dependencies": {},
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=18.13.0"
   }
 }

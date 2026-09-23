@@ -1,0 +1,96 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { GowaClient, errorMessage } = require('../gowa-client');
+
+function jsonResponse(body, status = 200) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    headers: { get: () => 'application/json' },
+    text: async () => JSON.stringify(body),
+    arrayBuffer: async () => Buffer.from(JSON.stringify(body))
+  };
+}
+
+function makeFetch(handler) {
+  const calls = [];
+  const impl = async (url, options) => {
+    calls.push({ url, options });
+    return handler(url, options);
+  };
+  impl.calls = calls;
+  return impl;
+}
+
+test('errorMessage preferisce il campo message della risposta GOWA', () => {
+  assert.strictEqual(errorMessage({ message: 'Boom' }, 'fallback'), 'Boom');
+  assert.strictEqual(errorMessage(null, 'fallback'), 'fallback');
+});
+
+test('ensureDevice crea un device quando la lista è vuota', async () => {
+  const fetchImpl = makeFetch(async (url, options) => {
+    if (url.endsWith('/devices')) {
+      if (options.method === 'POST') return jsonResponse({ status: 200, results: { id: 'org_1' } });
+      return jsonResponse({ status: 200, results: [] });
+    }
+    return jsonResponse({});
+  });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const id = await client.ensureDevice();
+  assert.strictEqual(id, 'org_1');
+  assert.strictEqual(fetchImpl.calls[0].url, 'http://g/devices');
+  assert.strictEqual(fetchImpl.calls[0].options.method, 'GET');
+  assert.strictEqual(fetchImpl.calls[1].options.method, 'POST');
+});
+
+test('ensureDevice riusa il primo device esistente', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: [{ id: 'org_9' }] }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  assert.strictEqual(await client.ensureDevice(), 'org_9');
+  assert.strictEqual(fetchImpl.calls.length, 1);
+});
+
+test('loginQr restituisce qr_link e qr_duration', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({
+    status: 200, results: { device_id: 'd', qr_link: 'http://g/statics/qr.png', qr_duration: 30 }
+  }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const qr = await client.loginQr();
+  assert.strictEqual(qr.qrLink, 'http://g/statics/qr.png');
+  assert.strictEqual(qr.duration, 30);
+});
+
+test('loginWithCode passa phone e legge pair_code', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: { pair_code: 'ABCD-EFGH' } }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const code = await client.loginWithCode('393401234567');
+  assert.strictEqual(code, 'ABCD-EFGH');
+  assert.match(fetchImpl.calls[0].url, /login-with-code\?phone=393401234567/);
+});
+
+test('sendText invia il body JSON e legge message_id', async () => {
+  const fetchImpl = makeFetch(async (url, options) => {
+    assert.strictEqual(url, 'http://g/send/message');
+    assert.strictEqual(options.body, JSON.stringify({ phone: '39@s.whatsapp.net', message: 'ciao' }));
+    return jsonResponse({ status: 200, results: { message_id: 'M1', status: 'PENDING' } });
+  });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  assert.strictEqual(await client.sendText('39@s.whatsapp.net', 'ciao'), 'M1');
+});
+
+test('status tollera gli errori HTTP', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 400, code: 'DEVICE_ID_REQUIRED' }, 400));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const s = await client.status();
+  assert.deepStrictEqual(s, { isConnected: false, isLoggedIn: false, jid: '' });
+});
+
+test('aggiunge gli header di autenticazione e X-Device-Id', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: { is_logged_in: true, jid: '39@x' } }));
+  const client = new GowaClient({ baseUrl: 'http://g', user: 'admin', pass: 'secret', deviceId: 'd1', fetchImpl });
+  await client.status();
+  const headers = fetchImpl.calls[0].options.headers;
+  assert.strictEqual(headers.Authorization, 'Basic ' + Buffer.from('admin:secret').toString('base64'));
+  assert.strictEqual(headers['X-Device-Id'], 'd1');
+});
