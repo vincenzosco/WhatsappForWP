@@ -90,7 +90,7 @@ namespace WhatsappApp
 
                 // Navigate to the main page, or to the connection/setup page
                 // on first run (when no server address has been saved yet).
-                Type startPage = SettingsService.HasSavedSettings ? typeof(MainPage) : typeof(ConnectionPage);
+                Type startPage = SettingsService.HasSavedSettings ? typeof(ChatsPage) : typeof(ConnectionPage);
                 if (!rootFrame.Navigate(startPage, e.Arguments))
                 {
                     throw new Exception("Failed to create initial page");
