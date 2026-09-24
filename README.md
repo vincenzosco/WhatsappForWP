@@ -165,6 +165,18 @@ node tools/make-brand-assets.js            # riscrive i PNG
 node tools/make-brand-assets.js --preview  # + anteprima ASCII per controllare il logo
 ```
 
+Le icone dell'interfaccia (ricerca, impostazioni, tab, allegati, invio…)
+**non** usano un font di icone: Windows Phone 8.1 non ha `Segoe MDL2 Assets`
+(è arrivato con Windows 10), quindi i pulsanti restavano vuoti. Sono `Path`
+vettoriali definiti una sola volta in `WhatsappApp/App.xaml`
+(`PathGeometry x:Key="Icon…"`) e consumati con `Data="{StaticResource Icon…}"`.
+Per controllare che nessun riferimento sia rotto o inutilizzato:
+
+```bash
+node tools/check-icons.js            # riferimenti + font vietati
+node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
+```
+
 ## Disclaimer
 
 - This is an unofficial project not affiliated with WhatsApp or Meta.
