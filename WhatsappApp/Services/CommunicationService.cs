@@ -15,7 +15,14 @@ namespace WhatsappApp.Services
     public class CommunicationService
     {
         private static CommunicationService _instance;
-        public static CommunicationService Instance => _instance ?? (_instance = new CommunicationService());
+        public static CommunicationService Instance
+        {
+            get
+            {
+                if (_instance == null) _instance = new CommunicationService();
+                return _instance;
+            }
+        }
 
         private StreamSocket _clientSocket;
         private StreamSocketListener _serverListener;
@@ -38,19 +45,62 @@ namespace WhatsappApp.Services
         public event EventHandler<string> ConnectionStatusChanged;
         public event EventHandler<string> ErrorOccurred;
 
-        public bool IsConnected => _isConnected;
-        public bool IsServerMode => _isServerMode;
-        public string MyUserId => _myUserId;
-        public string MyUsername => _myUsername;
-        public string ServerAddress => _serverAddress;
+        public bool IsConnected
+        {
+            get { return _isConnected; }
+        }
+        public bool IsServerMode
+        {
+            get { return _isServerMode; }
+        }
+        public string MyUserId
+        {
+            get { return _myUserId; }
+        }
+        public string MyUsername
+        {
+            get { return _myUsername; }
+        }
+        public string ServerAddress
+        {
+            get { return _serverAddress; }
+        }
 
         /// <summary>Stato della connessione WhatsApp: "disconnected", "waiting" o "connected".</summary>
-        public string WhatsAppState { get; private set; } = "disconnected";
+        public string WhatsAppState { get; private set; }
 
         /// <summary>JID dell'account WhatsApp collegato (vuoto se non connesso).</summary>
-        public string AccountJid { get; private set; } = "";
+        public string AccountJid { get; private set; }
 
-        private CommunicationService() { }
+        private CommunicationService()
+        {
+            WhatsAppState = "disconnected";
+            AccountJid = "";
+        }
+
+        private void RaiseConnectionStatusChanged(string status)
+        {
+            var handler = ConnectionStatusChanged;
+            if (handler != null) handler(this, status);
+        }
+
+        private void RaiseErrorOccurred(string error)
+        {
+            var handler = ErrorOccurred;
+            if (handler != null) handler(this, error);
+        }
+
+        private void RaiseMessageReceived(ChatMessage message)
+        {
+            var handler = MessageReceived;
+            if (handler != null) handler(this, message);
+        }
+
+        private void RaiseControlMessageReceived(ChatMessage message)
+        {
+            var handler = ControlMessageReceived;
+            if (handler != null) handler(this, message);
+        }
 
         private CoreDispatcher GetUiDispatcher()
         {
@@ -111,14 +161,14 @@ namespace WhatsappApp.Services
 
                 _isConnected = true;
                 DispatchOnUiThread(() =>
-                    ConnectionStatusChanged?.Invoke(this, $"Server avviato sulla porta {port}")
+                    RaiseConnectionStatusChanged("Server avviato sulla porta " + port)
                 );
             }
             catch (Exception ex)
             {
                 _isConnected = false;
                 DispatchOnUiThread(() =>
-                    ErrorOccurred?.Invoke(this, $"Errore avvio server: {ex.Message}")
+                    RaiseErrorOccurred("Errore avvio server: " + ex.Message)
                 );
             }
         }
@@ -132,7 +182,7 @@ namespace WhatsappApp.Services
             }
 
             DispatchOnUiThread(() =>
-                ConnectionStatusChanged?.Invoke(this, $"Nuovo client connesso ({_serverClients.Count} connessi)")
+                RaiseConnectionStatusChanged("Nuovo client connesso (" + _serverClients.Count + " connessi)")
             );
 
             try
@@ -157,7 +207,7 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 DispatchOnUiThread(() =>
-                    ErrorOccurred?.Invoke(this, $"Client disconnesso: {ex.Message}")
+                    RaiseErrorOccurred("Client disconnesso: " + ex.Message)
                 );
             }
             finally
@@ -168,7 +218,7 @@ namespace WhatsappApp.Services
                 }
                 socket.Dispose();
                 DispatchOnUiThread(() =>
-                    ConnectionStatusChanged?.Invoke(this, $"Client rimosso ({_serverClients.Count} connessi)")
+                    RaiseConnectionStatusChanged("Client rimosso (" + _serverClients.Count + " connessi)")
                 );
             }
         }
@@ -187,7 +237,7 @@ namespace WhatsappApp.Services
             try
             {
                 DispatchOnUiThread(() =>
-                    ConnectionStatusChanged?.Invoke(this, "Connessione in corso...")
+                    RaiseConnectionStatusChanged("Connessione in corso...")
                 );
 
                 _clientSocket = new StreamSocket();
@@ -216,11 +266,13 @@ namespace WhatsappApp.Services
                 await SendFrameAsync(_clientSocket, Encoding.UTF8.GetBytes(handshake.ToJson()));
 
                 DispatchOnUiThread(() =>
-                    ConnectionStatusChanged?.Invoke(this, "Connesso al server")
+                    RaiseConnectionStatusChanged("Connesso al server")
                 );
 
                 // Start listening for incoming messages on a background thread
-                _ = Task.Run(() => ListenForMessagesAsync());
+#pragma warning disable 4014
+                Task.Run(() => ListenForMessagesAsync());
+#pragma warning restore 4014
 
                 return true;
             }
@@ -228,7 +280,7 @@ namespace WhatsappApp.Services
             {
                 _isConnected = false;
                 DispatchOnUiThread(() =>
-                    ErrorOccurred?.Invoke(this, $"Errore connessione: {ex.Message}")
+                    RaiseErrorOccurred("Errore connessione: " + ex.Message)
                 );
                 return false;
             }
@@ -251,7 +303,7 @@ namespace WhatsappApp.Services
                 if (_isConnected)
                 {
                     DispatchOnUiThread(() =>
-                        ErrorOccurred?.Invoke(this, $"Connessione persa: {ex.Message}")
+                        RaiseErrorOccurred("Connessione persa: " + ex.Message)
                     );
                 }
             }
@@ -259,7 +311,7 @@ namespace WhatsappApp.Services
             {
                 _isConnected = false;
                 DispatchOnUiThread(() =>
-                    ConnectionStatusChanged?.Invoke(this, "Disconnesso")
+                    RaiseConnectionStatusChanged("Disconnesso")
                 );
             }
         }
@@ -271,7 +323,7 @@ namespace WhatsappApp.Services
         {
             if (!_isConnected)
             {
-                DispatchOnUiThread(() => ErrorOccurred?.Invoke(this, "Non connesso"));
+                DispatchOnUiThread(() => RaiseErrorOccurred("Non connesso"));
                 return;
             }
 
@@ -294,7 +346,7 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 DispatchOnUiThread(() =>
-                    ErrorOccurred?.Invoke(this, $"Errore invio: {ex.Message}")
+                    RaiseErrorOccurred("Errore invio: " + ex.Message)
                 );
             }
         }
@@ -335,11 +387,11 @@ namespace WhatsappApp.Services
                     WhatsAppState = string.IsNullOrEmpty(message.State) ? "disconnected" : message.State;
                     AccountJid = message.AccountJid ?? "";
                 }
-                DispatchOnUiThread(() => ControlMessageReceived?.Invoke(this, message));
+                DispatchOnUiThread(() => RaiseControlMessageReceived(message));
             }
             else
             {
-                DispatchOnUiThread(() => MessageReceived?.Invoke(this, message));
+                DispatchOnUiThread(() => RaiseMessageReceived(message));
             }
         }
 
@@ -434,7 +486,7 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 DispatchOnUiThread(() =>
-                    ErrorOccurred?.Invoke(this, $"Errore decifratura messaggio: {ex.Message}")
+                    RaiseErrorOccurred("Errore decifratura messaggio: " + ex.Message)
                 );
                 return null;
             }
@@ -460,10 +512,10 @@ namespace WhatsappApp.Services
 
             try
             {
-                _writer?.Dispose();
-                _reader?.Dispose();
-                _clientSocket?.Dispose();
-                _serverListener?.Dispose();
+                if (_writer != null) _writer.Dispose();
+                if (_reader != null) _reader.Dispose();
+                if (_clientSocket != null) _clientSocket.Dispose();
+                if (_serverListener != null) _serverListener.Dispose();
             }
             catch { }
 
@@ -473,7 +525,7 @@ namespace WhatsappApp.Services
             _serverListener = null;
             _uiDispatcher = null;
 
-            DispatchOnUiThread(() => ConnectionStatusChanged?.Invoke(this, "Disconnesso"));
+            DispatchOnUiThread(() => RaiseConnectionStatusChanged("Disconnesso"));
         }
     }
 }
