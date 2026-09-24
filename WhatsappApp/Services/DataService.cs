@@ -63,7 +63,7 @@ namespace WhatsappApp.Services
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
         }
 
-        private void OnNetworkMessageReceived(object sender, ChatMessage message)
+        private async void OnNetworkMessageReceived(object sender, ChatMessage message)
         {
             // Ignore system/handshake messages
             if (message.Type == MessageType.System) return;
@@ -108,6 +108,10 @@ namespace WhatsappApp.Services
                 if (idx > 0)
                     _contacts.Move(idx, 0);
             }
+
+            // Decodifica asincrona dell'immagine: il binding XAML segue MediaImage
+            if (message.Type == MessageType.Image)
+                await message.LoadMediaImageAsync();
         }
 
         /// <summary>
