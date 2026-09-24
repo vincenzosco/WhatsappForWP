@@ -71,8 +71,17 @@ namespace WhatsappApp.Services
                 throw new ArgumentException("Payload cifrato non valido");
             }
 
-            var iv = CryptographicBuffer.CreateFromByteArray(data, 0, IvLength);
-            var cipher = CryptographicBuffer.CreateFromByteArray(data, IvLength, (uint)(data.Length - IvLength));
+            // WP8.1 exposes only CreateFromByteArray(byte[]): slice the frame
+            // manually into [IV] and [ciphertext || tag] before wrapping them.
+            byte[] ivBytes = new byte[(int)IvLength];
+            Buffer.BlockCopy(data, 0, ivBytes, 0, (int)IvLength);
+
+            int cipherLength = data.Length - (int)IvLength;
+            byte[] cipherBytes = new byte[cipherLength];
+            Buffer.BlockCopy(data, (int)IvLength, cipherBytes, 0, cipherLength);
+
+            var iv = CryptographicBuffer.CreateFromByteArray(ivBytes);
+            var cipher = CryptographicBuffer.CreateFromByteArray(cipherBytes);
 
             var algorithm = SymmetricKeyAlgorithmProvider.OpenAlgorithm(SymmetricAlgorithmNames.AesGcm);
             var key = algorithm.CreateSymmetricKey(CryptographicBuffer.CreateFromByteArray(Key));
