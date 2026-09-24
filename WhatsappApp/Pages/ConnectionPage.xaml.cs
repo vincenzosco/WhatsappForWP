@@ -121,6 +121,7 @@ namespace WhatsappApp.Pages
                     PhoneBox.Visibility = Visibility.Collapsed;
                     LoginCodeButton.Visibility = Visibility.Collapsed;
                     QrInfoText.Text = "";
+                    PairCodeText.Text = "";
                     ContinueButton.IsEnabled = true;
                     break;
 
