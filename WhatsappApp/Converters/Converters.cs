@@ -237,5 +237,5 @@ namespace WhatsappApp.Converters
             throw new NotImplementedException();
         }
     }
-
+}
 
