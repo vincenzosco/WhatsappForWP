@@ -23,8 +23,9 @@ namespace WhatsappApp
             base.OnNavigatedTo(e);
             ChatListView.ItemsSource = DataService.Instance.Contacts;
 
+            // OnNavigatedTo is not async: fire the contacts request and ignore the task
             if (CommunicationService.Instance.IsConnected)
-                _ = CommunicationService.Instance.SendControlAsync("contacts");
+                CommunicationService.Instance.SendControlAsync("contacts");
 
             // Register the hardware back button
             HardwareButtons.BackPressed += HardwareButtons_BackPressed;
@@ -47,10 +48,14 @@ namespace WhatsappApp
 
         private void ChatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (e.AddedItems.Count > 0 && e.AddedItems[0] is Contact contact)
+            if (e.AddedItems.Count > 0)
             {
-                Frame.Navigate(typeof(ChatPage), contact);
-                ChatListView.SelectedItem = null; // Reset selection
+                var contact = e.AddedItems[0] as Contact;
+                if (contact != null)
+                {
+                    Frame.Navigate(typeof(ChatPage), contact);
+                    ChatListView.SelectedItem = null; // Reset selection
+                }
             }
         }
 
