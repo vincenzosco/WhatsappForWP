@@ -291,7 +291,7 @@ namespace WhatsappApp.Services
                     Type = MessageType.System,
                     IsIncoming = false
                 };
-                await SendFrameAsync(_clientSocket, Encoding.UTF8.GetBytes(handshake.ToJson()));
+                await SendFrameAsync(_writer, Encoding.UTF8.GetBytes(handshake.ToJson()));
 
                 DispatchOnUiThread(() =>
                 {
@@ -372,7 +372,7 @@ namespace WhatsappApp.Services
                 }
                 else if (_clientSocket != null)
                 {
-                    await SendFrameAsync(_clientSocket, jsonBytes);
+                    await SendFrameAsync(_writer, jsonBytes);
                 }
             }
             catch (Exception ex)
@@ -473,13 +473,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Encrypts the JSON bytes and writes one frame:
+        /// Encrypts the JSON bytes and writes one frame on the given writer:
         /// [4-byte UInt32LE payload length][encrypted payload].
+        /// Il writer arriva da fuori perche' e' quello del socket, creato una
+        /// volta in ConnectToServerAsync: prima ne veniva creato — e mai
+        /// chiuso — uno nuovo per ogni frame inviato.
         /// </summary>
-        private async Task SendFrameAsync(StreamSocket socket, byte[] jsonBytes)
+        private async Task SendFrameAsync(DataWriter writer, byte[] jsonBytes)
         {
             byte[] payload = CryptoHelper.Encrypt(jsonBytes);
-            var writer = new DataWriter(socket.OutputStream);
             writer.WriteUInt32((uint)payload.Length);
             writer.WriteBytes(payload);
             await writer.StoreAsync();
