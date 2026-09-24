@@ -85,6 +85,32 @@ GOWA with `--webhook=http://<adapter-host>:8586/webhook`.
 
 Environment variables are documented in `WhatsappBridge/.env.example`.
 
+## Struttura dell'app
+
+L'app e' divisa in una pagina per sezione, con una barra di navigazione
+condivisa (`WhatsappApp/Controls/SectionNav.xaml`):
+
+| Pagina | Sezione |
+| --- | --- |
+| `Pages/ChatsPage.xaml` | elenco chat, nuova chat, accesso alle impostazioni |
+| `Pages/StatusPage.xaml` | stati |
+| `Pages/CallsPage.xaml` | chiamate |
+| `Pages/ChatPage.xaml` | conversazione |
+| `Pages/ConnectionPage.xaml` | configurazione server e accesso WhatsApp |
+
+Il cambio di sezione naviga sul `Frame` radice e rimuove dallo stack la sezione
+lasciata, quindi il tasto **Indietro** esce dall'app da qualunque sezione invece
+di ripassare tra quelle viste. Le tre pagine di sezione sono in cache
+(`Frame.CacheSize = 3`): passare da una all'altra non ricostruisce la pagina e
+l'elenco chat conserva la posizione di scorrimento.
+
+## Skill del progetto
+
+In `.agents/skills/` (indice in `.agents/skills/README.md`) ci sono le istruzioni
+per mantenere, aggiornare, testare e rilasciare l'app: vincoli del toolchain,
+ricette di modifica, la matrice di verifica e la checklist di deploy. Chi mette
+mano al codice dovrebbe leggerle prima: sono la memoria lunga del progetto.
+
 ## Protocol
 
 The TCP protocol uses length-prefixed JSON messages, compatible with Windows `DataWriter`/`DataReader`:
