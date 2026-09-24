@@ -58,52 +58,58 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
-  <data name="MainPage_TabChats.Text" xml:space="preserve">
+  <data name="Nav_Chats" xml:space="preserve">
     <value>chat</value>
   </data>
-  <data name="MainPage_TabStatus.Text" xml:space="preserve">
+  <data name="Nav_Status" xml:space="preserve">
     <value>stato</value>
   </data>
-  <data name="MainPage_TabCalls.Text" xml:space="preserve">
+  <data name="Nav_Calls" xml:space="preserve">
     <value>chiamate</value>
   </data>
-  <data name="MainPage_EmptyTitle.Text" xml:space="preserve">
+  <data name="ChatsPage_EmptyTitle.Text" xml:space="preserve">
     <value>Nessuna chat</value>
   </data>
-  <data name="MainPage_EmptyHint.Text" xml:space="preserve">
+  <data name="ChatsPage_EmptyHint.Text" xml:space="preserve">
     <value>Tocca nuova chat per iniziare</value>
   </data>
-  <data name="MainPage_StatusEmptyTitle.Text" xml:space="preserve">
+  <data name="StatusPage_EmptyTitle.Text" xml:space="preserve">
     <value>Nessuno stato</value>
   </data>
-  <data name="MainPage_StatusEmptyHint.Text" xml:space="preserve">
+  <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
     <value>Gli stati non sono supportati in questa versione.</value>
   </data>
-  <data name="MainPage_CallsEmptyTitle.Text" xml:space="preserve">
+  <data name="CallsPage_EmptyTitle.Text" xml:space="preserve">
     <value>Nessuna chiamata</value>
   </data>
-  <data name="MainPage_CallsEmptyHint.Text" xml:space="preserve">
+  <data name="CallsPage_EmptyHint.Text" xml:space="preserve">
     <value>Le chiamate non sono supportate in questa versione.</value>
   </data>
-  <data name="MainPage_NewChatTooltip" xml:space="preserve">
+  <data name="StatusPage_Title.Text" xml:space="preserve">
+    <value>Stato</value>
+  </data>
+  <data name="CallsPage_Title.Text" xml:space="preserve">
+    <value>Chiamate</value>
+  </data>
+  <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
     <value>Nuova chat</value>
   </data>
-  <data name="MainPage_SettingsTooltip" xml:space="preserve">
+  <data name="ChatsPage_SettingsTooltip" xml:space="preserve">
     <value>Impostazioni</value>
   </data>
-  <data name="MainPage_NewChatTitle" xml:space="preserve">
+  <data name="NewChat_Title" xml:space="preserve">
     <value>Nuova chat</value>
   </data>
-  <data name="MainPage_NewChatPrompt" xml:space="preserve">
+  <data name="NewChat_Prompt" xml:space="preserve">
     <value>Numero con prefisso internazionale (es. 393401234567)</value>
   </data>
-  <data name="MainPage_NewChatOpen" xml:space="preserve">
+  <data name="NewChat_Open" xml:space="preserve">
     <value>Apri</value>
   </data>
-  <data name="MainPage_NewChatCancel" xml:space="preserve">
+  <data name="NewChat_Cancel" xml:space="preserve">
     <value>Annulla</value>
   </data>
-  <data name="MainPage_NewChatInvalid" xml:space="preserve">
+  <data name="NewChat_Invalid" xml:space="preserve">
     <value>Inserisci un numero valido con prefisso internazionale (es. 393401234567).</value>
   </data>
   <data name="ChatPage_Input.PlaceholderText" xml:space="preserve">

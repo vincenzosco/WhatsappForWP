@@ -36,7 +36,7 @@ namespace WhatsappApp.Services
             var loader = Loader;
             if (loader != null)
             {
-                try { loader.GetString("MainPage_TabChats.Text"); }
+                try { loader.GetString("Nav_Chats"); }
                 catch { }
             }
         }

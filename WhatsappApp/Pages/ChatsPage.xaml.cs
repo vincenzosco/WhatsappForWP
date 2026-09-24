@@ -1,34 +1,37 @@
-﻿using System;
+using System;
 using System.Linq;
-using Windows.Phone.UI.Input;
 using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
+using WhatsappApp.Controls;
 using WhatsappApp.Models;
-using WhatsappApp.Pages;
 using WhatsappApp.Services;
 
-namespace WhatsappApp
+namespace WhatsappApp.Pages
 {
-    public sealed partial class MainPage : Page
+    /// <summary>Sezione chat: elenco conversazioni e nuova chat.</summary>
+    public sealed partial class ChatsPage : Page
     {
-        public MainPage()
+        public ChatsPage()
         {
             this.InitializeComponent();
-            this.NavigationCacheMode = NavigationCacheMode.Required;
+            this.NavigationCacheMode = NavigationCacheMode.Enabled;
 
-            // I pulsanti dell'app bar sono solo icone: il testo (che il sistema
-            // legge anche come etichetta di accessibilita') e' un tooltip.
-            ToolTipService.SetToolTip(NewChatButton, Loc.Get("MainPage_NewChatTooltip", "New chat"));
-            ToolTipService.SetToolTip(SettingsButton, Loc.Get("MainPage_SettingsTooltip", "Settings"));
+            ChatListView.ItemsSource = DataService.Instance.Contacts;
+
+            // I pulsanti con la sola icona non usano x:Uid (sovrascriverebbe il
+            // Path): il testo e' un tooltip impostato qui.
+            ToolTipService.SetToolTip(NewChatButton, Loc.Get("ChatsPage_NewChatTooltip", "New chat"));
+            ToolTipService.SetToolTip(SettingsButton, Loc.Get("ChatsPage_SettingsTooltip", "Settings"));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
-            ChatListView.ItemsSource = DataService.Instance.Contacts;
+
+            Nav.Current = AppSection.Chats;
 
             // Keep the empty state in sync with the contact list
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
@@ -37,17 +40,15 @@ namespace WhatsappApp
 
             // OnNavigatedTo is not async: fire the contacts request and ignore the task
             if (CommunicationService.Instance.IsConnected)
+#pragma warning disable 4014
                 CommunicationService.Instance.SendControlAsync("contacts");
-
-            // Register the hardware back button
-            HardwareButtons.BackPressed += HardwareButtons_BackPressed;
+#pragma warning restore 4014
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
-            HardwareButtons.BackPressed -= HardwareButtons_BackPressed;
         }
 
         private void Contacts_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
@@ -61,38 +62,27 @@ namespace WhatsappApp
             EmptyStatePanel.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        private void HardwareButtons_BackPressed(object sender, BackPressedEventArgs e)
+        private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
-            if (Frame.CanGoBack)
-            {
-                e.Handled = true;
-                Frame.GoBack();
-            }
+            Frame.Navigate(typeof(ConnectionPage));
         }
 
         private void ChatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (e.AddedItems.Count > 0)
-            {
-                var contact = e.AddedItems[0] as Contact;
-                if (contact != null)
-                {
-                    Frame.Navigate(typeof(ChatPage), contact);
-                    ChatListView.SelectedItem = null; // Reset selection
-                }
-            }
-        }
+            if (e.AddedItems.Count == 0) return;
 
-        private void ConnectionButton_Click(object sender, RoutedEventArgs e)
-        {
-            Frame.Navigate(typeof(ConnectionPage));
+            var contact = e.AddedItems[0] as Contact;
+            if (contact == null) return;
+
+            Frame.Navigate(typeof(ChatPage), contact);
+            ChatListView.SelectedItem = null; // Reset selection
         }
 
         private async void NewChatButton_Click(object sender, RoutedEventArgs e)
         {
             var input = new TextBox
             {
-                PlaceholderText = Loc.Get("MainPage_NewChatPrompt",
+                PlaceholderText = Loc.Get("NewChat_Prompt",
                     "Phone number with country code (e.g. 393401234567)")
             };
 
@@ -100,7 +90,7 @@ namespace WhatsappApp
             // ritrova il numero che aveva digitato invece di ripartire da zero.
             var error = new TextBlock
             {
-                Text = Loc.Get("MainPage_NewChatInvalid",
+                Text = Loc.Get("NewChat_Invalid",
                     "Enter a valid number with country code (e.g. 393401234567)."),
                 Foreground = new SolidColorBrush(Colors.Red),
                 FontSize = 13,
@@ -118,10 +108,10 @@ namespace WhatsappApp
             // hardware back button (result = None).
             var dialog = new ContentDialog
             {
-                Title = Loc.Get("MainPage_NewChatTitle", "New chat"),
+                Title = Loc.Get("NewChat_Title", "New chat"),
                 Content = content,
-                PrimaryButtonText = Loc.Get("MainPage_NewChatOpen", "Open"),
-                SecondaryButtonText = Loc.Get("MainPage_NewChatCancel", "Cancel")
+                PrimaryButtonText = Loc.Get("NewChat_Open", "Open"),
+                SecondaryButtonText = Loc.Get("NewChat_Cancel", "Cancel")
             };
 
             string jid = null;
@@ -142,7 +132,7 @@ namespace WhatsappApp
                 jid = phone.Contains("@") ? phone : phone + "@s.whatsapp.net";
             }
 
-            var existing = DataService.Instance.Contacts.FirstOrDefault(c => c.Id == jid);
+            var existing = DataService.Instance.FindContact(jid);
             if (existing != null)
             {
                 Frame.Navigate(typeof(ChatPage), existing);
