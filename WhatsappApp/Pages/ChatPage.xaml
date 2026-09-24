@@ -2,7 +2,6 @@
     x:Class="WhatsappApp.Pages.ChatPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:WhatsappApp"
     xmlns:conv="using:WhatsappApp.Converters"
     Background="#FFECE5DD">
 
@@ -13,7 +12,6 @@
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
         <conv:MessageTypeToTextVisibilityConverter x:Key="MsgTypeToTextVis"/>
 
-        <!-- WhatsApp Colors -->
         <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
         <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
         <SolidColorBrush x:Key="WhatsAppSentBubbleBrush" Color="#FFDCF8C6"/>
@@ -21,7 +19,6 @@
         <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
         <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#DE000000"/>
         <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#8A000000"/>
-        <SolidColorBrush x:Key="WhatsAppDividerBrush" Color="#1A000000"/>
     </Page.Resources>
 
     <Grid>
@@ -31,16 +28,15 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
+        <!-- Header: back + name/status, as in the released app (no dead call buttons) -->
         <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <Button x:Name="BackButton" Grid.Column="0"
-                    Foreground="White" Background="Transparent"
+                    Background="Transparent"
                     Width="48" Height="48" Margin="0,4,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
@@ -50,31 +46,15 @@
             </Button>
 
             <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,4">
-                <TextBlock x:Name="ContactNameText" Text="Contatto"
+                <TextBlock x:Name="ContactNameText" Text=""
                            Foreground="White" FontSize="18" FontWeight="SemiBold"
                            TextTrimming="WordEllipsis"/>
-                <TextBlock x:Name="OnlineStatusText" Text="in linea"
+                <TextBlock x:Name="OnlineStatusText" Text=""
                            Foreground="#B0FFFFFF" FontSize="12" Margin="0,-2,0,0"/>
-            </StackPanel>
-
-            <!-- Phone/Voice call icons -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button Foreground="White" Background="Transparent"
-                        Width="44" Height="44" BorderThickness="0" Padding="0" IsEnabled="False">
-                    <Path Data="{StaticResource IconCalls}" Stroke="White" StrokeThickness="3"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                          Width="24" Height="24"/>
-                </Button>
-                <Button Foreground="White" Background="Transparent"
-                        Width="44" Height="44" BorderThickness="0" Padding="0" IsEnabled="False">
-                    <Path Data="{StaticResource IconVideo}" Stroke="White" StrokeThickness="2"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="24" Height="24"/>
-                </Button>
             </StackPanel>
         </Grid>
 
-        <!-- Messages List -->
+        <!-- Messages -->
         <ListView x:Name="MessagesListView" Grid.Row="1"
                   ItemsSource="{Binding}"
                   Background="Transparent"
@@ -87,15 +67,13 @@
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid Margin="4,2,4,2" HorizontalAlignment="Stretch">
-                        <!-- Incoming message bubble -->
-                        <Border x:Name="IncomingBubble"
-                                Background="{StaticResource WhatsAppReceivedBubbleBrush}"
+                        <!-- Incoming bubble -->
+                        <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
                                 CornerRadius="8"
                                 MaxWidth="400"
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
-                                <!-- Image preview (visible for Image type) -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
@@ -104,27 +82,22 @@
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
                                 </Border>
-                                <!-- Caption/text (hidden for pure media, shown for text + captions) -->
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                            Visibility="{Binding Type, Converter={StaticResource MsgTypeToTextVis}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
-                                <!-- Timestamp -->
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
-                                    <TextBlock Text="{Binding FormattedTime}"
-                                               Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="11"/>
-                                </StackPanel>
+                                <TextBlock Text="{Binding FormattedTime}"
+                                           HorizontalAlignment="Right" Margin="0,4,0,0"
+                                           Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="11"/>
                             </StackPanel>
                         </Border>
 
-                        <!-- Outgoing message bubble -->
-                        <Border x:Name="OutgoingBubble"
-                                Background="{StaticResource WhatsAppSentBubbleBrush}"
+                        <!-- Outgoing bubble -->
+                        <Border Background="{StaticResource WhatsAppSentBubbleBrush}"
                                 CornerRadius="8"
                                 MaxWidth="400"
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
-                                <!-- Image preview (visible for Image type) -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
@@ -133,11 +106,9 @@
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
                                 </Border>
-                                <!-- Caption/text -->
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                            Visibility="{Binding Type, Converter={StaticResource MsgTypeToTextVis}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
-                                <!-- Timestamp + Status -->
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
                                     <TextBlock Text="{Binding FormattedTime}"
                                                Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="11"/>
@@ -152,14 +123,14 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <!-- Input Area -->
+        <!-- Input area -->
         <Grid Grid.Row="2" Background="#FFF0F0F0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="56"/>
             </Grid.RowDefinitions>
 
-            <!-- Selected image preview bar (visible when image is chosen) -->
+            <!-- Selected image preview -->
             <Grid x:Name="ImagePreviewBar" Grid.Row="0" Height="64"
                   Background="#FFE8E8E8" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
@@ -170,11 +141,13 @@
                 <Image x:Name="SelectedImagePreview" Grid.Column="0"
                        Width="48" Height="48" Margin="8,8,0,8"
                        Stretch="UniformToFill"/>
-                <TextBlock Grid.Column="1" Text="Immagine selezionata"
+                <TextBlock x:Uid="ChatPage_ImageSelected" Grid.Column="1"
+                           Text="Image selected"
                            VerticalAlignment="Center"
                            Foreground="#FF606060" FontSize="13"
                            Margin="8,0,0,0"/>
-                <Button Grid.Column="2" Foreground="#FF808080" Background="Transparent"
+                <Button x:Name="ClearImageButton" Grid.Column="2"
+                        Background="Transparent"
                         Width="44" Height="44" BorderThickness="0" Padding="0"
                         Click="ClearImageButton_Click">
                     <Path Data="{StaticResource IconClose}" Stroke="#FF808080" StrokeThickness="2.4"
@@ -192,7 +165,7 @@
                 </Grid.ColumnDefinitions>
 
                 <Button x:Name="AttachButton" Grid.Column="0"
-                        Foreground="#FF808080" Background="Transparent"
+                        Background="Transparent"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="AttachButton_Click">
@@ -201,8 +174,9 @@
                           Width="24" Height="24"/>
                 </Button>
 
-                <TextBox x:Name="MessageTextBox" Grid.Column="1"
-                         PlaceholderText="Scrivi un messaggio"
+                <TextBox x:Name="MessageTextBox" x:Uid="ChatPage_Input" Grid.Column="1"
+                         Text=""
+                         PlaceholderText="Type a message"
                          VerticalAlignment="Center"
                          Height="40"
                          FontSize="16"
