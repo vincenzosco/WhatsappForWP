@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using WhatsappApp.Models;
 
@@ -27,6 +26,11 @@ namespace WhatsappApp.Services
 
         private readonly ObservableCollection<Contact> _contacts;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
+
+        // Indice per id: senza questo ogni messaggio in arrivo scandiva tutta
+        // la lista dei contatti (FirstOrDefault) per trovare la chat.
+        private readonly Dictionary<string, Contact> _contactIndex =
+            new Dictionary<string, Contact>();
         private Contact _selectedContact;
         private string _connectionStatus;
         private bool _isServerRunning;
@@ -87,7 +91,7 @@ namespace WhatsappApp.Services
             _chatMessages[message.ChatId].Add(message);
 
             // Find or create contact for this chat
-            var contact = _contacts.FirstOrDefault(c => c.Id == message.ChatId);
+            var contact = FindContact(message.ChatId);
             if (contact == null)
             {
                 string name = string.IsNullOrEmpty(message.SenderName)
@@ -106,6 +110,7 @@ namespace WhatsappApp.Services
                     UnreadCount = 0
                 };
                 _contacts.Insert(0, contact);
+                _contactIndex[contact.Id] = contact;
             }
             else
             {
@@ -134,14 +139,14 @@ namespace WhatsappApp.Services
             if (message == null || message.Command != "contact" || string.IsNullOrEmpty(message.ChatId))
                 return;
 
-            var contact = _contacts.FirstOrDefault(c => c.Id == message.ChatId);
+            var contact = FindContact(message.ChatId);
             string name = string.IsNullOrEmpty(message.SenderName)
                 ? DisplayNameForJid(message.ChatId)
                 : message.SenderName;
 
             if (contact == null)
             {
-                _contacts.Add(new Contact
+                var added = new Contact
                 {
                     Id = message.ChatId,
                     Name = name,
@@ -150,7 +155,9 @@ namespace WhatsappApp.Services
                     AvatarColor = "#FF075E54",
                     IsOnline = false,
                     UnreadCount = 0
-                });
+                };
+                _contacts.Add(added);
+                _contactIndex[added.Id] = added;
             }
             else
             {
@@ -178,6 +185,38 @@ namespace WhatsappApp.Services
             return trimmed.Substring(0, 1).ToUpper();
         }
 
+        /// <summary>
+        /// Trova un contatto per id. L'indice viene ricostruito se non lo
+        /// conosce (la collezione e' pubblica: qualcuno puo' averla modificata
+        /// senza passare da AddContact) e ripulito dagli id non piu' presenti.
+        /// </summary>
+        public Contact FindContact(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+
+            Contact indexed;
+            if (_contactIndex.TryGetValue(id, out indexed))
+            {
+                if (_contacts.Contains(indexed)) return indexed;
+                _contactIndex.Remove(id);
+            }
+
+            RebuildContactIndex();
+
+            Contact found;
+            return _contactIndex.TryGetValue(id, out found) ? found : null;
+        }
+
+        private void RebuildContactIndex()
+        {
+            _contactIndex.Clear();
+            foreach (var contact in _contacts)
+            {
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+                _contactIndex[contact.Id] = contact;
+            }
+        }
+
         public ObservableCollection<ChatMessage> GetMessages(string chatId)
         {
             if (!_chatMessages.ContainsKey(chatId))
@@ -196,7 +235,7 @@ namespace WhatsappApp.Services
             _chatMessages[chatId].Add(message);
 
             // Update the contact's last message
-            var contact = _contacts.FirstOrDefault(c => c.Id == chatId);
+            var contact = FindContact(chatId);
             if (contact != null)
             {
                 contact.LastMessage = message.Text;
@@ -211,14 +250,16 @@ namespace WhatsappApp.Services
 
         public void ClearUnread(string chatId)
         {
-            var contact = _contacts.FirstOrDefault(c => c.Id == chatId);
+            var contact = FindContact(chatId);
             if (contact != null)
                 contact.UnreadCount = 0;
         }
 
         public void AddContact(Contact contact)
         {
+            if (contact == null) return;
             _contacts.Insert(0, contact);
+            if (!string.IsNullOrEmpty(contact.Id)) _contactIndex[contact.Id] = contact;
         }
 
         private void OnPropertyChanged([CallerMemberName] string name = null)
