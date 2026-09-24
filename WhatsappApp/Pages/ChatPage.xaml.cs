@@ -26,6 +26,12 @@ namespace WhatsappApp.Pages
         public ChatPage()
         {
             this.InitializeComponent();
+
+            // Icon-only buttons: the label lives in the tooltip.
+            ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            ToolTipService.SetToolTip(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
+            ToolTipService.SetToolTip(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
+            ToolTipService.SetToolTip(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -39,7 +45,10 @@ namespace WhatsappApp.Pages
                 _isConnectedMode = CommunicationService.Instance.IsConnected;
 
                 ContactNameText.Text = contact.Name;
-                OnlineStatusText.Text = contact.IsOnline ? "in linea" : "ultimo accesso oggi " + DateTime.Now.ToString("HH:mm");
+                OnlineStatusText.Text = contact.IsOnline
+                    ? Loc.Get("ChatPage_Online", "online")
+                    : string.Format(Loc.Get("ChatPage_LastSeenToday", "last seen today at {0}"),
+                        DateTime.Now.ToString("HH:mm"));
 
                 // Load messages
                 _messages = DataService.Instance.GetMessages(contact.Id);
@@ -94,7 +103,7 @@ namespace WhatsappApp.Pages
                 Id = Guid.NewGuid().ToString("N"),
                 Text = text,
                 SenderId = CommunicationService.Instance.MyUserId ?? "me",
-                SenderName = CommunicationService.Instance.MyUsername ?? "Io",
+                SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
                 Timestamp = DateTime.Now,
                 Type = MessageType.Text,
@@ -118,7 +127,7 @@ namespace WhatsappApp.Pages
                 Id = Guid.NewGuid().ToString("N"),
                 Text = caption ?? "",
                 SenderId = CommunicationService.Instance.MyUserId ?? "me",
-                SenderName = CommunicationService.Instance.MyUsername ?? "Io",
+                SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
                 Timestamp = DateTime.Now,
                 Type = MessageType.Image,
@@ -230,7 +239,8 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("Errore selezione immagine: " + ex.Message);
+                System.Diagnostics.Debug.WriteLine(
+                    string.Format(Loc.Get("ChatPage_ImageError", "Could not open the image: {0}"), ex.Message));
             }
         }
 
