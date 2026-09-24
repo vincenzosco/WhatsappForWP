@@ -153,6 +153,18 @@ npm test     # test unitari e di integrazione
 npm start
 ```
 
+### Icone, tile e splash screen
+
+Il logo WhatsApp (bolla bianca con la cornetta ritagliata) è disegnato via
+geometria vettoriale da `tools/make-brand-assets.js`, che richiede ImageMagick 7
+(`magick`) e riscrive i PNG in `WhatsappApp/Assets/` — già committati, quindi lo
+script serve solo se cambia la grafica:
+
+```bash
+node tools/make-brand-assets.js            # riscrive i PNG
+node tools/make-brand-assets.js --preview  # + anteprima ASCII per controllare il logo
+```
+
 ## Disclaimer
 
 - This is an unofficial project not affiliated with WhatsApp or Meta.
