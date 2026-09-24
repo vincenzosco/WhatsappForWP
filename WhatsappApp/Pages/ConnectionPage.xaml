@@ -25,11 +25,14 @@
             </Grid.ColumnDefinitions>
 
             <Button x:Name="BackButton" Grid.Column="0"
-                    Content="&#xE0C4;" FontFamily="Segoe MDL2 Assets"
                     Foreground="White" Background="Transparent"
-                    Width="48" Height="48" Margin="0,4,0,0"
+                    Width="48" Height="48" Margin="0,4,0,0" Padding="0"
                     Click="BackButton_Click"
-                    BorderThickness="0"/>
+                    BorderThickness="0">
+                <Path Data="{StaticResource IconBack}" Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
 
             <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="Configurazione"
                        Foreground="White" FontSize="20" FontWeight="SemiBold"
