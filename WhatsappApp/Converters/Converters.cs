@@ -1,9 +1,7 @@
 using System;
-using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Data;
 using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
 
 namespace WhatsappApp.Converters
 {
@@ -88,7 +86,8 @@ namespace WhatsappApp.Converters
         {
             string initials = value as string ?? "?";
             int hash = initials.GetHashCode();
-            int index = Math.Abs(hash) % Colors.Length;
+            // Maschera il bit di segno: Math.Abs(int.MinValue) va in overflow
+            int index = (hash & 0x7FFFFFFF) % Colors.Length;
             return new SolidColorBrush(ParseColor(Colors[index]));
         }
 
@@ -157,44 +156,6 @@ namespace WhatsappApp.Converters
             return isOnline
                 ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 37, 211, 102))  // #25D366 green
                 : new SolidColorBrush(Windows.UI.Color.FromArgb(100, 200, 200, 200)); // gray
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, string language)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    /// <summary>
-    /// Converts a base64-encoded image string to a BitmapImageSource
-    /// </summary>
-    public class Base64ToImageSourceConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, string language)
-        {
-            string base64 = value as string;
-            if (string.IsNullOrEmpty(base64)) return null;
-
-            try
-            {
-                byte[] bytes = System.Convert.FromBase64String(base64);
-                using (var ms = new InMemoryRandomAccessStream())
-                {
-                    using (var stream = new DataWriter(ms.GetOutputStreamAt(0)))
-                    {
-                        stream.WriteBytes(bytes);
-                        stream.StoreAsync().GetResults();
-                    }
-                    var bitmap = new BitmapImage();
-                    ms.Seek(0);
-                    bitmap.SetSource(ms);
-                    return bitmap;
-                }
-            }
-            catch
-            {
-                return null;
-            }
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
