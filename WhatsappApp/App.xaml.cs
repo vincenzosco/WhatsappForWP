@@ -63,7 +63,11 @@ namespace WhatsappApp
             if (rootFrame == null)
             {
                 rootFrame = new Frame();
-                rootFrame.CacheSize = 1;
+                // Tre pagine di sezione (Chats/Status/Calls) con
+                // NavigationCacheMode.Enabled: la cache le tiene in vita, cosi'
+                // passare da una sezione all'altra non ricostruisce la pagina
+                // (l'elenco chat conserva anche la posizione di scorrimento).
+                rootFrame.CacheSize = 3;
                 rootFrame.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
 
                 if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)

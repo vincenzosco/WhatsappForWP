@@ -19,6 +19,16 @@
         <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
         <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#DE000000"/>
         <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#8A000000"/>
+
+        <!-- Containers senza padding/animazioni: i fumetti usano tutta la
+             larghezza e ogni item costa meno layout durante lo scorrimento. -->
+        <Style x:Key="MessageItemContainerStyle" TargetType="ListViewItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="IsTabStop" Value="False"/>
+        </Style>
     </Page.Resources>
 
     <Grid>
@@ -57,6 +67,7 @@
         <!-- Messages -->
         <ListView x:Name="MessagesListView" Grid.Row="1"
                   ItemsSource="{Binding}"
+                  ItemContainerStyle="{StaticResource MessageItemContainerStyle}"
                   Background="Transparent"
                   SelectionMode="None">
             <ListView.ItemsPanel>
