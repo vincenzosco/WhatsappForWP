@@ -129,6 +129,18 @@ answers with `qr` / `paircode` / `state` / `contact` / `error` frames. See
 
 Open `WhatsappApp.sln` in Visual Studio 2015 with Windows Phone 8.1 SDK. Build and deploy to a Windows Phone 8.1 device or emulator.
 
+Il toolchain di Windows Phone 8.1 compila l'app con il compilatore **C# 5**: la
+sintassi C# 6/7 (stringhe interpolate, `?.`, proprietà con corpo `=>`,
+inizializzatori di proprietà automatiche, pattern matching, `out var`) non
+compila. Prima di ogni build eseguire:
+
+```bash
+node tools/check-csharp5.js
+```
+
+Esce con codice 0 quando tutti i file `.cs` della soluzione sono compatibili con
+C# 5, altrimenti elenca file, riga e costrutto da correggere.
+
 ### GOWA Adapter
 
 ```bash
