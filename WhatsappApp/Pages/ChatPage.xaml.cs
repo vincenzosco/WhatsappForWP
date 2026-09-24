@@ -62,6 +62,9 @@ namespace WhatsappApp.Pages
                     MessagesListView.ScrollIntoView(_messages[_messages.Count - 1]);
                 }
 
+                // Da qui in poi i messaggi di questa chat sono gia' letti
+                DataService.Instance.ActiveChatId = contact.Id;
+
                 // Listen for new messages
                 CommunicationService.Instance.MessageReceived += OnMessageReceived;
             }
@@ -71,6 +74,7 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
+            DataService.Instance.ActiveChatId = null;
         }
 
         private void OnMessageReceived(object sender, ChatMessage message)

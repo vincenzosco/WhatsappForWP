@@ -125,27 +125,6 @@ namespace WhatsappApp.Converters
     }
 
     /// <summary>
-    /// Converts a boolean to online status text
-    /// </summary>
-    public class OnlineStatusConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, string language)
-        {
-            bool isOnline = (bool)value;
-            if (parameter != null && parameter.ToString() == "ForContact")
-            {
-                return isOnline ? "in linea" : "non in linea";
-            }
-            return isOnline ? "Online" : "Offline";
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, string language)
-        {
-            throw new NotImplementedException();
-        }
-    }
-
-    /// <summary>
     /// Converts online status to green/gray dot visibility
     /// </summary>
     public class OnlineToDotColorConverter : IValueConverter
