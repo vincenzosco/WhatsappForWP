@@ -66,9 +66,10 @@ namespace WhatsappApp.Pages
 
         private void OnMessageReceived(object sender, ChatMessage message)
         {
+            // DataService ha già inserito il messaggio nella stessa collezione:
+            // qui si scorre soltanto, altrimenti la bolla comparirebbe due volte.
             if (message.ChatId == _contact.Id)
             {
-                _messages.Add(message);
                 MessagesListView.UpdateLayout();
                 MessagesListView.ScrollIntoView(message);
             }
@@ -128,6 +129,9 @@ namespace WhatsappApp.Pages
                 MediaFileName = _selectedImageFile == null ? null : _selectedImageFile.Name
             };
 
+            // Decodifica locale: il mittente deve vedere la propria immagine
+            await message.LoadMediaImageAsync();
+
             AddAndSendMessage(message);
 
             // Clear image preview
@@ -136,8 +140,8 @@ namespace WhatsappApp.Pages
 
         private async void AddAndSendMessage(ChatMessage message)
         {
-            // Add message locally
-            _messages.Add(message);
+            // DataService è l'unico punto di inserimento: _messages è la stessa
+            // ObservableCollection osservata dal ListView.
             DataService.Instance.AddMessage(_contact.Id, message);
             MessageTextBox.Text = "";
 
@@ -150,7 +154,9 @@ namespace WhatsappApp.Pages
             {
                 message.Status = MessageStatus.Sending;
                 await CommunicationService.Instance.SendMessageAsync(message);
-                message.Status = MessageStatus.Sent;
+                message.Status = CommunicationService.Instance.IsConnected
+                    ? MessageStatus.Sent
+                    : MessageStatus.Failed;
             }
         }
 
