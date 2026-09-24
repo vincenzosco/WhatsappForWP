@@ -98,6 +98,7 @@
     <Compile Include="Services\CommunicationService.cs" />
     <Compile Include="Services\CryptoHelper.cs" />
     <Compile Include="Services\DataService.cs" />
+    <Compile Include="Services\ImageHelper.cs" />
     <Compile Include="Services\Loc.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
