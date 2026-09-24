@@ -139,7 +139,10 @@ node tools/check-csharp5.js
 ```
 
 Esce con codice 0 quando tutti i file `.cs` della soluzione sono compatibili con
-C# 5, altrimenti elenca file, riga e costrutto da correggere.
+C# 5, altrimenti elenca file, riga e costrutto da correggere. Lo stesso script
+controlla anche i membri **assenti dalla proiezione WinRT di Windows Phone 8.1**
+(es. `CryptographicBuffer.CreateFromByteArray` a 3 argomenti,
+`ContentDialog.CloseButtonText`): compilano su Windows 8.1/10 ma non su WP8.1.
 
 ### GOWA Adapter
 
