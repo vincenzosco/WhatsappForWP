@@ -23,6 +23,11 @@ namespace WhatsappApp
             base.OnNavigatedTo(e);
             ChatListView.ItemsSource = DataService.Instance.Contacts;
 
+            // Keep the empty state in sync with the contact list
+            DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
+            DataService.Instance.Contacts.CollectionChanged += Contacts_CollectionChanged;
+            UpdateEmptyState();
+
             // OnNavigatedTo is not async: fire the contacts request and ignore the task
             if (CommunicationService.Instance.IsConnected)
                 CommunicationService.Instance.SendControlAsync("contacts");
@@ -34,7 +39,19 @@ namespace WhatsappApp
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+            DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
             HardwareButtons.BackPressed -= HardwareButtons_BackPressed;
+        }
+
+        private void Contacts_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            UpdateEmptyState();
+        }
+
+        private void UpdateEmptyState()
+        {
+            bool empty = DataService.Instance.Contacts.Count == 0;
+            EmptyStatePanel.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
         }
 
         private void HardwareButtons_BackPressed(object sender, BackPressedEventArgs e)
