@@ -8,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Imaging;
+using WhatsappApp.Services;
 
 namespace WhatsappApp.Models
 {
@@ -252,9 +253,9 @@ namespace WhatsappApp.Models
         {
             get
             {
-                if (Type == MessageType.Image) return "Foto";
-                if (Type == MessageType.Audio) return "Audio";
-                return "File";
+                if (Type == MessageType.Image) return Loc.Get("ChatMessage_Photo", "Photo");
+                if (Type == MessageType.Audio) return Loc.Get("ChatMessage_Audio", "Audio");
+                return Loc.Get("ChatMessage_File", "File");
             }
         }
 
@@ -278,7 +279,7 @@ namespace WhatsappApp.Models
             if (dt.Date == now.Date)
                 return dt.ToString("HH:mm");
             if (dt.Date == now.Date.AddDays(-1))
-                return "Ieri";
+                return Loc.Get("ChatMessage_Yesterday", "Yesterday");
             if (dt.Year == now.Year)
                 return dt.ToString("dd/MM");
             return dt.ToString("dd/MM/yy");
