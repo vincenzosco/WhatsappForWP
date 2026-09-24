@@ -81,12 +81,15 @@ namespace WhatsappApp
                 PlaceholderText = "Numero con prefisso internazionale, es. 393401234567"
             };
 
+            // WP8.1 ContentDialog has no CloseButtonText: "Annulla" is the
+            // secondary button, and the dialog can also be dismissed with the
+            // hardware back button (result = None).
             var dialog = new ContentDialog
             {
                 Title = "Nuova chat",
                 Content = input,
                 PrimaryButtonText = "Apri",
-                CloseButtonText = "Annulla"
+                SecondaryButtonText = "Annulla"
             };
 
             var result = await dialog.ShowAsync();
