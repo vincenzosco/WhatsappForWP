@@ -44,20 +44,27 @@
                        Foreground="White" FontSize="22" FontWeight="SemiBold"
                        VerticalAlignment="Center" Margin="16,0,0,4"/>
 
-            <Button Grid.Column="1" Content="&#xE717;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="White" Background="Transparent"
-                    Width="44" Height="44" BorderThickness="0"
-                    Click="SearchButton_Click"/>
+            <Button Grid.Column="1" Foreground="White" Background="Transparent"
+                    Width="44" Height="44" BorderThickness="0" IsEnabled="False"
+                    Click="SearchButton_Click">
+                <Path Data="{StaticResource IconSearch}" Stroke="White" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
 
-            <Button Grid.Column="2" Content="&#xE10F;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="White" Background="Transparent"
-                    Width="44" Height="44" BorderThickness="0"
-                    Click="MoreButton_Click"/>
+            <Button Grid.Column="2" Foreground="White" Background="Transparent"
+                    Width="44" Height="44" BorderThickness="0" IsEnabled="False"
+                    Click="MoreButton_Click">
+                <Path Data="{StaticResource IconMore}" Fill="White" Width="24" Height="24"/>
+            </Button>
 
-            <Button Grid.Column="3" Content="&#xE700;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="White" Background="Transparent"
+            <Button Grid.Column="3" Foreground="White" Background="Transparent"
                     Width="44" Height="44" BorderThickness="0"
-                    Click="ConnectionButton_Click"/>
+                    Click="ConnectionButton_Click">
+                <Path Data="{StaticResource IconSettings}" Stroke="White" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
         </Grid>
 
         <!-- Tab Bar (Chats, Status, Calls) -->
@@ -70,13 +77,13 @@
 
             <Button Grid.Column="0" Content="CHAT" Foreground="White"
                     Background="Transparent" FontSize="14" FontWeight="SemiBold"
-                    BorderThickness="0" Height="48"/>
+                    BorderThickness="0" Height="48" IsEnabled="False"/>
             <Button Grid.Column="1" Content="STATO" Foreground="#B0FFFFFF"
                     Background="Transparent" FontSize="14" FontWeight="Normal"
-                    BorderThickness="0" Height="48"/>
+                    BorderThickness="0" Height="48" IsEnabled="False"/>
             <Button Grid.Column="2" Content="CHIAMATE" Foreground="#B0FFFFFF"
                     Background="Transparent" FontSize="14" FontWeight="Normal"
-                    BorderThickness="0" Height="48"/>
+                    BorderThickness="0" Height="48" IsEnabled="False"/>
 
             <!-- Active indicator -->
             <Border Grid.Column="0" Height="3" Width="40"
@@ -153,6 +160,18 @@
             </ListView.ItemTemplate>
         </ListView>
 
+        <!-- Empty state: shown by UpdateEmptyState() when there are no contacts -->
+        <StackPanel x:Name="EmptyStatePanel" Grid.Row="2" Visibility="Collapsed"
+                    VerticalAlignment="Center" HorizontalAlignment="Center">
+            <Path Data="{StaticResource IconChats}" Stroke="#FFBDBDBD" StrokeThickness="2"
+                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                  Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center"/>
+            <TextBlock Text="Nessuna chat" Foreground="#FF9E9E9E" FontSize="16"
+                       HorizontalAlignment="Center" Margin="0,10,0,0"/>
+            <TextBlock Text="Tocca + per iniziare" Foreground="#FFBDBDBD" FontSize="13"
+                       HorizontalAlignment="Center" Margin="0,2,0,0"/>
+        </StackPanel>
+
         <!-- Bottom Bar -->
         <Grid Grid.Row="3" Background="#FFF5F5F5" Height="48">
             <Grid.ColumnDefinitions>
@@ -162,29 +181,41 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Button Grid.Column="0" Content="&#xE80F;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="#FF128C7E" FontSize="20"
-                    Background="Transparent" BorderThickness="0"/>
-            <Button Grid.Column="1" Content="&#xE140;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="#FF808080" FontSize="20"
-                    Background="Transparent" BorderThickness="0"/>
-            <Button Grid.Column="2" Content="&#xE15D;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="#FF808080" FontSize="20"
-                    Background="Transparent" BorderThickness="0"/>
-            <Button Grid.Column="3" Content="&#xE16F;" FontFamily="Segoe MDL2 Assets"
-                    Foreground="#FF808080" FontSize="20"
-                    Background="Transparent" BorderThickness="0"/>
+            <Button Grid.Column="0" Background="Transparent" BorderThickness="0" IsEnabled="False">
+                <Path Data="{StaticResource IconChats}" Stroke="#FF128C7E" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
+            <Button Grid.Column="1" Background="Transparent" BorderThickness="0" IsEnabled="False">
+                <Path Data="{StaticResource IconContacts}" Stroke="#FF808080" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
+            <Button Grid.Column="2" Background="Transparent" BorderThickness="0" IsEnabled="False">
+                <Path Data="{StaticResource IconStatus}" Stroke="#FF808080" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
+            <Button Grid.Column="3" Background="Transparent" BorderThickness="0" IsEnabled="False">
+                <Path Data="{StaticResource IconCalls}" Stroke="#FF808080" StrokeThickness="3"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24"/>
+            </Button>
         </Grid>
 
-        <!-- Floating Action Button (New Chat) - square button since CornerRadius not supported on WP8.1 -->
-        <Button x:Name="NewChatButton"
-                Content="&#xE109;" FontFamily="Segoe MDL2 Assets"
+        <!-- Floating Action Button (New Chat): row 2 (the chat list) so it floats
+             above the bottom bar instead of overlapping the header. -->
+        <Button x:Name="NewChatButton" Grid.Row="2"
                 Width="56" Height="56"
                 Background="{StaticResource WhatsAppAccentBrush}"
-                Foreground="White" FontSize="24"
-                BorderThickness="0"
+                Foreground="White"
+                BorderThickness="0" Padding="0"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                Margin="0,0,16,64"
-                Click="NewChatButton_Click"/>
+                Margin="0,0,16,16"
+                Click="NewChatButton_Click">
+            <Path Data="{StaticResource IconAdd}" Stroke="White" StrokeThickness="2.2"
+                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                  Width="24" Height="24"/>
+        </Button>
     </Grid>
 </Page>
