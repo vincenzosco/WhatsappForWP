@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MainPage_TabChats.Text" xml:space="preserve">
+    <value>chats</value>
+  </data>
+  <data name="MainPage_TabStatus.Text" xml:space="preserve">
+    <value>status</value>
+  </data>
+  <data name="MainPage_TabCalls.Text" xml:space="preserve">
+    <value>calls</value>
+  </data>
+  <data name="MainPage_EmptyTitle.Text" xml:space="preserve">
+    <value>No chats yet</value>
+  </data>
+  <data name="MainPage_EmptyHint.Text" xml:space="preserve">
+    <value>Tap new chat to start</value>
+  </data>
+  <data name="MainPage_StatusEmptyTitle.Text" xml:space="preserve">
+    <value>No status updates</value>
+  </data>
+  <data name="MainPage_StatusEmptyHint.Text" xml:space="preserve">
+    <value>Status updates are not supported in this version.</value>
+  </data>
+  <data name="MainPage_CallsEmptyTitle.Text" xml:space="preserve">
+    <value>No calls</value>
+  </data>
+  <data name="MainPage_CallsEmptyHint.Text" xml:space="preserve">
+    <value>Calls are not supported in this version.</value>
+  </data>
+  <data name="MainPage_NewChatTooltip" xml:space="preserve">
+    <value>New chat</value>
+  </data>
+  <data name="MainPage_SettingsTooltip" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="MainPage_NewChatTitle" xml:space="preserve">
+    <value>New chat</value>
+  </data>
+  <data name="MainPage_NewChatPrompt" xml:space="preserve">
+    <value>Phone number with country code (e.g. 393401234567)</value>
+  </data>
+  <data name="MainPage_NewChatOpen" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="MainPage_NewChatCancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="MainPage_NewChatInvalid" xml:space="preserve">
+    <value>Enter a valid number with country code (e.g. 393401234567).</value>
+  </data>
+  <data name="ChatPage_Input.PlaceholderText" xml:space="preserve">
+    <value>Type a message</value>
+  </data>
+  <data name="ChatPage_ImageSelected.Text" xml:space="preserve">
+    <value>Image selected</value>
+  </data>
+  <data name="ChatPage_Online" xml:space="preserve">
+    <value>online</value>
+  </data>
+  <data name="ChatPage_LastSeenToday" xml:space="preserve">
+    <value>last seen today at {0}</value>
+  </data>
+  <data name="ChatPage_Me" xml:space="preserve">
+    <value>Me</value>
+  </data>
+  <data name="ChatPage_ImageError" xml:space="preserve">
+    <value>Could not open the image: {0}</value>
+  </data>
+  <data name="ChatPage_BackTooltip" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="ChatPage_AttachTooltip" xml:space="preserve">
+    <value>Attach an image</value>
+  </data>
+  <data name="ChatPage_SendTooltip" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="ChatPage_ClearImageTooltip" xml:space="preserve">
+    <value>Remove the image</value>
+  </data>
+  <data name="ChatMessage_Photo" xml:space="preserve">
+    <value>Photo</value>
+  </data>
+  <data name="ChatMessage_Audio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="ChatMessage_File" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="ChatMessage_Yesterday" xml:space="preserve">
+    <value>Yesterday</value>
+  </data>
+  <data name="ConnectionPage_ServerLabel.Text" xml:space="preserve">
+    <value>WhatsApp server (adapter)</value>
+  </data>
+  <data name="ConnectionPage_ServerPlaceholder.PlaceholderText" xml:space="preserve">
+    <value>e.g. 192.168.1.100</value>
+  </data>
+  <data name="ConnectionPage_PortLabel.Text" xml:space="preserve">
+    <value>TCP port</value>
+  </data>
+  <data name="ConnectionPage_NameLabel.Text" xml:space="preserve">
+    <value>Your name</value>
+  </data>
+  <data name="ConnectionPage_Connect.Content" xml:space="preserve">
+    <value>Connect to the server</value>
+  </data>
+  <data name="ConnectionPage_Disconnect.Content" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="ConnectionPage_WhatsAppTitle.Text" xml:space="preserve">
+    <value>WhatsApp connection</value>
+  </data>
+  <data name="ConnectionPage_QrLogin.Content" xml:space="preserve">
+    <value>Sign in with QR code</value>
+  </data>
+  <data name="ConnectionPage_OrPhone.Text" xml:space="preserve">
+    <value>or sign in with your phone number</value>
+  </data>
+  <data name="ConnectionPage_PhonePlaceholder.PlaceholderText" xml:space="preserve">
+    <value>Number with country code (e.g. 393401234567)</value>
+  </data>
+  <data name="ConnectionPage_GetCode.Content" xml:space="preserve">
+    <value>Get the code</value>
+  </data>
+  <data name="ConnectionPage_Continue.Content" xml:space="preserve">
+    <value>Continue</value>
+  </data>
+  <data name="ConnectionPage_HelpTitle.Text" xml:space="preserve">
+    <value>How to sign in</value>
+  </data>
+  <data name="ConnectionPage_HelpQr.Text" xml:space="preserve">
+    <value>QR code: open WhatsApp on your phone, open Linked devices and tap Link a device, then scan the code.</value>
+  </data>
+  <data name="ConnectionPage_HelpPhone.Text" xml:space="preserve">
+    <value>Phone number: enter the international number, tap Get the code, then type it in WhatsApp.</value>
+  </data>
+  <data name="ConnectionPage_Version.Text" xml:space="preserve">
+    <value>WhatsApp Community Edition v2.0 (GOWA)</value>
+  </data>
+  <data name="ConnectionPage_FirstRunTitle" xml:space="preserve">
+    <value>First-time setup</value>
+  </data>
+  <data name="ConnectionPage_SettingsTitle" xml:space="preserve">
+    <value>Server settings</value>
+  </data>
+  <data name="ConnectionPage_Connecting" xml:space="preserve">
+    <value>Connecting to {0}:{1}...</value>
+  </data>
+  <data name="ConnectionPage_Connected" xml:space="preserve">
+    <value>Connected!</value>
+  </data>
+  <data name="ConnectionPage_ConnectFailed" xml:space="preserve">
+    <value>Connection failed</value>
+  </data>
+  <data name="ConnectionPage_WhatsAppConnected" xml:space="preserve">
+    <value>WhatsApp connected!</value>
+  </data>
+  <data name="ConnectionPage_ConnectedAs" xml:space="preserve">
+    <value>Connected as {0}</value>
+  </data>
+  <data name="ConnectionPage_Waiting" xml:space="preserve">
+    <value>Waiting for pairing: follow the instructions below.</value>
+  </data>
+  <data name="ConnectionPage_WhatsAppDisconnected" xml:space="preserve">
+    <value>Not connected to WhatsApp. Sign in with the QR code or your phone number.</value>
+  </data>
+  <data name="ConnectionPage_InvalidPhone" xml:space="preserve">
+    <value>Enter a valid number with country code (e.g. 393401234567).</value>
+  </data>
+  <data name="ConnectionPage_RequestingQr" xml:space="preserve">
+    <value>Requesting the QR code...</value>
+  </data>
+  <data name="ConnectionPage_RequestingCode" xml:space="preserve">
+    <value>Requesting the code...</value>
+  </data>
+  <data name="ConnectionPage_QrUnavailable" xml:space="preserve">
+    <value>QR code not available.</value>
+  </data>
+  <data name="ConnectionPage_QrHint" xml:space="preserve">
+    <value>Open WhatsApp, open Linked devices and tap Link a device, then scan the code.</value>
+  </data>
+  <data name="ConnectionPage_QrHintDuration" xml:space="preserve">
+    <value>Open WhatsApp, open Linked devices and tap Link a device, then scan the code (valid for about {0} seconds).</value>
+  </data>
+  <data name="ConnectionPage_QrError" xml:space="preserve">
+    <value>Could not show the QR code: {0}</value>
+  </data>
+  <data name="ConnectionPage_PairCode" xml:space="preserve">
+    <value>Code: {0}</value>
+  </data>
+  <data name="ConnectionPage_PairCodeHint" xml:space="preserve">
+    <value>Enter this code in WhatsApp: Linked devices, Link a device, Link with phone number instead.</value>
+  </data>
+  <data name="CommService_Connecting" xml:space="preserve">
+    <value>Connecting...</value>
+  </data>
+  <data name="CommService_Connected" xml:space="preserve">
+    <value>Connected to the server</value>
+  </data>
+  <data name="CommService_ConnectError" xml:space="preserve">
+    <value>Connection error: {0}</value>
+  </data>
+  <data name="CommService_ConnectionLost" xml:space="preserve">
+    <value>Connection lost: {0}</value>
+  </data>
+  <data name="CommService_Disconnected" xml:space="preserve">
+    <value>Disconnected</value>
+  </data>
+  <data name="CommService_NotConnected" xml:space="preserve">
+    <value>Not connected</value>
+  </data>
+  <data name="CommService_SendError" xml:space="preserve">
+    <value>Send error: {0}</value>
+  </data>
+  <data name="CommService_DecryptError" xml:space="preserve">
+    <value>Message decryption error: {0}</value>
+  </data>
+  <data name="CommService_Me" xml:space="preserve">
+    <value>Me</value>
+  </data>
+  <data name="CommService_ServerStarted" xml:space="preserve">
+    <value>Server started on port {0}</value>
+  </data>
+  <data name="CommService_ServerStartError" xml:space="preserve">
+    <value>Server start error: {0}</value>
+  </data>
+  <data name="CommService_ClientConnected" xml:space="preserve">
+    <value>New client connected ({0} online)</value>
+  </data>
+  <data name="CommService_ClientDisconnected" xml:space="preserve">
+    <value>Client disconnected: {0}</value>
+  </data>
+  <data name="CommService_ClientRemoved" xml:space="preserve">
+    <value>Client removed ({0} online)</value>
+  </data>
+  <data name="DataService_Group" xml:space="preserve">
+    <value>Group {0}</value>
+  </data>
+</root>
