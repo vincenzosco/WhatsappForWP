@@ -8,10 +8,19 @@ namespace WhatsappApp.Models
 
     public class ServerConfig
     {
-        public ConnectionMode Mode { get; set; } = ConnectionMode.ClientMode;
-        public string ServerAddress { get; set; } = "192.168.1.100";
-        public int ServerPort { get; set; } = 8585;
-        public string Username { get; set; } = "";
-        public string DeviceName { get; set; } = "Windows Phone";
+        public ConnectionMode Mode { get; set; }
+        public string ServerAddress { get; set; }
+        public int ServerPort { get; set; }
+        public string Username { get; set; }
+        public string DeviceName { get; set; }
+
+        public ServerConfig()
+        {
+            Mode = ConnectionMode.ClientMode;
+            ServerAddress = "192.168.1.100";
+            ServerPort = 8585;
+            Username = "";
+            DeviceName = "Windows Phone";
+        }
     }
 }
