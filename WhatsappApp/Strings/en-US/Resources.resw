@@ -202,6 +202,9 @@
   <data name="ConnectionPage_SettingsTitle" xml:space="preserve">
     <value>Server settings</value>
   </data>
+  <data name="ConnectionPage_DefaultUsername" xml:space="preserve">
+    <value>User</value>
+  </data>
   <data name="ConnectionPage_Connecting" xml:space="preserve">
     <value>Connecting to {0}:{1}...</value>
   </data>

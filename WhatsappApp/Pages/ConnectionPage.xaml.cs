@@ -18,6 +18,7 @@ namespace WhatsappApp.Pages
         public ConnectionPage()
         {
             this.InitializeComponent();
+            ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -38,11 +39,14 @@ namespace WhatsappApp.Pages
             if (!string.IsNullOrEmpty(savedUsername))
                 UsernameBox.Text = savedUsername;
 
-            PageTitleText.Text = _isFirstRun ? "Prima configurazione" : "Impostazioni Server";
+            PageTitleText.Text = _isFirstRun
+                ? Loc.Get("ConnectionPage_FirstRunTitle", "First-time setup")
+                : Loc.Get("ConnectionPage_SettingsTitle", "Server settings");
 
             CommunicationService.Instance.ConnectionStatusChanged += OnConnectionStatusChanged;
             CommunicationService.Instance.ErrorOccurred += OnErrorOccurred;
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+            CommunicationService.Instance.ConnectionEstablished += OnConnectionEstablished;
 
             if (CommunicationService.Instance.IsConnected)
             {
@@ -58,6 +62,12 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ConnectionStatusChanged -= OnConnectionStatusChanged;
             CommunicationService.Instance.ErrorOccurred -= OnErrorOccurred;
             CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
+            CommunicationService.Instance.ConnectionEstablished -= OnConnectionEstablished;
+        }
+
+        private void OnConnectionEstablished(object sender, EventArgs e)
+        {
+            ShowConnectedState();
         }
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
@@ -65,7 +75,7 @@ namespace WhatsappApp.Pages
             string username = (UsernameBox.Text ?? "").Trim();
             if (string.IsNullOrEmpty(username))
             {
-                username = "Utente";
+                username = Loc.Get("ConnectionPage_DefaultUsername", "User");
                 UsernameBox.Text = username;
             }
 
@@ -82,19 +92,20 @@ namespace WhatsappApp.Pages
 
             StatusPanel.Visibility = Visibility.Visible;
             ActionButton.IsEnabled = false;
-            StatusText.Text = "Connessione a " + address + ":" + port + "...";
+            StatusText.Text = string.Format(
+                Loc.Get("ConnectionPage_Connecting", "Connecting to {0}:{1}..."), address, port);
 
             bool connected = await CommunicationService.Instance.ConnectToServerAsync(address, port, username);
             if (connected)
             {
                 SettingsService.Save(address, port, username);
-                StatusText.Text = "Connesso!";
+                StatusText.Text = Loc.Get("ConnectionPage_Connected", "Connected!");
                 ShowConnectedState();
                 await CommunicationService.Instance.SendControlAsync("status");
             }
             else
             {
-                StatusText.Text = "Connessione fallita";
+                StatusText.Text = Loc.Get("ConnectionPage_ConnectFailed", "Connection failed");
                 ActionButton.IsEnabled = true;
             }
         }
@@ -114,8 +125,9 @@ namespace WhatsappApp.Pages
             {
                 case "connected":
                     WhatsAppStateText.Text = string.IsNullOrEmpty(accountJid)
-                        ? "WhatsApp connesso!"
-                        : "Connesso come " + accountJid.Split('@')[0];
+                        ? Loc.Get("ConnectionPage_WhatsAppConnected", "WhatsApp connected!")
+                        : string.Format(Loc.Get("ConnectionPage_ConnectedAs", "Connected as {0}"),
+                            accountJid.Split('@')[0]);
                     LoginQrButton.Visibility = Visibility.Collapsed;
                     QrImage.Visibility = Visibility.Collapsed;
                     PhoneBox.Visibility = Visibility.Collapsed;
@@ -126,7 +138,8 @@ namespace WhatsappApp.Pages
                     break;
 
                 case "waiting":
-                    WhatsAppStateText.Text = "In attesa di abbinamento... segui le istruzioni qui sotto.";
+                    WhatsAppStateText.Text = Loc.Get("ConnectionPage_Waiting",
+                        "Waiting for pairing: follow the instructions below.");
                     LoginQrButton.Visibility = Visibility.Visible;
                     PhoneBox.Visibility = Visibility.Visible;
                     LoginCodeButton.Visibility = Visibility.Visible;
@@ -134,7 +147,8 @@ namespace WhatsappApp.Pages
                     break;
 
                 default:
-                    WhatsAppStateText.Text = "Non connesso a WhatsApp. Accedi con QR code o con il numero.";
+                    WhatsAppStateText.Text = Loc.Get("ConnectionPage_WhatsAppDisconnected",
+                        "Not connected to WhatsApp. Sign in with the QR code or your phone number.");
                     LoginQrButton.Visibility = Visibility.Visible;
                     PhoneBox.Visibility = Visibility.Visible;
                     LoginCodeButton.Visibility = Visibility.Visible;
@@ -161,8 +175,10 @@ namespace WhatsappApp.Pages
                     break;
 
                 case "paircode":
-                    PairCodeText.Text = "Codice: " + message.PairCode;
-                    WhatsAppStateText.Text = "Inserisci questo codice su WhatsApp > Dispositivi collegati > Collega un dispositivo > Collega con numero di telefono.";
+                    PairCodeText.Text = string.Format(Loc.Get("ConnectionPage_PairCode", "Code: {0}"),
+                        message.PairCode);
+                    WhatsAppStateText.Text = Loc.Get("ConnectionPage_PairCodeHint",
+                        "Enter this code in WhatsApp: Linked devices, Link a device, Link with phone number instead.");
                     QrImage.Visibility = Visibility.Collapsed;
                     break;
 
@@ -176,7 +192,7 @@ namespace WhatsappApp.Pages
         {
             if (string.IsNullOrEmpty(base64))
             {
-                QrInfoText.Text = "QR code non disponibile.";
+                QrInfoText.Text = Loc.Get("ConnectionPage_QrUnavailable", "QR code not available.");
                 return;
             }
 
@@ -186,12 +202,16 @@ namespace WhatsappApp.Pages
                 QrImage.Visibility = Visibility.Visible;
                 PairCodeText.Text = "";
                 QrInfoText.Text = duration > 0
-                    ? "Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice (valido ~" + duration + "s)."
-                    : "Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice.";
+                    ? string.Format(Loc.Get("ConnectionPage_QrHintDuration",
+                        "Open WhatsApp, open Linked devices and tap Link a device, then scan the code (valid for about {0} seconds)."),
+                        duration)
+                    : Loc.Get("ConnectionPage_QrHint",
+                        "Open WhatsApp, open Linked devices and tap Link a device, then scan the code.");
             }
             catch (Exception ex)
             {
-                QrInfoText.Text = "Impossibile mostrare il QR code: " + ex.Message;
+                QrInfoText.Text = string.Format(
+                    Loc.Get("ConnectionPage_QrError", "Could not show the QR code: {0}"), ex.Message);
             }
         }
 
@@ -215,7 +235,7 @@ namespace WhatsappApp.Pages
         private async void LoginQrButton_Click(object sender, RoutedEventArgs e)
         {
             PairCodeText.Text = "";
-            QrInfoText.Text = "Richiesta del QR code in corso...";
+            QrInfoText.Text = Loc.Get("ConnectionPage_RequestingQr", "Requesting the QR code...");
             await CommunicationService.Instance.SendControlAsync("login.qr");
         }
 
@@ -225,13 +245,14 @@ namespace WhatsappApp.Pages
             phone = phone.Replace("+", "").Replace(" ", "").Replace("-", "");
             if (phone.Length < 6 || !phone.All(char.IsDigit))
             {
-                WhatsAppStateText.Text = "Inserisci un numero valido con prefisso internazionale (es. 393401234567).";
+                WhatsAppStateText.Text = Loc.Get("ConnectionPage_InvalidPhone",
+                    "Enter a valid number with country code (e.g. 393401234567).");
                 return;
             }
 
             QrImage.Visibility = Visibility.Collapsed;
             QrInfoText.Text = "";
-            WhatsAppStateText.Text = "Richiesta del codice in corso...";
+            WhatsAppStateText.Text = Loc.Get("ConnectionPage_RequestingCode", "Requesting the code...");
             await CommunicationService.Instance.SendControlAsync("login.code", phone);
         }
 
@@ -258,12 +279,14 @@ namespace WhatsappApp.Pages
             ActionButton.IsEnabled = true;
         }
 
+        /// <summary>
+        /// Mostra solo il messaggio: se la connessione e' riuscita lo dice
+        /// l'evento ConnectionEstablished, non il testo (che e' localizzato).
+        /// </summary>
         private void OnConnectionStatusChanged(object sender, string status)
         {
             StatusText.Text = status;
             StatusPanel.Visibility = Visibility.Visible;
-            if (status != null && (status.Contains("Connesso") || status.Contains("avviato")))
-                ShowConnectedState();
         }
 
         private void OnErrorOccurred(object sender, string error)
