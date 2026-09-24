@@ -1,0 +1,298 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="MainPage_TabChats.Text" xml:space="preserve">
+    <value>chat</value>
+  </data>
+  <data name="MainPage_TabStatus.Text" xml:space="preserve">
+    <value>stato</value>
+  </data>
+  <data name="MainPage_TabCalls.Text" xml:space="preserve">
+    <value>chiamate</value>
+  </data>
+  <data name="MainPage_EmptyTitle.Text" xml:space="preserve">
+    <value>Nessuna chat</value>
+  </data>
+  <data name="MainPage_EmptyHint.Text" xml:space="preserve">
+    <value>Tocca nuova chat per iniziare</value>
+  </data>
+  <data name="MainPage_StatusEmptyTitle.Text" xml:space="preserve">
+    <value>Nessuno stato</value>
+  </data>
+  <data name="MainPage_StatusEmptyHint.Text" xml:space="preserve">
+    <value>Gli stati non sono supportati in questa versione.</value>
+  </data>
+  <data name="MainPage_CallsEmptyTitle.Text" xml:space="preserve">
+    <value>Nessuna chiamata</value>
+  </data>
+  <data name="MainPage_CallsEmptyHint.Text" xml:space="preserve">
+    <value>Le chiamate non sono supportate in questa versione.</value>
+  </data>
+  <data name="MainPage_NewChatTooltip" xml:space="preserve">
+    <value>Nuova chat</value>
+  </data>
+  <data name="MainPage_SettingsTooltip" xml:space="preserve">
+    <value>Impostazioni</value>
+  </data>
+  <data name="MainPage_NewChatTitle" xml:space="preserve">
+    <value>Nuova chat</value>
+  </data>
+  <data name="MainPage_NewChatPrompt" xml:space="preserve">
+    <value>Numero con prefisso internazionale (es. 393401234567)</value>
+  </data>
+  <data name="MainPage_NewChatOpen" xml:space="preserve">
+    <value>Apri</value>
+  </data>
+  <data name="MainPage_NewChatCancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
+  <data name="MainPage_NewChatInvalid" xml:space="preserve">
+    <value>Inserisci un numero valido con prefisso internazionale (es. 393401234567).</value>
+  </data>
+  <data name="ChatPage_Input.PlaceholderText" xml:space="preserve">
+    <value>Scrivi un messaggio</value>
+  </data>
+  <data name="ChatPage_ImageSelected.Text" xml:space="preserve">
+    <value>Immagine selezionata</value>
+  </data>
+  <data name="ChatPage_Online" xml:space="preserve">
+    <value>in linea</value>
+  </data>
+  <data name="ChatPage_LastSeenToday" xml:space="preserve">
+    <value>ultimo accesso oggi {0}</value>
+  </data>
+  <data name="ChatPage_Me" xml:space="preserve">
+    <value>Io</value>
+  </data>
+  <data name="ChatPage_ImageError" xml:space="preserve">
+    <value>Impossibile aprire l'immagine: {0}</value>
+  </data>
+  <data name="ChatPage_BackTooltip" xml:space="preserve">
+    <value>Indietro</value>
+  </data>
+  <data name="ChatPage_AttachTooltip" xml:space="preserve">
+    <value>Allega un'immagine</value>
+  </data>
+  <data name="ChatPage_SendTooltip" xml:space="preserve">
+    <value>Invia</value>
+  </data>
+  <data name="ChatPage_ClearImageTooltip" xml:space="preserve">
+    <value>Rimuovi l'immagine</value>
+  </data>
+  <data name="ChatMessage_Photo" xml:space="preserve">
+    <value>Foto</value>
+  </data>
+  <data name="ChatMessage_Audio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="ChatMessage_File" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="ChatMessage_Yesterday" xml:space="preserve">
+    <value>Ieri</value>
+  </data>
+  <data name="ConnectionPage_ServerLabel.Text" xml:space="preserve">
+    <value>Server WhatsApp (adapter)</value>
+  </data>
+  <data name="ConnectionPage_ServerPlaceholder.PlaceholderText" xml:space="preserve">
+    <value>es. 192.168.1.100</value>
+  </data>
+  <data name="ConnectionPage_PortLabel.Text" xml:space="preserve">
+    <value>Porta TCP</value>
+  </data>
+  <data name="ConnectionPage_NameLabel.Text" xml:space="preserve">
+    <value>Il tuo nome</value>
+  </data>
+  <data name="ConnectionPage_Connect.Content" xml:space="preserve">
+    <value>Connetti al server</value>
+  </data>
+  <data name="ConnectionPage_Disconnect.Content" xml:space="preserve">
+    <value>Disconnetti</value>
+  </data>
+  <data name="ConnectionPage_WhatsAppTitle.Text" xml:space="preserve">
+    <value>Connessione a WhatsApp</value>
+  </data>
+  <data name="ConnectionPage_QrLogin.Content" xml:space="preserve">
+    <value>Accedi con QR code</value>
+  </data>
+  <data name="ConnectionPage_OrPhone.Text" xml:space="preserve">
+    <value>oppure accedi con il tuo numero</value>
+  </data>
+  <data name="ConnectionPage_PhonePlaceholder.PlaceholderText" xml:space="preserve">
+    <value>Numero con prefisso internazionale (es. 393401234567)</value>
+  </data>
+  <data name="ConnectionPage_GetCode.Content" xml:space="preserve">
+    <value>Ottieni codice</value>
+  </data>
+  <data name="ConnectionPage_Continue.Content" xml:space="preserve">
+    <value>Continua</value>
+  </data>
+  <data name="ConnectionPage_HelpTitle.Text" xml:space="preserve">
+    <value>Come accedere</value>
+  </data>
+  <data name="ConnectionPage_HelpQr.Text" xml:space="preserve">
+    <value>QR code: apri WhatsApp sul telefono, apri Dispositivi collegati e tocca Collega un dispositivo, poi inquadra il codice.</value>
+  </data>
+  <data name="ConnectionPage_HelpPhone.Text" xml:space="preserve">
+    <value>Numero: inserisci il numero internazionale, tocca Ottieni codice e digita il codice in WhatsApp.</value>
+  </data>
+  <data name="ConnectionPage_Version.Text" xml:space="preserve">
+    <value>WhatsApp Community Edition v2.0 (GOWA)</value>
+  </data>
+  <data name="ConnectionPage_FirstRunTitle" xml:space="preserve">
+    <value>Prima configurazione</value>
+  </data>
+  <data name="ConnectionPage_SettingsTitle" xml:space="preserve">
+    <value>Impostazioni server</value>
+  </data>
+  <data name="ConnectionPage_Connecting" xml:space="preserve">
+    <value>Connessione a {0}:{1}...</value>
+  </data>
+  <data name="ConnectionPage_Connected" xml:space="preserve">
+    <value>Connesso!</value>
+  </data>
+  <data name="ConnectionPage_ConnectFailed" xml:space="preserve">
+    <value>Connessione fallita</value>
+  </data>
+  <data name="ConnectionPage_WhatsAppConnected" xml:space="preserve">
+    <value>WhatsApp connesso!</value>
+  </data>
+  <data name="ConnectionPage_ConnectedAs" xml:space="preserve">
+    <value>Connesso come {0}</value>
+  </data>
+  <data name="ConnectionPage_Waiting" xml:space="preserve">
+    <value>In attesa di abbinamento: segui le istruzioni qui sotto.</value>
+  </data>
+  <data name="ConnectionPage_WhatsAppDisconnected" xml:space="preserve">
+    <value>Non connesso a WhatsApp. Accedi con il QR code o con il numero.</value>
+  </data>
+  <data name="ConnectionPage_InvalidPhone" xml:space="preserve">
+    <value>Inserisci un numero valido con prefisso internazionale (es. 393401234567).</value>
+  </data>
+  <data name="ConnectionPage_RequestingQr" xml:space="preserve">
+    <value>Richiesta del QR code in corso...</value>
+  </data>
+  <data name="ConnectionPage_RequestingCode" xml:space="preserve">
+    <value>Richiesta del codice in corso...</value>
+  </data>
+  <data name="ConnectionPage_QrUnavailable" xml:space="preserve">
+    <value>QR code non disponibile.</value>
+  </data>
+  <data name="ConnectionPage_QrHint" xml:space="preserve">
+    <value>Apri WhatsApp, apri Dispositivi collegati e tocca Collega un dispositivo, poi inquadra il codice.</value>
+  </data>
+  <data name="ConnectionPage_QrHintDuration" xml:space="preserve">
+    <value>Apri WhatsApp, apri Dispositivi collegati e tocca Collega un dispositivo, poi inquadra il codice (valido circa {0} secondi).</value>
+  </data>
+  <data name="ConnectionPage_QrError" xml:space="preserve">
+    <value>Impossibile mostrare il QR code: {0}</value>
+  </data>
+  <data name="ConnectionPage_PairCode" xml:space="preserve">
+    <value>Codice: {0}</value>
+  </data>
+  <data name="ConnectionPage_PairCodeHint" xml:space="preserve">
+    <value>Inserisci questo codice in WhatsApp: Dispositivi collegati, Collega un dispositivo, Collega con numero di telefono.</value>
+  </data>
+  <data name="CommService_Connecting" xml:space="preserve">
+    <value>Connessione in corso...</value>
+  </data>
+  <data name="CommService_Connected" xml:space="preserve">
+    <value>Connesso al server</value>
+  </data>
+  <data name="CommService_ConnectError" xml:space="preserve">
+    <value>Errore connessione: {0}</value>
+  </data>
+  <data name="CommService_ConnectionLost" xml:space="preserve">
+    <value>Connessione persa: {0}</value>
+  </data>
+  <data name="CommService_Disconnected" xml:space="preserve">
+    <value>Disconnesso</value>
+  </data>
+  <data name="CommService_NotConnected" xml:space="preserve">
+    <value>Non connesso</value>
+  </data>
+  <data name="CommService_SendError" xml:space="preserve">
+    <value>Errore invio: {0}</value>
+  </data>
+  <data name="CommService_DecryptError" xml:space="preserve">
+    <value>Errore decifratura messaggio: {0}</value>
+  </data>
+  <data name="CommService_Me" xml:space="preserve">
+    <value>Io</value>
+  </data>
+  <data name="CommService_ServerStarted" xml:space="preserve">
+    <value>Server avviato sulla porta {0}</value>
+  </data>
+  <data name="CommService_ServerStartError" xml:space="preserve">
+    <value>Errore avvio server: {0}</value>
+  </data>
+  <data name="CommService_ClientConnected" xml:space="preserve">
+    <value>Nuovo client connesso ({0} connessi)</value>
+  </data>
+  <data name="CommService_ClientDisconnected" xml:space="preserve">
+    <value>Client disconnesso: {0}</value>
+  </data>
+  <data name="CommService_ClientRemoved" xml:space="preserve">
+    <value>Client rimosso ({0} connessi)</value>
+  </data>
+  <data name="DataService_Group" xml:space="preserve">
+    <value>Gruppo {0}</value>
+  </data>
+</root>

@@ -54,6 +54,10 @@ namespace WhatsappApp
             }
 #endif
 
+            // Il loader delle risorse non si puo' creare da un thread di
+            // background: lo si crea qui, una volta, sul thread UI.
+            Loc.Prewarm();
+
             Frame rootFrame = Window.Current.Content as Frame;
 
             if (rootFrame == null)
