@@ -5,6 +5,9 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
+using Windows.Storage.Streams;
+using Windows.UI.Xaml.Media.Imaging;
 
 namespace WhatsappApp.Models
 {
@@ -47,6 +50,7 @@ namespace WhatsappApp.Models
         private string _qrImageData;    // base64 PNG of the login QR code
         private int _qrDuration;        // QR validity in seconds
         private string _accountJid;     // WhatsApp JID of the logged-in account
+        private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
         [DataMember]
         public string Id
@@ -191,6 +195,46 @@ namespace WhatsappApp.Models
             set { _formattedTime = value; OnPropertyChanged(); }
         }
 
+        /// <summary>
+        /// Immagine decodificata da MediaData. Non è un [DataMember]: resta
+        /// solo lato client e serve al binding XAML della bolla.
+        /// </summary>
+        public BitmapImage MediaImage
+        {
+            get { return _mediaImage; }
+            set { _mediaImage = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Decodifica MediaData (base64) in MediaImage. Va atteso sul thread UI:
+        /// il flusso deve restare aperto finché SetSourceAsync non ha finito.
+        /// </summary>
+        public async Task LoadMediaImageAsync()
+        {
+            if (Type != MessageType.Image || string.IsNullOrEmpty(MediaData)) return;
+
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(MediaData);
+                using (var stream = new InMemoryRandomAccessStream())
+                {
+                    using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
+                    {
+                        writer.WriteBytes(bytes);
+                        await writer.StoreAsync();
+                    }
+                    var bitmap = new BitmapImage();
+                    stream.Seek(0);
+                    await bitmap.SetSourceAsync(stream);
+                    MediaImage = bitmap;
+                }
+            }
+            catch
+            {
+                MediaImage = null;
+            }
+        }
+
         // For XAML binding to determine bubble alignment
         public bool IsOutgoing
         {
@@ -225,6 +269,11 @@ namespace WhatsappApp.Models
 
         private static string FormatTime(DateTime dt)
         {
+            // Il serializer legge /Date(ms)/ come UTC: senza questa conversione
+            // l'orario mostrato è sfasato rispetto a quello del telefono.
+            if (dt.Kind == DateTimeKind.Utc)
+                dt = dt.ToLocalTime();
+
             var now = DateTime.Now;
             if (dt.Date == now.Date)
                 return dt.ToString("HH:mm");
