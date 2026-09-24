@@ -16,7 +16,14 @@ namespace WhatsappApp.Services
     public class DataService : INotifyPropertyChanged
     {
         private static DataService _instance;
-        public static DataService Instance => _instance ?? (_instance = new DataService());
+        public static DataService Instance
+        {
+            get
+            {
+                if (_instance == null) _instance = new DataService();
+                return _instance;
+            }
+        }
 
         private readonly ObservableCollection<Contact> _contacts;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
@@ -24,20 +31,23 @@ namespace WhatsappApp.Services
         private string _connectionStatus;
         private bool _isServerRunning;
 
-        public ObservableCollection<Contact> Contacts => _contacts;
+        public ObservableCollection<Contact> Contacts
+        {
+            get { return _contacts; }
+        }
         public Contact SelectedContact
         {
-            get => _selectedContact;
+            get { return _selectedContact; }
             set { _selectedContact = value; OnPropertyChanged(); }
         }
         public string ConnectionStatus
         {
-            get => _connectionStatus;
+            get { return _connectionStatus; }
             set { _connectionStatus = value; OnPropertyChanged(); }
         }
         public bool IsServerRunning
         {
-            get => _isServerRunning;
+            get { return _isServerRunning; }
             set { _isServerRunning = value; OnPropertyChanged(); }
         }
 
@@ -198,7 +208,9 @@ namespace WhatsappApp.Services
 
         private void OnPropertyChanged([CallerMemberName] string name = null)
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+            var handler = PropertyChanged;
+            if (handler != null)
+                handler(this, new PropertyChangedEventArgs(name));
         }
     }
 }
