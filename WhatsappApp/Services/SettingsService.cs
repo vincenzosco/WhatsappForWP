@@ -13,37 +13,57 @@ namespace WhatsappApp.Services
         private const string KeyServerAddress = "ServerAddress";
         private const string KeyServerPort = "ServerPort";
         private const string KeyUsername = "Username";
+        private const string DefaultServerAddress = "192.168.1.100";
+        private const int DefaultServerPort = 8585;
 
         private static ApplicationDataContainer Settings
         {
             get { return ApplicationData.Current.LocalSettings; }
         }
 
+        // Snapshot in memoria: senza questo ogni lettura attraversa il confine
+        // WinRT di ApplicationData, ed e' il caso tipico (piu' proprieta' lette
+        // una dopo l'altra mentre si costruisce la pagina).
+        private static bool _loaded;
+        private static string _serverAddress;
+        private static int _serverPort;
+        private static string _username;
+
+        private static void EnsureLoaded()
+        {
+            if (_loaded) return;
+
+            // L'indirizzo resta vuoto finche' l'utente non ne salva uno:
+            // HasSavedSettings distingue "primo avvio" da "gia' configurato".
+            _serverAddress = ReadString(KeyServerAddress, "");
+            _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
+            _username = ReadString(KeyUsername, "");
+
+            _loaded = true;
+        }
+
+        /// <summary>Indirizzo proposto quando il campo e' vuoto.</summary>
+        public static string DefaultAddress
+        {
+            get { return DefaultServerAddress; }
+        }
+
         public static string ServerAddress
         {
-            get { return GetString(KeyServerAddress, ""); }
-            set { Settings.Values[KeyServerAddress] = value; }
+            get { EnsureLoaded(); return _serverAddress; }
+            set { EnsureLoaded(); _serverAddress = value; Settings.Values[KeyServerAddress] = value; }
         }
 
         public static int ServerPort
         {
-            get
-            {
-                object val;
-                if (Settings.Values.TryGetValue(KeyServerPort, out val) && val != null)
-                {
-                    int port;
-                    if (int.TryParse(val.ToString(), out port)) return port;
-                }
-                return 8585;
-            }
-            set { Settings.Values[KeyServerPort] = value; }
+            get { EnsureLoaded(); return _serverPort; }
+            set { EnsureLoaded(); _serverPort = value; Settings.Values[KeyServerPort] = value; }
         }
 
         public static string Username
         {
-            get { return GetString(KeyUsername, ""); }
-            set { Settings.Values[KeyUsername] = value; }
+            get { EnsureLoaded(); return _username; }
+            set { EnsureLoaded(); _username = value; Settings.Values[KeyUsername] = value; }
         }
 
         /// <summary>
@@ -61,12 +81,24 @@ namespace WhatsappApp.Services
             Username = username;
         }
 
-        private static string GetString(string key, string defaultValue)
+        private static string ReadString(string key, string defaultValue)
         {
             object val;
             if (Settings.Values.TryGetValue(key, out val) && val != null)
             {
-                return val.ToString();
+                string text = val.ToString();
+                if (!string.IsNullOrEmpty(text)) return text;
+            }
+            return defaultValue;
+        }
+
+        private static int ReadInt(string key, int defaultValue)
+        {
+            object val;
+            if (Settings.Values.TryGetValue(key, out val) && val != null)
+            {
+                int port;
+                if (int.TryParse(val.ToString(), out port) && port > 0) return port;
             }
             return defaultValue;
         }

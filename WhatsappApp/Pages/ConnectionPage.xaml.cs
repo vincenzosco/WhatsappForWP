@@ -80,7 +80,7 @@ namespace WhatsappApp.Pages
             }
 
             string address = (ServerAddressBox.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(address)) address = "192.168.1.100";
+            if (string.IsNullOrEmpty(address)) address = SettingsService.DefaultAddress;
 
             int port = 8585;
             int boxPort;
