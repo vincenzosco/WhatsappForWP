@@ -125,20 +125,27 @@ namespace WhatsappApp.Services
         private async void DispatchOnUiThread(Action action)
         {
             var dispatcher = GetUiDispatcher();
-            if (dispatcher != null)
-            {
-                try
-                {
-                    await dispatcher.RunAsync(CoreDispatcherPriority.Normal, () => action());
-                }
-                catch
-                {
-                    action();
-                }
-            }
-            else
+            if (dispatcher == null)
             {
                 action();
+                return;
+            }
+
+            // Il flag distingue "il dispatcher non ha eseguito nulla" (si
+            // riprova in linea) da "l'azione è partita ma è esplosa" (non va
+            // rieseguita, altrimenti gli handler ricevono l'evento due volte).
+            bool dispatched = false;
+            try
+            {
+                await dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+                {
+                    dispatched = true;
+                    action();
+                });
+            }
+            catch
+            {
+                if (!dispatched) action();
             }
         }
 
