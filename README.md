@@ -177,6 +177,44 @@ node tools/check-icons.js            # riferimenti + font vietati
 node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
 ```
 
+### Lingua dell'app
+
+L'app segue automaticamente la lingua del dispositivo tramite risorse `.resw`:
+
+| Lingua | File | Note |
+| --- | --- | --- |
+| Inglese | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback per ogni altra lingua |
+| Italiano | `WhatsappApp/Strings/it-IT/Resources.resw` | |
+
+- I testi dichiarati in XAML usano `x:Uid`, e la proprieta' deve corrispondere al
+  tipo dell'elemento: `TextBlock` -> `.Text`, `Button` -> `.Content`,
+  `TextBox` -> `.PlaceholderText`. Un abbinamento sbagliato e' un errore a
+  run time.
+- I testi costruiti in C# passano da `Loc.Get("Chiave", "fallback")`
+  (`WhatsappApp/Services/Loc.cs`), che non lancia mai eccezioni: se la risorsa
+  manca usa il fallback. `Loc.Prewarm()` viene chiamato all'avvio sul thread UI
+  perche' `ResourceLoader.GetForCurrentView()` non si puo' creare da un thread
+  di background (i messaggi arrivano dal socket su un thread di background).
+- I pulsanti con la sola icona non usano `x:Uid` (sovrascriverebbe il `Path`):
+  l'etichetta e' un tooltip impostato da `Loc.Get` nel costruttore della pagina.
+- Prima di ogni build, o dopo aver toccato una stringa:
+
+```bash
+node tools/check-resw.js            # chiavi, x:Uid, Loc.Get, PRIResource, lingua di default
+node tools/check-resw.js --strict   # + fallisce sulle chiavi inutilizzate
+```
+
+Lo script fallisce se una `x:Uid` o una `Loc.Get` non ha la voce in **entrambi**
+i file, se i due file non hanno le stesse chiavi, se un `.resw` non e' registrato
+come `PRIResource` nel `.csproj` (in quel caso non verrebbe mai incluso nel
+pacchetto) o se `<DefaultLanguage>` non e' una delle lingue supportate. Senza
+questo controllo un errore nelle risorse **non** fa fallire la build: il testo
+resta semplicemente quello scritto nel markup.
+
+Per verificare le traduzioni sul dispositivo basta cambiare la lingua di sistema
+(Impostazioni > Data/ora e lingua): Windows riavvia l'app e le stringhe cambiano
+di conseguenza. Se l'app resta nella lingua precedente, chiuderla e riaprirla.
+
 ## Disclaimer
 
 - This is an unofficial project not affiliated with WhatsApp or Meta.
