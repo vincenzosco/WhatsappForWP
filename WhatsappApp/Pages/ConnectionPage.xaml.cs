@@ -258,15 +258,15 @@ namespace WhatsappApp.Pages
 
         private void ContinueButton_Click(object sender, RoutedEventArgs e)
         {
-            ContinueToMainPage();
+            ContinueToChatsPage();
         }
 
-        private void ContinueToMainPage()
+        private void ContinueToChatsPage()
         {
             if (Frame.CanGoBack)
                 Frame.GoBack();
             else
-                Frame.Navigate(typeof(MainPage));
+                Frame.Navigate(typeof(ChatsPage));
         }
 
         private void DisconnectButton_Click(object sender, RoutedEventArgs e)
@@ -301,7 +301,7 @@ namespace WhatsappApp.Pages
             if (Frame.CanGoBack)
                 Frame.GoBack();
             else
-                ContinueToMainPage();
+                ContinueToChatsPage();
         }
     }
 }
