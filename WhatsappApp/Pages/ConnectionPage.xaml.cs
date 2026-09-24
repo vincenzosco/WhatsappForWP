@@ -47,7 +47,8 @@ namespace WhatsappApp.Pages
             if (CommunicationService.Instance.IsConnected)
             {
                 ShowConnectedState();
-                _ = CommunicationService.Instance.SendControlAsync("status");
+                // OnNavigatedTo is not async: fire the status request and ignore the task
+                CommunicationService.Instance.SendControlAsync("status");
             }
         }
 
@@ -61,14 +62,14 @@ namespace WhatsappApp.Pages
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
         {
-            string username = UsernameBox.Text?.Trim();
+            string username = (UsernameBox.Text ?? "").Trim();
             if (string.IsNullOrEmpty(username))
             {
                 username = "Utente";
                 UsernameBox.Text = username;
             }
 
-            string address = ServerAddressBox.Text?.Trim();
+            string address = (ServerAddressBox.Text ?? "").Trim();
             if (string.IsNullOrEmpty(address)) address = "192.168.1.100";
 
             int port = 8585;
@@ -81,7 +82,7 @@ namespace WhatsappApp.Pages
 
             StatusPanel.Visibility = Visibility.Visible;
             ActionButton.IsEnabled = false;
-            StatusText.Text = $"Connessione a {address}:{port}...";
+            StatusText.Text = "Connessione a " + address + ":" + port + "...";
 
             bool connected = await CommunicationService.Instance.ConnectToServerAsync(address, port, username);
             if (connected)
@@ -114,7 +115,7 @@ namespace WhatsappApp.Pages
                 case "connected":
                     WhatsAppStateText.Text = string.IsNullOrEmpty(accountJid)
                         ? "WhatsApp connesso!"
-                        : $"Connesso come {accountJid.Split('@')[0]}";
+                        : "Connesso come " + accountJid.Split('@')[0];
                     LoginQrButton.Visibility = Visibility.Collapsed;
                     QrImage.Visibility = Visibility.Collapsed;
                     PhoneBox.Visibility = Visibility.Collapsed;
@@ -159,7 +160,7 @@ namespace WhatsappApp.Pages
                     break;
 
                 case "paircode":
-                    PairCodeText.Text = $"Codice: {message.PairCode}";
+                    PairCodeText.Text = "Codice: " + message.PairCode;
                     WhatsAppStateText.Text = "Inserisci questo codice su WhatsApp > Dispositivi collegati > Collega un dispositivo > Collega con numero di telefono.";
                     QrImage.Visibility = Visibility.Collapsed;
                     break;
@@ -184,12 +185,12 @@ namespace WhatsappApp.Pages
                 QrImage.Visibility = Visibility.Visible;
                 PairCodeText.Text = "";
                 QrInfoText.Text = duration > 0
-                    ? $"Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice (valido ~{duration}s)."
+                    ? "Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice (valido ~" + duration + "s)."
                     : "Apri WhatsApp > Dispositivi collegati > Collega un dispositivo e inquadra il codice.";
             }
             catch (Exception ex)
             {
-                QrInfoText.Text = $"Impossibile mostrare il QR code: {ex.Message}";
+                QrInfoText.Text = "Impossibile mostrare il QR code: " + ex.Message;
             }
         }
 
