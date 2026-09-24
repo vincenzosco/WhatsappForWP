@@ -51,42 +51,42 @@ namespace WhatsappApp.Models
         [DataMember]
         public string Id
         {
-            get => _id;
+            get { return _id; }
             set { _id = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string Text
         {
-            get => _text;
+            get { return _text; }
             set { _text = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string SenderId
         {
-            get => _senderId;
+            get { return _senderId; }
             set { _senderId = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string SenderName
         {
-            get => _senderName;
+            get { return _senderName; }
             set { _senderName = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string ChatId
         {
-            get => _chatId;
+            get { return _chatId; }
             set { _chatId = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public DateTime Timestamp
         {
-            get => _timestamp;
+            get { return _timestamp; }
             set
             {
                 _timestamp = value;
@@ -98,42 +98,42 @@ namespace WhatsappApp.Models
         [DataMember]
         public MessageStatus Status
         {
-            get => _status;
+            get { return _status; }
             set { _status = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public MessageType Type
         {
-            get => _type;
+            get { return _type; }
             set { _type = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public bool IsIncoming
         {
-            get => _isIncoming;
+            get { return _isIncoming; }
             set { _isIncoming = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string MediaData
         {
-            get => _mediaData;
+            get { return _mediaData; }
             set { _mediaData = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string MediaMimeType
         {
-            get => _mediaMimeType;
+            get { return _mediaMimeType; }
             set { _mediaMimeType = value; OnPropertyChanged(); }
         }
 
         [DataMember]
         public string MediaFileName
         {
-            get => _mediaFileName;
+            get { return _mediaFileName; }
             set { _mediaFileName = value; OnPropertyChanged(); }
         }
 
@@ -141,7 +141,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public string Command
         {
-            get => _command;
+            get { return _command; }
             set { _command = value; OnPropertyChanged(); }
         }
 
@@ -149,7 +149,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public string State
         {
-            get => _state;
+            get { return _state; }
             set { _state = value; OnPropertyChanged(); }
         }
 
@@ -157,7 +157,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public string PairCode
         {
-            get => _pairCode;
+            get { return _pairCode; }
             set { _pairCode = value; OnPropertyChanged(); }
         }
 
@@ -165,7 +165,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public string QrImageData
         {
-            get => _qrImageData;
+            get { return _qrImageData; }
             set { _qrImageData = value; OnPropertyChanged(); }
         }
 
@@ -173,7 +173,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public int QrDuration
         {
-            get => _qrDuration;
+            get { return _qrDuration; }
             set { _qrDuration = value; OnPropertyChanged(); }
         }
 
@@ -181,21 +181,27 @@ namespace WhatsappApp.Models
         [DataMember]
         public string AccountJid
         {
-            get => _accountJid;
+            get { return _accountJid; }
             set { _accountJid = value; OnPropertyChanged(); }
         }
 
         public string FormattedTime
         {
-            get => _formattedTime;
+            get { return _formattedTime; }
             set { _formattedTime = value; OnPropertyChanged(); }
         }
 
         // For XAML binding to determine bubble alignment
-        public bool IsOutgoing => !IsIncoming;
+        public bool IsOutgoing
+        {
+            get { return !IsIncoming; }
+        }
 
         // Convenience property: Is this message a media type (image/audio)?
-        public bool IsMedia => Type == MessageType.Image || Type == MessageType.Audio;
+        public bool IsMedia
+        {
+            get { return Type == MessageType.Image || Type == MessageType.Audio; }
+        }
 
         // Short text for media messages shown without loading the full image
         public string MediaTypeText
@@ -212,7 +218,9 @@ namespace WhatsappApp.Models
 
         private void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+            var handler = PropertyChanged;
+            if (handler != null)
+                handler(this, new PropertyChangedEventArgs(propertyName));
         }
 
         private static string FormatTime(DateTime dt)
