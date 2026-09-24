@@ -32,7 +32,8 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
-            if (e.Parameter is Contact contact)
+            var contact = e.Parameter as Contact;
+            if (contact != null)
             {
                 _contact = contact;
                 _isConnectedMode = CommunicationService.Instance.IsConnected;
@@ -75,7 +76,7 @@ namespace WhatsappApp.Pages
 
         private async void SendMessage()
         {
-            string text = MessageTextBox.Text?.Trim();
+            string text = (MessageTextBox.Text ?? "").Trim();
 
             // If we have a selected image, send it as an image message
             if (_selectedImageFile != null && _selectedImageBase64 != null)
@@ -106,7 +107,7 @@ namespace WhatsappApp.Pages
         private async System.Threading.Tasks.Task SendImageMessage(string caption)
         {
             string mimeType = "image/jpeg";
-            string extension = _selectedImageFile?.FileType?.ToLower();
+            string extension = _selectedImageFile == null ? null : _selectedImageFile.FileType.ToLower();
             if (extension == ".png") mimeType = "image/png";
             else if (extension == ".gif") mimeType = "image/gif";
             else if (extension == ".bmp") mimeType = "image/bmp";
@@ -124,7 +125,7 @@ namespace WhatsappApp.Pages
                 Status = _isConnectedMode ? MessageStatus.Sending : MessageStatus.Sent,
                 MediaData = _selectedImageBase64,
                 MediaMimeType = mimeType,
-                MediaFileName = _selectedImageFile?.Name
+                MediaFileName = _selectedImageFile == null ? null : _selectedImageFile.Name
             };
 
             AddAndSendMessage(message);
@@ -223,7 +224,7 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Errore selezione immagine: {ex.Message}");
+                System.Diagnostics.Debug.WriteLine("Errore selezione immagine: " + ex.Message);
             }
         }
 
