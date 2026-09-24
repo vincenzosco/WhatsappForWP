@@ -53,6 +53,11 @@ namespace WhatsappApp.Models
         private string _accountJid;     // WhatsApp JID of the logged-in account
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
+        // Un serializer per tipo, non uno per messaggio: DataContractJsonSerializer
+        // costruisce internamente il grafo del contratto a ogni istanza.
+        private static readonly DataContractJsonSerializer JsonSerializer =
+            new DataContractJsonSerializer(typeof(ChatMessage));
+
         [DataMember]
         public string Id
         {
@@ -214,21 +219,13 @@ namespace WhatsappApp.Models
         {
             if (Type != MessageType.Image || string.IsNullOrEmpty(MediaData)) return;
 
+            // Gia' decodificata (es. si torna sulla pagina): rifarlo sprecherebbe
+            // CPU e memoria per un risultato identico.
+            if (MediaImage != null) return;
+
             try
             {
-                byte[] bytes = Convert.FromBase64String(MediaData);
-                using (var stream = new InMemoryRandomAccessStream())
-                {
-                    using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
-                    {
-                        writer.WriteBytes(bytes);
-                        await writer.StoreAsync();
-                    }
-                    var bitmap = new BitmapImage();
-                    stream.Seek(0);
-                    await bitmap.SetSourceAsync(stream);
-                    MediaImage = bitmap;
-                }
+                MediaImage = await ImageHelper.FromBase64Async(MediaData);
             }
             catch
             {
@@ -289,8 +286,7 @@ namespace WhatsappApp.Models
         {
             using (var ms = new MemoryStream())
             {
-                var serializer = new DataContractJsonSerializer(typeof(ChatMessage));
-                serializer.WriteObject(ms, this);
+                JsonSerializer.WriteObject(ms, this);
                 return Encoding.UTF8.GetString(ms.ToArray(), 0, (int)ms.Length);
             }
         }
@@ -302,8 +298,7 @@ namespace WhatsappApp.Models
             {
                 using (var ms = new MemoryStream(Encoding.UTF8.GetBytes(json)))
                 {
-                    var serializer = new DataContractJsonSerializer(typeof(ChatMessage));
-                    return (ChatMessage)serializer.ReadObject(ms);
+                    return (ChatMessage)JsonSerializer.ReadObject(ms);
                 }
             }
             catch
