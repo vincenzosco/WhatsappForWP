@@ -30,6 +30,17 @@ namespace WhatsappApp.Services
         private Contact _selectedContact;
         private string _connectionStatus;
         private bool _isServerRunning;
+        private string _activeChatId;
+
+        /// <summary>
+        /// Chat attualmente aperta: i messaggi che arrivano qui sono gia' letti,
+        /// quindi non devono incrementare il contatore dei non letti.
+        /// </summary>
+        public string ActiveChatId
+        {
+            get { return _activeChatId; }
+            set { _activeChatId = value; }
+        }
 
         public ObservableCollection<Contact> Contacts
         {
@@ -101,7 +112,7 @@ namespace WhatsappApp.Services
                 // Update the contact preview and move to top
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
-                if (message.IsIncoming)
+                if (message.IsIncoming && message.ChatId != _activeChatId)
                     contact.UnreadCount++;
 
                 var idx = _contacts.IndexOf(contact);
@@ -153,7 +164,7 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(jid)) return "?";
             string user = jid.Split('@')[0];
-            if (jid.EndsWith("@g.us")) return "Gruppo " + user;
+            if (jid.EndsWith("@g.us")) return string.Format(Loc.Get("DataService_Group", "Group {0}"), user);
             if (user.Length >= 8 && user.All(char.IsDigit)) return "+" + user;
             return string.IsNullOrEmpty(user) ? "?" : user;
         }
@@ -190,7 +201,7 @@ namespace WhatsappApp.Services
             {
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
-                if (message.IsIncoming)
+                if (message.IsIncoming && message.ChatId != _activeChatId)
                     contact.UnreadCount++;
 
                 // Move contact to top
