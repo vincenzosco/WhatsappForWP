@@ -3,12 +3,12 @@
 
   <Identity Name="7ccc5b77-3cf2-4020-92a7-9542b250bb49"
             Publisher="CN=Vincenzo"
-            Version="1.0.0.0" />
+            Version="1.0.1.0" />
 
   <mp:PhoneIdentity PhoneProductId="7ccc5b77-3cf2-4020-92a7-9542b250bb49" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
 
   <Properties>
-    <DisplayName>WhatsappApp</DisplayName>
+    <DisplayName>WhatsApp</DisplayName>
     <PublisherDisplayName>Vincenzo</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
@@ -27,12 +27,12 @@
         Executable="$targetnametoken$.exe"
         EntryPoint="WhatsappApp.App">
         <m3:VisualElements
-            DisplayName="WhatsappApp"
+            DisplayName="WhatsApp"
             Square150x150Logo="Assets\Logo.png"
             Square44x44Logo="Assets\SmallLogo.png"
-            Description="WhatsappApp"
+            Description="WhatsApp per Windows Phone 8.1"
             ForegroundText="light"
-            BackgroundColor="transparent">
+            BackgroundColor="#075E54">
             <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71x71Logo.png"/>
             <m3:SplashScreen Image="Assets\SplashScreen.png"/>
         </m3:VisualElements>
