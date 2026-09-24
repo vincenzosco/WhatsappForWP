@@ -1,8 +1,10 @@
 ﻿using System;
 using System.Linq;
 using Windows.Phone.UI.Input;
+using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
 using WhatsappApp.Pages;
@@ -16,6 +18,11 @@ namespace WhatsappApp
         {
             this.InitializeComponent();
             this.NavigationCacheMode = NavigationCacheMode.Required;
+
+            // I pulsanti dell'app bar sono solo icone: il testo (che il sistema
+            // legge anche come etichetta di accessibilita') e' un tooltip.
+            ToolTipService.SetToolTip(NewChatButton, Loc.Get("MainPage_NewChatTooltip", "New chat"));
+            ToolTipService.SetToolTip(SettingsButton, Loc.Get("MainPage_SettingsTooltip", "Settings"));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -81,45 +88,59 @@ namespace WhatsappApp
             Frame.Navigate(typeof(ConnectionPage));
         }
 
-        private void SearchButton_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO: Implement search functionality
-        }
-
-        private void MoreButton_Click(object sender, RoutedEventArgs e)
-        {
-            // TODO: Show more options menu
-        }
-
         private async void NewChatButton_Click(object sender, RoutedEventArgs e)
         {
             var input = new TextBox
             {
-                PlaceholderText = "Numero con prefisso internazionale, es. 393401234567"
+                PlaceholderText = Loc.Get("MainPage_NewChatPrompt",
+                    "Phone number with country code (e.g. 393401234567)")
             };
 
-            // WP8.1 ContentDialog has no CloseButtonText: "Annulla" is the
+            // L'errore di validazione vive dentro la dialog: cosi' l'utente
+            // ritrova il numero che aveva digitato invece di ripartire da zero.
+            var error = new TextBlock
+            {
+                Text = Loc.Get("MainPage_NewChatInvalid",
+                    "Enter a valid number with country code (e.g. 393401234567)."),
+                Foreground = new SolidColorBrush(Colors.Red),
+                FontSize = 13,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 8, 0, 0),
+                Visibility = Visibility.Collapsed
+            };
+
+            var content = new StackPanel();
+            content.Children.Add(input);
+            content.Children.Add(error);
+
+            // WP8.1 ContentDialog has no CloseButtonText: the cancel text is the
             // secondary button, and the dialog can also be dismissed with the
             // hardware back button (result = None).
             var dialog = new ContentDialog
             {
-                Title = "Nuova chat",
-                Content = input,
-                PrimaryButtonText = "Apri",
-                SecondaryButtonText = "Annulla"
+                Title = Loc.Get("MainPage_NewChatTitle", "New chat"),
+                Content = content,
+                PrimaryButtonText = Loc.Get("MainPage_NewChatOpen", "Open"),
+                SecondaryButtonText = Loc.Get("MainPage_NewChatCancel", "Cancel")
             };
 
-            var result = await dialog.ShowAsync();
-            if (result != ContentDialogResult.Primary) return;
-
-            string phone = (input.Text ?? "").Trim()
-                .Replace("+", "").Replace(" ", "").Replace("-", "");
-            if (phone.Length < 6 || !phone.All(char.IsDigit))
+            string jid = null;
+            string phone = null;
+            while (jid == null)
             {
-                return;
-            }
+                var result = await dialog.ShowAsync();
+                if (result != ContentDialogResult.Primary) return;
 
-            string jid = phone.Contains("@") ? phone : phone + "@s.whatsapp.net";
+                phone = (input.Text ?? "").Trim()
+                    .Replace("+", "").Replace(" ", "").Replace("-", "");
+                if (phone.Length < 6 || !phone.All(char.IsDigit))
+                {
+                    error.Visibility = Visibility.Visible;
+                    continue;
+                }
+
+                jid = phone.Contains("@") ? phone : phone + "@s.whatsapp.net";
+            }
 
             var existing = DataService.Instance.Contacts.FirstOrDefault(c => c.Id == jid);
             if (existing != null)
