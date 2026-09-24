@@ -8,7 +8,6 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
 using WhatsappApp.Services;
@@ -22,6 +21,8 @@ namespace WhatsappApp.Pages
         private bool _isConnectedMode;
         private StorageFile _selectedImageFile;
         private string _selectedImageBase64;
+        private ChatMessage _pendingScroll;
+        private bool _scrollQueued;
 
         public ChatPage()
         {
@@ -57,10 +58,7 @@ namespace WhatsappApp.Pages
 
                 // Auto-scroll to bottom
                 if (_messages.Count > 0)
-                {
-                    MessagesListView.UpdateLayout();
-                    MessagesListView.ScrollIntoView(_messages[_messages.Count - 1]);
-                }
+                    ScrollToMessage(_messages[_messages.Count - 1]);
 
                 // Da qui in poi i messaggi di questa chat sono gia' letti
                 DataService.Instance.ActiveChatId = contact.Id;
@@ -75,6 +73,30 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
             DataService.Instance.ActiveChatId = null;
+            _pendingScroll = null;
+        }
+
+        /// <summary>
+        /// Scorre sull'ultimo messaggio una volta per raffica: una raffica di
+        /// messaggi in arrivo prima faceva un UpdateLayout + ScrollIntoView
+        /// per ognuno, cioe' un giro di layout completo per messaggio.
+        /// </summary>
+        private void ScrollToMessage(ChatMessage message)
+        {
+            _pendingScroll = message;
+            if (_scrollQueued) return;
+
+            _scrollQueued = true;
+#pragma warning disable 4014
+            Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () =>
+            {
+                _scrollQueued = false;
+                if (_pendingScroll == null) return;
+
+                MessagesListView.ScrollIntoView(_pendingScroll);
+                _pendingScroll = null;
+            });
+#pragma warning restore 4014
         }
 
         private void OnMessageReceived(object sender, ChatMessage message)
@@ -82,10 +104,7 @@ namespace WhatsappApp.Pages
             // DataService ha già inserito il messaggio nella stessa collezione:
             // qui si scorre soltanto, altrimenti la bolla comparirebbe due volte.
             if (message.ChatId == _contact.Id)
-            {
-                MessagesListView.UpdateLayout();
-                MessagesListView.ScrollIntoView(message);
-            }
+                ScrollToMessage(message);
         }
 
         private async void SendMessage()
@@ -159,8 +178,7 @@ namespace WhatsappApp.Pages
             MessageTextBox.Text = "";
 
             // Auto-scroll
-            MessagesListView.UpdateLayout();
-            MessagesListView.ScrollIntoView(message);
+            ScrollToMessage(message);
 
             // Send via network if connected
             if (_isConnectedMode)
@@ -218,27 +236,23 @@ namespace WhatsappApp.Pages
 
                 _selectedImageFile = file;
 
-                // Read the image file and convert to base64
+                // Un solo passaggio sul file: i byte servono sia per l'invio
+                // (base64) sia per l'anteprima (bitmap). Prima il file veniva
+                // letto due volte.
+                byte[] buffer;
                 using (var stream = await file.OpenReadAsync())
                 {
                     using (var reader = new DataReader(stream))
                     {
                         uint size = (uint)stream.Size;
                         await reader.LoadAsync(size);
-                        byte[] buffer = new byte[size];
+                        buffer = new byte[size];
                         reader.ReadBytes(buffer);
-                        _selectedImageBase64 = System.Convert.ToBase64String(buffer);
                     }
                 }
 
-                // Show preview
-                using (var stream = await file.OpenReadAsync())
-                {
-                    var bitmap = new BitmapImage();
-                    await bitmap.SetSourceAsync(stream);
-                    SelectedImagePreview.Source = bitmap;
-                }
-
+                _selectedImageBase64 = System.Convert.ToBase64String(buffer);
+                SelectedImagePreview.Source = await ImageHelper.FromBytesAsync(buffer);
                 ImagePreviewBar.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
