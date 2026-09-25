@@ -13,7 +13,7 @@ An unofficial WhatsApp client for **Windows Phone 8.1**, built in Visual Studio
 
 ```
 WhatsappApp/            WP8.1 XAML app (C# 5)
-  App.xaml(.cs)         icon geometries, start page, resource loader warm-up
+  App.xaml(.cs)         colours, start page, resource loader warm-up
   Controls/SectionNav   the shared bottom navigation bar
   Pages/                ChatsPage, StatusPage, CallsPage, ChatPage, ConnectionPage
   Converters/           IValueConverter implementations used by the XAML
@@ -38,12 +38,16 @@ tools/                  static guards - run them, they are the real gate
    such as `CryptographicBuffer.CreateFromByteArray(byte[], uint, uint)` and
    `ContentDialog.CloseButtonText`).
 2. **No icon font.** WP8.1 predates `Segoe MDL2 Assets`; an icon button using it
-   renders blank. Icons are `PathGeometry` resources in `App.xaml` consumed as
-   `Data="{StaticResource IconX}"`. Every geometry must be both defined and
-   used. Geometries are written in element form (`PathFigure` + segments), never
-   with `Figures="M..."`: WP8.1's `PathFigureCollection` converter has no string
-   form, so that attribute costs 18 build errors. Gate:
-   `node tools/check-icons.js` (add `--preview` for an ASCII render).
+   renders blank. Icons are `Path` elements with the geometry **inlined** as
+   `<Path.Data><PathGeometry>...</PathGeometry></Path.Data>`, each named by an
+   `<!-- IconX -->` comment above its `Path.Data`.
+   Two forms are forbidden, both because they break on this toolchain:
+   `Data="{StaticResource IconX}"` (a `Geometry` is not shareable through a
+   `StaticResource` in WinRT - compiles, then throws
+   `Failed to assign to property 'Windows.UI.Xaml.Shapes.Path.Data'` at
+   runtime; microsoft-ui-xaml#1909 / #5780) and `Figures="M..."` (WP8.1's
+   `PathFigureCollection` converter has no string form, 18 build errors).
+   Gate: `node tools/check-icons.js` (add `--preview` for an ASCII render).
 3. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
    that matches the element (`TextBlock`→`.Text`, `Button`→`.Content`,
    `TextBox`→`.PlaceholderText`); C# uses `Loc.Get("Key", "fallback")`. Icon-only
@@ -78,7 +82,7 @@ tools/                  static guards - run them, they are the real gate
 | Change | File |
 | --- | --- |
 | New section of the app | new `Pages/XxxPage.xaml(.cs)` + a case in `SectionNav` |
-| New icon | `PathGeometry` in `App.xaml`, then reference it |
+| New icon | inline `<Path.Data><PathGeometry>` on the `Path` (never a resource) |
 | New string | both `.resw` files (same key), then `x:Uid`/`Loc.Get` |
 | Socket/protocol behaviour | `Services/CommunicationService.cs` (+ adapter + its tests) |
 | Contacts/messages state | `Services/DataService.cs` (keep `_contactIndex` in sync) |

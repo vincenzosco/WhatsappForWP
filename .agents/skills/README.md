@@ -19,7 +19,7 @@ gli script, non con la build:
 
 ```bash
 node tools/check-csharp5.js        # sintassi C# 5 + API assenti su WP8.1
-node tools/check-icons.js          # geometrie delle icone definite <-> usate
+node tools/check-icons.js          # icone: forma delle geometrie, coerenza, font vietati
 node tools/check-resw.js --strict  # stringhe: x:Uid/Loc.Get <-> entrambi i .resw
 ```
 

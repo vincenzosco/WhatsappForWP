@@ -26,9 +26,30 @@
 
         <Grid Grid.Row="1" Background="{StaticResource WhatsAppChatBgBrush}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320">
-                <Path Data="{StaticResource IconStatus}" Stroke="#FFBDBDBD" StrokeThickness="2"
+                <Path Stroke="#FFBDBDBD" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center"/>
+                      Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center">
+                    <!-- IconStatus -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="12,4" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="12,20"/>
+                                        <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="12,4"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="12,7.5">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="12,12.3 16,14.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
                 <TextBlock x:Uid="StatusPage_EmptyTitle" Text="No status updates"
                            Foreground="#FF9E9E9E" FontSize="16"
                            HorizontalAlignment="Center" Margin="0,10,0,0"/>

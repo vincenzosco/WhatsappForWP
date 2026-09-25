@@ -10,7 +10,7 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
 node tools/check-csharp5.js        # C# 5 syntax + WP8.1-missing WinRT APIs
-node tools/check-icons.js          # icon geometries defined <-> referenced
+node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
 ```
 
@@ -19,7 +19,7 @@ Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
 | Guard | Catches |
 | --- | --- |
 | `check-csharp5.js` | Syntax the WP8.1 compiler rejects (it never shows up here otherwise), APIs that exist on Windows 10 but not on WP8.1, and a LINQ extension method (`.All(...)`, `.Where(...)`) in a file without `using System.Linq;` - a CS1061 that only msbuild reports. |
-| `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`), a `{StaticResource IconX}` that does not exist, a geometry nothing uses, and `Figures="M..."` - the string form of `PathGeometry.Figures`, which does not compile on WP8.1. |
+| `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`); `Data="{StaticResource IconX}"`, which compiles but throws at runtime; a `PathGeometry` that is not inlined in a `<Path.Data>`; `Figures="M..."`, the string form of `PathGeometry.Figures` that does not compile on WP8.1; a `Path` with no inline geometry or no `<!-- IconX -->` comment; two copies of the same icon name with different geometry. |
 | `check-resw.js` | A string that would silently stay in the markup language: missing/mistyped `x:Uid`, `x:Uid` on the wrong property, a `Loc.Get` key absent from a language, languages whose key sets differ, a `.resw` missing from the `csproj` (`PRIResource`), a wrong `<DefaultLanguage>`, a key/`.Property` collision, an unused key. |
 
 Also worth running while the tree is open:

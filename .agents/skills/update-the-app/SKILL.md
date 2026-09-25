@@ -44,18 +44,40 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 
 ## Add an icon
 
-1. `App.xaml`: a `<PathGeometry x:Key="IconMyThing">` in **element form**, 24x24
-   view box - `<PathGeometry.Figures><PathFigure StartPoint="x,y">` then
-   `<PathFigure.Segments>` with `LineSegment`/`PolyLineSegment`/`ArcSegment`,
-   `IsClosed="True"` for a `Z`. A `Figures="M..."` attribute is a **build
-   error** on WP8.1: its `PathFigureCollection` type converter has no string
-   form, so the mini-language only ever works inside the guard's preview.
-2. `node tools/check-icons.js --preview` and read the ASCII render before
+1. Inline the geometry **on the `Path` itself** - never a `PathGeometry`
+   resource in `App.xaml` and never `Data="{StaticResource IconX}"`. That form
+   compiles and then throws at runtime:
+   `XamlParseException: Failed to assign to property
+   'Windows.UI.Xaml.Shapes.Path.Data'.` (in WinRT a `Geometry` is not shareable
+   through a `StaticResource` - microsoft-ui-xaml#1909 and #5780).
+
+   ```xml
+   <Path Stroke="White" StrokeThickness="2" Width="24" Height="24">
+       <!-- IconMyThing -->
+       <Path.Data>
+           <PathGeometry>
+               <PathGeometry.Figures>
+                   <PathFigure StartPoint="x,y">
+                       <PathFigure.Segments>
+                           <PolyLineSegment Points="x,y x,y"/>
+                       </PathFigure.Segments>
+                   </PathFigure>
+               </PathGeometry.Figures>
+           </PathGeometry>
+       </Path.Data>
+   </Path>
+   ```
+
+   24x24 view box, `IsClosed="True"` for a `Z`, and **element form only**: a
+   `Figures="M..."` attribute is a build error on WP8.1, because its
+   `PathFigureCollection` type converter has no string form. The
+   `<!-- IconMyThing -->` comment is required - it names the icon for the guard.
+2. Reuse an existing `<!-- IconX -->` name only with byte-identical geometry:
+   the guard fails when two copies of the same name differ, so a duplicated
+   icon cannot drift apart.
+3. `node tools/check-icons.js --preview` and read the ASCII render before
    trusting it - this caught a mis-placed splash mark and a broken glyph before.
-3. Reference it with `Data="{StaticResource IconMyThing}"`, and choose
-   `Stroke` (outline) or `Fill` to match the neighbours.
-4. Delete any geometry whose last reference you removed - the guard fails on
-   unused definitions.
+   Choose `Stroke` (outline) or `Fill` to match the neighbours.
 
 ## Add or change a string
 
