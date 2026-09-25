@@ -1,5 +1,8 @@
 'use strict';
 
+const fs = require('fs');
+const path = require('path');
+
 // Legge la configurazione dall'ambiente con valori di default sensati.
 // Non contiene segreti: quelli restano in .env / variabili d'ambiente.
 
@@ -48,4 +51,34 @@ function loadConfig(env = process.env) {
   };
 }
 
-module.exports = { loadConfig, DEFAULTS };
+/**
+ * Carica un file .env (formato CHIAVE=valore, # per i commenti) dentro `env`.
+ * Le variabili gia' presenti nell'ambiente hanno la precedenza, cosi' che le
+ * variabili passate a mano o dallo script di avvio non vengano scavalcate.
+ * Senza questo, il `cp .env.example .env` documentato nel README non avrebbe
+ * alcun effetto: il processo leggeva solo l'ambiente.
+ */
+function applyDotEnv(env = process.env, dir = __dirname) {
+  let content;
+  try {
+    content = fs.readFileSync(path.join(dir, '.env'), 'utf8');
+  } catch (err) {
+    return env;
+  }
+
+  for (const rawLine of content.split('\n')) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) continue;
+    const separator = line.indexOf('=');
+    if (separator < 1) continue;
+    const key = line.slice(0, separator).trim();
+    let value = line.slice(separator + 1).trim();
+    const quoted = (value.startsWith('"') && value.endsWith('"'))
+      || (value.startsWith("'") && value.endsWith("'"));
+    if (quoted && value.length >= 2) value = value.slice(1, -1);
+    if (env[key] === undefined) env[key] = value;
+  }
+  return env;
+}
+
+module.exports = { loadConfig, applyDotEnv, DEFAULTS };

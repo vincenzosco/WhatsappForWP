@@ -56,34 +56,42 @@ client any more: it uses GOWA's REST API and webhooks.
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
 
-**Setup**
-
-1. Start GOWA:
+**Setup (one command)**
 
 ```bash
-git clone https://github.com/vincenzosco/go-whatsapp-web-multidevice
-cd go-whatsapp-web-multidevice/src
-go run . rest --basic-auth=admin:admin --port=3000
+node tools/start-login.js --download   # --download only the first time
 ```
 
-2. Start the adapter:
+It downloads the official GOWA binary for this platform into `.tools/gowa`
+(SHA-256 verified), starts `whatsapp rest`, starts `WhatsappBridge/server.js`,
+prints the LAN address and ports to give to the app, and draws the WhatsApp login
+QR **as a scannable QR inside the terminal**, renewing it until the phone
+completes the link. The adapter registers its own webhook on GOWA.
 
-```bash
-cd WhatsappBridge
-cp .env.example .env   # optional, or export the variables
-npm install
-npm start
-```
+| Option | Effect |
+| --- | --- |
+| `--code 393401234567` | link with a phone pairing code instead of the QR |
+| `--no-bridge` | GOWA and the QR only |
+| `--once` | draw a single QR and exit |
+| `--url http://host:3000` | use an already running GOWA |
+| `--ui` | also serve GOWA's web dashboard |
+| `--stop` | stop a stack started earlier |
 
-The adapter registers its webhook on GOWA automatically. If that fails, start
-GOWA with `--webhook=http://<adapter-host>:8586/webhook`.
+The WhatsApp session lives in `.tools/gowa/storages/whatsapp.db` (git ignored),
+so later launches reconnect on their own without a new QR. `Ctrl-C` stops GOWA and
+the adapter.
 
-3. In the app, set the adapter address/port and tap **Connetti al server**, then
-   log in with the QR code or with your phone number.
+Then, in the app: set the adapter address/port, tap **Connetti al server** and use
+the session already linked (the QR/number login inside the app works too).
 
-**Requirements:** Node.js 18.13+ and a reachable GOWA instance.
+**Requirements:** Node.js 18.13+ and, for the terminal QR, ImageMagick 7
+(`magick`). Adapter environment variables are documented in
+`WhatsappBridge/.env.example` (the file is read at startup; variables already
+exported win over it).
 
-Environment variables are documented in `WhatsappBridge/.env.example`.
+**Doing it by hand**, if you prefer to run the pieces yourself: start any GOWA
+that speaks the v9 REST API (`whatsapp rest --port=3000 --host=127.0.0.1`), then
+`cd WhatsappBridge && cp .env.example .env && npm start`.
 
 ## Struttura dell'app
 

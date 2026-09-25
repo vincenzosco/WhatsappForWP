@@ -12,6 +12,7 @@ cd /Users/vincenzo/Documents/WhatsappForWP
 node tools/check-csharp5.js        # C# 5 syntax + WP8.1-missing WinRT APIs
 node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
+node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
 Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
@@ -47,9 +48,10 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 cd WhatsappBridge && npm test
 ```
 
-Expected `pass 29`, `fail 0`. It covers the config, the GOWA client, the message
-format (including the `\/Date(ms)\/` wire format the app requires), the TCP
-server and the webhook receiver. Add a test with every adapter change.
+Expected `pass 31`, `fail 0`. It covers the config and its `.env` loader, the GOWA
+client, the message format (including the `\/Date(ms)\/` wire format the app
+requires), the TCP server and the webhook receiver. Add a test with every adapter
+change.
 
 ## Cross-checking the app against the adapter
 
@@ -93,15 +95,33 @@ Expected `0 Error(s)`. Notes worth remembering:
 - The VS2013 XAML designer needs a developer licence / sideload policy and is not
   needed: close the designer, open `.xaml` as XML, or build with `msbuild`.
 
+## The login stack (real, and checkable here)
+
+`node tools/start-login.js` starts GOWA and the adapter and draws the login QR in
+the terminal; that much runs on this machine and is worth checking whenever the
+adapter's login frames change:
+
+```bash
+node tools/start-login.js --no-bridge --once   # GOWA + one QR, then exits
+```
+
+What a good run prints: the banner with the LAN address and ports, then a `QR
+aggiornato ... 65 moduli, ricostruzione 0.00%` caption. A reconstruction error
+above 0% means the drawing is not trustworthy even if it looks right - see
+`run-the-login-server`.
+
+The drawing itself was verified independently: the rendered text, parsed back into
+an image, decodes with macOS Vision to the identical payload as GOWA's PNG.
+
 ## What can and cannot be verified here
 
-The static guards and the Windows build are checkable. **Running the app is not,
-unless the build machine can host the WP8.1 emulator or you have a phone:** the
-XDE images are x86 and need Hyper-V, so on an ARM (Apple Silicon) host running
-Windows 11 ARM64 there is no way to boot them. That is a hardware limit, not a
-project one - on such a setup the build is the last gate that can be run, and the
-checklist below waits for an x86/x64 Windows machine or a USB-attached WP8.1
-device.
+The static guards, the login stack and the Windows build are checkable. **Running
+the app is not, unless the build machine can host the WP8.1 emulator or you have a
+phone:** the XDE images are x86 and need Hyper-V, so on an ARM (Apple Silicon)
+host running Windows 11 ARM64 there is no way to boot them. That is a hardware
+limit, not a project one - on such a setup the build is the last gate that can be
+run, and the checklist below waits for an x86/x64 Windows machine or a
+USB-attached WP8.1 device.
 
 ## On-device checklist
 

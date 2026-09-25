@@ -1,7 +1,10 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { loadConfig } = require('../config');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { loadConfig, applyDotEnv } = require('../config');
 
 test('loadConfig fornisce i valori di default', () => {
   const c = loadConfig({});
@@ -40,4 +43,38 @@ test('loadConfig legge e normalizza le variabili d\'ambiente', () => {
 test('loadConfig accetta WEBHOOK_PUBLIC_URL esplicita', () => {
   const c = loadConfig({ WEBHOOK_PORT: '9001', WEBHOOK_PUBLIC_URL: 'http://10.0.0.5:9001/hook' });
   assert.strictEqual(c.webhook.publicUrl, 'http://10.0.0.5:9001/hook');
+});
+
+test('applyDotEnv legge il file .env e non scavalca l\'ambiente', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-env-'));
+  fs.writeFileSync(path.join(dir, '.env'), [
+    '# commento',
+    '',
+    'GOWA_URL=http://10.0.0.9:3000',
+    'BRIDGE_PORT = "9001"',
+    'GOWA_PASS=\'segreto\'',
+    'SENZA_VALORE=',
+  ].join('\n'));
+
+  const env = { BRIDGE_PORT: '8585' };
+  applyDotEnv(env, dir);
+
+  assert.strictEqual(env.GOWA_URL, 'http://10.0.0.9:3000');
+  assert.strictEqual(env.BRIDGE_PORT, '8585', 'le variabili gia\' presenti vincono');
+  assert.strictEqual(env.GOWA_PASS, 'segreto');
+  assert.strictEqual(env.SENZA_VALORE, '');
+  assert.strictEqual(env['# commento'], undefined);
+
+  const config = loadConfig(env);
+  assert.strictEqual(config.gowa.url, 'http://10.0.0.9:3000');
+  assert.strictEqual(config.bridge.port, 8585);
+  fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('applyDotEnv non fallisce se .env non esiste', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-env-'));
+  const env = {};
+  assert.strictEqual(applyDotEnv(env, dir), env);
+  assert.deepStrictEqual(env, {});
+  fs.rmSync(dir, { recursive: true, force: true });
 });

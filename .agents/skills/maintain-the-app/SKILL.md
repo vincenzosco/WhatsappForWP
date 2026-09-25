@@ -26,7 +26,11 @@ WhatsappApp/            WP8.1 XAML app (C# 5)
 WhatsappBridge/         Node.js adapter: GOWA HTTP + webhook -> encrypted TCP frames
 WhatsappServer/         legacy .NET console project (not part of the app flow)
 tools/                  static guards - run them, they are the real gate
+  start-login.js        starts GOWA + the adapter and draws the login QR
+  qr-term.js            PNG -> terminal QR (module recovery + half blocks)
 .agents/skills/         this directory
+.tools/                 local, git ignored: the GOWA binary, its log and
+                        storages/whatsapp.db (the live WhatsApp session)
 ```
 
 ## Hard constraints
@@ -89,6 +93,8 @@ tools/                  static guards - run them, they are the real gate
 | State kept across suspend/termination | `Services/SessionService.cs` |
 | Image handling | `Services/ImageHelper.cs` |
 | A new GOWA call | `WhatsappBridge/gowa-client.js`, a control command in `server.js`, and the app side in `ConnectionPage`/`CommunicationService` |
+| Local start-up behaviour (ports, login, stop) | `tools/start-login.js` (+ the `run-the-login-server` skill) |
+| Drawing of the login QR | `tools/qr-term.js` (run its `--self-test` afterwards) |
 
 ## Known gotchas
 
@@ -105,3 +111,6 @@ tools/                  static guards - run them, they are the real gate
   through `AddContact` when you can.
 - `ChatMessage.LoadMediaImageAsync` is a no-op once `MediaImage` is set; do not
   "fix" that by forcing a re-decode.
+- Nothing under `.tools/` is committed, and the GOWA login flow **restarts** every
+  time `GET /app/login` is called: see `run-the-login-server` before touching
+  `tools/start-login.js` or the login frames of the adapter.
