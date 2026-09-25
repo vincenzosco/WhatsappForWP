@@ -20,7 +20,9 @@ WhatsappApp/            WP8.1 XAML app (C# 5)
   Models/               Contact, ChatMessage, ServerConfig
   Services/             CommunicationService (socket), DataService (state),
                         CryptoHelper (AES-GCM), Loc (strings), ImageHelper,
-                        SettingsService, SessionService (last section)
+                        SettingsService, SessionService (last section),
+                        Diag (every failure we survive, with its HRESULT),
+                        SelfCheck (DEBUG-only probe of the platform)
   Strings/<lang>/       Resources.resw - every user-visible string
   Assets/               generated PNGs (tiles, logos, splash)
 WhatsappBridge/         Node.js adapter: GOWA HTTP + webhook -> encrypted TCP frames
@@ -129,3 +131,17 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 - Nothing under `.tools/` is committed, and the GOWA login flow **restarts** every
   time `GET /app/login` is called: see `run-the-login-server` before touching
   `tools/start-login.js` or the login frames of the adapter.
+- **A silent `catch` is a bug.** Every failure the app decides to survive goes
+  through `Diag.Failed("<call site>", ex)` before it is handled: the WP8.1
+  projection can refuse a call at run time that compiled fine, and "The operation
+  identifier is not valid" in the debugger output does not say which call it was.
+  `Diag` prints once per site with the HRESULT, and `Debug.WriteLine` is compiled
+  out of release builds, so shipping it costs nothing.
+- **Do not retry a lookup that has already failed.** `Loc.Loader` and
+  `GetUiDispatcher` each remember their failure; without that flag one failure
+  becomes one exception per string, or per received message. What they need
+  instead is to be resolved once at start-up on the UI thread: `Loc.Prewarm()` and
+  `CommunicationService.Instance.Prewarm()`, both called from `OnLaunched`.
+- **`Window.Current` is null off the UI thread**, so it cannot be a fallback for
+  anything that may run on a network thread: use `CoreApplication.MainView` there,
+  or capture the object while you are on the UI thread.
