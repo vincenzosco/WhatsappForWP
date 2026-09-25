@@ -16,7 +16,17 @@ namespace WhatsappServer
         private static Dictionary<string, string> _userNames = new Dictionary<string, string>();
         private static bool _isRunning = true;
 
-        static async Task Main(string[] args)
+        // Il progetto targetta .NET Framework 4.5.1 e il compilatore C# 5 non
+        // accetta un entry point asincrono (deve essere void, non Task): la
+        // soluzione rispondeva CS0028 (firma errata) + CS5001 (nessun Main) e non
+        // si compilava affatto. Il corpo async resta in MainAsync, Main lo
+        // attende. Anche check-csharp5.js ora riconosce questo caso.
+        static void Main(string[] args)
+        {
+            MainAsync(args).GetAwaiter().GetResult();
+        }
+
+        private static async Task MainAsync(string[] args)
         {
             int port = 8585;
             int customPort;
