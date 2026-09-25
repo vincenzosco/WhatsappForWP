@@ -20,7 +20,7 @@ WhatsappApp/            WP8.1 XAML app (C# 5)
   Models/               Contact, ChatMessage, ServerConfig
   Services/             CommunicationService (socket), DataService (state),
                         CryptoHelper (AES-GCM), Loc (strings), ImageHelper,
-                        SettingsService
+                        SettingsService, SessionService (last section)
   Strings/<lang>/       Resources.resw - every user-visible string
   Assets/               generated PNGs (tiles, logos, splash)
 WhatsappBridge/         Node.js adapter: GOWA HTTP + webhook -> encrypted TCP frames
@@ -40,7 +40,10 @@ tools/                  static guards - run them, they are the real gate
 2. **No icon font.** WP8.1 predates `Segoe MDL2 Assets`; an icon button using it
    renders blank. Icons are `PathGeometry` resources in `App.xaml` consumed as
    `Data="{StaticResource IconX}"`. Every geometry must be both defined and
-   used. Gate: `node tools/check-icons.js` (add `--preview` for an ASCII render).
+   used. Geometries are written in element form (`PathFigure` + segments), never
+   with `Figures="M..."`: WP8.1's `PathFigureCollection` converter has no string
+   form, so that attribute costs 18 build errors. Gate:
+   `node tools/check-icons.js` (add `--preview` for an ASCII render).
 3. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
    that matches the element (`TextBlock`→`.Text`, `Button`→`.Content`,
    `TextBox`→`.PlaceholderText`); C# uses `Loc.Get("Key", "fallback")`. Icon-only
@@ -79,6 +82,7 @@ tools/                  static guards - run them, they are the real gate
 | New string | both `.resw` files (same key), then `x:Uid`/`Loc.Get` |
 | Socket/protocol behaviour | `Services/CommunicationService.cs` (+ adapter + its tests) |
 | Contacts/messages state | `Services/DataService.cs` (keep `_contactIndex` in sync) |
+| State kept across suspend/termination | `Services/SessionService.cs` |
 | Image handling | `Services/ImageHelper.cs` |
 | A new GOWA call | `WhatsappBridge/gowa-client.js`, a control command in `server.js`, and the app side in `ConnectionPage`/`CommunicationService` |
 
