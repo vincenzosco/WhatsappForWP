@@ -1743,11 +1743,11 @@ No "TBD/TODO/handle edge cases/see Task N" for code: every step carries the code
 
 **3. Type consistency**
 
-- `createDiscoveryBeacon` returns `{ socket, sendOnce, stop }`; `server.js` uses `beacon.stop()` only. ✓
-- The beacon body has exactly one builder: `buildPayload` in `discovery.js`. `server.js` imports it and passes only the four live fields (`name`, `port`, `state`, `account`), so there is no second copy of the six keys to drift — `service` and `version` are set inside `buildPayload`, which the fake-socket test asserts. `BeaconPayload.cs` in Task 2 uses the same six names. ✓
-- `makePrinter` (Task 4) is referenced by `waitForLogin`, `showQr`, `showPairCode` and `reportLoginError`; the replacement keeps the same three members (`render`, `done`, plus the new `warned`) and drops the inner closure variable, so no caller changes. ✓
-- `DiscoveryService.Port` (8587) equals `DISCOVERY_PORT`'s default (8587). ✓
-- `AutoConnector.TryConnectAsync(string, int)` is called identically from `App.StartAutoConnect` and `ConnectionPage.StartDiscovery`. ✓
-- `DiscoveredServer` members used by XAML bindings (`DisplayName`, `Endpoint`) and by code (`Address`, `Port`, `State`) all exist in the file created in Task 2, Step 1. ✓
-- `ConnectionPage` handlers referenced from XAML (`ServersList_ItemClick`, `ManualToggleButton_Click`, `QrOverlayCloseButton_Click`) are all defined in Tasks 2 and 3. ✓
+- `createDiscoveryBeacon` returns `{ socket, sendOnce, stop }`; `server.js` uses `beacon.stop()` only.
+- The beacon body has exactly one builder: `buildPayload` in `discovery.js`. `server.js` imports it and passes only the four live fields (`name`, `port`, `state`, `account`), so there is no second copy of the six keys to drift — `service` and `version` are set inside `buildPayload`, which the fake-socket test asserts. `BeaconPayload.cs` in Task 2 uses the same six names.
+- `makePrinter` (Task 4) is referenced by `waitForLogin`, `showQr`, `showPairCode` and `reportLoginError`; the replacement keeps the same three members (`render`, `done`, plus the new `warned`) and drops the inner closure variable, so no caller changes.
+- `DiscoveryService.Port` (8587) equals `DISCOVERY_PORT`'s default (8587).
+- `AutoConnector.TryConnectAsync(string, int)` is called identically from `App.StartAutoConnect` and `ConnectionPage.StartDiscovery`.
+- `DiscoveredServer` members used by XAML bindings (`DisplayName`, `Endpoint`) and by code (`Address`, `Port`, `State`) all exist in the file created in Task 2, Step 1.
+- `ConnectionPage` handlers referenced from XAML (`ServersList_ItemClick`, `ManualToggleButton_Click`, `QrOverlayCloseButton_Click`) are all defined in Tasks 2 and 3.
 - resw key counts quoted per step (82 → 86 in Task 2, → 89 in Task 3, → 90 after Step 6 of Task 3); adjust the expected string if another change lands first.

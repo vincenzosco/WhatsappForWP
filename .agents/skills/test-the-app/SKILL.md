@@ -12,6 +12,7 @@ cd /Users/vincenzo/Documents/WhatsappForWP
 node tools/check-csharp5.js        # C# 5 syntax + WP8.1-missing WinRT APIs
 node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
+node tools/check-docs.js          # the two languages of the docs are in step, no emoji
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -22,6 +23,7 @@ Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
 | `check-csharp5.js` | Syntax the WP8.1 compiler rejects (it never shows up here otherwise), APIs that exist on Windows 10 but not on WP8.1, and a LINQ extension method (`.All(...)`, `.Where(...)`) in a file without `using System.Linq;` - a CS1061 that only msbuild reports. |
 | `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`); `Data="{StaticResource IconX}"`, which compiles but throws at runtime; a `PathGeometry` that is not inlined in a `<Path.Data>`; `Figures="M..."`, the string form of `PathGeometry.Figures` that does not compile on WP8.1; a `Path` with no inline geometry or no `<!-- IconX -->` comment; two copies of the same icon name with different geometry. |
 | `check-resw.js` | A string that would silently stay in the markup language: missing/mistyped `x:Uid`, `x:Uid` on the wrong property, a `Loc.Get` key absent from a language, languages whose key sets differ, a `.resw` missing from the `csproj` (`PRIResource`), a wrong `<DefaultLanguage>`, a key/`.Property` collision, an unused key. |
+| `check-docs.js` | A README section added to one language and not the other (the heading counts stop matching), a missing link between the two versions, a `## Disclosure` section that is absent or no longer last, an emoji anywhere in the Markdown (the warning sign U+26A0 is the only exception). |
 
 Also worth running while the tree is open:
 
@@ -48,10 +50,10 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 cd WhatsappBridge && npm test
 ```
 
-Expected `pass 31`, `fail 0`. It covers the config and its `.env` loader, the GOWA
+Expected `pass 36`, `fail 0`. It covers the config and its `.env` loader, the GOWA
 client, the message format (including the `\/Date(ms)\/` wire format the app
-requires), the TCP server and the webhook receiver. Add a test with every adapter
-change.
+requires), the TCP server, the webhook receiver and the discovery beacon (a real
+UDP round trip). Add a test with every adapter change.
 
 ## Cross-checking the app against the adapter
 
@@ -128,7 +130,7 @@ USB-attached WP8.1 device.
 1. Deploy, then open **impostazioni** from the app bar and connect to the adapter.
 2. Sign in with the QR code, then with the phone number (both paths).
 3. Send a text message and an image (attach + caption); verify the outgoing bubble
-   shows ✓/✓✓/✗ correctly.
+   shows sent / delivered / failed correctly.
 4. Receive a message with the app open and with it closed: the unread badge must
    appear only in the second case.
 5. Switch section with the bottom bar three times: the highlighted icon follows,

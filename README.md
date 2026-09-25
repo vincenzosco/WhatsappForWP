@@ -1,5 +1,7 @@
 # WhatsApp for Windows Phone 8.1
 
+**English** | [Italiano](README.it.md)
+
 A community-maintained WhatsApp client for Windows Phone 8.1 (Universal Windows Platform). This project includes a full WhatsApp-like UI and a bridge server to connect to real WhatsApp servers.
 
 ## Projects
@@ -13,10 +15,11 @@ The main client app with an authentic WhatsApp user interface.
 - Chat list with avatars, unread badges, online indicators
 - Message bubbles with timestamps and sent/delivered/read status
 - Text messaging with Enter-to-send
-- Image attachment: pick photos from gallery and send them via the bridge
+- Image attachment: pick photos from the gallery and send them through the bridge
 - Image preview in chat bubbles (base64 over TCP)
-- Connection settings: point the app at the GOWA adapter, then log in with a QR code or a phone pairing code
-- Italian language UI
+- The app finds the adapter on the local network by itself, so there is no address to type
+- Login from the phone: the QR code or the phone pairing code is shown full screen in the app
+- UI in the device language: English and Italian
 
 **Architecture:**
 
@@ -51,6 +54,7 @@ client any more: it uses GOWA's REST API and webhooks.
 **Features**
 
 - Login via **QR code** or via **phone number pairing code**, both shown in the app
+- Announces itself on the LAN over UDP, so the app finds it without being configured
 - Keeps the encrypted (AES-256-GCM) TCP channel between app and adapter
 - Sends text and images through `POST /send/message` and `POST /send/image`
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
@@ -101,31 +105,31 @@ exported win over it).
 that speaks the v9 REST API (`whatsapp rest --port=3000 --host=127.0.0.1`), then
 `cd WhatsappBridge && cp .env.example .env && npm start`.
 
-## Struttura dell'app
+## App structure
 
-L'app e' divisa in una pagina per sezione, con una barra di navigazione
-condivisa (`WhatsappApp/Controls/SectionNav.xaml`):
+The app is split into one page per section, with a shared navigation bar
+(`WhatsappApp/Controls/SectionNav.xaml`):
 
-| Pagina | Sezione |
+| Page | Section |
 | --- | --- |
-| `Pages/ChatsPage.xaml` | elenco chat, nuova chat, accesso alle impostazioni |
-| `Pages/StatusPage.xaml` | stati |
-| `Pages/CallsPage.xaml` | chiamate |
-| `Pages/ChatPage.xaml` | conversazione |
-| `Pages/ConnectionPage.xaml` | configurazione server e accesso WhatsApp |
+| `Pages/ChatsPage.xaml` | chat list, new chat, access to the settings |
+| `Pages/StatusPage.xaml` | status |
+| `Pages/CallsPage.xaml` | calls |
+| `Pages/ChatPage.xaml` | conversation |
+| `Pages/ConnectionPage.xaml` | server configuration and WhatsApp login |
 
-Il cambio di sezione naviga sul `Frame` radice e rimuove dallo stack la sezione
-lasciata, quindi il tasto **Indietro** esce dall'app da qualunque sezione invece
-di ripassare tra quelle viste. Le tre pagine di sezione sono in cache
-(`Frame.CacheSize = 3`): passare da una all'altra non ricostruisce la pagina e
-l'elenco chat conserva la posizione di scorrimento.
+Changing section navigates the root `Frame` and removes from the stack the section
+it leaves, so the **Back** button exits the app from any section instead of
+walking back through the ones already seen. The three section pages are cached
+(`Frame.CacheSize = 3`): moving from one to another does not rebuild the page and
+the chat list keeps its scroll position.
 
-## Skill del progetto
+## Project skills
 
-In `.agents/skills/` (indice in `.agents/skills/README.md`) ci sono le istruzioni
-per mantenere, aggiornare, testare e rilasciare l'app: vincoli del toolchain,
-ricette di modifica, la matrice di verifica e la checklist di deploy. Chi mette
-mano al codice dovrebbe leggerle prima: sono la memoria lunga del progetto.
+In `.agents/skills/` (index in `.agents/skills/README.md`) there are the
+instructions to maintain, update, test and release the app: toolchain constraints,
+edit recipes, the verification matrix and the deploy checklist. Whoever touches the
+code should read them first: they are the project's long memory.
 
 ## Protocol
 
@@ -169,76 +173,74 @@ answers with `qr` / `paircode` / `state` / `contact` / `error` frames. See
 
 ### WP8 App
 
-Toolchain verificato: **Visual Studio 2013 (v12.0) + Windows Phone 8.1 SDK**. Il
-gate è
+Verified toolchain: **Visual Studio 2013 (v12.0) + Windows Phone 8.1 SDK**. The
+gate is
 
 ```bash
 msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86
 ```
 
-che deve chiudere con `0 Error(s)` e produrre
-`WhatsappApp\AppPackages\WhatsappApp_<versione>_Debug_Test\WhatsappApp_<versione>_x86_Debug.appxbundle`.
+which must close with `0 Error(s)` and produce
+`WhatsappApp\AppPackages\WhatsappApp_<version>_Debug_Test\WhatsappApp_<version>_x86_Debug.appxbundle`.
 
-**Compilare da un percorso su disco locale, non dalla cartella condivisa.** Se il
-progetto sta nella condivisione Mac (`C:\Mac\Home\...`), il pass 2 del compilatore
-XAML fallisce *sempre* con
+**Build from a path on a local disk, not from the shared folder.** If the project
+lives in the Mac share (`C:\Mac\Home\...`), the second pass of the XAML compiler
+*always* fails with
 
 ```
 Microsoft.Windows.UI.Xaml.Common.targets(327,9): Xaml Internal Error error WMC9999:
-La chiave specificata non era presente nel dizionario.
+The given key was not present in the dictionary.
 ```
 
-anche su un albero appena pulito e qualunque cosa contengano le pagine: è la
-condivisione, non il codice. Copiare il progetto su un disco della macchina
-Windows e compilare lì (`robocopy <condivisione> C:\wp81 /E`): stessi file,
-`0 Error(s)`.
+even on a freshly cleaned tree and whatever the pages contain: it is the share, not
+the code. Copy the project to a disk on the Windows machine and build there
+(`robocopy <share> C:\wp81 /E`): same files, `0 Error(s)`.
 
-**L'emulatore WP8.1 non parte su un Mac Apple Silicon.** Le immagini XDE sono x86
-e girano su Hyper-V: su un ospite Windows ARM64 non esistono né Hyper-V x86 né
-quelle immagini. Per eseguire l'app servono una macchina Windows x86/x64 (fisica
-o VM Intel) oppure un telefono WP8.1 collegato in USB.
+**The WP8.1 emulator does not start on an Apple Silicon Mac.** The XDE images are
+x86 and run on Hyper-V: on an ARM64 Windows guest there is neither x86 Hyper-V nor
+those images. Running the app needs an x86/x64 Windows machine (physical or an
+Intel VM) or a WP8.1 phone attached over USB.
 
-Il toolchain di Windows Phone 8.1 compila l'app con il compilatore **C# 5**: la
-sintassi C# 6/7 (stringhe interpolate, `?.`, proprietà con corpo `=>`,
-inizializzatori di proprietà automatiche, pattern matching, `out var`) non
-compila. Prima di ogni build eseguire:
+The Windows Phone 8.1 toolchain compiles the app with the **C# 5** compiler: C# 6/7
+syntax (interpolated strings, `?.`, expression-bodied properties, automatic
+property initializers, pattern matching, `out var`) does not compile. Before every
+build, run:
 
 ```bash
 node tools/check-csharp5.js
 ```
 
-Esce con codice 0 quando tutti i file `.cs` della soluzione sono compatibili con
-C# 5, altrimenti elenca file, riga e costrutto da correggere. Lo stesso script
-controlla anche i membri **assenti dalla proiezione WinRT di Windows Phone 8.1**
-(es. `CryptographicBuffer.CreateFromByteArray` a 3 argomenti,
-`ContentDialog.CloseButtonText`): compilano su Windows 8.1/10 ma non su WP8.1.
+It exits with code 0 when every `.cs` file of the solution is C# 5 compatible,
+otherwise it lists file, line and the construct to fix. The same script also checks
+for members **missing from the Windows Phone 8.1 WinRT projection** (e.g.
+`CryptographicBuffer.CreateFromByteArray` with 3 arguments,
+`ContentDialog.CloseButtonText`): they compile on Windows 8.1/10 but not on WP8.1.
 
 ### GOWA Adapter
 
 ```bash
 cd WhatsappBridge
 npm install
-npm test     # test unitari e di integrazione
+npm test     # unit and integration tests
 npm start
 ```
 
-### Icone, tile e splash screen
+### Icons, tiles and splash screen
 
-Il logo WhatsApp (bolla bianca con la cornetta ritagliata) è disegnato via
-geometria vettoriale da `tools/make-brand-assets.js`, che richiede ImageMagick 7
-(`magick`) e riscrive i PNG in `WhatsappApp/Assets/` — già committati, quindi lo
-script serve solo se cambia la grafica:
+The WhatsApp logo (a white bubble with the handset cut out) is drawn as vector
+geometry by `tools/make-brand-assets.js`, which needs ImageMagick 7 (`magick`) and
+rewrites the PNGs in `WhatsappApp/Assets/` — already committed, so the script is
+only needed when the artwork changes:
 
 ```bash
-node tools/make-brand-assets.js            # riscrive i PNG
-node tools/make-brand-assets.js --preview  # + anteprima ASCII per controllare il logo
+node tools/make-brand-assets.js            # rewrites the PNGs
+node tools/make-brand-assets.js --preview  # + ASCII preview to check the logo
 ```
 
-Le icone dell'interfaccia (ricerca, impostazioni, tab, allegati, invio…)
-**non** usano un font di icone: Windows Phone 8.1 non ha `Segoe MDL2 Assets`
-(è arrivato con Windows 10), quindi i pulsanti restavano vuoti. Sono `Path`
-vettoriali con la geometria **in linea su ogni `Path`**, preceduta da un
-commento che dà un nome all'icona:
+The interface icons (search, settings, tabs, attachments, send...) do **not** use an
+icon font: Windows Phone 8.1 has no `Segoe MDL2 Assets` (it arrived with Windows 10),
+so the buttons stayed blank. They are vector `Path` elements with the geometry
+**inlined on each `Path`**, preceded by a comment that names the icon:
 
 ```xml
 <Path Stroke="White" StrokeThickness="2" Width="24" Height="24">
@@ -257,65 +259,84 @@ commento che dà un nome all'icona:
 </Path>
 ```
 
-Due regole non sono preferenze di stile ma requisiti del toolchain:
+Two rules are not style preferences but toolchain requirements:
 
-- la geometria **non** può stare in `App.xaml` e arrivare qui con
-  `Data="{StaticResource Icon…}"`: compila, poi a runtime lancia
+- the geometry **cannot** live in `App.xaml` and reach the `Path` through
+  `Data="{StaticResource Icon…}"`: it compiles, then at runtime it throws
   `XamlParseException: Failed to assign to property
-  'Windows.UI.Xaml.Shapes.Path.Data'.` — in WinRT una `Geometry` non è
-  condivisibile attraverso una `StaticResource`
+  'Windows.UI.Xaml.Shapes.Path.Data'.` — in WinRT a `Geometry` is not shareable
+  through a `StaticResource`
   ([microsoft-ui-xaml#1909](https://github.com/microsoft/microsoft-ui-xaml/issues/1909),
   [#5780](https://github.com/microsoft/microsoft-ui-xaml/issues/5780));
-- la geometria va scritta in forma di elementi (`PathFigure` + `LineSegment` /
-  `PolyLineSegment` / `ArcSegment`): su WP8.1 il convertitore di
-  `PathFigureCollection` non accetta la stringa, quindi `Figures="M…"` **non
-  compila** (`The TypeConverter for "PathFigureCollection" does not support
+- the geometry must be written in element form (`PathFigure` + `LineSegment` /
+  `PolyLineSegment` / `ArcSegment`): on WP8.1 the `PathFigureCollection` converter
+  does not accept the string, so `Figures="M…"` **does not compile**
+  (`The TypeConverter for "PathFigureCollection" does not support
   converting from a string.`).
 
-Il guard verifica entrambe (più "stessa icona, stessa geometria"):
+The guard checks both (plus "same icon, same geometry"):
 
 ```bash
-node tools/check-icons.js            # regole + coerenza + font vietati
-node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
+node tools/check-icons.js            # rules + consistency + banned fonts
+node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
 ```
 
-### Lingua dell'app
+### App language
 
-L'app segue automaticamente la lingua del dispositivo tramite risorse `.resw`:
+The app follows the device language automatically through `.resw` resources:
 
-| Lingua | File | Note |
+| Language | File | Notes |
 | --- | --- | --- |
-| Inglese | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback per ogni altra lingua |
-| Italiano | `WhatsappApp/Strings/it-IT/Resources.resw` | |
+| English | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback for every other language |
+| Italian | `WhatsappApp/Strings/it-IT/Resources.resw` | |
 
-- I testi dichiarati in XAML usano `x:Uid`, e la proprieta' deve corrispondere al
-  tipo dell'elemento: `TextBlock` -> `.Text`, `Button` -> `.Content`,
-  `TextBox` -> `.PlaceholderText`. Un abbinamento sbagliato e' un errore a
-  run time.
-- I testi costruiti in C# passano da `Loc.Get("Chiave", "fallback")`
-  (`WhatsappApp/Services/Loc.cs`), che non lancia mai eccezioni: se la risorsa
-  manca usa il fallback. `Loc.Prewarm()` viene chiamato all'avvio sul thread UI
-  perche' `ResourceLoader.GetForCurrentView()` non si puo' creare da un thread
-  di background (i messaggi arrivano dal socket su un thread di background).
-- I pulsanti con la sola icona non usano `x:Uid` (sovrascriverebbe il `Path`):
-  l'etichetta e' un tooltip impostato da `Loc.Get` nel costruttore della pagina.
-- Prima di ogni build, o dopo aver toccato una stringa:
+- Texts declared in XAML use `x:Uid`, and the property must match the type of the
+  element: `TextBlock` -> `.Text`, `Button` -> `.Content`, `TextBox` ->
+  `.PlaceholderText`. A wrong pairing is a run-time error.
+- Texts built in C# go through `Loc.Get("Key", "fallback")`
+  (`WhatsappApp/Services/Loc.cs`), which never throws: if the resource is missing it
+  uses the fallback. `Loc.Prewarm()` is called at startup on the UI thread because
+  `ResourceLoader.GetForCurrentView()` cannot be created from a background thread
+  (messages arrive from the socket on a background thread).
+- Icon-only buttons do not use `x:Uid` (it would overwrite the `Path`): their label
+  is a tooltip set with `Loc.Get` in the page constructor.
+- Before every build, or after touching a string:
 
 ```bash
-node tools/check-resw.js            # chiavi, x:Uid, Loc.Get, PRIResource, lingua di default
-node tools/check-resw.js --strict   # + fallisce sulle chiavi inutilizzate
+node tools/check-resw.js            # keys, x:Uid, Loc.Get, PRIResource, default language
+node tools/check-resw.js --strict   # + fails on unused keys
 ```
 
-Lo script fallisce se una `x:Uid` o una `Loc.Get` non ha la voce in **entrambi**
-i file, se i due file non hanno le stesse chiavi, se un `.resw` non e' registrato
-come `PRIResource` nel `.csproj` (in quel caso non verrebbe mai incluso nel
-pacchetto) o se `<DefaultLanguage>` non e' una delle lingue supportate. Senza
-questo controllo un errore nelle risorse **non** fa fallire la build: il testo
-resta semplicemente quello scritto nel markup.
+The script fails if an `x:Uid` or a `Loc.Get` has no entry in **both** files, if the
+two files do not have the same keys, if a `.resw` is not registered as `PRIResource`
+in the `.csproj` (in that case it would never be included in the package) or if
+`<DefaultLanguage>` is not one of the supported languages. Without this check an
+error in the resources does **not** fail the build: the text simply stays the one
+written in the markup.
 
-Per verificare le traduzioni sul dispositivo basta cambiare la lingua di sistema
-(Impostazioni > Data/ora e lingua): Windows riavvia l'app e le stringhe cambiano
-di conseguenza. Se l'app resta nella lingua precedente, chiuderla e riaprirla.
+To check the translations on the device it is enough to change the system language
+(Settings > Time & language): Windows restarts the app and the strings change
+accordingly. If the app stays in the previous language, close and reopen it.
+
+### Documentation
+
+The documents that explain the project exist in two languages, English and Italian,
+and are kept in step:
+
+| Document | English | Italian |
+| --- | --- | --- |
+| Project README | `README.md` | `README.it.md` |
+| Adapter README | `WhatsappBridge/README.md` | `WhatsappBridge/README.it.md` |
+
+Adding, moving or renaming a section means doing it in both files, in the same
+commit, and the same goes for the `## Disclosure` section at the end of each README.
+A new explanatory document is born as a pair. The guard refuses a pair whose
+headings do not match, a document without the disclosure, and any emoji other than
+the warning sign:
+
+```bash
+node tools/check-docs.js
+```
 
 ## Disclaimer
 
@@ -328,3 +349,18 @@ di conseguenza. Se l'app resta nella lingua precedente, chiuderla e riaprirla.
 ## License
 
 MIT - Community maintained project. Use at your own risk.
+
+## Disclosure
+
+**This project is open source, and it needs maintainers.** Issues, translations,
+reviews, documentation and pull requests are all welcome, and so is anyone who
+wants to help it grow: more hands is the only thing that makes it move faster.
+
+**The app was written 100% by an AI agent**, guided and reviewed by a human. Read
+the code with the suspicion that deserves: run the guards in `tools/`, run the
+adapter tests, and check anything that touches your own account before trusting it.
+
+**The author does not accept responsibility for the WhatsApp account used to sign
+in.** Linking this client means connecting an unofficial client to WhatsApp, which
+is against WhatsApp's Terms of Service, and the account can be permanently banned.
+Use a test or secondary number, and only if you accept that risk yourself.

@@ -22,6 +22,7 @@ gli script, non con la build:
 node tools/check-csharp5.js        # sintassi C# 5 + API assenti su WP8.1
 node tools/check-icons.js          # icone: forma delle geometrie, coerenza, font vietati
 node tools/check-resw.js --strict  # stringhe: x:Uid/Loc.Get <-> entrambi i .resw
+node tools/check-docs.js           # documenti: inglese e italiano allineati, disclosure in fondo, niente emoji
 ```
 
 ## Come mantenere, aggiornare e testare l'app, in breve
@@ -34,6 +35,14 @@ node tools/check-resw.js --strict  # stringhe: x:Uid/Loc.Get <-> entrambi i .res
 - **Testare**: eseguire la matrice in `test-the-app`. Qui si ferma tutto cio' che
   si puo' verificare senza dispositivo; il gate autorevole e' `msbuild` sulla
   macchina Windows, e in fondo c'e' la checklist da fare sul telefono.
+- **Documentare**: i documenti che spiegano il progetto (`README.md`/
+  `README.it.md`, `WhatsappBridge/README.md`/`README.it.md`) esistono in inglese e
+  in italiano e si aggiornano **insieme**, nello stesso commit: una sezione aggiunta
+  da una parte sola divide le due versioni e il guard lo segnala. La sezione
+  `## Disclosure` (open source, si cercano maintainer, scritto da un agente AI,
+  nessuna responsabilita' sull'account usato) chiude i README del progetto e resta
+  l'ultima. Niente emoji: l'unica eccezione e' il segno di pericolo, per un rischio
+  reale.
 - **Rilasciare**: `release-the-app` per asset, versione e deploy.
 - **Collegare un account / far girare il server**: `run-the-login-server`. Un
   comando (`node tools/start-login.js --download`) avvia GOWA e l'adattatore,
