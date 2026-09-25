@@ -304,4 +304,16 @@
   <data name="DataService_Group" xml:space="preserve">
     <value>Gruppo {0}</value>
   </data>
+  <data name="ConnectionPage_Discovering.Text" xml:space="preserve">
+    <value>Cerco il server sulla rete...</value>
+  </data>
+  <data name="ConnectionPage_DiscoveredLabel.Text" xml:space="preserve">
+    <value>Server trovati</value>
+  </data>
+  <data name="ConnectionPage_ManualToggle.Content" xml:space="preserve">
+    <value>Inserisci l'indirizzo a mano</value>
+  </data>
+  <data name="ConnectionPage_NoServerFound.Text" xml:space="preserve">
+    <value>Nessun server trovato. Avvia l'adapter sul computer, oppure inserisci l'indirizzo a mano.</value>
+  </data>
 </root>

@@ -54,19 +54,53 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,16,16,16">
 
-                <!-- Server (adapter) -->
-                <TextBlock x:Uid="ConnectionPage_ServerLabel" Text="WhatsApp server (adapter)"
+                <!-- Server trovati sulla rete -->
+                <TextBlock x:Uid="ConnectionPage_DiscoveredLabel" Text="Servers found"
                            Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
-                <TextBox x:Name="ServerAddressBox" x:Uid="ConnectionPage_ServerPlaceholder"
-                         Text="192.168.1.100"
-                         PlaceholderText="e.g. 192.168.1.100"
-                         Background="White" FontSize="16" Margin="0,4,0,0"/>
+                <TextBlock x:Name="DiscoveryStatusText" x:Uid="ConnectionPage_Discovering"
+                           Text="Looking for the server on the network..."
+                           Foreground="#FF808080" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
+                <ListView x:Name="ServersList" Margin="0,4,0,0" Background="White"
+                          SelectionMode="None" IsItemClickEnabled="True"
+                          Visibility="Collapsed" ItemClick="ServersList_ItemClick">
+                    <ListView.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,8,0,8">
+                                <TextBlock Text="{Binding DisplayName}" FontSize="16"
+                                           Foreground="#FF075E54" TextWrapping="Wrap"/>
+                                <TextBlock Text="{Binding Endpoint}" FontSize="12"
+                                           Foreground="#FF808080"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListView.ItemTemplate>
+                </ListView>
+                <TextBlock x:Name="NoServerText" x:Uid="ConnectionPage_NoServerFound"
+                           Text="No server found. Start the adapter on the computer, or enter the address by hand."
+                           Foreground="#FF606060" FontSize="12" TextWrapping="Wrap"
+                           Visibility="Collapsed" Margin="0,4,0,0"/>
 
-                <TextBlock x:Uid="ConnectionPage_PortLabel" Text="TCP port"
-                           Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                <TextBox x:Name="ServerPortBox" Text="8585"
-                         PlaceholderText="8585"
-                         Background="White" FontSize="16" Margin="0,4,0,0"/>
+                <!-- Inserimento manuale: resta la via di riserva quando la
+                     scoperta automatica non vede nulla (reti che filtrano UDP). -->
+                <Button x:Name="ManualToggleButton" x:Uid="ConnectionPage_ManualToggle"
+                        Content="Enter the address by hand"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="14"
+                        Height="40" BorderThickness="0" Margin="0,12,0,0"
+                        Click="ManualToggleButton_Click"/>
+
+                <StackPanel x:Name="ManualPanel" Visibility="Collapsed">
+                    <TextBlock x:Uid="ConnectionPage_ServerLabel" Text="WhatsApp server (adapter)"
+                               Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                    <TextBox x:Name="ServerAddressBox" x:Uid="ConnectionPage_ServerPlaceholder"
+                             Text="192.168.1.100"
+                             PlaceholderText="e.g. 192.168.1.100"
+                             Background="White" FontSize="16" Margin="0,4,0,0"/>
+
+                    <TextBlock x:Uid="ConnectionPage_PortLabel" Text="TCP port"
+                               Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                    <TextBox x:Name="ServerPortBox" Text="8585"
+                             PlaceholderText="8585"
+                             Background="White" FontSize="16" Margin="0,4,0,0"/>
+                </StackPanel>
 
                 <TextBlock x:Uid="ConnectionPage_NameLabel" Text="Your name"
                            Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
