@@ -36,6 +36,15 @@ const RULES = [
   { name: 'using static', re: /^\s*using\s+static\s/ }
 ];
 
+// Extension methods that only exist when `using System.Linq;` is in scope.
+// Their absence is a build error the syntax rules above cannot see: the
+// WP8.1 compiler answers CS1061, e.g. "'string' does not contain a definition
+// for 'All' ... missing a using directive or an assembly reference".
+// Deliberately narrow: instance methods with the same name (MemoryStream's
+// ToArray, ICollection's Contains, Math.Min/Max) are not in the list.
+const LINQ_USING = /^\s*using\s+System\.Linq\s*;/m;
+const LINQ_EXTENSION = /\.(All|Any|Where|Select|SelectMany|First|FirstOrDefault|Last|LastOrDefault|Single|SingleOrDefault|OrderBy|OrderByDescending|ThenBy|GroupBy|Distinct|Skip|Take|ToList|Aggregate)\s*\(/;
+
 // Members that exist on Windows 8.1 / Windows 10 but not on the WP8.1
 // WinRT projection (the WP8.1 compiler answers CS1501 / CS1061).
 const API_RULES = [
@@ -63,14 +72,20 @@ for (const root of SCAN_ROOTS) {
 
 let violations = 0;
 for (const file of files) {
-  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
+  const source = fs.readFileSync(file, 'utf8');
+  const lines = source.split(/\r?\n/);
   const rel = path.relative(PROJECT_ROOT, file);
+  const hasLinqUsing = LINQ_USING.test(source);
   for (let i = 0; i < lines.length; i++) {
     for (const rule of RULES.concat(API_RULES)) {
       if (rule.re.test(lines[i])) {
         violations++;
         console.log(rel + ':' + (i + 1) + ': ' + rule.name + '  ->  ' + lines[i].trim());
       }
+    }
+    if (!hasLinqUsing && LINQ_EXTENSION.test(lines[i].replace(/\/\/.*$/, ''))) {
+      violations++;
+      console.log(rel + ':' + (i + 1) + ': LINQ extension method without "using System.Linq;"  ->  ' + lines[i].trim());
     }
   }
 }
