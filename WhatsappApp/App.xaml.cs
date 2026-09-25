@@ -64,6 +64,11 @@ namespace WhatsappApp
             // background: lo si crea qui, una volta, sul thread UI.
             Loc.Prewarm();
 
+            // Riconnessione automatica: l'app non riprova da sola dopo un
+            // riavvio, e senza questo l'elenco chat resta vuoto finche' l'utente
+            // non apre le impostazioni.
+            if (SettingsService.HasSavedSettings) StartAutoConnect();
+
             Frame rootFrame = Window.Current.Content as Frame;
 
             if (rootFrame == null)
@@ -168,6 +173,16 @@ namespace WhatsappApp
             // aperto: non toccarlo.
 
             deferral.Complete();
+        }
+
+        /// <summary>
+        /// Prova a ricollegarsi in sottofondo. Volutamente muta: qualunque
+        /// messaggio lo scrive la pagina delle impostazioni, che e' anche
+        /// l'unico posto in cui la lingua e' gia' pronta.
+        /// </summary>
+        private async void StartAutoConnect()
+        {
+            await AutoConnector.Instance.TryConnectAsync(SettingsService.Username, 6);
         }
 
         /// <summary>Sezione della pagina in primo piano (la chat sta nelle chat).</summary>

@@ -15,6 +15,12 @@ namespace WhatsappApp.Pages
     {
         private bool _isFirstRun;
 
+        private readonly System.Collections.ObjectModel.ObservableCollection<DiscoveredServer> _servers =
+            new System.Collections.ObjectModel.ObservableCollection<DiscoveredServer>();
+
+        private bool _autoConnectTried;
+        private DateTime _discoveryStartedAt;
+
         public ConnectionPage()
         {
             this.InitializeComponent();
@@ -38,6 +44,11 @@ namespace WhatsappApp.Pages
             string savedUsername = SettingsService.Username;
             if (!string.IsNullOrEmpty(savedUsername))
                 UsernameBox.Text = savedUsername;
+
+            ServersList.ItemsSource = _servers;
+            _discoveryStartedAt = DateTime.Now;
+            DiscoveryService.Instance.ServersChanged += OnServersChanged;
+            StartDiscovery();
 
             PageTitleText.Text = _isFirstRun
                 ? Loc.Get("ConnectionPage_FirstRunTitle", "First-time setup")
@@ -63,6 +74,7 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ErrorOccurred -= OnErrorOccurred;
             CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
             CommunicationService.Instance.ConnectionEstablished -= OnConnectionEstablished;
+            DiscoveryService.Instance.ServersChanged -= OnServersChanged;
         }
 
         private void OnConnectionEstablished(object sender, EventArgs e)
@@ -72,13 +84,6 @@ namespace WhatsappApp.Pages
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
         {
-            string username = (UsernameBox.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(username))
-            {
-                username = Loc.Get("ConnectionPage_DefaultUsername", "User");
-                UsernameBox.Text = username;
-            }
-
             string address = (ServerAddressBox.Text ?? "").Trim();
             if (string.IsNullOrEmpty(address)) address = SettingsService.DefaultAddress;
 
@@ -88,6 +93,22 @@ namespace WhatsappApp.Pages
                 int.TryParse(ServerPortBox.Text.Trim(), out boxPort))
             {
                 port = boxPort;
+            }
+
+            await ConnectAsync(address, port);
+        }
+
+        /// <summary>
+        /// Unico punto in cui si apre la connessione: lo usano il pulsante, la
+        /// lista dei server trovati e la riconnessione automatica.
+        /// </summary>
+        private async Task ConnectAsync(string address, int port)
+        {
+            string username = (UsernameBox.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(username))
+            {
+                username = Loc.Get("ConnectionPage_DefaultUsername", "User");
+                UsernameBox.Text = username;
             }
 
             StatusPanel.Visibility = Visibility.Visible;
@@ -108,6 +129,95 @@ namespace WhatsappApp.Pages
                 StatusText.Text = Loc.Get("ConnectionPage_ConnectFailed", "Connection failed");
                 ActionButton.IsEnabled = true;
             }
+        }
+
+        // ─── Scoperta automatica del server ──────────────────────────────────
+
+        /// <summary>
+        /// Apre l'ascolto dei beacon e, se non c'e' nulla di salvato, prova a
+        /// connettersi all'unico adapter che si annuncia. Resta comunque
+        /// l'inserimento manuale: ci sono reti che filtrano l'UDP.
+        /// </summary>
+        private async void StartDiscovery()
+        {
+            await DiscoveryService.Instance.StartAsync();
+            RefreshServers();
+
+            if (_autoConnectTried || CommunicationService.Instance.IsConnected) return;
+            _autoConnectTried = true;
+            if (!await AutoConnector.Instance.TryConnectAsync(UsernameBox.Text ?? "", 6))
+            {
+                RefreshServers();
+            }
+        }
+
+        private async void OnServersChanged(object sender, EventArgs e)
+        {
+            await Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, RefreshServers);
+        }
+
+        private void RefreshServers()
+        {
+            System.Collections.Generic.List<DiscoveredServer> found = DiscoveryService.Instance.Snapshot();
+
+            // Prima "sto cercando", poi "non ho trovato niente": due stati
+            // diversi, perche' l'utente deve sapere quando smettere di aspettare.
+            bool searching = found.Count == 0
+                && DiscoveryService.Instance.IsListening
+                && (DateTime.Now - _discoveryStartedAt).TotalSeconds < 8;
+            DiscoveryStatusText.Visibility = searching ? Visibility.Visible : Visibility.Collapsed;
+            NoServerText.Visibility = found.Count == 0 && !searching
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+            if (!SameServers(found))
+            {
+                _servers.Clear();
+                foreach (DiscoveredServer server in found) _servers.Add(server);
+            }
+            ServersList.Visibility = found.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+            // Un solo server in vista e nessuna connessione: ci si va da soli.
+            if (found.Count == 1 && !_autoConnectTried && !CommunicationService.Instance.IsConnected)
+            {
+                _autoConnectTried = true;
+#pragma warning disable 4014
+                ConnectAsync(found[0].Address, found[0].Port);
+#pragma warning restore 4014
+            }
+        }
+
+        /// <summary>
+        /// Ricostruire la lista a ogni beacon (uno ogni 2 secondi) farebbe
+        /// perdere la selezione e lo scorrimento: si tocca solo se cambia.
+        /// </summary>
+        private bool SameServers(System.Collections.Generic.List<DiscoveredServer> found)
+        {
+            if (found.Count != _servers.Count) return false;
+            for (int i = 0; i < found.Count; i++)
+            {
+                if (found[i].Endpoint != _servers[i].Endpoint) return false;
+                if (found[i].DisplayName != _servers[i].DisplayName) return false;
+                if (found[i].State != _servers[i].State) return false;
+            }
+            return true;
+        }
+
+        private async void ServersList_ItemClick(object sender, ItemClickEventArgs e)
+        {
+            var server = e.ClickedItem as DiscoveredServer;
+            if (server == null) return;
+
+            ServerAddressBox.Text = server.Address;
+            ServerPortBox.Text = server.Port.ToString();
+            await ConnectAsync(server.Address, server.Port);
+        }
+
+        private void ManualToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            ManualPanel.Visibility = ManualPanel.Visibility == Visibility.Visible
+                ? Visibility.Collapsed
+                : Visibility.Visible;
         }
 
         private void ShowConnectedState()
@@ -271,6 +381,8 @@ namespace WhatsappApp.Pages
 
         private void DisconnectButton_Click(object sender, RoutedEventArgs e)
         {
+            // Dopo una disconnessione voluta non ci si riconnette da soli.
+            _autoConnectTried = true;
             CommunicationService.Instance.Disconnect();
             StatusPanel.Visibility = Visibility.Collapsed;
             WhatsAppPanel.Visibility = Visibility.Collapsed;
