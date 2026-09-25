@@ -34,6 +34,11 @@ bld/
 *.nuget.props
 *.nuget.targets
 
+# Strumenti e server locali (binario GOWA, sessione WhatsApp, PID)
+# .tools/gowa/storages/whatsapp.db contiene le credenziali dell'account collegato:
+# non deve mai finire nel repository.
+.tools/
+
 # Node.js / Bridge
 WhatsappBridge/node_modules/
 WhatsappBridge/.wwebjs_auth/

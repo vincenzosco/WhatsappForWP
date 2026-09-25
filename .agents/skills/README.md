@@ -11,6 +11,7 @@ cosa fa e quando usarla).
 | [`update-the-app`](update-the-app/SKILL.md) | Ricette per aggiungere pagina, sezione, icona, stringa, lingua, endpoint dell'adapter, e per alzare la versione. |
 | [`test-the-app`](test-the-app/SKILL.md) | Cosa eseguire e cosa guardare prima di dire che una modifica e' a posto. |
 | [`release-the-app`](release-the-app/SKILL.md) | Asset di marca, manifest, versione, deploy su dispositivo ed emulatore. |
+| [`run-the-login-server`](run-the-login-server/SKILL.md) | Avviare in locale GOWA + adattatore e collegare l'account WhatsApp dal terminale (QR, codice di abbinamento, stop, diagnosi). |
 
 Regola numero uno, valida per tutte: **i guard di `tools/` sono il gate**. Il
 toolchain di Windows Phone 8.1 usa un compilatore vecchio e non e' su questa
@@ -34,3 +35,6 @@ node tools/check-resw.js --strict  # stringhe: x:Uid/Loc.Get <-> entrambi i .res
   si puo' verificare senza dispositivo; il gate autorevole e' `msbuild` sulla
   macchina Windows, e in fondo c'e' la checklist da fare sul telefono.
 - **Rilasciare**: `release-the-app` per asset, versione e deploy.
+- **Collegare un account / far girare il server**: `run-the-login-server`. Un
+  comando (`node tools/start-login.js --download`) avvia GOWA e l'adattatore,
+  stampa IP e porte per l'app e disegna il QR di login nel terminale.
