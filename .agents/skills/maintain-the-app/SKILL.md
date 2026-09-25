@@ -1,6 +1,6 @@
 ---
 name: maintain-the-app
-description: Constraints and safe workflow for changing the WhatsApp for Windows Phone 8.1 codebase (C# 5 only, vector icons, resw localization, GOWA adapter). Use before editing any file under WhatsappApp/ or WhatsappBridge/, when a build fails, or when deciding where a change belongs.
+description: Constraints and safe workflow for changing the WhatsApp for Windows Phone 8.1 codebase (C# 5 only, vector icons, resw localization, GOWA adapter, bilingual docs). Use before editing any file under WhatsappApp/, WhatsappBridge/ or any README, when a build fails, or when deciding where a change belongs.
 ---
 
 # Maintaining the app
@@ -28,6 +28,9 @@ WhatsappServer/         legacy .NET console project (not part of the app flow)
 tools/                  static guards - run them, they are the real gate
   start-login.js        starts GOWA + the adapter and draws the login QR
   qr-term.js            PNG -> terminal QR (module recovery + half blocks)
+  check-docs.js         the two languages of the docs stay in step, no emoji
+README.md / README.it.md                project docs, English + Italian
+WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 .agents/skills/         this directory
 .tools/                 local, git ignored: the GOWA binary, its log and
                         storages/whatsapp.db (the live WhatsApp session)
@@ -69,6 +72,16 @@ tools/                  static guards - run them, they are the real gate
 7. **One page per section.** A new screen means a new file under `Pages/`, not
    another block inside an existing page, and it must be registered in the
    `.csproj` (a page that is not listed does not exist at build time).
+8. **The docs are written in pairs, English and Italian.** `README.md` and
+   `README.it.md` are versions of each other, and so are
+   `WhatsappBridge/README.md` and `WhatsappBridge/README.it.md`: a section is
+   added, moved or renamed in **both**, in the same commit, with the same heading
+   depth and order, and each links to the other. `## Disclosure` (open source,
+   maintainers wanted, written by an AI agent, no responsibility for the account
+   used) must be the **last** section of the README that presents the project,
+   in both languages. New explanatory documents are born as a pair. No emoji: the
+   warning sign (U+26A0) is the only exception, for a real hazard.
+   Gate: `node tools/check-docs.js`.
 
 ## Workflow for any change
 
@@ -76,7 +89,7 @@ tools/                  static guards - run them, they are the real gate
 2. Read the file you are about to change **completely**; this codebase keeps
    per-file invariants in comments.
 3. Make the change.
-4. Run all three guards (and `cd WhatsappBridge && npm test` if you touched the
+4. Run all four guards (and `cd WhatsappBridge && npm test` if you touched the
    adapter).
 5. If the change is user-visible, say which page and which string key changed.
 6. Commit with a message that says *why* (the repo history is the changelog).
@@ -95,6 +108,8 @@ tools/                  static guards - run them, they are the real gate
 | A new GOWA call | `WhatsappBridge/gowa-client.js`, a control command in `server.js`, and the app side in `ConnectionPage`/`CommunicationService` |
 | Local start-up behaviour (ports, login, stop) | `tools/start-login.js` (+ the `run-the-login-server` skill) |
 | Drawing of the login QR | `tools/qr-term.js` (run its `--self-test` afterwards) |
+| Anything a reader reads (README, guides) | the English file **and** its Italian pair, then `node tools/check-docs.js` |
+| A claim about the project (open source, maintainers, AI-written, responsibility) | `## Disclosure` at the end of `README.md` **and** `README.it.md` |
 
 ## Known gotchas
 
