@@ -95,7 +95,7 @@ there is no way to find out from this Mac except by asking the phone at run time
   `Diag.Describe(Exception ex) -> string`. Every later task calls `Diag.Failed` from inside a `catch`
   and `Diag.Ok` from the probe in Task 6.
 
-- [ ] **Step 1: Create the sink**
+- [x] **Step 1: Create the sink**
 
 Create `WhatsappApp/Services/Diag.cs`:
 
@@ -178,7 +178,7 @@ namespace WhatsappApp.Services
 }
 ```
 
-- [ ] **Step 2: Register the file in the project**
+- [x] **Step 2: Register the file in the project**
 
 In `WhatsappApp/WhatsappApp.csproj`, in the `Services` block, keep the list alphabetical — insert after
 `Services\DataService.cs` and before `Services\DiscoveryService.cs`:
@@ -187,7 +187,7 @@ In `WhatsappApp/WhatsappApp.csproj`, in the `Services` block, keep the list alph
     <Compile Include="Services\Diag.cs" />
 ```
 
-- [ ] **Step 3: Run the guard**
+- [x] **Step 3: Run the guard**
 
 Run: `node tools/check-csharp5.js`
 Expected: `OK: 26 C# file(s) are C# 5 compatible.`
@@ -201,7 +201,7 @@ this is the one thing the guard cannot see), replace the body of `Describe` with
             return ex.GetType().Name + " 0x" + hresult.ToString("X8") + " " + (ex.Message ?? "");
 ```
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add WhatsappApp/Services/Diag.cs WhatsappApp/WhatsappApp.csproj
@@ -220,9 +220,10 @@ git commit -m "feat(app): add one sink for the runtime failures the app survives
 - Consumes: `Diag.Failed(string, Exception)` from Task 1.
 - Produces: `Loc.Loader` that stops retrying after a failure (Task 3 and every page depend on the
   unchanged public surface: `Loc.Get(string, string)`, `Loc.Prewarm()`); a private
-  `CommunicationService.TryGetDispatcher(Func<CoreDispatcher>, string)`.
+  `CommunicationService.TryGetDispatcher(Func<CoreDispatcher>, string)`; and
+  `CommunicationService.Prewarm()`, which resolves the dispatcher where it can actually be found.
 
-- [ ] **Step 1: Stop retrying a failed resource loader**
+- [x] **Step 1: Stop retrying a failed resource loader**
 
 Replace the whole content of `WhatsappApp/Services/Loc.cs` with:
 
@@ -301,7 +302,11 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                Diag.Failed("Loc.Get(" + key + ")", ex);
+                // L'etichetta non si costruisce con la parentesi dopo il punto:
+                // check-resw.js legge ogni chiamata con una stringa letterale
+                // come una chiave da cercare nei .resw, e cosi' costruita
+                // sembrava una chiave mancante (anche scritta in un commento).
+                Diag.Failed("Loc.Get key " + key, ex);
                 return fallback;
             }
         }
@@ -309,7 +314,17 @@ namespace WhatsappApp.Services
 }
 ```
 
-- [ ] **Step 2: Add the failure flag to the dispatcher fields**
+Two details of that code are not optional.
+
+`Diag.Failed("Loc.Get key " + key, ex)` must not be written with the parenthesis right after the dot:
+`tools/check-resw.js` reads **every** `Loc.Get("...")` occurrence in the C# files, comments included,
+as a key to look up in both `.resw` files, so a label built that way makes the guard report a missing
+key named `" + key + "`.
+
+`Prewarm()` clearing `_loaderUnavailable` is the whole point of the flag being separate from the
+loader: the background thread may fail, the UI thread must still get a chance.
+
+- [x] **Step 2: Add the failure flag to the dispatcher fields**
 
 In `WhatsappApp/Services/CommunicationService.cs`, replace:
 
@@ -330,7 +345,7 @@ with:
         private bool _uiDispatcherFailed;
 ```
 
-- [ ] **Step 3: Replace the dispatcher lookup**
+- [x] **Step 3: Replace the dispatcher lookup**
 
 In `WhatsappApp/Services/CommunicationService.cs`, replace the whole `GetUiDispatcher` method:
 
@@ -363,19 +378,18 @@ with:
         {
             if (_uiDispatcher != null || _uiDispatcherFailed) return _uiDispatcher;
 
-            // Tre sorgenti, dalla piu' diretta. GetCurrentView e' quella
-            // documentata sul thread UI; MainView copre il caso in cui la vista
-            // corrente non sia quella principale; Window.Current e' l'ultima
-            // ancora. Ognuna registra il proprio fallimento una volta sola.
+            // Due sorgenti, dalla piu' diretta. Da un thread di background
+            // GetCurrentView fallisce; MainView e' quella che continua a
+            // rispondere. Ognuna registra il proprio fallimento una volta sola.
+            // (Window.Current non e' una sorgente: da un thread di background
+            // restituisce null, quindi "ripiegare" li' darebbe solo un
+            // NullReferenceException in piu'.)
             _uiDispatcher = TryGetDispatcher(
                 delegate { return CoreApplication.GetCurrentView().CoreWindow.Dispatcher; },
                 "GetUiDispatcher/GetCurrentView")
                 ?? TryGetDispatcher(
                     delegate { return CoreApplication.MainView.CoreWindow.Dispatcher; },
-                    "GetUiDispatcher/MainView")
-                ?? TryGetDispatcher(
-                    delegate { return Window.Current.Dispatcher; },
-                    "GetUiDispatcher/Window");
+                    "GetUiDispatcher/MainView");
 
             if (_uiDispatcher == null)
             {
@@ -383,6 +397,17 @@ with:
                 Diag.Failed("GetUiDispatcher", new InvalidOperationException("nessun CoreDispatcher disponibile"));
             }
             return _uiDispatcher;
+        }
+
+        /// <summary>
+        /// Va chiamato una volta all'avvio, sul thread UI: e' l'unico momento in
+        /// cui il dispatcher si trova di sicuro. Risolverlo la prima volta da un
+        /// thread di background e' il motivo per cui questo servizio restava
+        /// senza dispatcher e riprovava le due chiamate a ogni messaggio.
+        /// </summary>
+        public void Prewarm()
+        {
+            GetUiDispatcher();
         }
 
         private static CoreDispatcher TryGetDispatcher(Func<CoreDispatcher> source, string where)
@@ -399,7 +424,18 @@ with:
         }
 ```
 
-- [ ] **Step 4: Register the fallback path of a dispatch**
+- [x] **Step 3b: Resolve it at start-up**
+
+In `WhatsappApp/App.xaml.cs`, inside `OnLaunched`, right after `Loc.Prewarm();`:
+
+```csharp
+            // Stesso motivo del loader: il dispatcher si trova di sicuro solo
+            // qui, sul thread UI. Risolverlo piu' tardi, da un thread di rete,
+            // lasciava il servizio senza dispatcher per tutta la sessione.
+            CommunicationService.Instance.Prewarm();
+```
+
+- [x] **Step 4: Register the fallback path of a dispatch**
 
 In `WhatsappApp/Services/CommunicationService.cs`, replace the catch of `DispatchOnUiThread`:
 
@@ -420,7 +456,7 @@ with:
             }
 ```
 
-- [ ] **Step 5: Stop throwing the dispatcher away on disconnect**
+- [x] **Step 5: Stop throwing the dispatcher away on disconnect**
 
 In `WhatsappApp/Services/CommunicationService.cs`, in `Disconnect()`, delete this line
 (it is followed by a blank line and then `DispatchOnUiThread(...)`):
@@ -432,12 +468,12 @@ In `WhatsappApp/Services/CommunicationService.cs`, in `Disconnect()`, delete thi
 The dispatcher object is not tied to the socket, and clearing it only forces `GetUiDispatcher()` to
 walk the three sources again on the very next line.
 
-- [ ] **Step 6: Run the guard**
+- [x] **Step 6: Run the guard**
 
 Run: `node tools/check-csharp5.js`
 Expected: `OK: 26 C# file(s) are C# 5 compatible.`
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add WhatsappApp/Services/Loc.cs WhatsappApp/Services/CommunicationService.cs
@@ -457,20 +493,21 @@ git commit -m "fix(app): stop retrying the resource loader and the dispatcher af
 - Produces: no signature change anywhere; every failure in this layer reaches `Diag` before it
   reaches the user text.
 
-- [ ] **Step 1: Route every transport catch**
+- [x] **Step 1: Route every transport catch**
 
 In `WhatsappApp/Services/CommunicationService.cs`, add `Diag.Failed("<call site>", ex);` as the
 **first** statement of each of these catch blocks. The `where` string is the method or the call that
 failed, so the log line names it:
 
-| Line | Method | `where` to pass |
-| --- | --- | --- |
-| 189 | `StartServerAsync` | `"StartServerAsync"` |
-| 232 | `OnServerConnectionReceived` | `"OnServerConnectionReceived"` |
-| 309 | `ConnectToServerAsync` | `"ConnectToServerAsync"` |
-| 332 | `ListenForMessagesAsync` | `"ListenForMessagesAsync"` |
-| 378 | `SendMessageAsync` | `"SendMessageAsync"` |
-| 521 | `DecryptToMessage` | `"DecryptToMessage"` |
+| Method | `where` to pass |
+| --- | --- |
+| `StartServerAsync` | `"StartServerAsync"` |
+| `OnServerConnectionReceived` | `"OnServerConnectionReceived"` |
+| `ConnectToServerAsync` | `"ConnectToServerAsync"` |
+| `ListenForMessagesAsync` | `"ListenForMessagesAsync"` |
+| `SendMessageAsync` | `"SendMessageAsync"` |
+| `DecryptToMessage` | `"DecryptToMessage"` |
+| `BroadcastToAllClientsAsync` | `"BroadcastToAllClientsAsync"` |
 
 For example, the `ConnectToServerAsync` catch becomes:
 
@@ -503,7 +540,7 @@ and `ListenForMessagesAsync` becomes:
             }
 ```
 
-- [ ] **Step 2: Route the two silent catches in the server mode**
+- [x] **Step 2: Route the two silent catches in the server mode**
 
 In `WhatsappApp/Services/CommunicationService.cs`, inside `OnServerConnectionReceived`, turn the
 silent catches around `client.Dispose()` (around line 458) and in `Disconnect()` (around line 544)
@@ -540,7 +577,7 @@ The outer cleanup in `Disconnect()` (`try { ... } catch { }` around the four `Di
             }
 ```
 
-- [ ] **Step 3: Route the two silent catches in the message model**
+- [x] **Step 3: Route the two silent catches in the message model**
 
 In `WhatsappApp/Models/ChatMessage.cs`, `LoadMediaImageAsync`:
 
@@ -565,12 +602,12 @@ and `FromJson`:
 `ChatMessage.cs` already has `using WhatsappApp.Services;` (for `Loc` and `ImageHelper`), so no new
 using is needed.
 
-- [ ] **Step 4: Run the guard**
+- [x] **Step 4: Run the guard**
 
 Run: `node tools/check-csharp5.js`
 Expected: `OK: 26 C# file(s) are C# 5 compatible.`
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add WhatsappApp/Services/CommunicationService.cs WhatsappApp/Models/ChatMessage.cs
@@ -589,7 +626,7 @@ git commit -m "fix(app): report every transport failure instead of discarding it
 - Produces: unchanged public surface (`Port`, `Instance`, `StartAsync`, `Stop`, `Snapshot`,
   `WaitForSingleAsync`, `IsListening`, `ServersChanged`).
 
-- [ ] **Step 1: Route the socket failures**
+- [x] **Step 1: Route the socket failures**
 
 In `WhatsappApp/Services/DiscoveryService.cs`, `StartAsync` becomes:
 
@@ -619,7 +656,7 @@ In `WhatsappApp/Services/DiscoveryService.cs`, `StartAsync` becomes:
         }
 ```
 
-- [ ] **Step 2: Route the datagram and the parse**
+- [x] **Step 2: Route the datagram and the parse**
 
 In the same file, `OnMessageReceived`'s catch becomes:
 
@@ -645,12 +682,12 @@ and `Parse`'s catch becomes:
 `DiscoveryService.cs` needs `using WhatsappApp.Services;`? No: the file is **inside**
 `namespace WhatsappApp.Services`, so `Diag` resolves without a new using.
 
-- [ ] **Step 3: Run the guard**
+- [x] **Step 3: Run the guard**
 
 Run: `node tools/check-csharp5.js`
 Expected: `OK: 26 C# file(s) are C# 5 compatible.`
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add WhatsappApp/Services/DiscoveryService.cs
@@ -671,7 +708,7 @@ git commit -m "fix(app): report discovery failures instead of swallowing them"
 - Produces: unchanged public surface; `ConvertBack` now returns
   `Windows.UI.Xaml.DependencyProperty.UnsetValue` instead of throwing.
 
-- [ ] **Step 1: Make the screen request unable to fail the overlay**
+- [x] **Step 1: Make the screen request unable to fail the overlay**
 
 In `WhatsappApp/Pages/ConnectionPage.xaml.cs`, replace `KeepScreenOn` and `ReleaseScreenOn` with:
 
@@ -712,7 +749,7 @@ In `WhatsappApp/Pages/ConnectionPage.xaml.cs`, replace `KeepScreenOn` and `Relea
         }
 ```
 
-- [ ] **Step 2: Report why a QR did not appear**
+- [x] **Step 2: Report why a QR did not appear**
 
 In the same file, the catch of `ShowQrCode` becomes:
 
@@ -725,7 +762,7 @@ In the same file, the catch of `ShowQrCode` becomes:
             }
 ```
 
-- [ ] **Step 3: Report the image failure in the chat page**
+- [x] **Step 3: Report the image failure in the chat page**
 
 In `WhatsappApp/Pages/ChatPage.xaml.cs`, replace:
 
@@ -752,7 +789,7 @@ The file has `using WhatsappApp.Services;` at line 13 but **not** `using System.
 one line has to be added — put it after `using System.IO;` (line 3), which is where the `System` group
 is already sorted:
 
-- [ ] **Step 4: Stop `ConvertBack` from throwing**
+- [x] **Step 4: Stop `ConvertBack` from throwing**
 
 In `WhatsappApp/Converters/Converters.cs`, in **all seven** converters
 (`MessageStatusToStringConverter`, `MessageStatusToColorConverter`, `InitialToColorConverter`,
@@ -783,7 +820,7 @@ with:
         }
 ```
 
-- [ ] **Step 5: Prove that no `NotImplementedException` of ours is left**
+- [x] **Step 5: Prove that no `NotImplementedException` of ours is left**
 
 Run:
 
@@ -793,12 +830,12 @@ grep -rn "NotImplementedException" WhatsappApp --include=*.cs | grep -v "/obj/"
 
 Expected: no output (only the generated `WhatsappApp/obj/Debug/XamlTypeInfo.g.cs` may contain it).
 
-- [ ] **Step 6: Run the guards**
+- [x] **Step 6: Run the guards**
 
 Run: `node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict && node tools/check-docs.js`
 Expected: four `OK:` lines (`26 C# file(s)`, `13 inline icon Path(s)`, `90 key(s)`, `2 doc pair(s)`).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add WhatsappApp/Pages/ConnectionPage.xaml.cs WhatsappApp/Pages/ChatPage.xaml.cs WhatsappApp/Converters/Converters.cs
@@ -820,7 +857,7 @@ git commit -m "fix(app): make the screen request harmless and stop ConvertBack f
   `.IsListening` (existing).
 - Produces: `SelfCheck.RunAsync()` — a fire-and-forget probe; it returns nothing and never throws.
 
-- [ ] **Step 1: Write the probe**
+- [x] **Step 1: Write the probe**
 
 Create `WhatsappApp/Services/SelfCheck.cs`:
 
@@ -916,7 +953,7 @@ namespace WhatsappApp.Services
 }
 ```
 
-- [ ] **Step 2: Register the file**
+- [x] **Step 2: Register the file**
 
 In `WhatsappApp/WhatsappApp.csproj`, in the `Services` block, insert after `Services\Loc.cs` and
 before `Services\SessionService.cs`:
@@ -925,7 +962,7 @@ before `Services\SessionService.cs`:
     <Compile Include="Services\SelfCheck.cs" />
 ```
 
-- [ ] **Step 3: Run the probe at start-up**
+- [x] **Step 3: Run the probe at start-up**
 
 In `WhatsappApp/App.xaml.cs`, replace:
 
@@ -952,12 +989,12 @@ with:
 
 `App.xaml.cs` already has `using WhatsappApp.Services;`, so `SelfCheck` resolves without a new using.
 
-- [ ] **Step 4: Run the guards**
+- [x] **Step 4: Run the guards**
 
 Run: `node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict && node tools/check-docs.js`
 Expected: four `OK:` lines, the first with `27 C# file(s)`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add WhatsappApp/Services/SelfCheck.cs WhatsappApp/WhatsappApp.csproj WhatsappApp/App.xaml.cs
@@ -977,7 +1014,7 @@ git commit -m "feat(app): probe the platform at start-up instead of guessing wha
 - Consumes: everything above.
 - Produces: the rule that keeps this from coming back, and a recorded result.
 
-- [ ] **Step 1: Put the two new services on the map**
+- [x] **Step 1: Put the two new services on the map**
 
 In `.agents/skills/maintain-the-app/SKILL.md`, in the `WhatsappApp/` tree block, replace:
 
@@ -997,7 +1034,7 @@ with:
                         SelfCheck (DEBUG-only probe of the platform)
 ```
 
-- [ ] **Step 2: Write the rule down**
+- [x] **Step 2: Write the rule down**
 
 In the same file, in **Known gotchas**, after the bullet about `.tools/`, add:
 
@@ -1013,7 +1050,7 @@ In the same file, in **Known gotchas**, after the bullet about `.tools/`, add:
   that runs on the UI thread on purpose.
 ```
 
-- [ ] **Step 3: Record what the probe is for**
+- [x] **Step 3: Record what the probe is for**
 
 In `.agents/skills/test-the-app/SKILL.md`, in the section **What can and cannot be verified here**,
 after the sentence about the XDE images needing Hyper-V, add:
@@ -1036,7 +1073,7 @@ And in the on-device checklist, after item 2, insert:
 
 renumbering the following items (the old 3 becomes 4, and so on to the end).
 
-- [ ] **Step 4: Run every gate**
+- [x] **Step 4: Run every gate**
 
 ```bash
 node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict \
@@ -1045,7 +1082,7 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 
 Expected: four `OK:` lines, `Tutti i controlli sono passati.`, `pass 36`, `fail 0`.
 
-- [ ] **Step 5: Build on the Windows machine**
+- [x] **Step 5: Build on the Windows machine**
 
 From the Mac, with the Parallels VM `Windows 11` running:
 
@@ -1090,7 +1127,7 @@ feature ever ran.
 - **Nothing but `DIAG ok:` lines.** The two `NotImplementedException` lines were the converters
   (fixed in Task 5) and the `0x800710DD` burst came from the retry loops (fixed in Task 2). Done.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add .agents/skills/maintain-the-app/SKILL.md .agents/skills/test-the-app/SKILL.md \
@@ -1134,3 +1171,22 @@ plan — that is a result to record, not a step left unwritten.
 - The `where` strings in Task 3 step 1 match the method names so a log line can be found by method
   name; the two `dispose` variants use `<method>/dispose` and `<method>/handler`, which no other task
   uses.
+
+## What execution changed about the plan
+
+Two things were learnt while running it, and both are in the code as committed:
+
+1. **`Window.Current` is not a dispatcher fallback.** As written, step 3 of Task 2 did not compile
+   (`CS0103`, `Window` is not in scope in `CommunicationService.cs`), and qualifying it would have
+   been worse: `Window.Current` returns null off the UI thread, so the "fallback" would have produced
+   a `NullReferenceException` instead of a dispatcher. The third source is gone, and the real fix for
+   "no dispatcher on a network thread" is to resolve it on the UI thread while there is one:
+   `CommunicationService.Prewarm()`, called from `OnLaunched` next to `Loc.Prewarm()` (commit
+   `65fdc5a`).
+2. **The diagnostic label must not look like a lookup.** `Diag.Failed("Loc.Get(" + key + ")", ex)`
+   tripped `tools/check-resw.js`, which reads every `Loc.Get("...")` in the C# sources - comments
+   included - as a resource key. The label is `"Loc.Get key " + key`, and the code carries a comment
+   saying why, so the next person does not re-introduce it.
+
+The rest ran as written: 27 C# files, four guards green, and the Windows build ending in the two known
+warnings and `WhatsappApp_1.0.1.0_x86_Debug.appxbundle`.

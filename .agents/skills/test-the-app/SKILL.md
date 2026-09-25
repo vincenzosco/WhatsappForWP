@@ -125,19 +125,28 @@ limit, not a project one - on such a setup the build is the last gate that can b
 run, and the checklist below waits for an x86/x64 Windows machine or a
 USB-attached WP8.1 device.
 
+One thing the build cannot tell you either is whether the phone implements the platform members the
+app compiled against: `SymmetricAlgorithmNames.AesGcm`, `DisplayRequest` and `DatagramSocket` are all
+in the WP8.1 reference metadata, and a member that is only declared answers `E_NOTIMPL` at run time.
+`SelfCheck` (DEBUG builds, right after `Loc.Prewarm()`) prints one `DIAG ok:` line per capability, or
+`DIAG <where>: <type> 0x<HRESULT> <message>` - that line is the fastest answer to "why is the screen
+empty".
+
 ## On-device checklist
 
 1. Deploy, then open **impostazioni** from the app bar and connect to the adapter.
 2. Sign in with the QR code, then with the phone number (both paths).
-3. Send a text message and an image (attach + caption); verify the outgoing bubble
+3. Watch the Output window at start-up: three `DIAG ok:` lines (crypto, screen request, UDP beacon)
+   and no `DIAG` line reporting a failure.
+4. Send a text message and an image (attach + caption); verify the outgoing bubble
    shows sent / delivered / failed correctly.
-4. Receive a message with the app open and with it closed: the unread badge must
+5. Receive a message with the app open and with it closed: the unread badge must
    appear only in the second case.
-5. Switch section with the bottom bar three times: the highlighted icon follows,
+6. Switch section with the bottom bar three times: the highlighted icon follows,
    lists keep their scroll position, and **Back** exits instead of walking back
    through the sections.
-6. Change the device language (Settings > Time & language) and reopen: every
+7. Change the device language (Settings > Time & language) and reopen: every
    visible string must switch between English and Italian.
-7. Open the software keyboard on the chat page: the input row must stay above it.
-8. Scroll a long conversation: no blank rows, no stutter (the item containers are
+8. Open the software keyboard on the chat page: the input row must stay above it.
+9. Scroll a long conversation: no blank rows, no stutter (the item containers are
    deliberately styled to keep per-item layout cheap).
