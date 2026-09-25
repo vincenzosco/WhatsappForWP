@@ -1,105 +1,114 @@
 # GOWA Adapter
 
-Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
-([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp-web-multidevice)).
+**English** | [Italiano](README.it.md)
 
-## Come funziona
+The bridge between the WhatsApp app for Windows Phone 8.1 and a self-hosted GOWA
+server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp-web-multidevice)).
+
+## How it works
 
 ```
- App WP8  ⇄  (TCP cifrato AES-256-GCM)  ⇄  Adapter  ⇄  (HTTP REST + webhook)  ⇄  GOWA  ⇄  WhatsApp
+ WP8 app  ⇄  (AES-256-GCM encrypted TCP)  ⇄  Adapter  ⇄  (HTTP REST + webhook)  ⇄  GOWA  ⇄  WhatsApp
 ```
 
-- Il login (QR code o codice di abbinamento) è richiesto **dall'app** tramite frame di controllo.
-- I messaggi in arrivo da WhatsApp arrivano via webhook e vengono inoltrati all'app sul canale TCP.
-- I messaggi in uscita sono inviati alle API REST di GOWA.
+- The login (QR code or pairing code) is requested **by the app** through control frames;
+  the app shows the code full screen and keeps the screen on while it is visible.
+- Messages arriving from WhatsApp come in through a webhook and are forwarded to the app on
+  the TCP channel.
+- Outgoing messages are sent to GOWA's REST API.
+- The adapter broadcasts a discovery beacon on the LAN, so the app finds it without being
+  configured with an address.
 
-## Protocollo di controllo
+## Control protocol
 
-Frame `Type = System`, `ChatId = "system"`.
+Frames with `Type = System`, `ChatId = "system"`.
 
-| Direzione | `Command` | Campi usati |
+| Direction | `Command` | Fields used |
 |---|---|---|
-| app → adapter | `hello` | `Text` = nome utente |
-| app → adapter | `status` | — |
-| app → adapter | `login.qr` | — |
-| app → adapter | `login.code` | `Text` = numero con prefisso |
-| app → adapter | `contacts` | — |
-| app → adapter | `logout` | — |
-| adapter → app | `state` | `State`, `AccountJid` |
-| adapter → app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
-| adapter → app | `paircode` | `PairCode` |
-| adapter → app | `contact` | `ChatId` = JID, `SenderName` = nome |
-| adapter → app | `error` | `Text` |
+| app -> adapter | `hello` | `Text` = user name |
+| app -> adapter | `status` | — |
+| app -> adapter | `login.qr` | — |
+| app -> adapter | `login.code` | `Text` = number with country code |
+| app -> adapter | `contacts` | — |
+| app -> adapter | `logout` | — |
+| adapter -> app | `state` | `State`, `AccountJid` |
+| adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
+| adapter -> app | `paircode` | `PairCode` |
+| adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
+| adapter -> app | `error` | `Text` |
 
-## Configurazione
+## Configuration
 
-Vedi `.env.example`. Le variabili principali:
+See `.env.example`. The main variables:
 
-| Variabile | Default | Descrizione |
+| Variable | Default | Description |
 |---|---|---|
-| `GOWA_URL` | `http://127.0.0.1:3000` | URL del server GOWA |
-| `GOWA_USER` / `GOWA_PASS` | — | Credenziali Basic Auth di GOWA |
-| `GOWA_DEVICE_ID` | — | Device GOWA (multi-device); vuoto = default |
-| `BRIDGE_PORT` | `8585` | Porta TCP per l'app WP8 |
-| `WEBHOOK_PORT` | `8586` | Porta HTTP del webhook |
-| `WEBHOOK_PUBLIC_URL` | `http://127.0.0.1:8586/webhook` | URL con cui GOWA raggiunge l'adapter |
-| `WEBHOOK_SECRET` | — | Deve combaciare con `--webhook-secret` di GOWA |
-| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | Deve combaciare con `CryptoHelper.cs` |
-| `POLL_INTERVAL_MS` | `5000` | Polling dello stato WhatsApp |
+| `GOWA_URL` | `http://127.0.0.1:3000` | URL of the GOWA server |
+| `GOWA_USER` / `GOWA_PASS` | — | GOWA Basic Auth credentials |
+| `GOWA_DEVICE_ID` | — | GOWA device (multi-device); empty = default |
+| `BRIDGE_PORT` | `8585` | TCP port for the WP8 app |
+| `WEBHOOK_PORT` | `8586` | HTTP port of the webhook |
+| `WEBHOOK_PUBLIC_URL` | `http://127.0.0.1:8586/webhook` | URL GOWA uses to reach the adapter |
+| `WEBHOOK_SECRET` | — | Must match GOWA's `--webhook-secret` |
+| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | Must match `CryptoHelper.cs` |
+| `POLL_INTERVAL_MS` | `5000` | How often the WhatsApp state is polled |
+| `DISCOVERY_ENABLED` | `on` | Announce the adapter on the LAN (`off` disables it) |
+| `DISCOVERY_PORT` | `8587` | UDP port of the discovery beacon |
+| `DISCOVERY_NAME` | host name | Name shown in the app's list of found servers |
 
-## Avvio
+## Starting it
 
-Da solo:
+On its own:
 
 ```bash
 cd WhatsappBridge
-cp .env.example .env   # opzionale; le variabili già esportate hanno la precedenza
+cp .env.example .env   # optional; variables already exported win over it
 npm start
 ```
 
-Insieme a GOWA, con il QR di login disegnato nel terminale — è il modo normale per
-provare l'app, e l'unico che non richiede di sapere a memoria le porte:
+Together with GOWA, which is the normal way to try the app and the only one that does
+not require knowing the ports by heart:
 
 ```bash
-node tools/start-login.js --download            # scarica GOWA la prima volta
-node tools/start-login.js --code 393401234567   # oppure con codice di abbinamento
-node tools/start-login.js --stop                # ferma tutto
+node tools/start-login.js --download    # downloads GOWA the first time
+node tools/start-login.js --no-qr       # normal run: the phone shows its own QR
+node tools/start-login.js --code 393401234567   # or with a pairing code
+node tools/start-login.js --stop        # stops everything
 ```
 
-Lo script avvia GOWA (sessione in `.tools/gowa/storages/whatsapp.db`, ignorata da
-git), avvia questo adattatore, stampa l'IP e le porte da dare all'app e rinnova il
-QR finché il telefono non è collegato. Dettagli e diagnosi:
-`.agents/skills/run-the-login-server/SKILL.md`.
+The script starts GOWA (session in `.tools/gowa/storages/whatsapp.db`, git ignored),
+starts this adapter, prints the IP and ports for the app, and draws the login QR in the
+terminal when that is what you asked for (it is optional now: the login is done on the
+phone). Details and diagnosis: `.agents/skills/run-the-login-server/SKILL.md`.
 
-Il webhook viene registrato automaticamente su GOWA. In alternativa avvia GOWA con:
+The webhook is registered on GOWA automatically. As an alternative, start GOWA with:
 
 ```bash
-./whatsapp rest --webhook=http://<indirizzo-adapter>:8586/webhook
+./whatsapp rest --webhook=http://<adapter-address>:8586/webhook
 ```
 
-## Scoperta automatica
+## Automatic discovery
 
-L'adapter annuncia la sua presenza ogni 2 secondi in UDP sulla porta 8587
-(`DISCOVERY_PORT`): l'app WP8 ascolta quella porta e usa l'indirizzo *del
-mittente* per connettersi, quindi non serve più digitare IP e porta. L'annuncio
-esce su ogni interfaccia fisica (VPN e bridge di macchine virtuali sono
-esclusi).
+The adapter announces itself every 2 seconds over UDP on port 8587
+(`DISCOVERY_PORT`): the WP8 app listens on that port and uses the *sender's* address to
+connect, so there is no IP and port to type any more. The announcement goes out on every
+physical interface (VPNs and virtual-machine bridges are excluded).
 
-Il beacon non contiene segreti: solo hostname, porta TCP e stato WhatsApp.
+The beacon carries no secrets: only the host name, the TCP port and the WhatsApp state.
 
 ```json
 {"service":"whatsapp-wp8-adapter","version":1,"name":"mac-di-vincenzo","port":8585,"state":"disconnected","account":""}
 ```
 
-Metti `DISCOVERY_ENABLED=off` per spegnerlo: l'inserimento manuale dell'indirizzo
-nell'app continua a funzionare.
+Set `DISCOVERY_ENABLED=off` to switch it off: entering the address by hand in the app
+keeps working.
 
-## Test
+## Tests
 
 ```bash
 npm test
 ```
 
-I test coprono la configurazione, la formattazione dei messaggi WP8, il client REST
-GOWA (con `fetch` simulato), la verifica HMAC del webhook e il protocollo TCP
-end-to-end (client WP8 simulato).
+The tests cover the configuration, the WP8 message formatting, the GOWA REST client
+(with a simulated `fetch`), the HMAC verification of the webhook, the discovery beacon
+and the end-to-end TCP protocol (with a simulated WP8 client).

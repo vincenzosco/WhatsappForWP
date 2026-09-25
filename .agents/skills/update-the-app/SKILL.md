@@ -9,7 +9,8 @@ Every recipe ends the same way: run the guards, then commit.
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
-node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict
+node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict \
+  && node tools/check-docs.js
 ```
 
 ## Add a page
@@ -120,6 +121,27 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 4. `cd WhatsappBridge && npm test`.
 5. Remember the wire format: WP8's `DataContractJsonSerializer` needs
    `\/Date(epochMs)\/`, which `message-format.js` produces on purpose.
+
+## Change the documentation
+
+1. Every document that explains the project exists twice: `README.md` /
+   `README.it.md` and `WhatsappBridge/README.md` / `WhatsappBridge/README.it.md`.
+   Write the section in the English file, then the same section in the Italian
+   one - same position, same heading level, same order; only the text is
+   translated. Adding, moving or dropping a section in one of the two is what the
+   guard catches.
+2. Keep the language switcher at the top of each file pointing at its pair
+   (`**English** | [Italiano](README.it.md)` and its mirror), and keep
+   `## Disclosure` (open source, maintainers wanted, written by an AI agent, no
+   responsibility for the account used to sign in) as the **last** section of the
+   project READMEs.
+3. No emoji. The warning sign (U+26A0) is allowed only for a real hazard.
+4. A new explanatory document is born as a pair (`DOC.md` + `DOC.it.md`) and gets
+   an entry in `PAIRS` in `tools/check-docs.js`; add `disclosure: true` only if it
+   presents the project.
+5. `docs/superpowers/plans/*.md` are records of work already done, not guides:
+   they stay English-only and out of `PAIRS`.
+6. `node tools/check-docs.js`.
 
 ## Bump the version
 

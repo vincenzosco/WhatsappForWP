@@ -1840,7 +1840,7 @@ Expected `0 Error(s)`. Notes worth remembering:
 1. Deploy, then open **impostazioni** from the app bar and connect to the adapter.
 2. Sign in with the QR code, then with the phone number (both paths).
 3. Send a text message and an image (attach + caption), verify the outgoing bubble
-   shows ✓/✓✓/✗ correctly.
+   shows sent / delivered / failed correctly.
 4. Receive a message with the app open and with it closed (the app must show the
    unread badge only in the second case).
 5. Switch section with the bottom bar three times: the highlighted icon follows,
