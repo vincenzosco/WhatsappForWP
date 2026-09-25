@@ -7,8 +7,19 @@
  * nothing. All icons live in App.xaml as PathGeometry resources and are
  * consumed as Data="{StaticResource IconX}".
  *
+ * The geometries are written in *element* form (PathFigure + LineSegment /
+ * PolyLineSegment / ArcSegment). The WP8.1 XAML compiler rejects the path
+ * mini-language in PathGeometry.Figures with
+ *
+ *   The TypeConverter for "PathFigureCollection" does not support converting
+ *   from a string.
+ *
+ * so a Figures="M..." attribute is a build error, not a style preference, and
+ * this guard fails on it by name. The element form is the one the Windows
+ * Phone Silverlight XAML vocabulary documents.
+ *
  * Usage:
- *   node tools/check-icons.js            # references + font check
+ *   node tools/check-icons.js            # form + references + font check
  *   node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
  */
 'use strict';
@@ -22,6 +33,10 @@ const APP = path.join(ROOT, 'WhatsappApp');
 const APP_XAML = path.join(APP, 'App.xaml');
 const PREVIEW = process.argv.includes('--preview');
 
+const POINT = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?$/;
+const POINTS = /^-?\d+(\.\d+)?,-?\d+(\.\d+)?(\s+-?\d+(\.\d+)?,-?\d+(\.\d+)?)*$/;
+const SEGMENT = /<(LineSegment|PolyLineSegment|ArcSegment)(?=[\s/>])([^>]*?)\/?>/g;
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -34,15 +49,93 @@ function walk(dir, out) {
   return out;
 }
 
+function attribute(tag, name) {
+  const m = tag.match(new RegExp(`\\b${name}="([^"]*)"`));
+  return m ? m[1] : null;
+}
+
 const appXaml = fs.readFileSync(APP_XAML, 'utf8');
+const problems = [];
+
+// XML comments are blanked out, newlines kept so line numbers stay right: the
+// explanations in App.xaml quote the forbidden form on purpose.
+const source = appXaml.replace(/<!--[\s\S]*?-->/g, (comment) => comment.replace(/[^\n]/g, ' '));
+
+// The form WP8.1 rejects, by name: one error per attribute.
+source.split(/\r?\n/).forEach((line, i) => {
+  if (/\bFigures\s*=/.test(line)) {
+    problems.push('WhatsappApp/App.xaml:' + (i + 1) +
+      ': Figures="..." does not compile on WP8.1 (PathFigureCollection has no' +
+      ' string converter) -> write PathFigure + LineSegment elements instead');
+  }
+});
+
+/**
+ * Parses the element form and rebuilds the equivalent path mini-language (used
+ * only by --preview, so the ASCII render keeps working unchanged).
+ */
 const defined = new Map();
-for (const m of appXaml.matchAll(/<PathGeometry\s+x:Key="([^"]+)"\s+Figures="([^"]+)"/g)) {
-  defined.set(m[1], m[2]);
+for (const geometry of source.matchAll(/<PathGeometry(?=[\s>])([^>]*)>([\s\S]*?)<\/PathGeometry>/g)) {
+  const key = attribute(geometry[1], 'x:Key');
+  if (!key) continue;
+  const where = 'WhatsappApp/App.xaml: ' + key;
+  if (defined.has(key)) problems.push(where + ': duplicate resource key');
+
+  const figures = [];
+  for (const figure of geometry[2].matchAll(/<PathFigure(?=[\s>])([^>]*)>([\s\S]*?)<\/PathFigure>/g)) {
+    const start = attribute(figure[1], 'StartPoint');
+    if (!start || !POINT.test(start)) {
+      problems.push(where + ': PathFigure needs StartPoint="x,y"');
+      continue;
+    }
+
+    let mini = 'M' + start;
+    let segments = 0;
+    for (const segment of figure[2].matchAll(SEGMENT)) {
+      const kind = segment[1];
+      const tag = segment[2];
+      if (kind === 'LineSegment') {
+        const point = attribute(tag, 'Point');
+        if (!point || !POINT.test(point)) {
+          problems.push(where + ': LineSegment needs Point="x,y"');
+          continue;
+        }
+        mini += ' L' + point;
+      } else if (kind === 'PolyLineSegment') {
+        const points = (attribute(tag, 'Points') || '').trim();
+        if (!POINTS.test(points)) {
+          problems.push(where + ': PolyLineSegment needs Points="x,y x,y ..."');
+          continue;
+        }
+        mini += ' L' + points.split(/\s+/).join(' L');
+      } else {
+        const size = attribute(tag, 'Size');
+        const point = attribute(tag, 'Point');
+        if (!size || !POINT.test(size) || !point || !POINT.test(point)) {
+          problems.push(where + ': ArcSegment needs Size="rx,ry" and Point="x,y"');
+          continue;
+        }
+        const rotation = attribute(tag, 'RotationAngle') || '0';
+        const large = attribute(tag, 'IsLargeArc') === 'True' ? 1 : 0;
+        const sweep = attribute(tag, 'SweepDirection') === 'Clockwise' ? 1 : 0;
+        mini += ' A' + size + ' ' + rotation + ' ' + large + ' ' + sweep + ' ' + point;
+      }
+      segments++;
+    }
+
+    if (segments === 0) problems.push(where + ': PathFigure has no segment');
+    if (attribute(figure[1], 'IsClosed') === 'True') mini += ' Z';
+    figures.push(mini);
+  }
+
+  if (figures.length === 0) problems.push(where + ': PathGeometry has no PathFigure');
+  defined.set(key, figures.join(' '));
 }
 
 const files = walk(APP, []).filter((f) => f !== APP_XAML);
-const problems = [];
 const used = new Set();
+const withFill = new Set();
+const withStroke = new Set();
 
 for (const file of files) {
   const rel = path.relative(ROOT, file);
@@ -54,6 +147,8 @@ for (const file of files) {
     for (const m of line.matchAll(/\{StaticResource (Icon[A-Za-z]+)\}/g)) {
       used.add(m[1]);
       if (!defined.has(m[1])) problems.push(`${rel}:${i + 1}: {StaticResource ${m[1]}} is not defined in App.xaml`);
+      if (/\bFill\s*=/.test(line)) withFill.add(m[1]);
+      if (/\bStroke\s*=/.test(line)) withStroke.add(m[1]);
     }
   });
 }
@@ -75,7 +170,9 @@ if (PREVIEW) {
     console.log('preview skipped: ImageMagick (magick) not available');
   } else {
     for (const [name, figures] of defined) {
-      const filled = /A1\.5,1\.5|L21\.5,12/.test(figures);
+      // Filled only when every use is Fill and no use is Stroke: an open
+      // outline drawn with the even-odd fill rule is a blob, not an icon.
+      const filled = withFill.has(name) && !withStroke.has(name);
       const args = ['-size', '24x24', 'xc:black'];
       if (filled) args.push('-fill', 'white', '-stroke', 'none');
       else args.push('-fill', 'none', '-stroke', 'white', '-strokewidth', '2');
