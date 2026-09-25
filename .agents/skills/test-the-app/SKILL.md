@@ -19,7 +19,7 @@ Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
 | Guard | Catches |
 | --- | --- |
 | `check-csharp5.js` | Syntax the WP8.1 compiler rejects (it never shows up here otherwise), and APIs that exist on Windows 10 but not on WP8.1. |
-| `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`), a `{StaticResource IconX}` that does not exist, a geometry nothing uses. |
+| `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`), a `{StaticResource IconX}` that does not exist, a geometry nothing uses, and `Figures="M..."` - the string form of `PathGeometry.Figures`, which does not compile on WP8.1. |
 | `check-resw.js` | A string that would silently stay in the markup language: missing/mistyped `x:Uid`, `x:Uid` on the wrong property, a `Loc.Get` key absent from a language, languages whose key sets differ, a `.resw` missing from the `csproj` (`PRIResource`), a wrong `<DefaultLanguage>`, a key/`.Property` collision, an unused key. |
 
 Also worth running while the tree is open:
