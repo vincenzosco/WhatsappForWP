@@ -49,7 +49,8 @@ node tools/start-login.js --download     # --download only the first time
    prefix.
 4. **Login** — QR by default, pairing code with `--code`. `Ctrl-C` (or a signal)
    stops GOWA and the adapter; the PID file is `.tools/gowa/login-stack.pid` and
-   `--stop` uses it.
+   `--stop` reads it, killing first the script itself (which brings down its
+   children), so it also works on a stack left running in another terminal.
 
 The first run prints the LAN address and ports to give the app
 (`<ip>:8585`), then the QR: on the phone **WhatsApp → Impostazioni → Dispositivi
