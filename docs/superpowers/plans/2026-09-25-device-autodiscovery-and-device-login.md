@@ -68,7 +68,7 @@
   - `createDiscoveryBeacon({ port, intervalMs, getPayload, interfaces, socketFactory, log }) -> { socket, sendOnce(), stop() }`
   - config: `loadConfig(env).discovery = { enabled: boolean, port: number, name: string }`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `WhatsappBridge/test/discovery.test.js`:
 
@@ -161,12 +161,12 @@ test('il beacon arriva davvero su un socket UDP in ascolto', async () => {
 });
 ```
 
-- [ ] **Step 2: Run the tests to verify they fail**
+- [x] **Step 2: Run the tests to verify they fail**
 
 Run: `cd WhatsappBridge && node --test test/discovery.test.js`
 Expected: FAIL with `Cannot find module '../discovery'`.
 
-- [ ] **Step 3: Write `WhatsappBridge/discovery.js`**
+- [x] **Step 3: Write `WhatsappBridge/discovery.js`**
 
 ```js
 'use strict';
@@ -312,12 +312,12 @@ module.exports = {
 };
 ```
 
-- [ ] **Step 4: Run the tests to verify they pass**
+- [x] **Step 4: Run the tests to verify they pass**
 
 Run: `cd WhatsappBridge && node --test test/discovery.test.js`
 Expected: PASS, `# pass 4`.
 
-- [ ] **Step 5: Add the failing configuration test**
+- [x] **Step 5: Add the failing configuration test**
 
 Append to `WhatsappBridge/test/config.test.js`:
 
@@ -339,12 +339,12 @@ test('loadConfig espone la configurazione di discovery', () => {
 });
 ```
 
-- [ ] **Step 6: Run it to verify it fails**
+- [x] **Step 6: Run it to verify it fails**
 
 Run: `cd WhatsappBridge && node --test test/config.test.js`
 Expected: FAIL — `Cannot read properties of undefined (reading 'enabled')`.
 
-- [ ] **Step 7: Implement the configuration**
+- [x] **Step 7: Implement the configuration**
 
 In `WhatsappBridge/config.js`, add `require('os')` next to the existing requires, add to `DEFAULTS`:
 
@@ -365,12 +365,12 @@ and add to the object returned by `loadConfig` (after `pollIntervalMs`):
     },
 ```
 
-- [ ] **Step 8: Run both test files**
+- [x] **Step 8: Run both test files**
 
 Run: `cd WhatsappBridge && node --test test/config.test.js test/discovery.test.js`
 Expected: PASS, `# pass 7`.
 
-- [ ] **Step 9: Wire the beacon into the adapter**
+- [x] **Step 9: Wire the beacon into the adapter**
 
 In `WhatsappBridge/server.js`, add to the imports:
 
@@ -410,12 +410,12 @@ and in `shutdown()`, before `bridge.stop()`:
 
 No new export is needed: `buildPayload` already lives in `discovery.js`.
 
-- [ ] **Step 10: Run the whole adapter suite**
+- [x] **Step 10: Run the whole adapter suite**
 
 Run: `cd WhatsappBridge && npm test`
 Expected: `pass 34`, `fail 0`.
 
-- [ ] **Step 11: Prove the beacon leaves the machine**
+- [x] **Step 11: Prove the beacon leaves the machine**
 
 Run (one command, the adapter is killed at the end):
 
@@ -426,7 +426,7 @@ cd WhatsappBridge && (npm start > /tmp/adapter.log 2>&1 &) && sleep 3 && \
 
 Expected output: `beacon da 192.168.0.86 : {"service":"whatsapp-wp8-adapter","version":1,"name":"<hostname>","port":8585,"state":"disconnected","account":""}` and a log line `[OK] Discovery attivo sulla porta UDP 8587`. Then `pkill -f "node server.js"` and remove `/tmp/adapter.log`.
 
-- [ ] **Step 12: Document the beacon**
+- [x] **Step 12: Document the beacon**
 
 In `WhatsappBridge/.env.example`, under `# ── Adapter verso l'app Windows Phone ──`:
 
@@ -457,7 +457,7 @@ Metti `DISCOVERY_ENABLED=off` per spegnerlo (l'inserimento manuale nell'app
 continua a funzionare).
 ````
 
-- [ ] **Step 13: Commit**
+- [x] **Step 13: Commit**
 
 ```bash
 git add WhatsappBridge/discovery.js WhatsappBridge/test/discovery.test.js \
@@ -489,7 +489,7 @@ git commit -m "feat(bridge): announce the adapter on the LAN so the app can find
   - `AutoConnector.Instance.TryConnectAsync(string username, int discoverySeconds) -> Task<bool>`
   - resw keys: `ConnectionPage_Discovering.Text`, `ConnectionPage_DiscoveredLabel.Text`, `ConnectionPage_ManualToggle.Content`, `ConnectionPage_NoServerFound.Text`
 
-- [ ] **Step 1: Create the model**
+- [x] **Step 1: Create the model**
 
 `WhatsappApp/Models/DiscoveredServer.cs`:
 
@@ -543,7 +543,7 @@ namespace WhatsappApp.Models
 }
 ```
 
-- [ ] **Step 2: Create the beacon DTO**
+- [x] **Step 2: Create the beacon DTO**
 
 `WhatsappApp/Models/BeaconPayload.cs`:
 
@@ -582,7 +582,7 @@ namespace WhatsappApp.Models
 }
 ```
 
-- [ ] **Step 3: Create the discovery listener**
+- [x] **Step 3: Create the discovery listener**
 
 `WhatsappApp/Services/DiscoveryService.cs`:
 
@@ -808,7 +808,7 @@ namespace WhatsappApp.Services
 }
 ```
 
-- [ ] **Step 4: Create the auto-connector**
+- [x] **Step 4: Create the auto-connector**
 
 `WhatsappApp/Services/AutoConnector.cs`:
 
@@ -886,7 +886,7 @@ namespace WhatsappApp.Services
 }
 ```
 
-- [ ] **Step 5: Register the four new files in the project**
+- [x] **Step 5: Register the four new files in the project**
 
 In `WhatsappApp/WhatsappApp.csproj`, inside the `<Compile Include="Models\ServerConfig.cs" />` … region, add:
 
@@ -902,7 +902,7 @@ and next to the other services:
     <Compile Include="Services\DiscoveryService.cs" />
 ```
 
-- [ ] **Step 6: Add the discovery UI to the settings page**
+- [x] **Step 6: Add the discovery UI to the settings page**
 
 In `WhatsappApp/Pages/ConnectionPage.xaml`, replace the block that starts with `<!-- Server (adapter) -->` and ends with the port `TextBox` (the `<TextBlock x:Uid="ConnectionPage_PortLabel">` … `</TextBox>` pair) with:
 
@@ -956,12 +956,12 @@ In `WhatsappApp/Pages/ConnectionPage.xaml`, replace the block that starts with `
                 </StackPanel>
 ```
 
-- [ ] **Step 7: Run the localization guard to watch it fail**
+- [x] **Step 7: Run the localization guard to watch it fail**
 
 Run: `node tools/check-resw.js --strict`
 Expected: FAIL, four lines such as `WhatsappApp/Pages/ConnectionPage.xaml: x:Uid="ConnectionPage_Discovering" has no "ConnectionPage_Discovering.Text" entry`.
 
-- [ ] **Step 8: Add the four keys to both languages**
+- [x] **Step 8: Add the four keys to both languages**
 
 In `WhatsappApp/Strings/en-US/Resources.resw`, before `</root>`:
 
@@ -997,12 +997,12 @@ In `WhatsappApp/Strings/it-IT/Resources.resw`, before `</root>`:
   </data>
 ```
 
-- [ ] **Step 9: Run the guard again**
+- [x] **Step 9: Run the guard again**
 
 Run: `node tools/check-resw.js --strict`
 Expected: `OK: 86 key(s) in en-US and it-IT, every x:Uid and Loc.Get lookup resolved.`
 
-- [ ] **Step 10: Wire the page**
+- [x] **Step 10: Wire the page**
 
 In `WhatsappApp/Pages/ConnectionPage.xaml.cs`:
 
@@ -1164,7 +1164,7 @@ In `WhatsappApp/Pages/ConnectionPage.xaml.cs`:
 
 5. In `DisconnectButton_Click`, add `_autoConnectTried = true;` as the first line so a manual disconnect does not immediately reconnect.
 
-- [ ] **Step 11: Reconnect at launch**
+- [x] **Step 11: Reconnect at launch**
 
 In `WhatsappApp/App.xaml.cs`, in `OnLaunched`, after `Loc.Prewarm();`:
 
@@ -1189,7 +1189,7 @@ and at the end of the class:
         }
 ```
 
-- [ ] **Step 12: Allow local-network traffic**
+- [x] **Step 12: Allow local-network traffic**
 
 In `WhatsappApp/Package.appxmanifest`, inside `<Capabilities>`:
 
@@ -1199,7 +1199,7 @@ In `WhatsappApp/Package.appxmanifest`, inside `<Capabilities>`:
     <Capability Name="privateNetworkClientServer" />
 ```
 
-- [ ] **Step 13: Run the static gates**
+- [x] **Step 13: Run the static gates**
 
 Run:
 
@@ -1209,7 +1209,7 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 
 Expected: three `OK:` lines (the resw one now mentioning 86 keys).
 
-- [ ] **Step 14: Build on the Windows machine**
+- [x] **Step 14: Build on the Windows machine**
 
 Run:
 
@@ -1220,7 +1220,7 @@ prlctl exec "Windows 11" cmd /c "cd /d C:\Temp\wp81 && C:\PROGRA~2\MSBuild\12.0\
 
 Expected: `0 Error(s)`, and the two known warnings only (`CS0618` `FileOpenPicker.PickSingleFileAsync`, `CS4014` in `ConnectionPage`).
 
-- [ ] **Step 15: Commit**
+- [x] **Step 15: Commit**
 
 ```bash
 git add WhatsappApp/WhatsappApp.csproj WhatsappApp/Package.appxmanifest \
@@ -1244,7 +1244,7 @@ git commit -m "feat: let the app find the adapter on the LAN and connect by itse
 - Consumes: `CommunicationService.Instance` (`ConnectionEstablished`, `ControlMessageReceived`, `WhatsAppState`, `SendControlAsync("login.qr")`, `SendControlAsync("login.code", phone)`); `ChatMessage.QrImageData` (base64 PNG), `QrDuration` (seconds), `PairCode`; the existing `BitmapFromBase64Async`.
 - Produces: resw keys `ConnectionPage_QrOverlayTitle.Text`, `ConnectionPage_QrOverlayHint.Text`, `ConnectionPage_QrOverlayClose.Content`, `ConnectionPage_QrOverlayRefreshing.Text`; overlay names `QrOverlay`, `QrOverlayImage`, `QrOverlayCodeText`, `QrOverlayHintText`, `QrOverlayCloseButton`.
 
-- [ ] **Step 1: Add the overlay markup**
+- [x] **Step 1: Add the overlay markup**
 
 In `WhatsappApp/Pages/ConnectionPage.xaml`, as the last child of the root `<Grid>` (after the `</ScrollViewer>`), add:
 
@@ -1275,12 +1275,12 @@ In `WhatsappApp/Pages/ConnectionPage.xaml`, as the last child of the root `<Grid
         </Grid>
 ```
 
-- [ ] **Step 2: Run the localization guard to watch it fail**
+- [x] **Step 2: Run the localization guard to watch it fail**
 
 Run: `node tools/check-resw.js --strict`
 Expected: FAIL on `ConnectionPage_QrOverlayTitle`, `ConnectionPage_QrOverlayHint`, `ConnectionPage_QrOverlayClose`.
 
-- [ ] **Step 3: Add the three keys to both languages**
+- [x] **Step 3: Add the three keys to both languages**
 
 `WhatsappApp/Strings/en-US/Resources.resw`:
 
@@ -1310,12 +1310,12 @@ Expected: FAIL on `ConnectionPage_QrOverlayTitle`, `ConnectionPage_QrOverlayHint
   </data>
 ```
 
-- [ ] **Step 4: Run the guard again**
+- [x] **Step 4: Run the guard again**
 
 Run: `node tools/check-resw.js --strict`
 Expected: `OK: 89 key(s) ...`.
 
-- [ ] **Step 5: Automatically show and refresh the code**
+- [x] **Step 5: Automatically show and refresh the code**
 
 In `WhatsappApp/Pages/ConnectionPage.xaml.cs`:
 
@@ -1489,21 +1489,24 @@ and in the `default:` branch add `StopQrTimer();`.
 
 7. In `OnNavigatedFrom`, add `StopQrTimer(); CloseQrOverlay();`.
 
-- [ ] **Step 6: Declare the refresh string**
+- [x] **Step 6: Declare the refresh string**
 
 Add to both `.resw` files (en-US value `Refreshing the code...`, it-IT value `Aggiorno il codice...`) with names `ConnectionPage_QrOverlayRefreshing.Text`, so the key count becomes **90**.
 
-- [ ] **Step 7: Run the static gates**
+- [x] **Step 7: Run the static gates**
 
 Run: `node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict`
 Expected: three `OK:` lines. The C# 5 guard is the one that matters here: `DispatcherTimer.Tick += OnQrTimerTick;` with an `async void` handler and `Windows.System.Display.DisplayRequest` must not be on its "missing on WP8.1" list (both exist in `Windows.winmd`, verified).
 
-- [ ] **Step 8: Build on the Windows machine**
+- [x] **Step 8: Build on the Windows machine**
 
 Run the two `prlctl` commands from Task 2, Step 14.
 Expected: `0 Error(s)`.
 
-- [ ] **Step 9: On the device**
+- [ ] **Step 9: On the device** — NOT RUN: the WP8.1 emulator images are x86 and
+  need Hyper-V, which the ARM64 Windows guest does not have; this needs an x86/x64
+  Windows machine or a real WP8.1 phone. The feature is only build- and
+  guard-verified so far.
 
 1. Launch the app with the adapter running: the settings page must show the computer by name and connect without typing anything.
 2. The QR must appear **full screen** without tapping anything, and a new one must appear about every 20–30 s.
@@ -1511,7 +1514,7 @@ Expected: `0 Error(s)`.
 4. Put the phone down for a minute with the overlay open: the screen must not dim.
 5. Lock and unlock the phone, then reopen the app: it must reconnect without help.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 git add WhatsappApp/Pages/ConnectionPage.xaml WhatsappApp/Pages/ConnectionPage.xaml.cs \
@@ -1531,7 +1534,7 @@ git commit -m "feat: show and refresh the login QR on the device, full screen an
 - Consumes: `qrTerm.qrFromPng(pngPath, { quietZone, plain }) -> { lines, count, error }` (from `tools/qr-term.js`).
 - Produces: `--no-qr` (start the stack and wait for the phone to log in), `--open-qr` (open the current PNG with `open`), a stable PNG at `.tools/gowa/login-qr.png`, and no truncated drawing ever.
 
-- [ ] **Step 1: Add the two flags**
+- [x] **Step 1: Add the two flags**
 
 In `parseArgs`, next to `--once`:
 
@@ -1550,7 +1553,7 @@ Document both in `HELP`:
   --open-qr             apre il PNG del codice con Anteprima (si aggiorna da solo)
 ```
 
-- [ ] **Step 2: Keep the current PNG where it can be reopened**
+- [x] **Step 2: Keep the current PNG where it can be reopened**
 
 In `showQr`, after `const qr = qrTerm.qrFromPng(...)`, add:
 
@@ -1565,7 +1568,7 @@ In `showQr`, after `const qr = qrTerm.qrFromPng(...)`, add:
   }
 ```
 
-- [ ] **Step 3: Never draw a code that does not fit**
+- [x] **Step 3: Never draw a code that does not fit**
 
 Replace the whole `makePrinter` function with these two functions:
 
@@ -1639,7 +1642,7 @@ function makePrinter(options) {
 
 Note: `--plain` (and a non-TTY) now goes through `printTooSmall` too, so a piped log never contains a half QR. `printed`/`drawnLines` are gone; `reportLoginError` calls `printer.done()`, which still exists.
 
-- [ ] **Step 4: Point at the PNG instead of the GOWA URL**
+- [x] **Step 4: Point at the PNG instead of the GOWA URL**
 
 In `showQr`, pass the stable file as the hint:
 
@@ -1649,7 +1652,7 @@ In `showQr`, pass the stable file as the hint:
     `apri ${path.relative(ROOT, stable)} con Anteprima (si aggiorna da solo), o ${imageUrl}`);
 ```
 
-- [ ] **Step 5: Implement `--no-qr`**
+- [x] **Step 5: Implement `--no-qr`**
 
 In `waitForLogin`, when `options.noQr` is set, skip both the drawing and the login requests, and report only state changes:
 
@@ -1667,7 +1670,7 @@ In `waitForLogin`, when `options.noQr` is set, skip both the drawing and the log
     }
 ```
 
-- [ ] **Step 6: Report it in the banner**
+- [x] **Step 6: Report it in the banner**
 
 In `main()`, in the else branch of the "already connected" check, add:
 
@@ -1677,7 +1680,7 @@ In `main()`, in the else branch of the "already connected" check, add:
     }
 ```
 
-- [ ] **Step 7: Verify by hand**
+- [x] **Step 7: Verify by hand**
 
 ```bash
 node tools/start-login.js --no-qr --no-bridge
@@ -1697,12 +1700,12 @@ ls -la .tools/gowa/login-qr.png
 
 Expected: the file exists and its mtime changes every time a new code arrives.
 
-- [ ] **Step 8: Update the docs and the skill**
+- [x] **Step 8: Update the docs and the skill**
 
 - `README.md`, in the option table: add the `--no-qr` and `--open-qr` rows, and a sentence: "Il login si fa dal telefono: il QR dell'app è a tutto schermo, e il codice resta leggibile perché lo schermo non si spegne."
 - `.agents/skills/run-the-login-server/SKILL.md`: add to the options table, and replace the OCR paragraph about the drawing with the rule "un codice che non ci sta non si disegna: si scrive il PNG in `.tools/gowa/login-qr.png`" and the `--no-qr` first choice; add the discovery port to the ports list.
 
-- [ ] **Step 9: Run the whole gate**
+- [x] **Step 9: Run the whole gate**
 
 ```bash
 node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict \
@@ -1711,7 +1714,7 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 
 Expected: three `OK:` lines, `Tutti i controlli sono passati.`, `pass 34`, `fail 0`.
 
-- [ ] **Step 10: Commit and push**
+- [x] **Step 10: Commit and push**
 
 ```bash
 git add tools/start-login.js README.md .agents/skills/run-the-login-server/SKILL.md
