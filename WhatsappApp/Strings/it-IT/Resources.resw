@@ -316,4 +316,16 @@
   <data name="ConnectionPage_NoServerFound.Text" xml:space="preserve">
     <value>Nessun server trovato. Avvia l'adapter sul computer, oppure inserisci l'indirizzo a mano.</value>
   </data>
+  <data name="ConnectionPage_QrOverlayTitle.Text" xml:space="preserve">
+    <value>Inquadra questo codice con WhatsApp</value>
+  </data>
+  <data name="ConnectionPage_QrOverlayHint" xml:space="preserve">
+    <value>WhatsApp &gt; Dispositivi collegati &gt; Collega un dispositivo, poi inquadra. Lo schermo resta acceso finché resti qui.</value>
+  </data>
+  <data name="ConnectionPage_QrOverlayClose.Content" xml:space="preserve">
+    <value>Chiudi</value>
+  </data>
+  <data name="ConnectionPage_QrOverlayRefreshing" xml:space="preserve">
+    <value>Aggiorno il codice...</value>
+  </data>
 </root>
