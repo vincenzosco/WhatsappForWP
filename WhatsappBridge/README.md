@@ -49,12 +49,27 @@ Vedi `.env.example`. Le variabili principali:
 
 ## Avvio
 
+Da solo:
+
 ```bash
 cd WhatsappBridge
-cp .env.example .env   # opzionale
-npm install
+cp .env.example .env   # opzionale; le variabili già esportate hanno la precedenza
 npm start
 ```
+
+Insieme a GOWA, con il QR di login disegnato nel terminale — è il modo normale per
+provare l'app, e l'unico che non richiede di sapere a memoria le porte:
+
+```bash
+node tools/start-login.js --download            # scarica GOWA la prima volta
+node tools/start-login.js --code 393401234567   # oppure con codice di abbinamento
+node tools/start-login.js --stop                # ferma tutto
+```
+
+Lo script avvia GOWA (sessione in `.tools/gowa/storages/whatsapp.db`, ignorata da
+git), avvia questo adattatore, stampa l'IP e le porte da dare all'app e rinnova il
+QR finché il telefono non è collegato. Dettagli e diagnosi:
+`.agents/skills/run-the-login-server/SKILL.md`.
 
 Il webhook viene registrato automaticamente su GOWA. In alternativa avvia GOWA con:
 

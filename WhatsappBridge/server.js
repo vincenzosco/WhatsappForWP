@@ -27,7 +27,7 @@ const net = require('net');
 const os = require('os');
 
 const cryptoHelper = require('./crypto-helper');
-const { loadConfig } = require('./config');
+const { loadConfig, applyDotEnv } = require('./config');
 const { GowaClient } = require('./gowa-client');
 const { buildChatMessage, mapWebhookMessage } = require('./message-format');
 const { createWebhookServer } = require('./webhook-server');
@@ -328,7 +328,7 @@ async function main() {
   const log = makeLogger(debug);
   const dbg = (...args) => { if (debug) console.log('  [DEBUG]', ...args); };
 
-  const config = loadConfig();
+  const config = loadConfig(applyDotEnv(process.env));
   log('INFO', 'WhatsApp Community Adapter v2.0 (GOWA)');
   log('INFO', `GOWA:        ${config.gowa.url}`);
   log('INFO', `Device GOWA: ${config.gowa.deviceId || '(default)'}`);
