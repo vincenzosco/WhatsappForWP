@@ -227,8 +227,9 @@ namespace WhatsappApp.Models
             {
                 MediaImage = await ImageHelper.FromBase64Async(MediaData);
             }
-            catch
+            catch (Exception ex)
             {
+                Diag.Failed("ChatMessage.LoadMediaImageAsync", ex);
                 MediaImage = null;
             }
         }
@@ -301,8 +302,9 @@ namespace WhatsappApp.Models
                     return (ChatMessage)JsonSerializer.ReadObject(ms);
                 }
             }
-            catch
+            catch (Exception ex)
             {
+                Diag.Failed("ChatMessage.FromJson", ex);
                 return null;
             }
         }
