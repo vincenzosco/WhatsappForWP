@@ -33,7 +33,12 @@ const RULES = [
   { name: 'pattern matching (is Type name)', re: /\bis\s+[A-Z]\w*\s+[a-z]\w*\s*[,)]/ },
   { name: 'nameof(...)', re: /\bnameof\s*\(/ },
   { name: 'discard assignment (_ = ...)', re: /^\s*_+\s*=[^=]/ },
-  { name: 'using static', re: /^\s*using\s+static\s/ }
+  { name: 'using static', re: /^\s*using\s+static\s/ },
+  // An async entry point needs C# 7.1 (and .NET 4.6.1+); on this toolchain the
+  // compiler answers CS0028 "wrong signature to be an entry point" plus CS5001
+  // "does not contain a static 'Main' method", so the project never builds at
+  // all - which is how WhatsappServer sat broken.
+  { name: 'async entry point (needs C# 7.1; use static void Main)', re: /\basync\s+Task(\s*<[^>]*>)?\s+Main\s*\(/ }
 ];
 
 // Extension methods that only exist when `using System.Linq;` is in scope.
