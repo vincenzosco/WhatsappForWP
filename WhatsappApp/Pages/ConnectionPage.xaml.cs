@@ -21,6 +21,10 @@ namespace WhatsappApp.Pages
         private bool _autoConnectTried;
         private DateTime _discoveryStartedAt;
 
+        private Windows.System.Display.DisplayRequest _displayRequest;
+        private bool _displayRequestActive;
+        private Windows.UI.Xaml.DispatcherTimer _qrTimer;
+
         public ConnectionPage()
         {
             this.InitializeComponent();
@@ -75,11 +79,22 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
             CommunicationService.Instance.ConnectionEstablished -= OnConnectionEstablished;
             DiscoveryService.Instance.ServersChanged -= OnServersChanged;
+            StopQrTimer();
+            CloseQrOverlay();
         }
 
         private void OnConnectionEstablished(object sender, EventArgs e)
         {
             ShowConnectedState();
+
+            // Il login si fa dal telefono: il codice si chiede subito, senza che
+            // l'utente debba cercare il pulsante.
+            if (CommunicationService.Instance.WhatsAppState != "connected")
+            {
+#pragma warning disable 4014
+                CommunicationService.Instance.SendControlAsync("login.qr");
+#pragma warning restore 4014
+            }
         }
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
@@ -244,6 +259,8 @@ namespace WhatsappApp.Pages
                     LoginCodeButton.Visibility = Visibility.Collapsed;
                     QrInfoText.Text = "";
                     PairCodeText.Text = "";
+                    CloseQrOverlay();
+                    StopQrTimer();
                     ContinueButton.IsEnabled = true;
                     break;
 
@@ -265,6 +282,7 @@ namespace WhatsappApp.Pages
                     QrImage.Visibility = Visibility.Collapsed;
                     PairCodeText.Text = "";
                     QrInfoText.Text = "";
+                    StopQrTimer();
                     ContinueButton.IsEnabled = false;
                     break;
             }
@@ -290,6 +308,9 @@ namespace WhatsappApp.Pages
                     WhatsAppStateText.Text = Loc.Get("ConnectionPage_PairCodeHint",
                         "Enter this code in WhatsApp: Linked devices, Link a device, Link with phone number instead.");
                     QrImage.Visibility = Visibility.Collapsed;
+                    QrOverlayImage.Visibility = Visibility.Collapsed;
+                    QrOverlayCodeText.Text = message.PairCode;
+                    OpenQrOverlay();
                     break;
 
                 case "error":
@@ -308,21 +329,112 @@ namespace WhatsappApp.Pages
 
             try
             {
-                QrImage.Source = await BitmapFromBase64Async(base64);
+                var bitmap = await BitmapFromBase64Async(base64);
+                QrImage.Source = bitmap;
+                QrOverlayImage.Source = bitmap;
                 QrImage.Visibility = Visibility.Visible;
+
                 PairCodeText.Text = "";
+                QrOverlayCodeText.Text = "";
+                QrOverlayHintText.Text = Loc.Get("ConnectionPage_QrOverlayHint",
+                    "WhatsApp, Linked devices, Link a device, then scan. The screen stays on while this page is open.");
                 QrInfoText.Text = duration > 0
                     ? string.Format(Loc.Get("ConnectionPage_QrHintDuration",
                         "Open WhatsApp, open Linked devices and tap Link a device, then scan the code (valid for about {0} seconds)."),
                         duration)
                     : Loc.Get("ConnectionPage_QrHint",
                         "Open WhatsApp, open Linked devices and tap Link a device, then scan the code.");
+
+                OpenQrOverlay();
+                ScheduleQrRefresh(duration);
             }
             catch (Exception ex)
             {
                 QrInfoText.Text = string.Format(
                     Loc.Get("ConnectionPage_QrError", "Could not show the QR code: {0}"), ex.Message);
             }
+        }
+
+        // ─── Schermata del codice (il login si fa dal telefono) ──────────────
+
+        private void OpenQrOverlay()
+        {
+            QrOverlayImage.Visibility = string.IsNullOrEmpty(QrOverlayCodeText.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            QrOverlay.Visibility = Visibility.Visible;
+            KeepScreenOn();
+        }
+
+        private void CloseQrOverlay()
+        {
+            QrOverlay.Visibility = Visibility.Collapsed;
+            ReleaseScreenOn();
+        }
+
+        /// <summary>
+        /// Lo schermo resta acceso: se si spegne o si abbassa la luminosita'
+        /// mentre si inquadra, il codice diventa illeggibile e la scansione
+        /// fallisce senza nessun messaggio d'errore.
+        /// </summary>
+        private void KeepScreenOn()
+        {
+            if (_displayRequest == null) _displayRequest = new Windows.System.Display.DisplayRequest();
+            if (_displayRequestActive) return;
+            try
+            {
+                _displayRequest.RequestActive();
+                _displayRequestActive = true;
+            }
+            catch (Exception)
+            {
+                // Limite di richieste attive raggiunto: si prosegue lo stesso.
+            }
+        }
+
+        private void ReleaseScreenOn()
+        {
+            if (!_displayRequestActive || _displayRequest == null) return;
+            try { _displayRequest.RequestRelease(); } catch (Exception) { }
+            _displayRequestActive = false;
+        }
+
+        /// <summary>
+        /// Chiede un codice nuovo poco prima che scada: quello vecchio non e'
+        /// piu' valido e l'app lo terrebbe a schermo per sempre.
+        /// </summary>
+        private void ScheduleQrRefresh(int duration)
+        {
+            StopQrTimer();
+
+            int seconds = duration > 10 ? duration - 5 : 10;
+            _qrTimer = new Windows.UI.Xaml.DispatcherTimer();
+            _qrTimer.Interval = TimeSpan.FromSeconds(seconds);
+            _qrTimer.Tick += OnQrTimerTick;
+            _qrTimer.Start();
+        }
+
+        private void StopQrTimer()
+        {
+            if (_qrTimer == null) return;
+            _qrTimer.Stop();
+            _qrTimer.Tick -= OnQrTimerTick;
+            _qrTimer = null;
+        }
+
+        private async void OnQrTimerTick(object sender, object e)
+        {
+            StopQrTimer();
+            if (!CommunicationService.Instance.IsConnected) return;
+            if (CommunicationService.Instance.WhatsAppState == "connected") return;
+
+            QrOverlayHintText.Text = Loc.Get("ConnectionPage_QrOverlayRefreshing", "Refreshing the code...");
+            await CommunicationService.Instance.SendControlAsync("login.qr");
+        }
+
+        private void QrOverlayCloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            CloseQrOverlay();
         }
 
         private static async Task<BitmapImage> BitmapFromBase64Async(string base64)
