@@ -64,6 +64,13 @@ namespace WhatsappApp
             // background: lo si crea qui, una volta, sul thread UI.
             Loc.Prewarm();
 
+#if DEBUG
+            // Solo in debug: dice in tre righe cosa questo telefono sa fare
+            // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
+            // rilascio non esiste, quindi non costa niente all'avvio.
+            SelfCheck.RunAsync();
+#endif
+
             // Riconnessione automatica: l'app non riprova da sola dopo un
             // riavvio, e senza questo l'elenco chat resta vuoto finche' l'utente
             // non apre le impostazioni.
