@@ -77,6 +77,23 @@ Il webhook viene registrato automaticamente su GOWA. In alternativa avvia GOWA c
 ./whatsapp rest --webhook=http://<indirizzo-adapter>:8586/webhook
 ```
 
+## Scoperta automatica
+
+L'adapter annuncia la sua presenza ogni 2 secondi in UDP sulla porta 8587
+(`DISCOVERY_PORT`): l'app WP8 ascolta quella porta e usa l'indirizzo *del
+mittente* per connettersi, quindi non serve più digitare IP e porta. L'annuncio
+esce su ogni interfaccia fisica (VPN e bridge di macchine virtuali sono
+esclusi).
+
+Il beacon non contiene segreti: solo hostname, porta TCP e stato WhatsApp.
+
+```json
+{"service":"whatsapp-wp8-adapter","version":1,"name":"mac-di-vincenzo","port":8585,"state":"disconnected","account":""}
+```
+
+Metti `DISCOVERY_ENABLED=off` per spegnerlo: l'inserimento manuale dell'indirizzo
+nell'app continua a funzionare.
+
 ## Test
 
 ```bash

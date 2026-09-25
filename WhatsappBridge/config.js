@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 // Legge la configurazione dall'ambiente con valori di default sensati.
@@ -16,7 +17,10 @@ const DEFAULTS = {
   WEBHOOK_PATH: '/webhook',
   WEBHOOK_PUBLIC_URL: '',
   WEBHOOK_SECRET: '',
-  POLL_INTERVAL_MS: '5000'
+  POLL_INTERVAL_MS: '5000',
+  DISCOVERY_PORT: '8587',
+  DISCOVERY_ENABLED: 'on',
+  DISCOVERY_NAME: ''
 };
 
 function pick(env, key) {
@@ -47,7 +51,13 @@ function loadConfig(env = process.env) {
       publicUrl,
       secret: pick(env, 'WEBHOOK_SECRET')
     },
-    pollIntervalMs: parseInt(pick(env, 'POLL_INTERVAL_MS'), 10)
+    pollIntervalMs: parseInt(pick(env, 'POLL_INTERVAL_MS'), 10),
+    discovery: {
+      enabled: pick(env, 'DISCOVERY_ENABLED').toLowerCase() !== 'off',
+      port: parseInt(pick(env, 'DISCOVERY_PORT'), 10),
+      // Nome che l'app mostra nella lista dei server trovati.
+      name: pick(env, 'DISCOVERY_NAME') || os.hostname()
+    }
   };
 }
 
