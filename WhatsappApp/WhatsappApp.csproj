@@ -102,6 +102,7 @@
     <Compile Include="Services\CryptoHelper.cs" />
     <Compile Include="Services\DiscoveryService.cs" />
     <Compile Include="Services\DataService.cs" />
+    <Compile Include="Services\Diag.cs" />
     <Compile Include="Services\ImageHelper.cs" />
     <Compile Include="Services\Loc.cs" />
     <Compile Include="Services\SessionService.cs" />
