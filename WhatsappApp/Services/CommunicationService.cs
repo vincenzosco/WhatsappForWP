@@ -213,6 +213,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                Diag.Failed("StartServerAsync", ex);
                 _isConnected = false;
                 DispatchOnUiThread(() =>
                     RaiseErrorOccurred(string.Format(
@@ -256,6 +257,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                Diag.Failed("OnServerConnectionReceived", ex);
                 DispatchOnUiThread(() =>
                     RaiseErrorOccurred(string.Format(
                         Loc.Get("CommService_ClientDisconnected", "Client disconnected: {0}"), ex.Message))
@@ -333,6 +335,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                Diag.Failed("ConnectToServerAsync", ex);
                 _isConnected = false;
                 DispatchOnUiThread(() =>
                     RaiseErrorOccurred(string.Format(
@@ -356,6 +359,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                Diag.Failed("ListenForMessagesAsync", ex);
                 if (_isConnected)
                 {
                     DispatchOnUiThread(() =>
@@ -402,6 +406,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                Diag.Failed("SendMessageAsync", ex);
                 DispatchOnUiThread(() =>
                     RaiseErrorOccurred(string.Format(
                         Loc.Get("CommService_SendError", "Send error: {0}"), ex.Message))
@@ -480,8 +485,9 @@ namespace WhatsappApp.Services
                     await writer.StoreAsync();
                     await writer.FlushAsync();
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Diag.Failed("BroadcastToAllClientsAsync", ex);
                     deadClients.Add(client);
                 }
             }
@@ -545,6 +551,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                Diag.Failed("DecryptToMessage", ex);
                 DispatchOnUiThread(() =>
                     RaiseErrorOccurred(string.Format(
                         Loc.Get("CommService_DecryptError", "Message decryption error: {0}"), ex.Message))
@@ -566,7 +573,8 @@ namespace WhatsappApp.Services
             {
                 foreach (var client in _serverClients)
                 {
-                    try { client.Dispose(); } catch { }
+                    try { client.Dispose(); }
+                    catch (Exception ex) { Diag.Failed("Disconnect/client", ex); }
                 }
                 _serverClients.Clear();
             }
@@ -578,7 +586,10 @@ namespace WhatsappApp.Services
                 if (_clientSocket != null) _clientSocket.Dispose();
                 if (_serverListener != null) _serverListener.Dispose();
             }
-            catch { }
+            catch (Exception ex)
+            {
+                Diag.Failed("Disconnect", ex);
+            }
 
             _writer = null;
             _reader = null;
