@@ -64,6 +64,11 @@ namespace WhatsappApp
             // background: lo si crea qui, una volta, sul thread UI.
             Loc.Prewarm();
 
+            // Stesso motivo del loader: il dispatcher si trova di sicuro solo
+            // qui, sul thread UI. Risolverlo piu' tardi, da un thread di rete,
+            // lasciava il servizio senza dispatcher per tutta la sessione.
+            CommunicationService.Instance.Prewarm();
+
 #if DEBUG
             // Solo in debug: dice in tre righe cosa questo telefono sa fare
             // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
