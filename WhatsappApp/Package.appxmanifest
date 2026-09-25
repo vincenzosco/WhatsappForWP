@@ -40,5 +40,7 @@
   </Applications>
   <Capabilities>
     <Capability Name="internetClientServer" />
+    <!-- Serve per ricevere i beacon UDP dell'adapter sulla rete locale. -->
+    <Capability Name="privateNetworkClientServer" />
   </Capabilities>
 </Package>
