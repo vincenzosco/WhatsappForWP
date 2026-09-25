@@ -70,6 +70,21 @@ msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86
 
 Expected `0 Error(s)`. Notes worth remembering:
 
+- **Build from a local disk path, never from a Parallels/Mac shared folder.**
+  With the project under `C:\Mac\Home\...` the XAML compiler's second pass fails
+  every time with
+  `Microsoft.Windows.UI.Xaml.Common.targets(327,9): Xaml Internal Error error
+  WMC9999: The given key was not present in the dictionary.` - on a freshly
+  cleaned tree, for every platform, and with the previous XAML too, so it is
+  never the change under test. Copy the repo to a disk on the Windows side
+  (`robocopy <share> C:\wp81 /E`) and build there: same files, `0 Error(s)`.
+  A symptom of the shared folder is that `obj\` still ends up with
+  `WhatsappApp.exe` and `App.xbf` even though the build reports `WMC9999`.
+- `Platform=x86` (for the emulator) and `AnyCPU` both build; the earlier
+  successful artifacts live in `obj\Debug\`, the x86 ones in `obj\x86\Debug\`.
+- MSBuild 12.0 (`C:\Program Files (x86)\MSBuild\12.0\Bin\MSBuild.exe`) and
+  `devenv.com` report the same result; if a PDB is locked, a `devenv.exe` from a
+  previous run is still alive.
 - If a Rebuild is followed by a build that fails early, the XAML pass
   (`MarkupCompilePass1`) may report
   `The name "...Converter" does not exist in the namespace ...`. Building a
@@ -77,6 +92,16 @@ Expected `0 Error(s)`. Notes worth remembering:
   compiled assembly.
 - The VS2013 XAML designer needs a developer licence / sideload policy and is not
   needed: close the designer, open `.xaml` as XML, or build with `msbuild`.
+
+## What can and cannot be verified here
+
+The static guards and the Windows build are checkable. **Running the app is not,
+unless the build machine can host the WP8.1 emulator or you have a phone:** the
+XDE images are x86 and need Hyper-V, so on an ARM (Apple Silicon) host running
+Windows 11 ARM64 there is no way to boot them. That is a hardware limit, not a
+project one - on such a setup the build is the last gate that can be run, and the
+checklist below waits for an x86/x64 Windows machine or a USB-attached WP8.1
+device.
 
 ## On-device checklist
 

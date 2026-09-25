@@ -153,7 +153,34 @@ answers with `qr` / `paircode` / `state` / `contact` / `error` frames. See
 
 ### WP8 App
 
-Open `WhatsappApp.sln` in Visual Studio 2015 with Windows Phone 8.1 SDK. Build and deploy to a Windows Phone 8.1 device or emulator.
+Toolchain verificato: **Visual Studio 2013 (v12.0) + Windows Phone 8.1 SDK**. Il
+gate è
+
+```bash
+msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86
+```
+
+che deve chiudere con `0 Error(s)` e produrre
+`WhatsappApp\AppPackages\WhatsappApp_<versione>_Debug_Test\WhatsappApp_<versione>_x86_Debug.appxbundle`.
+
+**Compilare da un percorso su disco locale, non dalla cartella condivisa.** Se il
+progetto sta nella condivisione Mac (`C:\Mac\Home\...`), il pass 2 del compilatore
+XAML fallisce *sempre* con
+
+```
+Microsoft.Windows.UI.Xaml.Common.targets(327,9): Xaml Internal Error error WMC9999:
+La chiave specificata non era presente nel dizionario.
+```
+
+anche su un albero appena pulito e qualunque cosa contengano le pagine: è la
+condivisione, non il codice. Copiare il progetto su un disco della macchina
+Windows e compilare lì (`robocopy <condivisione> C:\wp81 /E`): stessi file,
+`0 Error(s)`.
+
+**L'emulatore WP8.1 non parte su un Mac Apple Silicon.** Le immagini XDE sono x86
+e girano su Hyper-V: su un ospite Windows ARM64 non esistono né Hyper-V x86 né
+quelle immagini. Per eseguire l'app servono una macchina Windows x86/x64 (fisica
+o VM Intel) oppure un telefono WP8.1 collegato in USB.
 
 Il toolchain di Windows Phone 8.1 compila l'app con il compilatore **C# 5**: la
 sintassi C# 6/7 (stringhe interpolate, `?.`, proprietà con corpo `=>`,
