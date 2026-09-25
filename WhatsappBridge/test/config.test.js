@@ -71,6 +71,22 @@ test('applyDotEnv legge il file .env e non scavalca l\'ambiente', () => {
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
+test('loadConfig espone la configurazione di discovery', () => {
+  const defaults = loadConfig({});
+  assert.strictEqual(defaults.discovery.enabled, true);
+  assert.strictEqual(defaults.discovery.port, 8587);
+  assert.ok(defaults.discovery.name.length > 0, 'nome di default = hostname');
+
+  const custom = loadConfig({
+    DISCOVERY_ENABLED: 'off',
+    DISCOVERY_PORT: '9000',
+    DISCOVERY_NAME: 'studio',
+  });
+  assert.strictEqual(custom.discovery.enabled, false);
+  assert.strictEqual(custom.discovery.port, 9000);
+  assert.strictEqual(custom.discovery.name, 'studio');
+});
+
 test('applyDotEnv non fallisce se .env non esiste', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-env-'));
   const env = {};

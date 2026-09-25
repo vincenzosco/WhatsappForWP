@@ -31,6 +31,7 @@ const { loadConfig, applyDotEnv } = require('./config');
 const { GowaClient } = require('./gowa-client');
 const { buildChatMessage, mapWebhookMessage } = require('./message-format');
 const { createWebhookServer } = require('./webhook-server');
+const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
@@ -381,6 +382,26 @@ async function main() {
     log('OK', `Webhook in ascolto sulla porta ${config.webhook.port}${config.webhook.path}`);
   });
 
+  // Il corpo del beacon si costruisce con l'unico builder del modulo di
+  // discovery: sei chiavi, le stesse che l'app legge in BeaconPayload.cs.
+  let beacon = null;
+  if (config.discovery.enabled) {
+    beacon = createDiscoveryBeacon({
+      port: config.discovery.port,
+      getPayload: () => {
+        const current = bridge.getState();
+        return buildPayload({
+          name: config.discovery.name,
+          port: config.bridge.port,
+          state: current.status,
+          account: current.jid
+        });
+      },
+      log
+    });
+    log('OK', `Discovery attivo sulla porta UDP ${config.discovery.port} (nome: ${config.discovery.name})`);
+  }
+
   bridge.tcpServer.on('error', (err) => {
     log('ERR', `Errore server TCP: ${err.message}`);
     if (err.code === 'EADDRINUSE') log('ERR', `Porta ${config.bridge.port} già in uso (usa BRIDGE_PORT=...).`);
@@ -392,6 +413,7 @@ async function main() {
 
   const shutdown = () => {
     clearInterval(timer);
+    if (beacon) beacon.stop();
     bridge.stop();
     try { webhookServer.close(); } catch (e) { /* ignora */ }
     try { bridge.tcpServer.close(); } catch (e) { /* ignora */ }
