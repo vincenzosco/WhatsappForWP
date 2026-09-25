@@ -350,6 +350,7 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
+                Diag.Failed("ShowQrCode", ex);
                 QrInfoText.Text = string.Format(
                     Loc.Get("ConnectionPage_QrError", "Could not show the QR code: {0}"), ex.Message);
             }
@@ -376,26 +377,35 @@ namespace WhatsappApp.Pages
         /// Lo schermo resta acceso: se si spegne o si abbassa la luminosita'
         /// mentre si inquadra, il codice diventa illeggibile e la scansione
         /// fallisce senza nessun messaggio d'errore.
+        ///
+        /// Tutto dentro il try, costruzione compresa: creare la richiesta puo'
+        /// fallire sulla piattaforma, e una comodita' non deve mai impedire di
+        /// mostrare il codice. Prima la costruzione stava fuori dal try, e
+        /// l'eccezione usciva dal gestore del frame di controllo, dove non c'e'
+        /// nessuno che la raccolga.
         /// </summary>
         private void KeepScreenOn()
         {
-            if (_displayRequest == null) _displayRequest = new Windows.System.Display.DisplayRequest();
             if (_displayRequestActive) return;
             try
             {
+                if (_displayRequest == null) _displayRequest = new Windows.System.Display.DisplayRequest();
                 _displayRequest.RequestActive();
                 _displayRequestActive = true;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Limite di richieste attive raggiunto: si prosegue lo stesso.
+                // Limite di richieste attive raggiunto, o membro non
+                // implementato su questo telefono: si prosegue senza.
+                Diag.Failed("KeepScreenOn", ex);
             }
         }
 
         private void ReleaseScreenOn()
         {
             if (!_displayRequestActive || _displayRequest == null) return;
-            try { _displayRequest.RequestRelease(); } catch (Exception) { }
+            try { _displayRequest.RequestRelease(); }
+            catch (Exception ex) { Diag.Failed("ReleaseScreenOn", ex); }
             _displayRequestActive = false;
         }
 
