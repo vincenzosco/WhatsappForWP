@@ -15,6 +15,7 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Navigation;
+using WhatsappApp.Controls;
 using WhatsappApp.Pages;
 using WhatsappApp.Services;
 
@@ -70,11 +71,6 @@ namespace WhatsappApp
                 rootFrame.CacheSize = 3;
                 rootFrame.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
 
-                if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
-                {
-                    // TODO: Caricare lo stato dall'applicazione sospesa in precedenza
-                }
-
                 Window.Current.Content = rootFrame;
             }
 
@@ -92,9 +88,23 @@ namespace WhatsappApp
                 rootFrame.ContentTransitions = null;
                 rootFrame.Navigated += this.RootFrame_FirstNavigated;
 
-                // Navigate to the main page, or to the connection/setup page
-                // on first run (when no server address has been saved yet).
-                Type startPage = SettingsService.HasSavedSettings ? typeof(ChatsPage) : typeof(ConnectionPage);
+                // Dopo una terminazione (l'OS ha chiuso il processo mentre l'app era
+                // sospesa) si riparte dalla sezione in cui l'utente si trovava,
+                // invece che sempre dalle chat. Contatti e messaggi non si
+                // ripristinano: l'adapter li rimanda alla connessione.
+                Type startPage;
+                if (!SettingsService.HasSavedSettings)
+                {
+                    startPage = typeof(ConnectionPage);
+                }
+                else if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
+                {
+                    startPage = SectionNav.PageFor(SessionService.Section);
+                }
+                else
+                {
+                    startPage = typeof(ChatsPage);
+                }
                 if (!rootFrame.Navigate(startPage, e.Arguments))
                 {
                     throw new Exception("Failed to create initial page");
@@ -127,8 +137,27 @@ namespace WhatsappApp
         {
             var deferral = e.SuspendingOperation.GetDeferral();
 
-            // TODO: Salvare lo stato dell'applicazione e interrompere qualsiasi attività in background
+            // Se l'OS termina il processo mentre l'app e' sospesa, OnLaunched
+            // riparte da qui.
+            SessionService.Section = CurrentSection();
+
+            // Nessuna attivita' di background da fermare: l'unica cosa viva e' il
+            // socket verso l'adapter, e chiuderlo qui lascerebbe l'app segnata
+            // come connessa ma muta alla ripresa, perche' non esiste un percorso
+            // di riconnessione. Il processo viene congelato e il socket resta
+            // aperto: non toccarlo.
+
             deferral.Complete();
+        }
+
+        /// <summary>Sezione della pagina in primo piano (la chat sta nelle chat).</summary>
+        private static AppSection CurrentSection()
+        {
+            var frame = Window.Current.Content as Frame;
+            if (frame == null) return AppSection.Chats;
+            if (frame.Content is StatusPage) return AppSection.Status;
+            if (frame.Content is CallsPage) return AppSection.Calls;
+            return AppSection.Chats;
         }
     }
 }

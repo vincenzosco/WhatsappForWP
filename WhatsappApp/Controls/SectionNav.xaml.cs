@@ -87,7 +87,8 @@ namespace WhatsappApp.Controls
             }
         }
 
-        private static Type PageFor(AppSection section)
+        /// <summary>Pagina di una sezione (la usa anche l'avvio dell'app).</summary>
+        public static Type PageFor(AppSection section)
         {
             switch (section)
             {
