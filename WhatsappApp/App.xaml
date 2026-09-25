@@ -1,4 +1,4 @@
-﻿<Application
+<Application
     x:Class="WhatsappApp.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,178 +14,38 @@
             <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
             <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF34A7ED"/>
 
-            <!-- Icon geometries (24x24). Vector paths instead of an icon font:
-                 WP8.1 has no "Segoe MDL2 Assets", so glyph-based buttons were
-                 blank. Every geometry has to be referenced by a page, so the
-                 ones whose last control was removed are gone too.
+            <!-- No icon geometries live here on purpose.
 
-                 They are written in element form on purpose. WP8.1's XAML type
-                 converter for PathFigureCollection refuses a string, so
-                 <PathGeometry x:Key="IconX" Figures="M..."/> does not compile:
-                 the TypeConverter for PathFigureCollection does not support
-                 converting from a string. PathGeometry.Figures -> PathFigure ->
-                 PathFigure.Segments -> PathSegment is the form the Windows
-                 Phone Silverlight XAML vocabulary documents. -->
-            <PathGeometry x:Key="IconBack">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="15.5,4">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="7.5,12 15.5,20"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                 This is a Windows Phone 8.1 *WinRT* app (Windows.UI.Xaml), and
+                 assigning a Geometry held in a ResourceDictionary to Path.Data
+                 through {StaticResource} throws at runtime:
 
-            <PathGeometry x:Key="IconCalls">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="16.6,16.6">
-                        <PathFigure.Segments>
-                            <ArcSegment Size="6.5,6.5" RotationAngle="0" IsLargeArc="False"
-                                        SweepDirection="Clockwise" Point="7.4,7.4"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                   XamlParseException: Failed to assign to property
+                   'Windows.UI.Xaml.Shapes.Path.Data'. [Line: N Position: M]
 
-            <PathGeometry x:Key="IconChats">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="4,5" IsClosed="True">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                 A Geometry is not shareable through a StaticResource in WinRT
+                 (microsoft-ui-xaml issues #1909 and #5780). The only form that
+                 works is the geometry inlined on the consuming Path:
 
-            <PathGeometry x:Key="IconClose">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="6,6">
-                        <PathFigure.Segments>
-                            <LineSegment Point="18,18"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="18,6">
-                        <PathFigure.Segments>
-                            <LineSegment Point="6,18"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                   <Path Stroke="..." Width="24" Height="24">
+                       <Path.Data>
+                           <PathGeometry>
+                               <PathGeometry.Figures>
+                                   <PathFigure StartPoint="...">...</PathFigure>
+                               </PathGeometry.Figures>
+                           </PathGeometry>
+                       </Path.Data>
+                   </Path>
 
-            <PathGeometry x:Key="IconNewChat">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="4,5" IsClosed="True">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="12,7.6">
-                        <PathFigure.Segments>
-                            <LineSegment Point="12,13"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="9.3,10.3">
-                        <PathFigure.Segments>
-                            <LineSegment Point="14.7,10.3"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                 The element form is also mandatory: PathGeometry.Figures="M..."
+                 does not compile, because the WP8.1 XAML type converter for
+                 PathFigureCollection refuses a string.
 
-            <PathGeometry x:Key="IconPhoto">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="3.5,5.5" IsClosed="True">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="20.5,5.5 20.5,18.5 3.5,18.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="3.5,15">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="8.5,10 12.5,14 15.5,11.5 20.5,15.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="7.5,8">
-                        <PathFigure.Segments>
-                            <ArcSegment Size="1.3,1.3" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="7.5,10.6"/>
-                            <ArcSegment Size="1.3,1.3" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="7.5,8"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                 "Segoe MDL2 Assets" is out for the same reason icons exist at
+                 all: it is a Windows 10 font that WP8.1 does not ship, so a
+                 glyph-based button renders blank.
 
-            <PathGeometry x:Key="IconSend">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="2.5,20.5" IsClosed="True">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="21.5,12 2.5,3.5 2.5,9.8 15,12 2.5,14.2"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
-
-            <PathGeometry x:Key="IconSettings">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="4,6.5">
-                        <PathFigure.Segments>
-                            <LineSegment Point="20,6.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="4,12">
-                        <PathFigure.Segments>
-                            <LineSegment Point="20,12"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="4,17.5">
-                        <PathFigure.Segments>
-                            <LineSegment Point="20,17.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="9,4.5">
-                        <PathFigure.Segments>
-                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="9,8.5"/>
-                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="9,4.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="15,10">
-                        <PathFigure.Segments>
-                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="15,14"/>
-                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="15,10"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="9,15.5">
-                        <PathFigure.Segments>
-                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="9,19.5"/>
-                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="9,15.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
-
-            <PathGeometry x:Key="IconStatus">
-                <PathGeometry.Figures>
-                    <PathFigure StartPoint="12,4" IsClosed="True">
-                        <PathFigure.Segments>
-                            <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="12,20"/>
-                            <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
-                                        SweepDirection="Clockwise" Point="12,4"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                    <PathFigure StartPoint="12,7.5">
-                        <PathFigure.Segments>
-                            <PolyLineSegment Points="12,12.3 16,14.5"/>
-                        </PathFigure.Segments>
-                    </PathFigure>
-                </PathGeometry.Figures>
-            </PathGeometry>
+                 tools/check-icons.js enforces all three rules. -->
 
             <!-- Override the default app background -->
             <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#FFECE5DD"/>

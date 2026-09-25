@@ -28,9 +28,22 @@
                     Width="48" Height="48" Margin="0,4,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
-                <Path Data="{StaticResource IconBack}" Stroke="White" StrokeThickness="2.4"
+                <Path Stroke="White" StrokeThickness="2.4"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24"/>
+                      Width="24" Height="24">
+                    <!-- IconBack -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="15.5,4">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="7.5,12 15.5,20"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
             </Button>
 
             <TextBlock x:Name="PageTitleText" Grid.Column="1" Text=""
