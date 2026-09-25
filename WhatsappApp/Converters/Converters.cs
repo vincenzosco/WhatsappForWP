@@ -5,6 +5,13 @@ using Windows.UI.Xaml.Media;
 
 namespace WhatsappApp.Converters
 {
+    // Tutti questi converter sono a senso unico: XAML li usa per leggere, mai per
+    // scrivere. ConvertBack restituisce UnsetValue, che e' il modo in cui si dice
+    // al motore di binding "lascia stare la sorgente". Lanciare un'eccezione
+    // invece no: un TextBox legato a uno di questi (TextBox.Text e' TwoWay per
+    // default) la farebbe esplodere addosso all'utente, e per un converter a senso
+    // unico l'eccezione non aggiunge nessuna informazione.
+
     /// <summary>
     /// Converts a boolean to a Visibility value (true = Visible, false = Collapsed)
     /// </summary>
@@ -45,7 +52,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
     }
 
@@ -66,7 +73,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
     }
 
@@ -93,7 +100,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
 
         private Windows.UI.Color ParseColor(string hex)
@@ -120,7 +127,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
     }
 
@@ -139,7 +146,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
     }
 
@@ -156,7 +163,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
     }
 
@@ -174,7 +181,7 @@ namespace WhatsappApp.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
         {
-            throw new NotImplementedException();
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
         }
     }
 }
