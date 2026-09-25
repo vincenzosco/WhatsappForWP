@@ -123,19 +123,18 @@ namespace WhatsappApp.Services
         {
             if (_uiDispatcher != null || _uiDispatcherFailed) return _uiDispatcher;
 
-            // Tre sorgenti, dalla piu' diretta. GetCurrentView e' quella
-            // documentata sul thread UI; MainView copre il caso in cui la vista
-            // corrente non sia quella principale; Window.Current e' l'ultima
-            // ancora. Ognuna registra il proprio fallimento una volta sola.
+            // Due sorgenti, dalla piu' diretta. Da un thread di background
+            // GetCurrentView fallisce; MainView e' quella che continua a
+            // rispondere. Ognuna registra il proprio fallimento una volta sola.
+            // (Window.Current non e' una sorgente: da un thread di background
+            // restituisce null, quindi "ripiegare" li' darebbe solo un
+            // NullReferenceException in piu'.)
             _uiDispatcher = TryGetDispatcher(
                 delegate { return CoreApplication.GetCurrentView().CoreWindow.Dispatcher; },
                 "GetUiDispatcher/GetCurrentView")
                 ?? TryGetDispatcher(
                     delegate { return CoreApplication.MainView.CoreWindow.Dispatcher; },
-                    "GetUiDispatcher/MainView")
-                ?? TryGetDispatcher(
-                    delegate { return Window.Current.Dispatcher; },
-                    "GetUiDispatcher/Window");
+                    "GetUiDispatcher/MainView");
 
             if (_uiDispatcher == null)
             {
@@ -143,6 +142,17 @@ namespace WhatsappApp.Services
                 Diag.Failed("GetUiDispatcher", new InvalidOperationException("nessun CoreDispatcher disponibile"));
             }
             return _uiDispatcher;
+        }
+
+        /// <summary>
+        /// Va chiamato una volta all'avvio, sul thread UI: e' l'unico momento in
+        /// cui il dispatcher si trova di sicuro. Risolverlo la prima volta da un
+        /// thread di background e' il motivo per cui questo servizio restava
+        /// senza dispatcher e riprovava le due chiamate a ogni messaggio.
+        /// </summary>
+        public void Prewarm()
+        {
+            GetUiDispatcher();
         }
 
         private static CoreDispatcher TryGetDispatcher(Func<CoreDispatcher> source, string where)
