@@ -72,6 +72,9 @@ Uso: node tools/start-login.js [opzioni]
   --gowa <percorso>     percorso alternativo dell'eseguibile GOWA
   --no-bridge           non avviare l'adattatore (solo GOWA + QR)
   --once                disegna un solo QR ed esce
+  --no-qr               avvia lo stack senza disegnare il QR: il login si fa
+                        dal telefono, nell'app (consigliato)
+  --open-qr             apre il PNG del codice con Anteprima (si aggiorna da solo)
   --plain / --ansi      disegno senza colori / a colori (default: colori su TTY)
   --quiet-zone <n>      margine bianco attorno al QR (default 4)
   --ui                  serve anche la dashboard web di GOWA (default: no)
@@ -96,6 +99,8 @@ function parseArgs(argv) {
     ui: false,
     once: false,
     noBridge: false,
+    noQr: false,
+    openQr: false,
     stop: false,
     plain: undefined,
     phone: undefined,
@@ -125,6 +130,8 @@ function parseArgs(argv) {
       case '--gowa-pass': options.pass = next(); break;
       case '--no-bridge': options.noBridge = true; break;
       case '--once': options.once = true; break;
+      case '--no-qr': options.noQr = true; break;
+      case '--open-qr': options.openQr = true; break;
       case '--ui': options.ui = true; break;
       case '--plain': options.plain = true; break;
       case '--ansi': options.plain = false; break;
@@ -377,13 +384,50 @@ function startBridge(options, baseUrl, deviceId) {
 
 // ─── Disegno ─────────────────────────────────────────────────────────────────
 
+/** Apre il PNG nel visualizzatore di sistema: quello che si vede in Anteprima
+ *  viene ricaricato dal disco a ogni rotazione del codice. */
+function openInViewer(file) {
+  if (process.platform !== 'darwin') {
+    console.log(`  ·  --open-qr: apri a mano ${path.relative(ROOT, file)}`);
+    return;
+  }
+  try {
+    spawn('open', [file], { stdio: 'ignore', detached: true }).unref();
+  } catch (err) {
+    console.log(`  ·  --open-qr: non riesco ad aprire il codice (${err.message})`);
+  }
+}
+
+/**
+ * Il codice e' piu' grande della finestra (o l'output non e' un terminale):
+ * si spiega e si indica il PNG, mai un disegno incompleto: un QR tagliato non
+ * si puo' inquadrare, e sembra solo un errore di visualizzazione.
+ */
+function printTooSmall(printer, lines, caption, hint) {
+  if (printer.warned) return;
+  printer.warned = true;
+
+  const columns = process.stdout.columns || 0;
+  const rows = process.stdout.rows || 0;
+  console.log(`\n  ${caption}`);
+  if (process.stdout.isTTY && columns && rows) {
+    console.log(`     Il codice occupa ${lines.length} righe e ${lines[0].length} colonne;`);
+    console.log(`     questa finestra ne ha ${rows} x ${columns}.`);
+    console.log('     Ridimensionala, o premi Cmd - per rimpicciolire il testo: il prossimo');
+    console.log('     codice verra\' disegnato qui.');
+  }
+  if (hint) console.log(`     Oppure: ${hint}`);
+  console.log('     Oppure: --no-qr, e fai il login dal telefono nell\'app.');
+}
+
 function makePrinter(options) {
-  let drawnLines = 0;
-  let warned = false;
-  return {
+  const printer = {
+    warned: false,
+    drawnLines: 0,
+
     /**
      * Disegna il codice, riscrivendo sopra il precedente solo se ci sta tutto
-     * nella finestra: una riga che va a capo, o un disegno più alto dello
+     * nella finestra: una riga che va a capo, o un disegno piu' alto dello
      * schermo, sposterebbe il cursore e lascerebbe residui in giro.
      */
     render(lines, caption, hint) {
@@ -392,28 +436,32 @@ function makePrinter(options) {
       const canRedraw = !options.plain && !!process.stdout.isTTY
         && (columns === 0 || columns >= lines[0].length + 2)
         && (rows === 0 || rows >= lines.length + 2);
+
       if (!canRedraw) {
-        console.log(`\n  ${caption}`);
-        console.log(lines.join('\n'));
-        drawnLines = 0;
-        if (!warned && !options.plain && process.stdout.isTTY && hint) {
-          warned = true;
-          console.log(`\n  ⚠  il codice è più grande della finestra (${lines.length} righe).`);
-          console.log(`     Ingrandiscila: al prossimo aggiornamento il codice si ridisegna qui.`);
-          console.log(`     In alternativa: ${hint}`);
+        if (printer.warned) {
+          // Senza questa riga, dopo il primo avviso il log resta muto per
+          // minuti e sembra che lo script si sia piantato.
+          console.log(`  · nuovo codice alle ${stamp()} (non disegnato: la finestra e' troppo piccola)`);
+          printer.drawnLines = 0;
+          return;
         }
+        printTooSmall(printer, lines, caption, hint);
+        printer.drawnLines = 0;
         return;
       }
-      if (drawnLines > 0) process.stdout.write(`\x1b[${drawnLines}A`);
+
+      if (printer.drawnLines > 0) process.stdout.write(`\x1b[${printer.drawnLines}A`);
       const output = [`\x1b[2K  ${caption}\n`];
       for (const line of lines) output.push(`\x1b[2K${line}\n`);
       process.stdout.write(output.join(''));
-      drawnLines = lines.length + 1;
+      printer.drawnLines = lines.length + 1;
     },
+
     done() {
-      drawnLines = 0;
+      printer.drawnLines = 0;
     },
   };
+  return printer;
 }
 
 function banner(options, addresses, baseUrl, deviceId) {
@@ -426,6 +474,7 @@ function banner(options, addresses, baseUrl, deviceId) {
   if (!options.noBridge) {
     console.log(`  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-GCM)`);
     console.log(`  Webhook GOWA→app     http://${host}:${options.webhookPort}/webhook`);
+    console.log(`  Scoperta automatica  UDP 8587  (l'app trova questo computer da sola)`);
   }
   console.log(`  Sessioni             .tools/gowa/storages/whatsapp.db`);
   console.log(`  Log GOWA             .tools/gowa/gowa.log`);
@@ -454,8 +503,23 @@ async function showQr(baseUrl, deviceId, options, printer, source) {
   const qr = qrTerm.qrFromPng(pngPath, { quietZone: options.quietZone, plain: options.plain });
   const imageUrl = source.url
     || `${baseUrl}/statics/qrcode/${path.basename(source.file)}`;
+
+  // Il codice ruota ogni ~20s: il PNG si tiene in un percorso fisso, cosi'
+  // chi lo apre con Anteprima lo vede aggiornarsi invece di invecchiare.
+  const stable = path.join(GOWA_DIR, 'login-qr.png');
+  try {
+    fs.copyFileSync(pngPath, stable);
+  } catch (err) {
+    // il PNG di GOWA puo' sparire a meta' copia quando scade: non e' fatale
+  }
+  if (options.openQr && !options.qrOpened) {
+    options.qrOpened = true;
+    openInViewer(stable);
+  }
+
   printer.render(qr.lines, `QR aggiornato alle ${stamp()} — ${qr.count} moduli, ` +
-    `ricostruzione ${(qr.error * 100).toFixed(2)}%`, `${imageUrl} nel browser`);
+    `ricostruzione ${(qr.error * 100).toFixed(2)}%`,
+    `apri ${path.relative(ROOT, stable)} con Anteprima (si aggiorna da solo), o ${imageUrl}`);
   return qr;
 }
 
@@ -513,6 +577,18 @@ async function waitForLogin(state) {
   let lastRequest = 0;
 
   for (;;) {
+    if (options.noQr) {
+      const status = await statusOf(baseUrl, deviceId, options).catch(() => null);
+      if (status && status.isLoggedIn) return status;
+      if (!state.reportedWaiting) {
+        state.reportedWaiting = true;
+        console.log(`\n  Il login si fa dal telefono: apri l'app e inquadra il codice che mostra.` +
+          `\n  In attesa del collegamento...`);
+      }
+      await sleep(2000);
+      continue;
+    }
+
     const status = await statusOf(baseUrl, deviceId, options).catch(() => null);
     if (status && status.isLoggedIn) return status;
 
@@ -666,6 +742,9 @@ async function main() {
     console.log('\n  Sul telefono: WhatsApp → Impostazioni → Dispositivi collegati → Collega un dispositivo');
     console.log('  e inquadra il codice qui sotto. Il primo QR dura ~60 s, poi ne arriva uno nuovo');
     console.log('  ogni ~20 s: il disegno si aggiorna da solo.');
+    if (options.noQr) {
+      console.log('\n  Nessun QR qui: loggati dal telefono, nell\'app (Ctrl-C per fermare).');
+    }
   }
 
   if (options.once) {

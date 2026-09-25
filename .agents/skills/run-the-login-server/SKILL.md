@@ -11,10 +11,18 @@ The WP8 app has no WhatsApp client of its own: it shows something only when the
 adapter sits in front of a **GOWA** instance that is already logged in.
 
 ```
-WhatsApp ⇄ GOWA (127.0.0.1:3000) ⇄ adapter (0.0.0.0:8585 + webhook :8586) ⇄ app WP8
+WhatsApp ⇄ GOWA (127.0.0.1:3000) ⇄ adapter (TCP 8585, webhook 8586,
+                                          discovery UDP 8587) ⇄ app WP8
 ```
 
-One command brings the whole stack up and puts the login QR in the terminal:
+**The login is normally done on the phone, not here.** The app announces nothing
+and asks for the code itself: it broadcasts on UDP 8587 to find the adapter, and
+when the connection opens it requests `login.qr` and shows the result full screen,
+keeping the screen on so the code can be scanned. Reach for the terminal QR only
+when the phone is not available (an emulator, a device with no app build).
+
+One command brings the whole stack up, and puts the login QR in the terminal when
+that is what you asked for:
 
 ```bash
 node tools/start-login.js --download     # --download only the first time
@@ -27,9 +35,12 @@ node tools/start-login.js --download     # --download only the first time
 | `--gowa <path>` | use a GOWA binary somewhere else |
 | `--no-bridge` | GOWA and the QR only |
 | `--once` | draw one code and exit (quick check, no login loop) |
+| `--no-qr` | draw nothing and just wait: the login is done from the phone, in the app (first choice) |
+| `--open-qr` | open `.tools/gowa/login-qr.png` in Preview, where it reloads on its own |
 | `--plain` / `--ansi` | force the drawing without / with colours |
 | `--quiet-zone <n>` | white margin around the QR (default 4) |
 | `--port`, `--bridge-port`, `--webhook-port` | 3000 / 8585 / 8586 |
+| discovery | UDP 8587, broadcast by the adapter (`DISCOVERY_PORT`), the app listens on it |
 | `--ui` | additionally serve GOWA's web dashboard |
 | `--stop` | stop the stack started by an earlier run |
 
@@ -46,8 +57,10 @@ node tools/start-login.js --download     # --download only the first time
 3. **Adapter** — `node server.js` in `WhatsappBridge/` with `GOWA_URL`,
    `BRIDGE_PORT`, `WEBHOOK_PORT`, `WEBHOOK_PUBLIC_URL`. It registers its own
    webhook on GOWA at startup, and its output is echoed with an `[adattatore]`
-   prefix.
-4. **Login** — QR by default, pairing code with `--code`. `Ctrl-C` (or a signal)
+   prefix. It also broadcasts the discovery beacon on UDP 8587, so the app can
+   find it on the LAN without being told an address.
+4. **Login** — QR by default, nothing at all with `--no-qr`, pairing code with
+   `--code`. `Ctrl-C` (or a signal)
    stops GOWA and the adapter; the PID file is `.tools/gowa/login-stack.pid` and
    `--stop` reads it, killing first the script itself (which brings down its
    children), so it also works on a stack left running in another terminal.
@@ -90,9 +103,14 @@ black/white colours — never the terminal's theme.
   the **identical** payload as GOWA's PNG, so the drawing is not merely pretty.
 - Do not hardcode the module count: it follows the payload length (65 modules was
   observed for the current WhatsApp QR, and it will change).
-- On a non-TTY, or when the terminal is narrower than the drawing, the script
-  appends blocks instead of redrawing in place (a wrapped line would leave the
-  cursor math wrong).
+- **A code that does not fit is never drawn.** `makePrinter` redraws in place
+  only when the window is a TTY, not `--plain`, and both `columns >= the drawing`
+  and `rows >= the drawing` hold; otherwise it prints the sizes, the PNG path and
+  the `--no-qr` hint, and stays silent (one line per new code) until the window is
+  enlarged. A truncated QR cannot be scanned and only looks like a bug: never
+  "draw anyway".
+- Every code is also copied to `.tools/gowa/login-qr.png`, a stable path, so an
+  external viewer reloads it as the code rotates. `--open-qr` opens it with `open`.
 
 ## Troubleshooting
 
@@ -104,7 +122,8 @@ black/white colours — never the terminal's theme.
 | macOS asks to allow incoming connections | allow it: the adapter listens on 8585/8586 for the phone and for GOWA |
 | Nothing but `state: disconnected` in the app | the WhatsApp account is not linked yet: run this script and complete the QR login once |
 | Wrong account linked | `rm -rf .tools/gowa/storages` and log in again (this deletes the session) |
-| Terminal shows garbage instead of the QR | use `--plain`, or a wider terminal; a real terminal gets the coloured version |
+| "Il codice occupa N righe e M colonne" | the window is too small: enlarge it or press `Cmd -`, or open `.tools/gowa/login-qr.png`, or use `--no-qr` |
+| Terminal shows garbage instead of the QR | a real TTY gets the coloured drawing: do not pipe the output through a pager, and keep the window above the printed size |
 
 ## Rules
 
