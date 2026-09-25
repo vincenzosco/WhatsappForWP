@@ -83,8 +83,12 @@ namespace WhatsappApp.Services
                 await socket.BindServiceNameAsync(Port.ToString());
                 _socket = socket;
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // Se la porta non si apre non c'e' niente da riprovare qui: si
+                // registra perche' e quale, e la pagina continua con
+                // l'inserimento manuale dell'indirizzo.
+                Diag.Failed("DiscoveryService.StartAsync", ex);
                 _socket = null;
             }
             finally
@@ -98,8 +102,10 @@ namespace WhatsappApp.Services
             DatagramSocket socket = _socket;
             _socket = null;
             if (socket == null) return;
-            try { socket.MessageReceived -= OnMessageReceived; } catch { }
-            try { socket.Dispose(); } catch { }
+            try { socket.MessageReceived -= OnMessageReceived; }
+            catch (Exception ex) { Diag.Failed("DiscoveryService.Stop/handler", ex); }
+            try { socket.Dispose(); }
+            catch (Exception ex) { Diag.Failed("DiscoveryService.Stop/dispose", ex); }
         }
 
         /// <summary>
@@ -149,9 +155,11 @@ namespace WhatsappApp.Services
 
                 if (AddOrUpdate(address, beacon)) RaiseServersChanged();
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Un datagramma malformato non deve fermare l'ascolto.
+                // Un datagramma malformato non deve fermare l'ascolto, ma un
+                // guasto che si ripete a ogni beacon va visto una volta.
+                Diag.Failed("DiscoveryService.OnMessageReceived", ex);
             }
         }
 
@@ -210,8 +218,9 @@ namespace WhatsappApp.Services
                     return serializer.ReadObject(stream) as BeaconPayload;
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Diag.Failed("DiscoveryService.Parse", ex);
                 return null;
             }
         }
