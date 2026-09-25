@@ -64,15 +64,21 @@ node tools/start-login.js --download   # --download only the first time
 
 It downloads the official GOWA binary for this platform into `.tools/gowa`
 (SHA-256 verified), starts `whatsapp rest`, starts `WhatsappBridge/server.js`,
-prints the LAN address and ports to give to the app, and draws the WhatsApp login
-QR **as a scannable QR inside the terminal**, renewing it until the phone
-completes the link. The adapter registers its own webhook on GOWA.
+announces the adapter on the LAN over UDP (so the app finds it **by itself**) and
+prints the addresses and ports. The login is normally done **on the phone**: the
+app shows the QR full screen, so nothing has to be scanned off the computer. A
+terminal QR is still available and is drawn as a real scannable code, renewed as
+long as it takes; when it does not fit the window the script says so and writes
+the PNG to `.tools/gowa/login-qr.png` rather than drawing something truncated.
+The adapter registers its own webhook on GOWA.
 
 | Option | Effect |
 | --- | --- |
 | `--code 393401234567` | link with a phone pairing code instead of the QR |
 | `--no-bridge` | GOWA and the QR only |
 | `--once` | draw a single QR and exit |
+| `--no-qr` | draw nothing: the login is done from the phone, in the app (recommended) |
+| `--open-qr` | open the code PNG in Preview, where it reloads as the code rotates |
 | `--url http://host:3000` | use an already running GOWA |
 | `--ui` | also serve GOWA's web dashboard |
 | `--stop` | stop a stack started earlier |
@@ -81,8 +87,10 @@ The WhatsApp session lives in `.tools/gowa/storages/whatsapp.db` (git ignored),
 so later launches reconnect on their own without a new QR. `Ctrl-C` stops GOWA and
 the adapter.
 
-Then, in the app: set the adapter address/port, tap **Connetti al server** and use
-the session already linked (the QR/number login inside the app works too).
+Then, in the app: it finds the adapter on the network and connects by itself (there
+is still **Enter the address by hand** for a server that cannot be discovered). The
+login is done from the phone — the app shows its own full-screen QR and keeps the
+screen on while it is visible — or you can reuse the session already linked.
 
 **Requirements:** Node.js 18.13+ and, for the terminal QR, ImageMagick 7
 (`magick`). Adapter environment variables are documented in
