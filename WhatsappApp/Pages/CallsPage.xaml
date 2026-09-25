@@ -26,9 +26,23 @@
 
         <Grid Grid.Row="1" Background="{StaticResource WhatsAppChatBgBrush}">
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320">
-                <Path Data="{StaticResource IconCalls}" Stroke="#FFBDBDBD" StrokeThickness="3"
+                <Path Stroke="#FFBDBDBD" StrokeThickness="3"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center"/>
+                      Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center">
+                    <!-- IconCalls -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="16.6,16.6">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="6.5,6.5" RotationAngle="0" IsLargeArc="False"
+                                                    SweepDirection="Clockwise" Point="7.4,7.4"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
                 <TextBlock x:Uid="CallsPage_EmptyTitle" Text="No calls"
                            Foreground="#FF9E9E9E" FontSize="16"
                            HorizontalAlignment="Center" Margin="0,10,0,0"/>

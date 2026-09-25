@@ -48,17 +48,87 @@
             <Button x:Name="NewChatButton" Grid.Column="1"
                     Background="Transparent" BorderThickness="0" Padding="0"
                     Width="48" Height="48" Click="NewChatButton_Click">
-                <Path Data="{StaticResource IconNewChat}" Stroke="White" StrokeThickness="2"
+                <Path Stroke="White" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24"/>
+                      Width="24" Height="24">
+                    <!-- IconNewChat -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="4,5" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="12,7.6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="12,13"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="9.3,10.3">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="14.7,10.3"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
             </Button>
 
             <Button x:Name="SettingsButton" Grid.Column="2"
                     Background="Transparent" BorderThickness="0" Padding="0"
                     Width="48" Height="48" Margin="0,0,4,0" Click="SettingsButton_Click">
-                <Path Data="{StaticResource IconSettings}" Stroke="White" StrokeThickness="2"
+                <Path Stroke="White" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24"/>
+                      Width="24" Height="24">
+                    <!-- IconSettings -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="4,6.5">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="20,6.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="4,12">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="20,12"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="4,17.5">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="20,17.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="9,4.5">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="9,8.5"/>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="9,4.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="15,10">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="15,14"/>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="15,10"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="9,15.5">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="9,19.5"/>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="9,15.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
             </Button>
         </Grid>
 
@@ -135,9 +205,22 @@
             <!-- Empty state: shown by UpdateEmptyState() -->
             <StackPanel x:Name="EmptyStatePanel" Visibility="Collapsed"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
-                <Path Data="{StaticResource IconChats}" Stroke="#FFBDBDBD" StrokeThickness="2"
+                <Path Stroke="#FFBDBDBD" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center"/>
+                      Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center">
+                    <!-- IconChats -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="4,5" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
                 <TextBlock x:Uid="ChatsPage_EmptyTitle" Text="No chats yet"
                            Foreground="#FF9E9E9E" FontSize="16"
                            HorizontalAlignment="Center" Margin="0,10,0,0"/>

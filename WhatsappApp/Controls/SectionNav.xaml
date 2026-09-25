@@ -24,25 +24,73 @@
         <Button x:Name="ChatsButton" Grid.Column="0"
                 Style="{StaticResource NavIconButtonStyle}"
                 Click="ChatsButton_Click">
-            <Path x:Name="ChatsIcon" Data="{StaticResource IconChats}" StrokeThickness="2"
+            <Path x:Name="ChatsIcon" StrokeThickness="2"
                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                  Width="24" Height="24"/>
+                  Width="24" Height="24">
+                <!-- IconChats -->
+                <Path.Data>
+                    <PathGeometry>
+                        <PathGeometry.Figures>
+                            <PathFigure StartPoint="4,5" IsClosed="True">
+                                <PathFigure.Segments>
+                                    <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
+                                </PathFigure.Segments>
+                            </PathFigure>
+                        </PathGeometry.Figures>
+                    </PathGeometry>
+                </Path.Data>
+            </Path>
         </Button>
 
         <Button x:Name="StatusButton" Grid.Column="1"
                 Style="{StaticResource NavIconButtonStyle}"
                 Click="StatusButton_Click">
-            <Path x:Name="StatusIcon" Data="{StaticResource IconStatus}" StrokeThickness="2"
+            <Path x:Name="StatusIcon" StrokeThickness="2"
                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                  Width="24" Height="24"/>
+                  Width="24" Height="24">
+                <!-- IconStatus -->
+                <Path.Data>
+                    <PathGeometry>
+                        <PathGeometry.Figures>
+                            <PathFigure StartPoint="12,4" IsClosed="True">
+                                <PathFigure.Segments>
+                                    <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
+                                                SweepDirection="Clockwise" Point="12,20"/>
+                                    <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
+                                                SweepDirection="Clockwise" Point="12,4"/>
+                                </PathFigure.Segments>
+                            </PathFigure>
+                            <PathFigure StartPoint="12,7.5">
+                                <PathFigure.Segments>
+                                    <PolyLineSegment Points="12,12.3 16,14.5"/>
+                                </PathFigure.Segments>
+                            </PathFigure>
+                        </PathGeometry.Figures>
+                    </PathGeometry>
+                </Path.Data>
+            </Path>
         </Button>
 
         <Button x:Name="CallsButton" Grid.Column="2"
                 Style="{StaticResource NavIconButtonStyle}"
                 Click="CallsButton_Click">
-            <Path x:Name="CallsIcon" Data="{StaticResource IconCalls}" StrokeThickness="3"
+            <Path x:Name="CallsIcon" StrokeThickness="3"
                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                  Width="24" Height="24"/>
+                  Width="24" Height="24">
+                <!-- IconCalls -->
+                <Path.Data>
+                    <PathGeometry>
+                        <PathGeometry.Figures>
+                            <PathFigure StartPoint="16.6,16.6">
+                                <PathFigure.Segments>
+                                    <ArcSegment Size="6.5,6.5" RotationAngle="0" IsLargeArc="False"
+                                                SweepDirection="Clockwise" Point="7.4,7.4"/>
+                                </PathFigure.Segments>
+                            </PathFigure>
+                        </PathGeometry.Figures>
+                    </PathGeometry>
+                </Path.Data>
+            </Path>
         </Button>
     </Grid>
 </UserControl>

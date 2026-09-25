@@ -194,17 +194,45 @@ node tools/make-brand-assets.js --preview  # + anteprima ASCII per controllare i
 Le icone dell'interfaccia (ricerca, impostazioni, tab, allegati, invio…)
 **non** usano un font di icone: Windows Phone 8.1 non ha `Segoe MDL2 Assets`
 (è arrivato con Windows 10), quindi i pulsanti restavano vuoti. Sono `Path`
-vettoriali definiti una sola volta in `WhatsappApp/App.xaml`
-(`PathGeometry x:Key="Icon…"`) e consumati con `Data="{StaticResource Icon…}"`.
-Le geometrie sono scritte in forma di elementi (`PathFigure` + `LineSegment` /
-`PolyLineSegment` / `ArcSegment`): su WP8.1 il convertitore di
-`PathFigureCollection` non accetta la stringa, quindi `Figures="M…"` **non
-compila** (`The TypeConverter for "PathFigureCollection" does not support
-converting from a string.`).
-Per controllare che nessun riferimento sia rotto o inutilizzato:
+vettoriali con la geometria **in linea su ogni `Path`**, preceduta da un
+commento che dà un nome all'icona:
+
+```xml
+<Path Stroke="White" StrokeThickness="2" Width="24" Height="24">
+    <!-- IconChats -->
+    <Path.Data>
+        <PathGeometry>
+            <PathGeometry.Figures>
+                <PathFigure StartPoint="4,5" IsClosed="True">
+                    <PathFigure.Segments>
+                        <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
+                    </PathFigure.Segments>
+                </PathFigure>
+            </PathGeometry.Figures>
+        </PathGeometry>
+    </Path.Data>
+</Path>
+```
+
+Due regole non sono preferenze di stile ma requisiti del toolchain:
+
+- la geometria **non** può stare in `App.xaml` e arrivare qui con
+  `Data="{StaticResource Icon…}"`: compila, poi a runtime lancia
+  `XamlParseException: Failed to assign to property
+  'Windows.UI.Xaml.Shapes.Path.Data'.` — in WinRT una `Geometry` non è
+  condivisibile attraverso una `StaticResource`
+  ([microsoft-ui-xaml#1909](https://github.com/microsoft/microsoft-ui-xaml/issues/1909),
+  [#5780](https://github.com/microsoft/microsoft-ui-xaml/issues/5780));
+- la geometria va scritta in forma di elementi (`PathFigure` + `LineSegment` /
+  `PolyLineSegment` / `ArcSegment`): su WP8.1 il convertitore di
+  `PathFigureCollection` non accetta la stringa, quindi `Figures="M…"` **non
+  compila** (`The TypeConverter for "PathFigureCollection" does not support
+  converting from a string.`).
+
+Il guard verifica entrambe (più "stessa icona, stessa geometria"):
 
 ```bash
-node tools/check-icons.js            # riferimenti + font vietati
+node tools/check-icons.js            # regole + coerenza + font vietati
 node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
 ```
 
