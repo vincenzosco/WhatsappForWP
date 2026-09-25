@@ -30,6 +30,11 @@ namespace WhatsappApp
     {
         private TransitionCollection transitions;
 
+        // Navigate() fallisce restituendo false, non lanciando: il motivo vero
+        // arriva qui. Senza questo, un errore XAML in una pagina si presenta
+        // come "Failed to create initial page" e nient'altro.
+        private Exception navigationFailure;
+
         /// <summary>
         /// Inizializza l'oggetto singleton Application. Si tratta della prima riga del codice creato
         /// eseguita e, come tale, corrisponde all'equivalente logico di main() o WinMain().
@@ -87,6 +92,7 @@ namespace WhatsappApp
 
                 rootFrame.ContentTransitions = null;
                 rootFrame.Navigated += this.RootFrame_FirstNavigated;
+                rootFrame.NavigationFailed += this.RootFrame_NavigationFailed;
 
                 // Dopo una terminazione (l'OS ha chiuso il processo mentre l'app era
                 // sospesa) si riparte dalla sezione in cui l'utente si trovava,
@@ -107,11 +113,25 @@ namespace WhatsappApp
                 }
                 if (!rootFrame.Navigate(startPage, e.Arguments))
                 {
-                    throw new Exception("Failed to create initial page");
+                    // Il nome della pagina e l'eccezione vera, non solo la
+                    // frase del modello: senza di essi un XAML rotto e' un
+                    // crash muto.
+                    throw new Exception(
+                        "Failed to create initial page: " + startPage.FullName,
+                        this.navigationFailure);
                 }
             }
 
             Window.Current.Activate();
+        }
+
+        /// <summary>
+        /// Navigazione fallita: conserva l'eccezione per il messaggio di
+        /// OnLaunched, che altrimenti riporterebbe solo il valore false.
+        /// </summary>
+        private void RootFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)
+        {
+            this.navigationFailure = e.Exception;
         }
 
         /// <summary>
