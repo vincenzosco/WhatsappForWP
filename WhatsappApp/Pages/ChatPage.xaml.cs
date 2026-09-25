@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
 using System.IO;
 using Windows.Storage;
 using Windows.Storage.Pickers;
@@ -257,7 +258,8 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(
+                Diag.Failed("ChatPage/image", ex);
+                Debug.WriteLine(
                     string.Format(Loc.Get("ChatPage_ImageError", "Could not open the image: {0}"), ex.Message));
             }
         }
