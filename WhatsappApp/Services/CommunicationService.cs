@@ -39,6 +39,11 @@ namespace WhatsappApp.Services
         // Cached UI dispatcher for marshalling events to the UI thread
         private CoreDispatcher _uiDispatcher;
 
+        // Vero quando nessuna delle sorgenti ha dato un dispatcher: senza questo
+        // flag ogni messaggio ricevuto ripeteva le tre chiamate e le loro
+        // eccezioni, per tutta la durata della connessione.
+        private bool _uiDispatcherFailed;
+
         // Events
         public event EventHandler<ChatMessage> MessageReceived;
         public event EventHandler<ChatMessage> ControlMessageReceived;
@@ -116,22 +121,41 @@ namespace WhatsappApp.Services
 
         private CoreDispatcher GetUiDispatcher()
         {
+            if (_uiDispatcher != null || _uiDispatcherFailed) return _uiDispatcher;
+
+            // Tre sorgenti, dalla piu' diretta. GetCurrentView e' quella
+            // documentata sul thread UI; MainView copre il caso in cui la vista
+            // corrente non sia quella principale; Window.Current e' l'ultima
+            // ancora. Ognuna registra il proprio fallimento una volta sola.
+            _uiDispatcher = TryGetDispatcher(
+                delegate { return CoreApplication.GetCurrentView().CoreWindow.Dispatcher; },
+                "GetUiDispatcher/GetCurrentView")
+                ?? TryGetDispatcher(
+                    delegate { return CoreApplication.MainView.CoreWindow.Dispatcher; },
+                    "GetUiDispatcher/MainView")
+                ?? TryGetDispatcher(
+                    delegate { return Window.Current.Dispatcher; },
+                    "GetUiDispatcher/Window");
+
             if (_uiDispatcher == null)
             {
-                try
-                {
-                    _uiDispatcher = CoreApplication.GetCurrentView().CoreWindow.Dispatcher;
-                }
-                catch
-                {
-                    try
-                    {
-                        _uiDispatcher = CoreApplication.MainView.CoreWindow.Dispatcher;
-                    }
-                    catch { }
-                }
+                _uiDispatcherFailed = true;
+                Diag.Failed("GetUiDispatcher", new InvalidOperationException("nessun CoreDispatcher disponibile"));
             }
             return _uiDispatcher;
+        }
+
+        private static CoreDispatcher TryGetDispatcher(Func<CoreDispatcher> source, string where)
+        {
+            try
+            {
+                return source();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed(where, ex);
+                return null;
+            }
         }
 
         private async void DispatchOnUiThread(Action action)
@@ -155,8 +179,9 @@ namespace WhatsappApp.Services
                     action();
                 });
             }
-            catch
+            catch (Exception ex)
             {
+                Diag.Failed("DispatchOnUiThread", ex);
                 if (!dispatched) action();
             }
         }
@@ -559,8 +584,10 @@ namespace WhatsappApp.Services
             _reader = null;
             _clientSocket = null;
             _serverListener = null;
-            _uiDispatcher = null;
 
+            // _uiDispatcher non si azzera: non e' legato al socket, e azzerarlo
+            // costringeva GetUiDispatcher a rifare le tre chiamate (e a
+            // registrarne di nuovo i guasti) sulla riga successiva.
             DispatchOnUiThread(() =>
                 RaiseConnectionStatusChanged(Loc.Get("CommService_Disconnected", "Disconnected")));
         }
