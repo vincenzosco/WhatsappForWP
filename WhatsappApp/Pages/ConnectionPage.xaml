@@ -209,5 +209,32 @@
                            HorizontalAlignment="Center" Margin="0,16,0,16"/>
             </StackPanel>
         </ScrollViewer>
+
+        <!-- QR a tutto schermo: il codice lo inquadra il telefono con WhatsApp,
+             quindi serve grande, su fondo bianco e con lo schermo acceso. -->
+        <Grid x:Name="QrOverlay" Grid.RowSpan="2" Background="White" Visibility="Collapsed">
+            <StackPanel VerticalAlignment="Center" Margin="16,16,16,16">
+                <TextBlock x:Uid="ConnectionPage_QrOverlayTitle"
+                           Text="Scan this code with WhatsApp"
+                           Foreground="#FF075E54" FontSize="20" FontWeight="SemiBold"
+                           TextAlignment="Center" TextWrapping="Wrap"/>
+                <Image x:Name="QrOverlayImage" Width="340" Height="340" Margin="0,12,0,0"
+                       Stretch="Uniform" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="QrOverlayCodeText" Text="" FontSize="30" FontWeight="Bold"
+                           Foreground="#FF075E54" TextAlignment="Center"
+                           TextWrapping="Wrap" Margin="0,12,0,0"/>
+                <!-- Testo riempito dal code-behind, che alterna l'istruzione al
+                     "aggiorno il codice": per questo non ha x:Uid e la chiave
+                     .resw e' senza suffisso. -->
+                <TextBlock x:Name="QrOverlayHintText" Text=""
+                           Foreground="#FF606060" FontSize="13" TextAlignment="Center"
+                           TextWrapping="Wrap" Margin="0,12,0,0"/>
+                <Button x:Name="QrOverlayCloseButton" x:Uid="ConnectionPage_QrOverlayClose"
+                        Content="Close"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
+                        Height="44" BorderThickness="0" Margin="0,16,0,0"
+                        Click="QrOverlayCloseButton_Click"/>
+            </StackPanel>
+        </Grid>
     </Grid>
 </Page>

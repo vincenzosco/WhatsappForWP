@@ -316,4 +316,16 @@
   <data name="ConnectionPage_NoServerFound.Text" xml:space="preserve">
     <value>No server found. Start the adapter on the computer, or enter the address by hand.</value>
   </data>
+  <data name="ConnectionPage_QrOverlayTitle.Text" xml:space="preserve">
+    <value>Scan this code with WhatsApp</value>
+  </data>
+  <data name="ConnectionPage_QrOverlayHint" xml:space="preserve">
+    <value>WhatsApp &gt; Linked devices &gt; Link a device, then scan. The screen stays on while this page is open.</value>
+  </data>
+  <data name="ConnectionPage_QrOverlayClose.Content" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="ConnectionPage_QrOverlayRefreshing" xml:space="preserve">
+    <value>Refreshing the code...</value>
+  </data>
 </root>
