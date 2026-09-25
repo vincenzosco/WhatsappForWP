@@ -196,6 +196,11 @@ Le icone dell'interfaccia (ricerca, impostazioni, tab, allegati, invio…)
 (è arrivato con Windows 10), quindi i pulsanti restavano vuoti. Sono `Path`
 vettoriali definiti una sola volta in `WhatsappApp/App.xaml`
 (`PathGeometry x:Key="Icon…"`) e consumati con `Data="{StaticResource Icon…}"`.
+Le geometrie sono scritte in forma di elementi (`PathFigure` + `LineSegment` /
+`PolyLineSegment` / `ArcSegment`): su WP8.1 il convertitore di
+`PathFigureCollection` non accetta la stringa, quindi `Figures="M…"` **non
+compila** (`The TypeConverter for "PathFigureCollection" does not support
+converting from a string.`).
 Per controllare che nessun riferimento sia rotto o inutilizzato:
 
 ```bash

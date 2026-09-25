@@ -44,7 +44,12 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 
 ## Add an icon
 
-1. `App.xaml`: `<PathGeometry x:Key="IconMyThing" Figures="M... Z"/>`, 24x24 view box.
+1. `App.xaml`: a `<PathGeometry x:Key="IconMyThing">` in **element form**, 24x24
+   view box - `<PathGeometry.Figures><PathFigure StartPoint="x,y">` then
+   `<PathFigure.Segments>` with `LineSegment`/`PolyLineSegment`/`ArcSegment`,
+   `IsClosed="True"` for a `Z`. A `Figures="M..."` attribute is a **build
+   error** on WP8.1: its `PathFigureCollection` type converter has no string
+   form, so the mini-language only ever works inside the guard's preview.
 2. `node tools/check-icons.js --preview` and read the ASCII render before
    trusting it - this caught a mis-placed splash mark and a broken glyph before.
 3. Reference it with `Data="{StaticResource IconMyThing}"`, and choose
