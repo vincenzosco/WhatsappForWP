@@ -379,17 +379,29 @@ function startBridge(options, baseUrl, deviceId) {
 
 function makePrinter(options) {
   let drawnLines = 0;
+  let warned = false;
   return {
-    render(lines, caption) {
+    /**
+     * Disegna il codice, riscrivendo sopra il precedente solo se ci sta tutto
+     * nella finestra: una riga che va a capo, o un disegno più alto dello
+     * schermo, sposterebbe il cursore e lascerebbe residui in giro.
+     */
+    render(lines, caption, hint) {
       const columns = process.stdout.columns || 0;
-      // Il disegno si riscrive sopra se stesso solo se ci sta in larghezza:
-      // una riga che va a capo sposterebbe il cursore e lascerebbe residui.
+      const rows = process.stdout.rows || 0;
       const canRedraw = !options.plain && !!process.stdout.isTTY
-        && (columns === 0 || columns >= lines[0].length + 2);
+        && (columns === 0 || columns >= lines[0].length + 2)
+        && (rows === 0 || rows >= lines.length + 2);
       if (!canRedraw) {
         console.log(`\n  ${caption}`);
         console.log(lines.join('\n'));
         drawnLines = 0;
+        if (!warned && !options.plain && process.stdout.isTTY && hint) {
+          warned = true;
+          console.log(`\n  ⚠  il codice è più grande della finestra (${lines.length} righe).`);
+          console.log(`     Ingrandiscila: al prossimo aggiornamento il codice si ridisegna qui.`);
+          console.log(`     In alternativa: ${hint}`);
+        }
         return;
       }
       if (drawnLines > 0) process.stdout.write(`\x1b[${drawnLines}A`);
@@ -440,8 +452,10 @@ async function loadQrPng(source) {
 async function showQr(baseUrl, deviceId, options, printer, source) {
   const pngPath = await loadQrPng(source);
   const qr = qrTerm.qrFromPng(pngPath, { quietZone: options.quietZone, plain: options.plain });
+  const imageUrl = source.url
+    || `${baseUrl}/statics/qrcode/${path.basename(source.file)}`;
   printer.render(qr.lines, `QR aggiornato alle ${stamp()} — ${qr.count} moduli, ` +
-    `ricostruzione ${(qr.error * 100).toFixed(2)}%`);
+    `ricostruzione ${(qr.error * 100).toFixed(2)}%`, `${imageUrl} nel browser`);
   return qr;
 }
 
@@ -548,6 +562,8 @@ function writePidFile(children) {
     fs.mkdirSync(GOWA_DIR, { recursive: true });
     fs.writeFileSync(PID_FILE, JSON.stringify({
       writtenAt: new Date().toISOString(),
+      // Il primo e' questo processo: fermandolo lui ferma i figli e pulisce.
+      launcherPid: process.pid,
       pids: children.map((child) => child.pid).filter(Boolean),
     }, null, 2));
   } catch (err) { /* non è essenziale */ }
@@ -561,7 +577,14 @@ function stopStack() {
     console.log('Nessuno stack da fermare (file dei PID assente).');
     return;
   }
-  for (const pid of parsed.pids || []) {
+
+  // Prima chi ha avviato lo stack (che a sua volta ferma i figli), poi i figli:
+  // così funziona anche se lo script gira in un'altra finestra del terminale.
+  const targets = [];
+  if (parsed.launcherPid && parsed.launcherPid !== process.pid) targets.push(parsed.launcherPid);
+  for (const pid of parsed.pids || []) if (!targets.includes(pid)) targets.push(pid);
+
+  for (const pid of targets) {
     try {
       process.kill(pid, 'SIGTERM');
       console.log(`  ✔ fermato processo ${pid}`);
