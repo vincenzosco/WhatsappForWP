@@ -106,5 +106,22 @@ Drop the `Data=` attribute, keep the open tag, and append the comment + `Path.Da
 
 ### Task 5: Hand back to the Windows machine
 
-- [ ] User: uninstall the app on the phone, then
-      `msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`, deploy, launch.
+- [x] Build verified on the real toolchain (Visual Studio 2013 / MSBuild 12.0 +
+      WP8.1 SDK, inside a Windows 11 ARM64 Parallels VM):
+      `msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`
+      → `0 Error(s)`, `WhatsappApp.exe` + `WhatsappApp_1.0.1.0_x86_Debug.appxbundle`
+      + `WhatsappServer.exe`, with only the two pre-existing CS0618/CS4014 warnings.
+- [x] The same command **fails** with
+      `WMC9999: The given key was not present in the dictionary` when run from the
+      Parallels shared folder (`C:\Mac\Home\...`). Reproduced with the previous
+      XAML too (`git checkout ee4f78a -- WhatsappApp/...`), on a cleaned `obj/`,
+      for x86 and AnyCPU, through both `msbuild` and `devenv.com`: the shared
+      filesystem is the trigger, not this change. Documented in `README.md`,
+      `test-the-app`, `release-the-app`.
+- [x] `WhatsappServer` could never compile (`.NET 4.5.1` + `static async Task
+      Main` → CS0028 + CS5001, an error `check-csharp5.js` did not catch); it now
+      has a C# 5 `static void Main` that waits on `MainAsync`.
+- [ ] **Deploy + launch: impossible on this host.** The WP8.1 emulator images are
+      x86 and need Hyper-V; the guest is Windows 11 ARM64 (`vmms`/`vmcompute`
+      absent, `PROCESSOR_ARCHITECTURE=ARM64`). Needs an x86/x64 Windows machine or
+      a USB-attached WP8.1 device.

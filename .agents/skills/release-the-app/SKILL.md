@@ -38,9 +38,13 @@ require touching the manifest - `x-generate` picks the `Strings\*\` folders up.
 
 ## Deploy
 
-1. `msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`.
+1. `msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`,
+   **from a local disk path** - building inside a Parallels/Mac shared folder
+   fails pass 2 of the XAML compiler with `WMC9999` (see `test-the-app`).
 2. Deploy to the emulator or device from Visual Studio, or install the signed
-   package.
+   package. The emulator needs an **x86/x64 host with Hyper-V**: the XDE images
+   are x86, so on an ARM host (Parallels on Apple Silicon, Windows 11 ARM64)
+   they cannot boot at all and only a USB-attached device is an option.
 3. WP8.1 caches the tile and the name: after changing icons or the display name,
    **uninstall** the app on the device and deploy again, otherwise the old tile
    stays on the Start screen.
