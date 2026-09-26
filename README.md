@@ -442,6 +442,7 @@ node tools/check-docs.js
 - Status updates are not available: the GOWA server this app talks to has no endpoint for them, so the Status section is empty on purpose.
 - Call records list incoming calls only, taken from the most recent chats the server scanned. See the Calls section below for the exact bound.
 - Message deletions and edits made on the phone reach the app only while it is connected: they are not replayed after a restart. They are matched by WhatsApp's message id, so messages the app itself sent are not matched.
+- Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered the next time it connects.
 
 ## Disclaimer
 

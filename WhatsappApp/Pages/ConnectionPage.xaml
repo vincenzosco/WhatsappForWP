@@ -107,6 +107,11 @@
                 <TextBox x:Name="UsernameBox" Text=""
                          Background="White" FontSize="16" Margin="0,4,0,0"/>
 
+                <ToggleSwitch x:Name="NotificationsToggle" x:Uid="ConnectionPage_Notifications"
+                              Header="Notify me about new messages"
+                              Margin="0,12,0,0"
+                              Toggled="NotificationsToggle_Toggled"/>
+
                 <Button x:Name="ActionButton" x:Uid="ConnectionPage_Connect"
                         Content="Connect to the server"
                         Background="{StaticResource WhatsAppAccentBrush}"
