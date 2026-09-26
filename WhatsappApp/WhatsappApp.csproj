@@ -96,7 +96,6 @@
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\Contact.cs" />
     <Compile Include="Models\DiscoveredServer.cs" />
-    <Compile Include="Models\ServerConfig.cs" />
     <Compile Include="Converters\Converters.cs" />
     <Compile Include="Services\AutoConnector.cs" />
     <Compile Include="Services\CommunicationService.cs" />
