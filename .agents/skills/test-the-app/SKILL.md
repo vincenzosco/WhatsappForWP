@@ -62,9 +62,14 @@ The two sides must agree on two things that no guard verifies:
 1. **Key.** `WhatsappBridge/config.js` `BRIDGE_KEY` must equal the passphrase in
    `WhatsappApp/Services/CryptoHelper.cs` (`WhatsAppCommunityWP8-2026`). A
    mismatch shows up as "Errore decifratura messaggio" for every frame.
-2. **Frame shape.** `[4-byte UInt32LE length][AES-256-GCM payload]`, JSON inside,
-   control frames with `Type = 3` and `ChatId = "system"`. If you change one
-   side, change the other and the tests.
+2. **Frame shape.** `[4-byte UInt32LE length][1-byte cipher tag (1 = GCM,
+   2 = CBC+HMAC)][payload]`, JSON inside, control frames with `Type = 3` and
+   `ChatId = "system"`. The app always writes tag 2 (AES-256-CBC +
+   HMAC-SHA256), because WP8.1 answers AES-GCM with
+   `NotImplementedException 0x80004001`; the adapter replies with the tag of
+   the client's last inbound frame. If you change one side, change the other
+   and the tests (`WhatsappBridge/test/crypto-helper.test.js` and the fixed
+   vector in `SelfCheck.cs`).
 
 ## The real build gate (Windows machine)
 

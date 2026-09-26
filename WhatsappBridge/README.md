@@ -8,7 +8,7 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
 ## How it works
 
 ```
- WP8 app  ⇄  (AES-256-GCM encrypted TCP)  ⇄  Adapter  ⇄  (HTTP REST + webhook)  ⇄  GOWA  ⇄  WhatsApp
+ WP8 app  ⇄  (AES-256-CBC + HMAC TCP)  ⇄  Adapter  ⇄  (HTTP REST + webhook)  ⇄  GOWA  ⇄  WhatsApp
 ```
 
 - The login (QR code or pairing code) is requested **by the app** through control frames;
@@ -110,5 +110,6 @@ npm test
 ```
 
 The tests cover the configuration, the WP8 message formatting, the GOWA REST client
-(with a simulated `fetch`), the HMAC verification of the webhook, the discovery beacon
-and the end-to-end TCP protocol (with a simulated WP8 client).
+(with a simulated `fetch`), the HMAC verification of the webhook, the discovery beacon,
+the cipher module (both ciphers, the cipher tag and a fixed test vector) and the
+end-to-end TCP protocol (with a simulated WP8 client).

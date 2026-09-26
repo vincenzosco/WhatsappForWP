@@ -8,7 +8,7 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
 ## Come funziona
 
 ```
- App WP8  ⇄  (TCP cifrato AES-256-GCM)  ⇄  Adapter  ⇄  (HTTP REST + webhook)  ⇄  GOWA  ⇄  WhatsApp
+ App WP8  ⇄  (TCP cifrato AES-256-CBC + HMAC)  ⇄  Adapter  ⇄  (HTTP REST + webhook)  ⇄  GOWA  ⇄  WhatsApp
 ```
 
 - Il login (QR code o codice di abbinamento) e' richiesto **dall'app** tramite frame di
@@ -111,5 +111,6 @@ npm test
 ```
 
 I test coprono la configurazione, la formattazione dei messaggi WP8, il client REST GOWA
-(con `fetch` simulato), la verifica HMAC del webhook, il beacon di scoperta e il
-protocollo TCP end-to-end (client WP8 simulato).
+(con `fetch` simulato), la verifica HMAC del webhook, il beacon di scoperta, il modulo di
+cifratura (entrambi i cifrari, il tag e un vettore di prova fisso) e il protocollo TCP
+end-to-end (client WP8 simulato).
