@@ -6,11 +6,50 @@
 
 const DEFAULT_SENDER = 'Sconosciuto';
 
+// Il valore che il campo Timestamp deve avere *dopo* JSON.parse: Microsoft scrive
+// /Date(ms)/ e DataContractJsonSerializer se lo aspetta cosi'. Il \/ che si vede
+// nel testo JSON e' un escape del lettore, non parte del valore: metterlo nel
+// valore lo raddoppia e il telefono risponde "String was not recognized as a
+// valid DateTime" (0x8013150C), buttando via l'intero frame.
+const WP8_DATE = /^\/Date\((-?\d+)\)\/$/;
+
+/**
+ * Millisecondi dall'epoch, da qualunque cosa arrivi nel campo timestamp. Non
+ * lancia e non restituisce mai NaN: un timestamp storto e' un timestamp
+ * in meno, non un messaggio in meno.
+ */
+function epochMillis(value) {
+  if (value === undefined || value === null || value === '') return Date.now();
+
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : Date.now();
+  }
+
+  if (typeof value === 'number') {
+    if (!Number.isFinite(value)) return Date.now();
+    // GOWA a volte manda i secondi: 1.7e9 invece di 1.7e12.
+    return Math.round(Math.abs(value) < 1e12 ? value * 1000 : value);
+  }
+
+  // I backslash sono escape del lettore JSON: qui non servono.
+  const text = String(value).replace(/\\/g, '').trim();
+
+  // Gia' nel formato Microsoft (un valore rispedito indietro, per esempio).
+  const microsoft = WP8_DATE.exec(text);
+  if (microsoft) return Number(microsoft[1]);
+
+  if (/^-?\d+$/.test(text)) {
+    const n = Number(text);
+    return Math.round(Math.abs(n) < 1e12 ? n * 1000 : n);
+  }
+
+  const parsed = Date.parse(text);
+  return Number.isNaN(parsed) ? Date.now() : parsed;
+}
+
 function formatDateForWp8(value) {
-  const d = value instanceof Date ? value : new Date(value === undefined ? Date.now() : value);
-  const epoch = d.getTime();
-  // ATTENZIONE: il formato Microsoft è /Date(ms)/ con gli slash escapati.
-  return `\\/Date(${epoch})\\/`;
+  return `/Date(${epochMillis(value)})/`;
 }
 
 function displayNameForJid(jid) {

@@ -8,9 +8,45 @@ const {
   mapWebhookMessage
 } = require('../message-format');
 
-test('formatDateForWp8 usa il formato Microsoft /Date(ms)/', () => {
-  assert.strictEqual(formatDateForWp8(new Date(0)), '\\/Date(0)\\/');
-  assert.strictEqual(formatDateForWp8(new Date(1700000000000)), '\\/Date(1700000000000)\\/');
+test('formatDateForWp8 produce il valore /Date(ms)/, senza backslash', () => {
+  assert.strictEqual(formatDateForWp8(new Date(0)), '/Date(0)/');
+  assert.strictEqual(formatDateForWp8(new Date(1700000000000)), '/Date(1700000000000)/');
+});
+
+test('il Timestamp sopravvive a JSON.stringify e torna come lo legge il telefono', () => {
+  const wire = JSON.parse(JSON.stringify({ Timestamp: formatDateForWp8(new Date(1700000000000)) }));
+  assert.strictEqual(wire.Timestamp, '/Date(1700000000000)/');
+  assert.ok(!wire.Timestamp.includes('\\'), 'nessun backslash nel valore: ' + wire.Timestamp);
+});
+
+test('formatDateForWp8 non produce mai una data impossibile', () => {
+  assert.ok(/^\/Date\(\d+\)\/$/.test(formatDateForWp8('non una data')));
+  assert.ok(/^\/Date\(\d+\)\/$/.test(formatDateForWp8(new Date('x'))));
+  assert.ok(/^\/Date\(\d+\)\/$/.test(formatDateForWp8(NaN)));
+  assert.ok(/^\/Date\(\d+\)\/$/.test(formatDateForWp8(undefined)));
+  assert.ok(/^\/Date\(\d+\)\/$/.test(formatDateForWp8('')));
+});
+
+test('i timestamp di GOWA in secondi diventano millisecondi', () => {
+  assert.strictEqual(formatDateForWp8(1700000000), '/Date(1700000000000)/');
+  assert.strictEqual(formatDateForWp8('1700000000'), '/Date(1700000000000)/');
+  assert.strictEqual(formatDateForWp8(1700000000000), '/Date(1700000000000)/');
+  assert.strictEqual(formatDateForWp8('2023-11-14T22:13:20.000Z'), '/Date(1700000000000)/');
+  assert.strictEqual(formatDateForWp8('/Date(1700000000000)/'), '/Date(1700000000000)/');
+});
+
+test('buildChatMessage manda un Timestamp leggibile dal telefono', () => {
+  const m = buildChatMessage({ command: 'state', state: 'disconnected' });
+  assert.ok(/^\/Date\(\d+\)\/$/.test(m.Timestamp), 'Timestamp: ' + m.Timestamp);
+});
+
+test('mapWebhookMessage non propaga un timestamp impossibile', () => {
+  const fields = mapWebhookMessage({
+    id: 'x', from: '39@s.whatsapp.net', chat_id: '39@s.whatsapp.net',
+    body: 'ciao', timestamp: 'non una data'
+  });
+  assert.ok(/^\/Date\(\d+\)\/$/.test(formatDateForWp8(fields.timestamp)),
+    'Timestamp: ' + fields.timestamp);
 });
 
 test('displayNameForJid gestisce numeri e gruppi', () => {
