@@ -50,7 +50,7 @@ namespace WhatsappApp.Services
         /// </summary>
         public static string Describe(Exception ex)
         {
-            if (ex == null) return "(nessuna eccezione)";
+            if (ex == null) return "(no exception)";
             return ex.GetType().Name + " 0x" + ex.HResult.ToString("X8") + " " + (ex.Message ?? "");
         }
 
