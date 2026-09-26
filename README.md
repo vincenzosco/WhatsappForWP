@@ -152,6 +152,36 @@ instructions to maintain, update, test and release the app: toolchain constraint
 edit recipes, the verification matrix and the deploy checklist. Whoever touches the
 code should read them first: they are the project's long memory.
 
+## Contributing
+
+Issues and pull requests are welcome. The project is small on purpose, and the
+guards in `tools/` are the contract: a change that passes them locally is almost
+always good to merge.
+
+1. Fork the repository and work on a branch (`fix/...`, `feat/...`, `docs/...`).
+2. Read `.agents/skills/maintain-the-app/SKILL.md` before touching code: C# 5 only,
+   inline vector icons, no hardcoded user-visible strings, docs always in pairs.
+3. Make the change, then run the fast gate:
+
+   ```bash
+   node tools/check-csharp5.js && node tools/check-icons.js \
+     && node tools/check-resw.js --strict && node tools/check-docs.js
+   cd WhatsappBridge && npm test
+   ```
+
+4. If you touched `WhatsappApp/` or `WhatsappServer/`, build it on Windows
+   (`msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`)
+   and say in the pull request that it reports `0 Error(s)`. There is no C# test
+   host, so the build is the gate for the app.
+5. Write the commit subject as `type: short imperative` in English, and say *why*
+   the change is needed, not only what it does: the history is the changelog.
+6. User-visible text: add the key to **both** `.resw` files, and update both
+   `README.md` and `README.it.md` in the same commit.
+
+A useful bug report has the `DIAG` lines from the Output window, which build you
+ran, and what the phone did. If you can, launch `node tools/start-login.js --no-qr`
+and attach the adapter log.
+
 ## Protocol
 
 The TCP protocol uses length-prefixed JSON messages, compatible with Windows `DataWriter`/`DataReader`:

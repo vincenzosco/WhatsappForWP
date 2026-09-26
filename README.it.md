@@ -158,6 +158,37 @@ per mantenere, aggiornare, testare e rilasciare l'app: vincoli del toolchain,
 ricette di modifica, la matrice di verifica e la checklist di deploy. Chi mette
 mano al codice dovrebbe leggerle prima: sono la memoria lunga del progetto.
 
+## Contribuire
+
+Segnalazioni e pull request sono benvenute. Il progetto e' piccolo di proposito, e
+i guard in `tools/` sono il contratto: una modifica che li passa in locale e'
+quasi sempre pronta da integrare.
+
+1. Fai il fork del repository e lavora su un ramo (`fix/...`, `feat/...`, `docs/...`).
+2. Leggi `.agents/skills/maintain-the-app/SKILL.md` prima di toccare il codice:
+   solo C# 5, icone vettoriali inline, nessuna stringa visibile hardcoded, documenti
+   sempre in coppia.
+3. Fai la modifica, poi esegui il gate veloce:
+
+   ```bash
+   node tools/check-csharp5.js && node tools/check-icons.js \
+     && node tools/check-resw.js --strict && node tools/check-docs.js
+   cd WhatsappBridge && npm test
+   ```
+
+4. Se tocchi `WhatsappApp/` o `WhatsappServer/`, compilalo su Windows
+   (`msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`)
+   e scrivi nella pull request che riporta `0 Error(s)`. Non esiste un host di test
+   C#, quindi per l'app il gate e' la build.
+5. Scrivi l'oggetto del commit come `tipo: imperativo breve` in inglese, e di'
+   *perche'* serve la modifica, non solo cosa fa: la cronologia e' il changelog.
+6. Testi visibili: aggiungi la chiave in **entrambi** i file `.resw`, e aggiorna
+   sia `README.md` sia `README.it.md` nello stesso commit.
+
+Una segnalazione utile contiene le righe `DIAG` della finestra Output, quale build
+hai usato e cosa ha fatto il telefono. Se puoi, lancia
+`node tools/start-login.js --no-qr` e allega il log dell'adapter.
+
 ## Protocollo
 
 Il protocollo TCP usa messaggi JSON preceduti dalla lunghezza, compatibili con
