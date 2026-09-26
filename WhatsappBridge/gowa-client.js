@@ -147,6 +147,23 @@ class GowaClient {
     return Array.isArray(res.data) ? res.data : [];
   }
 
+  // Immagine del profilo di una persona. GOWA risponde 404 quando non ce l'ha:
+  // per l'elenco chat e' "nessuna immagine", non un errore da propagare.
+  // I gruppi non hanno un avatar personale, quindi non si chiede.
+  async avatar(jid) {
+    const value = String(jid || '');
+    if (!value || value.endsWith('@g.us')) return null;
+
+    const phone = value.split('@')[0];
+    try {
+      const picture = await this.fetchBinary(
+        `user/avatar?phone=${encodeURIComponent(phone)}&is_preview=true`);
+      return picture.buffer.length > 0 ? picture.buffer.toString('base64') : null;
+    } catch (err) {
+      return null;
+    }
+  }
+
   async setDeviceWebhook(url) {
     const id = this.deviceId || this.resolvedDeviceId;
     if (!id) return false;
