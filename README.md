@@ -398,6 +398,12 @@ the warning sign:
 node tools/check-docs.js
 ```
 
+## Limitations
+
+- Status updates are not available: the GOWA server this app talks to has no endpoint for them, so the Status section is empty on purpose.
+- Call records list incoming calls only, taken from the most recent chats the server scanned. See the Calls section below for the exact bound.
+- Message deletions and edits made on the phone reach the app only while it is connected: they are not replayed after a restart.
+
 ## Disclaimer
 
 - This is an unofficial project not affiliated with WhatsApp or Meta.

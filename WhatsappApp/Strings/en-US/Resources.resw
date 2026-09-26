@@ -74,10 +74,10 @@
     <value>Tap new chat to start</value>
   </data>
   <data name="StatusPage_EmptyTitle.Text" xml:space="preserve">
-    <value>No status updates</value>
+    <value>Updates are not available</value>
   </data>
   <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
-    <value>Status updates are not supported in this version.</value>
+    <value>WhatsApp does not expose status updates to this app: the server it talks to has no endpoint for them, so this section stays empty on purpose. Chats and calls are unaffected.</value>
   </data>
   <data name="CallsPage_EmptyTitle.Text" xml:space="preserve">
     <value>No calls</value>
