@@ -37,6 +37,7 @@ namespace WhatsappApp.Services
         private string _connectionStatus;
         private bool _isServerRunning;
         private string _activeChatId;
+        private bool _listening;
 
         /// <summary>
         /// Chat attualmente aperta: i messaggi che arrivano qui sono gia' letti,
@@ -68,6 +69,21 @@ namespace WhatsappApp.Services
             set { _isServerRunning = value; OnPropertyChanged(); }
         }
 
+        /// <summary>
+        /// Aggancia il servizio alla rete. Va chiamato una volta, all'avvio e
+        /// sul thread UI: se nessuno costruisce il servizio prima che l'app si
+        /// colleghi, i messaggi in arrivo (e i contatti) non hanno ascoltatori e
+        /// si perdono senza lasciare traccia.
+        /// </summary>
+        public void Start()
+        {
+            if (_listening) return;
+            _listening = true;
+
+            CommunicationService.Instance.MessageReceived += OnNetworkMessageReceived;
+            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+        }
+
         /// <summary>Registro chiamate, riempito dall'adapter su richiesta.</summary>
         public ObservableCollection<CallLogEntry> Calls
         {
@@ -84,10 +100,6 @@ namespace WhatsappApp.Services
             _contacts = new ObservableCollection<Contact>();
             _calls = new ObservableCollection<CallLogEntry>();
             _chatMessages = new Dictionary<string, ObservableCollection<ChatMessage>>();
-
-            // Wire up to receive network messages and adapter control frames
-            CommunicationService.Instance.MessageReceived += OnNetworkMessageReceived;
-            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
         }
 
         private async void OnNetworkMessageReceived(object sender, ChatMessage message)
@@ -118,8 +130,9 @@ namespace WhatsappApp.Services
                     LastMessageTime = message.FormattedTime,
                     Initials = InitialsFor(name),
                     AvatarColor = "#FF075E54",
-                    IsOnline = true,
-                    UnreadCount = 0
+                    // La chat aperta non conta come non letta, e "IsOnline" non
+                    // si inventa: la presenza non arriva da nessuna parte.
+                    UnreadCount = message.IsIncoming && message.ChatId != _activeChatId ? 1 : 0
                 };
                 _contacts.Insert(0, contact);
                 _contactIndex[contact.Id] = contact;
