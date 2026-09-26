@@ -36,12 +36,15 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `contacts` | — |
 | app -> adapter | `logout` | — |
 | app -> adapter | `calls` | — (solo in entrata, dalle `CALLS_CHAT_LIMIT` chat più recenti) |
+| app -> adapter | `chats` | — (le conversazioni dell'account collegato, dalla più recente) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = nome |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (la scansione è finita, anche senza chiamate) |
+| adapter -> app | `chat` | `ChatId`, `SenderName`, `Text` = ultimo messaggio, `Timestamp`, `IsGroup`, `AvatarData` (base64) |
+| adapter -> app | `chats.done` | — (l'elenco è finito) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id del messaggio cancellato |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = il nuovo testo |
 | adapter -> app | `error` | `Text` |
@@ -72,6 +75,8 @@ Vedi `.env.example`. Le variabili principali:
 | `CALLS_CHAT_LIMIT` | `25` | quante chat recenti legge la scansione delle chiamate |
 | `CALLS_MESSAGES_PER_CHAT` | `100` | messaggi letti per ogni chat scansionata |
 | `CALLS_LIMIT` | `50` | numero massimo di chiamate inviate all'app |
+| `CHATS_LIMIT` | `25` | quante conversazioni restituisce l'elenco chat |
+| `CHATS_AVATARS` | `on` | scarica le immagini del profilo (una richiesta per persona, `off` le spegne) |
 
 ## Avvio
 

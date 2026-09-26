@@ -88,6 +88,9 @@ function buildChatMessage(fields) {
   if (typeof f.callDurationSeconds === 'number') msg.CallDurationSeconds = f.callDurationSeconds;
   if (typeof f.callIsVideo === 'boolean') msg.CallIsVideo = f.callIsVideo;
   if (f.relatedMessageId) msg.RelatedMessageId = f.relatedMessageId;
+  // Riga dell'elenco chat: il gruppo e la sua immagine (vedi chats.js).
+  if (typeof f.isGroup === 'boolean') msg.IsGroup = f.isGroup;
+  if (f.avatarData) msg.AvatarData = f.avatarData;
 
   if (f.mediaData) {
     msg.MediaData = f.mediaData;
