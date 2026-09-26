@@ -102,7 +102,7 @@ function createDiscoveryBeacon(options) {
     const interfaces = opts.interfaces || os.networkInterfaces();
     for (const target of broadcastTargets(interfaces)) {
       socket.send(payload, 0, payload.length, opts.port, target, (err) => {
-        if (err) log('DEBUG', `Discovery: invio a ${target} fallito (${err.message})`);
+        if (err) log('DEBUG', `Discovery: send to ${target} failed (${err.message})`);
       });
     }
   }
@@ -113,7 +113,7 @@ function createDiscoveryBeacon(options) {
     try {
       socket.setBroadcast(true);
     } catch (err) {
-      log('WARN', `Discovery: broadcast non attivabile (${err.message})`);
+      log('WARN', `Discovery: broadcast could not be enabled (${err.message})`);
     }
     sendOnce();
   });
