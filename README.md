@@ -113,6 +113,11 @@ exported win over it).
 that speaks the v9 REST API (`whatsapp rest --port=3000 --host=127.0.0.1`), then
 `cd WhatsappBridge && cp .env.example .env && npm start`.
 
+To deploy the adapter (plus GOWA) on a NAS or an always-on PC there is a separate
+repository: [vincenzosco/docker-whatsappforwp](https://github.com/vincenzosco/docker-whatsappforwp).
+It publishes a single-container image with GOWA and this adapter, and the same
+server still starts with plain `node server.js`.
+
 ## App structure
 
 The app is split into one page per section, with a shared navigation bar
