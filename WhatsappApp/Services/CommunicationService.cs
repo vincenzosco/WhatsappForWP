@@ -288,8 +288,7 @@ namespace WhatsappApp.Services
 
             try
             {
-                var reader = new DataReader(socket.InputStream);
-                reader.InputStreamOptions = InputStreamOptions.Partial;
+                var reader = CreateFrameReader(socket.InputStream);
 
                 while (_isConnected)
                 {
@@ -387,9 +386,8 @@ namespace WhatsappApp.Services
                 socket = new StreamSocket();
                 await ConnectWithDeadlineAsync(socket, hostName, port);
 
-                writer = new DataWriter(socket.OutputStream);
-                reader = new DataReader(socket.InputStream);
-                reader.InputStreamOptions = InputStreamOptions.Partial;
+                writer = CreateFrameWriter(socket.OutputStream);
+                reader = CreateFrameReader(socket.InputStream);
 
                 // Un tentativo piu' nuovo ha gia' preso il posto di questo:
                 // si chiude quello che abbiamo aperto e non si tocca niente di
@@ -499,6 +497,32 @@ namespace WhatsappApp.Services
             _clientSocket = null;
 
             DisposeSocket(socket, writer, reader);
+        }
+
+        /// <summary>
+        /// Un DataReader per un flusso di rete, con il byte order detto per
+        /// esteso. Quello predefinito di WinRT non e' little-endian, e l'adapter
+        /// scrive la lunghezza del frame con writeUInt32LE: sul dispositivo un
+        /// frame da 289 byte (0x00000121) veniva letto 0x21010000 = 553713664,
+        /// cioe' un frame che non esiste, e la connessione si chiudeva prima di
+        /// ricevere lo stato e il codice QR. Lettura e scrittura passano da
+        /// CreateFrameReader/CreateFrameWriter: sono l'unico posto in cui si
+        /// sceglie il byte order, quindi non possono piu' divergere.
+        /// </summary>
+        private static DataReader CreateFrameReader(IInputStream stream)
+        {
+            var reader = new DataReader(stream);
+            reader.InputStreamOptions = InputStreamOptions.Partial;
+            reader.ByteOrder = ByteOrder.LittleEndian;
+            return reader;
+        }
+
+        /// <summary>Lo stesso patto di CreateFrameReader, lato scrittura.</summary>
+        private static DataWriter CreateFrameWriter(IOutputStream stream)
+        {
+            var writer = new DataWriter(stream);
+            writer.ByteOrder = ByteOrder.LittleEndian;
+            return writer;
         }
 
         /// <summary>
@@ -747,7 +771,7 @@ namespace WhatsappApp.Services
 
                 try
                 {
-                    var writer = new DataWriter(client.OutputStream);
+                    var writer = CreateFrameWriter(client.OutputStream);
                     writer.WriteUInt32((uint)payload.Length);
                     writer.WriteBytes(payload);
                     await writer.StoreAsync();
