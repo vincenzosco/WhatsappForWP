@@ -90,14 +90,14 @@ test('extractLargestEntry estrae anche gli archivi senza compressione', () => {
 
 test('extractLargestEntry rifiuta cio che non e un archivio', () => {
   assert.throws(() => download.extractLargestEntry(Buffer.from('non sono uno zip')),
-    /non e' un archivio ZIP/);
+    /not a ZIP archive/);
 });
 
 test('extractLargestEntry rifiuta un archivio vuoto', () => {
   // Solo l'end-of-central-directory: zero voci.
   const eocd = Buffer.alloc(22);
   eocd.writeUInt32LE(0x06054b50, 0);
-  assert.throws(() => download.extractLargestEntry(eocd), /ZIP vuoto|non e' un archivio ZIP/);
+  assert.throws(() => download.extractLargestEntry(eocd), /empty ZIP archive|not a ZIP archive/);
 });
 
 test('i digest darwin combaciano con il file dei checksum pubblicato', (t) => {

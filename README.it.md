@@ -358,6 +358,12 @@ L'app segue automaticamente la lingua del dispositivo tramite risorse `.resw`:
 | Inglese | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback per ogni altra lingua |
 | Italiano | `WhatsappApp/Strings/it-IT/Resources.resw` | |
 
+L'interfaccia dell'app e' l'**unica superficie localizzata**: tutto cio' che gli
+script e il server stampano (il banner del launcher, il suo `--help`, il log
+dell'adapter, il relay legacy) e' solo in inglese, cosi' leggere un log non
+richiede una seconda lingua. L'italiano resta solo nei commenti al codice, che
+nessuno esegue.
+
 - I testi dichiarati in XAML usano `x:Uid`, e la proprieta' deve corrispondere al
   tipo dell'elemento: `TextBlock` -> `.Text`, `Button` -> `.Content`,
   `TextBox` -> `.PlaceholderText`. Un abbinamento sbagliato e' un errore a

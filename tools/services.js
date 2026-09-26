@@ -51,7 +51,7 @@ function buildServiceList({ root, exists, options }) {
     if (script && !exists(script)) {
       // Non e' un errore: il secondo server puo' non essere ancora stato
       // scritto, e lo stack principale deve partire lo stesso.
-      skipped.push({ name: def.name, reason: `${def.dir}/${def.script} non esiste` });
+      skipped.push({ name: def.name, reason: `${def.dir}/${def.script} does not exist` });
       continue;
     }
 

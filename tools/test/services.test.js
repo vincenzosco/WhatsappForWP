@@ -39,7 +39,7 @@ test('senza il secondo server lo si salta dicendo perche', () => {
   });
   assert.deepStrictEqual(list.services.map((s) => s.name), ['adapter']);
   assert.deepStrictEqual(list.skipped, [{
-    name: 'calls', reason: 'WhatsappCallServer/server.js non esiste'
+    name: 'calls', reason: 'WhatsappCallServer/server.js does not exist'
   }]);
 });
 
