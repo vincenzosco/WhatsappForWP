@@ -188,6 +188,15 @@ A frame length is never trusted: the app fills the 4-byte prefix completely
 `1..8 MiB` (`MaxFrameLength`), and the adapter drops a client that announces more
 than `MAX_FRAME_LENGTH` (the same 8 MiB) instead of buffering it.
 
+Both sides pin the byte order explicitly: the adapter writes the length with
+`writeUInt32LE` and the app creates its readers and writers through
+`CreateFrameReader`/`CreateFrameWriter`, which set
+`ByteOrder = ByteOrder.LittleEndian`. WinRT's default is not little-endian, and a
+reader that disagrees does not fail loudly: it reads a byte-swapped length
+(`0x00000121` came back as `0x21010000`, 553713664) and drops a frame that was
+perfectly fine. `tools/check-framing.js` fails the fast gate if a
+`DataReader`/`DataWriter` in the socket layer is created any other way.
+
 A connection attempt owns its socket, its `DataReader` and its read loop: only
 the newest attempt publishes them and only its loop reads them, so a failed
 attempt (a stale saved address, for instance) cannot close the connection that
