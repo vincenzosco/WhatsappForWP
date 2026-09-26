@@ -1,5 +1,9 @@
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
+using Windows.UI.Xaml.Media.Imaging;
+using WhatsappApp.Services;
 
 namespace WhatsappApp.Models
 {
@@ -11,6 +15,8 @@ namespace WhatsappApp.Models
         private string _lastMessageTime;
         private string _initials;
         private int _unreadCount;
+        private string _avatarData;
+        private BitmapImage _avatar;
 
         public string Id
         {
@@ -46,6 +52,52 @@ namespace WhatsappApp.Models
         {
             get { return _unreadCount; }
             set { _unreadCount = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>L'immagine del profilo arrivata dall'adapter, ancora in base64.</summary>
+        public string AvatarData
+        {
+            get { return _avatarData; }
+            set { _avatarData = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// L'immagine decodificata. Non e' un dato che arriva dal filo: la
+        /// costruisce LoadAvatarAsync, e la XAML la usa al posto delle iniziali.
+        /// </summary>
+        public BitmapImage Avatar
+        {
+            get { return _avatar; }
+            set
+            {
+                _avatar = value;
+                OnPropertyChanged();
+                OnPropertyChanged("HasAvatar");
+            }
+        }
+
+        /// <summary>Vero quando c'e' un'immagine da mostrare al posto delle iniziali.</summary>
+        public bool HasAvatar
+        {
+            get { return _avatar != null; }
+        }
+
+        /// <summary>
+        /// Decodifica AvatarData una volta sola. Va atteso sul thread UI, come
+        /// richiede ImageHelper: BitmapImage non e' agnostico rispetto alla view.
+        /// </summary>
+        public async Task LoadAvatarAsync()
+        {
+            if (_avatar != null || string.IsNullOrEmpty(_avatarData)) return;
+            try
+            {
+                Avatar = await ImageHelper.FromBase64Async(_avatarData);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Contact.LoadAvatarAsync", ex);
+                Avatar = null;
+            }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;

@@ -70,7 +70,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - mantiene il canale TCP cifrato (AES-256-GCM) tra app e adapter
 - invia testi e immagini con `POST /send/message` e `POST /send/image`
 - riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
-- sincronizza i contatti da `GET /user/my/contacts`
+- elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (`CHATS_LIMIT`, `CHATS_AVATARS`)
 
 **Avvio (un solo comando)**
 

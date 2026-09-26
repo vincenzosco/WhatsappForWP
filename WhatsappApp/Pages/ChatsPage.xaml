@@ -9,6 +9,7 @@
     <Page.Resources>
         <conv:UnreadCountToVisibilityConverter x:Key="UnreadToVisibility"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
         <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
         <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
@@ -156,9 +157,16 @@
                                   Margin="10,10,0,10" VerticalAlignment="Center">
                                 <Ellipse Width="52" Height="52"
                                          Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                                <!-- L'immagine del profilo, quando GOWA ce l'ha. E'
+                                     quadrata e scalata: WP8.1 non sa ritagliare
+                                     un'immagine con un'ellisse. -->
+                                <Image Width="52" Height="52" Stretch="UniformToFill"
+                                       Source="{Binding Avatar}"
+                                       Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}"/>
                                 <TextBlock Text="{Binding Initials}"
                                            Foreground="White" FontSize="18" FontWeight="SemiBold"
-                                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                           VerticalAlignment="Center" HorizontalAlignment="Center"
+                                           Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                                 <!-- Niente pallino di presenza: WhatsApp non ci
                                      dice chi e' online, e un pallino inventato e'
                                      peggio di nessun pallino. -->
