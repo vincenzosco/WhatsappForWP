@@ -197,6 +197,14 @@ reader that disagrees does not fail loudly: it reads a byte-swapped length
 perfectly fine. `tools/check-framing.js` fails the fast gate if a
 `DataReader`/`DataWriter` in the socket layer is created any other way.
 
+Everything the server and the app print at run time is English: the adapter's log
+and error messages, and the app's `DIAG` lines with the exception messages that
+reach them. Source comments and the adapter's test names are not part of that
+rule, and neither are the localized UI strings in `Strings/it-IT`, which are
+translations rather than diagnostics. The error texts the adapter sends to the
+app for display are UI content too, and are still Italian pending the app's own
+localization.
+
 A connection attempt owns its socket, its `DataReader` and its read loop: only
 the newest attempt publishes them and only its loop reads them, so a failed
 attempt (a stale saved address, for instance) cannot close the connection that
