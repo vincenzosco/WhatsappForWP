@@ -35,6 +35,7 @@ const { GowaClient } = require('./gowa-client');
 const { buildChatMessage, mapWebhookMessage } = require('./message-format');
 const { createWebhookServer } = require('./webhook-server');
 const { createDiscoveryBeacon, buildPayload } = require('./discovery');
+const { collectCalls } = require('./calls');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
@@ -62,6 +63,53 @@ function createBridge({ config, gowa, log, debug }) {
   const pendingOutgoing = [];
   let state = { status: 'disconnected', jid: '' };
   let qrCache = null;
+  // La scansione costa una richiesta HTTP per chat: si tiene il risultato per
+  // un minuto, cosi' passare avanti e indietro tra le sezioni non la ripete.
+  let callsCache = null;
+  const CALLS_CACHE_MS = 60000;
+
+  async function sendCalls() {
+    const limits = (config && config.calls) || {};
+
+    if (state.status !== 'connected') {
+      sendControl({ command: 'error', text: 'WhatsApp is not connected: call records are unavailable.' });
+      sendControl({ command: 'calls.done' });
+      return;
+    }
+
+    try {
+      const fresh = !callsCache || Date.now() - callsCache.at > CALLS_CACHE_MS;
+      if (fresh) {
+        logger('INFO', `scanning up to ${limits.chatLimit || 25} chats for call records...`);
+        const entries = await collectCalls({
+          gowa,
+          chatLimit: limits.chatLimit,
+          messagesPerChat: limits.messagesPerChat,
+          limit: limits.limit,
+          log: logger
+        });
+        callsCache = { at: Date.now(), entries };
+      }
+
+      for (const call of callsCache.entries) {
+        sendControl({
+          command: 'call',
+          chatId: call.chatId,
+          senderName: call.chatName || undefined,
+          timestamp: call.timestamp || undefined,
+          callId: call.callId || undefined,
+          callReason: call.reason || undefined,
+          callDurationSeconds: call.durationSeconds,
+          callIsVideo: call.isVideo
+        });
+      }
+    } catch (err) {
+      logger('ERR', `call scan failed: ${err.message}`);
+      sendControl({ command: 'error', text: `Call scan failed: ${err.message}` });
+    } finally {
+      sendControl({ command: 'calls.done' });
+    }
+  }
 
   // ─── Invio verso l'app WP8 ────────────────────────────────────────────────
   //
@@ -118,6 +166,7 @@ function createBridge({ config, gowa, log, debug }) {
 
       if (next === 'connected') {
         qrCache = null;
+        callsCache = null;
         if (changed) {
           broadcastState();
           logger('OK', `WhatsApp connected as ${state.jid || 'unknown'}`);
@@ -281,6 +330,9 @@ function createBridge({ config, gowa, log, debug }) {
       case 'contacts':
         if (state.status === 'connected') await syncContacts();
         break;
+      case 'calls':
+        await sendCalls();
+        break;
       case 'logout':
         try { await gowa.logout(); } catch (e) { /* ignora */ }
         state = { status: 'disconnected', jid: '' };
@@ -359,6 +411,10 @@ function createBridge({ config, gowa, log, debug }) {
     syncContacts,
     // Usato solo dai test: forza lo stato "connected" senza passare da GOWA.
     setConnectedForTest() { state = { status: 'connected', jid: '39@s.whatsapp.net' }; },
+    // Usato solo dai test: aggiunge un client finto alla lista dei destinatari.
+    addClientForTest(socket) { wp8Clients.add(socket); },
+    sendCalls,
+    resetCallsCacheForTest() { callsCache = null; },
     stop() { /* il timer di polling è gestito da main() */ }
   };
 }

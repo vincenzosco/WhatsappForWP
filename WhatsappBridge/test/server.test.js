@@ -193,3 +193,43 @@ test('il server passa a GCM se il client scrive in GCM', async () => {
     bridge.stop();
   }
 });
+
+test('the calls command sends one frame per call and then calls.done', async () => {
+  const sent = [];
+  const gowa = {
+    chats: async () => [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    chatMessages: async () => ([
+      { id: 'm2', chat_jid: 'a@s.whatsapp.net', media_type: 'call', call_metadata: '{"call_id":"C1","reason":"timeout"}', timestamp: '2026-09-24T09:00:00Z' },
+    ]),
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' }),
+  };
+  const config = { calls: { chatLimit: 10, messagesPerChat: 10, limit: 10 }, bridge: { port: 8585 } };
+  const bridge = createBridge({ config, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+
+  bridge.addClientForTest({ write: (packet) => sent.push(packet) });
+  await bridge.handleControl({ Type: 3, Command: 'calls', SenderName: 'test' });
+
+  // Le chiavi arrivano cifrate nel frame: si controllano i comandi con un
+  // decodificatore, non con un confronto testuale sul buffer.
+  const commands = sent.map((packet) => decodeFrame(packet)).map((msg) => msg.Command);
+  assert.deepStrictEqual(commands, ['call', 'calls.done']);
+});
+
+test('the calls command answers with an error and calls.done when WhatsApp is not connected', async () => {
+  const sent = [];
+  const gowa = { status: async () => ({ isConnected: false, isLoggedIn: false, jid: '' }) };
+  const bridge = createBridge({ config: { calls: {} }, gowa, log: () => {}, debug: () => {} });
+
+  bridge.addClientForTest({ write: (packet) => sent.push(packet) });
+  await bridge.handleControl({ Type: 3, Command: 'calls', SenderName: 'test' });
+
+  const commands = sent.map((packet) => decodeFrame(packet)).map((msg) => msg.Command);
+  assert.deepStrictEqual(commands, ['error', 'calls.done']);
+});
+
+function decodeFrame(packet) {
+  const length = packet.readUInt32LE(0);
+  const payload = packet.slice(4, 4 + length);
+  return JSON.parse(cryptoHelper.decodePayload(payload));
+}

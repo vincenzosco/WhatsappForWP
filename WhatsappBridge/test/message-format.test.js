@@ -65,6 +65,20 @@ test('buildChatMessage applica i default e i campi di controllo', () => {
   assert.strictEqual(m.MediaData, undefined);
 });
 
+test('buildChatMessage carries the call fields', () => {
+  const msg = buildChatMessage({
+    command: 'call', chatId: 'a@s.whatsapp.net', senderName: 'Anna',
+    timestamp: 0, callId: 'C1', callReason: 'timeout',
+    callDurationSeconds: 12, callIsVideo: false
+  });
+  assert.strictEqual(msg.Command, 'call');
+  assert.strictEqual(msg.CallId, 'C1');
+  assert.strictEqual(msg.CallReason, 'timeout');
+  assert.strictEqual(msg.CallDurationSeconds, 12);
+  assert.strictEqual(msg.CallIsVideo, false);
+  assert.strictEqual(msg.Type, 3);
+});
+
 test('buildChatMessage include i campi media solo quando presenti', () => {
   const m = buildChatMessage({ text: 'ciao', mediaData: 'AAAA', mediaMimeType: 'image/png' });
   assert.strictEqual(m.MediaData, 'AAAA');

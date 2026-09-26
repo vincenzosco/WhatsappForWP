@@ -3,6 +3,36 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { GowaClient, errorMessage } = require('../gowa-client');
 
+test('chats() asks for a bounded list and reads results.data', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return { ok: true, status: 200, text: async () => JSON.stringify({ results: { data: [{ jid: 'a@s.whatsapp.net' }] } }) };
+    }
+  });
+
+  const chats = await client.chats(25);
+  assert.strictEqual(seen[0], 'http://127.0.0.1:3000/chats?limit=25');
+  assert.strictEqual(chats.length, 1);
+  assert.strictEqual(chats[0].jid, 'a@s.whatsapp.net');
+});
+
+test('chatMessages() encodes the jid in the path', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return { ok: true, status: 200, text: async () => JSON.stringify({ results: { data: [] } }) };
+    }
+  });
+
+  await client.chatMessages('393401234567@s.whatsapp.net', 100);
+  assert.strictEqual(seen[0], 'http://127.0.0.1:3000/chat/393401234567%40s.whatsapp.net/messages?limit=100');
+});
+
 function jsonResponse(body, status = 200) {
   return {
     ok: status >= 200 && status < 300,
