@@ -179,7 +179,7 @@ namespace WhatsappApp.Services
             if (_uiDispatcher == null)
             {
                 _uiDispatcherFailed = true;
-                Diag.Failed("GetUiDispatcher", new InvalidOperationException("nessun CoreDispatcher disponibile"));
+                Diag.Failed("GetUiDispatcher", new InvalidOperationException("no CoreDispatcher available"));
             }
             return _uiDispatcher;
         }
@@ -358,7 +358,7 @@ namespace WhatsappApp.Services
                 if (string.IsNullOrEmpty(address) || port < 1 || port > 65535)
                 {
                     Diag.Failed("ConnectToServerAsync/address",
-                        new ArgumentException("indirizzo o porta non valida: " + Endpoint(address, port)));
+                        new ArgumentException("invalid address or port: " + Endpoint(address, port)));
                     DispatchOnUiThread(() =>
                         RaiseErrorOccurred(string.Format(
                             Loc.Get("CommService_InvalidAddress",
@@ -565,7 +565,7 @@ namespace WhatsappApp.Services
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
 
                 throw new TimeoutException(string.Format(
-                    "nessuna risposta da {0}:{1} entro {2} ms",
+                    "no answer from {0}:{1} within {2} ms",
                     hostName.RawName, port, ConnectDeadlineMs));
             }
 
@@ -826,7 +826,7 @@ namespace WhatsappApp.Services
             if (payloadLength == 0 || payloadLength > MaxFrameLength)
             {
                 Diag.Failed("ReadFrameAsync/length",
-                    new InvalidDataException("lunghezza frame fuori intervallo: " + payloadLength));
+                    new InvalidDataException("frame length out of range: " + payloadLength));
                 return null;
             }
 
