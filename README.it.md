@@ -71,8 +71,10 @@ proprio: usa l'API REST e i webhook di GOWA.
 node tools/start-login.js --download   # --download solo la prima volta
 ```
 
-Lo script scarica in `.tools/gowa` il binario ufficiale di GOWA per questa
-piattaforma (con verifica SHA-256), avvia `whatsapp rest`, avvia
+Lo script scarica in `.tools/gowa` il binario ufficiale di GOWA per **il sistema e
+la CPU su cui stai girando** (macOS Intel/ARM, Linux x64/arm64/armv7/386, Windows
+x64/386), verifica il SHA-256 pubblicato e lo scompatta con `node:zlib`: non
+servono `unzip` ne' `tar`. Poi avvia `whatsapp rest`, avvia
 `WhatsappBridge/server.js`, annuncia l'adapter sulla rete locale in UDP (cosi'
 l'app lo trova **da sola**) e stampa indirizzi e porte. Il login si fa normalmente
 **dal telefono**: l'app mostra il QR a tutto schermo, quindi non c'e' niente da
@@ -81,6 +83,12 @@ come un codice davvero scansionabile, rinnovato finche' serve; quando non entra
 nella finestra lo script lo dice e scrive il PNG in `.tools/gowa/login-qr.png`
 invece di disegnare qualcosa di tagliato. L'adapter registra da solo il suo webhook
 su GOWA.
+
+Quali servizi partono e' un elenco dichiarativo (`tools/services.js`), non due
+figli scritti a mano: metti un `WhatsappCallServer/server.js` nel repo e il
+launcher lo avvia anche lui, gli da' la sua porta, lo mostra nel riepilogo e lo
+ferma con `Ctrl-C` / `--stop` come gli altri (`--no-calls` lo spegne,
+`--list-services` mostra l'elenco risolto).
 
 | Opzione | Effetto |
 | --- | --- |
