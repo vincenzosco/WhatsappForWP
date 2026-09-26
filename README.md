@@ -345,6 +345,11 @@ The app follows the device language automatically through `.resw` resources:
 | English | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback for every other language |
 | Italian | `WhatsappApp/Strings/it-IT/Resources.resw` | |
 
+The app UI is the **only localized surface**: everything the scripts and the
+server print (the launcher banner, its `--help`, the adapter log, the legacy
+relay) is English only, so reading a log never needs a second language. Italian
+survives only in source comments, which nobody runs.
+
 - Texts declared in XAML use `x:Uid`, and the property must match the type of the
   element: `TextBlock` -> `.Text`, `Button` -> `.Content`, `TextBox` ->
   `.PlaceholderText`. A wrong pairing is a run-time error.

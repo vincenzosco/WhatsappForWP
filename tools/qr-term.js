@@ -73,15 +73,15 @@ function readGrayPng(pngPath) {
     format = execFileSync('magick', ['identify', '-format', '%w %h', pngPath], { encoding: 'utf8' });
   } catch (err) {
     throw new Error(
-      `ImageMagick non ha letto ${pngPath}: ${err.message}\n` +
-      'Serve ImageMagick 7 (`magick` in PATH): brew install imagemagick',
+      `ImageMagick could not read ${pngPath}: ${err.message}\n` +
+      'ImageMagick 7 is required (`magick` in PATH): brew install imagemagick',
     );
   }
   const parts = format.trim().split(/\s+/).map(Number);
   const width = parts[0];
   const height = parts[1];
   if (!width || !height || width !== height) {
-    throw new Error(`il QR deve essere quadrato, invece è ${width}x${height}`);
+    throw new Error(`the QR code must be square, but it is ${width}x${height}`);
   }
 
   const pixels = execFileSync(
@@ -90,7 +90,7 @@ function readGrayPng(pngPath) {
     { maxBuffer: 64 * 1024 * 1024 },
   );
   if (pixels.length !== width * height) {
-    throw new Error(`pixel inattesi: ${pixels.length} invece di ${width * height}`);
+    throw new Error(`unexpected pixels: ${pixels.length} instead of ${width * height}`);
   }
   return { width, height, pixels };
 }
@@ -112,7 +112,7 @@ function findSymbol(pixels, size) {
       }
     }
   }
-  if (maxX < 0) throw new Error('il PNG non contiene moduli scuri');
+  if (maxX < 0) throw new Error('the PNG contains no dark modules');
   return { minX, minY, width: maxX - minX + 1, height: maxY - minY + 1 };
 }
 
@@ -179,8 +179,8 @@ function detectGrid(pixels, size) {
 
   if (best.error > 0.02) {
     throw new Error(
-      `griglia non riconosciuta: i migliori ${best.count} moduli spiegano solo ` +
-      `${((1 - best.error) * 100).toFixed(1)}% dei pixel. Il PNG è un QR valido?`,
+      `grid not recognised: the best ${best.count} modules explain only ` +
+      `${((1 - best.error) * 100).toFixed(1)}% of the pixels. Is the PNG a valid QR code?`,
     );
   }
 
@@ -261,7 +261,7 @@ function main() {
     return;
   }
   if (!file) {
-    console.error('Uso: node tools/qr-term.js (--info | --preview) <qr.png> [--plain] [--quiet-zone <n>] [--self-test]');
+    console.error('Usage: node tools/qr-term.js (--info | --preview) <qr.png> [--plain] [--quiet-zone <n>] [--self-test]');
     process.exit(2);
   }
 
@@ -272,21 +272,21 @@ function main() {
   });
 
   if (has('--info')) {
-    console.log(`${file}: ${qr.count} moduli, ${qr.pitch.toFixed(2)}px per modulo, ` +
-      `errore di ricostruzione ${(qr.error * 100).toFixed(2)}%`);
+    console.log(`${file}: ${qr.count} modules, ${qr.pitch.toFixed(2)}px per module, ` +
+      `reconstruction error ${(qr.error * 100).toFixed(2)}%`);
     const plain = renderHalfBlocks(qr.modules, {
       quietZone: quietZone === undefined ? DEFAULT_QUIET_ZONE : Number(quietZone),
       plain: true,
     });
-    console.log(`disegno: ${plain.length} righe x ${plain[0].length} colonne ` +
-      `(2 moduli per riga, ${qr.count} moduli + margine)`);
+    console.log(`drawing: ${plain.length} rows x ${plain[0].length} columns ` +
+      `(2 modules per row, ${qr.count} modules + margin)`);
     return;
   }
   if (has('--preview')) {
     console.log(qr.lines.join('\n'));
     return;
   }
-  console.error('Nessuna modalità scelta: usa --info o --preview.');
+  console.error('No mode selected: use --info or --preview.');
   process.exit(2);
 }
 
@@ -296,7 +296,7 @@ function withMagick(fn) {
   try {
     execFileSync('magick', ['-version'], { stdio: 'ignore' });
   } catch (err) {
-    console.log('SKIP: ImageMagick 7 (magick) non disponibile');
+    console.log('SKIP: ImageMagick 7 (magick) not available');
     return;
   }
   fn();
@@ -360,8 +360,8 @@ function selfTest() {
       const qr = qrFromPng(file);
       const ok = qr.count === testCase.count && qr.error === 0;
       if (!ok) failures++;
-      console.log(`${ok ? 'OK  ' : 'FAIL'} ${testCase.count} moduli: rilevati ${qr.count}, ` +
-        `errore ${(qr.error * 100).toFixed(2)}%`);
+      console.log(`${ok ? 'OK  ' : 'FAIL'} ${testCase.count} modules: detected ${qr.count}, ` +
+        `error ${(qr.error * 100).toFixed(2)}%`);
     }
 
     // Il disegno deve avere il margine bianco e due moduli per riga.
@@ -373,21 +373,21 @@ function selfTest() {
     const shapeOk = lines.length === expectedLines && lines.every((l) => l.length === expectedColumns);
     const marginOk = lines[0].trim() === '' && lines[lines.length - 1].trim() === '';
     if (!(shapeOk && marginOk)) failures++;
-    console.log(`${shapeOk && marginOk ? 'OK  ' : 'FAIL'} disegno: ${lines.length} righe x ` +
-      `${lines[0].length} colonne, margine bianco presente`);
+    console.log(`${shapeOk && marginOk ? 'OK  ' : 'FAIL'} drawing: ${lines.length} rows x ` +
+      `${lines[0].length} columns, white margin present`);
 
     // Il colore cambia solo quando cambia la coppia di moduli.
     const ansi = renderHalfBlocks(qr.modules, { quietZone: 1, plain: false });
     const ansiOk = ansi[0].startsWith('\x1b[') && ansi[0].endsWith(RESET);
     if (!ansiOk) failures++;
-    console.log(`${ansiOk ? 'OK  ' : 'FAIL'} ANSI: sequenze di colore presenti e azzerate a fine riga`);
+    console.log(`${ansiOk ? 'OK  ' : 'FAIL'} ANSI: colour sequences present and reset at the end of a line`);
 
     fs.rmSync(dir, { recursive: true, force: true });
     if (failures > 0) {
-      console.error(`\n${failures} controllo/i fallito/i.`);
+      console.error(`\n${failures} check(s) failed.`);
       process.exit(1);
     }
-    console.log('\nTutti i controlli sono passati.');
+    console.log('\nAll checks passed.');
   });
 }
 

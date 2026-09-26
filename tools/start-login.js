@@ -49,31 +49,31 @@ const PID_FILE = path.join(GOWA_DIR, 'login-stack.pid');
 // tools/download.js: qui resta solo il nome della versione da mostrare.
 const GOWA_VERSION = downloader.GOWA_VERSION;
 
-const HELP = `Avvia GOWA + l'adattatore WP8 e mostra il QR di login nel terminale.
+const HELP = `Starts GOWA plus the WP8 adapter and shows the login QR code in the terminal.
 
-Uso: node tools/start-login.js [opzioni]
+Usage: node tools/start-login.js [options]
 
-  --download            scarica GOWA ${GOWA_VERSION} in .tools/gowa (verifica SHA-256)
-  --code <numero>       login con codice di abbinamento (prefisso internazionale)
-  --url <base>          usa un GOWA già avviato invece di avviarne uno
-  --port <n>            porta di GOWA (default 3000)
-  --bridge-port <n>     porta TCP per l'app WP8 (default 8585)
-  --webhook-port <n>    porta del webhook GOWA -> adattatore (default 8586)
-  --gowa <percorso>     percorso alternativo dell'eseguibile GOWA
-  --no-bridge           non avviare l'adattatore (solo GOWA + QR)
-  --once                disegna un solo QR ed esce
-  --no-qr               avvia lo stack senza disegnare il QR: il login si fa
-                        dal telefono, nell'app (consigliato)
-  --open-qr             apre il PNG del codice con Anteprima (si aggiorna da solo)
-  --plain / --ansi      disegno senza colori / a colori (default: colori su TTY)
-  --quiet-zone <n>      margine bianco attorno al QR (default 4)
-  --ui                  serve anche la dashboard web di GOWA (default: no)
-  --gowa-user <utente>  Basic Auth di GOWA (con --gowa-pass)
+  --download            downloads GOWA ${GOWA_VERSION} into .tools/gowa (verifies SHA-256)
+  --code <number>       login with a pair code (international prefix)
+  --url <base>          use an already running GOWA instead of starting one
+  --port <n>            GOWA port (default 3000)
+  --bridge-port <n>     TCP port for the WP8 app (default 8585)
+  --webhook-port <n>    GOWA -> adapter webhook port (default 8586)
+  --gowa <path>         alternative path to the GOWA binary
+  --no-bridge           do not start the adapter (GOWA + QR only)
+  --once                draw one QR code and exit
+  --no-qr               start the stack without drawing the QR code: log in
+                        from the phone, inside the app (recommended)
+  --open-qr             open the QR PNG in Preview (it refreshes by itself)
+  --plain / --ansi      drawing without colours / with colours (default: colours on a TTY)
+  --quiet-zone <n>      white margin around the QR code (default 4)
+  --ui                  also serve the GOWA web dashboard (default: no)
+  --gowa-user <user>    GOWA Basic Auth (together with --gowa-pass)
   --gowa-pass <pass>
-  --calls-port <n>      porta del secondo servizio (default 8588)
-  --no-calls            non avviare il secondo servizio
-  --list-services       elenca i servizi avviabili ed esce
-  --stop                ferma lo stack avviato da questo script
+  --calls-port <n>      port for the second service (default 8588)
+  --no-calls            do not start the second service
+  --list-services       list the services that would start, then exit
+  --stop                stop the stack started by this script
   --help
 `;
 
@@ -110,7 +110,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     const next = () => {
       const value = argv[++i];
-      if (value === undefined) fail(`${arg} richiede un valore`);
+      if (value === undefined) fail(`${arg} requires a value`);
       return value;
     };
     switch (arg) {
@@ -136,15 +136,15 @@ function parseArgs(argv) {
       case '--ansi': options.plain = false; break;
       case '--stop': options.stop = true; break;
       case '--help': case '-h': options.help = true; break;
-      default: fail(`opzione sconosciuta: ${arg} (usa --help)`);
+      default: fail(`unknown option: ${arg} (use --help)`);
     }
   }
 
-  if (!Number.isInteger(options.port) || options.port <= 0) fail('--port non valida');
-  if (!Number.isInteger(options.bridgePort) || options.bridgePort <= 0) fail('--bridge-port non valida');
-  if (!Number.isInteger(options.webhookPort) || options.webhookPort <= 0) fail('--webhook-port non valida');
-  if (!Number.isInteger(options.callsPort) || options.callsPort <= 0) fail('--calls-port non valida');
-  if (!Number.isInteger(options.quietZone) || options.quietZone < 0) fail('--quiet-zone non valida');
+  if (!Number.isInteger(options.port) || options.port <= 0) fail('--port is not valid');
+  if (!Number.isInteger(options.bridgePort) || options.bridgePort <= 0) fail('--bridge-port is not valid');
+  if (!Number.isInteger(options.webhookPort) || options.webhookPort <= 0) fail('--webhook-port is not valid');
+  if (!Number.isInteger(options.callsPort) || options.callsPort <= 0) fail('--calls-port is not valid');
+  if (!Number.isInteger(options.quietZone) || options.quietZone < 0) fail('--quiet-zone is not valid');
   if (options.plain === undefined) options.plain = !process.stdout.isTTY;
   return options;
 }
@@ -213,7 +213,7 @@ async function ensureDevice(baseUrl, options) {
     headers: deviceHeaders(null, options),
   });
   const id = created.data && created.data.results && created.data.results.id;
-  if (!id) fail(`GOWA non ha creato nessun device: ${JSON.stringify(created.data)}`);
+  if (!id) fail(`GOWA did not create any device: ${JSON.stringify(created.data)}`);
   return id;
 }
 
@@ -253,10 +253,10 @@ function gowaBinary(options) {
 function missingGowaHint(binary) {
   const key = downloader.archiveKeyFor(process.platform, process.arch);
   const available = key
-    ? `scaricabile con --download per questa macchina (${key})`
-    : `non pubblicato per ${process.platform}/${process.arch}: usa --gowa <percorso> o --url <GOWA gia' avviato>`;
-  return `GOWA non trovato in ${path.relative(ROOT, binary)} (${available})\n` +
-    '     node tools/start-login.js --download      # scarica ' + GOWA_VERSION + ' e verifica il SHA-256';
+    ? `downloadable with --download for this machine (${key})`
+    : `not published for ${process.platform}/${process.arch}: use --gowa <path> or --url <GOWA already running>`;
+  return `GOWA not found in ${path.relative(ROOT, binary)} (${available})\n` +
+    '     node tools/start-login.js --download      # downloads ' + GOWA_VERSION + ' and verifies the SHA-256';
 }
 
 /**
@@ -266,8 +266,8 @@ function missingGowaHint(binary) {
 async function installGowa() {
   const key = downloader.archiveKeyFor(process.platform, process.arch);
   if (!key) {
-    fail(`nessun binario GOWA ${GOWA_VERSION} per ${process.platform}/${process.arch}\n` +
-      '     usa --gowa <percorso dell\'eseguibile> o --url <GOWA già avviato>');
+    fail(`no GOWA ${GOWA_VERSION} binary for ${process.platform}/${process.arch}\n` +
+      '     use --gowa <path to the executable> or --url <GOWA already running>');
   }
 
   try {
@@ -277,7 +277,7 @@ async function installGowa() {
       targetName: downloader.targetNameFor(process.platform),
       log: (line) => console.log(`  ↓  ${line}`),
     });
-    console.log(`  ✔  GOWA ${GOWA_VERSION} installato in ${path.relative(ROOT, result.target)} (SHA-256 verificato)`);
+    console.log(`  ✔  GOWA ${GOWA_VERSION} installed in ${path.relative(ROOT, result.target)} (SHA-256 verified)`);
   } catch (err) {
     fail(err.message);
   }
@@ -301,7 +301,7 @@ function startGowa(binary, options) {
     stdio: ['ignore', logFd, logFd],
     detached: false,
   });
-  child.on('error', (err) => fail(`non riesco ad avviare GOWA: ${err.message}`));
+  child.on('error', (err) => fail(`could not start GOWA: ${err.message}`));
   return child;
 }
 
@@ -356,7 +356,7 @@ function startNodeService(service, env) {
     env: Object.assign({}, process.env, env),
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const label = service.name === 'adapter' ? 'adattatore' : service.name;
+  const label = service.name === 'adapter' ? 'adapter' : service.name;
   const echo = (stream) => {
     let buffer = '';
     stream.setEncoding('utf8');
@@ -379,13 +379,13 @@ function startNodeService(service, env) {
  *  viene ricaricato dal disco a ogni rotazione del codice. */
 function openInViewer(file) {
   if (process.platform !== 'darwin') {
-    console.log(`  ·  --open-qr: apri a mano ${path.relative(ROOT, file)}`);
+    console.log(`  ·  --open-qr: open it by hand: ${path.relative(ROOT, file)}`);
     return;
   }
   try {
     spawn('open', [file], { stdio: 'ignore', detached: true }).unref();
   } catch (err) {
-    console.log(`  ·  --open-qr: non riesco ad aprire il codice (${err.message})`);
+    console.log(`  ·  --open-qr: could not open the QR code (${err.message})`);
   }
 }
 
@@ -402,13 +402,13 @@ function printTooSmall(printer, lines, caption, hint) {
   const rows = process.stdout.rows || 0;
   console.log(`\n  ${caption}`);
   if (process.stdout.isTTY && columns && rows) {
-    console.log(`     Il codice occupa ${lines.length} righe e ${lines[0].length} colonne;`);
-    console.log(`     questa finestra ne ha ${rows} x ${columns}.`);
-    console.log('     Ridimensionala, o premi Cmd - per rimpicciolire il testo: il prossimo');
-    console.log('     codice verra\' disegnato qui.');
+    console.log(`     The code needs ${lines.length} rows and ${lines[0].length} columns;`);
+    console.log(`     this window has ${rows} x ${columns}.`);
+    console.log('     Resize it, or press Cmd - to shrink the text: the next code will be');
+    console.log('     drawn here.');
   }
-  if (hint) console.log(`     Oppure: ${hint}`);
-  console.log('     Oppure: --no-qr, e fai il login dal telefono nell\'app.');
+  if (hint) console.log(`     Alternatively: ${hint}`);
+  console.log('     Alternatively: --no-qr, and log in from the phone, inside the app.');
 }
 
 function makePrinter(options) {
@@ -432,7 +432,7 @@ function makePrinter(options) {
         if (printer.warned) {
           // Senza questa riga, dopo il primo avviso il log resta muto per
           // minuti e sembra che lo script si sia piantato.
-          console.log(`  · nuovo codice alle ${stamp()} (non disegnato: la finestra e' troppo piccola)`);
+          console.log(`  · new code at ${stamp()} (not drawn: the window is too small)`);
           printer.drawnLines = 0;
           return;
         }
@@ -459,17 +459,17 @@ function banner(options, addresses, baseUrl, deviceId) {
   const host = addresses.length > 0 ? addresses[0] : '127.0.0.1';
   const line = '─'.repeat(66);
   console.log(`\n${line}`);
-  console.log('  WhatsApp per Windows Phone 8.1 — server di login in locale');
+  console.log('  WhatsApp for Windows Phone 8.1 — local login server');
   console.log(line);
   console.log(`  GOWA (WhatsApp)      ${baseUrl}  (${GOWA_VERSION})`);
   for (const line of options.serviceLines || []) console.log(line);
-  console.log(`  Sessioni             .tools/gowa/storages/whatsapp.db`);
-  console.log(`  Log GOWA             .tools/gowa/gowa.log`);
+  console.log(`  Sessions              .tools/gowa/storages/whatsapp.db`);
+  console.log(`  GOWA log              .tools/gowa/gowa.log`);
   console.log(line);
   if (addresses.length > 1) {
-    console.log(`  Indirizzi di questa macchina: ${addresses.join(', ')}`);
+    console.log(`  Addresses of this machine: ${addresses.join(', ')}`);
   }
-  if (deviceId) console.log(`  Device GOWA: ${deviceId}`);
+  if (deviceId) console.log(`  GOWA device: ${deviceId}`);
   console.log(line);
 }
 
@@ -480,7 +480,7 @@ async function loadQrPng(source) {
   if (source.file) return source.file;
   const target = path.join(os.tmpdir(), 'gowa-qr.png');
   const response = await fetch(source.url, { signal: AbortSignal.timeout(15000) });
-  if (!response.ok) throw new Error(`QR non scaricabile (${response.status})`);
+  if (!response.ok) throw new Error(`QR could not be downloaded (${response.status})`);
   fs.writeFileSync(target, Buffer.from(await response.arrayBuffer()));
   return target;
 }
@@ -504,9 +504,9 @@ async function showQr(baseUrl, deviceId, options, printer, source) {
     openInViewer(stable);
   }
 
-  printer.render(qr.lines, `QR aggiornato alle ${stamp()} — ${qr.count} moduli, ` +
-    `ricostruzione ${(qr.error * 100).toFixed(2)}%`,
-    `apri ${path.relative(ROOT, stable)} con Anteprima (si aggiorna da solo), o ${imageUrl}`);
+  printer.render(qr.lines, `QR updated at ${stamp()} — ${qr.count} modules, ` +
+    `reconstruction ${(qr.error * 100).toFixed(2)}%`,
+    `open ${path.relative(ROOT, stable)} in Preview (it refreshes by itself), or ${imageUrl}`);
   return qr;
 }
 
@@ -518,18 +518,18 @@ async function showPairCode(baseUrl, deviceId, options, printer) {
   );
   if (!response.ok) {
     const message = (response.data && (response.data.message || response.data.code)) || `HTTP ${response.status}`;
-    fail(`codice di abbinamento non disponibile: ${message}`);
+    fail(`pair code unavailable: ${message}`);
   }
   const code = response.data.results.pair_code;
   const lines = [
     '',
-    `        Codice di abbinamento:  ${code}`,
+    `        Pair code:  ${code}`,
     '',
-    '      Sul telefono: WhatsApp → Impostazioni → Dispositivi collegati →',
-    "      Collega un dispositivo → Collega con numero di telefono.",
+    '      On the phone: WhatsApp → Settings → Linked devices →',
+    "      Link a device → Link with phone number.",
     '',
   ];
-  printer.render(lines, `codice generato alle ${stamp()} (valido ~2 minuti)`);
+  printer.render(lines, `pair code generated at ${stamp()} (valid ~2 minutes)`);
   return code;
 }
 
@@ -569,8 +569,8 @@ async function waitForLogin(state) {
       if (status && status.isLoggedIn) return status;
       if (!state.reportedWaiting) {
         state.reportedWaiting = true;
-        console.log(`\n  Il login si fa dal telefono: apri l'app e inquadra il codice che mostra.` +
-          `\n  In attesa del collegamento...`);
+        console.log(`\n  Log in from the phone: open the app and scan the code it shows.` +
+          `\n  Waiting for the link...`);
       }
       await sleep(2000);
       continue;
@@ -637,7 +637,7 @@ function stopStack() {
   try {
     parsed = JSON.parse(fs.readFileSync(PID_FILE, 'utf8'));
   } catch (err) {
-    console.log('Nessuno stack da fermare (file dei PID assente).');
+    console.log('No stack to stop (no PID file).');
     return;
   }
 
@@ -650,9 +650,9 @@ function stopStack() {
   for (const pid of targets) {
     try {
       process.kill(pid, 'SIGTERM');
-      console.log(`  ✔ fermato processo ${pid}`);
+      console.log(`  ✔ stopped process ${pid}`);
     } catch (err) {
-      console.log(`  · processo ${pid} non attivo`);
+      console.log(`  · process ${pid} is not running`);
     }
   }
   fs.rmSync(PID_FILE, { force: true });
@@ -674,8 +674,8 @@ async function main() {
       exists: (target) => fs.existsSync(target),
       options,
     });
-    for (const service of list.services) console.log(`  avviabile: ${service.name} (${service.dir})`);
-    for (const entry of list.skipped) console.log(`  saltato:   ${entry.name} (${entry.reason})`);
+    for (const service of list.services) console.log(`  startable: ${service.name} (${service.dir})`);
+    for (const entry of list.skipped) console.log(`  skipped:   ${entry.name} (${entry.reason})`);
     return;
   }
 
@@ -684,7 +684,7 @@ async function main() {
   const shutdown = () => {
     if (stopping) return;
     stopping = true;
-    console.log('\n  … arresto in corso');
+    console.log('\n  … shutting down');
     for (const child of children) {
       try { child.kill('SIGTERM'); } catch (err) { /* già morto */ }
     }
@@ -705,12 +705,12 @@ async function main() {
       // qui, non in una tabella scritta a mano.
       await installGowa();
     }
-    console.log(`  →  avvio GOWA ${GOWA_VERSION} sulla porta ${options.port} (log: .tools/gowa/gowa.log)`);
+    console.log(`  →  starting GOWA ${GOWA_VERSION} on port ${options.port} (log: .tools/gowa/gowa.log)`);
     const stale = clearQrFiles();
-    if (stale > 0) console.log(`  ·  rimossi ${stale} QR scaduti dalla sessione precedente`);
+    if (stale > 0) console.log(`  ·  removed ${stale} expired QR codes from the previous session`);
     children.push(startGowa(binary, options));
     if (!(await waitForHealth(`http://127.0.0.1:${options.port}`, 20000))) {
-      console.error(`\n  ✖ GOWA non risponde: ultime righe di ${path.relative(ROOT, GOWA_LOG)}`);
+      console.error(`\n  ✖ GOWA is not responding. Last lines of ${path.relative(ROOT, GOWA_LOG)}:`);
       try {
         console.error(fs.readFileSync(GOWA_LOG, 'utf8').trim().split('\n').slice(-8).join('\n'));
       } catch (err) { /* niente log */ }
@@ -732,36 +732,36 @@ async function main() {
   const host = addresses.length > 0 ? addresses[0] : '127.0.0.1';
   options.serviceLines = [];
   if (resolved.services.some((s) => s.name === 'adapter')) {
-    options.serviceLines.push(`  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)`);
-    options.serviceLines.push(`  Webhook GOWA→app     http://${host}:${options.webhookPort}/webhook`);
-    options.serviceLines.push(`  Scoperta automatica  UDP 8587  (l'app trova questo computer da sola)`);
+    options.serviceLines.push(`  Adapter for the app   ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)`);
+    options.serviceLines.push(`  GOWA→app webhook      http://${host}:${options.webhookPort}/webhook`);
+    options.serviceLines.push(`  Automatic discovery   UDP 8587  (the app finds this computer by itself)`);
   }
   if (resolved.services.some((s) => s.name === 'calls')) {
-    options.serviceLines.push(`  Servizio chiamate    ${host}:${options.callsPort}`);
+    options.serviceLines.push(`  Calls service         ${host}:${options.callsPort}`);
   }
 
   banner(options, addresses, baseUrl, deviceId);
 
-  if (resolved.services.length > 0) console.log('  →  avvio i servizi\n');
+  if (resolved.services.length > 0) console.log('  →  starting the services\n');
   for (const service of resolved.services) {
     const env = services.serviceEnv(service, { options, gowaUrl: baseUrl, deviceId });
     children.push(startNodeService(service, env));
   }
   for (const entry of resolved.skipped) {
-    console.log(`  ·  ${entry.name} non avviato: ${entry.reason}`);
+    console.log(`  ·  ${entry.name} not started: ${entry.reason}`);
   }
   writePidFile(children);
-  console.log(`  Per fermare tutto: Ctrl-C (oppure node tools/start-login.js --stop)`);
+  console.log(`  To stop everything: Ctrl-C (or node tools/start-login.js --stop)`);
 
   const status = await statusOf(baseUrl, deviceId, options).catch(() => null);
   if (status && status.isLoggedIn) {
-    console.log(`\n  ✔ WhatsApp è già collegato come ${status.jid || 'sconosciuto'}: nessun QR da inquadrare.`);
+    console.log(`\n  ✔ WhatsApp is already linked as ${status.jid || 'unknown'}: no QR code to scan.`);
   } else {
-    console.log('\n  Sul telefono: WhatsApp → Impostazioni → Dispositivi collegati → Collega un dispositivo');
-    console.log('  e inquadra il codice qui sotto. Il primo QR dura ~60 s, poi ne arriva uno nuovo');
-    console.log('  ogni ~20 s: il disegno si aggiorna da solo.');
+    console.log('\n  On the phone: WhatsApp → Settings → Linked devices → Link a device');
+    console.log('  and scan the code below. The first QR code lasts about 60 s, then a new one');
+    console.log('  arrives every ~20 s and the drawing refreshes by itself.');
     if (options.noQr) {
-      console.log('\n  Nessun QR qui: loggati dal telefono, nell\'app (Ctrl-C per fermare).');
+      console.log('\n  No QR code here: log in from the phone, inside the app (Ctrl-C to stop).');
     }
   }
 
@@ -771,7 +771,7 @@ async function main() {
     else {
       const login = await requestLogin(baseUrl, deviceId, options);
       if (login.alreadyLoggedIn) {
-        console.log('  ✔ già collegato');
+        console.log('  ✔ already linked');
       } else {
         await showQr(baseUrl, deviceId, options, printer, { url: login.qrLink });
       }
@@ -785,12 +785,12 @@ async function main() {
     baseUrl, deviceId, options, printer, gowaLocal: local, startedAt: Date.now(),
   });
   printer.done();
-  console.log(`\n  ✔ WhatsApp collegato come ${result.jid || 'sconosciuto'}`);
+  console.log(`\n  ✔ WhatsApp linked as ${result.jid || 'unknown'}`);
   if (!options.noBridge) {
     const host = addresses.length > 0 ? addresses[0] : '127.0.0.1';
-    console.log(`     L'app WP8 può ora collegarsi a ${host}:${options.bridgePort} e usare questa sessione.`);
+    console.log(`     The app can now connect to ${host}:${options.bridgePort} and use this session.`);
   }
-  console.log('     Lo stack resta attivo: Ctrl-C per fermarlo.');
+  console.log('     The stack stays up: Ctrl-C to stop it.');
 }
 
 if (require.main === module) {
