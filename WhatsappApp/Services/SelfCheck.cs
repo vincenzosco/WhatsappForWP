@@ -1,6 +1,8 @@
 using System;
 using System.Text;
 using System.Threading.Tasks;
+using Windows.Security.Cryptography;
+using Windows.Storage.Streams;
 
 namespace WhatsappApp.Services
 {
@@ -13,7 +15,7 @@ namespace WhatsappApp.Services
     /// da un Mac non c'e' modo di accorgersene. Il risultato finisce nel log con
     /// la forma di Diag, cosi' un giro di debug dice tutto in tre righe:
     ///
-    ///     DIAG ok: crypto AES-256-GCM
+    ///     DIAG ok: crypto AES-256-CBC + HMAC-SHA256
     ///     DIAG ok: schermo sempre acceso (DisplayRequest)
     ///     DIAG ok: beacon UDP in ascolto sulla porta 8587
     ///
@@ -30,28 +32,72 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Il cifrario del canale: se GCM non e' implementato qui, il socket non
-        /// puo' funzionare e la cosa va saputa subito, non alla prima schermata
-        /// vuota.
+        /// Il cifrario del canale. Prima il giro di andata e ritorno, poi il
+        /// vettore di prova: quello e' calcolato dal server con la sua
+        /// derivazione delle chiavi, quindi se combacia le due parti si parlano
+        /// davvero. Quando fallisce, il sito dice a quale passo.
         /// </summary>
         private static void CheckCrypto()
         {
+            // Stesso vettore di WhatsappBridge/test/crypto-helper.test.js:
+            // IV = 000102...0e0f, testo {"Type":0,"Text":"ciao"}.
+            const string VectorHex =
+                "02000102030405060708090a0b0c0d0e0f" +
+                "2fc17f6d19a9bea8e286ceebf69ca87c72cf5e563e0d09ee3d755fb40f87c336" +
+                "e65a51262cff115a41eb866b8a82275d7d61dfb35bb0f5060ab9f1b316d45e2d";
+            const string VectorPlain = "{\"Type\":0,\"Text\":\"ciao\"}";
+
+            byte[] probe = Encoding.UTF8.GetBytes("whatsapp-wp8");
+
+            byte[] frame;
             try
             {
-                byte[] probe = Encoding.UTF8.GetBytes("whatsapp-wp8");
-                byte[] frame = CryptoHelper.Encrypt(probe);
-                byte[] back = CryptoHelper.Decrypt(frame);
-
-                bool equal = back != null && back.Length == probe.Length;
-                for (int i = 0; equal && i < probe.Length; i++) equal = back[i] == probe[i];
-
-                if (equal) Diag.Ok("crypto AES-256-GCM");
-                else Diag.Failed("SelfCheck.crypto",
-                    new InvalidOperationException("il giro di andata e ritorno non torna"));
+                frame = CryptoHelper.Encrypt(probe);
             }
             catch (Exception ex)
             {
-                Diag.Failed("SelfCheck.crypto", ex);
+                // Se fallisce qui il canale non puo' funzionare: era il caso del
+                // vecchio CryptoHelper, che usava AES-GCM (0x80004001).
+                Diag.Failed("SelfCheck.crypto/encrypt", ex);
+                return;
+            }
+
+            byte[] back;
+            try
+            {
+                back = CryptoHelper.Decrypt(frame);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("SelfCheck.crypto/decrypt", ex);
+                return;
+            }
+
+            bool equal = back != null && back.Length == probe.Length;
+            for (int i = 0; equal && i < probe.Length; i++) equal = back[i] == probe[i];
+            if (!equal)
+            {
+                Diag.Failed("SelfCheck.crypto/roundtrip",
+                    new InvalidOperationException("il giro di andata e ritorno non torna"));
+                return;
+            }
+
+            try
+            {
+                IBuffer vector = CryptographicBuffer.DecodeFromHexString(VectorHex);
+                byte[] vectorBytes;
+                CryptographicBuffer.CopyToByteArray(vector, out vectorBytes);
+
+                byte[] plain = CryptoHelper.Decrypt(vectorBytes);
+                string text = Encoding.UTF8.GetString(plain, 0, plain.Length);
+
+                if (text == VectorPlain) Diag.Ok("crypto " + CryptoHelper.ModeDescription);
+                else Diag.Failed("SelfCheck.crypto/vector",
+                    new InvalidOperationException("il vettore di prova non torna: " + text));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("SelfCheck.crypto/vector", ex);
             }
         }
 
