@@ -38,13 +38,14 @@ namespace WhatsappApp.Pages
             DataService.Instance.Contacts.CollectionChanged += Contacts_CollectionChanged;
             UpdateEmptyState();
 
-            // OnNavigatedTo is not async: fire the contacts request and ignore
-            // the task. Si chiede solo se la lista e' vuota: l'adapter risponde
-            // con un frame per contatto, e ripetere la sincronizzazione ad ogni
-            // visita ricostruiva tutto l'elenco per niente.
+            // OnNavigatedTo is not async: fire the chats request and ignore the
+            // task. Si chiede l'elenco delle conversazioni, non la rubrica:
+            // /user/my/contacts e' vuota su un account appena collegato mentre
+            // /chats e' piena. Solo se la lista e' vuota: l'adapter risponde con
+            // un frame per conversazione.
             if (CommunicationService.Instance.IsConnected && DataService.Instance.Contacts.Count == 0)
 #pragma warning disable 4014
-                CommunicationService.Instance.SendControlAsync("contacts");
+                CommunicationService.Instance.SendControlAsync("chats");
 #pragma warning restore 4014
         }
 

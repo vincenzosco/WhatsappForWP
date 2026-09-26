@@ -67,6 +67,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Sends text and images through `POST /send/message` and `POST /send/image`
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
+- Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (`CHATS_LIMIT`, `CHATS_AVATARS`)
 
 **Setup (one command)**
 

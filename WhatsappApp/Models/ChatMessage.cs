@@ -58,6 +58,8 @@ namespace WhatsappApp.Models
         private string _pairCode;       // pairing code for phone-number login
         private string _qrImageData;    // base64 PNG of the login QR code
         private int _qrDuration;        // QR validity in seconds
+        private string _avatarData;     // immagine del profilo, base64
+        private bool _isGroup;          // la chat e' un gruppo
         private string _accountJid;     // WhatsApp JID of the logged-in account
         private string _callId;             // id della chiamata, da GOWA
         private string _callReason;         // esito riportato da GOWA (timeout, reject, ...)
@@ -267,6 +269,22 @@ namespace WhatsappApp.Models
         {
             get { return _relatedMessageId; }
             set { _relatedMessageId = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Immagine del profilo della chat, in base64. Vuota se non ce l'ha.</summary>
+        [DataMember]
+        public string AvatarData
+        {
+            get { return _avatarData; }
+            set { _avatarData = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Vero per i gruppi: GOWA non ha un avatar personale per loro.</summary>
+        [DataMember]
+        public bool IsGroup
+        {
+            get { return _isGroup; }
+            set { _isGroup = value; OnPropertyChanged(); }
         }
 
         public string FormattedTime
