@@ -190,6 +190,19 @@ il flusso di login WhatsApp: l'app manda `login.qr` / `login.code` e l'adapter
 risponde con i frame `qr` / `paircode` / `state` / `contact` / `error`. La tabella
 completa dei comandi e' in `WhatsappBridge/README.it.md`.
 
+Una lunghezza di frame non viene mai creduta sulla parola: l'app riempie per
+intero il prefisso di 4 byte (`InputStreamOptions.Partial` puo' spezzarlo) e
+rifiuta qualunque valore fuori da `1..8 MiB` (`MaxFrameLength`), e l'adapter
+chiude il client che annuncia piu' di `MAX_FRAME_LENGTH` (gli stessi 8 MiB)
+invece di accumularlo.
+
+Un tentativo di connessione possiede il suo socket, il suo `DataReader` e il suo
+ciclo di lettura: solo il tentativo piu' recente li pubblica e solo il suo ciclo
+li legge, quindi un tentativo fallito (per esempio su un indirizzo salvato che
+non risponde piu') non puo' chiudere la connessione che invece e' riuscita. La
+connessione ha una scadenza di 6 secondi; `0x8007274C` significa che e' scaduta,
+e l'app dimentica l'indirizzo salvato e ripiega sulla scoperta.
+
 ## Compilazione
 
 ### App WP8

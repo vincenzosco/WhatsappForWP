@@ -1279,3 +1279,21 @@ No `TBD`, no "add error handling", no "similar to Task N": every code step carri
 - `ExplainConnectionFailure(Exception, string, string)` is given three arguments at both call sites in Task 3; the two-argument form is deleted there.
 - New resource keys are `CommService_ConnectTimeout`, `CommService_ConnectRefused`, `CommService_ConnectUnreachable`, `CommService_InvalidAddress`, spelled identically in the code (`Loc.Get`) and in both `.resw` files, and used, so `--strict` stays green.
 - Test count arithmetic: 45 adapter tests + 4 new = 49, asserted in Task 6 Step 6 and Task 8 Step 1.
+
+---
+
+## What execution changed about the plan
+
+1. **`CleanUpClientSocket` was deleted instead of kept.** Once every failure path
+   disposes only the objects of its own attempt (`DisposeSocket`) or the published
+   pair (`DisposePublishedSocket`), the id-bumping wrapper had no caller left. Dead
+   private methods do not warn, so it would have rotted silently.
+2. **Tasks 4 and 5 landed in one commit** (`fix: ask for the login QR on every page
+   open and fall back to discovery on a stale address`) instead of two: they are two
+   halves of the same user-visible behaviour (a QR that is actually requested).
+3. **`AutoConnector`'s class comment was updated** to say that the saved address is
+   tried only while it answers, which the Task 5 body changed but the header did not.
+4. **The Task 6 test had to resume the socket.** A paused `net.Socket` never emits
+   `end`/`close`, so waiting for the server's close without `socket.resume()` timed
+   out even though the server had already destroyed the connection. The test says so
+   in a comment now.

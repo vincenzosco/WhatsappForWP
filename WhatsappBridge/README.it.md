@@ -38,6 +38,11 @@ Frame `Type = System`, `ChatId = "system"`.
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = nome |
 | adapter -> app | `error` | `Text` |
 
+Un frame e' `[lunghezza 4 byte little-endian][payload]`. Una lunghezza uguale a
+`0`, o sopra `MAX_FRAME_LENGTH` (8 MiB, esportato da `server.js` e uguale a
+`CommunicationService.MaxFrameLength` nell'app), viene trattata come un guasto:
+l'adapter la scrive nel log e chiude il socket, invece di accumulare.
+
 ## Configurazione
 
 Vedi `.env.example`. Le variabili principali:

@@ -155,3 +155,11 @@ empty".
 8. Open the software keyboard on the chat page: the input row must stay above it.
 9. Scroll a long conversation: no blank rows, no stutter (the item containers are
    deliberately styled to keep per-item layout cheap).
+10. After a change to the socket layer, the debug log must show the three
+    `DIAG ok:` start-up lines and **neither** `DIAG ConnectToServerAsync` **nor**
+    `DIAG ListenForMessagesAsync`. A `DIAG ReadFrameAsync/length` line means the two
+    sides disagree about the frame: read the length it prints before changing
+    anything else.
+11. On a fresh install the app connects on its own and the QR overlay opens without
+    pressing anything. If the connection is already up when the settings page is
+    opened, the page asks for the QR again by itself.
