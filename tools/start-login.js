@@ -29,12 +29,13 @@
  */
 'use strict';
 
-const { spawn, spawnSync } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
 const qrTerm = require('./qr-term');
+const downloader = require('./download');
 
 const ROOT = path.resolve(__dirname, '..');
 const GOWA_DIR = path.join(ROOT, '.tools', 'gowa');
@@ -43,21 +44,9 @@ const GOWA_QR_DIR = path.join(GOWA_DIR, 'statics', 'qrcode');
 const PID_FILE = path.join(GOWA_DIR, 'login-stack.pid');
 const BRIDGE_DIR = path.join(ROOT, 'WhatsappBridge');
 
-const GOWA_VERSION = 'v9.5.0';
-// Binari ufficiali della release, con digest pubblicato da GOWA: si accetta il
-// download solo se l'archivio corrisponde.
-const GOWA_RELEASES = {
-  'darwin-arm64': {
-    file: 'whatsapp_9.5.0_darwin_arm64.zip',
-    sha256: '0a5639e0608aaae3e1c7977a16303b782c2ea3ff7be8f73ecf0bed89adf7a444',
-    binary: 'darwin-arm64',
-  },
-  'darwin-x64': {
-    file: 'whatsapp_9.5.0_darwin_amd64.zip',
-    sha256: 'b57d6fa46bbef88fb3dd1708174d4e42cdcae7dea70250961a3f70f7c06e207b',
-    binary: 'darwin-amd64',
-  },
-};
+// La tabella dei binari per sistema e CPU, e il download verificato, stanno in
+// tools/download.js: qui resta solo il nome della versione da mostrare.
+const GOWA_VERSION = downloader.GOWA_VERSION;
 
 const HELP = `Avvia GOWA + l'adattatore WP8 e mostra il QR di login nel terminale.
 
@@ -244,49 +233,43 @@ async function waitForHealth(baseUrl, timeoutMs) {
 
 // ─── GOWA ────────────────────────────────────────────────────────────────────
 
-function platformKey() {
-  if (process.platform === 'darwin') {
-    return process.arch === 'arm64' ? 'darwin-arm64' : (process.arch === 'x64' ? 'darwin-x64' : null);
-  }
-  return null;
-}
-
-async function downloadGowa() {
-  const key = platformKey();
-  if (!key) {
-    fail(`nessun binario precompilato per ${process.platform}/${process.arch}: scarica GOWA da GitHub e usa --gowa <percorso>`);
-  }
-  const release = GOWA_RELEASES[key];
-  const url = `https://github.com/aldinokemal/go-whatsapp-web-multidevice/releases/download/${GOWA_VERSION}/${release.file}`;
-  console.log(`  ↓  scarico ${release.file} ...`);
-
-  const response = await fetch(url, { signal: AbortSignal.timeout(180000) });
-  if (!response.ok) fail(`download fallito (${response.status}) da ${url}`);
-  const buffer = Buffer.from(await response.arrayBuffer());
-
-  const crypto = require('crypto');
-  const digest = crypto.createHash('sha256').update(buffer).digest('hex');
-  if (digest !== release.sha256) {
-    fail(`SHA-256 inatteso: ${digest}\n     atteso: ${release.sha256}`);
-  }
-
-  fs.mkdirSync(GOWA_DIR, { recursive: true });
-  const zipPath = path.join(GOWA_DIR, release.file);
-  fs.writeFileSync(zipPath, buffer);
-  const unzip = spawnSync('unzip', ['-o', zipPath, '-d', GOWA_DIR], { encoding: 'utf8' });
-  if (unzip.status !== 0) fail(`unzip non riuscito: ${unzip.stderr || unzip.stdout}`);
-  fs.rmSync(zipPath, { force: true });
-
-  const extracted = path.join(GOWA_DIR, release.binary);
-  const target = gowaBinary({ binary: path.join(GOWA_DIR, 'whatsapp') });
-  fs.renameSync(extracted, target);
-  fs.chmodSync(target, 0o755);
-  console.log(`  ✔  GOWA ${GOWA_VERSION} installato in ${path.relative(ROOT, target)} (SHA-256 verificato)`);
-}
-
 function gowaBinary(options) {
   if (options.binary) return options.binary;
-  return path.join(GOWA_DIR, process.platform === 'win32' ? 'whatsapp.exe' : 'whatsapp');
+  return path.join(GOWA_DIR, downloader.targetNameFor(process.platform));
+}
+
+/** Il testo che dice cosa fare quando GOWA non c'e' e non lo si e' chiesto. */
+function missingGowaHint(binary) {
+  const key = downloader.archiveKeyFor(process.platform, process.arch);
+  const available = key
+    ? `scaricabile con --download per questa macchina (${key})`
+    : `non pubblicato per ${process.platform}/${process.arch}: usa --gowa <percorso> o --url <GOWA gia' avviato>`;
+  return `GOWA non trovato in ${path.relative(ROOT, binary)} (${available})\n` +
+    '     node tools/start-login.js --download      # scarica ' + GOWA_VERSION + ' e verifica il SHA-256';
+}
+
+/**
+ * Installa GOWA per la piattaforma corrente. Su una coppia senza archivio
+ * ufficiale si ferma dicendo quale coppia e' e cosa fare invece.
+ */
+async function installGowa() {
+  const key = downloader.archiveKeyFor(process.platform, process.arch);
+  if (!key) {
+    fail(`nessun binario GOWA ${GOWA_VERSION} per ${process.platform}/${process.arch}\n` +
+      '     usa --gowa <percorso dell\'eseguibile> o --url <GOWA già avviato>');
+  }
+
+  try {
+    const result = await downloader.ensureArchive({
+      key,
+      dir: GOWA_DIR,
+      targetName: downloader.targetNameFor(process.platform),
+      log: (line) => console.log(`  ↓  ${line}`),
+    });
+    console.log(`  ✔  GOWA ${GOWA_VERSION} installato in ${path.relative(ROOT, result.target)} (SHA-256 verificato)`);
+  } catch (err) {
+    fail(err.message);
+  }
 }
 
 function startGowa(binary, options) {
@@ -701,13 +684,12 @@ async function main() {
   const local = !options.url;
   if (local) {
     if (!fs.existsSync(binary)) {
-      if (options.download) {
-        await downloadGowa();
-      } else {
-        fail(`GOWA non trovato in ${path.relative(ROOT, binary)}\n` +
-          '     node tools/start-login.js --download      # scarica ' + GOWA_VERSION + ' e verifica il SHA-256\n' +
-          '     oppure passa --gowa <percorso dell\'eseguibile> o --url <GOWA già avviato>');
+      if (!options.download) {
+        fail(missingGowaHint(binary));
       }
+      // Il binario si scarica per QUESTA macchina: sistema e CPU si leggono
+      // qui, non in una tabella scritta a mano.
+      await installGowa();
     }
     console.log(`  →  avvio GOWA ${GOWA_VERSION} sulla porta ${options.port} (log: .tools/gowa/gowa.log)`);
     const stale = clearQrFiles();
@@ -775,7 +757,12 @@ async function main() {
   console.log('     Lo stack resta attivo: Ctrl-C per fermarlo.');
 }
 
-main().catch((err) => {
-  console.error(`\n  ✖ ${err && err.message ? err.message : err}\n`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(`\n  ✖ ${err && err.message ? err.message : err}\n`);
+    process.exit(1);
+  });
+} else {
+  // Importabile dai test senza avviare niente.
+  module.exports = { parseArgs, missingGowaHint, installGowa, GOWA_VERSION };
+}
