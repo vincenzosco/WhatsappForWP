@@ -132,25 +132,6 @@ namespace WhatsappApp.Converters
     }
 
     /// <summary>
-    /// Converts online status to green/gray dot visibility
-    /// </summary>
-    public class OnlineToDotColorConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, string language)
-        {
-            bool isOnline = (bool)value;
-            return isOnline
-                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 37, 211, 102))  // #25D366 green
-                : new SolidColorBrush(Windows.UI.Color.FromArgb(100, 200, 200, 200)); // gray
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, string language)
-        {
-            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
-        }
-    }
-
-    /// <summary>
     /// Converts MessageType to visibility for the image element (visible only for Image type)
     /// </summary>
     public class MessageTypeToImageVisibilityConverter : IValueConverter

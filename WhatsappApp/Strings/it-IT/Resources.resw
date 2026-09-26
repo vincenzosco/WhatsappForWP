@@ -145,12 +145,6 @@
   <data name="ChatPage_ImageSelected.Text" xml:space="preserve">
     <value>Immagine selezionata</value>
   </data>
-  <data name="ChatPage_Online" xml:space="preserve">
-    <value>in linea</value>
-  </data>
-  <data name="ChatPage_LastSeenToday" xml:space="preserve">
-    <value>ultimo accesso oggi {0}</value>
-  </data>
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Io</value>
   </data>

@@ -12,7 +12,6 @@ namespace WhatsappApp.Models
         private string _lastMessageTime;
         private string _initials;
         private string _avatarColor;
-        private bool _isOnline;
         private int _unreadCount;
         private string _avatarUri;
 
@@ -56,12 +55,6 @@ namespace WhatsappApp.Models
         {
             get { return _avatarColor; }
             set { _avatarColor = value; OnPropertyChanged(); }
-        }
-
-        public bool IsOnline
-        {
-            get { return _isOnline; }
-            set { _isOnline = value; OnPropertyChanged(); }
         }
 
         public int UnreadCount
