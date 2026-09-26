@@ -79,11 +79,38 @@
   <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
     <value>WhatsApp non espone gli stati a questa app: il server con cui parla non ha un endpoint per gli aggiornamenti, quindi questa sezione resta vuota per scelta. Chat e chiamate non ne sono toccate.</value>
   </data>
-  <data name="CallsPage_EmptyTitle.Text" xml:space="preserve">
-    <value>Nessuna chiamata</value>
+  <data name="CallsPage_EmptyHint" xml:space="preserve">
+    <value>WhatsApp non ha registrato chiamate in entrata nelle chat che il server ha scansionato. Il registro arriva dalla history del server: solo chiamate in entrata, dalle 25 chat più recenti.</value>
   </data>
-  <data name="CallsPage_EmptyHint.Text" xml:space="preserve">
-    <value>Le chiamate non sono supportate in questa versione.</value>
+  <data name="CallsPage_Scanning" xml:space="preserve">
+    <value>Cerco le chiamate...</value>
+  </data>
+  <data name="CallsPage_Refresh.Content" xml:space="preserve">
+    <value>Aggiorna</value>
+  </data>
+  <data name="CallsPage_Answered" xml:space="preserve">
+    <value>Chiamata risposta</value>
+  </data>
+  <data name="CallsPage_Missed" xml:space="preserve">
+    <value>Chiamata persa</value>
+  </data>
+  <data name="CallsPage_Declined" xml:space="preserve">
+    <value>Chiamata rifiutata</value>
+  </data>
+  <data name="CallsPage_Busy" xml:space="preserve">
+    <value>Chiamata, linea occupata</value>
+  </data>
+  <data name="CallsPage_Cancelled" xml:space="preserve">
+    <value>Chiamata annullata</value>
+  </data>
+  <data name="CallsPage_Incoming" xml:space="preserve">
+    <value>Chiamata in entrata</value>
+  </data>
+  <data name="CallsPage_Video" xml:space="preserve">
+    <value>Video</value>
+  </data>
+  <data name="CallsPage_NotConnected" xml:space="preserve">
+    <value>Non connesso al server: il registro chiamate non è disponibile.</value>
   </data>
   <data name="StatusPage_Title.Text" xml:space="preserve">
     <value>Stato</value>

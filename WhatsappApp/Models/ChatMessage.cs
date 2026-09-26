@@ -59,6 +59,11 @@ namespace WhatsappApp.Models
         private string _qrImageData;    // base64 PNG of the login QR code
         private int _qrDuration;        // QR validity in seconds
         private string _accountJid;     // WhatsApp JID of the logged-in account
+        private string _callId;             // id della chiamata, da GOWA
+        private string _callReason;         // esito riportato da GOWA (timeout, reject, ...)
+        private int _callDurationSeconds;   // durata in secondi, 0 se sconosciuta
+        private bool _callIsVideo;          // chiamata video
+        private string _relatedMessageId;   // messaggio toccato da una revoca o una modifica
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
         // Un serializer per tipo, non uno per messaggio: DataContractJsonSerializer
@@ -222,6 +227,46 @@ namespace WhatsappApp.Models
         {
             get { return _accountJid; }
             set { _accountJid = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Identificativo della chiamata come lo conosce GOWA.</summary>
+        [DataMember]
+        public string CallId
+        {
+            get { return _callId; }
+            set { _callId = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Esito della chiamata secondo GOWA: "timeout", "reject", ... Vuoto se non lo dice.</summary>
+        [DataMember]
+        public string CallReason
+        {
+            get { return _callReason; }
+            set { _callReason = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Durata della chiamata in secondi. 0 significa "non lo sappiamo".</summary>
+        [DataMember]
+        public int CallDurationSeconds
+        {
+            get { return _callDurationSeconds; }
+            set { _callDurationSeconds = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Vero se la chiamata era video.</summary>
+        [DataMember]
+        public bool CallIsVideo
+        {
+            get { return _callIsVideo; }
+            set { _callIsVideo = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Id del messaggio a cui si riferisce un frame di revoca o modifica.</summary>
+        [DataMember]
+        public string RelatedMessageId
+        {
+            get { return _relatedMessageId; }
+            set { _relatedMessageId = value; OnPropertyChanged(); }
         }
 
         public string FormattedTime
