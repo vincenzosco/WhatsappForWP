@@ -200,7 +200,7 @@ function createBridge({ config, gowa, log, debug }) {
       logger('MSG', `sent to ${msg.ChatId}: ${(msg.Text || '[media]').substring(0, 40)}`);
     } catch (err) {
       logger('ERR', `send to ${msg.ChatId} failed: ${err.message}`);
-      sendControl({ command: 'error', chatId: msg.ChatId, text: `Invio non riuscito: ${err.message}` });
+      sendControl({ command: 'error', chatId: msg.ChatId, text: `Send failed: ${err.message}` });
     }
   }
 
@@ -219,7 +219,7 @@ function createBridge({ config, gowa, log, debug }) {
     if (state.status !== 'connected') {
       pendingOutgoing.push(msg);
       logger('INFO', 'WhatsApp not ready: message queued');
-      sendControl({ chatId: msg.ChatId, text: 'WhatsApp non ancora connesso. Il messaggio verrà inviato automaticamente.' });
+      sendControl({ chatId: msg.ChatId, text: 'WhatsApp is not connected yet. The message will be sent automatically.' });
       return;
     }
     await sendOutgoing(msg);
