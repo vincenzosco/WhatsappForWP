@@ -113,7 +113,11 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 1. `WhatsappBridge/gowa-client.js`: add the call, read the `results` object, and
    cover it in `test/gowa-client.test.js`.
 2. `WhatsappBridge/server.js`: expose it as a control command
-   (`hello|status|login.qr|login.code|contacts|logout`) or as a reply frame.
+   (`hello|status|login.qr|login.code|contacts|calls|chats|logout`) or as a reply
+   frame. A command that sends **several** frames must always end with its own
+   `<name>.done` frame, also when it fails: the app uses it to stop waiting. The
+   scan behind `chats` and `calls` costs one HTTP request per chat, so it is
+   cached for a minute and the cache is dropped on the `connected` transition.
 3. App side: send it with
    `CommunicationService.Instance.SendControlAsync("cmd", payload)` and handle
    the reply in `Pages/ConnectionPage.xaml.cs::OnControlMessageReceived`

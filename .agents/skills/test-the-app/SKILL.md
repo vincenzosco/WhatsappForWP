@@ -7,6 +7,9 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
+Current expected counts: 28 C# files, 103 keys in each `.resw`, 12 inline icon
+Paths (9 distinct icons), 83 adapter tests, 17 tests in `tools/test`.
+
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
 node tools/check-csharp5.js        # C# 5 syntax + WP8.1-missing WinRT APIs
@@ -178,3 +181,15 @@ empty".
 12. A frame that the phone cannot read shows up as `DIAG ChatMessage.FromJson: SerializationException`.
     After a change to `ChatMessage` or to `message-format.js`, that line must not appear: if it
     does, the message it named was dropped, and the field it names is the one to look at.
+13. After linking, the chat list shows the conversations that exist in WhatsApp -
+    not the empty address book - most recent first, with the last message as the
+    preview and a profile picture where the person has one (rows without a picture
+    keep their coloured initials).
+14. Receive a message in a chat that is not open: a toast appears with the sender
+    and the text, and the tile badge counts it. Open that chat: the badge goes
+    down. Turn the notifications switch off in the settings: no toast, no badge.
+15. The toast must **not** appear for a message in the chat that is currently open.
+16. Start a new chat three ways: type a number, tap *Choose from contacts* (the
+    system picker opens; cancelling must leave the dialog usable), and tap one of
+    the conversations listed under it. A contact whose number is stored with
+    spaces or a `+` must still open the right chat.

@@ -105,6 +105,19 @@ established the hard way:
 - **GOWA records incoming calls only** (`CreateIncomingCallRecord`), in its own
   chat storage; the Calls section scans the most recent chats and says so in its
   empty state and in the README pair.
+- **The chat list is `GET /chats`, not `GET /user/my/contacts`.** The second one
+  is the WhatsApp *address book*: on a freshly linked device it is empty while
+  `/chats` is full, which is exactly how the chat list came up blank. Profile
+  pictures come from `GET /user/avatar?phone=<digits>&is_preview=true`, and only
+  for people: groups have none.
+- **Notifications can only be raised while the app runs.** WP8.1 suspends the
+  app, which closes the TCP socket, and this project has no cloud service to push
+  through, so a toast can only be raised for a message that arrives while the app
+  is in the foreground. The README pair's Limiti/Limitations section says so.
+- **The contact picker is the user's consent.** `ContactPicker` shows the system
+  UI and returns what the user taps; the app never enumerates the address book,
+  which would need the `contacts` capability and a privacy story this project does
+  not want.
 
 The rule that follows: when a source has a limit, the screen and the README pair
 state it, and **no screen invents state that no server sends** - presence, "online",
