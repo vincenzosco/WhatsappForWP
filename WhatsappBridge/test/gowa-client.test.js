@@ -124,3 +124,35 @@ test('aggiunge gli header di autenticazione e X-Device-Id', async () => {
   assert.strictEqual(headers.Authorization, 'Basic ' + Buffer.from('admin:secret').toString('base64'));
   assert.strictEqual(headers['X-Device-Id'], 'd1');
 });
+
+test('avatar() asks GOWA for the person, never for a group, and returns base64', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/jpeg' },
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+      };
+    }
+  });
+
+  const picture = await client.avatar('393401234567@s.whatsapp.net');
+  assert.strictEqual(seen[0], 'http://127.0.0.1:3000/user/avatar?phone=393401234567&is_preview=true');
+  assert.strictEqual(picture, Buffer.from([1, 2, 3]).toString('base64'));
+
+  assert.strictEqual(await client.avatar('123456789012345678@g.us'), null);
+  assert.strictEqual(seen.length, 1);
+});
+
+test('avatar() returns null when GOWA has no picture', async () => {
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async () => ({ ok: false, status: 404, headers: { get: () => null } })
+  });
+
+  assert.strictEqual(await client.avatar('393401234567@s.whatsapp.net'), null);
+});
