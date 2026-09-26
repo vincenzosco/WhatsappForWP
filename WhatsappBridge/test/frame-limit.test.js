@@ -47,8 +47,8 @@ test('una lunghezza annunciata oltre il limite chiude la connessione, non attend
 
     await waitForClose(socket);
     assert.ok(
-      lines.some((line) => line.includes('lunghezza')),
-      'il motivo della chiusura deve finire nel log: ' + JSON.stringify(lines));
+      lines.some((line) => line.includes('length')),
+      'the reason for the close must reach the log: ' + JSON.stringify(lines));
   } finally {
     socket.destroy();
     bridge.tcpServer.close();

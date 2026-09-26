@@ -37,7 +37,7 @@ function createWebhookServer({ path, secret, onEvent, log }) {
     req.on('end', () => {
       const raw = Buffer.concat(chunks);
       if (!verifySignature(raw, req.headers['x-hub-signature-256'], secret)) {
-        logger('WARN', 'Webhook con firma non valida, ignorato');
+        logger('WARN', 'webhook with an invalid signature, ignored');
         res.writeHead(401, { 'Content-Type': 'text/plain' });
         res.end('Invalid signature');
         return;
@@ -52,7 +52,7 @@ function createWebhookServer({ path, secret, onEvent, log }) {
 
       if (event && typeof onEvent === 'function') {
         Promise.resolve(onEvent(event)).catch((err) =>
-          logger('ERR', `Errore elaborazione webhook: ${err.message}`));
+          logger('ERR', `webhook handling failed: ${err.message}`));
       }
     });
   });
