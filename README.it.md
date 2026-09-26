@@ -143,12 +143,17 @@ Il protocollo TCP usa messaggi JSON preceduti dalla lunghezza, compatibili con
 `DataWriter`/`DataReader` di Windows:
 
 - 4 byte: lunghezza del messaggio (UInt32, Little Endian)
+- 1 byte: tag cifrario (`1` = AES-256-GCM, `2` = AES-256-CBC + HMAC-SHA256)
 - N byte: payload cifrato
 
-Il payload e' cifrato con **AES-256-GCM** con una chiave condivisa (lo SHA-256 di
-una passphrase): IV casuale di 12 byte, testo cifrato, tag di autenticazione di 16
-byte. App e server devono usare la stessa passphrase (variabile `BRIDGE_KEY` sul
-server, costante in `CryptoHelper.cs` nell'app).
+Il payload e' cifrato con **AES-256-CBC e autenticato con HMAC-SHA256** con una chiave
+condivisa (lo `SHA-256` di una passphrase, da cui entrambe le parti derivano due chiavi
+con `HMAC-SHA256`): IV casuale di 16 byte, testo cifrato, HMAC di 32 byte su IV e cifrato.
+Il tag `1` resta accettato e porta IV di 12 byte, cifrato e tag GCM di 16 byte, ma
+**l'app scrive sempre il tag `2`**: Windows Phone 8.1 risponde a AES-GCM con
+`NotImplementedException 0x80004001`. L'adapter risponde a ciascun client con il cifrario
+che quel client ha usato. App e server devono usare la stessa passphrase (variabile
+`BRIDGE_KEY` sul server, costante in `CryptoHelper.cs` nell'app).
 
 Dopo la decifratura, il corpo JSON segue lo schema `ChatMessage`:
 

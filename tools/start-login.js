@@ -472,7 +472,7 @@ function banner(options, addresses, baseUrl, deviceId) {
   console.log(line);
   console.log(`  GOWA (WhatsApp)      ${baseUrl}  (${GOWA_VERSION})`);
   if (!options.noBridge) {
-    console.log(`  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-GCM)`);
+    console.log(`  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)`);
     console.log(`  Webhook GOWA→app     http://${host}:${options.webhookPort}/webhook`);
     console.log(`  Scoperta automatica  UDP 8587  (l'app trova questo computer da sola)`);
   }

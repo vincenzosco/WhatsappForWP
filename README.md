@@ -136,11 +136,17 @@ code should read them first: they are the project's long memory.
 The TCP protocol uses length-prefixed JSON messages, compatible with Windows `DataWriter`/`DataReader`:
 
 - 4 bytes: message length (UInt32, Little Endian)
+- 1 byte: cipher tag (`1` = AES-256-GCM, `2` = AES-256-CBC + HMAC-SHA256)
 - N bytes: encrypted payload
 
-The payload is encrypted with **AES-256-GCM** using a pre-shared key (SHA-256 of a passphrase):
-12-byte random IV, ciphertext, 16-byte auth tag. The app and the server must use the
-same passphrase (`BRIDGE_KEY` env var on the server, constant in `CryptoHelper.cs` in the app).
+The payload is encrypted with **AES-256-CBC and authenticated with HMAC-SHA256** using a
+pre-shared key (`SHA-256` of a passphrase, from which both sides derive two keys with
+`HMAC-SHA256`): 16-byte random IV, ciphertext, 32-byte HMAC over IV and ciphertext.
+Tag `1` is still accepted and carries a 12-byte IV, the ciphertext and a 16-byte GCM tag,
+but **the app always writes tag `2`**: Windows Phone 8.1 answers AES-GCM with
+`NotImplementedException 0x80004001`. The adapter replies to each client with the cipher
+that client used. The app and the server must use the same passphrase (`BRIDGE_KEY` env
+var on the server, constant in `CryptoHelper.cs` in the app).
 
 After decryption, the JSON body follows the `ChatMessage` schema:
 

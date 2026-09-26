@@ -154,7 +154,7 @@ Expected: PASS, 36 tests.
 | --- | --- | --- |
 | `webhook-server.js` | `'Webhook con firma non valida, ignorato'` | `'Webhook with an invalid signature, ignored'` |
 | `webhook-server.js` | `` `Errore elaborazione webhook: ${err.message}` `` | `` `Webhook processing failed: ${err.message}` `` |
-| `crypto-helper.js` | `'Payload cifrato non valido (troppo corto)'` | `'Invalid encrypted payload (too short)'` |
+| `crypto-helper.js` | already English after the v3 payload rewrite (`'Invalid CBC payload (too short)'`, `'Invalid GCM payload (too short)'`, `'Invalid HMAC signature'`, `'Unknown cipher tag: ...'`, `'Unknown cipher tag to write: ...'`, `'Empty encrypted payload'`) | nothing to translate |
 | `discovery.js` | `` `Discovery: invio a ${target} fallito (${err.message})` `` | `` `Discovery: send to ${target} failed (${err.message})` `` |
 | `discovery.js` | `` `Discovery: broadcast non attivabile (${err.message})` `` | `` `Discovery: broadcast could not be enabled (${err.message})` `` |
 
@@ -196,7 +196,7 @@ Every replacement below is inside a log call or a `text:` frame payload.
 | `` `Webhook registrato su GOWA: ${config.webhook.publicUrl}` `` | `` `Webhook registered on GOWA: ${config.webhook.publicUrl}` `` |
 | `` `Registrazione webhook automatica non riuscita: avvia GOWA con --webhook=${config.webhook.publicUrl}` `` | `` `Automatic webhook registration failed: start GOWA with --webhook=${config.webhook.publicUrl}` `` |
 | `'Device GOWA:'` (banner label) | `'Device:    '` |
-| `` `Cifratura:   AES-256-GCM ${... 'ATTIVA' : 'DISATTIVATA'}` `` | `` `Encryption:  AES-256-GCM ${... 'ON' : 'OFF'}` `` |
+| `` `Cifratura:   ${cryptoHelper.ModeDescription} ${... 'ATTIVA' : 'DISATTIVATA'}` `` | `` `Encryption:  ${cryptoHelper.ModeDescription} ${... 'ON' : 'OFF'}` `` |
 | `` `Server TCP in ascolto sulla porta ${config.bridge.port}` `` | `` `TCP server listening on port ${config.bridge.port}` `` |
 | `` `   Connetti l'app WP8 a: ${addresses.join(', ') \|\| '(IP non trovato)'}:${config.bridge.port}` `` | `` `   Connect the app to: ${addresses.join(', ') \|\| '(no IP found)'}:${config.bridge.port}` `` |
 | `` `Webhook in ascolto sulla porta ${config.webhook.port}${config.webhook.path}` `` | `` `Webhook listening on port ${config.webhook.port}${config.webhook.path}` `` |
@@ -335,7 +335,7 @@ Usage: node tools/start-login.js [options]
 | too-small window | `'     Oppure: --no-qr, e fai il login dal telefono nell\'app.'` | `'     Alternatively: --no-qr, and log in from the phone, inside the app.'` |
 | redraw note | `` `  · nuovo codice alle ${stamp()} (non disegnato: la finestra e' troppo piccola)` `` | `` `  · new code at ${stamp()} (not drawn: the window is too small)` `` |
 | banner | `'  WhatsApp per Windows Phone 8.1 — server di login in locale'` | `'  WhatsApp for Windows Phone 8.1 — local login server'` |
-| banner | `` `  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-GCM)` `` | `` `  Adapter for the app   ${host}:${options.bridgePort}  (TCP, AES-256-GCM)` `` |
+| banner | `` `  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)` `` | `` `  Adapter for the app   ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)` `` |
 | banner | `` `  Webhook GOWA→app     http://${host}:${options.webhookPort}/webhook` `` | `` `  GOWA→app webhook      http://${host}:${options.webhookPort}/webhook` `` |
 | banner | `` `  Scoperta automatica  UDP 8587  (l'app trova questo computer da sola)` `` | `` `  Automatic discovery   UDP 8587  (the app finds this computer by itself)` `` |
 | banner | `` `  Sessioni             .tools/gowa/storages/whatsapp.db` `` | `` `  Sessions              .tools/gowa/storages/whatsapp.db` `` |
@@ -2389,7 +2389,7 @@ node tools/qr-term.js --self-test
 cd WhatsappBridge && npm test
 ```
 
-Expected, with the counts this plan produces: C# files compatible, 13 icons / 9 distinct, 99 resw keys, 2 doc pairs aligned and 0 emoji, all QR self-checks passed, 53 tests pass.
+Expected, with the counts this plan produces: C# files compatible, 13 icons / 9 distinct, 100 resw keys, 2 doc pairs aligned and 0 emoji, all QR self-checks passed, 62 tests pass.
 
 - [ ] **Step 9: Build the app one last time**
 
@@ -2413,7 +2413,7 @@ git commit -m "docs: record the output-language and data-limit rules in the proj
 - **Outgoing call records.** GOWA stores incoming calls only (`CreateIncomingCallRecord`); there is nothing to read for the calls this account makes.
 - **Status updates read from the `status@broadcast` chat.** `GET /chats` may list a `status@broadcast` chat and `GET /chat/:chat_jid/messages` might return the updates from it. It is unverified, ephemeral by nature, and the adapter deliberately filters that chat today; a plan of its own would be needed to find out whether it is even populated.
 - **Reactions.** `message.reaction` is still ignored: the app has nowhere to render a reaction, and adding one is a UI project, not a bug fix.
-- **AES-256-CBC + HMAC fallback.** Still parked: it is only needed if `SelfCheck` reports that the device lacks AES-GCM, and it is a protocol change that must land on both sides at once.
+- **AES-256-CBC + HMAC transport.** Done in `docs/superpowers/plans/2026-09-26-cbc-transport-and-runtime-failures.md`: the device reported `NotImplementedException 0x80004001` for AES-GCM, so the app now writes cipher tag 2 (CBC + HMAC) and the adapter accepts both tags.
 
 ## Self-review
 

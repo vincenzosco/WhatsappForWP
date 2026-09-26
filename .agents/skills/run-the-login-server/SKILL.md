@@ -131,6 +131,6 @@ black/white colours — never the terminal's theme.
   holds the live WhatsApp credentials of the linked account.
 - **GOWA binds to `127.0.0.1` on purpose.** Its REST API sends messages as the
   linked account and has no authentication unless `--basic-auth` is given; only
-  the adapter (port 8585, AES-256-GCM with `BRIDGE_KEY`) may face the LAN.
+  the adapter (port 8585, AES-256-CBC + HMAC-SHA256 with `BRIDGE_KEY`) may face the LAN.
 - Linking an account is a real action on a real phone number: only run the login
   loop when that is the intent.
