@@ -236,42 +236,6 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>
-        /// Start the server mode - the phone hosts a TCP server
-        /// </summary>
-        public async Task StartServerAsync(string username, int port = 8585)
-        {
-            _isServerMode = true;
-            _serverPort = port;
-            _myUserId = Guid.NewGuid().ToString("N").Substring(0, 8);
-            _myUsername = username;
-            _serverAddress = "localhost";
-
-            try
-            {
-                _serverListener = new StreamSocketListener();
-                _serverListener.ConnectionReceived += OnServerConnectionReceived;
-                await _serverListener.BindServiceNameAsync(port.ToString());
-
-                _isConnected = true;
-                DispatchOnUiThread(() =>
-                {
-                    RaiseConnectionStatusChanged(string.Format(
-                        Loc.Get("CommService_ServerStarted", "Server started on port {0}"), port));
-                    RaiseConnectionEstablished();
-                });
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("StartServerAsync", ex);
-                _isConnected = false;
-                DispatchOnUiThread(() =>
-                    RaiseErrorOccurred(string.Format(
-                        Loc.Get("CommService_ServerStartError", "Server start error: {0}"), ex.Message))
-                );
-            }
-        }
-
         private async void OnServerConnectionReceived(StreamSocketListener sender, StreamSocketListenerConnectionReceivedEventArgs args)
         {
             var socket = args.Socket;

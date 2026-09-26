@@ -310,12 +310,6 @@
   <data name="CommService_Me" xml:space="preserve">
     <value>Io</value>
   </data>
-  <data name="CommService_ServerStarted" xml:space="preserve">
-    <value>Server avviato sulla porta {0}</value>
-  </data>
-  <data name="CommService_ServerStartError" xml:space="preserve">
-    <value>Errore avvio server: {0}</value>
-  </data>
   <data name="CommService_ClientConnected" xml:space="preserve">
     <value>Nuovo client connesso ({0} connessi)</value>
   </data>

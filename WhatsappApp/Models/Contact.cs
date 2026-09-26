@@ -7,13 +7,10 @@ namespace WhatsappApp.Models
     {
         private string _id;
         private string _name;
-        private string _status;
         private string _lastMessage;
         private string _lastMessageTime;
         private string _initials;
-        private string _avatarColor;
         private int _unreadCount;
-        private string _avatarUri;
 
         public string Id
         {
@@ -25,12 +22,6 @@ namespace WhatsappApp.Models
         {
             get { return _name; }
             set { _name = value; OnPropertyChanged(); }
-        }
-
-        public string Status
-        {
-            get { return _status; }
-            set { _status = value; OnPropertyChanged(); }
         }
 
         public string LastMessage
@@ -51,22 +42,10 @@ namespace WhatsappApp.Models
             set { _initials = value; OnPropertyChanged(); }
         }
 
-        public string AvatarColor
-        {
-            get { return _avatarColor; }
-            set { _avatarColor = value; OnPropertyChanged(); }
-        }
-
         public int UnreadCount
         {
             get { return _unreadCount; }
             set { _unreadCount = value; OnPropertyChanged(); }
-        }
-
-        public string AvatarUri
-        {
-            get { return _avatarUri; }
-            set { _avatarUri = value; OnPropertyChanged(); }
         }
 
         public event PropertyChangedEventHandler PropertyChanged;
