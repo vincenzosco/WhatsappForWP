@@ -127,6 +127,12 @@ black/white colours — never the terminal's theme.
   drawing.
 - Verified against macOS Vision: the drawn text re-parsed into an image decodes to
   the **identical** payload as GOWA's PNG, so the drawing is not merely pretty.
+- The coloured drawing and the `--plain` one must show the **same** codes, and
+  `--self-test` says so (`colori: il disegno a colori mostra gli stessi moduli`):
+  it decodes the ANSI output back into modules and compares. In colour mode the
+  glyph is always `▀` and the foreground is the upper module, the background the
+  lower one - `▄` or `█` swap the two colours and invert every light-on-top cell,
+  which is what made the QR look like noise.
 - Do not hardcode the module count: it follows the payload length (65 modules was
   observed for the current WhatsApp QR, and it will change).
 - **A code that does not fit is never drawn.** `makePrinter` redraws in place

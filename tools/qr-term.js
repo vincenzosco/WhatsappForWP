@@ -66,6 +66,45 @@ function styleFor(top, bottom) {
   return WHITE;
 }
 
+/** Moduli [sopra, sotto] di una riga disegnata senza colori. */
+function modulesFromPlain(line) {
+  const out = [];
+  for (const glyph of line) {
+    if (glyph === ' ') out.push([false, false]);
+    else if (glyph === '\u2580') out.push([true, false]);
+    else if (glyph === '\u2584') out.push([false, true]);
+    else if (glyph === '\u2588') out.push([true, true]);
+  }
+  return out;
+}
+
+/**
+ * Moduli [sopra, sotto] di una riga disegnata a colori: il primo piano e' il
+ * modulo sopra, lo sfondo quello sotto. E' il rovescio di renderHalfBlocks, e
+ * serve a verificare che i due disegni mostrino lo stesso codice: senza di
+ * esso un glifo sbagliato poteva invertire meta' delle celle in silenzio.
+ */
+function modulesFromAnsi(line) {
+  const out = [];
+  const token = /\x1b\[(38|48);5;(\d+)m|([\u2580\u2584\u2588 ])/g;
+  let fgDark = false;
+  let bgDark = false;
+  let match;
+  while ((match = token.exec(line)) !== null) {
+    if (match[1]) {
+      if (match[1] === '38') fgDark = match[2] === '0';
+      else bgDark = match[2] === '0';
+      continue;
+    }
+    const glyph = match[3];
+    if (glyph === ' ') out.push([false, false]);
+    else if (glyph === '\u2580') out.push([fgDark, bgDark]);   // blocco alto: sopra = primo piano
+    else if (glyph === '\u2584') out.push([bgDark, fgDark]);   // blocco basso: sotto = primo piano
+    else out.push([fgDark, bgDark]);                           // blocco pieno: tutto primo piano
+  }
+  return out;
+}
+
 /** Legge il PNG con ImageMagick e lo riduce a 1 bit per pixel (255/0). */
 function readGrayPng(pngPath) {
   let format;
@@ -215,14 +254,20 @@ function renderHalfBlocks(modules, options) {
     for (let x = 0; x < total; x++) {
       const top = isDark(y, x);
       const bottom = y + 1 < total ? isDark(y + 1, x) : false;
-      if (!plain) {
-        const next = styleFor(top, bottom);
-        if (next !== style) {
-          line += next;
-          style = next;
-        }
+      if (plain) {
+        line += HALF_BLOCK[`${top ? 1 : 0},${bottom ? 1 : 0}`];
+        continue;
       }
-      line += HALF_BLOCK[`${top ? 1 : 0},${bottom ? 1 : 0}`];
+      // A colori si usa *sempre* il blocco alto (▀): il primo piano e' il modulo
+      // sopra, lo sfondo quello sotto. Con i glifi ▄/█ i due colori si scambiano
+      // e ogni cella chiaro-sopra/scuro-sotto veniva disegnata al contrario: il
+      // QR risultava un mosaico invertito e non si leggeva.
+      const next = styleFor(top, bottom);
+      if (next !== style) {
+        line += next;
+        style = next;
+      }
+      line += '▀';
     }
     if (!plain && style !== null) line += RESET;
     lines.push(line);
@@ -381,6 +426,20 @@ function selfTest() {
     const ansiOk = ansi[0].startsWith('\x1b[') && ansi[0].endsWith(RESET);
     if (!ansiOk) failures++;
     console.log(`${ansiOk ? 'OK  ' : 'FAIL'} ANSI: colour sequences present and reset at the end of a line`);
+
+    // Il disegno a colori, riletto colore per colore, deve mostrare gli stessi
+    // moduli di quello senza colori. E' l'unico controllo che si accorge di un
+    // glifo sbagliato: ▄ con primo piano chiaro e sfondo scuro inverte la cella.
+    const mono = renderHalfBlocks(qr.modules, { quietZone: 1, plain: true });
+    let coloursOk = mono.length === ansi.length && mono[0].length > 0;
+    for (let i = 0; coloursOk && i < ansi.length; i++) {
+      const a = modulesFromPlain(mono[i]);
+      const b = modulesFromAnsi(ansi[i]);
+      coloursOk = a.length === b.length
+        && a.every((cell, k) => cell[0] === b[k][0] && cell[1] === b[k][1]);
+    }
+    if (!coloursOk) failures++;
+    console.log(`${coloursOk ? 'OK  ' : 'FAIL'} colori: il disegno a colori mostra gli stessi moduli`);
 
     fs.rmSync(dir, { recursive: true, force: true });
     if (failures > 0) {
