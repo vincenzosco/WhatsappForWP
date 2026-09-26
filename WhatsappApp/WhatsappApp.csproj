@@ -92,6 +92,7 @@
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Models\BeaconPayload.cs" />
+    <Compile Include="Models\CallLogEntry.cs" />
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\Contact.cs" />
     <Compile Include="Models\DiscoveredServer.cs" />
