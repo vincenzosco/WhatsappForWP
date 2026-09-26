@@ -119,8 +119,23 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
    the reply in `Pages/ConnectionPage.xaml.cs::OnControlMessageReceived`
    (control frames carry `Command`/`State`/`PairCode`/`QrImageData`/`AccountJid`).
 4. `cd WhatsappBridge && npm test`.
-5. Remember the wire format: WP8's `DataContractJsonSerializer` needs
-   `\/Date(epochMs)\/`, which `message-format.js` produces on purpose.
+5. Remember the wire format: WP8's `DataContractJsonSerializer` needs the value
+   `/Date(epochMs)/`, which `message-format.js` produces on purpose - with **no
+   backslashes**, because the `\/` of JSON text is the reader's escape, not part of
+   the value.
+
+## Change what the scripts or the server print
+
+Everything outside the app UI is English (see `maintain-the-app`). When you change
+one of those strings:
+
+1. Change it in the file that prints it (the adapter, `tools/start-login.js`,
+   `tools/qr-term.js`, `tools/download.js`, `tools/services.js`, `WhatsappServer`).
+2. Update the test that asserts it - the adapter tests assert on `message-format`
+   output, and `tools/test` covers the downloader and the service list.
+3. `cd WhatsappBridge && npm test` and `node --test "tools/test/**/*.test.js"`.
+4. Read **every** file with output in it before claiming the change is complete:
+   `grep -nE "fail\(|console\.(log|error)|text: "` finds the surface.
 
 ## Change the documentation
 
