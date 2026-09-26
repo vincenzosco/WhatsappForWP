@@ -63,7 +63,7 @@ namespace WhatsappApp.Services
                     // PC un altro IP): non e' un guasto da mostrare, e' un dato
                     // da dimenticare. Si prova l'unico adapter che si annuncia.
                     Diag.Failed("AutoConnector/saved",
-                        new InvalidOperationException("nessuna risposta da " + address + ":" + port));
+                        new InvalidOperationException("no answer from " + address + ":" + port));
                 }
 
                 await DiscoveryService.Instance.StartAsync();

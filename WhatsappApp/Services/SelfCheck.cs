@@ -16,8 +16,8 @@ namespace WhatsappApp.Services
     /// la forma di Diag, cosi' un giro di debug dice tutto in tre righe:
     ///
     ///     DIAG ok: crypto AES-256-CBC + HMAC-SHA256
-    ///     DIAG ok: schermo sempre acceso (DisplayRequest)
-    ///     DIAG ok: beacon UDP in ascolto sulla porta 8587
+    ///     DIAG ok: screen kept awake (DisplayRequest)
+    ///     DIAG ok: UDP discovery beacon listening on port 8587
     ///
     /// e al posto di una riga "ok" una riga con il guasto e il suo HRESULT.
     /// </summary>
@@ -78,7 +78,7 @@ namespace WhatsappApp.Services
             if (!equal)
             {
                 Diag.Failed("SelfCheck.crypto/roundtrip",
-                    new InvalidOperationException("il giro di andata e ritorno non torna"));
+                    new InvalidOperationException("the encrypt/decrypt round trip does not return the same bytes"));
                 return;
             }
 
@@ -93,7 +93,7 @@ namespace WhatsappApp.Services
 
                 if (text == VectorPlain) Diag.Ok("crypto " + CryptoHelper.ModeDescription);
                 else Diag.Failed("SelfCheck.crypto/vector",
-                    new InvalidOperationException("il vettore di prova non torna: " + text));
+                    new InvalidOperationException("the known-answer vector does not match: " + text));
             }
             catch (Exception ex)
             {
@@ -109,7 +109,7 @@ namespace WhatsappApp.Services
                 var request = new Windows.System.Display.DisplayRequest();
                 request.RequestActive();
                 request.RequestRelease();
-                Diag.Ok("schermo sempre acceso (DisplayRequest)");
+                Diag.Ok("screen kept awake (DisplayRequest)");
             }
             catch (Exception ex)
             {
@@ -123,9 +123,9 @@ namespace WhatsappApp.Services
             try
             {
                 await DiscoveryService.Instance.StartAsync();
-                if (DiscoveryService.Instance.IsListening) Diag.Ok("beacon UDP in ascolto sulla porta 8587");
+                if (DiscoveryService.Instance.IsListening) Diag.Ok("UDP discovery beacon listening on port 8587");
                 else Diag.Failed("SelfCheck.discovery",
-                    new InvalidOperationException("la porta UDP non si e' aperta"));
+                    new InvalidOperationException("the UDP port did not open"));
             }
             catch (Exception ex)
             {
