@@ -79,11 +79,38 @@
   <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
     <value>WhatsApp does not expose status updates to this app: the server it talks to has no endpoint for them, so this section stays empty on purpose. Chats and calls are unaffected.</value>
   </data>
-  <data name="CallsPage_EmptyTitle.Text" xml:space="preserve">
-    <value>No calls</value>
+  <data name="CallsPage_EmptyHint" xml:space="preserve">
+    <value>WhatsApp recorded no incoming calls in the chats the server scanned. Call records come from the server's own history: incoming calls only, from the most recent 25 chats.</value>
   </data>
-  <data name="CallsPage_EmptyHint.Text" xml:space="preserve">
-    <value>Calls are not supported in this version.</value>
+  <data name="CallsPage_Scanning" xml:space="preserve">
+    <value>Looking for calls...</value>
+  </data>
+  <data name="CallsPage_Refresh.Content" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="CallsPage_Answered" xml:space="preserve">
+    <value>Answered call</value>
+  </data>
+  <data name="CallsPage_Missed" xml:space="preserve">
+    <value>Missed call</value>
+  </data>
+  <data name="CallsPage_Declined" xml:space="preserve">
+    <value>Declined call</value>
+  </data>
+  <data name="CallsPage_Busy" xml:space="preserve">
+    <value>Call, line busy</value>
+  </data>
+  <data name="CallsPage_Cancelled" xml:space="preserve">
+    <value>Cancelled call</value>
+  </data>
+  <data name="CallsPage_Incoming" xml:space="preserve">
+    <value>Incoming call</value>
+  </data>
+  <data name="CallsPage_Video" xml:space="preserve">
+    <value>Video</value>
+  </data>
+  <data name="CallsPage_NotConnected" xml:space="preserve">
+    <value>Not connected to the server: call records are unavailable.</value>
   </data>
   <data name="StatusPage_Title.Text" xml:space="preserve">
     <value>Status</value>

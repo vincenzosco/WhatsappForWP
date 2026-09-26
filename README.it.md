@@ -31,8 +31,15 @@ L'app usa una connessione TCP con messaggi JSON preceduti dalla lunghezza:
 [4 byte: UInt32 LE lunghezza] [N byte: JSON UTF-8 del ChatMessage]
 ```
 
-Il modello `ChatMessage` viene serializzato con `DataContractJsonSerializer`
-(DateTime nel formato `\/Date()\/`).
+Il modello `ChatMessage` viene serializzato con `DataContractJsonSerializer`; il
+suo campo `Timestamp` e' il semplice valore `/Date(<ms>)/`, senza backslash.
+
+#### Chiamate
+
+La scheda Chiamate elenca **solo** le chiamate in entrata, prese dalle chat che
+l'adapter ha scansionato (`CALLS_CHAT_LIMIT`, default 25), aggiornate all'apertura
+della scheda o con il pulsante Aggiorna. GOWA non conserva le chiamate in uscita,
+quindi non c'e' altro da mostrare.
 
 ### WhatsappServer (app console .NET)
 

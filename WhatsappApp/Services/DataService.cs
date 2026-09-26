@@ -26,6 +26,7 @@ namespace WhatsappApp.Services
         }
 
         private readonly ObservableCollection<Contact> _contacts;
+        private readonly ObservableCollection<CallLogEntry> _calls;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
 
         // Indice per id: senza questo ogni messaggio in arrivo scandiva tutta
@@ -67,11 +68,21 @@ namespace WhatsappApp.Services
             set { _isServerRunning = value; OnPropertyChanged(); }
         }
 
+        /// <summary>Registro chiamate, riempito dall'adapter su richiesta.</summary>
+        public ObservableCollection<CallLogEntry> Calls
+        {
+            get { return _calls; }
+        }
+
+        /// <summary>La scansione lato adapter e' finita: la pagina puo' smettere di aspettare.</summary>
+        public event EventHandler CallsScanCompleted;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private DataService()
         {
             _contacts = new ObservableCollection<Contact>();
+            _calls = new ObservableCollection<CallLogEntry>();
             _chatMessages = new Dictionary<string, ObservableCollection<ChatMessage>>();
 
             // Wire up to receive network messages and adapter control frames
@@ -132,13 +143,38 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Gestisce i frame di controllo in arrivo dall'adapter: per ora la
-        /// sincronizzazione dei contatti ("contact").
+        /// Frame di controllo dall'adapter: contatti, registro chiamate,
+        /// revoche e modifiche. Arrivano tutti sul thread UI, quindi qui si
+        /// puo' toccare direttamente quello che e' legato alle liste.
         /// </summary>
         private void OnControlMessageReceived(object sender, ChatMessage message)
         {
-            if (message == null || message.Command != "contact" || string.IsNullOrEmpty(message.ChatId))
-                return;
+            if (message == null || string.IsNullOrEmpty(message.Command)) return;
+
+            switch (message.Command)
+            {
+                case "contact":
+                    ApplyContact(message);
+                    break;
+                case "call":
+                    AddCall(message);
+                    break;
+                case "calls.done":
+                    RaiseCallsScanCompleted();
+                    break;
+                case "revoked":
+                    RemoveMessage(message.ChatId, message.RelatedMessageId);
+                    break;
+                case "edited":
+                    ApplyEdit(message.ChatId, message.RelatedMessageId, message.Text);
+                    break;
+            }
+        }
+
+        /// <summary>Un contatto nuovo (o il nome aggiornato) dall'adapter.</summary>
+        private void ApplyContact(ChatMessage message)
+        {
+            if (string.IsNullOrEmpty(message.ChatId)) return;
 
             var contact = FindContact(message.ChatId);
             string name = string.IsNullOrEmpty(message.SenderName)
@@ -151,10 +187,7 @@ namespace WhatsappApp.Services
                 {
                     Id = message.ChatId,
                     Name = name,
-                    Status = "",
                     Initials = InitialsFor(name),
-                    AvatarColor = "#FF075E54",
-                    IsOnline = false,
                     UnreadCount = 0
                 };
                 _contacts.Add(added);
@@ -165,6 +198,98 @@ namespace WhatsappApp.Services
                 contact.Name = name;
                 contact.Initials = InitialsFor(name);
             }
+        }
+
+        /// <summary>Una voce del registro chiamate.</summary>
+        private void AddCall(ChatMessage message)
+        {
+            if (string.IsNullOrEmpty(message.ChatId)) return;
+
+            _calls.Add(new CallLogEntry
+            {
+                ChatId = message.ChatId,
+                Name = string.IsNullOrEmpty(message.SenderName)
+                    ? DisplayNameForJid(message.ChatId)
+                    : message.SenderName,
+                Timestamp = message.Timestamp,
+                CallId = message.CallId,
+                Reason = message.CallReason,
+                DurationSeconds = message.CallDurationSeconds,
+                IsVideo = message.CallIsVideo
+            });
+        }
+
+        /// <summary>Svuota il registro prima di una nuova scansione.</summary>
+        public void ClearCalls()
+        {
+            _calls.Clear();
+        }
+
+        private void RaiseCallsScanCompleted()
+        {
+            var handler = CallsScanCompleted;
+            if (handler != null) handler(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// Toglie un messaggio revocato su WhatsApp. L'id di un messaggio in
+        /// arrivo e' quello di WhatsApp, quindi il confronto e' esatto; se non
+        /// lo troviamo (messaggio nostro, o arrivato prima dell'iscrizione) non
+        /// si tocca niente.
+        /// </summary>
+        private void RemoveMessage(string chatId, string messageId)
+        {
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                if (messages[i].Id != messageId) continue;
+                messages.RemoveAt(i);
+                RefreshPreview(chatId);
+                return;
+            }
+        }
+
+        /// <summary>Applica una modifica arrivata da WhatsApp (stesso id di prima).</summary>
+        private void ApplyEdit(string chatId, string messageId, string text)
+        {
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId) || text == null) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+
+            foreach (var message in messages)
+            {
+                if (message.Id != messageId) continue;
+                message.Text = text;
+                RefreshPreview(chatId);
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Riallinea l'anteprima della chat all'ultimo messaggio rimasto: dopo
+        /// una revoca o una modifica l'anteprima resterebbe quella vecchia.
+        /// </summary>
+        private void RefreshPreview(string chatId)
+        {
+            var contact = FindContact(chatId);
+            if (contact == null) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages) || messages.Count == 0)
+            {
+                contact.LastMessage = "";
+                contact.LastMessageTime = "";
+                return;
+            }
+
+            var last = messages[messages.Count - 1];
+            contact.LastMessage = last.Text;
+            contact.LastMessageTime = last.FormattedTime;
         }
 
         /// <summary>Nome mostrato per un JID quando non ne conosciamo il nome.</summary>
