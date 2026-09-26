@@ -176,3 +176,11 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 - **`Window.Current` is null off the UI thread**, so it cannot be a fallback for
   anything that may run on a network thread: use `CoreApplication.MainView` there,
   or capture the object while you are on the UI thread.
+- **A `[DataMember]` with a strict type is a whole-frame failure waiting to happen.**
+  One unexpected string in one field makes `DataContractJsonSerializer` throw
+  `SerializationException 0x8013150C` for the entire object, and `ChatMessage.FromJson`
+  returns `null`: the message disappears with no visible cause. `Timestamp` is the field
+  that bit us (the adapter wrote a backslash-escaped `\/Date(ms)\/` instead of
+  `/Date(ms)/`), so it is a `string` on the wire and a leniently parsed `DateTime` in
+  the app. When adding a field, ask what the deserializer does with a value it did not
+  expect.
