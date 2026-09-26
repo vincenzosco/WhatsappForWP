@@ -18,6 +18,9 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
 - Outgoing messages are sent to GOWA's REST API.
 - The adapter broadcasts a discovery beacon on the LAN, so the app finds it without being
   configured with an address.
+- `message.revoked` and `message.edited` are forwarded to the app as `revoked` and
+  `edited` control frames, so a message deleted or changed on the phone does not stay
+  frozen in the app. `message.reaction` is ignored: there is nowhere to draw it.
 
 ## Control protocol
 
@@ -38,6 +41,8 @@ Frames with `Type = System`, `ChatId = "system"`.
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (the scan is over, even when no call was found) |
+| adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id of the deleted message |
+| adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = the new text |
 | adapter -> app | `error` | `Text` |
 
 One frame is `[4-byte little-endian length][payload]`. A length of `0`, or one

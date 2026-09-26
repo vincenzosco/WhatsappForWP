@@ -233,3 +233,48 @@ function decodeFrame(packet) {
   const payload = packet.slice(4, 4 + length);
   return JSON.parse(cryptoHelper.decodePayload(payload));
 }
+
+test('a revoked message becomes a revoked control frame', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: {}, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({
+    event: 'message.revoked',
+    payload: { revoked_message_id: 'ABC', revoked_from_me: false, revoked_chat: 'a@s.whatsapp.net' }
+  });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'revoked');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+  assert.strictEqual(sent[0].RelatedMessageId, 'ABC');
+  assert.strictEqual(sent[0].Type, 3);
+});
+
+test('an edited message becomes an edited control frame with the new text', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: {}, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({
+    event: 'message.edited',
+    payload: { original_message_id: 'ABC', chat_id: 'a@s.whatsapp.net', body: 'testo nuovo' }
+  });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'edited');
+  assert.strictEqual(sent[0].RelatedMessageId, 'ABC');
+  assert.strictEqual(sent[0].Text, 'testo nuovo');
+});
+
+test('reactions and incomplete events are ignored without sending anything', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: {}, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({ event: 'message.reaction', payload: { reaction: 'X' } });
+  await bridge.handleWebhookEvent({ event: 'message.revoked', payload: {} });
+  await bridge.handleWebhookEvent(null);
+
+  assert.strictEqual(sent.length, 0);
+});
