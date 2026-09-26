@@ -38,6 +38,14 @@ const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
+/**
+ * Oltre questa lunghezza il prefisso di 4 byte non e' un payload, e' un
+ * guasto (client disallineato o ostile). Deve restare uguale a
+ * CommunicationService.MaxFrameLength nell'app WP8.1: le due parti parlano
+ * dello stesso frame, quindi ne hanno lo stesso tetto.
+ */
+const MAX_FRAME_LENGTH = 8 * 1024 * 1024;
+
 function makeLogger(enabled) {
   return function log(level, ...args) {
     if (level === 'DEBUG' && !enabled) return;
@@ -309,6 +317,17 @@ function createBridge({ config, gowa, log, debug }) {
       buffer = Buffer.concat([buffer, chunk]);
       while (buffer.length >= 4) {
         const msgLen = buffer.readUInt32LE(0);
+
+        // Un client disallineato annuncia una lunghezza enorme: senza un tetto
+        // il server resterebbe in attesa di gigabyte e il buffer crescerebbe
+        // finche' il processo non cade. Zero e' l'altro caso degenere: un frame
+        // vuoto farebbe girare il ciclo senza consumare niente.
+        if (msgLen === 0 || msgLen > MAX_FRAME_LENGTH) {
+          logger('ERR', `Frame non accettabile da ${remote} (lunghezza ${msgLen}): connessione chiusa`);
+          socket.destroy();
+          return;
+        }
+
         if (buffer.length < 4 + msgLen) break;
         const payload = buffer.slice(4, 4 + msgLen);
         buffer = buffer.slice(4 + msgLen);
@@ -453,4 +472,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { createBridge, main, makeLogger };
+module.exports = { createBridge, main, makeLogger, MAX_FRAME_LENGTH };
