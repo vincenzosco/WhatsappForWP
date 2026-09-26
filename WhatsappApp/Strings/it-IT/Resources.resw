@@ -74,10 +74,10 @@
     <value>Tocca nuova chat per iniziare</value>
   </data>
   <data name="StatusPage_EmptyTitle.Text" xml:space="preserve">
-    <value>Nessuno stato</value>
+    <value>Aggiornamenti non disponibili</value>
   </data>
   <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
-    <value>Gli stati non sono supportati in questa versione.</value>
+    <value>WhatsApp non espone gli stati a questa app: il server con cui parla non ha un endpoint per gli aggiornamenti, quindi questa sezione resta vuota per scelta. Chat e chiamate non ne sono toccate.</value>
   </data>
   <data name="CallsPage_EmptyTitle.Text" xml:space="preserve">
     <value>Nessuna chiamata</value>
