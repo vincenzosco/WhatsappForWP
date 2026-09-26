@@ -187,6 +187,9 @@
   <data name="ConnectionPage_NameLabel.Text" xml:space="preserve">
     <value>Il tuo nome</value>
   </data>
+  <data name="ConnectionPage_Notifications.Header" xml:space="preserve">
+    <value>Avvisami dei nuovi messaggi</value>
+  </data>
   <data name="ConnectionPage_Connect.Content" xml:space="preserve">
     <value>Connetti al server</value>
   </data>
