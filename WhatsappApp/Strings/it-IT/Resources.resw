@@ -262,6 +262,9 @@
   <data name="CommService_Connecting" xml:space="preserve">
     <value>Connessione in corso...</value>
   </data>
+  <data name="CommService_PlatformMissing" xml:space="preserve">
+    <value>Questo telefono non implementa una funzione di Windows necessaria ({0}: {1})</value>
+  </data>
   <data name="CommService_Connected" xml:space="preserve">
     <value>Connesso al server</value>
   </data>
