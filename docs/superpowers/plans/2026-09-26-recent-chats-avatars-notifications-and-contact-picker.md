@@ -1522,6 +1522,57 @@ git push origin master
 
 ---
 
+## What execution changed about this plan
+
+Recorded after the run. Everything else was built as written.
+
+1. **Task 1 ended with 6 tests, not 5.** `previewForMessage` needed two cases
+   (body present, media with no body).
+2. **The Task 1 cap test's fake was self-inconsistent.** It sliced the chat list
+   to `limit` and then expected `limit` rows after skipping an unreadable one;
+   the fake now returns all three and the cap applies to the result, which is
+   what the test was always about.
+3. **Task 2 ended with 78 adapter tests** (76 before + 2), not the 77 the plan
+   guessed, and Task 3 with **83**.
+4. **Task 4 added no `.resw` key.** The plan's `ChatsPage_LoadingChats` was
+   dropped: the page already has an honest empty state, and a separate "loading"
+   state would have to be invented client-side rather than reported by the
+   server. The resw pair was therefore unchanged by Task 4.
+5. **Task 4's `BoolToVisibilityConverter` needed `ConverterParameter=Invert`** on
+   the initials `TextBlock`, otherwise the initials stay drawn on top of the
+   picture.
+6. **Task 5 and Task 6 are two commits of one run.** The plan said so: the
+   `ConnectionPage_Notifications.Header` key alone would fail
+   `check-resw.js --strict` as unused. Task 5 is the service and the setting,
+   Task 6 is the toggle and the wiring.
+7. **`check-resw.js` requires a localizable property to appear literally in the
+   XAML.** A `ToggleSwitch` with `x:Uid` and no literal `Header="..."` reads as
+   an unused key, so the English fallback text must be written on the element.
+8. **Task 7 is where the plan was most wrong, and the compiler was right.**
+   WP8.1 has **no** `ContactPicker.PickContactAsync`, and the API it does have is
+   the `Windows 8.1` pair, not the Windows 10 one:
+   - `ContactPicker` must be instantiated (`new ContactPicker()`);
+     `PickSingleContactAsync` is an instance method (CS0120).
+   - It returns `ContactInformation`, **not** `Contact`, so a
+     `using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;`
+     alias is needed to keep `WhatsappApp.Models.Contact` unambiguous (CS0104).
+   - The property is `PhoneNumbers`, not `Phones`, and each field is read through
+     `ContactField.Value`, not `.Number` (CS1061).
+   - All of it raises CS0618 pointing at the Windows 10 replacement. That warning
+     is correct and unactionable here, so the method is wrapped in
+     `#pragma warning disable 618` with a comment, which puts the build back to
+     its one known warning and keeps a *new* warning visible.
+   - No capability was needed: the picker is the consent. The manifest is
+     unchanged, as the plan allowed.
+9. **Task 8's dialog needed one ordering change.** `ContentDialog.Hide()` closes
+   with `None`, so the `chosen` check moved above the
+   `result != ContentDialogResult.Primary` return, or the tap would have been
+   thrown away.
+10. **Final counts:** 83 adapter tests, 17 tests in `tools/test`, 103 resw keys,
+    28 C# files, 12 inline icon Paths (9 distinct). Build gate: `COPIA=0`,
+    `Errori: 0`, the single known CS0618 (`FileOpenPicker.PickSingleFileAsync`),
+    `Your package has been successfully created`.
+
 ## What only the phone can prove
 
 - Whether `ContactPicker` is allowed without a capability on a real WP8.1 device, and what it returns for a contact whose number is stored in a local format.
