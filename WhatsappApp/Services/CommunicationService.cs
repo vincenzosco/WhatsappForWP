@@ -48,6 +48,17 @@ namespace WhatsappApp.Services
         /// </summary>
         private const uint MaxFrameLength = 8 * 1024 * 1024;
 
+        /// <summary>
+        /// Numero del tentativo di connessione. Ogni tentativo lo incrementa e
+        /// pubblica i propri oggetti solo se e' ancora quello piu' recente; il
+        /// suo lettore continua solo finche' l'id resta quello. Senza questo,
+        /// l'avvio automatico e la pagina si contendevano `_reader`: un
+        /// tentativo fallito chiudeva il DataReader della connessione riuscita e
+        /// due lettori sullo stesso DataReader lo disallineavano, il che e' la
+        /// strada da cui e' arrivato OutOfMemoryException.
+        /// </summary>
+        private int _connectionId;
+
         // Cached UI dispatcher for marshalling events to the UI thread
         private CoreDispatcher _uiDispatcher;
 
@@ -305,11 +316,19 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task<bool> ConnectToServerAsync(string address, int port, string username)
         {
+            int attempt = ++_connectionId;
+
             _isServerMode = false;
             _serverAddress = address;
             _serverPort = port;
             _myUserId = Guid.NewGuid().ToString("N").Substring(0, 8);
             _myUsername = username;
+
+            // Oggetti del tentativo, non del servizio: finche' non e' pubblicata,
+            // questa connessione non esiste per nessun altro.
+            StreamSocket socket = null;
+            DataWriter writer = null;
+            DataReader reader = null;
 
             try
             {
@@ -317,14 +336,28 @@ namespace WhatsappApp.Services
                     RaiseConnectionStatusChanged(Loc.Get("CommService_Connecting", "Connecting..."))
                 );
 
-                _clientSocket = new StreamSocket();
+                socket = new StreamSocket();
                 var hostName = new HostName(address);
-                await _clientSocket.ConnectAsync(hostName, port.ToString());
+                await socket.ConnectAsync(hostName, port.ToString());
 
-                _writer = new DataWriter(_clientSocket.OutputStream);
-                _reader = new DataReader(_clientSocket.InputStream);
-                _reader.InputStreamOptions = InputStreamOptions.Partial;
+                writer = new DataWriter(socket.OutputStream);
+                reader = new DataReader(socket.InputStream);
+                reader.InputStreamOptions = InputStreamOptions.Partial;
 
+                // Un tentativo piu' nuovo ha gia' preso il posto di questo:
+                // si chiude quello che abbiamo aperto e non si tocca niente di
+                // condiviso (era il modo in cui un timeout cancellava la
+                // connessione riuscita dell'altro tentativo).
+                if (attempt != _connectionId)
+                {
+                    DisposeSocket(socket, writer, reader);
+                    return false;
+                }
+
+                DisposePublishedSocket();
+                _clientSocket = socket;
+                _writer = writer;
+                _reader = reader;
                 _isConnected = true;
 
                 // Send handshake with our identity (encrypted)
@@ -345,17 +378,24 @@ namespace WhatsappApp.Services
                 // come "operazione non implementata" senza dire quale passo.
                 try
                 {
-                    await SendFrameAsync(_writer, Encoding.UTF8.GetBytes(handshake.ToJson()));
+                    await SendFrameAsync(writer, Encoding.UTF8.GetBytes(handshake.ToJson()));
                 }
                 catch (Exception ex)
                 {
                     Diag.Failed("ConnectToServerAsync/handshake", ex);
-                    _isConnected = false;
-                    CleanUpClientSocket();
-                    DispatchOnUiThread(() =>
-                        RaiseErrorOccurred(string.Format(
-                            Loc.Get("CommService_ConnectError", "Connection error: {0}"),
-                            ExplainConnectionFailure(ex, "handshake"))));
+                    if (attempt == _connectionId)
+                    {
+                        _isConnected = false;
+                        DisposePublishedSocket();
+                        DispatchOnUiThread(() =>
+                            RaiseErrorOccurred(string.Format(
+                                Loc.Get("CommService_ConnectError", "Connection error: {0}"),
+                                ExplainConnectionFailure(ex, "handshake"))));
+                    }
+                    else
+                    {
+                        DisposeSocket(socket, writer, reader);
+                    }
                     return false;
                 }
 
@@ -365,9 +405,11 @@ namespace WhatsappApp.Services
                     RaiseConnectionEstablished();
                 });
 
-                // Start listening for incoming messages on a background thread
+                // Il lettore porta con se' l'id del tentativo e il suo reader:
+                // niente campi condivisi, niente secondo lettore sullo stesso
+                // DataReader.
 #pragma warning disable 4014
-                Task.Run(() => ListenForMessagesAsync());
+                Task.Run(() => ListenForMessagesAsync(attempt, reader));
 #pragma warning restore 4014
 
                 return true;
@@ -375,35 +417,56 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("ConnectToServerAsync", ex);
-                _isConnected = false;
-                // Senza questo il socket di un tentativo fallito resta aperto e
-                // il tentativo successivo parte con due connessioni.
-                CleanUpClientSocket();
-                DispatchOnUiThread(() =>
-                    RaiseErrorOccurred(string.Format(
-                        Loc.Get("CommService_ConnectError", "Connection error: {0}"),
-                        ExplainConnectionFailure(ex, "socket"))));
+
+                // Solo il tentativo ancora valido puo' dichiarare il guasto: se
+                // nel frattempo ne e' partito uno piu' nuovo, questo e' rumore e
+                // i suoi oggetti si chiudono senza toccare la connessione
+                // vincente.
+                DisposeSocket(socket, writer, reader);
+                if (attempt == _connectionId)
+                {
+                    _isConnected = false;
+                    DisposePublishedSocket();
+                    DispatchOnUiThread(() =>
+                        RaiseErrorOccurred(string.Format(
+                            Loc.Get("CommService_ConnectError", "Connection error: {0}"),
+                            ExplainConnectionFailure(ex, "socket"))));
+                }
                 return false;
             }
         }
 
         /// <summary>
-        /// Chiude il socket client e i suoi due wrapper. Idempotente: la
-        /// chiamano sia il ramo di fallimento del handshake sia il catch
-        /// esterno, e in nessun caso deve lanciare.
+        /// Chiude la connessione pubblicata, qualunque essa sia, senza toccare
+        /// l'id dei tentativi. Idempotente: la chiamano il ramo di fallimento
+        /// del handshake, il catch esterno e il lettore che finisce.
         /// </summary>
-        private void CleanUpClientSocket()
+        private void DisposePublishedSocket()
         {
-            try
-            {
-                if (_writer != null) { _writer.Dispose(); _writer = null; }
-                if (_reader != null) { _reader.Dispose(); _reader = null; }
-                if (_clientSocket != null) { _clientSocket.Dispose(); _clientSocket = null; }
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("CleanUpClientSocket", ex);
-            }
+            DataWriter writer = _writer;
+            DataReader reader = _reader;
+            StreamSocket socket = _clientSocket;
+
+            _writer = null;
+            _reader = null;
+            _clientSocket = null;
+
+            DisposeSocket(socket, writer, reader);
+        }
+
+        /// <summary>
+        /// Chiude gli oggetti di un tentativo. Non tocca i campi: non sa se
+        /// quella connessione e' mai stata pubblicata, ed e' esattamente il
+        /// motivo per cui esiste.
+        /// </summary>
+        private static void DisposeSocket(StreamSocket socket, DataWriter writer, DataReader reader)
+        {
+            try { if (writer != null) writer.Dispose(); }
+            catch (Exception ex) { Diag.Failed("DisposeSocket/writer", ex); }
+            try { if (reader != null) reader.Dispose(); }
+            catch (Exception ex) { Diag.Failed("DisposeSocket/reader", ex); }
+            try { if (socket != null) socket.Dispose(); }
+            catch (Exception ex) { Diag.Failed("DisposeSocket/socket", ex); }
         }
 
         /// <summary>
@@ -428,13 +491,19 @@ namespace WhatsappApp.Services
             return ex.Message;
         }
 
-        private async Task ListenForMessagesAsync()
+        /// <summary>
+        /// Legge i frame della connessione <paramref name="attempt"/> finche' e'
+        /// quella pubblicata. Il reader arriva come parametro: prenderlo da
+        /// `_reader` significava leggere il reader di un'altra connessione non
+        /// appena ne partiva una nuova.
+        /// </summary>
+        private async Task ListenForMessagesAsync(int attempt, DataReader reader)
         {
             try
             {
-                while (_isConnected && _clientSocket != null && _reader != null)
+                while (_isConnected && attempt == _connectionId)
                 {
-                    byte[] payload = await ReadFrameAsync(_reader);
+                    byte[] payload = await ReadFrameAsync(reader);
                     if (payload == null) break;
 
                     DispatchMessage(DecryptToMessage(payload));
@@ -443,7 +512,7 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("ListenForMessagesAsync", ex);
-                if (_isConnected)
+                if (_isConnected && attempt == _connectionId)
                 {
                     DispatchOnUiThread(() =>
                         RaiseErrorOccurred(string.Format(
@@ -453,10 +522,16 @@ namespace WhatsappApp.Services
             }
             finally
             {
-                _isConnected = false;
-                DispatchOnUiThread(() =>
-                    RaiseConnectionStatusChanged(Loc.Get("CommService_Disconnected", "Disconnected"))
-                );
+                // Un lettore superato non deve dichiarare disconnessa la
+                // connessione che l'ha sostituito.
+                if (attempt == _connectionId)
+                {
+                    _isConnected = false;
+                    DisposePublishedSocket();
+                    DispatchOnUiThread(() =>
+                        RaiseConnectionStatusChanged(Loc.Get("CommService_Disconnected", "Disconnected"))
+                    );
+                }
             }
         }
 
@@ -673,6 +748,10 @@ namespace WhatsappApp.Services
         /// </summary>
         public void Disconnect()
         {
+            // Ferma un lettore ancora in esecuzione prima di chiudere i suoi
+            // oggetti: e' quello che distingue una disconnessione voluta da un
+            // guasto di rete da segnalare.
+            _connectionId++;
             _isConnected = false;
             WhatsAppState = "disconnected";
             AccountJid = "";
@@ -689,9 +768,6 @@ namespace WhatsappApp.Services
 
             try
             {
-                if (_writer != null) _writer.Dispose();
-                if (_reader != null) _reader.Dispose();
-                if (_clientSocket != null) _clientSocket.Dispose();
                 if (_serverListener != null) _serverListener.Dispose();
             }
             catch (Exception ex)
@@ -699,9 +775,7 @@ namespace WhatsappApp.Services
                 Diag.Failed("Disconnect", ex);
             }
 
-            _writer = null;
-            _reader = null;
-            _clientSocket = null;
+            DisposePublishedSocket();
             _serverListener = null;
 
             // _uiDispatcher non si azzera: non e' legato al socket, e azzerarlo
