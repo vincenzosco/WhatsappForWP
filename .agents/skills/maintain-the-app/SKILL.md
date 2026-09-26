@@ -19,7 +19,7 @@ WhatsappApp/            WP8.1 XAML app (C# 5)
   Converters/           IValueConverter implementations used by the XAML
   Models/               Contact, ChatMessage, ServerConfig
   Services/             CommunicationService (socket), DataService (state),
-                        CryptoHelper (AES-GCM), Loc (strings), ImageHelper,
+                        CryptoHelper (AES-256-CBC + HMAC), Loc (strings), ImageHelper,
                         SettingsService, SessionService (last section),
                         Diag (every failure we survive, with its HRESULT),
                         SelfCheck (DEBUG-only probe of the platform)
