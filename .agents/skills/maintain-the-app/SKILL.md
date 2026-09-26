@@ -160,6 +160,23 @@ state it, and **no screen invents state that no server sends** - presence, "onli
   (duplicate resource identifier) - the guard enforces this.
 - WP8.1 caches the tile name and icons: after changing them, uninstall the app on
   the device before redeploying.
+- **The tile templates that exist on WP8.1 are not the Windows ones.**
+  `TileSquare150x150IconWithBadge` and `TileSquare71x71IconWithBadge` do exist and
+  are what `NotificationService` uses; `TileWide310x150IconWithBadge` does
+  **not**, and naming it is a compile error (CS0117), not a silent no-op. This is
+  a phone-only SDK: a template that compiles here may still be unsupported at run
+  time, so a new tile format is a device check, not a build check.
+- **On WP8.1 the number on the tile is drawn by the *badge*, not by the tile.**
+  A tile notification only replaces the tile's content, which is why the
+  `IconWithBadge` templates exist: they put the app icon back while the badge does
+  the counting. `Clear()` on both updaters is what returns the tile and the icon
+  to the manifest's defaults.
+- **`CommunicationService.IsConnected` can be true on a dead socket.** Nothing
+  observes a socket that the OS closed, so a suspended-then-resumed app looks
+  connected and is mute. `LastInboundUtc` plus `ConnectionWatchdog` are the only
+  things that notice. If you add a way to reconnect, remember that
+  `AutoConnector.TryConnectAsync` returns immediately while `IsConnected` is true:
+  a dead connection has to be `Disconnect()`ed before it will be retried.
 - `Frame.BackStack` is mutable and used on purpose in `SectionNav`.
 - `DataService.Contacts` is a public collection: if something adds a contact
   without `AddContact`, `FindContact` rebuilds its index, so keep inserts going

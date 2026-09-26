@@ -109,6 +109,7 @@
     <Compile Include="Services\SessionService.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\NotificationService.cs" />
+    <Compile Include="Services\ConnectionWatchdog.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>

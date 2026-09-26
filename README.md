@@ -80,6 +80,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
 - Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
 
 **Setup (one command)**
 
@@ -454,7 +455,7 @@ node tools/check-docs.js
 - Status updates are not available: the GOWA server this app talks to has no endpoint for them, so the Status section is empty on purpose.
 - Call records list incoming calls only, taken from the most recent chats the server scanned. See the Calls section below for the exact bound.
 - Message deletions and edits made on the phone reach the app only while it is connected: they are not replayed after a restart. They are matched by WhatsApp's message id, so messages the app itself sent are not matched.
-- Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered the next time it connects.
+- Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered on resume, when the app reconnects by itself - it is not announced at the moment it arrives.
 
 ## Disclaimer
 

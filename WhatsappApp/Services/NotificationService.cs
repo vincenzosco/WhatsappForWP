@@ -35,8 +35,20 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Il numero sull'icona: 0 toglie il badge.</summary>
+        /// <summary>
+        /// Il numero di non letti, sui due posti dove WP8.1 lo sa mostrare: il
+        /// badge dell'icona e la tile. Sono due notifiche diverse e una puo'
+        /// fallire senza l'altra, quindi ognuna ha la sua guardia. Con 0 si
+        /// azzera tutto: la tile torna a quella del manifest.
+        /// </summary>
         public static void SetUnread(int count)
+        {
+            SetBadge(count);
+            SetTileBadge(count);
+        }
+
+        /// <summary>Il numero sull'icona: 0 lo toglie.</summary>
+        private static void SetBadge(int count)
         {
             try
             {
@@ -54,8 +66,62 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                Diag.Failed("NotificationService.SetUnread", ex);
+                Diag.Failed("NotificationService.SetBadge", ex);
             }
+        }
+
+        /// <summary>
+        /// Mette l'icona dell'app sulla tile, nelle due misure che WP8.1 sa
+        /// aggiornare con un'icona: 150x150 e 71x71 (il modello IconWithBadge).
+        ///
+        /// Da notare, perche' e' il punto: **il numero lo disegna il badge, non
+        /// la tile.** Questo aggiornamento serve a tenere la tile sull'icona
+        /// dell'app mentre il badge e' attivo, e a riportarla a quella del
+        /// manifest quando non c'e' piu' niente da leggere (Clear).
+        ///
+        /// La misura larga non si tocca: su WP8.1 il modello
+        /// `TileWide310x150IconWithBadge` non esiste, e comunque il badge viene
+        /// disegnato anche sulla tile larga, quindi il numero si vede lo stesso.
+        ///
+        /// L'immagine non si passa: senza di essa il modello usa il logo
+        /// dell'app, che e' quello che il manifest gia' dichiara.
+        /// </summary>
+        private static void SetTileBadge(int count)
+        {
+            try
+            {
+                var updater = TileUpdateManager.CreateTileUpdaterForApplication();
+                if (count <= 0)
+                {
+                    updater.Clear();
+                    return;
+                }
+
+                var xml = TileUpdateManager.GetTemplateContent(
+                    TileTemplateType.TileSquare150x150IconWithBadge);
+                var visual = (XmlElement)xml.SelectSingleNode("/tile/visual");
+                if (visual == null) return;
+
+                AppendBinding(xml, visual, TileTemplateType.TileSquare71x71IconWithBadge);
+
+                updater.Update(new TileNotification(xml));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService.SetTileBadge", ex);
+            }
+        }
+
+        /// <summary>
+        /// Copia il binding di un altro modello dentro il documento della tile.
+        /// Un nodo appartiene al suo documento, quindi va importato: appenderlo
+        /// cosi' com'e' solleva un'eccezione.
+        /// </summary>
+        private static void AppendBinding(XmlDocument xml, XmlElement visual, TileTemplateType template)
+        {
+            var other = TileUpdateManager.GetTemplateContent(template);
+            var binding = other.SelectSingleNode("/tile/visual/binding");
+            if (binding != null) visual.AppendChild(xml.ImportNode(binding, true));
         }
 
         private static string Cut(string value, int max)
