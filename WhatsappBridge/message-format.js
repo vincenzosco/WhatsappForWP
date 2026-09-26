@@ -4,7 +4,7 @@
 // Il JSON prodotto deve combaciare ESATTAMENTE con i [DataMember] di
 // WhatsappApp/Models/ChatMessage.cs (DataContractJsonSerializer è case-sensitive).
 
-const DEFAULT_SENDER = 'Sconosciuto';
+const DEFAULT_SENDER = 'Unknown';
 
 // Il valore che il campo Timestamp deve avere *dopo* JSON.parse: Microsoft scrive
 // /Date(ms)/ e DataContractJsonSerializer se lo aspetta cosi'. Il \/ che si vede
@@ -55,7 +55,7 @@ function formatDateForWp8(value) {
 function displayNameForJid(jid) {
   if (!jid) return '?';
   const user = String(jid).split('@')[0];
-  if (String(jid).endsWith('@g.us')) return `Gruppo ${user}`;
+  if (String(jid).endsWith('@g.us')) return `Group ${user}`;
   if (/^\d+$/.test(user)) return `+${user}`;
   return user || '?';
 }
@@ -98,23 +98,23 @@ function mediaFromPayload(p) {
   if (p.image !== undefined) {
     if (typeof p.image === 'string') { result.type = 1; result.path = p.image; }
     else if (p.image && typeof p.image.path === 'string') { result.type = 1; result.path = p.image.path; }
-    else { result.fallbackText = '[Immagine non scaricata]'; }
+    else { result.fallbackText = '[Image not downloaded]'; }
   } else if (p.audio !== undefined) {
     if (typeof p.audio === 'string') {
       result.type = 2; result.path = p.audio; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
-    } else { result.fallbackText = '[Audio non scaricato]'; }
+    } else { result.fallbackText = '[Audio not downloaded]'; }
   } else if (p.video !== undefined) {
     if (p.video && typeof p.video.path === 'string') {
       result.path = p.video.path; result.mimeType = 'video/mp4';
     } else {
-      result.fallbackText = '[Video non scaricato]';
+      result.fallbackText = '[Video not downloaded]';
     }
   } else if (p.document !== undefined) {
     if (p.document && typeof p.document.path === 'string') {
       result.path = p.document.path;
       result.fileName = p.document.filename || null;
     } else {
-      result.fallbackText = '[Documento non scaricato]';
+      result.fallbackText = '[Document not downloaded]';
     }
   } else if (typeof p.sticker === 'string') {
     result.path = p.sticker; result.mimeType = 'image/webp'; result.fileName = 'sticker.webp';

@@ -51,7 +51,7 @@ test('mapWebhookMessage non propaga un timestamp impossibile', () => {
 
 test('displayNameForJid gestisce numeri e gruppi', () => {
   assert.strictEqual(displayNameForJid('393401234567@s.whatsapp.net'), '+393401234567');
-  assert.strictEqual(displayNameForJid('123456789012345678@g.us'), 'Gruppo 123456789012345678');
+  assert.strictEqual(displayNameForJid('123456789012345678@g.us'), 'Group 123456789012345678');
 });
 
 test('buildChatMessage applica i default e i campi di controllo', () => {
@@ -112,5 +112,5 @@ test('mapWebhookMessage degrada a testo quando il media non è scaricato', () =>
   const f = mapWebhookMessage({ id: '1', chat_id: 'a@s.whatsapp.net', image: { url: 'https://mmg/x' } });
   assert.strictEqual(f.type, 0);
   assert.strictEqual(f.mediaPath, null);
-  assert.strictEqual(f.text, '[Immagine non scaricata]');
+  assert.strictEqual(f.text, '[Image not downloaded]');
 });
