@@ -11,7 +11,7 @@
 ## Global Constraints
 
 - **Language/runtime:** the app is C# 5 only (no `$"..."`, `?.`, expression-bodied members, `out var`, `is T x`, `nameof`, `_ =`, async entry points). Trailing `;` after the last enum member is fine. The adapter is CommonJS on Node 26, zero dependencies, tests through `node --test`.
-- **The build gate** (C# tasks cannot be compiled on the Mac; this is the only compiler). Define `BUILD` as these four commands, run in this order, and run them as one step:
+- **The build gate** (C# tasks cannot be compiled on the Mac; this is the only compiler). Define `BUILD` as these three commands, run in this order, and run them as one step:
 
 ```
 prlctl exec "Windows 11" cmd /c "if exist C:\Temp\wp81 rmdir /s /q C:\Temp\wp81"
