@@ -47,15 +47,15 @@ namespace WhatsappServer
             Console.WriteLine("  ========= WhatsApp Community Server =========\n");
             Console.ResetColor();
 
-            Console.WriteLine("Avvio server sulla porta " + port + "...");
-            Console.WriteLine("In attesa di connessioni...\n");
+            Console.WriteLine("Starting the server on port " + port + "...");
+            Console.WriteLine("Waiting for connections...\n");
 
             try
             {
                 _server = new TcpListener(IPAddress.Any, port);
                 _server.Start();
-                Console.WriteLine("Server avviato! IP locale: " + GetLocalIPAddress());
-                Console.WriteLine("I client possono connettersi con: " + GetLocalIPAddress() + ":" + port + "\n");
+                Console.WriteLine("Server started. Local IP: " + GetLocalIPAddress());
+                Console.WriteLine("Clients can connect to: " + GetLocalIPAddress() + ":" + port + "\n");
                 Console.WriteLine("───────────────────────────────────────────────\n");
 
                 while (_isRunning)
@@ -64,7 +64,7 @@ namespace WhatsappServer
                     _clients.Add(client);
 
                     var endpoint = client.Client.RemoteEndPoint as IPEndPoint;
-                    Console.WriteLine("Nuovo client connesso: " + Describe(endpoint));
+                    Console.WriteLine("New client connected: " + Describe(endpoint));
 
                     // Handle each client in a separate task
                     var clientId = Guid.NewGuid().ToString("N").Substring(0, 6);
@@ -76,7 +76,7 @@ namespace WhatsappServer
             catch (Exception ex)
             {
                 Console.ForegroundColor = ConsoleColor.Red;
-                Console.WriteLine("Errore: " + ex.Message);
+                Console.WriteLine("Error: " + ex.Message);
                 Console.ResetColor();
             }
             finally
@@ -84,7 +84,7 @@ namespace WhatsappServer
                 if (_server != null) _server.Stop();
             }
 
-            Console.WriteLine("\nPremi un tasto per uscire...");
+            Console.WriteLine("\nPress a key to exit...");
             Console.ReadKey();
         }
 
@@ -119,7 +119,7 @@ namespace WhatsappServer
                     string timestamp = DateTime.Now.ToString("HH:mm:ss");
 
                     // Try to extract and display the message
-                    Console.WriteLine("[" + timestamp + "] Messaggio ricevuto (" + json.Length + " byte)");
+                    Console.WriteLine("[" + timestamp + "] Message received (" + json.Length + " bytes)");
                     Console.WriteLine("   " + json.Substring(0, Math.Min(json.Length, 150)) + "\n");
 
                     // Broadcast to all other connected clients
@@ -129,13 +129,13 @@ namespace WhatsappServer
             catch (Exception ex)
             {
                 var endpoint = client.Client.RemoteEndPoint as IPEndPoint;
-                Console.WriteLine("Client disconnesso: " + Describe(endpoint) + " (" + ex.Message + ")");
+                Console.WriteLine("Client disconnected: " + Describe(endpoint) + " (" + ex.Message + ")");
             }
             finally
             {
                 _clients.Remove(client);
                 client.Close();
-                Console.WriteLine("Client rimosso. Connessioni attive: " + _clients.Count + "\n");
+                Console.WriteLine("Client removed. Active connections: " + _clients.Count + "\n");
             }
         }
 

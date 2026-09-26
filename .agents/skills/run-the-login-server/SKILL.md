@@ -142,13 +142,13 @@ black/white colours — never the terminal's theme.
 
 | Symptom | Cause / fix |
 | --- | --- |
-| `GOWA non trovato in .tools/gowa/whatsapp` | run with `--download`, or pass `--gowa`, or start GOWA elsewhere and use `--url` |
-| `ImageMagick non ha letto ...` | `brew install imagemagick` — `magick` must be in PATH |
-| `GOWA non risponde` | the script prints the last lines of `.tools/gowa/gowa.log`; port 3000 taken is the usual reason |
+| `GOWA not found in .tools/gowa/whatsapp` | run with `--download`, or pass `--gowa`, or start GOWA elsewhere and use `--url` |
+| `ImageMagick could not read ...` | `brew install imagemagick` — `magick` must be in PATH |
+| `GOWA is not responding` | the script prints the last lines of `.tools/gowa/gowa.log`; port 3000 taken is the usual reason |
 | macOS asks to allow incoming connections | allow it: the adapter listens on 8585/8586 for the phone and for GOWA |
 | Nothing but `state: disconnected` in the app | the WhatsApp account is not linked yet: run this script and complete the QR login once |
 | Wrong account linked | `rm -rf .tools/gowa/storages` and log in again (this deletes the session) |
-| "Il codice occupa N righe e M colonne" | the window is too small: enlarge it or press `Cmd -`, or open `.tools/gowa/login-qr.png`, or use `--no-qr` |
+| "The code needs N rows and M columns" | the window is too small: enlarge it or press `Cmd -`, or open `.tools/gowa/login-qr.png`, or use `--no-qr` |
 | Terminal shows garbage instead of the QR | a real TTY gets the coloured drawing: do not pipe the output through a pager, and keep the window above the printed size |
 
 ## Rules

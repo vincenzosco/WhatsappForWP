@@ -84,7 +84,7 @@ function targetNameFor(platform) {
 
 function releaseUrlFor(key) {
   const archive = GOWA_ARCHIVES[key];
-  if (!archive) throw new Error(`nessun archivio GOWA per ${key}`);
+  if (!archive) throw new Error(`no GOWA archive for ${key}`);
   return `${RELEASE_BASE}/${GOWA_VERSION}/${archive.file}`;
 }
 
@@ -116,7 +116,7 @@ function findEndOfCentralDirectory(buffer) {
 
 function readCentralDirectory(buffer) {
   const eocd = findEndOfCentralDirectory(buffer);
-  if (eocd < 0) throw new Error("non e' un archivio ZIP (manca la fine della directory centrale)");
+  if (eocd < 0) throw new Error('not a ZIP archive (the end of the central directory is missing)');
 
   const count = buffer.readUInt16LE(eocd + 10);
   const size = buffer.readUInt32LE(eocd + 12);
@@ -126,17 +126,17 @@ function readCentralDirectory(buffer) {
   // leggerli lo stesso produrrebbe un binario corrotto in silenzio.
   const locator = eocd - 20;
   if (locator >= 0 && buffer.readUInt32LE(locator) === ZIP64_LOCATOR_SIGNATURE) {
-    throw new Error('archivio ZIP64 non supportato');
+    throw new Error('ZIP64 archive not supported');
   }
   if (offset === 0xffffffff || size === 0xffffffff || count === 0xffff) {
-    throw new Error('archivio ZIP64 non supportato');
+    throw new Error('ZIP64 archive not supported');
   }
 
   const entries = [];
   let cursor = offset;
   for (let i = 0; i < count; i++) {
     if (cursor + 46 > buffer.length || buffer.readUInt32LE(cursor) !== CENTRAL_SIGNATURE) {
-      throw new Error('directory centrale ZIP non valida');
+      throw new Error('invalid ZIP central directory');
     }
     const nameLength = buffer.readUInt16LE(cursor + 28);
     const extraLength = buffer.readUInt16LE(cursor + 30);
@@ -158,20 +158,20 @@ function readCentralDirectory(buffer) {
 function readEntryData(buffer, entry) {
   const at = entry.localOffset;
   if (at + 30 > buffer.length || buffer.readUInt32LE(at) !== LOCAL_SIGNATURE) {
-    throw new Error(`intestazione locale non valida per ${entry.name}`);
+    throw new Error(`invalid local header for ${entry.name}`);
   }
   const nameLength = buffer.readUInt16LE(at + 26);
   const extraLength = buffer.readUInt16LE(at + 28);
   const start = at + 30 + nameLength + extraLength;
 
   if (start + entry.compressedSize > buffer.length) {
-    throw new Error(`archivio troncato: ${entry.name} esce dal file`);
+    throw new Error(`truncated archive: ${entry.name} falls outside the file`);
   }
   const raw = buffer.subarray(start, start + entry.compressedSize);
 
   if (entry.method === 0) return Buffer.from(raw);
   if (entry.method === 8) return zlib.inflateRawSync(raw);
-  throw new Error(`compressione ZIP non supportata (${entry.method}) per ${entry.name}`);
+  throw new Error(`ZIP compression method not supported (${entry.method}) for ${entry.name}`);
 }
 
 /**
@@ -182,12 +182,12 @@ function readEntryData(buffer, entry) {
  */
 function extractLargestEntry(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 22) {
-    throw new Error("non e' un archivio ZIP (troppo corto)");
+    throw new Error('not a ZIP archive (too short)');
   }
 
   const entries = readCentralDirectory(buffer)
     .filter((entry) => entry.uncompressedSize > 0 && !entry.name.endsWith('/'));
-  if (entries.length === 0) throw new Error('archivio ZIP vuoto');
+  if (entries.length === 0) throw new Error('empty ZIP archive');
 
   let chosen = entries[0];
   for (const entry of entries) {
@@ -205,20 +205,20 @@ function extractLargestEntry(buffer) {
  */
 async function ensureArchive({ key, dir, targetName, expectedDigest, fetchImpl, log }) {
   const archive = GOWA_ARCHIVES[key];
-  if (!archive) throw new Error(`nessun archivio GOWA per ${key}`);
+  if (!archive) throw new Error(`no GOWA archive for ${key}`);
 
   const expected = expectedDigest || archive.sha256;
   const url = releaseUrlFor(key);
   const doFetch = fetchImpl || fetch;
-  if (typeof log === 'function') log(`scarico ${archive.file} ...`);
+  if (typeof log === 'function') log(`downloading ${archive.file} ...`);
 
   const response = await doFetch(url, { signal: AbortSignal.timeout(600000) });
-  if (!response.ok) throw new Error(`download fallito (${response.status}) da ${url}`);
+  if (!response.ok) throw new Error(`download failed (${response.status}) from ${url}`);
 
   const buffer = Buffer.from(await response.arrayBuffer());
   const digest = sha256(buffer);
   if (digest !== expected) {
-    throw new Error(`SHA-256 inatteso: ${digest}\n     atteso: ${expected}`);
+    throw new Error(`unexpected SHA-256: ${digest}\n     expected: ${expected}`);
   }
 
   const entry = extractLargestEntry(buffer);
@@ -232,7 +232,7 @@ async function ensureArchive({ key, dir, targetName, expectedDigest, fetchImpl, 
   fs.chmodSync(temporary, 0o755);
   fs.renameSync(temporary, target);
 
-  if (typeof log === 'function') log(`installato ${path.basename(target)} da ${entry.name}`);
+  if (typeof log === 'function') log(`installed ${path.basename(target)} from ${entry.name}`);
   return { target, entryName: entry.name, bytes: entry.data.length };
 }
 
