@@ -40,8 +40,10 @@ namespace WhatsappApp.Services
         private bool _listening;
 
         /// <summary>
-        /// Chat attualmente aperta: i messaggi che arrivano qui sono gia' letti,
-        /// quindi non devono incrementare il contatore dei non letti.
+        /// Chat attualmente aperta. Serve a una cosa sola: non alzare un avviso
+        /// per un messaggio che l'utente sta gia' guardando. Non decide piu' il
+        /// conteggio dei non letti: quello lo decide chi mostra i messaggi
+        /// (vedi ClearUnread).
         /// </summary>
         public string ActiveChatId
         {
@@ -129,9 +131,13 @@ namespace WhatsappApp.Services
                     LastMessage = message.Text,
                     LastMessageTime = message.FormattedTime,
                     Initials = InitialsFor(name),
-                    // La chat aperta non conta come non letta, e la presenza non
-                    // si inventa: non arriva da nessuna parte.
-                    UnreadCount = message.IsIncoming && message.ChatId != _activeChatId ? 1 : 0
+                    // Il conteggio non guarda quale chat e' aperta: un messaggio
+                    // in arrivo e' non letto finche' qualcuno lo legge (vedi
+                    // MarkDisplayedRead), e chi decide e' la pagina che lo
+                    // mostra. Escludere qui la chat attiva perdeva i messaggi
+                    // arrivati mentre l'app era sospesa con quella chat aperta:
+                    // non venivano contati e nessuno li azzerava.
+                    UnreadCount = message.IsIncoming ? 1 : 0
                 };
                 _contacts.Insert(0, contact);
                 _contactIndex[contact.Id] = contact;
@@ -141,8 +147,11 @@ namespace WhatsappApp.Services
                 // Update the contact preview and move to top
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
-                if (message.IsIncoming && message.ChatId != _activeChatId)
+                if (message.IsIncoming)
+                {
                     contact.UnreadCount++;
+                    NotificationService.SetUnread(TotalUnread());
+                }
 
                 var idx = _contacts.IndexOf(contact);
                 if (idx > 0)
@@ -150,8 +159,9 @@ namespace WhatsappApp.Services
             }
 
             // Un avviso solo per una chat che non stiamo guardando: con la chat
-            // aperta un toast e' rumore, e il badge non deve contare un messaggio
-            // che l'utente sta gia' leggendo.
+            // aperta un toast e' rumore. Il badge invece si aggiorna sempre: il
+            // conteggio e' vero, e la chat aperta si azzera quando la pagina la
+            // mostra (ClearUnread), non perche' l'ha saltata nessuno.
             if (message.IsIncoming && message.ChatId != _activeChatId)
                 NotificationService.ShowMessage(contact.Name, message.Text);
 
@@ -449,18 +459,29 @@ namespace WhatsappApp.Services
             {
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
-                if (message.IsIncoming && message.ChatId != _activeChatId)
+                if (message.IsIncoming)
+                {
                     contact.UnreadCount++;
+                    NotificationService.SetUnread(TotalUnread());
+                }
 
                 // Move contact to top
                 _contacts.Move(_contacts.IndexOf(contact), 0);
             }
         }
 
+        /// <summary>
+        /// I messaggi di questa chat sono stati mostrati: da qui in poi sono
+        /// letti. La chiama solo la pagina della chat, ed e' l'unico posto in
+        /// cui "letto" e' una decisione e non un'ipotesi: e' quello che fa
+        /// WhatsApp - il numero sparisce dalla riga perche' la stai leggendo,
+        /// non perche' il contatore la salta.
+        /// </summary>
         public void ClearUnread(string chatId)
         {
             var contact = FindContact(chatId);
             if (contact == null) return;
+            if (contact.UnreadCount == 0) return;
 
             contact.UnreadCount = 0;
             NotificationService.SetUnread(TotalUnread());

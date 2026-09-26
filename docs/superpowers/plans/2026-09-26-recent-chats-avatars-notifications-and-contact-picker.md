@@ -1613,6 +1613,22 @@ a `Border` clips its own `Background` to `CornerRadius`, and 26 on a 52 px squar
 is an exact circle. The avatar is now a `Border` whose background is an
 `ImageBrush` - no pixel work, no encoder round-trip.
 
+### The unread number on the row of the chat you are reading
+
+Asked for, and the answer was "like WhatsApp does". WhatsApp shows no number on a
+row whose messages are on screen, and that is not the same thing as never
+counting them - which is what the plan's `message.ChatId != _activeChatId` did.
+
+The exclusion was a real bug, not just a shortcut: `ActiveChatId` stays set while
+the chat page is alive, so messages delivered after a resume, with that chat open,
+were neither counted nor cleared. They disappeared from the row and from the badge
+altogether, silently.
+
+Now `UnreadCount` counts every incoming message, and `ChatPage` - the only thing
+that knows a message was put in front of the user - calls `ClearUnread` when it
+opens the conversation and for each message it displays. `ActiveChatId` is left
+with one job: suppressing the toast for the chat on screen.
+
 ## Deliberately not in this plan
 
 - **Real push notifications.** They need a public service that holds the MPNS channel URIs and forwards the GOWA webhook, plus a certificate: a project of its own, and a different deployment. The plan above says what the app can do without one.

@@ -123,8 +123,17 @@ namespace WhatsappApp.Pages
         {
             // DataService ha già inserito il messaggio nella stessa collezione:
             // qui si scorre soltanto, altrimenti la bolla comparirebbe due volte.
-            if (message.ChatId == _contact.Id)
-                ScrollToMessage(message);
+            if (message.ChatId != _contact.Id) return;
+
+            ScrollToMessage(message);
+
+            // Questo handler vive solo mentre questa pagina e' quella davanti
+            // (si aggancia in OnNavigatedTo e si stacca in OnNavigatedFrom),
+            // quindi un messaggio che arriva qui e' un messaggio che l'utente
+            // sta vedendo scorrere: e' letto adesso, come su WhatsApp. Il
+            // numero sulla riga si azzera per questo, non per un'esclusione nel
+            // contatore.
+            DataService.Instance.ClearUnread(_contact.Id);
         }
 
         private async void SendMessage()
