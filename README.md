@@ -66,8 +66,10 @@ client any more: it uses GOWA's REST API and webhooks.
 node tools/start-login.js --download   # --download only the first time
 ```
 
-It downloads the official GOWA binary for this platform into `.tools/gowa`
-(SHA-256 verified), starts `whatsapp rest`, starts `WhatsappBridge/server.js`,
+It downloads the official GOWA binary for **whatever OS and CPU you are on** into
+`.tools/gowa` (macOS Intel/ARM, Linux x64/arm64/armv7/386, Windows x64/386),
+verifies the published SHA-256, and unpacks it with `node:zlib` — no `unzip` or
+`tar` needed. It then starts `whatsapp rest`, starts `WhatsappBridge/server.js`,
 announces the adapter on the LAN over UDP (so the app finds it **by itself**) and
 prints the addresses and ports. The login is normally done **on the phone**: the
 app shows the QR full screen, so nothing has to be scanned off the computer. A
@@ -75,6 +77,12 @@ terminal QR is still available and is drawn as a real scannable code, renewed as
 long as it takes; when it does not fit the window the script says so and writes
 the PNG to `.tools/gowa/login-qr.png` rather than drawing something truncated.
 The adapter registers its own webhook on GOWA.
+
+Which services start is a declarative list (`tools/services.js`), not two
+hardcoded children: drop a `WhatsappCallServer/server.js` in the repo and the
+launcher starts it too, gives it its own port, shows it in the banner and stops
+it with `Ctrl-C` / `--stop` like the rest (`--no-calls` switches it off,
+`--list-services` shows the resolved list).
 
 | Option | Effect |
 | --- | --- |

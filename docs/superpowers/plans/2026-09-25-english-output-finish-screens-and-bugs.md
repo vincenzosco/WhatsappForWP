@@ -300,6 +300,9 @@ Usage: node tools/start-login.js [options]
   --bridge-port <n>     TCP port for the WP8 app (default 8585)
   --webhook-port <n>    GOWA -> adapter webhook port (default 8586)
   --gowa <path>         alternative path to the GOWA binary
+  --calls-port <n>      port for the second service (default 8588)
+  --no-calls            do not start the second service
+  --list-services       list the services that would start, then exit
   --no-bridge           do not start the adapter (GOWA + QR only)
   --once                draw one QR code and exit
   --no-qr               start the stack without drawing the QR code: log in
