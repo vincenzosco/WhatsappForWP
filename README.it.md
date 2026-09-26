@@ -202,6 +202,14 @@ rifiuta qualunque valore fuori da `1..8 MiB` (`MaxFrameLength`), e l'adapter
 chiude il client che annuncia piu' di `MAX_FRAME_LENGTH` (gli stessi 8 MiB)
 invece di accumularlo.
 
+`Timestamp` e' l'unico campo di cui vale la pena dire il *tipo* sul filo: porta
+`/Date(<millisecondi dal 1970, UTC>)/`, e nessun backslash - il `\/` che si vede nel testo JSON e'
+l'escape del lettore, non parte del valore. Scrivere il valore con i backslash (un difetto
+dell'adapter, corretto in questi commit) faceva buttare via l'intero frame al telefono con
+`SerializationException 0x8013150C`, "String was not recognized as a valid DateTime". L'app legge
+quel campo come stringa e lo interpreta con tolleranza, quindi un timestamp che non riesce a
+leggere costa il timestamp, non il messaggio.
+
 Il byte order e' detto per esteso da entrambe le parti: l'adapter scrive la
 lunghezza con `writeUInt32LE` e l'app costruisce lettori e scrittori con
 `CreateFrameReader`/`CreateFrameWriter`, che impostano

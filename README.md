@@ -193,6 +193,14 @@ A frame length is never trusted: the app fills the 4-byte prefix completely
 `1..8 MiB` (`MaxFrameLength`), and the adapter drops a client that announces more
 than `MAX_FRAME_LENGTH` (the same 8 MiB) instead of buffering it.
 
+`Timestamp` is the one field whose *type* on the wire is worth spelling out: it carries
+`/Date(<milliseconds since 1970, UTC>)/`, and no backslashes - the `\/` seen in JSON text is the
+reader's escape, not part of the value. Writing the value with backslashes (an adapter bug fixed
+in these commits) made the phone throw the whole frame away with
+`SerializationException 0x8013150C`, "String was not recognized as a valid DateTime". The app
+reads that field as a string and interprets it leniently, so a timestamp it cannot parse costs
+the timestamp, not the message.
+
 Both sides pin the byte order explicitly: the adapter writes the length with
 `writeUInt32LE` and the app creates its readers and writers through
 `CreateFrameReader`/`CreateFrameWriter`, which set
