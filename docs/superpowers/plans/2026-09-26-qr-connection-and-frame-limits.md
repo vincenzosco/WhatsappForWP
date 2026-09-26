@@ -1297,3 +1297,11 @@ No `TBD`, no "add error handling", no "similar to Task N": every code step carri
    `end`/`close`, so waiting for the server's close without `socket.resume()` timed
    out even though the server had already destroyed the connection. The test says so
    in a comment now.
+5. **The abandoned `ContinueWith` needed a variable.** Left as a bare statement in an
+   async method it is a `CS4014`, which would have made the build gate report three
+   warnings instead of the two we accept. The observed task is now assigned to a
+   local, and the build reports 0 errors and only the pre-existing `CS0618`.
+6. **The real build gate was run**, not handed over: `COPIA=0`, then
+   `Your package has been successfully created` with 0 errors. The device pass in
+   Task 8 Step 3 still belongs to the user: the WP8.1 emulator is x86 and needs
+   Hyper-V, which the ARM64 Windows guest does not have.
