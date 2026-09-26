@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 28 C# files, 103 keys in each `.resw`, 12 inline icon
+Current expected counts: 29 C# files, 103 keys in each `.resw`, 12 inline icon
 Paths (9 distinct icons), 83 adapter tests, 17 tests in `tools/test`.
 
 ```bash
@@ -193,3 +193,14 @@ empty".
     system picker opens; cancelling must leave the dialog usable), and tap one of
     the conversations listed under it. A contact whose number is stored with
     spaces or a `+` must still open the right chat.
+17. The unread count must be visible on the **tile** as well as in the badge, and
+    both must go back to nothing when the last unread chat is opened. The profile
+    picture in the chat list must be a **circle**, not a square or a rounded
+    square, and a row without a picture must still show its coloured initials.
+18. Background the app for a couple of minutes, then bring it back: it must
+    reconnect on its own and the conversation list must refresh - without opening
+    the settings page and without pressing anything. The Output window must show
+    the watchdog line `DIAG ConnectionWatchdog/silent` and **not** a stuck
+    `DIAG ConnectToServerAsync`.
+19. Turn the phone's Wi-Fi off and back on while the app is open: within about a
+    minute the app must recover by itself (same two log lines as above).

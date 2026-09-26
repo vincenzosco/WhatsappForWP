@@ -100,6 +100,16 @@ namespace WhatsappApp.Services
         {
             get { return _isConnected; }
         }
+
+        /// <summary>
+        /// Quando e' stato letto l'ultimo frame (UTC). Non e' un dato del
+        /// protocollo: lo legge solo il watchdog, perche' su WP8.1 il socket
+        /// puo' morire senza che nessuno lo dica - la sospensione dell'app lo
+        /// chiude, e un cambio di rete lo lascia li' a non rispondere piu'. Il
+        /// flag _isConnected non se ne accorge: resta a true mentre l'app e'
+        /// muta, che era esattamente il caso da distinguere.
+        /// </summary>
+        public DateTime LastInboundUtc { get; private set; }
         public bool IsServerMode
         {
             get { return _isServerMode; }
@@ -367,6 +377,7 @@ namespace WhatsappApp.Services
                 _clientSocket = socket;
                 _writer = writer;
                 _reader = reader;
+                LastInboundUtc = DateTime.UtcNow;
                 _isConnected = true;
 
                 // Send handshake with our identity (encrypted)
@@ -604,6 +615,8 @@ namespace WhatsappApp.Services
                     byte[] payload = await ReadFrameAsync(reader);
                     if (payload == null) break;
 
+                    // Prova di vita per il watchdog: un frame letto adesso.
+                    LastInboundUtc = DateTime.UtcNow;
                     DispatchMessage(DecryptToMessage(payload));
                 }
             }

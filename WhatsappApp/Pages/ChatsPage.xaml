@@ -157,12 +157,18 @@
                                   Margin="10,10,0,10" VerticalAlignment="Center">
                                 <Ellipse Width="52" Height="52"
                                          Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                                <!-- L'immagine del profilo, quando GOWA ce l'ha. E'
-                                     quadrata e scalata: WP8.1 non sa ritagliare
-                                     un'immagine con un'ellisse. -->
-                                <Image Width="52" Height="52" Stretch="UniformToFill"
-                                       Source="{Binding Avatar}"
-                                       Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}"/>
+                                <!-- L'immagine del profilo, quando GOWA ce l'ha.
+                                     Non e' un'Image: WP8.1 sa ritagliare solo
+                                     rettangoli con UIElement.Clip. Un Border
+                                     invece ritaglia il proprio sfondo alla
+                                     forma di CornerRadius, e 26 su un quadrato
+                                     da 52 e' un cerchio esatto. -->
+                                <Border Width="52" Height="52" CornerRadius="26"
+                                        Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                    <Border.Background>
+                                        <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                                    </Border.Background>
+                                </Border>
                                 <TextBlock Text="{Binding Initials}"
                                            Foreground="White" FontSize="18" FontWeight="SemiBold"
                                            VerticalAlignment="Center" HorizontalAlignment="Center"
