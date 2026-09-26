@@ -277,7 +277,31 @@ function createBridge({ config, gowa, log, debug }) {
   // ─── Messaggi da WhatsApp verso l'app ─────────────────────────────────────
 
   async function handleWebhookEvent(event) {
-    if (!event || event.event !== 'message') return;
+    if (!event) return;
+
+    if (event.event === 'message.revoked') {
+      const payload = event.payload || {};
+      const id = payload.revoked_message_id;
+      if (!id) return;
+      const chatId = payload.revoked_chat || payload.chat_id || payload.from || '0';
+      logger('MSG', `message revoked on WhatsApp: ${id}`);
+      sendControl({ command: 'revoked', chatId, relatedMessageId: id });
+      return;
+    }
+
+    if (event.event === 'message.edited') {
+      const payload = event.payload || {};
+      const id = payload.original_message_id;
+      if (!id || typeof payload.body !== 'string') return;
+      const chatId = payload.chat_id || payload.from || '0';
+      logger('MSG', `message edited on WhatsApp: ${id}`);
+      sendControl({ command: 'edited', chatId, relatedMessageId: id, text: payload.body });
+      return;
+    }
+
+    // message.reaction e i tipi futuri restano ignorati: nell'app non c'e'
+    // dove mostrarli.
+    if (event.event !== 'message') return;
     const fields = mapWebhookMessage(event.payload || {});
     if (!fields) return;
 
