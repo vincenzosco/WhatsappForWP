@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.IO;
+using System.Globalization;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage.Streams;
@@ -37,7 +38,14 @@ namespace WhatsappApp.Models
         private string _senderId;
         private string _senderName;
         private string _chatId;
-        private DateTime _timestamp;
+        private DateTime _timestamp = DateTime.Now;
+
+        // Il valore del campo Timestamp cosi' come e' arrivato. E' una stringa e
+        // non un DateTime perche' la deserializzazione non deve poter fallire:
+        // una data che il telefono non riconosce faceva cadere l'intero frame
+        // ("String was not recognized as a valid DateTime", 0x8013150C) e il
+        // messaggio spariva senza che l'utente vedesse niente.
+        private string _timestampWire;
         private MessageStatus _status;
         private MessageType _type;
         private bool _isIncoming;
@@ -93,15 +101,36 @@ namespace WhatsappApp.Models
             set { _chatId = value; OnPropertyChanged(); }
         }
 
-        [DataMember]
+        /// <summary>
+        /// Il campo che viaggia sul filo, cosi' com'e'. Quando il messaggio e'
+        /// stato costruito qui (e non letto da un frame) e' vuoto, e il getter
+        /// lo scrive dal DateTime: e' l'unica sorgente della forma /Date(ms)/.
+        /// </summary>
+        [DataMember(Name = "Timestamp")]
+        public string TimestampWire
+        {
+            get { return _timestampWire == null ? FormatWire(_timestamp) : _timestampWire; }
+            set
+            {
+                _timestampWire = value;
+                _timestamp = ParseWire(value);
+                FormattedTime = FormatTime(_timestamp);
+                OnPropertyChanged("TimestampWire");
+                OnPropertyChanged("FormattedTime");
+            }
+        }
+
+        /// <summary>La stessa data come la usa l'app. Non e' un [DataMember]: sul filo va la stringa.</summary>
         public DateTime Timestamp
         {
             get { return _timestamp; }
             set
             {
                 _timestamp = value;
+                _timestampWire = null;   // si riscrive dal DateTime alla prossima serializzazione
                 FormattedTime = FormatTime(value);
-                OnPropertyChanged();
+                OnPropertyChanged("Timestamp");
+                OnPropertyChanged("FormattedTime");
             }
         }
 
@@ -264,6 +293,65 @@ namespace WhatsappApp.Models
             var handler = PropertyChanged;
             if (handler != null)
                 handler(this, new PropertyChangedEventArgs(propertyName));
+        }
+
+        /// <summary>Il primo istante dell'epoch, in UTC: la base del formato Microsoft.</summary>
+        private static readonly DateTime Epoch =
+            new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        /// <summary>Millisecondi dall'epoch, nella forma /Date(ms)/ che l'altro capo legge.</summary>
+        private static string FormatWire(DateTime value)
+        {
+            DateTime utc = value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
+            long milliseconds = (long)(utc - Epoch).TotalMilliseconds;
+            return "/Date(" + milliseconds.ToString(CultureInfo.InvariantCulture) + ")/";
+        }
+
+        /// <summary>
+        /// Interpreta il campo Timestamp di un frame.
+        ///
+        /// Accetta /Date(ms)/ con un numero qualsiasi di backslash davanti agli
+        /// slash - un adattatore piu' vecchio li raddoppiava, e quei backslash
+        /// sono escape del lettore JSON, non parte del valore -, una data ISO
+        /// 8601 con o senza fuso, e i millisecondi nudi. Qualunque altra cosa
+        /// diventa l'ora attuale, con la riga di Diag che dice cosa non andava:
+        /// un campo illeggibile non deve far sparire il messaggio.
+        /// </summary>
+        private static DateTime ParseWire(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return DateTime.Now;
+
+            string text = value.Replace("\\", "").Trim();
+
+            const string Prefix = "/Date(";
+            if (text.StartsWith(Prefix, StringComparison.Ordinal)
+                && text.EndsWith(")/", StringComparison.Ordinal))
+            {
+                string inner = text.Substring(Prefix.Length, text.Length - Prefix.Length - 2);
+                long fromWire;
+                if (long.TryParse(inner, NumberStyles.Integer, CultureInfo.InvariantCulture, out fromWire))
+                {
+                    // FormatTime si aspetta una data locale: il filo porta UTC.
+                    return Epoch.AddMilliseconds(fromWire).ToLocalTime();
+                }
+            }
+
+            long raw;
+            if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out raw))
+            {
+                return Epoch.AddMilliseconds(raw).ToLocalTime();
+            }
+
+            DateTime parsed;
+            if (DateTime.TryParse(text, CultureInfo.InvariantCulture,
+                    DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out parsed))
+            {
+                return parsed.ToLocalTime();
+            }
+
+            Diag.Failed("ChatMessage/Timestamp",
+                new FormatException("data non riconosciuta: " + text));
+            return DateTime.Now;
         }
 
         private static string FormatTime(DateTime dt)
