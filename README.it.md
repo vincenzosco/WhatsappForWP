@@ -196,6 +196,16 @@ rifiuta qualunque valore fuori da `1..8 MiB` (`MaxFrameLength`), e l'adapter
 chiude il client che annuncia piu' di `MAX_FRAME_LENGTH` (gli stessi 8 MiB)
 invece di accumularlo.
 
+Il byte order e' detto per esteso da entrambe le parti: l'adapter scrive la
+lunghezza con `writeUInt32LE` e l'app costruisce lettori e scrittori con
+`CreateFrameReader`/`CreateFrameWriter`, che impostano
+`ByteOrder = ByteOrder.LittleEndian`. Il valore predefinito di WinRT non e'
+little-endian, e un lettore che non concorda non fallisce in modo evidente:
+legge una lunghezza invertita (`0x00000121` tornava come `0x21010000`, 553713664)
+e scarta un frame che era perfettamente valido. `tools/check-framing.js` fa
+fallire il gate veloce se nella parte socket un `DataReader`/`DataWriter` viene
+creato in un altro modo.
+
 Un tentativo di connessione possiede il suo socket, il suo `DataReader` e il suo
 ciclo di lettura: solo il tentativo piu' recente li pubblica e solo il suo ciclo
 li legge, quindi un tentativo fallito (per esempio su un indirizzo salvato che
