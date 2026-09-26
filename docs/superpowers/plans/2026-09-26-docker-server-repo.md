@@ -821,3 +821,34 @@ No `TBD` and no "add the appropriate configuration": every file the executor mus
 - The GOWA version and both digests appear once in the Global Constraints, once in the Dockerfile and once in the README's build section, with identical values.
 - `BRIDGE_KEY=WhatsAppCommunityWP8-2026` matches `CryptoHelper.Passphrase` in this repository.
 - The image name `ghcr.io/vincenzosco/docker-whatsappforwp` is identical in the workflow, both compose files and the README.
+
+---
+
+## What execution changed about the plan
+
+1. **The GOWA archive does not contain a file called `whatsapp`.** `download.js`
+   extracts the largest entry, and the archive's entries are `linux-amd64` (the
+   binary) and `readme.md`. The Dockerfile now picks the largest file the same way,
+   which is why stage 1 prints `ls -l extracted` and `GOWA binary: ...`: the first
+   CI run failed with `chmod: cannot access 'whatsapp'`, and the next person to
+   bump the GOWA version should get that line instead of the same puzzle.
+2. **One backslash, not two, in the `find` format.** Written as `%s %p\\n`, the
+   shell handed printf a literal backslash and an `n`, so `find` printed every
+   entry on a single line and `head -n1` returned all of them. The second CI run
+   failed with `mv: cannot stat`. The recipe is `%s %p\n`.
+3. **The repository's default branch is `main`**, not `master`: the workflow
+   listens to both, and the pushed branch is `main`.
+4. **The CI is the verification, and it was run.** Run
+   [36232684152](https://github.com/vincenzosco/docker-whatsappforwp/actions/runs/36232684152):
+   `sync` in 10s (`OK: server/ matches the adapter (16 file(s)).`, which also
+   proves the drift check is not vacuous - it compared against
+   `28e611c4430d6f94c259a4fb164a3c3b30848147`), `image` in 2m39s for
+   `linux/amd64` and `linux/arm64`. GHCR then reports the tags `latest`,
+   `sha-5e2cc6c` and `app-28e611c4430d6f94c259a4fb164a3c3b30848147`, with a
+   manifest listing both architectures.
+5. **`gh` cannot list package versions here** (`read:packages` is not in the token),
+   so the tags were confirmed by asking the registry directly with an anonymous
+   pull token instead. `docker compose up` on a NAS remains the user's step.
+6. **The deploy checkout was temporary.** It was cloned into `_deploy/` inside this
+   repository (the file tools cannot write outside the project root) and removed
+   once pushed, so this repository never contained a second git repository.
