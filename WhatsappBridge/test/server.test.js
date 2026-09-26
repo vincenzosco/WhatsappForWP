@@ -25,6 +25,9 @@ function connectClient(port) {
   const socket = net.connect(port, '127.0.0.1');
   let buffer = Buffer.alloc(0);
   const messages = [];
+  // Il primo byte di ogni payload e' il tag cifrario: e' cosi' che si vede
+  // con quale cifrario il server ha risposto.
+  const tags = [];
   const waiters = [];
   socket.on('data', (chunk) => {
     buffer = Buffer.concat([buffer, chunk]);
@@ -33,6 +36,7 @@ function connectClient(port) {
       if (buffer.length < 4 + len) break;
       const payload = buffer.slice(4, 4 + len);
       buffer = buffer.slice(4 + len);
+      tags.push(payload[0]);
       const json = JSON.parse(cryptoHelper.decodePayload(payload));
       messages.push(json);
       while (waiters.length) waiters.shift()(json);
@@ -41,8 +45,9 @@ function connectClient(port) {
   return {
     socket,
     messages,
-    send(msg) {
-      socket.write(cryptoHelper.buildFrame(JSON.stringify(msg)));
+    tags,
+    send(msg, tag) {
+      socket.write(cryptoHelper.buildFrame(JSON.stringify(msg), tag));
     },
     next(timeoutMs = 2000) {
       return new Promise((resolve, reject) => {
@@ -140,6 +145,48 @@ test('il bridge inoltra ai client WP8 i messaggi ricevuti dal webhook', async ()
     assert.strictEqual(msg.IsIncoming, true);
     assert.strictEqual(msg.ChatId, '39@s.whatsapp.net');
     assert.strictEqual(msg.Status, 3);
+  } finally {
+    client.socket.destroy();
+    bridge.tcpServer.close();
+    bridge.stop();
+  }
+});
+
+test('il server risponde in CBC al primo stato e a un client che scrive in CBC', async () => {
+  const config = { bridge: { port: 0 }, webhook: {}, pollIntervalMs: 60000 };
+  const bridge = createBridge({ config, gowa: fakeGowa(), log: noop, debug: noop });
+  await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+  const port = bridge.tcpServer.address().port;
+  const client = connectClient(port);
+  try {
+    await client.next();
+    // Il primo frame parte prima che il client abbia scritto: deve essere
+    // quello leggibile da tutti, cioe' CBC.
+    assert.deepStrictEqual(client.tags, [cryptoHelper.CIPHER_CBC_HMAC]);
+
+    client.send({ Type: 3, ChatId: 'system', Command: 'status' }, cryptoHelper.CIPHER_CBC_HMAC);
+    await client.next();
+    assert.strictEqual(client.tags[1], cryptoHelper.CIPHER_CBC_HMAC);
+  } finally {
+    client.socket.destroy();
+    bridge.tcpServer.close();
+    bridge.stop();
+  }
+});
+
+test('il server passa a GCM se il client scrive in GCM', async () => {
+  const config = { bridge: { port: 0 }, webhook: {}, pollIntervalMs: 60000 };
+  const bridge = createBridge({ config, gowa: fakeGowa(), log: noop, debug: noop });
+  await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+  const port = bridge.tcpServer.address().port;
+  const client = connectClient(port);
+  try {
+    await client.next();
+    assert.strictEqual(client.tags[0], cryptoHelper.CIPHER_CBC_HMAC);
+
+    client.send({ Type: 3, ChatId: 'system', Command: 'status' }, cryptoHelper.CIPHER_GCM);
+    await client.next();
+    assert.strictEqual(client.tags[1], cryptoHelper.CIPHER_GCM);
   } finally {
     client.socket.destroy();
     bridge.tcpServer.close();

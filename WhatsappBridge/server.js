@@ -7,7 +7,10 @@
  *  Fa da ponte tra l'app Windows Phone 8.1 e un server GOWA self-hosted
  *  (github.com/vincenzosco/go-whatsapp-web-multidevice):
  *
- *   - TCP cifrato (AES-256-GCM) verso l'app WP8, protocollo invariato.
+ *   - TCP cifrato (AES-256-CBC + HMAC-SHA256) verso l'app WP8, protocollo
+ *     invariato salvo il tag cifrario in testa al payload: l'app WP8.1 non
+ *     implementa AES-GCM. L'adapter accetta anche i frame GCM e risponde a
+ *     ciascun client con il cifrario del client.
  *   - HTTP verso l'API REST di GOWA (login QR / login con numero, stato,
  *     invio testo e immagini, contatti).
  *   - Server HTTP webhook che riceve da GOWA i messaggi in arrivo e li
@@ -53,21 +56,31 @@ function createBridge({ config, gowa, log, debug }) {
   let qrCache = null;
 
   // ─── Invio verso l'app WP8 ────────────────────────────────────────────────
+  //
+  // Ogni socket ricorda con quale cifrario il client ha scritto (wp8Cipher) e
+  // riceve le risposte con lo stesso: un telefono WP8.1 non sa fare AES-GCM e
+  // deve poter leggere tutto, un client capace di GCM non deve degradare.
 
-  function frame(jsonObject) {
-    return cryptoHelper.buildFrame(JSON.stringify(jsonObject));
+  function frameFor(socket, jsonObject) {
+    const tag = socket.wp8Cipher || cryptoHelper.DEFAULT_CIPHER_TAG;
+    return cryptoHelper.buildFrame(JSON.stringify(jsonObject), tag);
   }
 
   function sendToClient(socket, msg) {
-    try { socket.write(frame(msg)); } catch (e) { /* socket morto */ }
+    try { socket.write(frameFor(socket, msg)); } catch (e) { /* socket morto */ }
   }
 
   function sendToClients(msg) {
     if (wp8Clients.size === 0) return;
-    const packet = frame(msg);
+    const json = JSON.stringify(msg);
+    // Un frame per cifrario distinto, non uno per socket: i client CBC (in
+    // pratica tutti) condividono lo stesso buffer.
+    const packets = {};
     const dead = [];
     for (const socket of wp8Clients) {
-      try { socket.write(packet); } catch (e) { dead.push(socket); }
+      const tag = socket.wp8Cipher || cryptoHelper.DEFAULT_CIPHER_TAG;
+      if (!packets[tag]) packets[tag] = cryptoHelper.buildFrame(json, tag);
+      try { socket.write(packets[tag]); } catch (e) { dead.push(socket); }
     }
     for (const socket of dead) wp8Clients.delete(socket);
   }
@@ -278,6 +291,10 @@ function createBridge({ config, gowa, log, debug }) {
     logger('NET', `Client WP8 connesso: ${remote}`);
     wp8Clients.add(socket);
 
+    // Finche' il client non scrive non sappiamo cosa sa leggere: si parte dal
+    // cifrario che tutti leggono.
+    socket.wp8Cipher = cryptoHelper.DEFAULT_CIPHER_TAG;
+
     // Stato immediato al collegamento.
     sendToClient(socket, buildChatMessage({
       command: 'state',
@@ -296,6 +313,11 @@ function createBridge({ config, gowa, log, debug }) {
         const payload = buffer.slice(4, 4 + msgLen);
         buffer = buffer.slice(4 + msgLen);
         try {
+          // Il tag del frame appena arrivato dice con che cifrario e' stato
+          // scritto: da qui in poi gli si risponde con lo stesso.
+          const tag = cryptoHelper.cipherTagOf(payload);
+          if (tag) socket.wp8Cipher = tag;
+
           const msg = JSON.parse(cryptoHelper.decodePayload(payload));
           if (msg.Type === 3) handleControl(msg).catch((e) => logger('ERR', e.message));
           else handleUserMessage(msg).catch((e) => logger('ERR', e.message));
@@ -335,7 +357,7 @@ async function main() {
   log('INFO', `Device GOWA: ${config.gowa.deviceId || '(default)'}`);
   log('INFO', `TCP app:     ${config.bridge.port}`);
   log('INFO', `Webhook:     ${config.webhook.publicUrl}`);
-  log('INFO', `Cifratura:   AES-256-GCM ${cryptoHelper.ENCRYPTION_ENABLED ? 'ATTIVA' : 'DISATTIVATA'}`);
+  log('INFO', `Cifratura:   ${cryptoHelper.ModeDescription} ${cryptoHelper.ENCRYPTION_ENABLED ? 'ATTIVA' : 'DISATTIVATA'}`);
 
   const gowa = new GowaClient({
     baseUrl: config.gowa.url,
