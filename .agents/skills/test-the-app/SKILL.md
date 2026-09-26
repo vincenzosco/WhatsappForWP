@@ -13,6 +13,7 @@ node tools/check-csharp5.js        # C# 5 syntax + WP8.1-missing WinRT APIs
 node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
 node tools/check-docs.js          # the two languages of the docs are in step, no emoji
+node tools/check-framing.js      # the frame byte order and the shared frame ceiling
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -24,6 +25,7 @@ Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
 | `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`); `Data="{StaticResource IconX}"`, which compiles but throws at runtime; a `PathGeometry` that is not inlined in a `<Path.Data>`; `Figures="M..."`, the string form of `PathGeometry.Figures` that does not compile on WP8.1; a `Path` with no inline geometry or no `<!-- IconX -->` comment; two copies of the same icon name with different geometry. |
 | `check-resw.js` | A string that would silently stay in the markup language: missing/mistyped `x:Uid`, `x:Uid` on the wrong property, a `Loc.Get` key absent from a language, languages whose key sets differ, a `.resw` missing from the `csproj` (`PRIResource`), a wrong `<DefaultLanguage>`, a key/`.Property` collision, an unused key. |
 | `check-docs.js` | A README section added to one language and not the other (the heading counts stop matching), a missing link between the two versions, a `## Disclosure` section that is absent or no longer last, an emoji anywhere in the Markdown (the warning sign U+26A0 is the only exception). |
+| `check-framing.js` | A socket `DataReader`/`DataWriter` created without `ByteOrder = ByteOrder.LittleEndian` (the WinRT default byte-swaps the frame length: `0x00000121` came back as `0x21010000`, 553713664, and a good frame was thrown away), an adapter that stopped using `writeUInt32LE`/`readUInt32LE`, a frame ceiling that differs between the app and the adapter. |
 
 Also worth running while the tree is open:
 
