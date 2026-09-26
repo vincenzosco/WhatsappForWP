@@ -130,8 +130,8 @@ namespace WhatsappApp.Services
                     LastMessageTime = message.FormattedTime,
                     Initials = InitialsFor(name),
                     AvatarColor = "#FF075E54",
-                    // La chat aperta non conta come non letta, e "IsOnline" non
-                    // si inventa: la presenza non arriva da nessuna parte.
+                    // La chat aperta non conta come non letta, e la presenza non
+                    // si inventa: non arriva da nessuna parte.
                     UnreadCount = message.IsIncoming && message.ChatId != _activeChatId ? 1 : 0
                 };
                 _contacts.Insert(0, contact);
