@@ -142,6 +142,22 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
   becomes one exception per string, or per received message. What they need
   instead is to be resolved once at start-up on the UI thread: `Loc.Prewarm()` and
   `CommunicationService.Instance.Prewarm()`, both called from `OnLaunched`.
+- **A connection is owned by the attempt that opened it.** `ConnectToServerAsync`
+  takes the next `_connectionId`, keeps its socket/reader/writer in locals,
+  publishes them only while that id is still current, and hands the reader to
+  `ListenForMessagesAsync(attempt, reader)`. Never read `_reader` from a loop and
+  never let a failing attempt call cleanup on the published fields: two readers on
+  one `DataReader` desync it, and the next length read is a slice of JSON.
+- **A frame length is not trusted.** `ReadFrameAsync` fills the 4-byte prefix fully
+  (`InputStreamOptions.Partial` can split it) and rejects anything outside
+  `1..MaxFrameLength` (8 MiB). The adapter's `MAX_FRAME_LENGTH` is the same number:
+  change one and you must change the other, or one side will drop what the other
+  sends.
+- **`0x8007274C` is `WSAETIMEDOUT`, not a crypto or login failure.** It means
+  `ConnectAsync` never got an answer; the handshake and the QR never ran. Check the
+  address first: `AutoConnector` tries `SettingsService.ServerAddress` before
+  discovery, so a stale IP shows up here. `StreamSocket` has no timeout, which is
+  why `ConnectWithDeadlineAsync` closes the socket after 6 seconds.
 - **`Window.Current` is null off the UI thread**, so it cannot be a fallback for
   anything that may run on a network thread: use `CoreApplication.MainView` there,
   or capture the object while you are on the UI thread.
