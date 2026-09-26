@@ -120,7 +120,7 @@ function createBridge({ config, gowa, log, debug }) {
         qrCache = null;
         if (changed) {
           broadcastState();
-          logger('OK', `WhatsApp connesso come ${state.jid || 'sconosciuto'}`);
+          logger('OK', `WhatsApp connected as ${state.jid || 'unknown'}`);
           await flushPending();
           await syncContacts();
         }
@@ -128,7 +128,7 @@ function createBridge({ config, gowa, log, debug }) {
         broadcastState();
       }
     } catch (err) {
-      dbg(`Stato non disponibile: ${err.message}`);
+      dbg(`status unavailable: ${err.message}`);
     }
   }
 
@@ -148,9 +148,9 @@ function createBridge({ config, gowa, log, debug }) {
       // L'immagine va inviata prima dello stato, così l'app la mostra subito.
       sendControl({ command: 'qr', qrImageData: base64, qrDuration: duration });
       broadcastState();
-      logger('QR', 'Nuovo QR code inviato all\'app');
+      logger('QR', 'new QR code sent to the app');
     } catch (err) {
-      logger('ERR', `Login QR fallito: ${err.message}`);
+      logger('ERR', `QR login failed: ${err.message}`);
       sendControl({ command: 'error', text: `Login QR fallito: ${err.message}` });
     }
   }
@@ -166,9 +166,9 @@ function createBridge({ config, gowa, log, debug }) {
       state = { status: 'waiting', jid: '' };
       sendControl({ command: 'paircode', pairCode: code });
       broadcastState();
-      logger('QR', `Codice di abbinamento inviato all'app per ${phone}`);
+      logger('QR', `pairing code sent to the app for ${phone}`);
     } catch (err) {
-      logger('ERR', `Login con codice fallito: ${err.message}`);
+      logger('ERR', `code login failed: ${err.message}`);
       sendControl({ command: 'error', text: `Login con codice fallito: ${err.message}` });
     }
   }
@@ -180,9 +180,9 @@ function createBridge({ config, gowa, log, debug }) {
         if (!contact.jid) continue;
         sendControl({ command: 'contact', chatId: contact.jid, senderName: contact.name || undefined });
       }
-      logger('INFO', `Sincronizzati ${contacts.length} contatti`);
+      logger('INFO', `synced ${contacts.length} contacts`);
     } catch (err) {
-      logger('WARN', `Sincronizzazione contatti fallita: ${err.message}`);
+      logger('WARN', `contact sync failed: ${err.message}`);
     }
   }
 
@@ -197,9 +197,9 @@ function createBridge({ config, gowa, log, debug }) {
       } else if (msg.Text && msg.Text.trim()) {
         await gowa.sendText(msg.ChatId, msg.Text);
       }
-      logger('MSG', `Inviato a ${msg.ChatId}: ${(msg.Text || '[media]').substring(0, 40)}`);
+      logger('MSG', `sent to ${msg.ChatId}: ${(msg.Text || '[media]').substring(0, 40)}`);
     } catch (err) {
-      logger('ERR', `Invio a ${msg.ChatId} fallito: ${err.message}`);
+      logger('ERR', `send to ${msg.ChatId} failed: ${err.message}`);
       sendControl({ command: 'error', chatId: msg.ChatId, text: `Invio non riuscito: ${err.message}` });
     }
   }
@@ -207,18 +207,18 @@ function createBridge({ config, gowa, log, debug }) {
   async function flushPending() {
     if (pendingOutgoing.length === 0) return;
     const queued = pendingOutgoing.splice(0, pendingOutgoing.length);
-    logger('INFO', `Invio ${queued.length} messaggi in coda...`);
+    logger('INFO', `flushing ${queued.length} queued message(s)...`);
     for (const msg of queued) await sendOutgoing(msg);
   }
 
   async function handleUserMessage(msg) {
     if ((!msg.Text || !msg.Text.trim()) && !msg.MediaData) {
-      logger('WARN', 'Messaggio WP8 senza contenuto, ignorato');
+      logger('WARN', 'empty message from the app, ignored');
       return;
     }
     if (state.status !== 'connected') {
       pendingOutgoing.push(msg);
-      logger('INFO', 'WhatsApp non pronto: messaggio messo in coda');
+      logger('INFO', 'WhatsApp not ready: message queued');
       sendControl({ chatId: msg.ChatId, text: 'WhatsApp non ancora connesso. Il messaggio verrà inviato automaticamente.' });
       return;
     }
@@ -240,11 +240,11 @@ function createBridge({ config, gowa, log, debug }) {
         mediaData = media.buffer.toString('base64');
         if (!mediaMimeType) mediaMimeType = media.contentType;
       } catch (err) {
-        logger('WARN', `Media non scaricato (${fields.mediaPath}): ${err.message}`);
+        logger('WARN', `media not downloaded (${fields.mediaPath}): ${err.message}`);
       }
     }
 
-    logger('MSG', `Da ${fields.senderName}: ${(fields.text || '[media]').substring(0, 60)}`);
+    logger('MSG', `from ${fields.senderName}: ${(fields.text || '[media]').substring(0, 60)}`);
     sendToClients(buildChatMessage({
       id: fields.id,
       text: fields.text,
@@ -266,7 +266,7 @@ function createBridge({ config, gowa, log, debug }) {
   async function handleControl(msg) {
     switch (msg.Command) {
       case 'hello':
-        logger('NET', `Handshake da "${msg.SenderName || 'Sconosciuto'}"`);
+        logger('NET', `handshake from "${msg.SenderName || 'unknown'}"`);
         broadcastState();
         break;
       case 'status':
@@ -288,7 +288,7 @@ function createBridge({ config, gowa, log, debug }) {
         broadcastState();
         break;
       default:
-        dbg(`Comando sconosciuto: ${msg.Command}`);
+        dbg(`unknown command: ${msg.Command}`);
     }
   }
 
@@ -296,7 +296,7 @@ function createBridge({ config, gowa, log, debug }) {
 
   const tcpServer = net.createServer((socket) => {
     const remote = `${socket.remoteAddress}:${socket.remotePort}`;
-    logger('NET', `Client WP8 connesso: ${remote}`);
+    logger('NET', `app client connected: ${remote}`);
     wp8Clients.add(socket);
 
     // Finche' il client non scrive non sappiamo cosa sa leggere: si parte dal
@@ -323,7 +323,7 @@ function createBridge({ config, gowa, log, debug }) {
         // finche' il processo non cade. Zero e' l'altro caso degenere: un frame
         // vuoto farebbe girare il ciclo senza consumare niente.
         if (msgLen === 0 || msgLen > MAX_FRAME_LENGTH) {
-          logger('ERR', `Frame non accettabile da ${remote} (lunghezza ${msgLen}): connessione chiusa`);
+          logger('ERR', `unacceptable frame from ${remote} (length ${msgLen}): closing the connection`);
           socket.destroy();
           return;
         }
@@ -341,13 +341,13 @@ function createBridge({ config, gowa, log, debug }) {
           if (msg.Type === 3) handleControl(msg).catch((e) => logger('ERR', e.message));
           else handleUserMessage(msg).catch((e) => logger('ERR', e.message));
         } catch (err) {
-          logger('ERR', `Frame non valido da WP8: ${err.message}`);
+          logger('ERR', `invalid frame from the app: ${err.message}`);
         }
       }
     });
 
-    socket.on('close', () => { logger('NET', `Client WP8 disconnesso: ${remote}`); wp8Clients.delete(socket); });
-    socket.on('error', (err) => { logger('NET', `Errore socket [${remote}]: ${err.message}`); wp8Clients.delete(socket); });
+    socket.on('close', () => { logger('NET', `app client disconnected: ${remote}`); wp8Clients.delete(socket); });
+    socket.on('error', (err) => { logger('NET', `socket error [${remote}]: ${err.message}`); wp8Clients.delete(socket); });
   });
 
   return {
@@ -376,7 +376,7 @@ async function main() {
   log('INFO', `Device GOWA: ${config.gowa.deviceId || '(default)'}`);
   log('INFO', `TCP app:     ${config.bridge.port}`);
   log('INFO', `Webhook:     ${config.webhook.publicUrl}`);
-  log('INFO', `Cifratura:   ${cryptoHelper.ModeDescription} ${cryptoHelper.ENCRYPTION_ENABLED ? 'ATTIVA' : 'DISATTIVATA'}`);
+  log('INFO', `Encryption:  ${cryptoHelper.ModeDescription} ${cryptoHelper.ENCRYPTION_ENABLED ? 'ON' : 'OFF'}`);
 
   const gowa = new GowaClient({
     baseUrl: config.gowa.url,
@@ -396,19 +396,19 @@ async function main() {
 
   try {
     const deviceId = await gowa.ensureDevice();
-    log('OK', `Device GOWA pronto: ${deviceId || '(default)'}`);
+    log('OK', `GOWA device ready: ${deviceId || '(default)'}`);
     const registered = await gowa.setDeviceWebhook(config.webhook.publicUrl);
     log(registered ? 'OK' : 'WARN',
       registered
-        ? `Webhook registrato su GOWA: ${config.webhook.publicUrl}`
-        : `Registrazione webhook automatica non riuscita: avvia GOWA con --webhook=${config.webhook.publicUrl}`);
+        ? `webhook registered with GOWA: ${config.webhook.publicUrl}`
+        : `automatic webhook registration failed: start GOWA with --webhook=${config.webhook.publicUrl}`);
   } catch (err) {
-    log('ERR', `GOWA non raggiungibile su ${config.gowa.url}: ${err.message}`);
-    log('ERR', 'Avvia GOWA con: ./whatsapp rest --basic-auth=utente:password');
+    log('ERR', `GOWA not reachable at ${config.gowa.url}: ${err.message}`);
+    log('ERR', 'start GOWA with: ./whatsapp rest --basic-auth=user:password');
   }
 
   bridge.tcpServer.listen(config.bridge.port, '0.0.0.0', () => {
-    log('OK', `Server TCP in ascolto sulla porta ${config.bridge.port}`);
+    log('OK', `TCP server listening on port ${config.bridge.port}`);
     const addresses = [];
     const interfaces = os.networkInterfaces();
     Object.keys(interfaces).forEach((name) => {
@@ -416,11 +416,11 @@ async function main() {
         if (iface.family === 'IPv4' && !iface.internal) addresses.push(iface.address);
       });
     });
-    log('INFO', `   Connetti l'app WP8 a: ${addresses.join(', ') || '(IP non trovato)'}:${config.bridge.port}`);
+    log('INFO', `   connect the WP8 app to: ${addresses.join(', ') || '(no IP found)'}:${config.bridge.port}`);
   });
 
   webhookServer.listen(config.webhook.port, '0.0.0.0', () => {
-    log('OK', `Webhook in ascolto sulla porta ${config.webhook.port}${config.webhook.path}`);
+    log('OK', `webhook listening on port ${config.webhook.port}${config.webhook.path}`);
   });
 
   // Il corpo del beacon si costruisce con l'unico builder del modulo di
@@ -440,12 +440,12 @@ async function main() {
       },
       log
     });
-    log('OK', `Discovery attivo sulla porta UDP ${config.discovery.port} (nome: ${config.discovery.name})`);
+    log('OK', `discovery beacon on UDP port ${config.discovery.port} (name: ${config.discovery.name})`);
   }
 
   bridge.tcpServer.on('error', (err) => {
-    log('ERR', `Errore server TCP: ${err.message}`);
-    if (err.code === 'EADDRINUSE') log('ERR', `Porta ${config.bridge.port} già in uso (usa BRIDGE_PORT=...).`);
+    log('ERR', `TCP server error: ${err.message}`);
+    if (err.code === 'EADDRINUSE') log('ERR', `port ${config.bridge.port} is already in use (set BRIDGE_PORT=...).`);
     process.exit(1);
   });
 
@@ -458,7 +458,7 @@ async function main() {
     bridge.stop();
     try { webhookServer.close(); } catch (e) { /* ignora */ }
     try { bridge.tcpServer.close(); } catch (e) { /* ignora */ }
-    log('OK', 'Adapter arrestato.');
+    log('OK', 'adapter stopped.');
     process.exit(0);
   };
   process.on('SIGINT', shutdown);
@@ -467,7 +467,7 @@ async function main() {
 
 if (require.main === module) {
   main().catch((err) => {
-    console.error('ERRORE FATALE:', err);
+    console.error('FATAL ERROR:', err);
     process.exit(1);
   });
 }
