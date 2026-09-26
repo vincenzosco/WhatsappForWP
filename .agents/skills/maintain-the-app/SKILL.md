@@ -74,7 +74,16 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 7. **One page per section.** A new screen means a new file under `Pages/`, not
    another block inside an existing page, and it must be registered in the
    `.csproj` (a page that is not listed does not exist at build time).
-8. **The docs are written in pairs, English and Italian.** `README.md` and
+8. **Runtime text is English.** The adapter's log and error messages, and the app's
+   `Diag`/`SelfCheck` lines with every message inside an exception that can reach
+   them, are written in English, so that an operator reading a container log or a
+   debugger window needs no other language. Source comments and the adapter's test
+   names are Italian and stay that way; `Strings/it-IT` is a translation and is not
+   affected. Two places are not converted yet: the prose of
+   `tools/start-login.js`, and the error texts the adapter sends to the app for
+   display (`sendControl({ text })`), which are UI content and belong with the
+   app's own localization.
+9. **The docs are written in pairs, English and Italian.** `README.md` and
    `README.it.md` are versions of each other, and so are
    `WhatsappBridge/README.md` and `WhatsappBridge/README.it.md`: a section is
    added, moved or renamed in **both**, in the same commit, with the same heading

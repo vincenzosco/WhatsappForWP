@@ -206,6 +206,14 @@ e scarta un frame che era perfettamente valido. `tools/check-framing.js` fa
 fallire il gate veloce se nella parte socket un `DataReader`/`DataWriter` viene
 creato in un altro modo.
 
+Tutto cio' che il server e l'app stampano a runtime e' in inglese: il log e i
+messaggi di errore dell'adapter, e le righe `DIAG` dell'app con i messaggi delle
+eccezioni che ci finiscono. I commenti nel sorgente e i nomi dei test
+dell'adapter non rientrano nella regola, e nemmeno le stringhe localizzate in
+`Strings/it-IT`, che sono traduzioni e non diagnostica. Anche i testi di errore
+che l'adapter manda all'app per essere mostrati sono contenuto UI, e restano in
+italiano in attesa della localizzazione dell'app.
+
 Un tentativo di connessione possiede il suo socket, il suo `DataReader` e il suo
 ciclo di lettura: solo il tentativo piu' recente li pubblica e solo il suo ciclo
 li legge, quindi un tentativo fallito (per esempio su un indirizzo salvato che
