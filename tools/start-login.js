@@ -36,13 +36,14 @@ const path = require('path');
 
 const qrTerm = require('./qr-term');
 const downloader = require('./download');
+const services = require('./services');
 
 const ROOT = path.resolve(__dirname, '..');
 const GOWA_DIR = path.join(ROOT, '.tools', 'gowa');
 const GOWA_LOG = path.join(GOWA_DIR, 'gowa.log');
 const GOWA_QR_DIR = path.join(GOWA_DIR, 'statics', 'qrcode');
 const PID_FILE = path.join(GOWA_DIR, 'login-stack.pid');
-const BRIDGE_DIR = path.join(ROOT, 'WhatsappBridge');
+
 
 // La tabella dei binari per sistema e CPU, e il download verificato, stanno in
 // tools/download.js: qui resta solo il nome della versione da mostrare.
@@ -69,6 +70,9 @@ Uso: node tools/start-login.js [opzioni]
   --ui                  serve anche la dashboard web di GOWA (default: no)
   --gowa-user <utente>  Basic Auth di GOWA (con --gowa-pass)
   --gowa-pass <pass>
+  --calls-port <n>      porta del secondo servizio (default 8588)
+  --no-calls            non avviare il secondo servizio
+  --list-services       elenca i servizi avviabili ed esce
   --stop                ferma lo stack avviato da questo script
   --help
 `;
@@ -83,6 +87,9 @@ function parseArgs(argv) {
     port: 3000,
     bridgePort: 8585,
     webhookPort: 8586,
+    callsPort: 8588,
+    noCalls: false,
+    listServices: false,
     quietZone: qrTerm.DEFAULT_QUIET_ZONE,
     download: false,
     ui: false,
@@ -113,6 +120,9 @@ function parseArgs(argv) {
       case '--port': options.port = Number(next()); break;
       case '--bridge-port': options.bridgePort = Number(next()); break;
       case '--webhook-port': options.webhookPort = Number(next()); break;
+      case '--calls-port': options.callsPort = Number(next()); break;
+      case '--no-calls': options.noCalls = true; break;
+      case '--list-services': options.listServices = true; break;
       case '--gowa': options.binary = path.resolve(next()); break;
       case '--quiet-zone': options.quietZone = Number(next()); break;
       case '--gowa-user': options.user = next(); break;
@@ -133,6 +143,7 @@ function parseArgs(argv) {
   if (!Number.isInteger(options.port) || options.port <= 0) fail('--port non valida');
   if (!Number.isInteger(options.bridgePort) || options.bridgePort <= 0) fail('--bridge-port non valida');
   if (!Number.isInteger(options.webhookPort) || options.webhookPort <= 0) fail('--webhook-port non valida');
+  if (!Number.isInteger(options.callsPort) || options.callsPort <= 0) fail('--calls-port non valida');
   if (!Number.isInteger(options.quietZone) || options.quietZone < 0) fail('--quiet-zone non valida');
   if (options.plain === undefined) options.plain = !process.stdout.isTTY;
   return options;
@@ -336,19 +347,16 @@ function newestQrFile(since) {
   return newest;
 }
 
-// ─── Adattatore WP8 ──────────────────────────────────────────────────────────
+// ─── Servizi ─────────────────────────────────────────────────────────────────
 
-function startBridge(options, baseUrl, deviceId) {
-  const env = Object.assign({}, process.env, {
-    GOWA_URL: baseUrl,
-    GOWA_DEVICE_ID: deviceId || '',
-    GOWA_USER: options.user,
-    GOWA_PASS: options.pass,
-    BRIDGE_PORT: String(options.bridgePort),
-    WEBHOOK_PORT: String(options.webhookPort),
-    WEBHOOK_PUBLIC_URL: `http://127.0.0.1:${options.webhookPort}/webhook`,
+/** Avvia un servizio `node` del repo, prefissando ogni sua riga di log. */
+function startNodeService(service, env) {
+  const child = spawn(process.execPath, [service.script], {
+    cwd: service.dir,
+    env: Object.assign({}, process.env, env),
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
-  const child = spawn(process.execPath, ['server.js'], { cwd: BRIDGE_DIR, env, stdio: ['ignore', 'pipe', 'pipe'] });
+  const label = service.name === 'adapter' ? 'adattatore' : service.name;
   const echo = (stream) => {
     let buffer = '';
     stream.setEncoding('utf8');
@@ -356,12 +364,12 @@ function startBridge(options, baseUrl, deviceId) {
       buffer += chunk;
       const lines = buffer.split('\n');
       buffer = lines.pop();
-      for (const line of lines) if (line.trim()) console.log(`  [adattatore] ${line}`);
+      for (const line of lines) if (line.trim()) console.log(`  [${label}] ${line}`);
     });
   };
   echo(child.stdout);
   echo(child.stderr);
-  child.on('error', (err) => console.error(`  ✖ adattatore: ${err.message}`));
+  child.on('error', (err) => console.error(`  ✖ ${label}: ${err.message}`));
   return child;
 }
 
@@ -454,11 +462,7 @@ function banner(options, addresses, baseUrl, deviceId) {
   console.log('  WhatsApp per Windows Phone 8.1 — server di login in locale');
   console.log(line);
   console.log(`  GOWA (WhatsApp)      ${baseUrl}  (${GOWA_VERSION})`);
-  if (!options.noBridge) {
-    console.log(`  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)`);
-    console.log(`  Webhook GOWA→app     http://${host}:${options.webhookPort}/webhook`);
-    console.log(`  Scoperta automatica  UDP 8587  (l'app trova questo computer da sola)`);
-  }
+  for (const line of options.serviceLines || []) console.log(line);
   console.log(`  Sessioni             .tools/gowa/storages/whatsapp.db`);
   console.log(`  Log GOWA             .tools/gowa/gowa.log`);
   console.log(line);
@@ -664,6 +668,16 @@ async function main() {
     stopStack();
     return;
   }
+  if (options.listServices) {
+    const list = services.buildServiceList({
+      root: ROOT,
+      exists: (target) => fs.existsSync(target),
+      options,
+    });
+    for (const service of list.services) console.log(`  avviabile: ${service.name} (${service.dir})`);
+    for (const entry of list.skipped) console.log(`  saltato:   ${entry.name} (${entry.reason})`);
+    return;
+  }
 
   const children = [];
   let stopping = false;
@@ -708,11 +722,33 @@ async function main() {
   const baseUrl = options.url || `http://127.0.0.1:${options.port}`;
   const deviceId = await ensureDevice(baseUrl, options);
   const addresses = lanAddresses();
+
+  // Cosa avviare lo decide tools/services.js: qui si esegue e si descrive.
+  const resolved = services.buildServiceList({
+    root: ROOT,
+    exists: (target) => fs.existsSync(target),
+    options,
+  });
+  const host = addresses.length > 0 ? addresses[0] : '127.0.0.1';
+  options.serviceLines = [];
+  if (resolved.services.some((s) => s.name === 'adapter')) {
+    options.serviceLines.push(`  Adattatore per l'app ${host}:${options.bridgePort}  (TCP, AES-256-CBC+HMAC)`);
+    options.serviceLines.push(`  Webhook GOWA→app     http://${host}:${options.webhookPort}/webhook`);
+    options.serviceLines.push(`  Scoperta automatica  UDP 8587  (l'app trova questo computer da sola)`);
+  }
+  if (resolved.services.some((s) => s.name === 'calls')) {
+    options.serviceLines.push(`  Servizio chiamate    ${host}:${options.callsPort}`);
+  }
+
   banner(options, addresses, baseUrl, deviceId);
 
-  if (!options.noBridge) {
-    console.log('  →  avvio l\'adattatore per l\'app WP8\n');
-    children.push(startBridge(options, baseUrl, deviceId));
+  if (resolved.services.length > 0) console.log('  →  avvio i servizi\n');
+  for (const service of resolved.services) {
+    const env = services.serviceEnv(service, { options, gowaUrl: baseUrl, deviceId });
+    children.push(startNodeService(service, env));
+  }
+  for (const entry of resolved.skipped) {
+    console.log(`  ·  ${entry.name} non avviato: ${entry.reason}`);
   }
   writePidFile(children);
   console.log(`  Per fermare tutto: Ctrl-C (oppure node tools/start-login.js --stop)`);
