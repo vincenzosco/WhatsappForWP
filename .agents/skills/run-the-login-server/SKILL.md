@@ -40,6 +40,9 @@ node tools/start-login.js --download     # --download only the first time
 | `--plain` / `--ansi` | force the drawing without / with colours |
 | `--quiet-zone <n>` | white margin around the QR (default 4) |
 | `--port`, `--bridge-port`, `--webhook-port` | 3000 / 8585 / 8586 |
+| `--calls-port <n>` | port for the second service (default 8588) |
+| `--no-calls` | do not start the second service |
+| `--list-services` | print which services would start and which are skipped, then exit |
 | discovery | UDP 8587, broadcast by the adapter (`DISCOVERY_PORT`), the app listens on it |
 | `--ui` | additionally serve GOWA's web dashboard |
 | `--stop` | stop the stack started by an earlier run |
@@ -49,8 +52,19 @@ node tools/start-login.js --download     # --download only the first time
 1. **GOWA** — `.tools/gowa/whatsapp rest --port=3000 --host=127.0.0.1`, run with
    the current directory inside `.tools/gowa` (that is where GOWA keeps
    `storages/` and `statics/`). Stdout goes to `.tools/gowa/gowa.log`.
-   `--download` fetches the pinned official release for the platform and checks
-   the published SHA-256 before unpacking it.
+   `--download` fetches the pinned official release for **the platform the script
+   is running on** (`tools/download.js`), checks the published SHA-256, and
+   unpacks it in-process with `node:zlib` — no `unzip`, no `tar`, so it works on
+   Windows too. All eight published archives are covered:
+
+   | OS / CPU | archive |
+   | --- | --- |
+   | macOS arm64 / Intel | `whatsapp_9.5.0_darwin_{arm64,amd64}.zip` |
+   | Linux x64 / arm64 / armv7 / 386 | `whatsapp_9.5.0_linux_{amd64,arm64,armv7,386}.zip` |
+   | Windows x64 / 386 | `whatsapp_9.5.0_windows_{amd64,386}.zip` |
+
+   A pair with no published archive fails with the pair named, pointing at
+   `--gowa` / `--url`. A digest mismatch is a hard failure.
 2. **Device** — `GET /devices`, and `POST /devices` if there is none: every login
    route requires a device id (`X-Device-Id`). The id is passed to the adapter as
    `GOWA_DEVICE_ID` so both use the same one.
@@ -64,6 +78,18 @@ node tools/start-login.js --download     # --download only the first time
    stops GOWA and the adapter; the PID file is `.tools/gowa/login-stack.pid` and
    `--stop` reads it, killing first the script itself (which brings down its
    children), so it also works on a stack left running in another terminal.
+
+## Services (`tools/services.js`)
+
+The stack is a list, not two hardcoded children. `SERVICE_DEFS` declares each
+service with `name`, `kind` (`node` = run from this repo, `binary` = a downloaded
+executable) and `enabled(options)`. A `node` service whose script is missing is
+**skipped with a reason**, not an error: that is how the second server
+(`WhatsappCallServer/server.js`) can be added later without touching the
+launcher — put the file there and it starts, gets its env (`CALLS_PORT`,
+`GOWA_URL`) from `serviceEnv`, appears in the banner, and is killed by `Ctrl-C`
+and `--stop` like the adapter. `--list-services` shows the resolved list, and
+`--no-calls` switches the second service off.
 
 The first run prints the LAN address and ports to give the app
 (`<ip>:8585`), then the QR: on the phone **WhatsApp → Impostazioni → Dispositivi
@@ -132,5 +158,9 @@ black/white colours — never the terminal's theme.
 - **GOWA binds to `127.0.0.1` on purpose.** Its REST API sends messages as the
   linked account and has no authentication unless `--basic-auth` is given; only
   the adapter (port 8585, AES-256-CBC + HMAC-SHA256 with `BRIDGE_KEY`) may face the LAN.
+- **Run the tool tests too**: `node --test "tools/test/**/*.test.js"` covers the
+  downloader (platform mapping, ZIP reader, digest table) and the service list.
+  It is the fifth gate, next to the four `tools/check-*.js` guards. A bare
+  directory (`node --test tools/test`) does **not** work on this Node build.
 - Linking an account is a real action on a real phone number: only run the login
   loop when that is the intent.
