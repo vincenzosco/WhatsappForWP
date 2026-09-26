@@ -38,8 +38,11 @@ namespace WhatsappApp.Pages
             DataService.Instance.Contacts.CollectionChanged += Contacts_CollectionChanged;
             UpdateEmptyState();
 
-            // OnNavigatedTo is not async: fire the contacts request and ignore the task
-            if (CommunicationService.Instance.IsConnected)
+            // OnNavigatedTo is not async: fire the contacts request and ignore
+            // the task. Si chiede solo se la lista e' vuota: l'adapter risponde
+            // con un frame per contatto, e ripetere la sincronizzazione ad ogni
+            // visita ricostruiva tutto l'elenco per niente.
+            if (CommunicationService.Instance.IsConnected && DataService.Instance.Contacts.Count == 0)
 #pragma warning disable 4014
                 CommunicationService.Instance.SendControlAsync("contacts");
 #pragma warning restore 4014
@@ -145,7 +148,6 @@ namespace WhatsappApp.Pages
                 Name = "+" + phone,
                 Initials = phone.Substring(0, 2).ToUpper(),
                 AvatarColor = "#FF075E54",
-                IsOnline = false,
                 UnreadCount = 0
             };
             DataService.Instance.AddContact(contact);

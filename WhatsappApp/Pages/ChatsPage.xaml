@@ -7,10 +7,8 @@
     Background="#FFECE5DD">
 
     <Page.Resources>
-        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <conv:UnreadCountToVisibilityConverter x:Key="UnreadToVisibility"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
-        <conv:OnlineToDotColorConverter x:Key="OnlineToDotColor"/>
         <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
         <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
         <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
@@ -161,12 +159,9 @@
                                 <TextBlock Text="{Binding Initials}"
                                            Foreground="White" FontSize="18" FontWeight="SemiBold"
                                            VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                                <!-- Online dot -->
-                                <Ellipse Width="12" Height="12"
-                                         Fill="{Binding IsOnline, Converter={StaticResource OnlineToDotColor}}"
-                                         Stroke="White" StrokeThickness="2"
-                                         VerticalAlignment="Bottom" HorizontalAlignment="Right"
-                                         Visibility="{Binding IsOnline, Converter={StaticResource BoolToVisibility}}"/>
+                                <!-- Niente pallino di presenza: WhatsApp non ci
+                                     dice chi e' online, e un pallino inventato e'
+                                     peggio di nessun pallino. -->
                             </Grid>
 
                             <!-- Contact info -->

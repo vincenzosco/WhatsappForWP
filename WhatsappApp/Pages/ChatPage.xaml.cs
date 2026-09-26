@@ -45,10 +45,15 @@ namespace WhatsappApp.Pages
                 _contact = contact;
 
                 ContactNameText.Text = contact.Name;
-                OnlineStatusText.Text = contact.IsOnline
-                    ? Loc.Get("ChatPage_Online", "online")
-                    : string.Format(Loc.Get("ChatPage_LastSeenToday", "last seen today at {0}"),
-                        DateTime.Now.ToString("HH:mm"));
+
+                // Nessuna presenza: WhatsApp non la espone tramite il server che
+                // usiamo, e dire "online" o "ultimo accesso alle HH:mm" era una
+                // bugia. Resta l'unica cosa vera in piu' che abbiamo: il numero
+                // della chat, quando il nome non e' gia' il numero.
+                string number = DisplayNumber(contact.Id);
+                bool hasNumber = !string.IsNullOrEmpty(number) && number != contact.Name;
+                OnlineStatusText.Text = hasNumber ? number : "";
+                OnlineStatusText.Visibility = hasNumber ? Visibility.Visible : Visibility.Collapsed;
 
                 // Load messages
                 _messages = DataService.Instance.GetMessages(contact.Id);
@@ -73,6 +78,22 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
             DataService.Instance.ActiveChatId = null;
             _pendingScroll = null;
+        }
+
+        /// <summary>
+        /// Numero leggibile di un JID (es. +393401234567 per le persone). Vuoto
+        /// per i gruppi e per tutto cio' che non e' un numero.
+        /// </summary>
+        private static string DisplayNumber(string jid)
+        {
+            if (string.IsNullOrEmpty(jid) || jid.EndsWith("@g.us")) return "";
+            string user = jid.Split('@')[0];
+            if (user.Length < 8) return "";
+            for (int i = 0; i < user.Length; i++)
+            {
+                if (!char.IsDigit(user[i])) return "";
+            }
+            return "+" + user;
         }
 
         /// <summary>
