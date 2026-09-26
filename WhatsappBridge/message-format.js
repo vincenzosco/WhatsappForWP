@@ -82,6 +82,13 @@ function buildChatMessage(fields) {
   if (typeof f.qrDuration === 'number') msg.QrDuration = f.qrDuration;
   if (f.accountJid) msg.AccountJid = f.accountJid;
 
+  // Campi delle chiamate e delle revoche (vedi calls.js e server.js).
+  if (f.callId) msg.CallId = f.callId;
+  if (f.callReason) msg.CallReason = f.callReason;
+  if (typeof f.callDurationSeconds === 'number') msg.CallDurationSeconds = f.callDurationSeconds;
+  if (typeof f.callIsVideo === 'boolean') msg.CallIsVideo = f.callIsVideo;
+  if (f.relatedMessageId) msg.RelatedMessageId = f.relatedMessageId;
+
   if (f.mediaData) {
     msg.MediaData = f.mediaData;
     msg.MediaMimeType = f.mediaMimeType || 'image/jpeg';

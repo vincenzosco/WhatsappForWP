@@ -6,6 +6,18 @@ const os = require('node:os');
 const path = require('node:path');
 const { loadConfig, applyDotEnv } = require('../config');
 
+test('call scan limits have defaults and can be overridden', () => {
+  const defaults = loadConfig({});
+  assert.strictEqual(defaults.calls.chatLimit, 25);
+  assert.strictEqual(defaults.calls.messagesPerChat, 100);
+  assert.strictEqual(defaults.calls.limit, 50);
+
+  const custom = loadConfig({ CALLS_CHAT_LIMIT: '5', CALLS_MESSAGES_PER_CHAT: '20', CALLS_LIMIT: '10' });
+  assert.strictEqual(custom.calls.chatLimit, 5);
+  assert.strictEqual(custom.calls.messagesPerChat, 20);
+  assert.strictEqual(custom.calls.limit, 10);
+});
+
 test('loadConfig fornisce i valori di default', () => {
   const c = loadConfig({});
   assert.strictEqual(c.gowa.url, 'http://127.0.0.1:3000');

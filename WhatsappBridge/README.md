@@ -31,10 +31,13 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `login.code` | `Text` = number with country code |
 | app -> adapter | `contacts` | — |
 | app -> adapter | `logout` | — |
+| app -> adapter | `calls` | — (incoming only, from the most recent `CALLS_CHAT_LIMIT` chats) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
+| adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
+| adapter -> app | `calls.done` | — (the scan is over, even when no call was found) |
 | adapter -> app | `error` | `Text` |
 
 One frame is `[4-byte little-endian length][payload]`. A length of `0`, or one
@@ -60,6 +63,9 @@ See `.env.example`. The main variables:
 | `DISCOVERY_ENABLED` | `on` | Announce the adapter on the LAN (`off` disables it) |
 | `DISCOVERY_PORT` | `8587` | UDP port of the discovery beacon |
 | `DISCOVERY_NAME` | host name | Name shown in the app's list of found servers |
+| `CALLS_CHAT_LIMIT` | `25` | how many of the most recent chats the call scan reads |
+| `CALLS_MESSAGES_PER_CHAT` | `100` | messages read per scanned chat |
+| `CALLS_LIMIT` | `50` | maximum number of call records sent to the app |
 
 ## Starting it
 
