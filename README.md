@@ -39,6 +39,18 @@ scanned (`CALLS_CHAT_LIMIT`, default 25), refreshed when the tab is opened or wi
 the Refresh button. GOWA keeps no outgoing-call record, so there is nothing else
 to show.
 
+#### Chats and new chats
+
+The chat list is the account's real conversation list (`GET /chats`, bound by
+`CHATS_LIMIT`), not its address book, which is empty on a freshly linked device.
+Each row carries the last message and, for people, the profile picture
+(`GET /user/avatar`, disabled with `CHATS_AVATARS=off`).
+
+A new chat can be started in three ways: typing a number with country code,
+picking a contact with the system contact picker (the user's consent, so the app
+never reads the address book by itself), or tapping a conversation the server
+already knows.
+
 ### WhatsappServer (.NET Console App)
 
 A simple TCP relay server that broadcasts messages between connected clients.
