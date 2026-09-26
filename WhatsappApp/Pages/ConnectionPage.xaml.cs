@@ -29,6 +29,21 @@ namespace WhatsappApp.Pages
         {
             this.InitializeComponent();
             ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            // Il Toggled parte anche assegnando IsOn: la guardia evita di
+            // riscrivere l'impostazione (e spegnere il badge) solo per averla letta.
+            _notificationsInitializing = true;
+            NotificationsToggle.IsOn = SettingsService.NotificationsEnabled;
+            _notificationsInitializing = false;
+        }
+
+        private bool _notificationsInitializing;
+
+        private void NotificationsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_notificationsInitializing) return;
+
+            SettingsService.NotificationsEnabled = NotificationsToggle.IsOn;
+            if (!NotificationsToggle.IsOn) NotificationService.SetUnread(0);
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

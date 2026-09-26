@@ -149,6 +149,14 @@ namespace WhatsappApp.Services
                     _contacts.Move(idx, 0);
             }
 
+            // Un avviso solo per una chat che non stiamo guardando: con la chat
+            // aperta un toast e' rumore, e il badge non deve contare un messaggio
+            // che l'utente sta gia' leggendo.
+            if (message.IsIncoming && message.ChatId != _activeChatId)
+                NotificationService.ShowMessage(contact.Name, message.Text);
+
+            NotificationService.SetUnread(TotalUnread());
+
             // Decodifica asincrona dell'immagine: il binding XAML segue MediaImage
             if (message.Type == MessageType.Image)
                 await message.LoadMediaImageAsync();
@@ -452,8 +460,21 @@ namespace WhatsappApp.Services
         public void ClearUnread(string chatId)
         {
             var contact = FindContact(chatId);
-            if (contact != null)
-                contact.UnreadCount = 0;
+            if (contact == null) return;
+
+            contact.UnreadCount = 0;
+            NotificationService.SetUnread(TotalUnread());
+        }
+
+        /// <summary>Somma dei non letti: e' il numero che va sull'icona.</summary>
+        private int TotalUnread()
+        {
+            int total = 0;
+            foreach (var contact in _contacts)
+            {
+                if (contact != null) total += contact.UnreadCount;
+            }
+            return total;
         }
 
         public void AddContact(Contact contact)
