@@ -82,6 +82,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - mantiene il canale TCP cifrato (AES-256-GCM) tra app e adapter
 - invia testi e immagini con `POST /send/message` e `POST /send/image`
 - riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
+- tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
 - elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (`CHATS_LIMIT`, `CHATS_AVATARS`)
 
 **Avvio (un solo comando)**
@@ -468,7 +469,7 @@ node tools/check-docs.js
 - Gli aggiornamenti non sono disponibili: il server GOWA con cui parla questa app non ha un endpoint per gli stati, quindi la sezione Stato resta vuota per scelta.
 - Il registro chiamate elenca solo le chiamate in entrata, prese dalle chat più recenti che il server ha scansionato. I limiti esatti sono nella sezione Chiamate qui sotto.
 - Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio. Il confronto usa l'id del messaggio di WhatsApp, quindi i messaggi inviati dall'app non vengono riconosciuti.
-- Le notifiche vengono alzate mentre l'app gira: WP8.1 la sospende in background, il che chiude il socket, e questo progetto non ha un servizio cloud da cui fare push. Un messaggio arrivato con l'app sospesa viene consegnato alla connessione successiva.
+- Le notifiche vengono alzate mentre l'app gira: WP8.1 la sospende in background, il che chiude il socket, e questo progetto non ha un servizio cloud da cui fare push. Un messaggio arrivato con l'app sospesa viene consegnato alla ripresa, quando l'app si ricollega da sola: non viene annunciato nel momento in cui arriva.
 
 ## Disclaimer
 

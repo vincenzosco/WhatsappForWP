@@ -1579,6 +1579,40 @@ Recorded after the run. Everything else was built as written.
 - Whether the toast appears while the app is in the foreground (it should) and whether the badge shows on the tile.
 - Whether `GET /chats` returns a `name` for every conversation and whether any of those names are empty, which decides how much the fallback (`displayNameForJid`) matters.
 
+## Follow-ups executed after the plan
+
+Three requests that came in while the plan was being run, and what they found:
+
+### The unread count on the tile
+
+The plan deferred this, saying the badge already does the job. It was asked for
+anyway, and the build settled what WP8.1 actually has: `TileSquare150x150IconWithBadge`
+and `TileSquare71x71IconWithBadge` exist, `TileWide310x150IconWithBadge` does not
+(**CS0117**). So the tile is updated with the two sizes that exist, the wide tile
+keeps the manifest's content, and the badge draws the number on all of them.
+
+### Reconnecting after a suspend
+
+This turned out to be a real hole, and the code already said so: `OnSuspending`
+kept the socket open on purpose because "there is no reconnection path". There
+still was not one - the OS closes the socket while the app is suspended, and
+`IsConnected` stays `true`, so the app came back looking connected and mute.
+
+`ConnectionWatchdog` is that path: a `DispatcherTimer` every 20 s sends `status`
+(the adapter answers `broadcastState()`), `LastInboundUtc` records every frame
+read, and 60 s of silence (`Disconnect()` **then** `AutoConnector`, which returns
+`true` immediately while `IsConnected`) reopens the connection. `App.OnResuming`
+calls `CheckNow()` so the wait is not added to the time the app already spent
+suspended.
+
+### The circular avatar
+
+The plan said a circular crop would need compositing the bitmap, because WP8.1
+clips only rectangles. That is true of `UIElement.Clip`, but not of a `Border`:
+a `Border` clips its own `Background` to `CornerRadius`, and 26 on a 52 px square
+is an exact circle. The avatar is now a `Border` whose background is an
+`ImageBrush` - no pixel work, no encoder round-trip.
+
 ## Deliberately not in this plan
 
 - **Real push notifications.** They need a public service that holds the MPNS channel URIs and forwards the GOWA webhook, plus a certificate: a project of its own, and a different deployment. The plan above says what the app can do without one.

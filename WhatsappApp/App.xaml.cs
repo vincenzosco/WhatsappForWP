@@ -43,6 +43,7 @@ namespace WhatsappApp
         {
             this.InitializeComponent();
             this.Suspending += this.OnSuspending;
+            this.Resuming += this.OnResuming;
         }
 
         /// <summary>
@@ -85,6 +86,11 @@ namespace WhatsappApp
             // riavvio, e senza questo l'elenco chat resta vuoto finche' l'utente
             // non apre le impostazioni.
             if (SettingsService.HasSavedSettings) StartAutoConnect();
+
+            // E poi la tiene viva: WP8.1 chiude il socket sospendendo l'app, e
+            // alla ripresa la connessione risulta attiva ma non passa piu'
+            // niente (vedi ConnectionWatchdog).
+            ConnectionWatchdog.Instance.Start();
 
             Frame rootFrame = Window.Current.Content as Frame;
 
@@ -183,13 +189,27 @@ namespace WhatsappApp
             // riparte da qui.
             SessionService.Section = CurrentSection();
 
-            // Nessuna attivita' di background da fermare: l'unica cosa viva e' il
-            // socket verso l'adapter, e chiuderlo qui lascerebbe l'app segnata
-            // come connessa ma muta alla ripresa, perche' non esiste un percorso
-            // di riconnessione. Il processo viene congelato e il socket resta
-            // aperto: non toccarlo.
+            // Il socket non si chiude qui: l'OS lo chiude da solo mentre l'app
+            // e' sospesa, e chiuderlo noi lascerebbe l'app segnata come
+            // disconnessa senza che nessuno riprovi. Se ne occupa OnResuming,
+            // che trova una connessione silenziosa e la rifa'.
 
             deferral.Complete();
+        }
+
+        /// <summary>
+        /// L'app torna in primo piano. Il socket che aveva e' quasi sempre gia'
+        /// morto - e' l'OS a chiuderlo sospendendo il processo - ma
+        /// `CommunicationService.IsConnected` e' ancora true, perche' un socket
+        /// chiuso dall'esterno non genera nessun evento finche' non lo si usa.
+        ///
+        /// Si controlla subito invece di aspettare il tick del watchdog: quei
+        /// venti secondi sarebbero venti secondi di app che sembra collegata e
+        /// non riceve niente.
+        /// </summary>
+        private void OnResuming(object sender, object e)
+        {
+            ConnectionWatchdog.Instance.CheckNow();
         }
 
         /// <summary>
