@@ -165,3 +165,6 @@ empty".
 11. On a fresh install the app connects on its own and the QR overlay opens without
     pressing anything. If the connection is already up when the settings page is
     opened, the page asks for the QR again by itself.
+12. A frame that the phone cannot read shows up as `DIAG ChatMessage.FromJson: SerializationException`.
+    After a change to `ChatMessage` or to `message-format.js`, that line must not appear: if it
+    does, the message it named was dropped, and the field it names is the one to look at.
