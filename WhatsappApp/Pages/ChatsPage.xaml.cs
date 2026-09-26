@@ -147,7 +147,6 @@ namespace WhatsappApp.Pages
                 Id = jid,
                 Name = "+" + phone,
                 Initials = phone.Substring(0, 2).ToUpper(),
-                AvatarColor = "#FF075E54",
                 UnreadCount = 0
             };
             DataService.Instance.AddContact(contact);
