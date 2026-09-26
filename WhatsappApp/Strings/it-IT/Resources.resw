@@ -136,6 +136,12 @@
   <data name="NewChat_Cancel" xml:space="preserve">
     <value>Annulla</value>
   </data>
+  <data name="NewChat_PickContact" xml:space="preserve">
+    <value>Scegli dai contatti</value>
+  </data>
+  <data name="NewChat_Synced" xml:space="preserve">
+    <value>Conversazioni gia' presenti sul server</value>
+  </data>
   <data name="NewChat_Invalid" xml:space="preserve">
     <value>Inserisci un numero valido con prefisso internazionale (es. 393401234567).</value>
   </data>
