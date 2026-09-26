@@ -135,14 +135,22 @@ namespace WhatsappApp.Services
             }
         }
 
-        private async void OnMessageReceived(DatagramSocket sender, DatagramSocketMessageReceivedEventArgs args)
+        /// <summary>
+        /// Un datagramma di beacon. Il reader che arriva qui contiene gia' il
+        /// datagramma: chiamare LoadAsync su di lui risponde
+        /// "The operation identifier is not valid" (0x800710DD) a ogni pacchetto
+        /// ricevuto, ed e' quello che riempiva il log. Si legge direttamente, e
+        /// non e' piu' async: un handler async void che lancia non lo vede
+        /// nessuno.
+        /// </summary>
+        private void OnMessageReceived(DatagramSocket sender, DatagramSocketMessageReceivedEventArgs args)
         {
             try
             {
                 DataReader reader = args.GetDataReader();
                 uint size = reader.UnconsumedBufferLength;
                 if (size == 0) return;
-                await reader.LoadAsync(size);
+
                 string json = reader.ReadString(size);
 
                 BeaconPayload beacon = Parse(json);
