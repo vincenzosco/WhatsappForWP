@@ -13,6 +13,7 @@ namespace WhatsappApp.Services
         private const string KeyServerAddress = "ServerAddress";
         private const string KeyServerPort = "ServerPort";
         private const string KeyUsername = "Username";
+        private const string KeyNotifications = "NotificationsEnabled";
         private const string DefaultServerAddress = "192.168.1.100";
         private const int DefaultServerPort = 8585;
 
@@ -28,6 +29,7 @@ namespace WhatsappApp.Services
         private static string _serverAddress;
         private static int _serverPort;
         private static string _username;
+        private static bool _notificationsEnabled;
 
         private static void EnsureLoaded()
         {
@@ -38,6 +40,7 @@ namespace WhatsappApp.Services
             _serverAddress = ReadString(KeyServerAddress, "");
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
+            _notificationsEnabled = ReadBool(KeyNotifications, true);
 
             _loaded = true;
         }
@@ -66,6 +69,17 @@ namespace WhatsappApp.Services
             set { EnsureLoaded(); _username = value; Settings.Values[KeyUsername] = value; }
         }
 
+        /// <summary>Se l'app puo' alzare un avviso quando arriva un messaggio.</summary>
+        public static bool NotificationsEnabled
+        {
+            get { return _notificationsEnabled; }
+            set
+            {
+                _notificationsEnabled = value;
+                Settings.Values[KeyNotifications] = value;
+            }
+        }
+
         /// <summary>
         /// True when a server address has been saved (first-run setup done).
         /// </summary>
@@ -90,6 +104,13 @@ namespace WhatsappApp.Services
                 if (!string.IsNullOrEmpty(text)) return text;
             }
             return defaultValue;
+        }
+
+        private static bool ReadBool(string key, bool fallback)
+        {
+            object val;
+            if (Settings.Values.TryGetValue(key, out val) && val is bool) return (bool)val;
+            return fallback;
         }
 
         private static int ReadInt(string key, int defaultValue)
