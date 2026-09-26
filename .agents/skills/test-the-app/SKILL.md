@@ -24,6 +24,16 @@ Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
 | `check-csharp5.js` | Syntax the WP8.1 compiler rejects (it never shows up here otherwise), APIs that exist on Windows 10 but not on WP8.1, and a LINQ extension method (`.All(...)`, `.Where(...)`) in a file without `using System.Linq;` - a CS1061 that only msbuild reports. |
 | `check-icons.js` | A blank icon button (`Segoe MDL2 Assets`); `Data="{StaticResource IconX}"`, which compiles but throws at runtime; a `PathGeometry` that is not inlined in a `<Path.Data>`; `Figures="M..."`, the string form of `PathGeometry.Figures` that does not compile on WP8.1; a `Path` with no inline geometry or no `<!-- IconX -->` comment; two copies of the same icon name with different geometry. |
 | `check-resw.js` | A string that would silently stay in the markup language: missing/mistyped `x:Uid`, `x:Uid` on the wrong property, a `Loc.Get` key absent from a language, languages whose key sets differ, a `.resw` missing from the `csproj` (`PRIResource`), a wrong `<DefaultLanguage>`, a key/`.Property` collision, an unused key. |
+
+Two lessons the gates taught:
+
+- `check-resw.js` reads **every** `Loc.Get("...")` occurrence in C#, comments
+  included, as a key lookup. A diagnostic label must therefore be built as
+  `"Loc.Get key " + key`, never with the literal call shape inside the string.
+- Membership of `Windows.winmd` is **not** a runtime guarantee: `AesGcm`,
+  `AesCbc`, `DisplayRequest` and `RequestActive` are all listed, and the device
+  still answered `E_NOTIMPL`. `Services/SelfCheck.cs` exists for exactly this, and
+  its `DIAG` output is the evidence to ask for.
 | `check-docs.js` | A README section added to one language and not the other (the heading counts stop matching), a missing link between the two versions, a `## Disclosure` section that is absent or no longer last, an emoji anywhere in the Markdown (the warning sign U+26A0 is the only exception). |
 | `check-framing.js` | A socket `DataReader`/`DataWriter` created without `ByteOrder = ByteOrder.LittleEndian` (the WinRT default byte-swaps the frame length: `0x00000121` came back as `0x21010000`, 553713664, and a good frame was thrown away), an adapter that stopped using `writeUInt32LE`/`readUInt32LE`, a frame ceiling that differs between the app and the adapter. |
 
@@ -52,7 +62,7 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 cd WhatsappBridge && npm test
 ```
 
-Expected `pass 36`, `fail 0`. It covers the config and its `.env` loader, the GOWA
+Expected `pass 70`, `fail 0`. It covers the config and its `.env` loader, the GOWA
 client, the message format (including the `\/Date(ms)\/` wire format the app
 requires), the TCP server, the webhook receiver and the discovery beacon (a real
 UDP round trip). Add a test with every adapter change.
