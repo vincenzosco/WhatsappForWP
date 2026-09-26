@@ -35,12 +35,15 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `contacts` | — |
 | app -> adapter | `logout` | — |
 | app -> adapter | `calls` | — (incoming only, from the most recent `CALLS_CHAT_LIMIT` chats) |
+| app -> adapter | `chats` | — (the linked account's conversations, most recent first) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (the scan is over, even when no call was found) |
+| adapter -> app | `chat` | `ChatId`, `SenderName`, `Text` = last message, `Timestamp`, `IsGroup`, `AvatarData` (base64) |
+| adapter -> app | `chats.done` | — (the list is over) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id of the deleted message |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = the new text |
 | adapter -> app | `error` | `Text` |
@@ -71,6 +74,8 @@ See `.env.example`. The main variables:
 | `CALLS_CHAT_LIMIT` | `25` | how many of the most recent chats the call scan reads |
 | `CALLS_MESSAGES_PER_CHAT` | `100` | messages read per scanned chat |
 | `CALLS_LIMIT` | `50` | maximum number of call records sent to the app |
+| `CHATS_LIMIT` | `25` | how many conversations the chat list returns |
+| `CHATS_AVATARS` | `on` | fetch profile pictures (one request per person, `off` disables) |
 
 ## Starting it
 

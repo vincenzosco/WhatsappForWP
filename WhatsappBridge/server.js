@@ -36,6 +36,7 @@ const { buildChatMessage, mapWebhookMessage } = require('./message-format');
 const { createWebhookServer } = require('./webhook-server');
 const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 const { collectCalls } = require('./calls');
+const { collectChats } = require('./chats');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
@@ -67,6 +68,51 @@ function createBridge({ config, gowa, log, debug }) {
   // un minuto, cosi' passare avanti e indietro tra le sezioni non la ripete.
   let callsCache = null;
   const CALLS_CACHE_MS = 60000;
+  // Stessa regola delle chiamate: la scansione costa una richiesta per chat piu'
+  // una per avatar, quindi il risultato si tiene per un minuto.
+  let chatsCache = null;
+  const CHATS_CACHE_MS = 60000;
+
+  async function sendChats() {
+    const limits = (config && config.chats) || {};
+
+    if (state.status !== 'connected') {
+      sendControl({ command: 'error', text: 'WhatsApp is not connected: the chat list is unavailable.' });
+      sendControl({ command: 'chats.done' });
+      return;
+    }
+
+    try {
+      const fresh = !chatsCache || Date.now() - chatsCache.at > CHATS_CACHE_MS;
+      if (fresh) {
+        logger('INFO', `reading up to ${limits.limit || 25} conversation(s)...`);
+        const rows = await collectChats({
+          gowa,
+          limit: limits.limit,
+          avatars: limits.avatars,
+          log: logger
+        });
+        chatsCache = { at: Date.now(), rows };
+      }
+
+      for (const row of chatsCache.rows) {
+        sendControl({
+          command: 'chat',
+          chatId: row.chatId,
+          senderName: row.name || undefined,
+          text: row.preview || '',
+          timestamp: row.timestamp || undefined,
+          isGroup: row.isGroup,
+          avatarData: row.avatar || undefined
+        });
+      }
+    } catch (err) {
+      logger('ERR', `chat list failed: ${err.message}`);
+      sendControl({ command: 'error', text: `Chat list failed: ${err.message}` });
+    } finally {
+      sendControl({ command: 'chats.done' });
+    }
+  }
 
   async function sendCalls() {
     const limits = (config && config.calls) || {};
@@ -167,10 +213,12 @@ function createBridge({ config, gowa, log, debug }) {
       if (next === 'connected') {
         qrCache = null;
         callsCache = null;
+        chatsCache = null;
         if (changed) {
           broadcastState();
           logger('OK', `WhatsApp connected as ${state.jid || 'unknown'}`);
           await flushPending();
+          await sendChats();
           await syncContacts();
         }
       } else if (changed) {
@@ -357,6 +405,9 @@ function createBridge({ config, gowa, log, debug }) {
       case 'calls':
         await sendCalls();
         break;
+      case 'chats':
+        await sendChats();
+        break;
       case 'logout':
         try { await gowa.logout(); } catch (e) { /* ignora */ }
         state = { status: 'disconnected', jid: '' };
@@ -439,6 +490,8 @@ function createBridge({ config, gowa, log, debug }) {
     addClientForTest(socket) { wp8Clients.add(socket); },
     sendCalls,
     resetCallsCacheForTest() { callsCache = null; },
+    sendChats,
+    resetChatsCacheForTest() { chatsCache = null; },
     stop() { /* il timer di polling è gestito da main() */ }
   };
 }

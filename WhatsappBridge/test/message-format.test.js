@@ -128,3 +128,22 @@ test('mapWebhookMessage degrada a testo quando il media non è scaricato', () =>
   assert.strictEqual(f.mediaPath, null);
   assert.strictEqual(f.text, '[Image not downloaded]');
 });
+
+test('buildChatMessage carries the chat-row fields', () => {
+  const msg = buildChatMessage({
+    command: 'chat', chatId: 'a@s.whatsapp.net', senderName: 'Anna',
+    text: 'ciao', timestamp: '2026-09-26T09:00:00Z', isGroup: false, avatarData: 'AAAA'
+  });
+  assert.strictEqual(msg.Command, 'chat');
+  assert.strictEqual(msg.SenderName, 'Anna');
+  assert.strictEqual(msg.Text, 'ciao');
+  assert.strictEqual(msg.IsGroup, false);
+  assert.strictEqual(msg.AvatarData, 'AAAA');
+  assert.strictEqual(msg.Type, 3);
+});
+
+test('buildChatMessage omits an absent avatar and marks a group', () => {
+  const msg = buildChatMessage({ command: 'chat', chatId: '1@g.us', isGroup: true });
+  assert.strictEqual(msg.IsGroup, true);
+  assert.strictEqual(msg.AvatarData, undefined);
+});
