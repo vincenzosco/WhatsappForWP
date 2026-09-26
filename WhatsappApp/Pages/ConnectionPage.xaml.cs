@@ -66,8 +66,20 @@ namespace WhatsappApp.Pages
             if (CommunicationService.Instance.IsConnected)
             {
                 ShowConnectedState();
-                // OnNavigatedTo is not async: fire the status request and ignore the task
+
+                // Due richieste distinte. Lo stato dipinge il pannello; il QR
+                // serve perche' la connessione puo' essere stata aperta
+                // dall'avvio automatico, prima che questa pagina esistesse: in
+                // quel caso ConnectionEstablished e' gia' passato e nessuno ha
+                // mai chiesto il codice. Il login si fa dal telefono, quindi il
+                // codice si chiede da soli a ogni ingresso.
+#pragma warning disable 4014
                 CommunicationService.Instance.SendControlAsync("status");
+                if (CommunicationService.Instance.WhatsAppState != "connected")
+                {
+                    CommunicationService.Instance.SendControlAsync("login.qr");
+                }
+#pragma warning restore 4014
             }
         }
 
