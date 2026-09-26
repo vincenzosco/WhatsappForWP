@@ -20,7 +20,10 @@ const DEFAULTS = {
   POLL_INTERVAL_MS: '5000',
   DISCOVERY_PORT: '8587',
   DISCOVERY_ENABLED: 'on',
-  DISCOVERY_NAME: ''
+  DISCOVERY_NAME: '',
+  CALLS_CHAT_LIMIT: '25',
+  CALLS_MESSAGES_PER_CHAT: '100',
+  CALLS_LIMIT: '50'
 };
 
 function pick(env, key) {
@@ -57,6 +60,13 @@ function loadConfig(env = process.env) {
       port: parseInt(pick(env, 'DISCOVERY_PORT'), 10),
       // Nome che l'app mostra nella lista dei server trovati.
       name: pick(env, 'DISCOVERY_NAME') || os.hostname()
+    },
+    calls: {
+      // Quante chat scansionare e quanti messaggi per chat: la scansione fa
+      // una richiesta HTTP per chat, quindi il limite e' la durata.
+      chatLimit: parseInt(pick(env, 'CALLS_CHAT_LIMIT'), 10),
+      messagesPerChat: parseInt(pick(env, 'CALLS_MESSAGES_PER_CHAT'), 10),
+      limit: parseInt(pick(env, 'CALLS_LIMIT'), 10)
     }
   };
 }

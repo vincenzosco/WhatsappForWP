@@ -32,10 +32,13 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `login.code` | `Text` = numero con prefisso |
 | app -> adapter | `contacts` | — |
 | app -> adapter | `logout` | — |
+| app -> adapter | `calls` | — (solo in entrata, dalle `CALLS_CHAT_LIMIT` chat più recenti) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = nome |
+| adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
+| adapter -> app | `calls.done` | — (la scansione è finita, anche senza chiamate) |
 | adapter -> app | `error` | `Text` |
 
 Un frame e' `[lunghezza 4 byte little-endian][payload]`. Una lunghezza uguale a
@@ -61,6 +64,9 @@ Vedi `.env.example`. Le variabili principali:
 | `DISCOVERY_ENABLED` | `on` | Annuncia l'adapter sulla rete locale (`off` lo spegne) |
 | `DISCOVERY_PORT` | `8587` | Porta UDP del beacon di scoperta |
 | `DISCOVERY_NAME` | nome host | Nome mostrato nell'elenco dei server trovati dell'app |
+| `CALLS_CHAT_LIMIT` | `25` | quante chat recenti legge la scansione delle chiamate |
+| `CALLS_MESSAGES_PER_CHAT` | `100` | messaggi letti per ogni chat scansionata |
+| `CALLS_LIMIT` | `50` | numero massimo di chiamate inviate all'app |
 
 ## Avvio
 

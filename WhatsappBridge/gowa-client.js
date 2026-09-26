@@ -132,6 +132,21 @@ class GowaClient {
     return data.map((c) => ({ jid: c.jid, name: c.name || '' }));
   }
 
+  // Elenco delle chat presenti nella storage di GOWA (paginato lato server).
+  async chats(limit) {
+    const r = await this.request('GET', `/chats?limit=${encodeURIComponent(limit)}`);
+    const res = (r.data && r.data.results) || {};
+    return Array.isArray(res.data) ? res.data : [];
+  }
+
+  // Messaggi di una chat. La rotta di GOWA e' /chat/:chat_jid/messages.
+  async chatMessages(jid, limit) {
+    const r = await this.request('GET',
+      `/chat/${encodeURIComponent(jid)}/messages?limit=${encodeURIComponent(limit)}`);
+    const res = (r.data && r.data.results) || {};
+    return Array.isArray(res.data) ? res.data : [];
+  }
+
   async setDeviceWebhook(url) {
     const id = this.deviceId || this.resolvedDeviceId;
     if (!id) return false;
