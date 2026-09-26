@@ -183,6 +183,17 @@ WhatsApp login flow: the app sends `login.qr` / `login.code` and the adapter
 answers with `qr` / `paircode` / `state` / `contact` / `error` frames. See
 `WhatsappBridge/README.md` for the full command table.
 
+A frame length is never trusted: the app fills the 4-byte prefix completely
+(`InputStreamOptions.Partial` can split it) and rejects anything outside
+`1..8 MiB` (`MaxFrameLength`), and the adapter drops a client that announces more
+than `MAX_FRAME_LENGTH` (the same 8 MiB) instead of buffering it.
+
+A connection attempt owns its socket, its `DataReader` and its read loop: only
+the newest attempt publishes them and only its loop reads them, so a failed
+attempt (a stale saved address, for instance) cannot close the connection that
+succeeded. The connect has a 6-second deadline; `0x8007274C` means it expired,
+and the app then forgets the saved address and falls back to discovery.
+
 ## Building
 
 ### WP8 App

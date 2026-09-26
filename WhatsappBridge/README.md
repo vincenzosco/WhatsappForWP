@@ -37,6 +37,11 @@ Frames with `Type = System`, `ChatId = "system"`.
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
 | adapter -> app | `error` | `Text` |
 
+One frame is `[4-byte little-endian length][payload]`. A length of `0`, or one
+above `MAX_FRAME_LENGTH` (8 MiB, exported from `server.js` and equal to
+`CommunicationService.MaxFrameLength` in the app), is treated as a fault: the
+adapter logs the length and closes the socket instead of buffering it.
+
 ## Configuration
 
 See `.env.example`. The main variables:
