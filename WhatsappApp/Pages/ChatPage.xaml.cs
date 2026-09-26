@@ -19,7 +19,6 @@ namespace WhatsappApp.Pages
     {
         private Contact _contact;
         private ObservableCollection<ChatMessage> _messages;
-        private bool _isConnectedMode;
         private StorageFile _selectedImageFile;
         private string _selectedImageBase64;
         private ChatMessage _pendingScroll;
@@ -44,7 +43,6 @@ namespace WhatsappApp.Pages
             if (contact != null)
             {
                 _contact = contact;
-                _isConnectedMode = CommunicationService.Instance.IsConnected;
 
                 ContactNameText.Text = contact.Name;
                 OnlineStatusText.Text = contact.IsOnline
@@ -132,7 +130,7 @@ namespace WhatsappApp.Pages
                 Timestamp = DateTime.Now,
                 Type = MessageType.Text,
                 IsIncoming = false,
-                Status = _isConnectedMode ? MessageStatus.Sending : MessageStatus.Sent
+                Status = MessageStatus.Sending
             };
 
             AddAndSendMessage(message);
@@ -156,7 +154,7 @@ namespace WhatsappApp.Pages
                 Timestamp = DateTime.Now,
                 Type = MessageType.Image,
                 IsIncoming = false,
-                Status = _isConnectedMode ? MessageStatus.Sending : MessageStatus.Sent,
+                Status = MessageStatus.Sending,
                 MediaData = _selectedImageBase64,
                 MediaMimeType = mimeType,
                 MediaFileName = _selectedImageFile == null ? null : _selectedImageFile.Name
@@ -181,15 +179,21 @@ namespace WhatsappApp.Pages
             // Auto-scroll
             ScrollToMessage(message);
 
-            // Send via network if connected
-            if (_isConnectedMode)
+            // Lo stato si decide adesso, non quando la pagina e' stata aperta:
+            // un messaggio scritto a socket caduto restava "inviato" per sempre
+            // senza essere mai partito. Adesso si vede fallito e si puo'
+            // riscrivere.
+            if (!CommunicationService.Instance.IsConnected)
             {
-                message.Status = MessageStatus.Sending;
-                await CommunicationService.Instance.SendMessageAsync(message);
-                message.Status = CommunicationService.Instance.IsConnected
-                    ? MessageStatus.Sent
-                    : MessageStatus.Failed;
+                message.Status = MessageStatus.Failed;
+                return;
             }
+
+            message.Status = MessageStatus.Sending;
+            await CommunicationService.Instance.SendMessageAsync(message);
+            message.Status = CommunicationService.Instance.IsConnected
+                ? MessageStatus.Sent
+                : MessageStatus.Failed;
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)

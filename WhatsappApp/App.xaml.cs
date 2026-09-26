@@ -69,6 +69,11 @@ namespace WhatsappApp
             // lasciava il servizio senza dispatcher per tutta la sessione.
             CommunicationService.Instance.Prewarm();
 
+            // Il servizio dati si aggancia qui: prima si creava alla prima
+            // pagina che lo toccava, e i messaggi arrivati nel frattempo (o i
+            // contatti sincronizzati) non avevano nessun ascoltatore.
+            DataService.Instance.Start();
+
 #if DEBUG
             // Solo in debug: dice in tre righe cosa questo telefono sa fare
             // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
