@@ -174,6 +174,12 @@ namespace WhatsappApp.Services
                 case "calls.done":
                     RaiseCallsScanCompleted();
                     break;
+                case "chat":
+                    ApplyChat(message);
+                    break;
+                case "chats.done":
+                    RaiseChatListCompleted();
+                    break;
                 case "revoked":
                     RemoveMessage(message.ChatId, message.RelatedMessageId);
                     break;
@@ -210,6 +216,63 @@ namespace WhatsappApp.Services
                 contact.Name = name;
                 contact.Initials = InitialsFor(name);
             }
+        }
+
+        /// <summary>
+        /// Una riga dell'elenco chat: la conversazione esiste in WhatsApp anche
+        /// se in questa sessione non ne abbiamo mai ricevuto un messaggio.
+        /// </summary>
+        private void ApplyChat(ChatMessage message)
+        {
+            if (string.IsNullOrEmpty(message.ChatId)) return;
+
+            var contact = FindContact(message.ChatId);
+            string name = string.IsNullOrEmpty(message.SenderName)
+                ? DisplayNameForJid(message.ChatId)
+                : message.SenderName;
+
+            if (contact == null)
+            {
+                contact = new Contact
+                {
+                    Id = message.ChatId,
+                    Name = name,
+                    Initials = InitialsFor(name),
+                    UnreadCount = 0
+                };
+                _contacts.Add(contact);
+                _contactIndex[contact.Id] = contact;
+            }
+            else
+            {
+                contact.Name = name;
+                contact.Initials = InitialsFor(name);
+            }
+
+            // L'anteprima arriva dal server: se in questa sessione abbiamo gia'
+            // un messaggio piu' recente, quello resta (non si torna indietro).
+            if (!string.IsNullOrEmpty(message.Text) && string.IsNullOrEmpty(contact.LastMessage))
+            {
+                contact.LastMessage = message.Text;
+                contact.LastMessageTime = message.FormattedTime;
+            }
+
+            if (!string.IsNullOrEmpty(message.AvatarData) && contact.AvatarData != message.AvatarData)
+            {
+                contact.AvatarData = message.AvatarData;
+#pragma warning disable 4014
+                contact.LoadAvatarAsync();
+#pragma warning restore 4014
+            }
+        }
+
+        /// <summary>La lista delle conversazioni e' finita di arrivare.</summary>
+        public event EventHandler ChatListCompleted;
+
+        private void RaiseChatListCompleted()
+        {
+            var handler = ChatListCompleted;
+            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         /// <summary>Una voce del registro chiamate.</summary>
