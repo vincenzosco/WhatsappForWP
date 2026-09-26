@@ -204,3 +204,12 @@ empty".
     `DIAG ConnectToServerAsync`.
 19. Turn the phone's Wi-Fi off and back on while the app is open: within about a
     minute the app must recover by itself (same two log lines as above).
+20. Unread counts, like WhatsApp: with the list open, a message in chat A puts a
+    number on A's row and on the badge. Open A: the number goes. **While A is
+    open**, a new message in A must not put a number on A's row (it is being read
+    as it arrives) and must **not** raise a toast; a message in B must still put a
+    number on B's row and raise a toast. Leave A and come back: nothing left over.
+21. Open a chat, background the app, receive messages **in that chat**, then
+    return: the app reconnects and the messages are read on screen. They must not
+    haunt the badge afterwards - this was the path where an exclusion in the
+    counter lost them for good.

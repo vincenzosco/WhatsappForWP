@@ -123,6 +123,21 @@ The rule that follows: when a source has a limit, the screen and the README pair
 state it, and **no screen invents state that no server sends** - presence, "online",
 "last seen at" were all removed for exactly that reason.
 
+### "Read" is a decision, never an assumption
+
+`DataService.UnreadCount` counts **every** incoming message. Nothing in the
+counter asks which chat is open: an arriving message is unread until something
+*dipslays* it. The only place that decides is `ChatPage`, which calls
+`ClearUnread` when it opens the conversation and for each message it puts on
+screen - exactly what WhatsApp does, and the reason the number disappears from a
+row you are reading.
+
+This is not a style preference. Excluding the active chat inside the counter (the
+older shape) hid a real bug: with the app suspended on an open chat, messages
+delivered on resume were never counted **and** never cleared, so they vanished
+from both the row and the badge. `DataService.ActiveChatId` now has one job only -
+suppressing the *toast* for the chat on screen.
+
 ## Workflow for any change
 
 1. `git status --short` - start from a clean tree.
