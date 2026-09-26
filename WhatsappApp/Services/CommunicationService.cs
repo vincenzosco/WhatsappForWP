@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -35,6 +36,17 @@ namespace WhatsappApp.Services
         private DataWriter _writer;
         private DataReader _reader;
         private bool _isConnected = false;
+
+        /// <summary>
+        /// Frame piu' grande che accettiamo. Il prefisso di 4 byte e' l'unica
+        /// cosa che l'altro capo controlla: se il lettore e' disallineato quella
+        /// lunghezza e' un pezzo di JSON, cioe' un numero enorme. Senza un
+        /// limite LoadAsync lo usava come dimensione e l'app finiva in
+        /// OutOfMemoryException (0x8007000E) invece di chiudere la connessione.
+        /// Otto mebibyte lasciano passare un'immagine in base64 e restano
+        /// lontani dalla memoria di un telefono WP8.1.
+        /// </summary>
+        private const uint MaxFrameLength = 8 * 1024 * 1024;
 
         // Cached UI dispatcher for marshalling events to the UI thread
         private CoreDispatcher _uiDispatcher;
@@ -592,20 +604,45 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// Reads one complete frame: [4-byte length][payload].
-        /// Returns null when the connection is closed or the frame is incomplete.
+        /// Returns null when the connection is closed or the frame is not
+        /// acceptable (a length outside 1..MaxFrameLength is a fault, not a
+        /// payload: it is recorded and the connection is dropped).
         /// </summary>
         private async Task<byte[]> ReadFrameAsync(DataReader reader)
         {
-            uint sizeFieldCount = await reader.LoadAsync(4);
-            if (sizeFieldCount < 4) return null;
+            if (!await LoadAtLeastAsync(reader, 4)) return null;
 
             uint payloadLength = reader.ReadUInt32();
-            uint actualLength = await reader.LoadAsync(payloadLength);
-            if (actualLength < payloadLength) return null;
+
+            if (payloadLength == 0 || payloadLength > MaxFrameLength)
+            {
+                Diag.Failed("ReadFrameAsync/length",
+                    new InvalidDataException("lunghezza frame fuori intervallo: " + payloadLength));
+                return null;
+            }
+
+            if (!await LoadAtLeastAsync(reader, payloadLength)) return null;
 
             byte[] payload = new byte[payloadLength];
             reader.ReadBytes(payload);
             return payload;
+        }
+
+        /// <summary>
+        /// Riempie il buffer del reader finche' non ha almeno <paramref name="count"/>
+        /// byte non consumati. Con InputStreamOptions.Partial una LoadAsync puo'
+        /// restituirne meno del richiesto: il prefisso di lunghezza letto con una
+        /// sola LoadAsync(4) veniva spezzato a meta' frame e la connessione
+        /// cadeva su un frame che era solo arrivato in due pezzi.
+        /// </summary>
+        private static async Task<bool> LoadAtLeastAsync(DataReader reader, uint count)
+        {
+            while (reader.UnconsumedBufferLength < count)
+            {
+                uint loaded = await reader.LoadAsync(count - reader.UnconsumedBufferLength);
+                if (loaded == 0) return false;   // flusso chiuso dall'altro capo
+            }
+            return true;
         }
 
         /// <summary>
