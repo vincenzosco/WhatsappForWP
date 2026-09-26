@@ -328,7 +328,24 @@ namespace WhatsappApp.Services
                     Type = MessageType.System,
                     IsIncoming = false
                 };
-                await SendFrameAsync(_writer, Encoding.UTF8.GetBytes(handshake.ToJson()));
+                // Il primo frame e' anche il primo uso del cifrario: se il
+                // cifrario non c'e' l'errore va detto qui, invece di uscire
+                // come "operazione non implementata" senza dire quale passo.
+                try
+                {
+                    await SendFrameAsync(_writer, Encoding.UTF8.GetBytes(handshake.ToJson()));
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("ConnectToServerAsync/handshake", ex);
+                    _isConnected = false;
+                    CleanUpClientSocket();
+                    DispatchOnUiThread(() =>
+                        RaiseErrorOccurred(string.Format(
+                            Loc.Get("CommService_ConnectError", "Connection error: {0}"),
+                            ExplainConnectionFailure(ex, "handshake"))));
+                    return false;
+                }
 
                 DispatchOnUiThread(() =>
                 {
@@ -347,12 +364,56 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("ConnectToServerAsync", ex);
                 _isConnected = false;
+                // Senza questo il socket di un tentativo fallito resta aperto e
+                // il tentativo successivo parte con due connessioni.
+                CleanUpClientSocket();
                 DispatchOnUiThread(() =>
                     RaiseErrorOccurred(string.Format(
-                        Loc.Get("CommService_ConnectError", "Connection error: {0}"), ex.Message))
-                );
+                        Loc.Get("CommService_ConnectError", "Connection error: {0}"),
+                        ExplainConnectionFailure(ex, "socket"))));
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Chiude il socket client e i suoi due wrapper. Idempotente: la
+        /// chiamano sia il ramo di fallimento del handshake sia il catch
+        /// esterno, e in nessun caso deve lanciare.
+        /// </summary>
+        private void CleanUpClientSocket()
+        {
+            try
+            {
+                if (_writer != null) { _writer.Dispose(); _writer = null; }
+                if (_reader != null) { _reader.Dispose(); _reader = null; }
+                if (_clientSocket != null) { _clientSocket.Dispose(); _clientSocket = null; }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("CleanUpClientSocket", ex);
+            }
+        }
+
+        /// <summary>
+        /// Traduce il guasto in una riga comprensibile. "The method or operation
+        /// is not implemented" non dice all'utente che manca un pezzo di
+        /// piattaforma, ne' quale passo della connessione e' caduto.
+        /// </summary>
+        private static string ExplainConnectionFailure(Exception ex, string stage)
+        {
+            bool platformMissing = ex is NotImplementedException
+                || ex is PlatformNotSupportedException
+                || ex.HResult == unchecked((int)0x80004001);
+
+            if (platformMissing)
+            {
+                return string.Format(
+                    Loc.Get("CommService_PlatformMissing",
+                        "This phone does not implement a required Windows feature ({0}: {1})"),
+                    stage, ex.Message);
+            }
+
+            return ex.Message;
         }
 
         private async Task ListenForMessagesAsync()
