@@ -304,6 +304,18 @@
   <data name="CommService_ClientRemoved" xml:space="preserve">
     <value>Client rimosso ({0} connessi)</value>
   </data>
+  <data name="CommService_ConnectTimeout" xml:space="preserve">
+    <value>Il server {0} non ha risposto. Controlla che il PC sia acceso, sulla stessa rete, e che la porta sia aperta.</value>
+  </data>
+  <data name="CommService_ConnectRefused" xml:space="preserve">
+    <value>Il server {0} ha rifiutato la connessione. Controlla che l'adapter sia avviato.</value>
+  </data>
+  <data name="CommService_ConnectUnreachable" xml:space="preserve">
+    <value>Il server {0} non e' raggiungibile su questa rete.</value>
+  </data>
+  <data name="CommService_InvalidAddress" xml:space="preserve">
+    <value>Inserisci un indirizzo valido (nome host o IP, porta 1-65535): {0}</value>
+  </data>
   <data name="DataService_Group" xml:space="preserve">
     <value>Gruppo {0}</value>
   </data>
