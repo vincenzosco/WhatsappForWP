@@ -534,8 +534,9 @@ namespace WhatsappApp.Services
 
                 // La ConnectAsync abbandonata fallira' con "operazione
                 // annullata": si osserva, altrimenti resta un'eccezione senza
-                // lettore.
-                connecting.ContinueWith(
+                // lettore. Il risultato si assegna perche' una Continuation
+                // lasciata come istruzione in un metodo async e' un CS4014.
+                Task observed = connecting.ContinueWith(
                     delegate(Task t) { AggregateException ignored = t.Exception; },
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
 
