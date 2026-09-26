@@ -262,6 +262,9 @@
   <data name="CommService_Connecting" xml:space="preserve">
     <value>Connecting...</value>
   </data>
+  <data name="CommService_PlatformMissing" xml:space="preserve">
+    <value>This phone does not implement a required Windows feature ({0}: {1})</value>
+  </data>
   <data name="CommService_Connected" xml:space="preserve">
     <value>Connected to the server</value>
   </data>
