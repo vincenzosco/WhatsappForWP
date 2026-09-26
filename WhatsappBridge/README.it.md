@@ -19,6 +19,9 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
 - I messaggi in uscita sono inviati alle API REST di GOWA.
 - L'adapter si annuncia sulla rete locale con un beacon di scoperta, cosi' l'app lo trova
   senza che le venga configurato un indirizzo.
+- `message.revoked` e `message.edited` vengono inoltrati all'app come frame di controllo
+  `revoked` ed `edited`, cosi' un messaggio cancellato o modificato dal telefono non
+  resta congelato nell'app. `message.reaction` resta ignorato: non c'e' dove disegnarlo.
 
 ## Protocollo di controllo
 
@@ -39,6 +42,8 @@ Frame `Type = System`, `ChatId = "system"`.
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = nome |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (la scansione è finita, anche senza chiamate) |
+| adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id del messaggio cancellato |
+| adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = il nuovo testo |
 | adapter -> app | `error` | `Text` |
 
 Un frame e' `[lunghezza 4 byte little-endian][payload]`. Una lunghezza uguale a
