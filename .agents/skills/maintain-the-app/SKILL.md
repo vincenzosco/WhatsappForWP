@@ -74,15 +74,15 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 7. **One page per section.** A new screen means a new file under `Pages/`, not
    another block inside an existing page, and it must be registered in the
    `.csproj` (a page that is not listed does not exist at build time).
-8. **Runtime text is English.** The adapter's log and error messages, and the app's
-   `Diag`/`SelfCheck` lines with every message inside an exception that can reach
-   them, are written in English, so that an operator reading a container log or a
-   debugger window needs no other language. Source comments and the adapter's test
-   names are Italian and stay that way; `Strings/it-IT` is a translation and is not
-   affected. Two places are not converted yet: the prose of
-   `tools/start-login.js`, and the error texts the adapter sends to the app for
-   display (`sendControl({ text })`), which are UI content and belong with the
-   app's own localization.
+8. **Runtime text is English.** Everything a person reads *outside the app UI* is
+   English: the adapter's log and error messages, the `text:` frames it sends for
+   display, the app's `Diag`/`SelfCheck` lines (with every message inside an
+   exception that can reach them), the launcher `tools/start-login.js`,
+   `qr-term.js` and `download.js`, the service-list reasons, and the legacy relay's
+   console text. An operator reading a container log or a debugger window needs no
+   second language. Only the app UI is localized, through the `.resw` pairs;
+   source comments and the adapter's test names stay Italian, because nobody reads
+   them at run time.
 9. **The docs are written in pairs, English and Italian.** `README.md` and
    `README.it.md` are versions of each other, and so are
    `WhatsappBridge/README.md` and `WhatsappBridge/README.it.md`: a section is
@@ -93,6 +93,22 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
    in both languages. New explanatory documents are born as a pair. No emoji: the
    warning sign (U+26A0) is the only exception, for a real hazard.
    Gate: `node tools/check-docs.js`.
+
+## Showing only data that exists
+
+A screen may only show data that exists upstream. Two facts this project
+established the hard way:
+
+- **GOWA has no status endpoint.** Nothing in its API or its webhooks exposes
+  status updates, so the Status section is empty on purpose and says so, rather
+  than pretending the feature is missing from the app.
+- **GOWA records incoming calls only** (`CreateIncomingCallRecord`), in its own
+  chat storage; the Calls section scans the most recent chats and says so in its
+  empty state and in the README pair.
+
+The rule that follows: when a source has a limit, the screen and the README pair
+state it, and **no screen invents state that no server sends** - presence, "online",
+"last seen at" were all removed for exactly that reason.
 
 ## Workflow for any change
 

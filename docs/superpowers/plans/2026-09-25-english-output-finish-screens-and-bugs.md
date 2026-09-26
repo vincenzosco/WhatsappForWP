@@ -98,7 +98,7 @@ Everything the adapter prints or sends as `text:` becomes English. The two tests
 - Consumes: nothing.
 - Produces: no signature changes. Only string literals change; `buildChatMessage`, `mapWebhookMessage`, `createBridge`, `GowaClient` keep their shapes. `formatDateForWp8` keeps the `/Date(ms)/` format.
 
-- [ ] **Step 1: Update the two tests that assert Italian text**
+- [x] **Step 1: Update the two tests that assert Italian text**
 
 In `WhatsappBridge/test/message-format.test.js`, line 18:
 
@@ -112,12 +112,12 @@ In the same file, line 79:
   assert.strictEqual(f.text, '[Image not downloaded]');
 ```
 
-- [ ] **Step 2: Run the suite and watch those two fail**
+- [x] **Step 2: Run the suite and watch those two fail**
 
 Run: `cd WhatsappBridge && npm test`
 Expected: FAIL on those two assertions (`'Gruppo ...'` and `'[Immagine non scaricata]'`), everything else passing.
 
-- [ ] **Step 3: Translate `message-format.js`**
+- [x] **Step 3: Translate `message-format.js`**
 
 Replace, in `WhatsappBridge/message-format.js`:
 
@@ -130,12 +130,12 @@ Replace, in `WhatsappBridge/message-format.js`:
 | `result.fallbackText = '[Video non scaricato]';` | `result.fallbackText = '[Video not downloaded]';` |
 | `result.fallbackText = '[Documento non scaricato]';` | `result.fallbackText = '[Document not downloaded]';` |
 
-- [ ] **Step 4: Run the suite — the two tests pass again**
+- [x] **Step 4: Run the suite — the two tests pass again**
 
 Run: `cd WhatsappBridge && npm test`
 Expected: PASS, 36 tests.
 
-- [ ] **Step 5: Translate `gowa-client.js`**
+- [x] **Step 5: Translate `gowa-client.js`**
 
 | Before | After |
 | --- | --- |
@@ -148,7 +148,7 @@ Expected: PASS, 36 tests.
 | `'Invio immagine non riuscito'` | `'Send image failed'` |
 | `` `Download non riuscito (${res.status})` `` | `` `Download failed (${res.status})` `` |
 
-- [ ] **Step 6: Translate `webhook-server.js`, `crypto-helper.js`, `discovery.js`**
+- [x] **Step 6: Translate `webhook-server.js`, `crypto-helper.js`, `discovery.js`**
 
 | File | Before | After |
 | --- | --- | --- |
@@ -158,7 +158,7 @@ Expected: PASS, 36 tests.
 | `discovery.js` | `` `Discovery: invio a ${target} fallito (${err.message})` `` | `` `Discovery: send to ${target} failed (${err.message})` `` |
 | `discovery.js` | `` `Discovery: broadcast non attivabile (${err.message})` `` | `` `Discovery: broadcast could not be enabled (${err.message})` `` |
 
-- [ ] **Step 7: Translate `server.js`**
+- [x] **Step 7: Translate `server.js`**
 
 Every replacement below is inside a log call or a `text:` frame payload.
 
@@ -208,7 +208,7 @@ Every replacement below is inside a log call or a `text:` frame payload.
 
 Leave the Italian header comment and the Italian inline comments in place (see Global Constraints).
 
-- [ ] **Step 8: Translate the package description**
+- [x] **Step 8: Translate the package description**
 
 In `WhatsappBridge/package.json`:
 
@@ -218,7 +218,7 @@ In `WhatsappBridge/package.json`:
 
 Leave `keywords` as they are.
 
-- [ ] **Step 9: Verify no human-readable string is left in Italian**
+- [x] **Step 9: Verify no human-readable string is left in Italian**
 
 Run:
 
@@ -240,7 +240,7 @@ console.log(bad.length ? bad.join("\n") : "OK: no Italian text in output calls")
 
 Expected: `OK: no Italian text in output calls`. Any line printed is reviewed by hand (a comment next to a log call can trigger the pattern).
 
-- [ ] **Step 10: Run the full guard set**
+- [x] **Step 10: Run the full guard set**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -250,7 +250,7 @@ node tools/check-docs.js
 
 Expected: `npm test` all pass (36), `check-docs` pairs aligned and no emoji. No C# changed in this task, so the VM build is not needed.
 
-- [ ] **Step 11: Commit**
+- [x] **Step 11: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -272,7 +272,7 @@ git commit -m "i18n: print the adapter logs and error texts in English"
 - Consumes: nothing.
 - Produces: no flag, no behaviour change. `node tools/start-login.js --help` prints English; the exit codes are unchanged.
 
-- [ ] **Step 1: List every string a person reads**
+- [x] **Step 1: List every string a person reads**
 
 Run:
 
@@ -284,7 +284,7 @@ grep -nE "fail\(|console\.(log|error)" tools/qr-term.js
 
 Every line printed above is a candidate. Translate all of them; the ones already known are in the next steps.
 
-- [ ] **Step 2: Translate the `--help` block**
+- [x] **Step 2: Translate the `--help` block**
 
 Replace the whole `HELP` template (`tools/start-login.js`, lines 62-85) with:
 
@@ -318,7 +318,7 @@ Usage: node tools/start-login.js [options]
 `;
 ```
 
-- [ ] **Step 3: Translate the remaining strings in `start-login.js`**
+- [x] **Step 3: Translate the remaining strings in `start-login.js`**
 
 | Line area | Before | After |
 | --- | --- | --- |
@@ -367,7 +367,7 @@ Usage: node tools/start-login.js [options]
 
 The console marker at the start of a translated line is not part of the change: `U+2716` (cross), `U+2714` (tick), `U+00B7` (middle dot), `U+2026` (ellipsis) and `U+2192` (arrow) stay exactly where they are. The rows above quote only the words that change.
 
-- [ ] **Step 4: Translate `qr-term.js`**
+- [x] **Step 4: Translate `qr-term.js`**
 
 | Before | After |
 | --- | --- |
@@ -382,7 +382,7 @@ The console marker at the start of a translated line is not part of the change: 
 | `` `\n${failures} controllo/i fallito/i.` `` | `` `\n${failures} check(s) failed.` `` |
 | `'\nTutti i controlli sono passati.'` | `'\nAll checks passed.'` |
 
-- [ ] **Step 5: Translate `WhatsappServer/Program.cs`**
+- [x] **Step 5: Translate `WhatsappServer/Program.cs`**
 
 | Before | After |
 | --- | --- |
@@ -399,7 +399,7 @@ The console marker at the start of a translated line is not part of the change: 
 
 Leave the `@"..."` banner block (line 39) if it is pure ASCII art; if it contains Italian words, translate the words only.
 
-- [ ] **Step 6: Check the three surfaces by running them**
+- [x] **Step 6: Check the three surfaces by running them**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -410,13 +410,13 @@ node tools/start-login.js --stop
 
 Expected: the help text is English, the self-test prints `All checks passed.`, `--stop` prints `No stack to stop (no PID file).` (or stops a running stack). No Italian word in any of the three outputs.
 
-- [ ] **Step 7: Update the documentation that quotes those texts**
+- [x] **Step 7: Update the documentation that quotes those texts**
 
 In `README.md` and `README.it.md`, update the tables/paragraphs that quote the banner labels and the flag help so the quoted text matches the new English output (the Italian README keeps its Italian prose but quotes the English strings as the script prints them). Add one sentence to the `### App language` / `### Lingua dell'app` section: script and server output is English only, the app UI is the only localized surface.
 
 Do the same for `.agents/skills/run-the-login-server/SKILL.md`, which lists the banner and the flags.
 
-- [ ] **Step 8: Run the guards**
+- [x] **Step 8: Run the guards**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -428,7 +428,7 @@ node tools/qr-term.js --self-test
 
 Expected: docs pairs aligned, no emoji; 27 C# files compatible; 36 tests pass; self-test passes.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -450,7 +450,7 @@ git commit -m "i18n: print the launcher, QR tool and legacy relay in English"
 - Consumes: nothing.
 - Produces: the resw keys `StatusPage_Title.Text`, `StatusPage_EmptyTitle.Text`, `StatusPage_EmptyHint.Text` keep their names (only values change), so no C# changes.
 
-- [ ] **Step 1: Replace the two Status strings in both languages**
+- [x] **Step 1: Replace the two Status strings in both languages**
 
 In `WhatsappApp/Strings/en-US/Resources.resw` (lines 76 and 79):
 
@@ -480,7 +480,7 @@ In `WhatsappApp/Strings/it-IT/Resources.resw` (same lines):
   </data>
 ```
 
-- [ ] **Step 2: Keep the XAML honest about the icon**
+- [x] **Step 2: Keep the XAML honest about the icon**
 
 In `WhatsappApp/Pages/StatusPage.xaml` the hint `TextBlock` keeps `x:Uid="StatusPage_EmptyHint"`; update its fallback attribute so a missing resource does not show a different sentence:
 
@@ -490,7 +490,7 @@ In `WhatsappApp/Pages/StatusPage.xaml` the hint `TextBlock` keeps `x:Uid="Status
                            HorizontalAlignment="Center" Margin="0,2,0,0"/>
 ```
 
-- [ ] **Step 3: Run the guards**
+- [x] **Step 3: Run the guards**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -500,7 +500,7 @@ xmllint --noout WhatsappApp/Pages/StatusPage.xaml
 
 Expected: `OK: 90 key(s)`, no xmllint output.
 
-- [ ] **Step 4: Add the limitations section to both READMEs**
+- [x] **Step 4: Add the limitations section to both READMEs**
 
 In `README.md`, immediately before `## Disclaimer` (line 341), insert:
 
@@ -522,12 +522,12 @@ In `README.it.md`, immediately before `## Disclaimer` (line 352), insert the sam
 - Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio.
 ```
 
-- [ ] **Step 5: Run the doc guard**
+- [x] **Step 5: Run the doc guard**
 
 Run: `node tools/check-docs.js`
 Expected: two pairs aligned, no emoji. If it complains about heading parity, check the count, order and level of the new sections in both files.
 
-- [ ] **Step 6: Build on the VM**
+- [x] **Step 6: Build on the VM**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -538,7 +538,7 @@ prlctl exec "Windows 11" cmd /c "cd /d C:\Temp\wp81 && C:\PROGRA~2\MSBuild\12.0\
 
 Expected: `COPIA=0`, then `Errori: 0`, `Avvisi: 2` (CS0618, CS4014), and `WhatsappApp_1.0.1.0_x86_Debug.appxbundle` produced.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -562,7 +562,7 @@ The adapter gains a bounded scan of GOWA's chat storage and a `calls` command. T
 - Consumes: `GowaClient` from `gowa-client.js`; `formatDateForWp8` and `buildChatMessage` from `message-format.js`.
 - Produces: `parseCallMetadata(raw)`, `collectCalls(options)` (see "Interfaces fixed by this plan"); `GowaClient#chats(limit)`, `GowaClient#chatMessages(jid, limit)`; `config.calls = { chatLimit, messagesPerChat, limit }`; control frames `call` and `calls.done`; app command `calls`.
 
-- [ ] **Step 1: Write the failing test for `parseCallMetadata`**
+- [x] **Step 1: Write the failing test for `parseCallMetadata`**
 
 Create `WhatsappBridge/test/calls.test.js`:
 
@@ -606,12 +606,12 @@ test('parseCallMetadata reads the video flag when it is there', () => {
 });
 ```
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 Run: `cd WhatsappBridge && node --test test/calls.test.js`
 Expected: FAIL — `Cannot find module '../calls'`.
 
-- [ ] **Step 3: Write the failing tests for `collectCalls`**
+- [x] **Step 3: Write the failing tests for `collectCalls`**
 
 Append to `WhatsappBridge/test/calls.test.js`:
 
@@ -678,12 +678,12 @@ test('collectCalls caps the result and tolerates a missing chat name', async () 
 });
 ```
 
-- [ ] **Step 4: Run them and watch them fail**
+- [x] **Step 4: Run them and watch them fail**
 
 Run: `cd WhatsappBridge && node --test test/calls.test.js`
 Expected: FAIL — `collectCalls is not a function`.
 
-- [ ] **Step 5: Write `calls.js`**
+- [x] **Step 5: Write `calls.js`**
 
 Create `WhatsappBridge/calls.js`:
 
@@ -787,12 +787,12 @@ async function collectCalls(options) {
 module.exports = { parseCallMetadata, collectCalls };
 ```
 
-- [ ] **Step 6: Run the tests until they pass**
+- [x] **Step 6: Run the tests until they pass**
 
 Run: `cd WhatsappBridge && node --test test/calls.test.js`
 Expected: PASS, 8 tests.
 
-- [ ] **Step 7: Add the two GOWA client methods**
+- [x] **Step 7: Add the two GOWA client methods**
 
 In `WhatsappBridge/gowa-client.js`, after `contacts()`:
 
@@ -813,7 +813,7 @@ In `WhatsappBridge/gowa-client.js`, after `contacts()`:
   }
 ```
 
-- [ ] **Step 8: Test those two methods**
+- [x] **Step 8: Test those two methods**
 
 Append to `WhatsappBridge/test/gowa-client.test.js`:
 
@@ -851,12 +851,12 @@ test('chatMessages() encodes the jid in the path', async () => {
 
 If the existing test file does not already import `GowaClient` and `assert`, add the same two lines the other tests in that file use.
 
-- [ ] **Step 9: Run the suite**
+- [x] **Step 9: Run the suite**
 
 Run: `cd WhatsappBridge && npm test`
 Expected: PASS, 47 tests (36 + 8 + 2 + the tests added in step 11 below).
 
-- [ ] **Step 10: Add the configuration keys**
+- [x] **Step 10: Add the configuration keys**
 
 In `WhatsappBridge/config.js`, extend `DEFAULTS`:
 
@@ -881,7 +881,7 @@ and add to the returned object, next to `discovery`:
     }
 ```
 
-- [ ] **Step 11: Test the configuration defaults**
+- [x] **Step 11: Test the configuration defaults**
 
 Append to `WhatsappBridge/test/config.test.js`:
 
@@ -901,7 +901,7 @@ test('call scan limits have defaults and can be overridden', () => {
 
 Match the existing import style of that file for `loadConfig`.
 
-- [ ] **Step 12: Test the `calls` command at the bridge level**
+- [x] **Step 12: Test the `calls` command at the bridge level**
 
 Append to `WhatsappBridge/test/server.test.js`:
 
@@ -951,7 +951,7 @@ Add `const cryptoHelper = require('../crypto-helper');` at the top of the file i
 
 Note: `handleControl` takes one argument (the message). Frames go out through `sendToClients`, which writes to every socket in `wp8Clients`, so both tests register a fake client with the test-only hook `bridge.addClientForTest(...)` added in the next step, and then assert on the same `sent` array.
 
-- [ ] **Step 13: Wire the scan into the bridge**
+- [x] **Step 13: Wire the scan into the bridge**
 
 In `WhatsappBridge/server.js`:
 
@@ -1032,7 +1032,7 @@ const { collectCalls } = require('./calls');
 
 Also invalidate the cache when the WhatsApp state changes to connected: inside `refreshStatus`, in the `next === 'connected' && changed` branch, add `callsCache = null;` next to `qrCache = null;`.
 
-- [ ] **Step 14: Extend `buildChatMessage` for call frames**
+- [x] **Step 14: Extend `buildChatMessage` for call frames**
 
 In `WhatsappBridge/message-format.js`, after the `if (f.accountJid)` line:
 
@@ -1063,12 +1063,12 @@ test('buildChatMessage carries the call fields', () => {
 });
 ```
 
-- [ ] **Step 15: Run the whole suite**
+- [x] **Step 15: Run the whole suite**
 
 Run: `cd WhatsappBridge && npm test`
 Expected: PASS, 50 tests.
 
-- [ ] **Step 16: Document the scan in both adapter READMEs**
+- [x] **Step 16: Document the scan in both adapter READMEs**
 
 In `WhatsappBridge/README.md`, inside `## Control protocol`, add to the app → adapter row list: `calls` — requests the call records (incoming only, from the most recent `CALLS_CHAT_LIMIT` chats). In the adapter → app row list add: `call`, `calls.done`.
 
@@ -1084,7 +1084,7 @@ Mirror all of it in `WhatsappBridge/README.it.md` (same headings, same table sha
 
 Update `WhatsappBridge/.env.example` with the three keys and a one-line comment each.
 
-- [ ] **Step 17: Run the guards**
+- [x] **Step 17: Run the guards**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1094,7 +1094,7 @@ cd WhatsappBridge && npm test
 
 Expected: docs aligned, no emoji; 50 tests pass.
 
-- [ ] **Step 18: Commit**
+- [x] **Step 18: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1117,7 +1117,7 @@ The app gets the `CallLogEntry` model, five new `ChatMessage` fields, the `call`
 - Consumes: the `call` and `calls.done` frames from Task 4; `DataService.DisplayNameForJid`.
 - Produces: `CallLogEntry` (see "Interfaces fixed by this plan"); `DataService.Calls`, `DataService.CallsScanCompleted`, `DataService.ClearCalls()`; `ChatMessage.CallId/CallReason/CallDurationSeconds/CallIsVideo`.
 
-- [ ] **Step 1: Add the five `ChatMessage` fields**
+- [x] **Step 1: Add the five `ChatMessage` fields**
 
 In `WhatsappApp/Models/ChatMessage.cs`, add the backing fields next to `_accountJid`:
 
@@ -1173,7 +1173,7 @@ and the properties after `AccountJid`:
         }
 ```
 
-- [ ] **Step 2: Write `CallLogEntry`**
+- [x] **Step 2: Write `CallLogEntry`**
 
 Create `WhatsappApp/Models/CallLogEntry.cs`:
 
@@ -1266,7 +1266,7 @@ namespace WhatsappApp.Models
 }
 ```
 
-- [ ] **Step 3: Register the new file in the project**
+- [x] **Step 3: Register the new file in the project**
 
 In `WhatsappApp/WhatsappApp.csproj`, add next to the other `Models` entries (same `<Compile Include=...>` shape and the `<DependentUpon>`-free style used by `BeaconPayload.cs`):
 
@@ -1274,7 +1274,7 @@ In `WhatsappApp/WhatsappApp.csproj`, add next to the other `Models` entries (sam
     <Compile Include="Models\CallLogEntry.cs" />
 ```
 
-- [ ] **Step 4: Teach `DataService` about calls**
+- [x] **Step 4: Teach `DataService` about calls**
 
 In `WhatsappApp/Services/DataService.cs`:
 
@@ -1455,7 +1455,7 @@ In `WhatsappApp/Services/DataService.cs`:
 
 The removed `Status = ""` line disappears with the old body (that property is removed in Task 10).
 
-- [ ] **Step 5: Rewrite the Calls page markup**
+- [x] **Step 5: Rewrite the Calls page markup**
 
 Replace `WhatsappApp/Pages/CallsPage.xaml` with:
 
@@ -1564,7 +1564,7 @@ Replace `WhatsappApp/Pages/CallsPage.xaml` with:
 
 Note: no new `<!-- IconXxx -->` comment is introduced, so `tools/check-icons.js` keeps reporting the same icon set.
 
-- [ ] **Step 6: Rewrite the Calls page code-behind**
+- [x] **Step 6: Rewrite the Calls page code-behind**
 
 Replace `WhatsappApp/Pages/CallsPage.xaml.cs` with:
 
@@ -1666,7 +1666,7 @@ namespace WhatsappApp.Pages
 
 `_waiting` is read only by `OnNavigatedFrom` and written here; it stays because losing the page while a scan is in flight must not leave a spinner state behind. If the reviewer prefers, it can be dropped, but then the empty state text would be shown during the scan.
 
-- [ ] **Step 7: Add the new strings to both resource files**
+- [x] **Step 7: Add the new strings to both resource files**
 
 In `WhatsappApp/Strings/en-US/Resources.resw`: delete `CallsPage_EmptyTitle.Text` (the new markup does not use it), turn `CallsPage_EmptyHint.Text` into the **bare** key `CallsPage_EmptyHint` (the code-behind reads that one with `Loc.Get`, and a bare key must not coexist with the `.Text` form), and add the new entries next to them:
 
@@ -1748,7 +1748,7 @@ No `CallLogEntry_Yesterday` key is added: `CallLogEntry.TimeText` reuses the bar
 
 Key count goes from 90 to **99** in both files: one key removed (`CallsPage_EmptyTitle.Text`), one renamed (no count change), ten added.
 
-- [ ] **Step 8: Run the resource and XAML guards**
+- [x] **Step 8: Run the resource and XAML guards**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1760,16 +1760,16 @@ node tools/check-icons.js
 
 Expected: `OK: 99 key(s)`, no xmllint output, `OK: 28 C# file(s) are C# 5 compatible`, `OK: 13 icon path(s), 9 distinct`. Fix any key the resw guard flags.
 
-- [ ] **Step 9: Build on the VM**
+- [x] **Step 9: Build on the VM**
 
 Run the three VM commands from Task 3 step 6.
 Expected: `COPIA=0`, `Errori: 0`, `Avvisi: 2`, appxbundle produced. A compile error here is the honest gate for the new C#: fix and re-run.
 
-- [ ] **Step 10: Document the Calls section in both READMEs**
+- [x] **Step 10: Document the Calls section in both READMEs**
 
 In `README.md` `### WhatsappApp (Windows Phone 8.1 App)`, add a short `#### Calls` paragraph (mirroring the level in the Italian file) stating: the Calls tab lists incoming calls only, taken from the chats the adapter scanned (`CALLS_CHAT_LIMIT`, default 25), refreshed when the tab is opened or with the Refresh button, and that GOWA keeps no outgoing-call record. Add the same in `README.it.md` under the matching heading level.
 
-- [ ] **Step 11: Run the full guard set**
+- [x] **Step 11: Run the full guard set**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1780,7 +1780,7 @@ node tools/qr-term.js --self-test
 
 Expected: all `OK`, 50 tests pass.
 
-- [ ] **Step 12: Commit**
+- [x] **Step 12: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1803,7 +1803,7 @@ GOWA sends `message.revoked` and `message.edited` and the adapter drops them, so
 - Consumes: `sendControl`, `buildChatMessage` (with `relatedMessageId` from Task 4).
 - Produces: control frames `revoked` (`chatId`, `relatedMessageId`) and `edited` (`chatId`, `relatedMessageId`, `text`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Append to `WhatsappBridge/test/server.test.js`:
 
@@ -1854,12 +1854,12 @@ test('reactions and incomplete events are ignored without sending anything', asy
 });
 ```
 
-- [ ] **Step 2: Run them and watch them fail**
+- [x] **Step 2: Run them and watch them fail**
 
 Run: `cd WhatsappBridge && node --test test/server.test.js`
 Expected: FAIL — the revoked/edited tests see zero frames (the `message.reaction` test already passes).
 
-- [ ] **Step 3: Route the two events**
+- [x] **Step 3: Route the two events**
 
 In `WhatsappBridge/server.js`, replace the first line of `handleWebhookEvent`:
 
@@ -1894,16 +1894,16 @@ In `WhatsappBridge/server.js`, replace the first line of `handleWebhookEvent`:
 
 Keep the rest of the function body (from `const fields = mapWebhookMessage(...)`) unchanged.
 
-- [ ] **Step 4: Run the tests until they pass**
+- [x] **Step 4: Run the tests until they pass**
 
 Run: `cd WhatsappBridge && npm test`
 Expected: PASS, 53 tests.
 
-- [ ] **Step 5: Document the handled events**
+- [x] **Step 5: Document the handled events**
 
 In `WhatsappBridge/README.md` `## How it works`, add a sentence: the adapter forwards `message.revoked` and `message.edited` to the app as control frames and ignores `message.reaction`. Mirror it in `WhatsappBridge/README.it.md`.
 
-- [ ] **Step 6: Run the guards**
+- [x] **Step 6: Run the guards**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1913,7 +1913,7 @@ cd WhatsappBridge && npm test
 
 Expected: docs aligned, no emoji; 53 tests pass.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1934,7 +1934,7 @@ The frames from Task 6 have a tested consumer: Task 5 step 4 already wired the t
 - Consumes: `DataService.RemoveMessage`, `DataService.ApplyEdit`, `ChatMessage.RelatedMessageId`, the `revoked`/`edited` frames from Task 6.
 - Produces: nothing new. This task is the app-side gate for the Task 6 frames, plus the documented limit.
 
-- [ ] **Step 1: Check the wiring is complete**
+- [x] **Step 1: Check the wiring is complete**
 
 Run:
 
@@ -1945,12 +1945,12 @@ grep -n "case \"revoked\"\|case \"edited\"\|RelatedMessageId" WhatsappApp/Servic
 
 Expected: the two `case` lines in `OnControlMessageReceived`, the `RemoveMessage`/`ApplyEdit` calls, and the `RelatedMessageId` field and property. If any is missing, add it from Task 5 step 4.
 
-- [ ] **Step 2: Build on the VM**
+- [x] **Step 2: Build on the VM**
 
 Run the three VM commands from Task 3 step 6.
 Expected: `Errori: 0`, `Avvisi: 2`.
 
-- [ ] **Step 3: Extend the limitations section**
+- [x] **Step 3: Extend the limitations section**
 
 In `README.md` `## Limitations`, the third bullet already mentions that deletions and edits only arrive while the app is connected. Add one more sentence to that bullet naming the second limit:
 
@@ -1964,12 +1964,12 @@ and the same in `README.it.md`:
 - Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio. Il confronto usa l'id del messaggio di WhatsApp, quindi i messaggi inviati dall'app non vengono riconosciuti.
 ```
 
-- [ ] **Step 4: Run the doc guard**
+- [x] **Step 4: Run the doc guard**
 
 Run: `node tools/check-docs.js`
 Expected: two pairs aligned, no emoji.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -1994,7 +1994,7 @@ Three verified bugs, one theme: the app reports states it has not checked.
 - Consumes: `CommunicationService.IsConnected`, `SendMessageAsync`.
 - Produces: `DataService.Start()` (idempotent subscription), `DataService._listening` guard, `ActiveChatId` (already exists).
 
-- [ ] **Step 1: Move the subscription behind `Start()`**
+- [x] **Step 1: Move the subscription behind `Start()`**
 
 In `WhatsappApp/Services/DataService.cs`, delete these two lines from the constructor:
 
@@ -2029,7 +2029,7 @@ and as a public method after `IsServerRunning`:
         }
 ```
 
-- [ ] **Step 2: Call it at startup**
+- [x] **Step 2: Call it at startup**
 
 In `WhatsappApp/App.xaml.cs`, right after `CommunicationService.Instance.Prewarm();`:
 
@@ -2040,7 +2040,7 @@ In `WhatsappApp/App.xaml.cs`, right after `CommunicationService.Instance.Prewarm
             DataService.Instance.Start();
 ```
 
-- [ ] **Step 3: Count the first message of a new chat**
+- [x] **Step 3: Count the first message of a new chat**
 
 In `WhatsappApp/Services/DataService.cs`, in `OnNetworkMessageReceived`, replace the new-contact assignment:
 
@@ -2059,7 +2059,7 @@ with:
 
 (the closing brace of the initialiser stays).
 
-- [ ] **Step 4: Decide the send status at send time**
+- [x] **Step 4: Decide the send status at send time**
 
 In `WhatsappApp/Pages/ChatPage.xaml.cs`:
 
@@ -2096,7 +2096,7 @@ In `WhatsappApp/Pages/ChatPage.xaml.cs`:
         }
 ```
 
-- [ ] **Step 5: Run the guards and the VM build**
+- [x] **Step 5: Run the guards and the VM build**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2106,7 +2106,7 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 then the three VM commands from Task 3 step 6.
 Expected: all guards `OK`; `Errori: 0`, `Avvisi: 2`.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2130,7 +2130,7 @@ Two more verified defects:
 - Consumes: nothing new.
 - Produces: `Contact` without `IsOnline`; `Converters.cs` without `OnlineToDotColorConverter`; `ChatPage.DisplayNumber(string jid)`.
 
-- [ ] **Step 1: Remove the dot from the chat list**
+- [x] **Step 1: Remove the dot from the chat list**
 
 In `WhatsappApp/Pages/ChatsPage.xaml`, delete the two converter registrations that only the dot used:
 
@@ -2158,17 +2158,17 @@ Replace the block with a comment that says why it is gone:
                                      peggio di nessun pallino. -->
 ```
 
-- [ ] **Step 2: Delete the unused converter**
+- [x] **Step 2: Delete the unused converter**
 
 In `WhatsappApp/Converters/Converters.cs`, delete the whole `OnlineToDotColorConverter` class and its doc comment. Nothing else references it (`grep -rn OnlineToDotColor WhatsappApp` must print nothing at the end of this task).
 
-- [ ] **Step 3: Remove `IsOnline` from the model**
+- [x] **Step 3: Remove `IsOnline` from the model**
 
 In `WhatsappApp/Models/Contact.cs`, delete the `_isOnline` field and the `IsOnline` property.
 
 In `WhatsappApp/Services/DataService.cs`, delete the `IsOnline = false,` line from `ApplyContact`. In `WhatsappApp/Pages/ChatsPage.xaml.cs`, delete `IsOnline = false,` from the new-contact initialiser in `NewChatButton_Click`.
 
-- [ ] **Step 4: Replace the invented status line in the chat header**
+- [x] **Step 4: Replace the invented status line in the chat header**
 
 In `WhatsappApp/Pages/ChatPage.xaml.cs`, replace the `OnlineStatusText` assignment in `OnNavigatedTo`:
 
@@ -2207,7 +2207,7 @@ Add the helper next to the other private methods:
 
 and add `using System.Linq;` only if something else in the file needs it (the loop above deliberately avoids LINQ).
 
-- [ ] **Step 5: Request contacts only when the list is empty**
+- [x] **Step 5: Request contacts only when the list is empty**
 
 In `WhatsappApp/Pages/ChatsPage.xaml.cs`, replace the request at the end of `OnNavigatedTo`:
 
@@ -2224,7 +2224,7 @@ In `WhatsappApp/Pages/ChatsPage.xaml.cs`, replace the request at the end of `OnN
             }
 ```
 
-- [ ] **Step 6: Check nothing references what was removed**
+- [x] **Step 6: Check nothing references what was removed**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2233,7 +2233,7 @@ grep -rn "IsOnline\|OnlineToDotColor" WhatsappApp --include=*.cs --include=*.xam
 
 Expected: no output.
 
-- [ ] **Step 7: Run the guards and the VM build**
+- [x] **Step 7: Run the guards and the VM build**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2244,7 +2244,7 @@ xmllint --noout WhatsappApp/Pages/ChatsPage.xaml WhatsappApp/Pages/ChatPage.xaml
 then the three VM commands from Task 3 step 6.
 Expected: all `OK`; `Errori: 0`, `Avvisi: 2`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2270,7 +2270,7 @@ Three verified sources of dead code. Each was checked with `grep` over the whole
 - Consumes: nothing.
 - Produces: `CommunicationService` without `StartServerAsync`; `Contact` reduced to the properties the UI actually binds.
 
-- [ ] **Step 1: Confirm each is still unreferenced**
+- [x] **Step 1: Confirm each is still unreferenced**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2279,7 +2279,7 @@ grep -rn "StartServerAsync\|ServerConfig\|AvatarColor\|AvatarUri\|contact.Status
 
 Expected: only the definitions and the write-only assignments listed above. If a real usage shows up, drop that item from this task and say so in the commit message.
 
-- [ ] **Step 2: Delete the model file and its project entry**
+- [x] **Step 2: Delete the model file and its project entry**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2292,11 +2292,11 @@ then remove the matching line from `WhatsappApp/WhatsappApp.csproj`:
     <Compile Include="Models\ServerConfig.cs" />
 ```
 
-- [ ] **Step 3: Delete the unreachable server mode**
+- [x] **Step 3: Delete the unreachable server mode**
 
 In `WhatsappApp/Services/CommunicationService.cs`, delete the whole `StartServerAsync` method (line 202 onward, up to its closing brace). Keep `ConnectToServerAsync`, `SendMessageAsync`, `SendControlAsync`, `Prewarm` and `IsConnected`.
 
-- [ ] **Step 4: Delete the write-only `Contact` properties**
+- [x] **Step 4: Delete the write-only `Contact` properties**
 
 In `WhatsappApp/Models/Contact.cs`, delete `_status`/`Status`, `_avatarColor`/`AvatarColor` and `_avatarUri`/`AvatarUri`.
 
@@ -2305,7 +2305,7 @@ Then remove every assignment to them:
 - `WhatsappApp/Services/DataService.cs`: the two `AvatarColor = "#FF075E54",` lines (`OnNetworkMessageReceived` and `ApplyContact`) and the `Status = "",` line if it is still there.
 - `WhatsappApp/Pages/ChatsPage.xaml.cs`: the `AvatarColor = "#FF075E54",` line in `NewChatButton_Click`.
 
-- [ ] **Step 5: Check nothing references them**
+- [x] **Step 5: Check nothing references them**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2314,7 +2314,7 @@ grep -rn "ServerConfig\|StartServerAsync\|AvatarColor\|AvatarUri" WhatsappApp --
 
 Expected: no output.
 
-- [ ] **Step 6: Run the guards and the VM build**
+- [x] **Step 6: Run the guards and the VM build**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2324,7 +2324,7 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 then the three VM commands from Task 3 step 6.
 Expected: `OK: 27 C# file(s) are C# 5 compatible` (one file fewer), everything else `OK`; `Errori: 0`, `Avvisi: 2`.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2346,7 +2346,7 @@ The rules this plan adds must outlive it: the screens have documented data limit
 - Consumes: everything above.
 - Produces: no code.
 
-- [ ] **Step 1: Find the numbers that this plan invalidated**
+- [x] **Step 1: Find the numbers that this plan invalidated**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2355,32 +2355,32 @@ grep -rn "36\|47\|50\|53\|90 chiav\|90 key\|27 C#\|25 C#\|102" .agents/skills/*/
 
 Update every hit to the value the guards print now (tests, resw keys, C# file count). A skill that quotes a stale number teaches the next reader to distrust it.
 
-- [ ] **Step 2: Add the output-language rule to `maintain-the-app`**
+- [x] **Step 2: Add the output-language rule to `maintain-the-app`**
 
 Add one constraint to the numbered list: everything a person reads outside the app is English (adapter logs, `text:` frames, thrown errors, console scripts, the legacy relay); the app UI is the only localized surface, through `.resw` pairs; Italian code comments stay Italian.
 
-- [ ] **Step 3: Add the data-limit rule**
+- [x] **Step 3: Add the data-limit rule**
 
 In the same skill, add a short section: a screen may only show data that exists upstream. State the two facts this plan established — GOWA has no status endpoint (so the Status page is empty on purpose) and its call records are incoming-only and read by scanning the most recent chats — and the rule that follows: when a limit exists, the screen and the README pair say so, and no screen invents state (presence, "last seen") that no server sends.
 
-- [ ] **Step 4: Add the two gate lessons to `test-the-app`**
+- [x] **Step 4: Add the two gate lessons to `test-the-app`**
 
 - `tools/check-resw.js --strict` reads `Loc.Get("...")` occurrences in comments too, so a diagnostic label must be built as `"Loc.Get key " + key`, never with the literal call shape inside the string.
 - `Windows.winmd` membership is not a runtime guarantee: `AesGcm`, `AesCbc`, `DisplayRequest` and `RequestActive` are all listed and still returned `E_NOTIMPL` on the device. `Services/SelfCheck.cs` exists for exactly this, and its output is the evidence to ask for.
 
-- [ ] **Step 5: Add the English-output recipe to `update-the-app`**
+- [x] **Step 5: Add the English-output recipe to `update-the-app`**
 
 A short recipe: change the string in the adapter or the tool, update the test that asserts it (the adapter tests assert on `message-format` output), run `npm test`, then read every file with output in it before claiming the change is complete — `grep -nE "fail\(|console\.(log|error)|text: "` finds the surface.
 
-- [ ] **Step 6: Note the protocol additions in `release-the-app`**
+- [x] **Step 6: Note the protocol additions in `release-the-app`**
 
 Add a checklist line: a new control command or frame is additive and must be ignored gracefully by an older app, and the adapter's protocol tables in both READMEs must list it in the same commit.
 
-- [ ] **Step 7: Tick this plan**
+- [x] **Step 7: Tick this plan**
 
 In `docs/superpowers/plans/2026-09-25-english-output-finish-screens-and-bugs.md`, mark each finished step `- [x]` and add a short `## What execution changed about this plan` section listing every place the code, the guards or the build forced a change (the `addClientForTest` hook and the socket argument shape in the server tests are already one, and there will be more).
 
-- [ ] **Step 8: Run the whole gate**
+- [x] **Step 8: Run the whole gate**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2394,12 +2394,12 @@ cd WhatsappBridge && npm test
 
 Expected, with the counts this plan produces: C# files compatible, 13 icons / 9 distinct, 100 resw keys, 2 doc pairs aligned and 0 emoji, all QR self-checks passed, 62 tests pass.
 
-- [ ] **Step 9: Build the app one last time**
+- [x] **Step 9: Build the app one last time**
 
 Run the three VM commands from Task 3 step 6.
 Expected: `COPIA=0`, `Errori: 0`, `Avvisi: 2`, `WhatsappApp_1.0.1.0_x86_Debug.appxbundle` produced.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -2423,3 +2423,17 @@ git commit -m "docs: record the output-language and data-limit rules in the proj
 - **Spec coverage.** "Server output in English" → Tasks 1 and 2 (adapter, tools, legacy relay) with a grep gate. "Finish the unfinished screens" → Task 3 (Status, honest) and Tasks 4-5 (Calls, real data). "Find and fix bugs" → Tasks 6-7 (dropped webhook events), 8 (send status, unread badge, dropped messages), 9 (invented presence, redundant sync), 10 (dead code).
 - **Placeholder scan.** No step says "add validation", "handle edge cases" or "similar to Task N". Every code-changing step carries the code, and the two mechanically-long translations carry the exact before/after pair for every line, with a runnable check at the end (Task 1 step 9, Task 2 step 1).
 - **Type consistency.** `collectCalls`/`parseCallMetadata` signatures, the five `ChatMessage` members, the `call`/`calls.done`/`revoked`/`edited` command names, `RelatedMessageId`, `DataService.Calls`/`CallsScanCompleted`/`ClearCalls`/`Start`, and the `CallsPage` element names (`CallsListView`, `StatusText`, `RefreshButton`) are used with the same spelling in every task that touches them. `CallLogEntry` is defined before its only consumer, `CallsPage.xaml`, references its `Initials`, `Detail` and `TimeText`.
+
+---
+
+## What execution changed about this plan
+
+- **The baseline numbers had drifted.** The plan was written against 36 adapter tests, 90 resw keys and two build warnings; by the time it was executed the tree already had 54 adapter tests, 95 resw keys and a single warning (CS0618 - the CS4014 it predicted had already been fixed). All counts below are the real ones.
+- **Task 1 was mostly done already.** The adapter's `server.js`, `gowa-client.js`, `webhook-server.js`, `discovery.js` and `crypto-helper.js` had been translated by an earlier plan; only `message-format.js` (default sender, group name, four media placeholders) and two `sendControl({ text })` frames were still Italian.
+- **Task 2 needed files the plan had not listed.** Its own tables quoted lines that live in `tools/download.js` (`` `scarico ${file} ...` ``, `` `installato ...` ``) and `tools/services.js` (`` `${dir}/${script} non esiste` ``), so both were translated too, and `tools/test/download.test.js` and `tools/test/services.test.js` moved with them. The thrown error messages of `qr-term.js` were translated as well: they reach the screen through `reportLoginError`.
+- **Task 5: `CallsPage_Scanning.Text` became the bare `CallsPage_Scanning`.** The code reads it with `Loc.Get`, and `check-resw.js --strict` rejects a `.Text` key that no `x:Uid` uses ("is never used").
+- **Task 5: `_waiting` was dropped from `CallsPage`.** It was never read, so keeping it would have added a CS0414 "assigned but never used" warning to a build that has exactly one.
+- **Task 5: the icon set shrank.** The old Calls placeholder had an inline `<!-- IconCalls -->` `Path`; the list markup does not, so `check-icons.js` reports 12 inline paths instead of 13 (still 9 distinct - `IconCalls` lives on in `SectionNav`).
+- **Task 9 and 10 deleted resource keys the plan did not mention.** Removing the presence line orphaned `ChatPage_Online` and `ChatPage_LastSeenToday`, and removing `StartServerAsync` orphaned `CommService_ServerStarted` and `CommService_ServerStartError`; `check-resw.js --strict` fails on an unused key, so all four went with their code. `OnServerConnectionReceived` stays: nothing calls it now, but it is not a warning and deleting the surrounding listener plumbing was out of scope.
+- **Final counts.** 70 adapter tests (up from 54: 7 in `calls.test.js`, 2 in `gowa-client.test.js`, 1 in `config.test.js`, 1 in `message-format.test.js`, 5 in `server.test.js`), 17 tool tests, 100 resw keys, 27 C# files, 12 inline icon paths.
+- **The build gate passed at the end of every C# task:** `COPIA=0`, `Errori: 0`, one warning (CS0618 `PickSingleFileAsync`), `Your package has been successfully created`.
