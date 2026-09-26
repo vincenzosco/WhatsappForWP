@@ -99,6 +99,16 @@ test('loadConfig espone la configurazione di discovery', () => {
   assert.strictEqual(custom.discovery.name, 'studio');
 });
 
+test('the chat list limits have defaults and can be overridden', () => {
+  const defaults = loadConfig({});
+  assert.strictEqual(defaults.chats.limit, 25);
+  assert.strictEqual(defaults.chats.avatars, true);
+
+  const custom = loadConfig({ CHATS_LIMIT: '5', CHATS_AVATARS: 'off' });
+  assert.strictEqual(custom.chats.limit, 5);
+  assert.strictEqual(custom.chats.avatars, false);
+});
+
 test('applyDotEnv non fallisce se .env non esiste', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-env-'));
   const env = {};

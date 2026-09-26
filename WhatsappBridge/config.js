@@ -23,7 +23,9 @@ const DEFAULTS = {
   DISCOVERY_NAME: '',
   CALLS_CHAT_LIMIT: '25',
   CALLS_MESSAGES_PER_CHAT: '100',
-  CALLS_LIMIT: '50'
+  CALLS_LIMIT: '50',
+  CHATS_LIMIT: '25',
+  CHATS_AVATARS: 'on'
 };
 
 function pick(env, key) {
@@ -67,6 +69,12 @@ function loadConfig(env = process.env) {
       chatLimit: parseInt(pick(env, 'CALLS_CHAT_LIMIT'), 10),
       messagesPerChat: parseInt(pick(env, 'CALLS_MESSAGES_PER_CHAT'), 10),
       limit: parseInt(pick(env, 'CALLS_LIMIT'), 10)
+    },
+    chats: {
+      // Quante conversazioni elencare. Gli avatar costano una richiesta HTTP
+      // per persona, e si possono spegnere.
+      limit: parseInt(pick(env, 'CHATS_LIMIT'), 10),
+      avatars: pick(env, 'CHATS_AVATARS').toLowerCase() !== 'off'
     }
   };
 }

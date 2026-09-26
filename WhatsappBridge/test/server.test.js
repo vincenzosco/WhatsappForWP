@@ -228,6 +228,40 @@ test('the calls command answers with an error and calls.done when WhatsApp is no
   assert.deepStrictEqual(commands, ['error', 'calls.done']);
 });
 
+test('the chats command sends one frame per chat and then chats.done', async () => {
+  const sent = [];
+  const gowa = {
+    chats: async () => [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    chatMessages: async () => [{ content: 'ciao', timestamp: '2026-09-26T09:00:00Z' }],
+    avatar: async () => 'AAAA',
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' })
+  };
+  const config = { chats: { limit: 10, avatars: true }, calls: {}, bridge: { port: 8585 } };
+  const bridge = createBridge({ config, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(packet) });
+
+  await bridge.handleControl({ Type: 3, Command: 'chats', SenderName: 'test' });
+
+  const frames = sent.map((packet) => decodeFrame(packet));
+  assert.deepStrictEqual(frames.map((f) => f.Command), ['chat', 'chats.done']);
+  assert.strictEqual(frames[0].ChatId, 'a@s.whatsapp.net');
+  assert.strictEqual(frames[0].SenderName, 'Anna');
+  assert.strictEqual(frames[0].Text, 'ciao');
+  assert.strictEqual(frames[0].AvatarData, 'AAAA');
+});
+
+test('the chats command answers with an error and chats.done when WhatsApp is not connected', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: { chats: {} }, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(packet) });
+
+  await bridge.handleControl({ Type: 3, Command: 'chats', SenderName: 'test' });
+
+  const frames = sent.map((packet) => decodeFrame(packet));
+  assert.deepStrictEqual(frames.map((f) => f.Command), ['error', 'chats.done']);
+});
+
 function decodeFrame(packet) {
   const length = packet.readUInt32LE(0);
   const payload = packet.slice(4, 4 + length);
