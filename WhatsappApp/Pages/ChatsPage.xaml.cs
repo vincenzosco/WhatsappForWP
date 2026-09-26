@@ -1,8 +1,11 @@
 using System;
-using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;
 using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Markup;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Controls;
@@ -103,8 +106,18 @@ namespace WhatsappApp.Pages
                 Visibility = Visibility.Collapsed
             };
 
+            // Il selettore contatti del sistema riempie il campo: e' il consenso
+            // dell'utente, quindi l'app non legge la rubrica per conto suo.
+            var pickButton = new Button
+            {
+                Content = Loc.Get("NewChat_PickContact", "Choose from contacts"),
+                Margin = new Thickness(0, 12, 0, 0),
+                HorizontalAlignment = HorizontalAlignment.Stretch
+            };
+
             var content = new StackPanel();
             content.Children.Add(input);
+            content.Children.Add(pickButton);
             content.Children.Add(error);
 
             // WP8.1 ContentDialog has no CloseButtonText: the cancel text is the
@@ -118,22 +131,69 @@ namespace WhatsappApp.Pages
                 SecondaryButtonText = Loc.Get("NewChat_Cancel", "Cancel")
             };
 
+            Contact chosen = null;
+
+            pickButton.Click += async (s, a) =>
+            {
+                string picked = await PickFromContactsAsync();
+                if (!string.IsNullOrEmpty(picked)) input.Text = picked;
+            };
+
+            // Le conversazioni che il server conosce gia': sceglierne una evita
+            // di digitare un numero che l'utente probabilmente ha sott'occhio.
+            var known = new ListView
+            {
+                ItemsSource = DataService.Instance.Contacts,
+                MaxHeight = 220,
+                SelectionMode = ListViewSelectionMode.Single
+            };
+            known.ItemTemplate = (DataTemplate)XamlReader.Load(
+                "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">" +
+                "<TextBlock Text=\"{Binding Name}\" Foreground=\"Black\" FontSize=\"16\" Margin=\"0,8,0,8\"/>" +
+                "</DataTemplate>");
+            known.SelectionChanged += (s, a) =>
+            {
+                if (a.AddedItems.Count == 0) return;
+                chosen = a.AddedItems[0] as Contact;
+                dialog.Hide();
+            };
+
+            if (DataService.Instance.Contacts.Count > 0)
+            {
+                content.Children.Add(new TextBlock
+                {
+                    Text = Loc.Get("NewChat_Synced", "Conversations already on the server"),
+                    Foreground = new SolidColorBrush(Colors.Gray),
+                    FontSize = 13,
+                    Margin = new Thickness(0, 12, 0, 4)
+                });
+                content.Children.Add(known);
+            }
+
             string jid = null;
             string phone = null;
             while (jid == null)
             {
                 var result = await dialog.ShowAsync();
+
+                // Una chat scelta dall'elenco chiude la dialog da sola: il
+                // risultato e' None, quindi si controlla la scelta per prima.
+                if (chosen != null)
+                {
+                    Frame.Navigate(typeof(ChatPage), chosen);
+                    return;
+                }
+
                 if (result != ContentDialogResult.Primary) return;
 
-                phone = (input.Text ?? "").Trim()
-                    .Replace("+", "").Replace(" ", "").Replace("-", "");
-                if (phone.Length < 6 || !phone.All(char.IsDigit))
+                phone = NormalizePhone(input.Text);
+                if (phone.Length < 6)
                 {
                     error.Visibility = Visibility.Visible;
                     continue;
                 }
 
-                jid = phone.Contains("@") ? phone : phone + "@s.whatsapp.net";
+                jid = phone + "@s.whatsapp.net";
             }
 
             var existing = DataService.Instance.FindContact(jid);
@@ -152,6 +212,52 @@ namespace WhatsappApp.Pages
             };
             DataService.Instance.AddContact(contact);
             Frame.Navigate(typeof(ChatPage), contact);
+        }
+
+        /// <summary>
+        /// Apre il selettore contatti del sistema e restituisce il primo numero
+        /// trovato, ripulito. Vuoto se l'utente annulla o il contatto non ha
+        /// numeri: non e' un errore, e' una scelta.
+        /// </summary>
+        // CS0618: il compilatore propone Contact/PickContactAsync, che sono
+        // l'API di Windows 10. Su WP8.1 l'unica disponibile e' ContactInformation:
+        // l'avviso e' corretto e non c'e' niente da fare, quindi non si stampa
+        // ad ogni build (altrimenti un avviso nuovo non si nota piu').
+#pragma warning disable 618
+        private static async Task<string> PickFromContactsAsync()
+        {
+            try
+            {
+                var picker = new Windows.ApplicationModel.Contacts.ContactPicker();
+                PickerContact contact = await picker.PickSingleContactAsync();
+                if (contact == null || contact.PhoneNumbers == null || contact.PhoneNumbers.Count == 0) return "";
+
+                foreach (var phone in contact.PhoneNumbers)
+                {
+                    string number = NormalizePhone(phone.Value);
+                    if (!string.IsNullOrEmpty(number)) return number;
+                }
+                return "";
+            }
+            catch (Exception ex)
+            {
+                // Alcuni dispositivi rifiutano il selettore: non e' un crash.
+                Diag.Failed("ChatsPage.PickFromContactsAsync", ex);
+                return "";
+            }
+        }
+#pragma warning restore 618
+
+        /// <summary>Solo le cifre: il numero deve restare quello che l'app si aspetta.</summary>
+        private static string NormalizePhone(string value)
+        {
+            if (value == null) return "";
+            var digits = new StringBuilder();
+            foreach (char c in value)
+            {
+                if (char.IsDigit(c)) digits.Append(c);
+            }
+            return digits.Length >= 6 ? digits.ToString() : "";
         }
     }
 }

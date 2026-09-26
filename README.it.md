@@ -41,6 +41,18 @@ l'adapter ha scansionato (`CALLS_CHAT_LIMIT`, default 25), aggiornate all'apertu
 della scheda o con il pulsante Aggiorna. GOWA non conserva le chiamate in uscita,
 quindi non c'e' altro da mostrare.
 
+#### Chat e nuove chat
+
+L'elenco chat e' la lista vera delle conversazioni dell'account (`GET /chats`,
+limitata da `CHATS_LIMIT`), non la rubrica di WhatsApp, che su un dispositivo
+appena collegato e' vuota. Ogni riga porta l'ultimo messaggio e, per le persone,
+l'immagine del profilo (`GET /user/avatar`, si spegne con `CHATS_AVATARS=off`).
+
+Una nuova chat si apre in tre modi: digitando un numero con prefisso, scegliendo
+un contatto con il selettore del sistema (e' il consenso dell'utente, quindi l'app
+non legge mai la rubrica per conto suo), oppure toccando una conversazione che il
+server conosce gia'.
+
 ### WhatsappServer (app console .NET)
 
 Un semplice server TCP di inoltro, che distribuisce i messaggi tra i client
