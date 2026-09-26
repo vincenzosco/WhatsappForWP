@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Core;
@@ -58,6 +59,22 @@ namespace WhatsappApp.Services
         /// strada da cui e' arrivato OutOfMemoryException.
         /// </summary>
         private int _connectionId;
+
+        /// <summary>
+        /// Deadline della ConnectAsync, in millisecondi. StreamSocket non
+        /// accetta un timeout e non ha un CancellationToken: senza un limite il
+        /// telefono resta immobile su un indirizzo che non risponde piu' finche'
+        /// non si arrende lo stack TCP. Il socket si chiude alla scadenza, che e'
+        /// l'unico modo di annullare una connessione ancora in volo.
+        /// </summary>
+        private const int ConnectDeadlineMs = 6000;
+
+        // Gli errori WinSock arrivano come eccezioni WinRT con FACILITY_WIN32:
+        // 0x8007xxxx. WSAETIMEDOUT e' quello visto sul dispositivo.
+        private const int WsaETimedOut = unchecked((int)0x8007274C);
+        private const int WsaEConnRefused = unchecked((int)0x8007274D);
+        private const int WsaENetUnreachable = unchecked((int)0x80072743);
+        private const int WsaEHostUnreachable = unchecked((int)0x80072751);
 
         // Cached UI dispatcher for marshalling events to the UI thread
         private CoreDispatcher _uiDispatcher;
@@ -336,9 +353,39 @@ namespace WhatsappApp.Services
                     RaiseConnectionStatusChanged(Loc.Get("CommService_Connecting", "Connecting..."))
                 );
 
+                // Prima di aprire un socket: un indirizzo vuoto o una porta
+                // fuori intervallo non sono un guasto di rete da spiegare, sono
+                // un dato da correggere.
+                if (string.IsNullOrEmpty(address) || port < 1 || port > 65535)
+                {
+                    Diag.Failed("ConnectToServerAsync/address",
+                        new ArgumentException("indirizzo o porta non valida: " + Endpoint(address, port)));
+                    DispatchOnUiThread(() =>
+                        RaiseErrorOccurred(string.Format(
+                            Loc.Get("CommService_InvalidAddress",
+                                "Enter a valid address (host name or IP, port 1-65535): {0}"),
+                            Endpoint(address, port))));
+                    return false;
+                }
+
+                HostName hostName;
+                try
+                {
+                    hostName = new HostName(address);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("ConnectToServerAsync/hostname", ex);
+                    DispatchOnUiThread(() =>
+                        RaiseErrorOccurred(string.Format(
+                            Loc.Get("CommService_InvalidAddress",
+                                "Enter a valid address (host name or IP, port 1-65535): {0}"),
+                            Endpoint(address, port))));
+                    return false;
+                }
+
                 socket = new StreamSocket();
-                var hostName = new HostName(address);
-                await socket.ConnectAsync(hostName, port.ToString());
+                await ConnectWithDeadlineAsync(socket, hostName, port);
 
                 writer = new DataWriter(socket.OutputStream);
                 reader = new DataReader(socket.InputStream);
@@ -390,7 +437,7 @@ namespace WhatsappApp.Services
                         DispatchOnUiThread(() =>
                             RaiseErrorOccurred(string.Format(
                                 Loc.Get("CommService_ConnectError", "Connection error: {0}"),
-                                ExplainConnectionFailure(ex, "handshake"))));
+                                ExplainConnectionFailure(ex, "handshake", Endpoint(address, port)))));
                     }
                     else
                     {
@@ -430,7 +477,7 @@ namespace WhatsappApp.Services
                     DispatchOnUiThread(() =>
                         RaiseErrorOccurred(string.Format(
                             Loc.Get("CommService_ConnectError", "Connection error: {0}"),
-                            ExplainConnectionFailure(ex, "socket"))));
+                            ExplainConnectionFailure(ex, "socket", Endpoint(address, port)))));
                 }
                 return false;
             }
@@ -470,11 +517,49 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// ConnectAsync con una scadenza. Alla scadenza il socket viene chiuso,
+        /// che e' l'unico modo di annullare una connessione in volo, e si lancia
+        /// TimeoutException: la spiegazione all'utente la scrive
+        /// ExplainConnectionFailure.
+        /// </summary>
+        private static async Task ConnectWithDeadlineAsync(StreamSocket socket, HostName hostName, int port)
+        {
+            Task connecting = socket.ConnectAsync(hostName, port.ToString()).AsTask();
+            Task deadline = Task.Delay(ConnectDeadlineMs);
+
+            if (await Task.WhenAny(connecting, deadline) != connecting)
+            {
+                try { socket.Dispose(); }
+                catch (Exception ex) { Diag.Failed("ConnectWithDeadlineAsync/cancel", ex); }
+
+                // La ConnectAsync abbandonata fallira' con "operazione
+                // annullata": si osserva, altrimenti resta un'eccezione senza
+                // lettore.
+                connecting.ContinueWith(
+                    delegate(Task t) { AggregateException ignored = t.Exception; },
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
+
+                throw new TimeoutException(string.Format(
+                    "nessuna risposta da {0}:{1} entro {2} ms",
+                    hostName.RawName, port, ConnectDeadlineMs));
+            }
+
+            await connecting;   // propaga il guasto vero (rifiuto, host irraggiungibile, ...)
+        }
+
+        /// <summary>"indirizzo:porta", la forma in cui l'utente ha scritto il dato.</summary>
+        private static string Endpoint(string address, int port)
+        {
+            return string.Format("{0}:{1}", address, port);
+        }
+
+        /// <summary>
         /// Traduce il guasto in una riga comprensibile. "The method or operation
         /// is not implemented" non dice all'utente che manca un pezzo di
-        /// piattaforma, ne' quale passo della connessione e' caduto.
+        /// piattaforma; il testo inglese di WinSock non dice ne' quale indirizzo
+        /// ne' cosa fare.
         /// </summary>
-        private static string ExplainConnectionFailure(Exception ex, string stage)
+        private static string ExplainConnectionFailure(Exception ex, string stage, string endpoint)
         {
             bool platformMissing = ex is NotImplementedException
                 || ex is PlatformNotSupportedException
@@ -486,6 +571,30 @@ namespace WhatsappApp.Services
                     Loc.Get("CommService_PlatformMissing",
                         "This phone does not implement a required Windows feature ({0}: {1})"),
                     stage, ex.Message);
+            }
+
+            if (ex is TimeoutException || ex.HResult == WsaETimedOut)
+            {
+                return string.Format(
+                    Loc.Get("CommService_ConnectTimeout",
+                        "The server at {0} did not answer. Check that the PC is on, on the same network, and that the port is open."),
+                    endpoint);
+            }
+
+            if (ex.HResult == WsaEConnRefused)
+            {
+                return string.Format(
+                    Loc.Get("CommService_ConnectRefused",
+                        "The server at {0} refused the connection. Check that the adapter is running."),
+                    endpoint);
+            }
+
+            if (ex.HResult == WsaENetUnreachable || ex.HResult == WsaEHostUnreachable)
+            {
+                return string.Format(
+                    Loc.Get("CommService_ConnectUnreachable",
+                        "The server at {0} is not reachable on this network."),
+                    endpoint);
             }
 
             return ex.Message;
