@@ -60,6 +60,7 @@ namespace WhatsappApp.Models
         private int _qrDuration;        // QR validity in seconds
         private string _avatarData;     // immagine del profilo, base64
         private bool _isGroup;          // la chat e' un gruppo
+        private bool _isHistory;        // messaggio vecchio, mandato aprendo la chat
         private string _accountJid;     // WhatsApp JID of the logged-in account
         private string _callId;             // id della chiamata, da GOWA
         private string _callReason;         // esito riportato da GOWA (timeout, reject, ...)
@@ -285,6 +286,18 @@ namespace WhatsappApp.Models
         {
             get { return _isGroup; }
             set { _isGroup = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Cronologia: un messaggio vecchio, che l'adapter manda aprendo la chat.
+        /// E' un messaggio normale e va disegnato come tale, ma non e' arrivato
+        /// adesso: non conta come non letto e non alza nessun avviso.
+        /// </summary>
+        [DataMember]
+        public bool IsHistory
+        {
+            get { return _isHistory; }
+            set { _isHistory = value; OnPropertyChanged(); }
         }
 
         public string FormattedTime
