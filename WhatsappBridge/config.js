@@ -25,7 +25,8 @@ const DEFAULTS = {
   CALLS_MESSAGES_PER_CHAT: '100',
   CALLS_LIMIT: '50',
   CHATS_LIMIT: '25',
-  CHATS_AVATARS: 'on'
+  CHATS_AVATARS: 'on',
+  MESSAGES_LIMIT: '50'
 };
 
 function pick(env, key) {
@@ -75,6 +76,12 @@ function loadConfig(env = process.env) {
       // per persona, e si possono spegnere.
       limit: parseInt(pick(env, 'CHATS_LIMIT'), 10),
       avatars: pick(env, 'CHATS_AVATARS').toLowerCase() !== 'off'
+    },
+    messages: {
+      // Quanti messaggi caricare aprendo una chat. Una sola lettura, ma la
+      // risposta e' un frame per messaggio: il limite e' quanti frame passano,
+      // non quanto dura la lettura.
+      limit: parseInt(pick(env, 'MESSAGES_LIMIT'), 10)
     }
   };
 }

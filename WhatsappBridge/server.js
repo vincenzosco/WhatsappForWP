@@ -32,7 +32,7 @@ const os = require('os');
 const cryptoHelper = require('./crypto-helper');
 const { loadConfig, applyDotEnv } = require('./config');
 const { GowaClient } = require('./gowa-client');
-const { buildChatMessage, mapWebhookMessage } = require('./message-format');
+const { buildChatMessage, mapWebhookMessage, mapHistoryMessage } = require('./message-format');
 const { createWebhookServer } = require('./webhook-server');
 const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 const { collectCalls } = require('./calls');
@@ -125,6 +125,45 @@ function createBridge({ config, gowa, log, debug }) {
       sendControl({ command: 'error', text: `Chat list failed: ${err.message}` });
     } finally {
       sendControl({ command: 'chats.done' });
+    }
+  }
+
+  /**
+   * Lo storico di una chat, come frame di messaggio.
+   *
+   * Non e' un frame per chat come `chats`: e' un frame per messaggio, quindi il
+   * limite e' quanti frame passano. Ogni frame porta `IsHistory`, perche' l'app
+   * deve disegnarlo ma non contarlo fra i non letti.
+   */
+  async function sendMessages(chatId) {
+    if (!chatId) return;
+
+    if (state.status !== 'connected') {
+      sendControl({ command: 'error', chatId, text: 'WhatsApp is not connected: the chat history is unavailable.' });
+      return;
+    }
+
+    const limits = (config && config.messages) || {};
+    try {
+      const list = await gowa.chatMessages(chatId, limits.limit || 50);
+      let sent = 0;
+
+      for (const raw of list) {
+        const mapped = mapHistoryMessage(raw);
+        // Senza l'id di WhatsApp l'app non puo' riconoscere un doppione, e
+        // riaprendo la chat si accumulerebbero copie: meglio un messaggio in
+        // meno di una lista che si allunga da sola.
+        if (!mapped.id) continue;
+        if (!mapped.chatId) mapped.chatId = chatId;
+
+        sendControl(mapped);
+        sent++;
+      }
+
+      logger('INFO', `history: ${sent} message(s) for ${chatId}`);
+    } catch (err) {
+      logger('ERR', `history failed for ${chatId}: ${err.message}`);
+      sendControl({ command: 'error', chatId, text: `Chat history failed: ${err.message}` });
     }
   }
 
@@ -421,6 +460,12 @@ function createBridge({ config, gowa, log, debug }) {
         break;
       case 'chats':
         await sendChats();
+        break;
+      case 'messages':
+        // Il JID viaggia in `Text`, come per `login.code`: e' il campo che il
+        // protocollo di controllo usa per il dato di accompagnamento, e cosi'
+        // non serve un secondo tipo di frame in uscita.
+        await sendMessages((msg.Text || '').trim());
         break;
       case 'logout':
         try { await gowa.logout(); } catch (e) { /* ignora */ }

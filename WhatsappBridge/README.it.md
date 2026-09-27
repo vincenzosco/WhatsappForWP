@@ -22,6 +22,12 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
 - `message.revoked` e `message.edited` vengono inoltrati all'app come frame di controllo
   `revoked` ed `edited`, cosi' un messaggio cancellato o modificato dal telefono non
   resta congelato nell'app. `message.reaction` resta ignorato: non c'e' dove disegnarlo.
+- Aprendo una chat l'app ne chiede i messaggi gia' in memoria al server (`messages`),
+  e l'adapter risponde con frame di messaggio normali marcati `IsHistory`. L'app li
+  inserisce in ordine di data e li tiene fuori dal conteggio dei non letti e dagli
+  avvisi: non stanno arrivando adesso. Un messaggio il cui media non e' fra i byte che
+  il webhook ha consegnato viene mandato come testo - `[Image]`, `[Video]`, ... -
+  perche' un fumetto vuoto e' peggio di una parola.
 
 ## Protocollo di controllo
 
@@ -37,6 +43,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `logout` | — |
 | app -> adapter | `calls` | — (solo in entrata, dalle `CALLS_CHAT_LIMIT` chat più recenti) |
 | app -> adapter | `chats` | — (le conversazioni dell'account collegato, dalla più recente) |
+| app -> adapter | `messages` | `Text` = JID della chat (fino a `MESSAGES_LIMIT` messaggi, come frame normali marcati `IsHistory`) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |

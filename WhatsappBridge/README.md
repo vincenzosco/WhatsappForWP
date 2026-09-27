@@ -21,6 +21,11 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
 - `message.revoked` and `message.edited` are forwarded to the app as `revoked` and
   `edited` control frames, so a message deleted or changed on the phone does not stay
   frozen in the app. `message.reaction` is ignored: there is nowhere to draw it.
+- Opening a chat asks for its stored messages (`messages`), and the adapter answers
+  with ordinary message frames marked `IsHistory`. The app inserts them in date order
+  and keeps them out of the unread count and the toasts: they are not arriving now. A
+  message whose media is not among the bytes the webhook delivered is sent as text -
+  `[Image]`, `[Video]`, ... - because an empty bubble is worse than a word.
 
 ## Control protocol
 
@@ -36,6 +41,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `logout` | — |
 | app -> adapter | `calls` | — (incoming only, from the most recent `CALLS_CHAT_LIMIT` chats) |
 | app -> adapter | `chats` | — (the linked account's conversations, most recent first) |
+| app -> adapter | `messages` | `Text` = chat JID (up to `MESSAGES_LIMIT` messages, as ordinary frames marked `IsHistory`) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
