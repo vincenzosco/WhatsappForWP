@@ -5,7 +5,7 @@ description: Step-by-step recipes for extending the WhatsApp WP8.1 app - adding 
 
 # Updating the app
 
-Every recipe ends the same way: run the guards, then commit.
+Every recipe ends the same way: run the guards, then commit and push.
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -171,7 +171,7 @@ one of those strings:
    higher version is what makes redeploy an *upgrade* instead of a conflict.
 2. `WhatsappApp/Properties/AssemblyInfo.cs`: `AssemblyVersion` /
    `AssemblyFileVersion` to match.
-3. Commit both together.
+3. Commit both together and push.
 
 ## Change the tile, name or splash
 
