@@ -270,3 +270,10 @@ empty".
     `[Image]`. Tap it once, wait, tap it again: the image opens full screen, and a
     tap closes it.
 37. Send a photo yourself and tap it: it opens full screen. Tap it again: it closes.
+38. Have someone send a video longer than about 6 MB while the app is closed, then
+    open the chat: the row shows the play box (not a bare word). Tap it once, wait for
+    the pieces, tap it again: the video plays with the system controls, and the X
+    closes it. Leave and come back mid-download: it does not lock up or play half a
+    file.
+39. Send a video yourself: the play box appears while it is in flight, and tapping it
+    does nothing, because the app does not keep the bytes it sent.

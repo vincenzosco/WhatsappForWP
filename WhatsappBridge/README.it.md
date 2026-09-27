@@ -42,8 +42,14 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
 - Una foto o un video nella cronologia di una chat e' arrivato col telefono spento: i suoi
   byte sono stati consegnati all'adapter e a nessun altro, quindi la riga e' una parola
   (`[Image]`). Toccarla lo chiede all'adapter (`media.get`), che legge
-  `GET /message/:id/download` da GOWA e risponde con i byte in un frame `media`; l'app li
+  `GET /message/:id/download` da GOWA e risponde con i byte in frame `media`; l'app li
   mette sul messaggio che ha gia'. Non si scarica niente finche' non viene chiesto.
+- Quei byte tornano a pezzi anche loro, un frame `media` ogni `MEDIA_CHUNK_CHARS`
+  (700000) caratteri base64, ognuno con `MediaChunkIndex`, `MediaChunkTotal` e
+  `MediaType`. Un video e' molto piu' grande di un frame, e il telefono lo ricompone: un
+  video in un file locale, una foto in memoria. Un messaggio in arrivo il cui media il
+  webhook ha gia' consegnato segue la stessa strada: il frame del messaggio lo annuncia
+  (con `MediaType`), poi i frame `media` lo portano.
 
 ## Protocollo di controllo
 
@@ -64,7 +70,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.begin` | `Text` = JID della chat, `MediaTransferId`, `MediaFileName`, `MediaMimeType`, `MediaChunkTotal` (segue un allegato) |
 | app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = un pezzo in base64 (multiplo di 4 caratteri) |
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = didascalia (ricompone e spedisce) |
-| app -> adapter | `media.get` | `Text` = JID della chat, `RelatedMessageId` = id del messaggio (scarica il media di quel messaggio e risponde con un frame `media`) |
+| app -> adapter | `media.get` | `Text` = JID della chat, `RelatedMessageId` = id del messaggio (scarica il media di quel messaggio e risponde con un frame `media` per pezzo) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
@@ -75,7 +81,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | adapter -> app | `chats.done` | — (l'elenco è finito) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id del messaggio cancellato |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = il nuovo testo |
-| adapter -> app | `media` | `ChatId`, `RelatedMessageId`, `MediaData`, `MediaMimeType`: i byte di un messaggio che l'app ha gia' |
+| adapter -> app | `media` | `ChatId`, `RelatedMessageId`, `MediaData` = un pezzo base64, `MediaMimeType`, `MediaFileName`, `MediaType`, `MediaChunkIndex`, `MediaChunkTotal`: un pezzo di un messaggio che l'app ha gia' |
 | adapter -> app | `error` | `Text` |
 
 Un frame e' `[lunghezza 4 byte little-endian][payload]`. Una lunghezza uguale a

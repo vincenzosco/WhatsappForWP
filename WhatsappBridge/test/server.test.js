@@ -550,3 +550,58 @@ test('media.get dice che il media non c e piu invece di restare muto', async () 
   assert.strictEqual(sent[0].Command, 'error');
   assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
 });
+
+test('un media troppo grande per un frame si scarica a pezzi, e l ordine si legge', async () => {
+  const bytes = Buffer.alloc(600000, 7);          // base64: ~800000 caratteri, due pezzi
+  const whole = bytes.toString('base64');
+  const sent = [];
+  const gowa = {
+    downloadMedia: async () => ({ base64: whole, mimeType: 'video/mp4', fileName: 'clip.mp4' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({
+    Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'M9'
+  });
+
+  const parts = sent.filter((f) => f.Command === 'media');
+  assert.ok(parts.length > 1, 'un media grande deve viaggiare in piu di un frame');
+  assert.strictEqual(parts[0].MediaType, 'video');
+  assert.strictEqual(parts[0].RelatedMessageId, 'M9');
+  assert.strictEqual(parts[0].MediaChunkTotal, parts.length);
+  parts.forEach((part, i) => assert.strictEqual(part.MediaChunkIndex, i));
+  // I pezzi si concatenano e danno il file intero: e' quello che fara' l app.
+  assert.strictEqual(parts.map((p) => p.MediaData).join(''), whole);
+});
+
+test('un video in arrivo si annuncia come video e i byte seguono a pezzi', async () => {
+  const sent = [];
+  const video = Buffer.from('video finto che sta nel frame');
+  const gowa = {
+    fetchBinary: async () => ({ buffer: video, contentType: 'video/mp4' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    payload: {
+      id: 'V1', chat_id: 'a@s.whatsapp.net', from: 'a@s.whatsapp.net',
+      video: { path: 'statics/media/v.mp4' }, timestamp: '2026-09-27T08:00:00Z'
+    }
+  });
+
+  const announced = sent[0];
+  assert.strictEqual(announced.Type, 4);
+  assert.strictEqual(announced.MediaType, 'video');
+  assert.strictEqual(announced.MediaData, undefined);
+
+  const bytes = sent.filter((f) => f.Command === 'media');
+  assert.strictEqual(bytes.length, 1);
+  assert.strictEqual(bytes[0].RelatedMessageId, 'V1');
+  assert.strictEqual(bytes[0].MediaChunkTotal, 1);
+  assert.strictEqual(bytes[0].MediaData, video.toString('base64'));
+});

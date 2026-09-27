@@ -2,6 +2,8 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
+using Windows.Storage;
+using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -99,6 +101,7 @@ namespace WhatsappApp.Pages
             DataService.Instance.ActiveChatId = null;
             _pendingScroll = null;
             HideFullScreen();
+            StopVideo();
         }
 
         /// <summary>
@@ -158,15 +161,27 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Un'immagine di questa conversazione che non ha ancora i byte: e' una
-        /// riga di cronologia, e si puo' chiedere al server. Il tipo dice che
-        /// era un'immagine; per un video non c'e' niente da disegnare.
+        /// Un media di questa conversazione che non ha ancora i byte: e' una
+        /// riga di cronologia (o un video di cui l'adapter non aveva il file),
+        /// e si puo' chiedere al server. Il tipo dice che era un'immagine o un
+        /// video; entrambi si possono chiedere.
         /// </summary>
-        private static bool DownloadableImage(ChatMessage message)
+        private static bool Downloadable(ChatMessage message)
         {
             if (message == null) return false;
-            return string.Equals(message.MediaType, "image", StringComparison.OrdinalIgnoreCase)
-                && string.IsNullOrEmpty(message.MediaData);
+
+            // Solo cio' che e' arrivato da fuori ha un id che il server
+            // conosce: un messaggio scritto qui porta un id locale, e
+            // chiederlo al server sarebbe una richiesta senza risposta.
+            if (!message.IsIncoming) return false;
+
+            if (string.Equals(message.MediaType, "video", StringComparison.OrdinalIgnoreCase))
+                return string.IsNullOrEmpty(message.MediaFilePath);
+
+            if (string.Equals(message.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+                return string.IsNullOrEmpty(message.MediaData);
+
+            return false;
         }
 
         private void RequestMedia(ChatMessage message)
@@ -185,22 +200,35 @@ namespace WhatsappApp.Pages
         /// </summary>
         private const int ViewerDecodePixels = 720;
 
-        private async void Image_Tapped(object sender, TappedRoutedEventArgs e)
+        private async void Media_Tapped(object sender, TappedRoutedEventArgs e)
         {
             var element = sender as FrameworkElement;
             var message = element == null ? null : element.DataContext as ChatMessage;
             if (message == null) return;
             e.Handled = true;
 
-            // Con i byte: si apre. Senza, ed e' un'immagine di cronologia: si
-            // chiede al server, e si aprira' al tocco successivo.
+            // Un video ha i byte su disco e si apre nel lettore; un'immagine ha
+            // i byte in memoria e si apre a tutto schermo. Senza byte: si chiede
+            // al server, e si aprira' al tocco successivo.
+            if (message.IsVideo)
+            {
+                if (!string.IsNullOrEmpty(message.MediaFilePath))
+                {
+                    await PlayVideoAsync(message);
+                    return;
+                }
+
+                if (Downloadable(message)) RequestMedia(message);
+                return;
+            }
+
             if (!string.IsNullOrEmpty(message.MediaData))
             {
                 await ShowFullScreenAsync(message);
                 return;
             }
 
-            if (DownloadableImage(message)) RequestMedia(message);
+            if (Downloadable(message)) RequestMedia(message);
         }
 
         private async System.Threading.Tasks.Task ShowFullScreenAsync(ChatMessage message)
@@ -230,6 +258,80 @@ namespace WhatsappApp.Pages
         {
             ImageViewer.Visibility = Visibility.Collapsed;
             ImageViewerImage.Source = null;
+        }
+
+        /// <summary>
+        /// Il flusso del video in riproduzione. Va tenuto aperto finche' il
+        /// lettore lo usa - chiuderlo subito lo lascerebbe senza sorgente - e
+        /// chiuso quando si esce.
+        /// </summary>
+        private IRandomAccessStream _videoStream;
+
+        /// <summary>
+        /// Apre il video ricevuto nel lettore a tutto schermo. I byte sono su
+        /// disco (IncomingMediaStore), quindi qui si apre il file: il video
+        /// intero non e' mai stato in memoria, e non ci entra adesso.
+        /// </summary>
+        private async System.Threading.Tasks.Task PlayVideoAsync(ChatMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
+
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder
+                    .GetFileAsync(message.MediaFilePath);
+                IRandomAccessStream stream = await file.OpenReadAsync();
+
+                StopVideo();
+                _videoStream = stream;
+                VideoPlayer.SetSource(stream, message.MediaMimeType ?? "video/mp4");
+                VideoViewer.Visibility = Visibility.Visible;
+                VideoPlayer.Play();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.PlayVideoAsync", ex);
+                StopVideo();
+            }
+        }
+
+        private void VideoCloseButton_Click(object sender, RoutedEventArgs e)
+        {
+            StopVideo();
+        }
+
+        private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            // Un video che il telefono non sa decodificare: si chiude e si
+            // lascia la traccia, invece di restare su uno schermo nero. In
+            // WP8.1 l'evento porta solo il messaggio, non l'eccezione.
+            string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
+                ? e.ErrorMessage
+                : "media failed";
+            Diag.Failed("ChatPage/VideoPlayer", new InvalidOperationException(reason));
+            StopVideo();
+        }
+
+        /// <summary>Chiude il lettore e libera il flusso. Sicura da chiamare anche a vuoto.</summary>
+        private void StopVideo()
+        {
+            try
+            {
+                VideoPlayer.Stop();
+                VideoPlayer.Source = null;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.StopVideo", ex);
+            }
+
+            if (_videoStream != null)
+            {
+                _videoStream.Dispose();
+                _videoStream = null;
+            }
+
+            VideoViewer.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>
