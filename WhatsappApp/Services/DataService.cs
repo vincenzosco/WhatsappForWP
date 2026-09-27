@@ -29,6 +29,10 @@ namespace WhatsappApp.Services
         private readonly ObservableCollection<CallLogEntry> _calls;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
 
+        // Le chat di cui questa sessione ha gia' chiesto la cronologia: una
+        // volta per chat, non a ogni apertura.
+        private readonly HashSet<string> _historyRequested = new HashSet<string>();
+
         // Indice per id: senza questo ogni messaggio in arrivo scandiva tutta
         // la lista dei contatti (FirstOrDefault) per trovare la chat.
         private readonly Dictionary<string, Contact> _contactIndex =
@@ -108,6 +112,15 @@ namespace WhatsappApp.Services
         {
             // Ignore system/handshake messages
             if (message.Type == MessageType.System) return;
+
+            // La cronologia e' testo, ma non e' arrivata adesso: entra in ordine
+            // e senza contare. Tutto il resto di questo metodo e' per quello che
+            // arriva adesso - anteprima della riga, non letti, avviso.
+            if (message.IsHistory)
+            {
+                AddHistoryMessage(message);
+                return;
+            }
 
             // Add to the appropriate chat's message list
             if (!_chatMessages.ContainsKey(message.ChatId))
@@ -443,6 +456,55 @@ namespace WhatsappApp.Services
                 _chatMessages[chatId] = new ObservableCollection<ChatMessage>();
             }
             return _chatMessages[chatId];
+        }
+
+        /// <summary>
+        /// Dice se la cronologia di questa chat va chiesta adesso, e nel caso se
+        /// ne ricorda: una volta per chat per sessione. Riaprire la stessa chat
+        /// la mostra subito dalla memoria, invece di rifare il giro sul filo.
+        /// </summary>
+        public bool MarkHistoryRequested(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return false;
+            return _historyRequested.Add(chatId);
+        }
+
+        /// <summary>
+        /// Inserisce un messaggio di cronologia al posto giusto.
+        ///
+        /// Al posto giusto e non in fondo: l'adapter non promette l'ordine - lo
+        /// dice gia' chats.js - e riaprendo una chat i messaggi vecchi devono
+        /// finire prima di quelli arrivati in questa sessione. Lo stesso id due
+        /// volte non entra: e' la chiave per cui chiedere la cronologia non puo'
+        /// duplicare quello che c'e' gia'.
+        ///
+        /// Non tocca la riga dell'elenco: l'anteprima e' l'ultimo messaggio
+        /// vero, e un messaggio vecchio non deve riscriverla ne' spostare la
+        /// conversazione in cima.
+        /// </summary>
+        private void AddHistoryMessage(ChatMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.ChatId)) return;
+
+            var list = GetMessages(message.ChatId);
+
+            if (!string.IsNullOrEmpty(message.Id))
+            {
+                for (int i = 0; i < list.Count; i++)
+                {
+                    if (list[i] != null && list[i].Id == message.Id) return;
+                }
+            }
+
+            int index = 0;
+            while (index < list.Count
+                && list[index] != null
+                && list[index].Timestamp <= message.Timestamp)
+            {
+                index++;
+            }
+
+            list.Insert(index, message);
         }
 
         public void AddMessage(string chatId, ChatMessage message)

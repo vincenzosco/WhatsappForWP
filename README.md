@@ -95,6 +95,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Syncs contacts from `GET /user/my/contacts`
 - Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (two requests per person: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
 - Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
+- Loads a chat's stored messages when it is opened (`messages`, up to `MESSAGES_LIMIT`), as frames marked `IsHistory`: they are inserted in date order and stay out of the unread count and the toasts
 
 **Setup (one command)**
 
@@ -470,6 +471,7 @@ node tools/check-docs.js
 - Call records list incoming calls only, taken from the most recent chats the server scanned. See the Calls section below for the exact bound.
 - Message deletions and edits made on the phone reach the app only while it is connected: they are not replayed after a restart. They are matched by WhatsApp's message id, so messages the app itself sent are not matched.
 - Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered on resume, when the app reconnects by itself - it is not announced at the moment it arrives.
+- Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone, and a photo or a video in that history is shown as a word (`[Image]`, `[Video]`): its bytes are not among the ones the webhook delivered.
 
 ## Disclaimer
 

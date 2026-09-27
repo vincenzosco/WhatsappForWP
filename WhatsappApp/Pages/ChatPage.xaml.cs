@@ -68,6 +68,18 @@ namespace WhatsappApp.Pages
                 // Da qui in poi i messaggi di questa chat sono gia' letti
                 DataService.Instance.ActiveChatId = contact.Id;
 
+                // La cronologia della chat: l'adapter risponde con i messaggi
+                // vecchi, marcati IsHistory, e si chiede una volta per chat per
+                // sessione. Senza questa richiesta una conversazione appena
+                // aperta resta vuota finche' non arriva qualcosa di nuovo.
+                if (CommunicationService.Instance.IsConnected
+                    && DataService.Instance.MarkHistoryRequested(contact.Id))
+                {
+#pragma warning disable 4014
+                    CommunicationService.Instance.SendControlAsync("messages", contact.Id);
+#pragma warning restore 4014
+                }
+
                 // Listen for new messages
                 CommunicationService.Instance.MessageReceived += OnMessageReceived;
 
