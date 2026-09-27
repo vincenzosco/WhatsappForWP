@@ -28,6 +28,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -131,7 +132,17 @@
             </Button>
         </Grid>
 
-        <Grid Grid.Row="1" Background="{StaticResource WhatsAppChatBgBrush}">
+        <!-- Un'immagine scelta col selettore o condivisa da un'altra app aspetta
+             una chat. Senza questa riga l'app si aprirebbe su un elenco e
+             sembrerebbe che non sia successo niente. -->
+        <Border x:Name="PendingAttachmentBar" Grid.Row="1"
+                Background="#FFFFF3CD" Padding="12,8" Visibility="Collapsed">
+            <TextBlock x:Uid="ChatsPage_PendingImage"
+                       Text="An image is ready: open a chat to send it"
+                       Foreground="#FF7A5B00" FontSize="13" TextWrapping="Wrap"/>
+        </Border>
+
+        <Grid Grid.Row="2" Background="{StaticResource WhatsAppChatBgBrush}">
             <ListView x:Name="ChatListView"
                       ItemsSource="{Binding}"
                       ItemContainerStyle="{StaticResource ChatItemContainerStyle}"
@@ -239,6 +250,6 @@
             </StackPanel>
         </Grid>
 
-        <controls:SectionNav x:Name="Nav" Grid.Row="2"/>
+        <controls:SectionNav x:Name="Nav" Grid.Row="3"/>
     </Grid>
 </Page>

@@ -5,8 +5,12 @@ using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.ApplicationModel;
 using Windows.ApplicationModel.Activation;
+using Windows.ApplicationModel.DataTransfer;
+using Windows.ApplicationModel.DataTransfer.ShareTarget;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
+using Windows.Storage;
+using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Controls.Primitives;
@@ -276,6 +280,93 @@ namespace WhatsappApp
 #pragma warning disable 4014
             AttachmentInbox.PutAsync(continuation.Files[0], null);
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Un'altra applicazione sta condividendo qualcosa con questa (Galleria,
+        /// Foto, browser). L'immagine si deposita e si portano davanti le chat:
+        /// il passo successivo e' scegliere a chi mandarla.
+        /// </summary>
+        protected override void OnShareTargetActivated(ShareTargetActivatedEventArgs e)
+        {
+            base.OnShareTargetActivated(e);
+
+            if (e == null || e.ShareOperation == null) return;
+
+            // Questa attivazione puo' essere l'avvio del processo: i servizi e il
+            // frame non ci sono ancora.
+            StartServicesOnce();
+            var rootFrame = EnsureFrame();
+            if (!(rootFrame.Content is ChatsPage))
+            {
+                rootFrame.Navigate(typeof(ChatsPage));
+            }
+            Window.Current.Activate();
+
+#pragma warning disable 4014
+            AcceptShareAsync(e.ShareOperation);
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Legge cio' che e' stato condiviso, se e' un'immagine.
+        ///
+        /// Due forme possibili: un elenco di file (quasi tutte le app) o una
+        /// bitmap sola. Un testo non si usa: l'utente ha chiesto di condividere
+        /// un'immagine, e l'app si limita a non fare niente se non c'e'.
+        /// </summary>
+        private async System.Threading.Tasks.Task AcceptShareAsync(ShareOperation operation)
+        {
+            try
+            {
+                var data = operation.Data;
+                if (data == null) return;
+
+                if (data.Contains(StandardDataFormats.StorageItems))
+                {
+                    var items = await data.GetStorageItemsAsync();
+                    for (int i = 0; i < items.Count; i++)
+                    {
+                        var file = items[i] as StorageFile;
+                        if (file == null) continue;
+
+                        await AttachmentInbox.PutAsync(file, null);
+                        break;
+                    }
+                }
+                else if (data.Contains(StandardDataFormats.Bitmap))
+                {
+                    var reference = await data.GetBitmapAsync();
+                    using (var stream = await reference.OpenReadAsync())
+                    {
+                        using (var reader = new DataReader(stream))
+                        {
+                            uint size = (uint)stream.Size;
+                            await reader.LoadAsync(size);
+                            var buffer = new byte[size];
+                            reader.ReadBytes(buffer);
+                            AttachmentInbox.PutBytes(buffer, "shared.png", "image/png", null);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/share", ex);
+            }
+            finally
+            {
+                // Va sempre detto che la condivisione e' finita: un'operazione
+                // non riportata lascia l'app chiamante a girare a vuoto.
+                try
+                {
+                    operation.ReportCompleted();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("App/share-report", ex);
+                }
+            }
         }
     }
 }

@@ -62,6 +62,12 @@ documentata come non supportata su Windows Phone, e sul telefono falliva in
 silenzio: l'app viene deattivata mentre il selettore e' aperto, e il file scelto
 arriva ad `App.OnActivated` come `PickFileContinuation`.
 
+Condividere un'immagine dentro l'app funziona da qualsiasi app che offra
+Condividi (Foto, Galleria, un browser): il manifest dichiara un'estensione
+`windows.shareTarget` per `Bitmap` e `StorageItems`, e `App.OnShareTargetActivated`
+mette l'immagine nello stesso posto in attesa che usa il selettore. L'app si apre
+sull'elenco chat, perche' il passo successivo e' scegliere a chi mandarla.
+
 ### WhatsappServer (app console .NET)
 
 Un semplice server TCP di inoltro, che distribuisce i messaggi tra i client
