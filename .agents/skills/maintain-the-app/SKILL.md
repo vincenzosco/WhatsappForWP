@@ -43,6 +43,11 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 1. **C# 5.** The WP8.1 toolchain compiler rejects C# 6/7 syntax:
    `$"..."`, `?.`, `get => x`, `X Y { get; set; } = v;`, `out int x`,
    `is Contact c`, `nameof(...)`, `_ = ...`.
+   It also refuses to `await` inside a `catch` block (CS1985, "Cannot await in
+   the body of a catch clause"): take note of the failure in the catch and await
+   after the block. That one is positional, not a property of the line, so the
+   guard scans each `catch` body and flags a bare `await` (`await` inside a
+   lambda in the block belongs to the lambda and is fine).
    Gate: `node tools/check-csharp5.js` (it also flags WP8.1-missing WinRT APIs
    such as `CryptographicBuffer.CreateFromByteArray(byte[], uint, uint)` and
    `ContentDialog.CloseButtonText`).
