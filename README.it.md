@@ -57,6 +57,11 @@ un contatto con il selettore del sistema (e' il consenso dell'utente, quindi l'a
 non legge mai la rubrica per conto suo), oppure toccando una conversazione che il
 server conosce gia'.
 
+Allegare un'immagine usa `PickSingleFileAndContinue`. `PickSingleFileAsync` e'
+documentata come non supportata su Windows Phone, e sul telefono falliva in
+silenzio: l'app viene deattivata mentre il selettore e' aperto, e il file scelto
+arriva ad `App.OnActivated` come `PickFileContinuation`.
+
 ### WhatsappServer (app console .NET)
 
 Un semplice server TCP di inoltro, che distribuisce i messaggi tra i client

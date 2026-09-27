@@ -2,9 +2,6 @@ using System;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using Windows.Storage;
-using Windows.Storage.Pickers;
-using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -19,8 +16,12 @@ namespace WhatsappApp.Pages
     {
         private Contact _contact;
         private ObservableCollection<ChatMessage> _messages;
-        private StorageFile _selectedImageFile;
+        // L'immagine scelta: i byte, piu' cio' che serve per inviarla. Non il
+        // StorageFile: dopo il selettore il file puo' appartenere a un processo
+        // che non c'e' piu' (vedi AttachmentInbox).
         private string _selectedImageBase64;
+        private string _selectedImageFileName;
+        private string _selectedImageMimeType;
         private ChatMessage _pendingScroll;
         private bool _scrollQueued;
 
@@ -69,6 +70,12 @@ namespace WhatsappApp.Pages
 
                 // Listen for new messages
                 CommunicationService.Instance.MessageReceived += OnMessageReceived;
+
+                // Un'immagine arrivata da fuori puo' essere arrivata mentre
+                // questa pagina non c'era (processo riavviato): si ritira qui, e
+                // da qui in poi anche all'arrivo.
+                AttachmentInbox.Ready += OnAttachmentReady;
+                ShowPendingAttachment();
             }
         }
 
@@ -76,6 +83,7 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
+            AttachmentInbox.Ready -= OnAttachmentReady;
             DataService.Instance.ActiveChatId = null;
             _pendingScroll = null;
         }
@@ -141,7 +149,7 @@ namespace WhatsappApp.Pages
             string text = (MessageTextBox.Text ?? "").Trim();
 
             // If we have a selected image, send it as an image message
-            if (_selectedImageFile != null && _selectedImageBase64 != null)
+            if (_selectedImageBase64 != null)
             {
                 await SendImageMessage(text);
                 return;
@@ -168,11 +176,9 @@ namespace WhatsappApp.Pages
 
         private async System.Threading.Tasks.Task SendImageMessage(string caption)
         {
-            string mimeType = "image/jpeg";
-            string extension = _selectedImageFile == null ? null : _selectedImageFile.FileType.ToLower();
-            if (extension == ".png") mimeType = "image/png";
-            else if (extension == ".gif") mimeType = "image/gif";
-            else if (extension == ".bmp") mimeType = "image/bmp";
+            // Il tipo lo decide chi ha consegnato l'immagine: AttachmentInbox lo
+            // ricava dall'estensione una volta sola.
+            string mimeType = _selectedImageMimeType ?? "image/jpeg";
 
             var message = new ChatMessage
             {
@@ -187,7 +193,7 @@ namespace WhatsappApp.Pages
                 Status = MessageStatus.Sending,
                 MediaData = _selectedImageBase64,
                 MediaMimeType = mimeType,
-                MediaFileName = _selectedImageFile == null ? null : _selectedImageFile.Name
+                MediaFileName = _selectedImageFileName
             };
 
             // Decodifica locale: il mittente deve vedere la propria immagine
@@ -249,46 +255,15 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Attach button: opens a file picker to select an image
+        /// Pulsante allegato: chiede il selettore di sistema. La risposta non
+        /// arriva qui - arriva ad App.OnActivated dopo che l'app e' stata
+        /// riattivata - quindi non c'e' niente da attendere.
         /// </summary>
-        private async void AttachButton_Click(object sender, RoutedEventArgs e)
+        private void AttachButton_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                var picker = new FileOpenPicker
-                {
-                    ViewMode = PickerViewMode.Thumbnail,
-                    SuggestedStartLocation = PickerLocationId.PicturesLibrary
-                };
-                picker.FileTypeFilter.Add(".jpg");
-                picker.FileTypeFilter.Add(".jpeg");
-                picker.FileTypeFilter.Add(".png");
-                picker.FileTypeFilter.Add(".gif");
-                picker.FileTypeFilter.Add(".bmp");
-
-                var file = await picker.PickSingleFileAsync();
-                if (file == null) return;
-
-                _selectedImageFile = file;
-
-                // Un solo passaggio sul file: i byte servono sia per l'invio
-                // (base64) sia per l'anteprima (bitmap). Prima il file veniva
-                // letto due volte.
-                byte[] buffer;
-                using (var stream = await file.OpenReadAsync())
-                {
-                    using (var reader = new DataReader(stream))
-                    {
-                        uint size = (uint)stream.Size;
-                        await reader.LoadAsync(size);
-                        buffer = new byte[size];
-                        reader.ReadBytes(buffer);
-                    }
-                }
-
-                _selectedImageBase64 = System.Convert.ToBase64String(buffer);
-                SelectedImagePreview.Source = await ImageHelper.FromBytesAsync(buffer);
-                ImagePreviewBar.Visibility = Visibility.Visible;
+                ImagePickerService.RequestImage();
             }
             catch (Exception ex)
             {
@@ -296,6 +271,47 @@ namespace WhatsappApp.Pages
                 Debug.WriteLine(
                     string.Format(Loc.Get("ChatPage_ImageError", "Could not open the image: {0}"), ex.Message));
             }
+        }
+
+        /// <summary>
+        /// Un allegato e' arrivato mentre questa chat era aperta: e' il caso
+        /// normale, perche' il selettore si apre da qui e l'app torna qui.
+        /// </summary>
+        private void OnAttachmentReady()
+        {
+            ShowPendingAttachment();
+        }
+
+        /// <summary>
+        /// Mostra l'allegato in attesa, se c'e'. Chiamato sia navigando qui sia
+        /// all'arrivo: dopo il selettore la pagina e' ancora quella davanti e
+        /// OnNavigatedTo non viene richiamato.
+        /// </summary>
+        private void ShowPendingAttachment()
+        {
+            if (!AttachmentInbox.HasAttachment) return;
+
+            string note = AttachmentInbox.Note;
+            _selectedImageBase64 = AttachmentInbox.Base64;
+            _selectedImageFileName = AttachmentInbox.FileName;
+            _selectedImageMimeType = AttachmentInbox.MimeType;
+            AttachmentInbox.Clear();
+
+            if (!string.IsNullOrEmpty(note) && string.IsNullOrEmpty(MessageTextBox.Text))
+            {
+                MessageTextBox.Text = note;
+            }
+
+            ImagePreviewBar.Visibility = Visibility.Visible;
+#pragma warning disable 4014
+            ShowLocalPreviewAsync(_selectedImageBase64);
+#pragma warning restore 4014
+        }
+
+        /// <summary>Anteprima locale: il mittente vede la propria immagine.</summary>
+        private async System.Threading.Tasks.Task ShowLocalPreviewAsync(string base64)
+        {
+            SelectedImagePreview.Source = await ImageHelper.FromBase64Async(base64);
         }
 
         /// <summary>
@@ -308,8 +324,9 @@ namespace WhatsappApp.Pages
 
         private void ClearSelectedImage()
         {
-            _selectedImageFile = null;
             _selectedImageBase64 = null;
+            _selectedImageFileName = null;
+            _selectedImageMimeType = null;
             SelectedImagePreview.Source = null;
             ImagePreviewBar.Visibility = Visibility.Collapsed;
         }

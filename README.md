@@ -54,6 +54,11 @@ picking a contact with the system contact picker (the user's consent, so the app
 never reads the address book by itself), or tapping a conversation the server
 already knows.
 
+Attaching an image uses `PickSingleFileAndContinue`. `PickSingleFileAsync` is
+documented as unsupported on Windows Phone, and on the phone it failed silently:
+the app is deactivated while the picker is open, and the chosen file arrives at
+`App.OnActivated` as a `PickFileContinuation`.
+
 ### WhatsappServer (.NET Console App)
 
 A simple TCP relay server that broadcasts messages between connected clients.
