@@ -322,3 +322,36 @@ suppressing the *toast* for the chat on screen.
   buttons keep a gap between them and carry `AutomationProperties.SetName` (the
   same key as their tooltip), so the device can answer which is which. Gate:
   `node tools/check-actions.js`.
+- **A screen that is shown before the socket is up cannot ask for its data.**
+  `ChatsPage.OnNavigatedTo` used to request the list only when
+  `IsConnected && Contacts.Count == 0`; on a cold start neither is true, so the list
+  stayed empty until the user walked through the settings page, which is what "I have
+  to press Continue every time" was. The request now happens in `RequestChats()` -
+  called on navigation and on every `state` frame - and it waits for
+  `WhatsAppState == "connected"`, because the adapter answers "not connected" until
+  the WhatsApp login is done. `ChatCache` keeps the last list on the phone so the
+  screen is not empty while that happens: it is a photograph, replaced row by row by
+  `ApplyChat`, and it holds no avatar bytes.
+- **`ShareOperation` has an order, and on WP8.1 it has no `GetDeferral()`.** Report
+  `ReportStarted()` first, `ReportDataRetrieved()` once the bytes are in, and
+  `ReportCompleted()` at the end (or `ReportError()` in the catch); calling
+  `ReportCompleted()` in a `finally` without ever calling `ReportStarted()` is the
+  crash that sharing a photo produced. The plan wrapped the reads in
+  `Windows.Foundation.Deferral` and `operation.GetDeferral()`; that type does not exist
+  in the WP8.1 projection (the build answers `CS0234`/`CS1061`), and it is not needed -
+  the share target's app is in the foreground, so the operation stays valid.
+  `tools/check-csharp5.js` does not know this member, so the guard will not catch a
+  retry. A share target's file types are declared in the manifest's default namespace;
+  a video type missing there means the app is not offered for it at all.
+- **A frame is capped at 8 MiB and base64 adds a third.** An attachment therefore
+  travels as `media.begin` / `media.chunk` / `media.end`, with each chunk a multiple of
+  4 base64 characters so the bytes can be concatenated without re-encoding. The adapter
+  picks GOWA's door from the MIME type (or the extension): `/send/image`, `/send/video`,
+  `/send/file`. Before this, every attachment went through `sendImage`, so a video
+  arrived as a broken image.
+- **GOWA's `/message/:id/download` answers with an address, not bytes.** Like
+  `/user/avatar`, it is two requests: `results.file_url` is the static file, fetched
+  after. An empty `file_url` means the file is not under `statics`, which for the app is
+  "no longer available", not a fault. The bytes go back in a `media` control frame tied
+  to the existing message by `RelatedMessageId` - a message frame would count as new and
+  raise a toast.
