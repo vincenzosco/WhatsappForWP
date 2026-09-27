@@ -340,8 +340,8 @@ suppressing the *toast* for the chat on screen.
   `Windows.Foundation.Deferral` and `operation.GetDeferral()`; that type does not exist
   in the WP8.1 projection (the build answers `CS0234`/`CS1061`), and it is not needed -
   the share target's app is in the foreground, so the operation stays valid.
-  `tools/check-csharp5.js` does not know this member, so the guard will not catch a
-  retry. A share target's file types are declared in the manifest's default namespace;
+  `tools/check-csharp5.js` flags both `.GetDeferral(` and `Windows.Foundation.Deferral`,
+  so the guard catches the reintroduction. A share target's file types are declared in the manifest's default namespace;
   a video type missing there means the app is not offered for it at all.
 - **A frame is capped at 8 MiB and base64 adds a third.** An attachment therefore
   travels as `media.begin` / `media.chunk` / `media.end`, with each chunk a multiple of
