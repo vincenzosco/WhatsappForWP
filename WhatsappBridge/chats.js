@@ -58,6 +58,12 @@ function isGroupJid(jid) {
   return typeof jid === 'string' && jid.endsWith('@g.us');
 }
 
+// Un canale non e' una conversazione: non si puo' rispondere, e nell'elenco
+// chat occupa il posto di una persona. GOWA li elenca, quindi si saltano qui.
+function isChannelJid(jid) {
+  return typeof jid === 'string' && jid.endsWith('@newsletter');
+}
+
 /**
  * Scorre le conversazioni indicate da GOWA. Una chat illeggibile, o un avatar
  * che non si scarica, non fermano l'elenco: si perde quel dettaglio.
@@ -75,6 +81,7 @@ async function collectChats(options) {
 
   for (const chat of chats) {
     if (!chat || !chat.jid) continue;
+    if (isChannelJid(chat.jid)) continue;
 
     let last = null;
     try {
@@ -115,4 +122,4 @@ async function collectChats(options) {
   return result;
 }
 
-module.exports = { previewForMessage, collectChats };
+module.exports = { previewForMessage, collectChats, isChannelJid };
