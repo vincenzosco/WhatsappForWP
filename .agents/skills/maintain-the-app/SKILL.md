@@ -245,3 +245,31 @@ suppressing the *toast* for the chat on screen.
   `/Date(ms)/`), so it is a `string` on the wire and a leniently parsed `DateTime` in
   the app. When adding a field, ask what the deserializer does with a value it did not
   expect.
+- **On WP8.1 a file picker is not awaited, it is continued.**
+  `FileOpenPicker.PickSingleFileAsync` is documented as unsupported on Windows
+  Phone, for both Windows Runtime and Silverlight; on the phone it throws, the
+  catch logs it, and the button looks dead. The supported call is
+  `PickSingleFileAndContinue()`, which deactivates the app and delivers the file
+  to `App.OnActivated` as `ActivationKind.PickFileContinuation` with a
+  `FileOpenPickerContinuationEventArgs`. Because the process can be terminated
+  while the picker is open, the result never goes to a page instance:
+  `AttachmentInbox` reads the bytes at reactivation, and whichever page shows an
+  attachment takes them, through its `Ready` event and its `HasAttachment` check
+  on navigation. `ShareOperation` lives in
+  `Windows.ApplicationModel.DataTransfer.ShareTarget`, not in
+  `Windows.ApplicationModel.DataTransfer`.
+- **A share target goes in the manifest's default namespace, with no prefix.**
+  `ShareTarget`, `SupportedFileTypes`, `FileType` and `DataFormat` are declared by
+  `AppxManifestSchema2010_v2.xsd` in `http://schemas.microsoft.com/appx/2010/manifest`
+  - the `xmlns` of this manifest - even though `VisualElements` is `m3:`
+  (`appx/2014/manifest`). With `m3:` the build answers `APPX3030` ("must be a valid
+  application extension category") and `APPX3002` (unrecognized element), which
+  reads like an unsupported feature and is only a namespace mistake.
+- **GOWA's `/user/avatar` returns an address, not an image.** `AvatarResponse` is
+  `{url, id, type}`, so the picture is a second request to the CDN URL. Encoding
+  the first response as if it were a bitmap produces base64 that no decoder
+  accepts, and the failure is silent: every row falls back to initials. The same
+  shape of trap is in `/user/my/groups`: whatsmeow's `types.GroupInfo` has no json
+  tags and embeds `GroupName`, so `encoding/json` promotes the fields and the
+  subject arrives as a top-level `Name`. GOWA's own chat list has no usable name
+  for a group and answers `Group <number>`.
