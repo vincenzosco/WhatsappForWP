@@ -230,7 +230,12 @@ function createBridge({ config, gowa, log, debug }) {
       if (!media) {
         // Il file non c'e' piu': si dice, invece di lasciare la bolla in attesa
         // per sempre (vedi il test del comando).
-        sendControl({ command: 'error', chatId, text: 'This media is no longer available on the server.' });
+        sendControl({
+          command: 'error',
+          chatId,
+          relatedMessageId: messageId,
+          text: 'This media is no longer available on the server.'
+        });
         return;
       }
 
@@ -239,7 +244,12 @@ function createBridge({ config, gowa, log, debug }) {
       logger('INFO', `media downloaded for ${messageId} (${media.base64.length} chars)`);
     } catch (err) {
       logger('ERR', `media download failed for ${messageId}: ${err.message}`);
-      sendControl({ command: 'error', chatId, text: `Media download failed: ${err.message}` });
+      sendControl({
+        command: 'error',
+        chatId,
+        relatedMessageId: messageId,
+        text: `Media download failed: ${err.message}`
+      });
     }
   }
 

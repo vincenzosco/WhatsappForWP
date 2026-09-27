@@ -189,6 +189,9 @@ namespace WhatsappApp.Pages
         private void RequestMedia(ChatMessage message)
         {
             if (!CommunicationService.Instance.IsConnected) return;
+            // Il cerchio parte adesso: il primo pezzo puo' metterci, e senza
+            // questo il tocco sembra non aver fatto niente.
+            message.IsMediaLoading = true;
 #pragma warning disable 4014
             CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id);
 #pragma warning restore 4014
@@ -216,7 +219,7 @@ namespace WhatsappApp.Pages
             {
                 if (!string.IsNullOrEmpty(message.MediaFilePath))
                 {
-                    await PlayVideoAsync(message);
+                    PlayVideo(message);
                     return;
                 }
 
@@ -264,37 +267,25 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Il flusso del video in riproduzione. Va tenuto aperto finche' il
-        /// lettore lo usa - chiuderlo subito lo lascerebbe senza sorgente - e
-        /// chiuso quando si esce.
+        /// Apre il video ricevuto nel lettore a tutto schermo. La sorgente e' il
+        /// file locale (ms-appdata): il lettore lo apre per conto suo e non c'e'
+        /// nessun flusso da tenere aperto per la vita della pagina.
         /// </summary>
-        private IRandomAccessStream _videoStream;
-
-        /// <summary>
-        /// Apre il video ricevuto nel lettore a tutto schermo. I byte sono su
-        /// disco (IncomingMediaStore), quindi qui si apre il file: il video
-        /// intero non e' mai stato in memoria, e non ci entra adesso.
-        /// </summary>
-        private async System.Threading.Tasks.Task PlayVideoAsync(ChatMessage message)
+        private void PlayVideo(ChatMessage message)
         {
             if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder
-                    .GetFileAsync(message.MediaFilePath);
-                IRandomAccessStream stream = await file.OpenReadAsync();
-
                 StopVideo();
-                _videoStream = stream;
-                VideoPlayer.SetSource(stream, message.MediaMimeType ?? "video/mp4");
+                VideoPlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                 VideoViewer.Visibility = Visibility.Visible;
                 VideoPlayer.Play();
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage.PlayVideoAsync", ex);
-                StopVideo();
+                Diag.Failed("ChatPage.PlayVideo", ex);
+                ShowVideoError();
             }
         }
 
@@ -305,17 +296,32 @@ namespace WhatsappApp.Pages
 
         private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            // Un video che il telefono non sa decodificare: si chiude e si
-            // lascia la traccia, invece di restare su uno schermo nero. In
-            // WP8.1 l'evento porta solo il messaggio, non l'eccezione.
+            // Un video che il telefono non sa decodificare. Prima si chiudeva lo
+            // schermo e basta, quindi un guasto e un tocco a vuoto si vedevano
+            // uguali; adesso resta la frase. In WP8.1 l'evento porta solo il
+            // messaggio, non l'eccezione.
             string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
                 ? e.ErrorMessage
                 : "media failed";
             Diag.Failed("ChatPage/VideoPlayer", new InvalidOperationException(reason));
-            StopVideo();
+            ShowVideoError();
         }
 
-        /// <summary>Chiude il lettore e libera il flusso. Sicura da chiamare anche a vuoto.</summary>
+        private void ShowVideoError()
+        {
+            try
+            {
+                VideoPlayer.Stop();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.ShowVideoError", ex);
+            }
+            VideoErrorText.Text = Loc.Get("ChatPage_VideoError", "This video cannot be played.");
+            VideoErrorText.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>Chiude il lettore. Sicura da chiamare anche a vuoto.</summary>
         private void StopVideo()
         {
             try
@@ -328,12 +334,7 @@ namespace WhatsappApp.Pages
                 Diag.Failed("ChatPage.StopVideo", ex);
             }
 
-            if (_videoStream != null)
-            {
-                _videoStream.Dispose();
-                _videoStream = null;
-            }
-
+            VideoErrorText.Visibility = Visibility.Collapsed;
             VideoViewer.Visibility = Visibility.Collapsed;
         }
 

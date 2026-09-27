@@ -551,6 +551,22 @@ test('media.get dice che il media non c e piu invece di restare muto', async () 
   assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
 });
 
+test('un media che non c e piu dice a quale messaggio si riferisce', async () => {
+  const sent = [];
+  const gowa = { downloadMedia: async () => null };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({
+    Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'M9'
+  });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'error');
+  assert.strictEqual(sent[0].RelatedMessageId, 'M9');
+});
+
 test('un media troppo grande per un frame si scarica a pezzi, e l ordine si legge', async () => {
   const bytes = Buffer.alloc(600000, 7);          // base64: ~800000 caratteri, due pezzi
   const whole = bytes.toString('base64');

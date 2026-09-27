@@ -262,6 +262,20 @@ namespace WhatsappApp.Models
             }
         }
 
+        private bool _isMediaLoading;
+
+        /// <summary>
+        /// Vero mentre i byte di questo media stanno arrivando. Non e' un dato
+        /// del filo: lo alza la pagina quando chiede il media e lo abbassa il
+        /// servizio dati quando i pezzi sono tutti, o quando il server dice che
+        /// non c'e' piu'. E' quello che fa girare l'indicatore nella bolla.
+        /// </summary>
+        public bool IsMediaLoading
+        {
+            get { return _isMediaLoading; }
+            set { _isMediaLoading = value; OnPropertyChanged(); }
+        }
+
         /// <summary>Comando dei frame di controllo inviati/ricevuti dall'adapter (Type = System).</summary>
         [DataMember]
         public string Command
