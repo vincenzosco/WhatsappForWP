@@ -113,6 +113,7 @@
     <Compile Include="Services\AttachmentInbox.cs" />
     <Compile Include="Services\ChatCache.cs" />
     <Compile Include="Services\IncomingMediaStore.cs" />
+    <Compile Include="Services\MessageCache.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
     <Compile Include="Services\MemoryWatcher.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
