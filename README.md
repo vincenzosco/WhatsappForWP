@@ -99,6 +99,8 @@ client any more: it uses GOWA's REST API and webhooks.
 - Loads a chat's stored messages when it is opened (`messages`, up to `MESSAGES_LIMIT`), as frames marked `IsHistory`: they are inserted in date order and stay out of the unread count and the toasts
 - Tapping an image in a chat opens it over the whole page; tapping it again closes it. A `[Image]` from an old conversation is downloaded first and opens at the next tap
 - A received video plays over the whole page on a `MediaElement` with the system transport controls, and closes with the X in the corner. Its bytes arrive in pieces and are written to a file as they come, so a full-length video is never held whole in memory; tapping the play box before the bytes are there downloads them first, like an image
+- A received voice note or audio shows a play bar and plays in the same player. WhatsApp sends voice notes as Ogg/Opus and WP8.1 has no Opus decoder, so the adapter converts them to a small mono MP3 first, using `ffmpeg` when it is installed (`FFMPEG_ENABLED`, `FFMPEG_PATH`); without `ffmpeg` the note still arrives and says it cannot be played
+- A received document shows its file name and a document bar, and tapping it opens the file with the phone's own app. Its bytes come to a file like a video's, and a document from an old conversation is downloaded on tap first
 - A file shared or picked from the Gallery is copied into the app's own folder instead of being read into memory, so a long video is streamed out in pieces rather than taking the app down
 - A chat paints from its cached messages before the connection is up, and its last messages are kept per conversation on the phone
 
@@ -147,7 +149,8 @@ login is done from the phone — the app shows its own full-screen QR and keeps 
 screen on while it is visible — or you can reuse the session already linked.
 
 **Requirements:** Node.js 18.13+ and, for the terminal QR, ImageMagick 7
-(`magick`). Adapter environment variables are documented in
+(`magick`). Voice notes also need `ffmpeg` on the machine running the adapter.
+Adapter environment variables are documented in
 `WhatsappBridge/.env.example` (the file is read at startup; variables already
 exported win over it).
 

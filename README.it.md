@@ -101,6 +101,8 @@ proprio: usa l'API REST e i webhook di GOWA.
 - carica i messaggi gia' in memoria aprendo una chat (`messages`, fino a `MESSAGES_LIMIT`), con frame marcati `IsHistory`: vengono inseriti in ordine di data e restano fuori dal conteggio dei non letti e dagli avvisi
 - toccando un'immagine in una chat si apre a tutto schermo; toccandola di nuovo si chiude. Un `[Image]` di una conversazione vecchia viene prima scaricato e si apre al tocco successivo
 - un video ricevuto si riproduce a tutto schermo su un `MediaElement` con i controlli di sistema, e si chiude con la X nell'angolo. I suoi byte arrivano a pezzi e vengono scritti su un file mentre arrivano, quindi un video di lunghezza intera non sta mai tutto in memoria; toccare la casella con il triangolo prima che i byte ci siano li scarica prima, come per un'immagine
+- un vocale o un audio ricevuto mostra una barra con il triangolo e si riproduce nello stesso lettore. WhatsApp manda i vocali come Ogg/Opus e WP8.1 non ha un decoder Opus, quindi l'adapter li converte prima in un piccolo MP3 mono, usando `ffmpeg` quando e' installato (`FFMPEG_ENABLED`, `FFMPEG_PATH`); senza `ffmpeg` il vocale arriva lo stesso e dice che non si puo' riprodurre
+- un documento ricevuto mostra il nome del file e una barra con un foglio, e toccarla apre il file con l'app del telefono. I suoi byte arrivano su un file come quelli di un video, e un documento di una vecchia conversazione viene scaricato al tocco
 - un file condiviso o scelto dalla Galleria viene copiato nella cartella dell'app invece che letto in memoria, quindi un video lungo si spedisce a pezzi invece di chiudere l'app
 - una chat si disegna dai messaggi in cache prima che la connessione ci sia, e gli ultimi messaggi restano sul telefono per conversazione
 - elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (due richieste per persona: l'endpoint restituisce l'indirizzo dell'immagine, non l'immagine) (`CHATS_LIMIT`, `CHATS_AVATARS`)
@@ -152,6 +154,7 @@ login si fa dal telefono — l'app mostra il suo QR a tutto schermo e tiene lo s
 acceso finche' resta visibile — oppure si riusa la sessione gia' collegata.
 
 **Requisiti:** Node.js 18.13+ e, per il QR nel terminale, ImageMagick 7 (`magick`).
+I vocali hanno bisogno anche di `ffmpeg` sulla macchina che esegue l'adapter.
 Le variabili d'ambiente dell'adapter sono documentate in
 `WhatsappBridge/.env.example` (il file viene letto all'avvio; le variabili gia'
 esportate hanno la precedenza).

@@ -112,6 +112,18 @@ See `.env.example`. The main variables:
 | `CALLS_LIMIT` | `50` | maximum number of call records sent to the app |
 | `CHATS_LIMIT` | `25` | how many conversations the chat list returns |
 | `CHATS_AVATARS` | `on` | fetch profile pictures (one request per person, `off` disables) |
+| `FFMPEG_ENABLED` | `on` | convert Ogg/Opus voice notes to MP3 for WP8.1 (`off` disables) |
+| `FFMPEG_PATH` | `ffmpeg` | the ffmpeg executable, when it is not on the PATH |
+
+### Voice notes need ffmpeg
+
+WhatsApp voice notes are Ogg with the Opus codec, and Windows Phone 8.1 has no Opus
+decoder (Opus only arrived on Windows 10). The adapter therefore runs **ffmpeg**, if it
+is installed, to convert a received voice note to a small mono MP3 before sending it to
+the app. ffmpeg is an external program on the machine running the adapter, not a
+dependency of the adapter. Without it the adapter logs a warning at startup and forwards
+the original bytes, which the phone cannot play; the voice note still arrives and shows
+that it cannot be played.
 
 ## Starting it
 
