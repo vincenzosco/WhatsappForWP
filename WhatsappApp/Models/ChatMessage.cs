@@ -336,6 +336,11 @@ namespace WhatsappApp.Models
             // CPU e memoria per un risultato identico.
             if (MediaImage != null) return;
 
+            // Un'immagine dentro un fumetto e' la cosa piu' pesante che si possa
+            // decodificare, e sotto pressione si rimanda a quando il telefono
+            // respira: nel frattempo resta il segnaposto.
+            if (MemoryWatcher.Instance.IsUnderPressure) return;
+
             try
             {
                 MediaImage = await ImageHelper.FromBase64Async(MediaData, MediaDecodePixels);
