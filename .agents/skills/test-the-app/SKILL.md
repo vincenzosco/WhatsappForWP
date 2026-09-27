@@ -257,3 +257,16 @@ empty".
     the phone is not the one in this tree: `node tools/check-actions.js` says what
     the source does and `obj/x86/Debug/Pages/ChatsPage.g.cs` says what the build
     did.
+33. Start the app from the tile: the chat list is already on screen, with names and
+    last messages, before the connection is up, and it refreshes by itself within a
+    few seconds. Settings must not have to be opened.
+34. Have someone send a message while the app is closed, then open the app: that
+    chat is at the top and shows an unread number. Open it and go back: the number is
+    gone.
+35. Share a photo from Photos: the app opens on the chats with the image ready, and
+    it does not crash. Share a short video (under about 6 MB): it appears in the chat
+    and the other side receives a video, not a broken image.
+36. Open a chat whose messages arrived while the app was closed: a photo shows
+    `[Image]`. Tap it once, wait, tap it again: the image opens full screen, and a
+    tap closes it.
+37. Send a photo yourself and tap it: it opens full screen. Tap it again: it closes.
