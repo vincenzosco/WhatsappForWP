@@ -277,3 +277,15 @@ empty".
     file.
 39. Send a video yourself: the play box appears while it is in flight, and tapping it
     does nothing, because the app does not keep the bytes it sent.
+40. Share a photo from the Gallery, then share a long video (over 30 MB): neither
+    takes the app down, and the composition bar says Image selected for the photo and
+    Video selected for the video.
+41. Receive an audio and a document from someone, with the app closed, then open the
+    chat: both say what they are (the document shows its file name), instead of an
+    empty bubble.
+42. Tap a received video whose pieces are still arriving: a ring turns in the bubble,
+    then it plays. Tap a video the phone cannot decode: the overlay stays up and says
+    it cannot be played, instead of closing on its own.
+43. Open a chat, go back, and reopen it: the messages are there before the connection
+    comes up. Kill the app and reopen it: they are still there.
+44. The chat list has no entries you cannot reply to (channels).
