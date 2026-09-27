@@ -168,9 +168,15 @@ function mediaFromPayload(p) {
     else if (p.image && typeof p.image.path === 'string') { result.type = 1; result.path = p.image.path; }
     else { result.fallbackText = '[Image not downloaded]'; }
   } else if (p.audio !== undefined) {
+    // La parola c'e' sempre: con i byte o senza, un fumetto vuoto non dice
+    // niente, e un audio non si disegna.
+    result.type = 2;
+    result.fallbackText = '[Audio]';
     if (typeof p.audio === 'string') {
-      result.type = 2; result.path = p.audio; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
-    } else { result.fallbackText = '[Audio not downloaded]'; }
+      result.path = p.audio; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
+    } else if (p.audio && typeof p.audio.path === 'string') {
+      result.path = p.audio.path; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
+    }
   } else if (p.video !== undefined) {
     // Un video non si disegna in un fumetto: la parola resta, e una didascalia
     // vince su di essa come per le immagini. Il tipo 4 e' quello che l'app
@@ -183,9 +189,13 @@ function mediaFromPayload(p) {
       result.fallbackText = '[Video not downloaded]';
     }
   } else if (p.document !== undefined) {
+    result.fallbackText = '[Document]';
     if (p.document && typeof p.document.path === 'string') {
       result.path = p.document.path;
       result.fileName = p.document.filename || null;
+      // Il nome del file e' piu' utile di una parola: e' quello che l'utente
+      // ha mandato.
+      if (result.fileName) result.fallbackText = result.fileName;
     } else {
       result.fallbackText = '[Document not downloaded]';
     }
