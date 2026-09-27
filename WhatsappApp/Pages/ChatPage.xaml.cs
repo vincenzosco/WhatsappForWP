@@ -58,7 +58,7 @@ namespace WhatsappApp.Pages
 
                 // Load messages
                 _messages = DataService.Instance.GetMessages(contact.Id);
-                DataService.Instance.ClearUnread(contact.Id);
+                MarkRead();
                 MessagesListView.ItemsSource = _messages;
 
                 // Auto-scroll to bottom
@@ -153,7 +153,24 @@ namespace WhatsappApp.Pages
             // sta vedendo scorrere: e' letto adesso, come su WhatsApp. Il
             // numero sulla riga si azzera per questo, non per un'esclusione nel
             // contatore.
+            MarkRead();
+        }
+
+        /// <summary>
+        /// Questa conversazione e' stata mostrata: il numero si azzera qui e sul
+        /// server. Il secondo pezzo non e' un dettaglio: l'adapter conta ogni
+        /// messaggio in arrivo, anche quelli che l'utente sta guardando, quindi
+        /// senza dirglielo il numero tornerebbe a comparire al prossimo
+        /// aggiornamento dell'elenco.
+        /// </summary>
+        private void MarkRead()
+        {
             DataService.Instance.ClearUnread(_contact.Id);
+
+            if (!CommunicationService.Instance.IsConnected) return;
+#pragma warning disable 4014
+            CommunicationService.Instance.SendControlAsync("read", _contact.Id);
+#pragma warning restore 4014
         }
 
         private async void SendMessage()

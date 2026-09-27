@@ -129,6 +129,10 @@ function buildChatMessage(fields) {
   // Riga dell'elenco chat: il gruppo e la sua immagine (vedi chats.js).
   if (typeof f.isGroup === 'boolean') msg.IsGroup = f.isGroup;
   if (f.avatarData) msg.AvatarData = f.avatarData;
+  // Riga dell'elenco chat: quanti messaggi di questa conversazione non sono
+  // ancora stati letti. Lo conta l'adapter, perche' GOWA non lo dice e perche'
+  // i messaggi arrivati col telefono spento non li vede nessun altro.
+  if (typeof f.unreadCount === 'number') msg.UnreadCount = f.unreadCount;
 
   // Cronologia: un messaggio vecchio, mandato aprendo la chat (vedi server.js).
   // E' un messaggio normale - va disegnato - ma non e' arrivato adesso, e l'app
