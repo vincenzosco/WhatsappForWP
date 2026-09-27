@@ -51,10 +51,18 @@ const LINQ_USING = /^\s*using\s+System\.Linq\s*;/m;
 const LINQ_EXTENSION = /\.(All|Any|Where|Select|SelectMany|First|FirstOrDefault|Last|LastOrDefault|Single|SingleOrDefault|OrderBy|OrderByDescending|ThenBy|GroupBy|Distinct|Skip|Take|ToList|Aggregate)\s*\(/;
 
 // Members that exist on Windows 8.1 / Windows 10 but not on the WP8.1
-// WinRT projection (the WP8.1 compiler answers CS1501 / CS1061).
+// WinRT projection (the WP8.1 compiler answers CS1501 / CS1061, or CS0234 when
+// a whole type is missing).
 const API_RULES = [
   { name: 'CryptographicBuffer.CreateFromByteArray with 3 args (WP8.1 has only the 1-arg overload)', re: /CreateFromByteArray\s*\([^)]*,[^)]*,[^)]*\)/ },
-  { name: 'ContentDialog.CloseButtonText (WP8.1 has no CloseButtonText)', re: /(\.CloseButtonText\b)|(^\s*CloseButtonText\s*=)/ }
+  { name: 'ContentDialog.CloseButtonText (WP8.1 has no CloseButtonText)', re: /(\.CloseButtonText\b)|(^\s*CloseButtonText\s*=)/ },
+  // The WP8.1 projection has no deferral for a share: `ShareOperation.GetDeferral()`
+  // is a CS1061 and `Windows.Foundation.Deferral` is a CS0234. A share target does
+  // not need one - its app is in the foreground, so the operation stays valid;
+  // just call ReportStarted() -> ReportDataRetrieved() -> ReportCompleted().
+  // SuspendingOperation.GetDeferral() is the one WP8.1 does have, so it is allowed.
+  { name: 'ShareOperation.GetDeferral() (WP8.1 has no deferral on a share)', re: /(?<!SuspendingOperation)\.GetDeferral\s*\(/ },
+  { name: 'Windows.Foundation.Deferral (does not exist in the WP8.1 projection)', re: /\bWindows\.Foundation\.Deferral\b/ }
 ];
 
 function walk(dir, out) {
