@@ -289,3 +289,8 @@ empty".
 43. Open a chat, go back, and reopen it: the messages are there before the connection
     comes up. Kill the app and reopen it: they are still there.
 44. The chat list has no entries you cannot reply to (channels).
+45. A voice note received from WhatsApp shows a play bar, and tapping it plays the
+    note. With `ffmpeg` absent on the adapter host, the same note says it cannot be
+    played instead of staying silent.
+46. A document received from WhatsApp shows a document bar and the file name; tapping
+    it opens the phone's viewer, or says there is no app for it.
