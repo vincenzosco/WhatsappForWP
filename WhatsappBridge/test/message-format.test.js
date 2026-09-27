@@ -5,7 +5,8 @@ const {
   formatDateForWp8,
   displayNameForJid,
   buildChatMessage,
-  mapWebhookMessage
+  mapWebhookMessage,
+  mapHistoryMessage
 } = require('../message-format');
 
 test('formatDateForWp8 produce il valore /Date(ms)/, senza backslash', () => {
@@ -146,4 +147,66 @@ test('buildChatMessage omits an absent avatar and marks a group', () => {
   const msg = buildChatMessage({ command: 'chat', chatId: '1@g.us', isGroup: true });
   assert.strictEqual(msg.IsGroup, true);
   assert.strictEqual(msg.AvatarData, undefined);
+});
+
+test('mapHistoryMessage reads a text message and marks it as history', () => {
+  const mapped = mapHistoryMessage({
+    id: 'A1',
+    chat_jid: '393401234567@s.whatsapp.net',
+    sender_jid: '393401234567@s.whatsapp.net',
+    sender_display_name: 'Anna',
+    content: '  ciao  ',
+    timestamp: '2026-09-26T09:00:00Z',
+    is_from_me: false,
+    media_type: ''
+  });
+
+  assert.strictEqual(mapped.id, 'A1');
+  assert.strictEqual(mapped.text, 'ciao');
+  assert.strictEqual(mapped.chatId, '393401234567@s.whatsapp.net');
+  assert.strictEqual(mapped.senderName, 'Anna');
+  assert.strictEqual(mapped.isIncoming, true);
+  assert.strictEqual(mapped.type, 0);
+  assert.strictEqual(mapped.isHistory, true);
+  assert.strictEqual(mapped.timestamp, formatDateForWp8(new Date('2026-09-26T09:00:00Z')));
+});
+
+test('mapHistoryMessage marks my own messages and leaves the sender alone', () => {
+  const mapped = mapHistoryMessage({ id: 'A2', chat_jid: 'x@s.whatsapp.net', content: 'io', is_from_me: true });
+
+  assert.strictEqual(mapped.isIncoming, false);
+  assert.strictEqual(mapped.senderId, 'me');
+});
+
+test('mapHistoryMessage names the media it cannot download', () => {
+  // Una foto vecchia non e' fra i byte che il webhook ha consegnato: resta una
+  // parola, perche' un fumetto vuoto sarebbe peggio.
+  assert.strictEqual(mapHistoryMessage({ id: 'A3', media_type: 'image' }).text, '[Image]');
+  assert.strictEqual(mapHistoryMessage({ id: 'A4', media_type: 'video' }).text, '[Video]');
+  assert.strictEqual(mapHistoryMessage({ id: 'A5', media_type: 'audio' }).text, '[Audio]');
+  assert.strictEqual(mapHistoryMessage({ id: 'A6', media_type: 'document' }).text, '[Document]');
+  assert.strictEqual(mapHistoryMessage({ id: 'A7', media_type: 'sticker' }).text, '[Sticker]');
+
+  // Con una didascalia vince la didascalia.
+  assert.strictEqual(mapHistoryMessage({ id: 'A8', media_type: 'image', content: 'guarda' }).text, 'guarda');
+
+  // Un tipo che non conosciamo e nessun testo: nessuna parola inventata.
+  assert.strictEqual(mapHistoryMessage({ id: 'A9', media_type: 'poll' }).text, '');
+  assert.strictEqual(mapHistoryMessage({}).text, '');
+});
+
+test('mapHistoryMessage survives a timestamp it cannot read', () => {
+  const mapped = mapHistoryMessage({ id: 'A10', timestamp: 'non una data' });
+
+  assert.strictEqual(typeof mapped.timestamp, 'string');
+  assert.ok(/^\/Date\(\d+\)\/$/.test(mapped.timestamp), 'una data impossibile non deve arrivare al telefono');
+});
+
+test('buildChatMessage carries IsHistory only when it is set', () => {
+  const history = buildChatMessage({ command: 'history', isHistory: true, type: 0, chatId: 'x@s.whatsapp.net' });
+  assert.strictEqual(history.IsHistory, true);
+  assert.strictEqual(history.Type, 0);
+
+  const live = buildChatMessage({ text: 'nuovo' });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(live, 'IsHistory'), false);
 });

@@ -60,6 +60,44 @@ function displayNameForJid(jid) {
   return user || '?';
 }
 
+// I media vecchi restano una parola nel fumetto, come nell'anteprima della riga
+// dell'elenco chat: i byte di una foto che e' arrivata mesi fa non sono fra
+// quelli che il webhook ha consegnato, e un fumetto vuoto e' peggio di una
+// parola che dice cosa c'era.
+const HISTORY_MEDIA_LABEL = {
+  image: '[Image]',
+  video: '[Video]',
+  audio: '[Audio]',
+  document: '[Document]',
+  sticker: '[Sticker]'
+};
+
+/**
+ * Un messaggio dello storico di una chat (`GET /chat/:chat_jid/messages`).
+ *
+ * Sempre testo, mai immagine: il tipo del media lo dice `media_type`, ma i byte
+ * non ci sono, e un messaggio di tipo immagine senza dati disegnerebbe un
+ * fumetto vuoto.
+ */
+function mapHistoryMessage(raw) {
+  const m = raw || {};
+  const media = typeof m.media_type === 'string' ? m.media_type.trim().toLowerCase() : '';
+  const content = typeof m.content === 'string' ? m.content.trim() : '';
+  const isFromMe = m.is_from_me === true;
+
+  return {
+    id: m.id || null,
+    text: content || HISTORY_MEDIA_LABEL[media] || '',
+    senderId: isFromMe ? 'me' : (m.sender_jid || ''),
+    senderName: m.sender_display_name || '',
+    chatId: m.chat_jid || '',
+    timestamp: formatDateForWp8(m.timestamp),
+    type: 0,
+    isIncoming: !isFromMe,
+    isHistory: true
+  };
+}
+
 function buildChatMessage(fields) {
   const f = fields || {};
   const msg = {
@@ -91,6 +129,11 @@ function buildChatMessage(fields) {
   // Riga dell'elenco chat: il gruppo e la sua immagine (vedi chats.js).
   if (typeof f.isGroup === 'boolean') msg.IsGroup = f.isGroup;
   if (f.avatarData) msg.AvatarData = f.avatarData;
+
+  // Cronologia: un messaggio vecchio, mandato aprendo la chat (vedi server.js).
+  // E' un messaggio normale - va disegnato - ma non e' arrivato adesso, e l'app
+  // non lo conta come non letto ne' avvisa per ognuno.
+  if (f.isHistory === true) msg.IsHistory = true;
 
   if (f.mediaData) {
     msg.MediaData = f.mediaData;
@@ -165,5 +208,6 @@ module.exports = {
   formatDateForWp8,
   displayNameForJid,
   buildChatMessage,
-  mapWebhookMessage
+  mapWebhookMessage,
+  mapHistoryMessage
 };

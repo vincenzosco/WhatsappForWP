@@ -312,3 +312,95 @@ test('reactions and incomplete events are ignored without sending anything', asy
 
   assert.strictEqual(sent.length, 0);
 });
+
+test('the messages command sends one frame per stored message, marked as history', async () => {
+  const sent = [];
+  const gowa = {
+    chatMessages: async (jid, limit) => {
+      assert.strictEqual(jid, 'a@s.whatsapp.net');
+      assert.strictEqual(limit, 5);
+      return [
+        {
+          id: 'A1', chat_jid: jid, sender_jid: 'a@s.whatsapp.net', sender_display_name: 'Anna',
+          content: 'ciao', timestamp: '2026-09-26T09:00:00Z', is_from_me: false
+        },
+        {
+          id: 'A2', chat_jid: jid, sender_display_name: 'Anna', media_type: 'image',
+          timestamp: '2026-09-26T09:05:00Z', is_from_me: true
+        }
+      ];
+    },
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' })
+  };
+  const config = { messages: { limit: 5 }, chats: {}, calls: {}, bridge: { port: 8585 } };
+  const bridge = createBridge({ config, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(packet) });
+
+  await bridge.handleControl({ Type: 3, Command: 'messages', Text: 'a@s.whatsapp.net', SenderName: 'test' });
+
+  const frames = sent.map((packet) => decodeFrame(packet));
+  assert.strictEqual(frames.length, 2);
+  assert.strictEqual(frames[0].ChatId, 'a@s.whatsapp.net');
+  assert.strictEqual(frames[0].Text, 'ciao');
+  assert.strictEqual(frames[0].SenderName, 'Anna');
+  assert.strictEqual(frames[0].IsHistory, true);
+  assert.strictEqual(frames[0].Type, 0);
+  assert.strictEqual(frames[0].Command, undefined);
+  assert.strictEqual(frames[1].Text, '[Image]');
+  assert.strictEqual(frames[1].IsIncoming, false);
+  assert.strictEqual(frames[1].ChatId, 'a@s.whatsapp.net');
+});
+
+test('the messages command drops a message GOWA has no id for, and reports a failure once', async () => {
+  const sent = [];
+  const gowa = {
+    chatMessages: async () => [
+      { chat_jid: 'a@s.whatsapp.net', content: 'senza id' },
+      { id: 'B2', chat_jid: 'a@s.whatsapp.net', content: 'con id' }
+    ],
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' })
+  };
+  const config = { messages: { limit: 5 }, bridge: { port: 8585 } };
+  const bridge = createBridge({ config, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'messages', Text: 'a@s.whatsapp.net' });
+
+  // Senza l'id di WhatsApp non si puo' riconoscere un doppione: si perde quel
+  // messaggio, non si duplica tutta la chat.
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Text, 'con id');
+
+  sent.length = 0;
+  const failing = createBridge({
+    config,
+    gowa: {
+      chatMessages: async () => { throw new Error('chat non trovata'); },
+      status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@x' })
+    },
+    log: () => {},
+    debug: () => {}
+  });
+  failing.setConnectedForTest();
+  failing.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await failing.handleControl({ Type: 3, Command: 'messages', Text: 'a@s.whatsapp.net' });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'error');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+});
+
+test('the messages command answers with an error when WhatsApp is not connected', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: { messages: {} }, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'messages', Text: 'a@s.whatsapp.net' });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'error');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+});
