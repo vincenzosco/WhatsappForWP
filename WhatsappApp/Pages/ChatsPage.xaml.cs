@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;
 using Windows.UI;
 using Windows.UI.Xaml;
+using Windows.UI.Xaml.Automation;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Markup;
 using Windows.UI.Xaml.Media;
@@ -28,6 +29,15 @@ namespace WhatsappApp.Pages
             // Path): il testo e' un tooltip impostato qui.
             ToolTipService.SetToolTip(NewChatButton, Loc.Get("ChatsPage_NewChatTooltip", "New chat"));
             ToolTipService.SetToolTip(SettingsButton, Loc.Get("ChatsPage_SettingsTooltip", "Settings"));
+
+            // Il tooltip lo vede chi tiene premuto; il nome lo legge il lettore di
+            // schermo, e lo dice anche la voce. Stesso testo, quindi stessa chiave:
+            // se un'icona apre l'azione sbagliata, la si sente dire invece di
+            // doverla indovinare.
+            AutomationProperties.SetName(NewChatButton,
+                Loc.Get("ChatsPage_NewChatTooltip", "New chat"));
+            AutomationProperties.SetName(SettingsButton,
+                Loc.Get("ChatsPage_SettingsTooltip", "Settings"));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
