@@ -37,6 +37,7 @@ const { createWebhookServer } = require('./webhook-server');
 const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 const { collectCalls } = require('./calls');
 const { collectChats } = require('./chats');
+const { createTranscoder } = require('./ffmpeg');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
@@ -68,9 +69,17 @@ async function groupNamesOrEmpty(client, logger) {
   }
 }
 
-function createBridge({ config, gowa, log, debug }) {
+function createBridge({ config, gowa, log, debug, transcoder }) {
   const logger = typeof log === 'function' ? log : () => {};
   const dbg = typeof debug === 'function' ? debug : () => {};
+
+  // La conversione dei vocali: un ffmpeg trovato all'avvio, oppure quello che
+  // i test iniettano. `enabled` viene dalla configurazione.
+  const mediaTools = transcoder || createTranscoder({
+    enabled: !config || !config.ffmpeg || config.ffmpeg.enabled !== false,
+    path: config && config.ffmpeg ? config.ffmpeg.path : undefined,
+    log: logger
+  });
 
   const wp8Clients = new Set();
   const pendingOutgoing = [];
@@ -217,6 +226,18 @@ function createBridge({ config, gowa, log, debug }) {
     }
   }
 
+  /**
+   * I byte da mandare all'app per un media ricevuto. Un audio che WP8.1 non
+   * legge (Ogg/Opus) diventa MP3; tutto il resto passa invariato, e cosi' fa
+   * anche un vocale quando ffmpeg non c'e' o la conversione fallisce.
+   */
+  async function playableMedia(buffer, mediaType, mimeType, fileName) {
+    if (mediaType !== 'audio') return { buffer, mimeType, fileName };
+    const converted = await mediaTools.toPlayable(buffer, mimeType, fileName);
+    if (!converted) return { buffer, mimeType, fileName };
+    return converted;
+  }
+
   async function sendMedia(chatId, messageId) {
     if (!chatId || !messageId) return;
 
@@ -239,8 +260,11 @@ function createBridge({ config, gowa, log, debug }) {
         return;
       }
 
-      sendMediaChunks(chatId, messageId, mediaKindOf(media.mimeType, media.fileName),
-        media.mimeType, media.fileName, media.base64);
+      const kind = mediaKindOf(media.mimeType, media.fileName);
+      const playable = await playableMedia(Buffer.from(media.base64, 'base64'), kind,
+        media.mimeType, media.fileName);
+      sendMediaChunks(chatId, messageId, kind, playable.mimeType, playable.fileName,
+        playable.buffer.toString('base64'));
       logger('INFO', `media downloaded for ${messageId} (${media.base64.length} chars)`);
     } catch (err) {
       logger('ERR', `media download failed for ${messageId}: ${err.message}`);
@@ -425,13 +449,16 @@ function createBridge({ config, gowa, log, debug }) {
   // ─── Messaggi dall'app verso WhatsApp ─────────────────────────────────────
 
   /// La strada giusta per un allegato, dal tipo MIME (o dall'estensione quando
-  /// il tipo non c'e'): image, video, altrimenti file.
+  /// il tipo non c'e'): image, video, audio, altrimenti document. Il tipo che
+  /// ne esce viaggia anche verso l'app, che da esso decide come disegnare la
+  /// bolla (vedi ChatMessage.IsAudio / IsDocument).
   function mediaKindOf(mimeType, fileName) {
     const mime = String(mimeType || '').toLowerCase();
     const name = String(fileName || '').toLowerCase();
     if (mime.indexOf('video/') === 0 || /\.(mp4|mov|3gp|avi|mkv|webm)$/.test(name)) return 'video';
     if (mime.indexOf('image/') === 0) return 'image';
-    return 'file';
+    if (mime.indexOf('audio/') === 0 || /\.(ogg|opus|oga|mp3|m4a|aac|amr|wav)$/.test(name)) return 'audio';
+    return 'document';
   }
 
   async function sendMediaToGowa(chatId, caption, buffer, mimeType, fileName) {
@@ -581,6 +608,15 @@ function createBridge({ config, gowa, log, debug }) {
       } catch (err) {
         logger('WARN', `media not downloaded (${fields.mediaPath}): ${err.message}`);
       }
+    }
+
+    // Un vocale arriva Ogg/Opus e il telefono non lo legge: si converte prima
+    // di spezzarlo verso l'app.
+    if (mediaBuffer && fields.mediaType === 'audio') {
+      const playable = await playableMedia(mediaBuffer, 'audio', mediaMimeType, fields.mediaFileName);
+      mediaBuffer = playable.buffer;
+      mediaMimeType = playable.mimeType;
+      fields.mediaFileName = playable.fileName;
     }
 
     // Un media grande si manda a pezzi, dopo il messaggio e legato al suo id
@@ -736,6 +772,7 @@ function createBridge({ config, gowa, log, debug }) {
     getState: () => state,
     refreshStatus,
     handleWebhookEvent,
+    probeFfmpeg: () => mediaTools.probe(),
     handleControl,
     syncContacts,
     // Usato solo dai test: forza lo stato "connected" senza passare da GOWA.
@@ -773,6 +810,7 @@ async function main() {
   });
 
   const bridge = createBridge({ config, gowa, log, debug: dbg });
+  await bridge.probeFfmpeg();
 
   const webhookServer = createWebhookServer({
     path: config.webhook.path,

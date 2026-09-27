@@ -30,6 +30,16 @@ test('loadConfig fornisce i valori di default', () => {
   assert.strictEqual(c.pollIntervalMs, 5000);
 });
 
+test('loadConfig espone la configurazione di ffmpeg', () => {
+  const c = loadConfig({});
+  assert.strictEqual(c.ffmpeg.enabled, true);
+  assert.strictEqual(c.ffmpeg.path, 'ffmpeg');
+
+  const off = loadConfig({ FFMPEG_ENABLED: 'off', FFMPEG_PATH: '/usr/local/bin/ffmpeg' });
+  assert.strictEqual(off.ffmpeg.enabled, false);
+  assert.strictEqual(off.ffmpeg.path, '/usr/local/bin/ffmpeg');
+});
+
 test('loadConfig legge e normalizza le variabili d\'ambiente', () => {
   const c = loadConfig({
     GOWA_URL: 'http://192.168.1.50:3000/',

@@ -26,7 +26,9 @@ const DEFAULTS = {
   CALLS_LIMIT: '50',
   CHATS_LIMIT: '25',
   CHATS_AVATARS: 'on',
-  MESSAGES_LIMIT: '50'
+  MESSAGES_LIMIT: '50',
+  FFMPEG_ENABLED: 'on',
+  FFMPEG_PATH: ''
 };
 
 function pick(env, key) {
@@ -82,6 +84,12 @@ function loadConfig(env = process.env) {
       // risposta e' un frame per messaggio: il limite e' quanti frame passano,
       // non quanto dura la lettura.
       limit: parseInt(pick(env, 'MESSAGES_LIMIT'), 10)
+    },
+    ffmpeg: {
+      // La conversione e' opzionale: senza ffmpeg l'app riceve l'audio
+      // originale e non lo sa leggere, quindi il vocale resta muto.
+      enabled: pick(env, 'FFMPEG_ENABLED').toLowerCase() !== 'off',
+      path: pick(env, 'FFMPEG_PATH') || 'ffmpeg'
     }
   };
 }
