@@ -490,7 +490,6 @@ namespace WhatsappApp.Models
         {
             get
             {
-                if (Type == MessageType.Audio) return false;
                 if (string.IsNullOrEmpty(Text)) return false;
                 if (IsVideo && IsMediaPlaceholder) return false;
                 return true;

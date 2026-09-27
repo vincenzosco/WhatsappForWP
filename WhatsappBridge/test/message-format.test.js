@@ -94,6 +94,28 @@ test('mapWebhookMessage ignora status broadcast', () => {
   assert.strictEqual(mapWebhookMessage({ chat_id: 'status@broadcast' }), null);
 });
 
+test('un audio scaricato resta una parola', () => {
+  const f = mapWebhookMessage({ id: 'A1', chat_id: 'a@s.whatsapp.net', audio: 'statics/media/a.ogg' });
+  assert.strictEqual(f.mediaType, 'audio');
+  assert.strictEqual(f.text, '[Audio]');
+});
+
+test('un documento scaricato mostra il suo nome', () => {
+  const f = mapWebhookMessage({
+    id: 'D1', chat_id: 'a@s.whatsapp.net',
+    document: { path: 'statics/media/d.pdf', filename: 'contratto.pdf' }
+  });
+  assert.strictEqual(f.mediaType, 'document');
+  assert.strictEqual(f.text, 'contratto.pdf');
+});
+
+test('un documento senza nome resta una parola', () => {
+  const f = mapWebhookMessage({
+    id: 'D2', chat_id: 'a@s.whatsapp.net', document: { path: 'statics/media/d.bin' }
+  });
+  assert.strictEqual(f.text, '[Document]');
+});
+
 test('un messaggio di un canale non viene inoltrato', () => {
   assert.strictEqual(
     mapWebhookMessage({ chat_id: '123456@newsletter', from: '123456@newsletter', body: 'x' }),
