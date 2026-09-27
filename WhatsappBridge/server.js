@@ -56,6 +56,18 @@ function makeLogger(enabled) {
   };
 }
 
+// I nomi dei gruppi in una richiesta. Un nome che manca costa un nome, non
+// l'elenco: se GOWA non risponde si torna una mappa vuota e le righe dei gruppi
+// restano con quello che l'elenco delle conversazioni diceva.
+async function groupNamesOrEmpty(client, logger) {
+  try {
+    return await client.myGroups();
+  } catch (err) {
+    logger('DEBUG', `Chats: group names not readable (${err.message})`);
+    return new Map();
+  }
+}
+
 function createBridge({ config, gowa, log, debug }) {
   const logger = typeof log === 'function' ? log : () => {};
   const dbg = typeof debug === 'function' ? debug : () => {};
@@ -86,10 +98,12 @@ function createBridge({ config, gowa, log, debug }) {
       const fresh = !chatsCache || Date.now() - chatsCache.at > CHATS_CACHE_MS;
       if (fresh) {
         logger('INFO', `reading up to ${limits.limit || 25} conversation(s)...`);
+        const groupNames = await groupNamesOrEmpty(gowa, logger);
         const rows = await collectChats({
           gowa,
           limit: limits.limit,
           avatars: limits.avatars,
+          groupNames,
           log: logger
         });
         chatsCache = { at: Date.now(), rows };

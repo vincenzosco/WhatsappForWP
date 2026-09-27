@@ -68,6 +68,7 @@ async function collectChats(options) {
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const limit = opts.limit || 25;
   const withAvatars = opts.avatars === true;
+  const groupNames = opts.groupNames instanceof Map ? opts.groupNames : new Map();
 
   const chats = await gowa.chats(limit);
   const rows = [];
@@ -83,7 +84,10 @@ async function collectChats(options) {
     }
 
     const isGroup = isGroupJid(chat.jid);
-    const name = chat.name || displayNameForJid(chat.jid);
+    // Per un gruppo si preferisce il nome vero da /user/my/groups: quello che
+    // arriva con l'elenco delle conversazioni puo' essere il segnaposto
+    // "Group <numero>" di GOWA, o il numero nudo.
+    const name = (isGroup && groupNames.get(chat.jid)) || chat.name || displayNameForJid(chat.jid);
 
     let avatar = null;
     if (withAvatars && !isGroup) {

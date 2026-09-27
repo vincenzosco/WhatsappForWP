@@ -115,3 +115,32 @@ test('collectChats caps the result and skips a chat it cannot read', async () =>
   assert.strictEqual(rows.length, 2);
   assert.ok(rows.every((r) => r.chatId !== 'b@s.whatsapp.net'));
 });
+
+test('collectChats names a group from the group map, not from GOWA placeholder', async () => {
+  const gowa = fakeGowa({
+    chats: [{ jid: '123456789012345678@g.us', name: 'Group 123456789012345678' }],
+    messagesByJid: { '123456789012345678@g.us': [{ content: 'ciao', timestamp: '2026-09-26T09:00:00Z' }] }
+  });
+
+  const rows = await collectChats({
+    gowa,
+    limit: 10,
+    avatars: false,
+    groupNames: new Map([['123456789012345678@g.us', 'Amici']]),
+    log: () => {}
+  });
+
+  assert.strictEqual(rows[0].name, 'Amici');
+  assert.strictEqual(rows[0].isGroup, true);
+});
+
+test('collectChats keeps what GOWA said when the group map has no entry', async () => {
+  const gowa = fakeGowa({
+    chats: [{ jid: '123456789012345678@g.us', name: 'Amici veri' }],
+    messagesByJid: {}
+  });
+
+  const rows = await collectChats({ gowa, limit: 10, avatars: false, log: () => {} });
+
+  assert.strictEqual(rows[0].name, 'Amici veri');
+});

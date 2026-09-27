@@ -161,7 +161,7 @@ test('avatar() asks nothing about a group, and nothing when GOWA has no picture'
     baseUrl: 'http://127.0.0.1:3000',
     fetchImpl: async (url) => {
       seen.push(url);
-      return jsonResponse({ status: 404, results: {} });
+      return jsonResponse({}, 404);
     }
   });
 
@@ -173,6 +173,44 @@ test('avatar() asks nothing about a group, and nothing when GOWA has no picture'
   // scaricare, quindi una sola richiesta.
   assert.strictEqual(await client.avatar('393401234567@s.whatsapp.net'), null);
   assert.strictEqual(seen.length, 1);
+});
+
+test('myGroups() maps every joined group to its real name', async () => {
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      assert.strictEqual(url, 'http://127.0.0.1:3000/user/my/groups');
+      // whatsmeow's GroupInfo non ha tag json e incorpora GroupName: encoding/json
+      // promuove i campi, quindi il nome arriva come "Name" di primo livello.
+      return jsonResponse({
+        results: {
+          data: [
+            { JID: '111@g.us', Name: 'Amici', GroupTopic: { Topic: 'x' } },
+            { JID: '222@g.us', GroupName: { Name: 'Lavoro' } },
+            { JID: '333@g.us', Name: '   ' }
+          ]
+        }
+      });
+    }
+  });
+
+  const names = await client.myGroups();
+
+  assert.strictEqual(names.get('111@g.us'), 'Amici');
+  assert.strictEqual(names.get('222@g.us'), 'Lavoro');
+  assert.strictEqual(names.has('333@g.us'), false);
+  assert.strictEqual(names.size, 2);
+});
+
+test('myGroups() is empty, not fatal, when GOWA cannot answer', async () => {
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async () => jsonResponse({}, 500)
+  });
+
+  const names = await client.myGroups();
+
+  assert.strictEqual(names.size, 0);
 });
 
 test('avatar() returns null when the picture URL does not download', async () => {

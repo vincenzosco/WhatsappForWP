@@ -45,7 +45,9 @@ The chat list is the account's real conversation list (`GET /chats`, bound by
 `CHATS_LIMIT`), not its address book, which is empty on a freshly linked device.
 Each row carries the last message and, for people, the profile picture
 (`GET /user/avatar` and then the CDN address it returns, so two requests per
-person; disabled with `CHATS_AVATARS=off`).
+person; disabled with `CHATS_AVATARS=off`). A group row is named from
+`GET /user/my/groups`, one request for all of them, because the chat list has no
+usable name for a group and falls back to `Group <number>`.
 
 A new chat can be started in three ways: typing a number with country code,
 picking a contact with the system contact picker (the user's consent, so the app
