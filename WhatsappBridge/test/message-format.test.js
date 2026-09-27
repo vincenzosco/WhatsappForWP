@@ -116,6 +116,12 @@ test('un documento senza nome resta una parola', () => {
   assert.strictEqual(f.text, '[Document]');
 });
 
+test('un documento non scaricato si dichiara documento lo stesso', () => {
+  const f = mapWebhookMessage({ id: 'D3', chat_id: 'a@s.whatsapp.net', document: {} });
+  assert.strictEqual(f.mediaType, 'document');
+  assert.strictEqual(f.text, '[Document not downloaded]');
+});
+
 test('un messaggio di un canale non viene inoltrato', () => {
   assert.strictEqual(
     mapWebhookMessage({ chat_id: '123456@newsletter', from: '123456@newsletter', body: 'x' }),
