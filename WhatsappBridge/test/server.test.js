@@ -344,6 +344,9 @@ test('the messages command sends one frame per stored message, marked as history
   assert.strictEqual(frames[0].ChatId, 'a@s.whatsapp.net');
   assert.strictEqual(frames[0].Text, 'ciao');
   assert.strictEqual(frames[0].SenderName, 'Anna');
+  // La mappatura formatta la data e buildChatMessage la formatta di nuovo: la
+  // seconda passata deve restituire lo stesso epoch, non una data diversa.
+  assert.strictEqual(frames[0].Timestamp, `/Date(${Date.parse('2026-09-26T09:00:00Z')})/`);
   assert.strictEqual(frames[0].IsHistory, true);
   assert.strictEqual(frames[0].Type, 0);
   assert.strictEqual(frames[0].Command, undefined);
