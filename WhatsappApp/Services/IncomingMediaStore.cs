@@ -10,8 +10,9 @@ namespace WhatsappApp.Services
 {
     /// <summary>
     /// Un media ricevuto, completo. O i byte in base64 (immagine, si disegna
-    /// subito) o il nome del file locale (video: i byte stanno su disco, perche'
-    /// un video intero in memoria su un telefono da 512 MB non ci sta).
+    /// subito) o il nome del file locale (video, audio, documento: i byte stanno
+    /// su disco, perche' un video o un documento interi in memoria su un telefono
+    /// da 512 MB non ci stanno, e un lettore vuole un file).
     /// </summary>
     public sealed class IncomingMediaResult
     {
@@ -28,10 +29,11 @@ namespace WhatsappApp.Services
     /// base64, che aggiunge un terzo; un video non ci sta in un frame solo.
     /// L'adapter lo spezza (vedi server.js, sendMediaChunks) e qui si ricompone.
     ///
-    /// Un video si scrive su disco mentre arriva, un pezzo alla volta: tenere
-    /// una base64 da decine di MB per poi decodificarla tutta insieme e' il modo
-    /// piu' veloce per farsi chiudere l'app da un telefono da 512 MB. I pezzi
-    /// sono multipli di 4 caratteri base64, quindi si decodificano da soli.
+    /// Un video, un audio o un documento si scrivono su disco mentre arrivano,
+    /// un pezzo alla volta: tenere una base64 da decine di MB per poi
+    /// decodificarla tutta insieme e' il modo piu' veloce per farsi chiudere
+    /// l'app da un telefono da 512 MB. I pezzi sono multipli di 4 caratteri
+    /// base64, quindi si decodificano da soli.
     /// </summary>
     public static class IncomingMediaStore
     {
@@ -43,7 +45,7 @@ namespace WhatsappApp.Services
             public int Received;
             public string MediaType;
             public string MimeType;
-            public bool IsVideo;
+            public bool ToDisk;
             public StorageFile File;
             public IRandomAccessStream Stream;
             public DataWriter Writer;
@@ -84,7 +86,7 @@ namespace WhatsappApp.Services
 
             try
             {
-                if (pending.IsVideo)
+                if (pending.ToDisk)
                 {
                     pending.Writer.WriteBytes(Convert.FromBase64String(frame.MediaData));
                     await pending.Writer.StoreAsync();
@@ -113,7 +115,7 @@ namespace WhatsappApp.Services
                 MimeType = pending.MimeType
             };
 
-            if (pending.IsVideo)
+            if (pending.ToDisk)
             {
                 await pending.Writer.FlushAsync();
                 pending.Writer.DetachStream();
@@ -130,9 +132,21 @@ namespace WhatsappApp.Services
             return result;
         }
 
+        /// <summary>
+        /// I tipi che non stanno in memoria e vanno su un file: un video, un
+        /// audio, un documento. Un'immagine si disegna subito da base64; uno
+        /// sticker e' un'immagine.
+        /// </summary>
+        private static bool ToDisk(string mediaType)
+        {
+            return string.Equals(mediaType, "video", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mediaType, "audio", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mediaType, "document", StringComparison.OrdinalIgnoreCase);
+        }
+
         private static async Task<Pending> StartAsync(ChatMessage frame, int total)
         {
-            bool video = string.Equals(frame.MediaType, "video", StringComparison.OrdinalIgnoreCase);
+            bool toDisk = ToDisk(frame.MediaType);
 
             var pending = new Pending
             {
@@ -143,10 +157,10 @@ namespace WhatsappApp.Services
                     ? "image"
                     : frame.MediaType.ToLower(),
                 MimeType = frame.MediaMimeType,
-                IsVideo = video
+                ToDisk = toDisk
             };
 
-            if (!video)
+            if (!toDisk)
             {
                 pending.Base64 = new StringBuilder();
                 return pending;
@@ -224,7 +238,17 @@ namespace WhatsappApp.Services
             if (mime.IndexOf("webm") >= 0) return ".webm";
             if (mime.IndexOf("matroska") >= 0) return ".mkv";
             if (mime.IndexOf("msvideo") >= 0) return ".avi";
-            return ".mp4";
+            // Audio: un vocale e' gia' un MP3 quando arriva qui (l'adapter lo
+            // converte), ma il tipo si guarda lo stesso per gli altri.
+            if (mime.IndexOf("mpeg") >= 0) return ".mp3";
+            if (mime.IndexOf("audio/mp4") >= 0 || mime.IndexOf("mp4a") >= 0) return ".m4a";
+            if (mime.IndexOf("amr") >= 0) return ".amr";
+            if (mime.IndexOf("wav") >= 0) return ".wav";
+            if (mime.IndexOf("ogg") >= 0 || mime.IndexOf("opus") >= 0) return ".ogg";
+            if (mime.IndexOf("pdf") >= 0) return ".pdf";
+            // Un documento porta sempre il suo nome, quindi qui ci arriva solo
+            // un file senza nome: l'estensione la sceglie chi lo apre.
+            return ".bin";
         }
     }
 }
