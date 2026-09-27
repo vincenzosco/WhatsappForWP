@@ -31,7 +31,8 @@ node tools/check-docs.js           # documenti: inglese e italiano allineati, di
   non negoziabili sono tre — C# 5, niente font di icone, niente stringhe
   hardcoded — e ognuno ha un guard che lo verifica.
 - **Aggiornare**: seguire la ricetta corrispondente in `update-the-app`. Ogni
-  ricetta finisce con i guard e un commit.
+  ricetta finisce con i guard, un commit e un `git push`: il lavoro non e' finito
+  finche' non e' su `origin/master`.
 - **Testare**: eseguire la matrice in `test-the-app`. Qui si ferma tutto cio' che
   si puo' verificare senza dispositivo; il gate autorevole e' `msbuild` sulla
   macchina Windows, e in fondo c'e' la checklist da fare sul telefono.
