@@ -416,12 +416,27 @@ namespace WhatsappApp.Models
         private const int MediaDecodePixels = 320;
 
         /// <summary>
-        /// Decodifica MediaData (base64) in MediaImage. Va atteso sul thread UI:
-        /// il flusso deve restare aperto finché SetSourceAsync non ha finito.
+        /// Decodifica la bitmap di questo messaggio, da base64 o dal file locale,
+        /// alla larghezza richiesta. La usano la bolla, lo schermo intero e
+        /// l'anteprima di un allegato appena scelto.
+        /// </summary>
+        public async Task<BitmapImage> LoadBitmapAsync(int decodePixelWidth)
+        {
+            if (!string.IsNullOrEmpty(MediaData))
+                return await ImageHelper.FromBase64Async(MediaData, decodePixelWidth);
+            if (!string.IsNullOrEmpty(MediaFilePath))
+                return await ImageHelper.FromFileAsync(MediaFilePath, decodePixelWidth);
+            return null;
+        }
+
+        /// <summary>
+        /// Decodifica MediaData (base64) o il file locale in MediaImage. Va
+        /// atteso sul thread UI: il flusso deve restare aperto finché
+        /// SetSourceAsync non ha finito.
         /// </summary>
         public async Task LoadMediaImageAsync()
         {
-            if (Type != MessageType.Image || string.IsNullOrEmpty(MediaData)) return;
+            if (Type != MessageType.Image) return;
 
             // Gia' decodificata (es. si torna sulla pagina): rifarlo sprecherebbe
             // CPU e memoria per un risultato identico.
@@ -431,10 +446,11 @@ namespace WhatsappApp.Models
             // decodificare, e sotto pressione si rimanda a quando il telefono
             // respira: nel frattempo resta il segnaposto.
             if (MemoryWatcher.Instance.IsUnderPressure) return;
+            if (string.IsNullOrEmpty(MediaData) && string.IsNullOrEmpty(MediaFilePath)) return;
 
             try
             {
-                MediaImage = await ImageHelper.FromBase64Async(MediaData, MediaDecodePixels);
+                MediaImage = await LoadBitmapAsync(MediaDecodePixels);
             }
             catch (Exception ex)
             {
