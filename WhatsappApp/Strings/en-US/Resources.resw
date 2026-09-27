@@ -151,6 +151,9 @@
   <data name="ChatPage_ImageSelected.Text" xml:space="preserve">
     <value>Image selected</value>
   </data>
+  <data name="ChatPage_VideoSelected" xml:space="preserve">
+    <value>Video selected</value>
+  </data>
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Me</value>
   </data>
