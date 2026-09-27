@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Imaging;
 
@@ -43,6 +44,26 @@ namespace WhatsappApp.Services
                     await writer.StoreAsync();
                 }
 
+                var bitmap = new BitmapImage();
+                if (decodePixelWidth > 0) bitmap.DecodePixelWidth = decodePixelWidth;
+                stream.Seek(0);
+                await bitmap.SetSourceAsync(stream);
+                return bitmap;
+            }
+        }
+
+        /// <summary>
+        /// bitmap da un file gia' nella cartella dell'app, alla larghezza a cui
+        /// viene mostrato. Serve agli allegati: dopo il selettore o una
+        /// condivisione i byte stanno su disco, non in memoria.
+        /// </summary>
+        public static async Task<BitmapImage> FromFileAsync(string localFileName, int decodePixelWidth)
+        {
+            if (string.IsNullOrEmpty(localFileName)) return null;
+
+            StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
+            using (var stream = await file.OpenReadAsync())
+            {
                 var bitmap = new BitmapImage();
                 if (decodePixelWidth > 0) bitmap.DecodePixelWidth = decodePixelWidth;
                 stream.Seek(0);

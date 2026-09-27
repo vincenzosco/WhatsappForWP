@@ -32,7 +32,7 @@ const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'WhatsappApp');
 const HELPER = 'WhatsappApp/Services/ImageHelper.cs';
 
-const CALL = /ImageHelper\.From(Base64|Bytes)Async\(/;
+const CALL = /ImageHelper\.From(Base64|Bytes|File)Async\(/;
 const MAX_DECODE = 720;
 
 /** Il testo fra la parentesi aperta a `open` e la sua chiusa. */
@@ -114,6 +114,32 @@ function sourceShapeProblems(source, file) {
   return problems;
 }
 
+const ATTACHMENT_INBOX = 'WhatsappApp/Services/AttachmentInbox.cs';
+
+/**
+ * Problemi di come entra un file scelto o condiviso.
+ *
+ * Perche' esiste: l'inbox leggeva il file intero in un byte[] e poi lo
+ * convertiva in base64. Una foto piccola passa, un video no: due allocazioni da
+ * decine di MB su un telefono da 512 MB fanno chiudere l'app, e la condivisione
+ * sembra un crash. Il file si copia nella cartella dell'app e si legge a pezzi
+ * quando si spedisce (vedi ChatPage.SendAttachmentAsync).
+ */
+function attachmentProblems(source, file) {
+  const problems = [];
+  if (file !== ATTACHMENT_INBOX) return problems;
+  const code = stripComments(source);
+  if (!/\.CopyAsync\s*\(/.test(code)) {
+    problems.push(`${file}: a picked or shared file must be copied into the app folder ` +
+      'with StorageFile.CopyAsync; reading it into a byte array holds the whole file ' +
+      'in memory and takes the app down on a 512 MB phone');
+  }
+  if (/new\s+byte\s*\[\s*\(?(uint|int)\)?\s*\w+\.Size/.test(code)) {
+    problems.push(`${file}: reads a whole file into a byte array instead of copying it`);
+  }
+  return problems;
+}
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -132,6 +158,7 @@ function main() {
     const rel = path.relative(ROOT, file).replace(/\\/g, '/');
     const source = fs.readFileSync(file, 'utf8');
     problems.push(...decodeProblems(source, rel));
+    problems.push(...attachmentProblems(source, rel));
     if (rel === HELPER) problems.push(...sourceShapeProblems(source, rel));
   }
 
@@ -145,4 +172,10 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { decodeProblems, sourceShapeProblems, splitArguments, MAX_DECODE };
+module.exports = {
+  decodeProblems,
+  attachmentProblems,
+  sourceShapeProblems,
+  splitArguments,
+  MAX_DECODE
+};

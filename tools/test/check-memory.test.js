@@ -26,6 +26,36 @@ test('una misura oltre lo schermo si segnala', () => {
   assert.match(problems[0], /wider than 720/);
 });
 
+const INBOX = 'WhatsappApp/Services/AttachmentInbox.cs';
+
+test('un allegato letto tutto in memoria si segnala', () => {
+  const source = 'await file.CopyAsync(folder, name, NameCollisionOption.ReplaceExisting);\n' +
+    'byte[] b = new byte[(uint)stream.Size];';
+  const problems = memory.attachmentProblems(source, INBOX);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /byte array/);
+});
+
+test('un allegato mai copiato si segnala', () => {
+  const source = 'byte[] b = await ReadAllAsync(file);';
+  const problems = memory.attachmentProblems(source, INBOX);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /CopyAsync/);
+});
+
+test('un allegato copiato passa', () => {
+  const source = 'await file.CopyAsync(ApplicationData.Current.LocalFolder, name, ' +
+    'NameCollisionOption.ReplaceExisting);';
+  assert.deepStrictEqual(memory.attachmentProblems(source, INBOX), []);
+});
+
+test('ImageHelper.FromFileAsync chiede anche lui la misura', () => {
+  const problems = memory.decodeProblems(
+    'MediaImage = await ImageHelper.FromFileAsync(MediaFilePath);', FILE);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /two arguments/);
+});
+
 test('una chiamata su piu righe si legge lo stesso', () => {
   const source = 'var b = await ImageHelper.FromBytesAsync(\n    bytes,\n    320);';
   assert.deepStrictEqual(memory.decodeProblems(source, FILE), []);

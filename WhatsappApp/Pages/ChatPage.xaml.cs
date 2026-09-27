@@ -18,12 +18,14 @@ namespace WhatsappApp.Pages
     {
         private Contact _contact;
         private ObservableCollection<ChatMessage> _messages;
-        // L'immagine scelta: i byte, piu' cio' che serve per inviarla. Non il
-        // StorageFile: dopo il selettore il file puo' appartenere a un processo
-        // che non c'e' piu' (vedi AttachmentInbox).
-        private string _selectedImageBase64;
-        private string _selectedImageFileName;
-        private string _selectedImageMimeType;
+        // L'allegato scelto: il nome del file copiato nella cartella dell'app,
+        // piu' cio' che serve per spedirlo. Non i byte: un video intero in
+        // memoria e' la cosa piu' pesante che questa pagina potrebbe tenere, ed
+        // e' quello che faceva chiudere l'app condividendo un video (vedi
+        // AttachmentInbox).
+        private string _selectedLocalFileName;
+        private string _selectedMediaFileName;
+        private string _selectedMediaMimeType;
         private ChatMessage _pendingScroll;
         private bool _scrollQueued;
 
@@ -233,12 +235,13 @@ namespace WhatsappApp.Pages
 
         private async System.Threading.Tasks.Task ShowFullScreenAsync(ChatMessage message)
         {
-            if (message == null || string.IsNullOrEmpty(message.MediaData)) return;
+            if (message == null) return;
 
             try
             {
-                ImageViewerImage.Source = await ImageHelper.FromBase64Async(
-                    message.MediaData, ViewerDecodePixels);
+                var bitmap = await message.LoadBitmapAsync(ViewerDecodePixels);
+                if (bitmap == null) return;
+                ImageViewerImage.Source = bitmap;
                 ImageViewer.Visibility = Visibility.Visible;
             }
             catch (Exception ex)
@@ -356,7 +359,7 @@ namespace WhatsappApp.Pages
             string text = (MessageTextBox.Text ?? "").Trim();
 
             // If we have a selected image or video, send it as an attachment
-            if (_selectedImageBase64 != null)
+            if (_selectedLocalFileName != null)
             {
                 await SendAttachmentAsync(text);
                 return;
@@ -382,35 +385,32 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Un allegato si manda a pezzi. Un frame ha un tetto di 8 MiB e il
-        /// contenuto viaggia in base64, che aggiunge un terzo: un video non ci
-        /// sta in un frame solo. Si taglia la stringa base64 a multipli di 4
-        /// caratteri, cosi' ogni pezzo e' base64 valido e i pezzi si
-        /// ricompongono senza decodificare niente.
+        /// Quanti BYTE si leggono per pezzo. E' un multiplo di 3: la sua base64
+        /// e' quindi lunga esattamente (byte/3)*4 caratteri, senza padding, e i
+        /// pezzi si concatenano in base64 senza ricodificare niente. 525000 byte
+        /// fanno 700000 caratteri, come MediaChunkChars e come l'adapter.
         /// </summary>
-        private const int MediaChunkChars = 700000;
+        private const int MediaChunkBytes = 525000;
 
+        /// <summary>
+        /// Un allegato si manda a pezzi, letti dal file copiato nella cartella
+        /// dell'app (vedi AttachmentInbox). Un frame ha un tetto di 8 MiB e il
+        /// contenuto viaggia in base64, che aggiunge un terzo: un video non ci
+        /// sta in un frame solo, e non ci sta nemmeno nella memoria del telefono.
+        /// </summary>
         private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
-            if (string.IsNullOrEmpty(_selectedImageBase64)) return;
+            string localFileName = _selectedLocalFileName;
+            if (string.IsNullOrEmpty(localFileName)) return;
 
-            string base64 = _selectedImageBase64;
-            string mimeType = _selectedImageMimeType ?? "image/jpeg";
-            string fileName = _selectedImageFileName;
+            string fileName = _selectedMediaFileName;
+            string mimeType = _selectedMediaMimeType ?? "image/jpeg";
             string kind = AttachmentInbox.KindName(mimeType, fileName);
-
-            // Il video non si disegna, e senza didascalia il fumetto resterebbe
-            // vuoto: la parola si vede, la didascalia che parte e' quella vera.
-            string displayText = caption ?? "";
-            if (string.IsNullOrEmpty(displayText) && kind == "video")
-            {
-                displayText = Loc.Get("ChatMessage_Video", "Video");
-            }
 
             var message = new ChatMessage
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Text = displayText,
+                Text = caption ?? "",
                 SenderId = CommunicationService.Instance.MyUserId ?? "me",
                 SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
@@ -418,11 +418,8 @@ namespace WhatsappApp.Pages
                 Type = kind == "video" ? MessageType.Video : MessageType.Image,
                 IsIncoming = false,
                 Status = MessageStatus.Sending,
-                // I byte si tengono solo per un'immagine: servono a disegnarla.
-                // Un video non si disegna, e tenerne la base64 per tutta la
-                // sessione e' la cosa piu' pesante che questa lista potrebbe
-                // fare.
-                MediaData = kind == "video" ? null : base64,
+                // I byte stanno su disco: qui c'e' solo dove trovarli.
+                MediaFilePath = localFileName,
                 MediaMimeType = mimeType,
                 MediaFileName = fileName,
                 MediaType = kind
@@ -442,25 +439,54 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            string transferId = Guid.NewGuid().ToString("N");
-            int total = (base64.Length + MediaChunkChars - 1) / MediaChunkChars;
-
-            await CommunicationService.Instance.SendMediaBeginAsync(
-                _contact.Id, transferId, fileName, mimeType, total);
-
-            for (int i = 0; i < total; i++)
+            try
             {
-                int start = i * MediaChunkChars;
-                int length = Math.Min(MediaChunkChars, base64.Length - start);
-                await CommunicationService.Instance.SendMediaChunkAsync(
-                    transferId, i, base64.Substring(start, length));
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
+                ulong length = (await file.GetBasicPropertiesAsync()).Size;
+                int total = length == 0
+                    ? 0
+                    : (int)((length + (ulong)MediaChunkBytes - 1) / (ulong)MediaChunkBytes);
+
+                string transferId = Guid.NewGuid().ToString("N");
+                await CommunicationService.Instance.SendMediaBeginAsync(
+                    _contact.Id, transferId, fileName, mimeType, total);
+
+                using (var stream = await file.OpenReadAsync())
+                {
+                    using (var reader = new DataReader(stream))
+                    {
+                        // ReadBytes legge byte crudi, quindi l'ordine dei byte
+                        // non conta qui: si legge a pezzi e si codifica.
+                        for (int i = 0; i < total; i++)
+                        {
+                            ulong offset = (ulong)i * (ulong)MediaChunkBytes;
+                            int size = (int)Math.Min((ulong)MediaChunkBytes, length - offset);
+
+                            while (reader.UnconsumedBufferLength < size)
+                            {
+                                uint loaded = await reader.LoadAsync(
+                                    (uint)(size - (int)reader.UnconsumedBufferLength));
+                                if (loaded == 0) break;
+                            }
+
+                            byte[] buffer = new byte[size];
+                            reader.ReadBytes(buffer);
+                            await CommunicationService.Instance.SendMediaChunkAsync(
+                                transferId, i, Convert.ToBase64String(buffer));
+                        }
+                    }
+                }
+
+                await CommunicationService.Instance.SendMediaEndAsync(transferId, caption);
+                message.Status = CommunicationService.Instance.IsConnected
+                    ? MessageStatus.Sent
+                    : MessageStatus.Failed;
             }
-
-            await CommunicationService.Instance.SendMediaEndAsync(transferId, caption);
-
-            message.Status = CommunicationService.Instance.IsConnected
-                ? MessageStatus.Sent
-                : MessageStatus.Failed;
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.SendAttachmentAsync", ex);
+                message.Status = MessageStatus.Failed;
+            }
         }
 
         private async void AddAndSendMessage(ChatMessage message)
@@ -550,9 +576,9 @@ namespace WhatsappApp.Pages
             if (!AttachmentInbox.HasAttachment) return;
 
             string note = AttachmentInbox.Note;
-            _selectedImageBase64 = AttachmentInbox.Base64;
-            _selectedImageFileName = AttachmentInbox.FileName;
-            _selectedImageMimeType = AttachmentInbox.MimeType;
+            _selectedLocalFileName = AttachmentInbox.LocalFileName;
+            _selectedMediaFileName = AttachmentInbox.FileName;
+            _selectedMediaMimeType = AttachmentInbox.MimeType;
             AttachmentInbox.Clear();
 
             if (!string.IsNullOrEmpty(note) && string.IsNullOrEmpty(MessageTextBox.Text))
@@ -561,8 +587,17 @@ namespace WhatsappApp.Pages
             }
 
             ImagePreviewBar.Visibility = Visibility.Visible;
+
+            bool video = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName) == "video";
+            if (video)
+            {
+                // Un video non si decodifica: non c'e' niente da disegnare.
+                SelectedImagePreview.Source = null;
+                return;
+            }
+
 #pragma warning disable 4014
-            ShowLocalPreviewAsync(_selectedImageBase64);
+            ShowLocalPreviewAsync(_selectedLocalFileName);
 #pragma warning restore 4014
         }
 
@@ -573,9 +608,17 @@ namespace WhatsappApp.Pages
         private const int PreviewDecodePixels = 720;
 
         /// <summary>Anteprima locale: il mittente vede la propria immagine.</summary>
-        private async System.Threading.Tasks.Task ShowLocalPreviewAsync(string base64)
+        private async System.Threading.Tasks.Task ShowLocalPreviewAsync(string localFileName)
         {
-            SelectedImagePreview.Source = await ImageHelper.FromBase64Async(base64, PreviewDecodePixels);
+            try
+            {
+                SelectedImagePreview.Source = await ImageHelper.FromFileAsync(
+                    localFileName, PreviewDecodePixels);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.ShowLocalPreviewAsync", ex);
+            }
         }
 
         /// <summary>
@@ -588,9 +631,9 @@ namespace WhatsappApp.Pages
 
         private void ClearSelectedImage()
         {
-            _selectedImageBase64 = null;
-            _selectedImageFileName = null;
-            _selectedImageMimeType = null;
+            _selectedLocalFileName = null;
+            _selectedMediaFileName = null;
+            _selectedMediaMimeType = null;
             SelectedImagePreview.Source = null;
             ImagePreviewBar.Visibility = Visibility.Collapsed;
         }
