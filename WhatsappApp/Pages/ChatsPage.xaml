@@ -45,9 +45,11 @@
                        Foreground="White" FontSize="24" FontWeight="SemiBold"
                        VerticalAlignment="Center" Margin="16,0,0,4"/>
 
+            <!-- I due pulsanti non si toccano: con il margine a 8 un dito
+                 appoggiato sul bordo non cade sull'azione accanto. -->
             <Button x:Name="NewChatButton" Grid.Column="1"
                     Background="Transparent" BorderThickness="0" Padding="0"
-                    Width="48" Height="48" Click="NewChatButton_Click">
+                    Width="48" Height="48" Margin="0,0,8,0" Click="NewChatButton_Click">
                 <Path Stroke="White" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                       Width="24" Height="24">
