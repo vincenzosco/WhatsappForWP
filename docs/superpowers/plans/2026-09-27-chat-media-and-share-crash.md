@@ -1304,13 +1304,37 @@ Remove the `using Windows.Storage.Streams;` line only if nothing else in the fil
 
 - [ ] **Step 7: Show the loading ring while the pieces arrive**
 
-In `WhatsappApp/Pages/ChatPage.xaml`, inside the video `<Border ... Tapped="Media_Tapped">` in BOTH bubbles, after the `</Path>` and before `</Border>`, add:
+In `WhatsappApp/Pages/ChatPage.xaml`, inside the video `<Border ... Tapped="Media_Tapped">` in BOTH bubbles, the `Border` now holds two things, and a `Border` takes exactly one child (`WMC0035` otherwise): wrap the play `Path` and the new `ProgressRing` in a `<Grid>`. The result is:
 
 ```xml
-                                    <ProgressRing IsActive="True" Width="26" Height="26"
-                                                  Foreground="White"
-                                                  HorizontalAlignment="Center" VerticalAlignment="Center"
-                                                  Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="140"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Grid>
+                                        <Path Fill="White" Width="54" Height="54"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconPlay -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="6,3" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <PolyLineSegment Points="22,12 6,21"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <ProgressRing IsActive="True" Width="26" Height="26"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
+                                </Border>
 ```
 
 Still in `ChatPage.xaml`, inside the `<Grid x:Name="VideoViewer" ...>`, after the `<Button x:Name="VideoCloseButton" ...>...</Button>`, add:

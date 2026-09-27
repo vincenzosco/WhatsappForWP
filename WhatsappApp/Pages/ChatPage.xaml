@@ -115,21 +115,29 @@
                                         Background="#FF263238"
                                         Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
                                         Tapped="Media_Tapped">
-                                    <Path Fill="White" Width="54" Height="54"
-                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <!-- IconPlay -->
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathGeometry.Figures>
-                                                    <PathFigure StartPoint="6,3" IsClosed="True">
-                                                        <PathFigure.Segments>
-                                                            <PolyLineSegment Points="22,12 6,21"/>
-                                                        </PathFigure.Segments>
-                                                    </PathFigure>
-                                                </PathGeometry.Figures>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
+                                    <Grid>
+                                        <Path Fill="White" Width="54" Height="54"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconPlay -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="6,3" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <PolyLineSegment Points="22,12 6,21"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <!-- I pezzi stanno arrivando: senza questo il tocco
+                                             sembra non aver fatto niente. -->
+                                        <ProgressRing IsActive="True" Width="26" Height="26"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
                                 </Border>
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
@@ -165,21 +173,29 @@
                                         Background="#FF263238"
                                         Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
                                         Tapped="Media_Tapped">
-                                    <Path Fill="White" Width="54" Height="54"
-                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <!-- IconPlay -->
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathGeometry.Figures>
-                                                    <PathFigure StartPoint="6,3" IsClosed="True">
-                                                        <PathFigure.Segments>
-                                                            <PolyLineSegment Points="22,12 6,21"/>
-                                                        </PathFigure.Segments>
-                                                    </PathFigure>
-                                                </PathGeometry.Figures>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
+                                    <Grid>
+                                        <Path Fill="White" Width="54" Height="54"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconPlay -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="6,3" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <PolyLineSegment Points="22,12 6,21"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <!-- I pezzi stanno arrivando: senza questo il tocco
+                                             sembra non aver fatto niente. -->
+                                        <ProgressRing IsActive="True" Width="26" Height="26"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
                                 </Border>
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
@@ -398,6 +414,14 @@
                     </Path.Data>
                 </Path>
             </Button>
+            <TextBlock x:Name="VideoErrorText"
+                       Text=""
+                       Foreground="White"
+                       FontSize="15"
+                       TextWrapping="Wrap"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       Margin="24,0,24,0"
+                       Visibility="Collapsed"/>
         </Grid>
     </Grid>
 </Page>
