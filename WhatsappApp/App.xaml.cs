@@ -322,54 +322,69 @@ namespace WhatsappApp
         /// </summary>
         private async System.Threading.Tasks.Task AcceptShareAsync(ShareOperation operation)
         {
+            // Lo stato della condivisione si racconta nell'ordine che WP8.1 si
+            // aspetta: started, poi (quando i byte ci sono) data retrieved, poi
+            // completed. Un ReportCompleted senza ReportStarted lascia l'app
+            // chiamante in attesa e fa cadere il processo, ed e' quello che
+            // succedeva condividendo una foto.
+            //
+            // Niente deferral: su WP8.1 ShareOperation non ha GetDeferral (il
+            // tipo Deferral di Windows.Foundation nemmeno esiste in questa
+            // proiezione), e non serve: l'app che riceve la condivisione e' in
+            // primo piano, e l'operazione resta valida finche' e' lei davanti.
+            // Il contratto e' l'ordine delle tre chiamate, non un deferral.
             try
             {
+                operation.ReportStarted();
+
                 var data = operation.Data;
-                if (data == null) return;
-
-                if (data.Contains(StandardDataFormats.StorageItems))
+                if (data != null)
                 {
-                    var items = await data.GetStorageItemsAsync();
-                    for (int i = 0; i < items.Count; i++)
+                    if (data.Contains(StandardDataFormats.StorageItems))
                     {
-                        var file = items[i] as StorageFile;
-                        if (file == null) continue;
-
-                        await AttachmentInbox.PutAsync(file, null);
-                        break;
-                    }
-                }
-                else if (data.Contains(StandardDataFormats.Bitmap))
-                {
-                    var reference = await data.GetBitmapAsync();
-                    using (var stream = await reference.OpenReadAsync())
-                    {
-                        using (var reader = new DataReader(stream))
+                        var items = await data.GetStorageItemsAsync();
+                        for (int i = 0; i < items.Count; i++)
                         {
-                            uint size = (uint)stream.Size;
-                            await reader.LoadAsync(size);
-                            var buffer = new byte[size];
-                            reader.ReadBytes(buffer);
-                            AttachmentInbox.PutBytes(buffer, "shared.png", "image/png", null);
+                            var file = items[i] as StorageFile;
+                            if (file == null) continue;
+
+                            await AttachmentInbox.PutAsync(file, null);
+                            break;
+                        }
+                    }
+                    else if (data.Contains(StandardDataFormats.Bitmap))
+                    {
+                        var reference = await data.GetBitmapAsync();
+                        using (var stream = await reference.OpenReadAsync())
+                        {
+                            using (var reader = new DataReader(stream))
+                            {
+                                uint size = (uint)stream.Size;
+                                await reader.LoadAsync(size);
+                                var buffer = new byte[size];
+                                reader.ReadBytes(buffer);
+                                AttachmentInbox.PutBytes(buffer, "shared.png", "image/png", null);
+                            }
                         }
                     }
                 }
+
+                operation.ReportDataRetrieved();
+                operation.ReportCompleted();
             }
             catch (Exception ex)
             {
                 Diag.Failed("App/share", ex);
-            }
-            finally
-            {
-                // Va sempre detto che la condivisione e' finita: un'operazione
-                // non riportata lascia l'app chiamante a girare a vuoto.
                 try
                 {
-                    operation.ReportCompleted();
+                    // Una condivisione fallita va detta: senza questo l'app
+                    // chiamante resta a girare a vuoto per sempre.
+                    operation.ReportError(Loc.Get("App_ShareFailed",
+                        "The shared file could not be read."));
                 }
-                catch (Exception ex)
+                catch (Exception reportEx)
                 {
-                    Diag.Failed("App/share-report", ex);
+                    Diag.Failed("App/share-report", reportEx);
                 }
             }
         }
