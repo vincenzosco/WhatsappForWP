@@ -31,6 +31,12 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   field and because a message that arrives while the phone is off reaches the adapter's
   webhook and nobody else; the app clears it with `read` when the conversation is shown.
   The count lives in memory: restarting the adapter starts it again from zero.
+- A photo, a video or a file is sent in pieces (`media.begin` / `media.chunk` /
+  `media.end`): the frame ceiling is 8 MiB and base64 adds a third, so a video cannot
+  travel in one frame. Each piece is a multiple of 4 base64 characters, so the adapter
+  concatenates the decoded bytes without re-encoding anything. Which door GOWA gets is
+  decided by the MIME type (or the extension): `/send/image`, `/send/video` and
+  `/send/file` are three different routes, and before this a video went out as an image.
 
 ## Control protocol
 
@@ -48,6 +54,9 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `chats` | — (the linked account's conversations, most recent first) |
 | app -> adapter | `messages` | `Text` = chat JID (up to `MESSAGES_LIMIT` messages, as ordinary frames marked `IsHistory`) |
 | app -> adapter | `read` | `Text` = chat JID (that conversation has now been read; clears its unread count) |
+| app -> adapter | `media.begin` | `Text` = chat JID, `MediaTransferId`, `MediaFileName`, `MediaMimeType`, `MediaChunkTotal` (an attachment follows) |
+| app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = one base64 piece (a multiple of 4 characters) |
+| app -> adapter | `media.end` | `MediaTransferId`, `Text` = caption (reassemble and send) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |

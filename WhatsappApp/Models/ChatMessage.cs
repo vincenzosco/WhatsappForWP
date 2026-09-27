@@ -27,7 +27,8 @@ namespace WhatsappApp.Models
         Text,
         Image,
         Audio,
-        System
+        System,
+        Video
     }
 
     [DataContract]
@@ -53,6 +54,10 @@ namespace WhatsappApp.Models
         private string _mediaData;      // base64-encoded media content
         private string _mediaMimeType;  // e.g. "image/jpeg", "image/png"
         private string _mediaFileName;  // optional filename
+        private string _mediaTransferId;   // id di un allegato che viaggia a pezzi
+        private int _mediaChunkIndex;      // quale pezzo e' questo
+        private int _mediaChunkTotal;      // quanti pezzi in tutto
+        private string _mediaType;         // "image", "video": il tipo dichiarato dal server
         private string _command;        // control frame command (see adapter protocol)
         private string _state;          // "disconnected" | "waiting" | "connected"
         private string _pairCode;       // pairing code for phone-number login
@@ -183,6 +188,42 @@ namespace WhatsappApp.Models
         {
             get { return _mediaFileName; }
             set { _mediaFileName = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Identificativo di un allegato che viaggia a pezzi (media.begin/end).</summary>
+        [DataMember]
+        public string MediaTransferId
+        {
+            get { return _mediaTransferId; }
+            set { _mediaTransferId = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Quale pezzo di un allegato e' questo frame.</summary>
+        [DataMember]
+        public int MediaChunkIndex
+        {
+            get { return _mediaChunkIndex; }
+            set { _mediaChunkIndex = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Quanti pezzi ha in tutto l'allegato.</summary>
+        [DataMember]
+        public int MediaChunkTotal
+        {
+            get { return _mediaChunkTotal; }
+            set { _mediaChunkTotal = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Il tipo di media come lo dichiara il server ("image", "video"). Non e'
+        /// il tipo MIME: serve a sapere che una riga di cronologia *e'* un'immagine
+        /// anche quando i byte non sono arrivati.
+        /// </summary>
+        [DataMember]
+        public string MediaType
+        {
+            get { return _mediaType; }
+            set { _mediaType = value; OnPropertyChanged(); }
         }
 
         /// <summary>Comando dei frame di controllo inviati/ricevuti dall'adapter (Type = System).</summary>
@@ -372,10 +413,15 @@ namespace WhatsappApp.Models
             get { return !IsIncoming; }
         }
 
-        // Convenience property: Is this message a media type (image/audio)?
+        // Convenience property: Is this message a media type (image/audio/video)?
         public bool IsMedia
         {
-            get { return Type == MessageType.Image || Type == MessageType.Audio; }
+            get
+            {
+                return Type == MessageType.Image
+                    || Type == MessageType.Audio
+                    || Type == MessageType.Video;
+            }
         }
 
         // Short text for media messages shown without loading the full image
@@ -385,6 +431,7 @@ namespace WhatsappApp.Models
             {
                 if (Type == MessageType.Image) return Loc.Get("ChatMessage_Photo", "Photo");
                 if (Type == MessageType.Audio) return Loc.Get("ChatMessage_Audio", "Audio");
+                if (Type == MessageType.Video) return Loc.Get("ChatMessage_Video", "Video");
                 return Loc.Get("ChatMessage_File", "File");
             }
         }

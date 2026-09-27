@@ -178,6 +178,9 @@
   <data name="ChatMessage_Audio" xml:space="preserve">
     <value>Audio</value>
   </data>
+  <data name="ChatMessage_Video" xml:space="preserve">
+    <value>Video</value>
+  </data>
   <data name="ChatMessage_File" xml:space="preserve">
     <value>File</value>
   </data>

@@ -228,3 +228,24 @@ test('avatar() returns null when the picture URL does not download', async () =>
 
   assert.strictEqual(await client.avatar('393401234567@s.whatsapp.net'), null);
 });
+
+test('sendVideo posts the video field, and sendFile the file field', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://g',
+    fetchImpl: async (url, options) => {
+      seen.push({ url, field: [...options.body.keys()].join(',') });
+      return jsonResponse({ status: 200, results: { message_id: 'V1' } });
+    }
+  });
+
+  assert.strictEqual(await client.sendVideo('39@s.whatsapp.net', 'guarda', Buffer.from([1]), 'video/mp4', 'clip.mp4'), 'V1');
+  assert.strictEqual(await client.sendFile('39@s.whatsapp.net', '', Buffer.from([2]), 'application/pdf', 'doc.pdf'), 'V1');
+
+  assert.strictEqual(seen[0].url, 'http://g/send/video');
+  assert.ok(seen[0].field.includes('video'));
+  assert.ok(seen[0].field.includes('phone'));
+  assert.ok(seen[0].field.includes('caption'));
+  assert.strictEqual(seen[1].url, 'http://g/send/file');
+  assert.ok(seen[1].field.includes('file'));
+});

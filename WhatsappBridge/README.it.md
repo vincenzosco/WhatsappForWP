@@ -33,6 +33,12 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   perche' un messaggio che arriva col telefono spento raggiunge il webhook dell'adapter e
   nessun altro; l'app lo azzera con `read` quando la conversazione viene mostrata. Il
   conteggio vive in memoria: riavviare l'adapter lo riparte da zero.
+- Una foto, un video o un file si manda a pezzi (`media.begin` / `media.chunk` /
+  `media.end`): il tetto di un frame e' 8 MiB e il base64 aggiunge un terzo, quindi un
+  video non ci sta in un frame solo. Ogni pezzo e' un multiplo di 4 caratteri base64,
+  cosi' l'adapter concatena i byte decodificati senza ricodificare niente. La porta di
+  GOWA la decide il tipo MIME (o l'estensione): `/send/image`, `/send/video` e
+  `/send/file` sono tre rotte diverse, e prima di questo un video partiva come immagine.
 
 ## Protocollo di controllo
 
@@ -50,6 +56,9 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `chats` | — (le conversazioni dell'account collegato, dalla più recente) |
 | app -> adapter | `messages` | `Text` = JID della chat (fino a `MESSAGES_LIMIT` messaggi, come frame normali marcati `IsHistory`) |
 | app -> adapter | `read` | `Text` = JID della chat (quella conversazione e' stata letta; azzera il suo conteggio dei non letti) |
+| app -> adapter | `media.begin` | `Text` = JID della chat, `MediaTransferId`, `MediaFileName`, `MediaMimeType`, `MediaChunkTotal` (segue un allegato) |
+| app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = un pezzo in base64 (multiplo di 4 caratteri) |
+| app -> adapter | `media.end` | `MediaTransferId`, `Text` = didascalia (ricompone e spedisce) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |

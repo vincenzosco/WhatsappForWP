@@ -119,20 +119,40 @@ class GowaClient {
     return (r.data.results || {}).message_id || '';
   }
 
-  async sendImage(phone, caption, buffer, mimeType, fileName) {
+  /**
+   * Un file verso GOWA. Le tre rotte differiscono solo per il nome del campo
+   * multipart e per il percorso: prima ce n'era una sola (sendImage), e un
+   * video finiva spedito come immagine.
+   */
+  async postMedia(path, field, phone, caption, buffer, mimeType, fileName) {
     const form = new FormData();
     form.append('phone', phone);
     if (caption) form.append('caption', caption);
-    form.append('image', new Blob([buffer], { type: mimeType || 'image/jpeg' }), fileName || 'image.jpg');
+    form.append(field, new Blob([buffer], { type: mimeType }), fileName || field);
 
-    const res = await this.fetch(`${this.baseUrl}/send/image`, {
+    const res = await this.fetch(`${this.baseUrl}${path}`, {
       method: 'POST', headers: this.headers(), body: form
     });
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
-    if (!res.ok) throw new Error(errorMessage(data, 'sending the image failed'));
+    if (!res.ok) throw new Error(errorMessage(data, `sending the ${field} failed`));
     return (data.results || {}).message_id || '';
+  }
+
+  async sendImage(phone, caption, buffer, mimeType, fileName) {
+    return this.postMedia('/send/image', 'image', phone, caption, buffer,
+      mimeType || 'image/jpeg', fileName || 'image.jpg');
+  }
+
+  async sendVideo(phone, caption, buffer, mimeType, fileName) {
+    return this.postMedia('/send/video', 'video', phone, caption, buffer,
+      mimeType || 'video/mp4', fileName || 'video.mp4');
+  }
+
+  async sendFile(phone, caption, buffer, mimeType, fileName) {
+    return this.postMedia('/send/file', 'file', phone, caption, buffer,
+      mimeType || 'application/octet-stream', fileName || 'file');
   }
 
   async fetchBinary(urlOrPath) {
