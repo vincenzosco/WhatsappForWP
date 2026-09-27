@@ -139,6 +139,10 @@ function buildChatMessage(fields) {
   // non lo conta come non letto ne' avvisa per ognuno.
   if (f.isHistory === true) msg.IsHistory = true;
 
+  // Il tipo di media dichiarato ("image", "video"): serve a sapere che una riga
+  // di cronologia *e'* un'immagine anche quando i byte non sono arrivati.
+  if (f.mediaType) msg.MediaType = f.mediaType;
+
   if (f.mediaData) {
     msg.MediaData = f.mediaData;
     msg.MediaMimeType = f.mediaMimeType || 'image/jpeg';
@@ -161,6 +165,11 @@ function mediaFromPayload(p) {
       result.type = 2; result.path = p.audio; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
     } else { result.fallbackText = '[Audio not downloaded]'; }
   } else if (p.video !== undefined) {
+    // Un video non si disegna in un fumetto: la parola resta, e una didascalia
+    // vince su di essa come per le immagini. Il tipo 4 e' quello che l'app
+    // conosce come Video (vedi MessageType in ChatMessage.cs).
+    result.type = 4;
+    result.fallbackText = '[Video]';
     if (p.video && typeof p.video.path === 'string') {
       result.path = p.video.path; result.mimeType = 'video/mp4';
     } else {
@@ -178,6 +187,15 @@ function mediaFromPayload(p) {
   }
 
   return result;
+}
+
+/// La parola del tipo di media, o vuota per un messaggio di solo testo.
+function mediaKind(media) {
+  const type = media && media.type;
+  if (type === 1) return 'image';
+  if (type === 2) return 'audio';
+  if (type === 4) return 'video';
+  return media && media.path ? 'document' : '';
 }
 
 function mapWebhookMessage(payload) {
@@ -201,6 +219,7 @@ function mapWebhookMessage(payload) {
     chatId,
     timestamp: p.timestamp ? new Date(p.timestamp) : new Date(),
     type: media.type,
+    mediaType: mediaKind(media),
     mediaPath: media.path,
     mediaFileName: media.fileName,
     mediaMimeType: media.mimeType

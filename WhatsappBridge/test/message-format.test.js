@@ -213,6 +213,26 @@ test('buildChatMessage carries IsHistory only when it is set', () => {
   assert.strictEqual(Object.prototype.hasOwnProperty.call(live, 'IsHistory'), false);
 });
 
+test('un video in arrivo dichiara il suo tipo e resta una parola', () => {
+  const fields = mapWebhookMessage({
+    id: 'V1',
+    chat_id: 'a@s.whatsapp.net',
+    from: 'a@s.whatsapp.net',
+    video: { path: 'statics/v.mp4' },
+    timestamp: '2026-09-27T08:00:00Z'
+  });
+
+  assert.strictEqual(fields.type, 4);
+  assert.strictEqual(fields.mediaType, 'video');
+  assert.strictEqual(fields.text, '[Video]');
+
+  const frame = buildChatMessage({
+    id: 'V1', chatId: 'a@s.whatsapp.net', type: fields.type, mediaType: fields.mediaType, text: fields.text
+  });
+  assert.strictEqual(frame.Type, 4);
+  assert.strictEqual(frame.MediaType, 'video');
+});
+
 test('buildChatMessage porta UnreadCount solo quando la riga lo dichiara', () => {
   const row = buildChatMessage({ command: 'chat', chatId: 'a@s.whatsapp.net', unreadCount: 3 });
   assert.strictEqual(row.UnreadCount, 3);
