@@ -14,6 +14,26 @@ function buildAuthHeader(user, pass) {
   return 'Basic ' + Buffer.from(`${user}:${pass || ''}`, 'utf8').toString('base64');
 }
 
+// Il nome di un gruppo come lo restituisce GOWA.
+//
+// whatsmeow's types.GroupInfo non ha tag json e incorpora GroupName, e
+// encoding/json promuove i campi di una struct incorporata: il nome arriva
+// quindi come "Name" di primo livello. Si accettano anche le forme annidate
+// perche' questo e' l'unico punto in cui il nome entra, e un cambio di forma a
+// monte non deve svuotare i nomi dei gruppi.
+function groupName(group) {
+  if (!group) return '';
+  const candidates = [group.Name, group.name];
+  const nested = group.GroupName || group.group_name;
+  if (nested) {
+    candidates.push(nested.Name, nested.name);
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && candidate.trim()) return candidate.trim();
+  }
+  return '';
+}
+
 class GowaClient {
   constructor({ baseUrl, deviceId, user, pass, fetchImpl } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
@@ -130,6 +150,31 @@ class GowaClient {
     const r = await this.request('GET', '/user/my/contacts');
     const data = (r.data && r.data.results && r.data.results.data) || [];
     return data.map((c) => ({ jid: c.jid, name: c.name || '' }));
+  }
+
+  // I gruppi a cui l'account partecipa, con il nome vero.
+  //
+  // Serve perche' l'elenco chat non e' una fonte affidabile per i nomi dei
+  // gruppi: quando GOWA non ha un nome in storage risponde "Group <numero>"
+  // (vedi chat_display_name.go nel sorgente di GOWA), che e' il numero e non il
+  // nome. Una richiesta sola per tutti i gruppi, e 500 gruppi sono il tetto che
+  // impone WhatsApp.
+  async myGroups() {
+    const names = new Map();
+    try {
+      const r = await this.request('GET', '/user/my/groups');
+      const data = (r.data && r.data.results && r.data.results.data) || [];
+      if (!r.ok || !Array.isArray(data)) return names;
+
+      for (const group of data) {
+        const jid = group && (group.JID || group.jid);
+        const name = groupName(group);
+        if (jid && name) names.set(String(jid), name);
+      }
+    } catch (err) {
+      return names;
+    }
+    return names;
   }
 
   // Elenco delle chat presenti nella storage di GOWA (paginato lato server).

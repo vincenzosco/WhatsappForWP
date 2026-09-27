@@ -47,7 +47,10 @@ L'elenco chat e' la lista vera delle conversazioni dell'account (`GET /chats`,
 limitata da `CHATS_LIMIT`), non la rubrica di WhatsApp, che su un dispositivo
 appena collegato e' vuota. Ogni riga porta l'ultimo messaggio e, per le persone,
 l'immagine del profilo (`GET /user/avatar` e poi l'indirizzo CDN che restituisce,
-quindi due richieste per persona; si spegne con `CHATS_AVATARS=off`).
+quindi due richieste per persona; si spegne con `CHATS_AVATARS=off`). Il nome di
+un gruppo arriva da `GET /user/my/groups`, una richiesta per tutti, perche'
+l'elenco delle conversazioni non ha un nome utilizzabile per un gruppo e ripiega
+su `Group <numero>`.
 
 Una nuova chat si apre in tre modi: digitando un numero con prefisso, scegliendo
 un contatto con il selettore del sistema (e' il consenso dell'utente, quindi l'app
