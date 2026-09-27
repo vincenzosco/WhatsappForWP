@@ -786,6 +786,8 @@ In `WhatsappApp/Pages/ChatPage.xaml`, replace the `<Image x:Name="SelectedImageP
 
 `IconPlay` must be the same geometry as the play box added earlier in this page; `check-icons` compares them.
 
+The image label is looked up as `ChatPage_ImageSelected.Text`, not `ChatPage_ImageSelected`: that is the name the x:Uid form creates, and a bare key of the same base would collide with it (the guard rejects both existing at once).
+
 Then, in `WhatsappApp/Pages/ChatPage.xaml.cs`'s `ShowPendingAttachment`, replace the video branch that only clears the image with the label and the play box this task just created. Replace:
 
 ```csharp
@@ -811,7 +813,7 @@ with:
             bool video = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName) == "video";
             PreviewLabel.Text = video
                 ? Loc.Get("ChatPage_VideoSelected", "Video selected")
-                : Loc.Get("ChatPage_ImageSelected", "Image selected");
+                : Loc.Get("ChatPage_ImageSelected.Text", "Image selected");
             SelectedVideoPreview.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
             SelectedImagePreview.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
 
