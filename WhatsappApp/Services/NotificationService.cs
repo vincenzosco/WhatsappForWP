@@ -83,8 +83,9 @@ namespace WhatsappApp.Services
         /// `TileWide310x150IconWithBadge` non esiste, e comunque il badge viene
         /// disegnato anche sulla tile larga, quindi il numero si vede lo stesso.
         ///
-        /// L'immagine non si passa: senza di essa il modello usa il logo
-        /// dell'app, che e' quello che il manifest gia' dichiara.
+        /// L'icona invece va passata: il modello IconWithBadge NON la prende dal
+        /// manifest, la vuole nel payload. Con src vuoto la tile resta senza
+        /// icona - e senza sollevare niente, quindi in silenzio.
         /// </summary>
         private static void SetTileBadge(int count)
         {
@@ -102,6 +103,7 @@ namespace WhatsappApp.Services
                 var visual = (XmlElement)xml.SelectSingleNode("/tile/visual");
                 if (visual == null) return;
 
+                SetTileIcon(xml, visual);
                 AppendBinding(xml, visual, TileTemplateType.TileSquare71x71IconWithBadge);
 
                 updater.Update(new TileNotification(xml));
@@ -116,13 +118,54 @@ namespace WhatsappApp.Services
         /// Copia il binding di un altro modello dentro il documento della tile.
         /// Un nodo appartiene al suo documento, quindi va importato: appenderlo
         /// cosi' com'e' solleva un'eccezione.
+        ///
+        /// Il binding importato e' un binding che parte, quindi vuole la sua
+        /// icona come l'altro: senza, la misura che lo riceve si disegna senza.
         /// </summary>
         private static void AppendBinding(XmlDocument xml, XmlElement visual, TileTemplateType template)
         {
             var other = TileUpdateManager.GetTemplateContent(template);
             var binding = other.SelectSingleNode("/tile/visual/binding");
-            if (binding != null) visual.AppendChild(xml.ImportNode(binding, true));
+            if (binding == null) return;
+
+            var imported = xml.ImportNode(binding, true) as XmlElement;
+            if (imported == null) return;
+
+            SetImage(xml, imported);
+            visual.AppendChild(imported);
         }
+
+        /// <summary>L'icona sul binding che sta dentro il visual del modello.</summary>
+        private static void SetTileIcon(XmlDocument xml, XmlElement visual)
+        {
+            var binding = visual.SelectSingleNode("binding") as XmlElement;
+            if (binding == null) return;
+            SetImage(xml, binding);
+        }
+
+        /// <summary>
+        /// Scrive l'icona sull'image del binding, creandola se il modello non ne
+        /// ha una: l'elemento va creato con il documento di destinazione, non con
+        /// quello del modello, altrimenti l'inserimento solleva un'eccezione.
+        /// </summary>
+        private static void SetImage(XmlDocument xml, XmlElement binding)
+        {
+            var image = binding.SelectSingleNode("image") as XmlElement;
+            if (image == null)
+            {
+                image = xml.CreateElement("image");
+                image.SetAttribute("id", "1");
+                binding.AppendChild(image);
+            }
+            image.SetAttribute("src", TileIconUri);
+        }
+
+        /// <summary>
+        /// L'immagine della tile, in un posto solo. E' un PNG trasparente senza
+        /// padding: i logo del manifest hanno il padding che il sistema si
+        /// aspetta, e su una tile da 150 px quel padding si mangia il disegno.
+        /// </summary>
+        private const string TileIconUri = "ms-appx:///Assets/TileIcon.png";
 
         private static string Cut(string value, int max)
         {
