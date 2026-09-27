@@ -57,6 +57,11 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
    runtime; microsoft-ui-xaml#1909 / #5780) and `Figures="M..."` (WP8.1's
    `PathFigureCollection` converter has no string form, 18 build errors).
    Gate: `node tools/check-icons.js` (add `--preview` for an ASCII render).
+   The live tile is the one place where the icon is **not** a `Path`: the
+   `TileSquare150x150IconWithBadge` model wants `<image src="..."/>` in the
+   payload and does **not** fall back to the manifest logo. The asset is
+   `Assets/TileIcon.png` (+ its `.scale-240`), a transparent PNG with no padding.
+   Gate: `node tools/check-tile.js`.
 3. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
    that matches the element (`TextBlock`→`.Text`, `Button`→`.Content`,
    `TextBox`→`.PlaceholderText`); C# uses `Loc.Get("Key", "fallback")`. Icon-only
@@ -144,8 +149,11 @@ suppressing the *toast* for the chat on screen.
 2. Read the file you are about to change **completely**; this codebase keeps
    per-file invariants in comments.
 3. Make the change.
-4. Run all four guards (and `cd WhatsappBridge && npm test` if you touched the
-   adapter).
+4. Run the fast gate: `node tools/check-csharp5.js && node tools/check-icons.js &&
+   node tools/check-resw.js --strict && node tools/check-docs.js &&
+   node tools/check-framing.js && node tools/check-tile.js &&
+   node tools/check-memory.js && node tools/check-actions.js`, plus
+   `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
 5. If the change is user-visible, say which page and which string key changed.
 6. Commit with a message that says *why* (the repo history is the changelog).
 
@@ -288,3 +296,29 @@ suppressing the *toast* for the chat on screen.
   tags and embeds `GroupName`, so `encoding/json` promotes the fields and the
   subject arrives as a top-level `Name`. GOWA's own chat list has no usable name
   for a group and answers `Group <number>`.
+- **The tile takes its icon from the payload, not from the manifest.** A
+  `TileSquare150x150IconWithBadge` update whose `image/@src` is empty renders an
+  iconless tile and raises nothing at all - no exception, no log, nothing in the
+  Output window. `SetTileBadge` writes `ms-appx:///Assets/TileIcon.png` on every
+  binding it sends, including the 71x71 one it imports, and creates the `image`
+  element when the template does not ship one (create it with the destination
+  document, or the insertion throws). `TileWide310x150IconWithBadge` does not exist
+  on WP8.1 (CS0117), so the wide tile keeps the manifest's. Gate:
+  `node tools/check-tile.js`.
+- **A bitmap decodes at the size you ask for, and at no other size.**
+  `BitmapImage.DecodePixelWidth` must be set before `SetSourceAsync` - after, it
+  does nothing - and it is the difference between a 52 px circle costing a few tens
+  of KB and costing almost 2 MB, once per conversation. Every decode goes through
+  `ImageHelper.From*Async(base64, width)`; the QR decoder in `ConnectionPage` is
+  the one deliberate exception, because a QR only scans at 1:1. Under pressure
+  `MemoryWatcher` drops the decoded avatars and clears the history of the chats
+  that are not open - and forgets `MarkHistoryRequested` with them, or a chat
+  emptied that way stays empty forever. Note also that `AppMemoryUsageLevel` on
+  WP8.1 has no `OverLimit` (CS0117): `High` is the top it can name. Gate:
+  `node tools/check-memory.js`.
+- **Two icon-only buttons next to each other are one edited line away from being
+  swapped.** The rule is not style: a button named `X` is wired only to `X_Click`
+  and draws the icon `tools/check-actions.js` declares for it. The two title-bar
+  buttons keep a gap between them and carry `AutomationProperties.SetName` (the
+  same key as their tooltip), so the device can answer which is which. Gate:
+  `node tools/check-actions.js`.
