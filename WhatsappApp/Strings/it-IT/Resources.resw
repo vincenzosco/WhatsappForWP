@@ -157,11 +157,14 @@
   <data name="ChatPage_ImageError" xml:space="preserve">
     <value>Impossibile aprire l'immagine: {0}</value>
   </data>
+  <data name="App_ShareFailed" xml:space="preserve">
+    <value>Il file condiviso non e' stato letto.</value>
+  </data>
   <data name="ChatPage_BackTooltip" xml:space="preserve">
     <value>Indietro</value>
   </data>
   <data name="ChatPage_AttachTooltip" xml:space="preserve">
-    <value>Allega un'immagine</value>
+    <value>Allega una foto o un video</value>
   </data>
   <data name="ChatPage_SendTooltip" xml:space="preserve">
     <value>Invia</value>

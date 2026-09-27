@@ -110,7 +110,33 @@ namespace WhatsappApp.Services
             if (value == ".png") return "image/png";
             if (value == ".gif") return "image/gif";
             if (value == ".bmp") return "image/bmp";
+            if (value == ".mp4") return "video/mp4";
+            if (value == ".mov") return "video/quicktime";
+            if (value == ".3gp") return "video/3gpp";
+            if (value == ".avi") return "video/x-msvideo";
+            if (value == ".mkv") return "video/x-matroska";
+            if (value == ".webm") return "video/webm";
             return "image/jpeg";
+        }
+
+        /// <summary>
+        /// "image" o "video": la parola che l'adapter e l'app usano per decidere
+        /// come spedire e come disegnare. Il tipo MIME puo' mancare (una bitmap
+        /// condivisa), quindi la parola si ricava anche dall'estensione.
+        /// </summary>
+        public static string KindName(string mimeType, string fileName)
+        {
+            string mime = (mimeType ?? "").ToLower();
+            if (mime.StartsWith("video/")) return "video";
+            if (mime.StartsWith("image/")) return "image";
+
+            string name = (fileName ?? "").ToLower();
+            if (name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".3gp")
+                || name.EndsWith(".avi") || name.EndsWith(".mkv") || name.EndsWith(".webm"))
+            {
+                return "video";
+            }
+            return "image";
         }
     }
 }
