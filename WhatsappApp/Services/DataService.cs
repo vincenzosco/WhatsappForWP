@@ -607,6 +607,29 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Mette i messaggi salvati nella conversazione, se e' ancora vuota.
+        /// Passano da AddHistoryMessage come la cronologia vera: stessa
+        /// inserzione in ordine e stesso scarto degli id gia' presenti, cosi' i
+        /// messaggi che arrivano dopo non entrano due volte. Sono marcati
+        /// IsHistory, quindi non contano e non alzano avvisi.
+        /// </summary>
+        public async Task LoadCachedMessagesAsync(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            if (GetMessages(chatId).Count > 0) return;
+
+            var cached = await MessageCache.LoadAsync(chatId);
+            for (int i = 0; i < cached.Count; i++)
+            {
+                var message = cached[i];
+                if (message == null) continue;
+                message.ChatId = chatId;
+                AddHistoryMessage(message);
+            }
+        }
+
+        /// <summary>
         /// Dice se la cronologia di questa chat va chiesta adesso, e nel caso se
         /// ne ricorda: una volta per chat per sessione. Riaprire la stessa chat
         /// la mostra subito dalla memoria, invece di rifare il giro sul filo.

@@ -1589,7 +1589,6 @@ namespace WhatsappApp.Services
                 MediaMimeType = message.MediaMimeType,
                 MediaFileName = message.MediaFileName,
                 MediaType = message.MediaType,
-                MediaFilePath = message.MediaFilePath,
                 IsHistory = true
             };
         }
@@ -1627,23 +1626,24 @@ In `WhatsappApp/Services/DataService.cs`, add after `GetMessages`:
 
 ```csharp
         /// <summary>
-        /// Mette i messaggi salvati in cima alla conversazione, se la chat e'
-        /// ancora vuota. Sono marcati IsHistory, quindi non contano e non
-        /// alzano avvisi: e' esattamente quello che sono.
+        /// Mette i messaggi salvati nella conversazione, se e' ancora vuota.
+        /// Passano da AddHistoryMessage come la cronologia vera: stessa
+        /// inserzione in ordine e stesso scarto degli id gia' presenti, cosi' i
+        /// messaggi che arrivano dopo non entrano due volte.
         /// </summary>
         public async Task LoadCachedMessagesAsync(string chatId)
         {
             if (string.IsNullOrEmpty(chatId)) return;
 
-            var list = GetMessages(chatId);
-            if (list.Count > 0) return;
+            if (GetMessages(chatId).Count > 0) return;
 
             var cached = await MessageCache.LoadAsync(chatId);
             for (int i = 0; i < cached.Count; i++)
             {
                 var message = cached[i];
+                if (message == null) continue;
                 message.ChatId = chatId;
-                _chatMessages[chatId].Add(message);
+                AddHistoryMessage(message);
             }
         }
 ```

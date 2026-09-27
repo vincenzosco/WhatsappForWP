@@ -60,10 +60,14 @@ namespace WhatsappApp.Pages
                 OnlineStatusText.Text = hasNumber ? number : "";
                 OnlineStatusText.Visibility = hasNumber ? Visibility.Visible : Visibility.Collapsed;
 
-                // Load messages
+                // Load messages: prima quelli sul telefono, cosi' la
+                // conversazione si vede subito, poi la cronologia vera.
                 _messages = DataService.Instance.GetMessages(contact.Id);
                 MarkRead();
                 MessagesListView.ItemsSource = _messages;
+#pragma warning disable 4014
+                LoadCachedMessagesAsync(contact.Id);
+#pragma warning restore 4014
 
                 // Auto-scroll to bottom
                 if (_messages.Count > 0)
@@ -100,6 +104,16 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
             AttachmentInbox.Ready -= OnAttachmentReady;
+
+            // La fotografia della conversazione: e' l'uscita che la scrive,
+            // non ogni messaggio, altrimenti scriverebbe un file a raffica.
+            if (_contact != null && _messages != null)
+            {
+#pragma warning disable 4014
+                MessageCache.SaveAsync(_contact.Id, _messages);
+#pragma warning restore 4014
+            }
+
             DataService.Instance.ActiveChatId = null;
             _pendingScroll = null;
             HideFullScreen();
@@ -184,6 +198,16 @@ namespace WhatsappApp.Pages
                 return string.IsNullOrEmpty(message.MediaData);
 
             return false;
+        }
+
+        /// <summary>
+        /// Riempie la conversazione con la copia sul telefono e scorre in fondo.
+        /// Va atteso sul thread UI: la collezione e' quella legata alla lista.
+        /// </summary>
+        private async System.Threading.Tasks.Task LoadCachedMessagesAsync(string chatId)
+        {
+            await DataService.Instance.LoadCachedMessagesAsync(chatId);
+            if (_messages.Count > 0) ScrollToMessage(_messages[_messages.Count - 1]);
         }
 
         private void RequestMedia(ChatMessage message)
