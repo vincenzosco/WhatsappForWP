@@ -37,9 +37,10 @@
             <m3:SplashScreen Image="Assets\SplashScreen.png"/>
         </m3:VisualElements>
         <Extensions>
-            <!-- Riceve immagini condivise da un'altra app (Galleria, Foto,
-                 browser). Va dichiarato qui: senza questa estensione WP8.1 non
-                 elenca l'app nel pannello di condivisione. -->
+            <!-- Riceve immagini e video condivisi da un'altra app (Galleria,
+                 Foto, browser). Va dichiarato qui: senza questa estensione
+                 WP8.1 non elenca l'app nel pannello di condivisione, e senza i
+                 tipi dei video l'app non viene nemmeno offerta per loro. -->
             <!-- Senza prefisso: ShareTarget sta nel namespace predefinito di
                  questa manifest (appx/2010), come Extensions e Extension. Con
                  m3: il validatore risponde APPX3030/APPX3002. -->
@@ -53,6 +54,12 @@
                         <FileType>.png</FileType>
                         <FileType>.gif</FileType>
                         <FileType>.bmp</FileType>
+                        <FileType>.mp4</FileType>
+                        <FileType>.mov</FileType>
+                        <FileType>.3gp</FileType>
+                        <FileType>.avi</FileType>
+                        <FileType>.mkv</FileType>
+                        <FileType>.webm</FileType>
                     </SupportedFileTypes>
                     <DataFormat>Bitmap</DataFormat>
                     <DataFormat>StorageItems</DataFormat>

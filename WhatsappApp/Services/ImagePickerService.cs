@@ -31,6 +31,15 @@ namespace WhatsappApp.Services
             picker.FileTypeFilter.Add(".gif");
             picker.FileTypeFilter.Add(".bmp");
 
+            // Un video non e' un'immagine, ma arriva dallo stesso pulsante: il
+            // tipo lo dice il file, e l'invio sceglie la strada giusta.
+            picker.FileTypeFilter.Add(".mp4");
+            picker.FileTypeFilter.Add(".mov");
+            picker.FileTypeFilter.Add(".3gp");
+            picker.FileTypeFilter.Add(".avi");
+            picker.FileTypeFilter.Add(".mkv");
+            picker.FileTypeFilter.Add(".webm");
+
             // CS0618: deprecata da Windows 10, ma e' l'unica che Windows Phone
             // 8.1 implementa. Non e' un warning da sistemare, e' la piattaforma.
 #pragma warning disable 618
