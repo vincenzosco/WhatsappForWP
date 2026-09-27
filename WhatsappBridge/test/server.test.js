@@ -508,3 +508,45 @@ test('un allegato immagine va a sendImage e uno sconosciuto a sendFile', async (
     { door: 'file', mimeType: 'application/pdf' }
   ]);
 });
+
+test('media.get scarica il media del messaggio e lo manda come frame di controllo', async () => {
+  const sent = [];
+  const gowa = {
+    downloadMedia: async (phone, messageId) => {
+      assert.strictEqual(phone, 'a@s.whatsapp.net');
+      assert.strictEqual(messageId, 'M9');
+      return { base64: Buffer.from([1, 2, 3]).toString('base64'), mimeType: 'image/jpeg', fileName: 'foto.jpg' };
+    }
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({
+    Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'M9'
+  });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'media');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+  assert.strictEqual(sent[0].RelatedMessageId, 'M9');
+  assert.strictEqual(sent[0].MediaData, Buffer.from([1, 2, 3]).toString('base64'));
+  assert.strictEqual(sent[0].MediaMimeType, 'image/jpeg');
+  assert.strictEqual(sent[0].Type, 3);
+});
+
+test('media.get dice che il media non c e piu invece di restare muto', async () => {
+  const sent = [];
+  const gowa = { downloadMedia: async () => null };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({
+    Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'M9'
+  });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'error');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+});

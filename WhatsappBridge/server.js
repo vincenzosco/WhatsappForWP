@@ -181,6 +181,44 @@ function createBridge({ config, gowa, log, debug }) {
     }
   }
 
+  /**
+   * I byte del media di un messaggio che l'app ha gia' (una riga di cronologia
+   * arrivata come parola). Viaggia come frame di controllo, non di messaggio:
+   * e' un pezzo che completa un messaggio esistente, non uno nuovo, e come
+   * messaggio alzerebbe il conteggio dei non letti e un avviso.
+   */
+  async function sendMedia(chatId, messageId) {
+    if (!chatId || !messageId) return;
+
+    if (state.status !== 'connected') {
+      sendControl({ command: 'error', chatId, text: 'WhatsApp is not connected: the media is unavailable.' });
+      return;
+    }
+
+    try {
+      const media = await gowa.downloadMedia(chatId, messageId);
+      if (!media) {
+        // Il file non c'e' piu': si dice, invece di lasciare la bolla in attesa
+        // per sempre (vedi il test del comando).
+        sendControl({ command: 'error', chatId, text: 'This media is no longer available on the server.' });
+        return;
+      }
+
+      sendControl({
+        command: 'media',
+        chatId,
+        relatedMessageId: messageId,
+        mediaData: media.base64,
+        mediaMimeType: media.mimeType,
+        mediaFileName: media.fileName
+      });
+      logger('INFO', `media downloaded for ${messageId} (${media.base64.length} chars)`);
+    } catch (err) {
+      logger('ERR', `media download failed for ${messageId}: ${err.message}`);
+      sendControl({ command: 'error', chatId, text: `Media download failed: ${err.message}` });
+    }
+  }
+
   async function sendCalls() {
     const limits = (config && config.calls) || {};
 
@@ -573,6 +611,11 @@ function createBridge({ config, gowa, log, debug }) {
         break;
       case 'media.end':
         await mediaEnd(msg);
+        break;
+      case 'media.get':
+        // Il JID della chat in Text (come `messages`), l'id del messaggio in
+        // RelatedMessageId: e' il campo che dice a cosa si riferisce un frame.
+        await sendMedia((msg.Text || '').trim(), msg.RelatedMessageId);
         break;
       case 'logout':
         try { await gowa.logout(); } catch (e) { /* ignora */ }

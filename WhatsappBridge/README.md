@@ -37,6 +37,11 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   concatenates the decoded bytes without re-encoding anything. Which door GOWA gets is
   decided by the MIME type (or the extension): `/send/image`, `/send/video` and
   `/send/file` are three different routes, and before this a video went out as an image.
+- A photo or a video in a chat's history arrived while the phone was off: its bytes were
+  delivered to the adapter and nowhere else, so the row is a word (`[Image]`). Tapping it
+  asks the adapter (`media.get`), which reads `GET /message/:id/download` from GOWA and
+  answers with the bytes in a `media` frame; the app puts them on the message it already
+  has. Nothing is downloaded until it is asked for.
 
 ## Control protocol
 
@@ -57,6 +62,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.begin` | `Text` = chat JID, `MediaTransferId`, `MediaFileName`, `MediaMimeType`, `MediaChunkTotal` (an attachment follows) |
 | app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = one base64 piece (a multiple of 4 characters) |
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = caption (reassemble and send) |
+| app -> adapter | `media.get` | `Text` = chat JID, `RelatedMessageId` = message id (downloads that message media and answers with a `media` frame) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
@@ -67,6 +73,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | adapter -> app | `chats.done` | — (the list is over) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id of the deleted message |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = the new text |
+| adapter -> app | `media` | `ChatId`, `RelatedMessageId`, `MediaData`, `MediaMimeType`: the bytes of a message the app already has |
 | adapter -> app | `error` | `Text` |
 
 One frame is `[4-byte little-endian length][payload]`. A length of `0`, or one

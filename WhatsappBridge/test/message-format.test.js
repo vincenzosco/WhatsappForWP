@@ -213,6 +213,12 @@ test('buildChatMessage carries IsHistory only when it is set', () => {
   assert.strictEqual(Object.prototype.hasOwnProperty.call(live, 'IsHistory'), false);
 });
 
+test('una riga di cronologia dice che tipo di media e', () => {
+  assert.strictEqual(mapHistoryMessage({ id: 'A1', media_type: 'image' }).mediaType, 'image');
+  assert.strictEqual(mapHistoryMessage({ id: 'A2', media_type: 'video' }).mediaType, 'video');
+  assert.strictEqual(mapHistoryMessage({ id: 'A3', content: 'ciao' }).mediaType, '');
+});
+
 test('un video in arrivo dichiara il suo tipo e resta una parola', () => {
   const fields = mapWebhookMessage({
     id: 'V1',

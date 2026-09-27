@@ -93,6 +93,7 @@ function mapHistoryMessage(raw) {
     chatId: m.chat_jid || '',
     timestamp: formatDateForWp8(m.timestamp),
     type: 0,
+    mediaType: media,
     isIncoming: !isFromMe,
     isHistory: true
   };
