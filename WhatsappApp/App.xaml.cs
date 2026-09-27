@@ -35,6 +35,10 @@ namespace WhatsappApp
         // come "Failed to create initial page" e nient'altro.
         private Exception navigationFailure;
 
+        // Servizi e watchdog esistono una volta per processo: una condivisione
+        // puo' riattivare un'app gia' avviata, e non si devono raddoppiare.
+        private bool servicesStarted;
+
         /// <summary>
         /// Inizializza l'oggetto singleton Application. Si tratta della prima riga del codice creato
         /// eseguita e, come tale, corrisponde all'equivalente logico di main() o WinMain().
@@ -61,51 +65,9 @@ namespace WhatsappApp
             }
 #endif
 
-            // Il loader delle risorse non si puo' creare da un thread di
-            // background: lo si crea qui, una volta, sul thread UI.
-            Loc.Prewarm();
+            StartServicesOnce();
 
-            // Stesso motivo del loader: il dispatcher si trova di sicuro solo
-            // qui, sul thread UI. Risolverlo piu' tardi, da un thread di rete,
-            // lasciava il servizio senza dispatcher per tutta la sessione.
-            CommunicationService.Instance.Prewarm();
-
-            // Il servizio dati si aggancia qui: prima si creava alla prima
-            // pagina che lo toccava, e i messaggi arrivati nel frattempo (o i
-            // contatti sincronizzati) non avevano nessun ascoltatore.
-            DataService.Instance.Start();
-
-#if DEBUG
-            // Solo in debug: dice in tre righe cosa questo telefono sa fare
-            // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
-            // rilascio non esiste, quindi non costa niente all'avvio.
-            SelfCheck.RunAsync();
-#endif
-
-            // Riconnessione automatica: l'app non riprova da sola dopo un
-            // riavvio, e senza questo l'elenco chat resta vuoto finche' l'utente
-            // non apre le impostazioni.
-            if (SettingsService.HasSavedSettings) StartAutoConnect();
-
-            // E poi la tiene viva: WP8.1 chiude il socket sospendendo l'app, e
-            // alla ripresa la connessione risulta attiva ma non passa piu'
-            // niente (vedi ConnectionWatchdog).
-            ConnectionWatchdog.Instance.Start();
-
-            Frame rootFrame = Window.Current.Content as Frame;
-
-            if (rootFrame == null)
-            {
-                rootFrame = new Frame();
-                // Tre pagine di sezione (Chats/Status/Calls) con
-                // NavigationCacheMode.Enabled: la cache le tiene in vita, cosi'
-                // passare da una sezione all'altra non ricostruisce la pagina
-                // (l'elenco chat conserva anche la posizione di scorrimento).
-                rootFrame.CacheSize = 3;
-                rootFrame.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
-
-                Window.Current.Content = rootFrame;
-            }
+            Frame rootFrame = EnsureFrame();
 
             if (rootFrame.Content == null)
             {
@@ -230,6 +192,90 @@ namespace WhatsappApp
             if (frame.Content is StatusPage) return AppSection.Status;
             if (frame.Content is CallsPage) return AppSection.Calls;
             return AppSection.Chats;
+        }
+
+        /// <summary>
+        /// Tutto cio' che deve esistere una volta sola per processo, prima della
+        /// prima pagina. Lo chiamano sia OnLaunched sia una condivisione: un'app
+        /// avviata dalla condivisione non passa da OnLaunched.
+        /// </summary>
+        private void StartServicesOnce()
+        {
+            if (servicesStarted) return;
+            servicesStarted = true;
+
+            // Il loader delle risorse non si puo' creare da un thread di
+            // background: lo si crea qui, una volta, sul thread UI.
+            Loc.Prewarm();
+
+            // Stesso motivo del loader: il dispatcher si trova di sicuro solo
+            // qui, sul thread UI. Risolverlo piu' tardi, da un thread di rete,
+            // lasciava il servizio senza dispatcher per tutta la sessione.
+            CommunicationService.Instance.Prewarm();
+
+            // Il servizio dati si aggancia qui: prima si creava alla prima
+            // pagina che lo toccava, e i messaggi arrivati nel frattempo (o i
+            // contatti sincronizzati) non avevano nessun ascoltatore.
+            DataService.Instance.Start();
+
+#if DEBUG
+            // Solo in debug: dice in tre righe cosa questo telefono sa fare
+            // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
+            // rilascio non esiste, quindi non costa niente all'avvio.
+            SelfCheck.RunAsync();
+#endif
+
+            // Riconnessione automatica: l'app non riprova da sola dopo un
+            // riavvio, e senza questo l'elenco chat resta vuoto finche' l'utente
+            // non apre le impostazioni.
+            if (SettingsService.HasSavedSettings) StartAutoConnect();
+
+            // E poi la tiene viva: WP8.1 chiude il socket sospendendo l'app, e
+            // alla ripresa la connessione risulta attiva ma non passa piu'
+            // niente (vedi ConnectionWatchdog).
+            ConnectionWatchdog.Instance.Start();
+        }
+
+        /// <summary>
+        /// Il frame radice, creato se non c'e'. Tre pagine di sezione
+        /// (Chats/Status/Calls) con NavigationCacheMode.Enabled: la cache le
+        /// tiene in vita, cosi' passare da una sezione all'altra non ricostruisce
+        /// la pagina (l'elenco chat conserva anche la posizione di scorrimento).
+        /// </summary>
+        private static Frame EnsureFrame()
+        {
+            var rootFrame = Window.Current.Content as Frame;
+            if (rootFrame != null) return rootFrame;
+
+            rootFrame = new Frame();
+            rootFrame.CacheSize = 3;
+            rootFrame.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
+            Window.Current.Content = rootFrame;
+            return rootFrame;
+        }
+
+        /// <summary>
+        /// Riattivazione: non e' un avvio. L'unico caso che questo punto di
+        /// ingresso deve gestire e' il selettore di file, che non ha un
+        /// risultato di ritorno: il file scelto arriva qui.
+        /// </summary>
+        protected override void OnActivated(IActivatedEventArgs e)
+        {
+            base.OnActivated(e);
+
+            if (e == null || e.Kind != ActivationKind.PickFileContinuation) return;
+
+            var continuation = e as FileOpenPickerContinuationEventArgs;
+            if (continuation == null || continuation.Files == null || continuation.Files.Count == 0)
+            {
+                return;
+            }
+
+            // OnActivated non e' async: il file si deposita e basta, e la pagina
+            // che e' davanti lo ritira con l'evento di AttachmentInbox.
+#pragma warning disable 4014
+            AttachmentInbox.PutAsync(continuation.Files[0], null);
+#pragma warning restore 4014
         }
     }
 }
