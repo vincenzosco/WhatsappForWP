@@ -3,7 +3,26 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { previewForMessage, collectChats } = require('../chats');
+const { previewForMessage, collectChats, isChannelJid } = require('../chats');
+
+test('un canale si riconosce dal suo jid', () => {
+  assert.strictEqual(isChannelJid('123456@newsletter'), true);
+  assert.strictEqual(isChannelJid('393401234567@s.whatsapp.net'), false);
+  assert.strictEqual(isChannelJid('123@g.us'), false);
+  assert.strictEqual(isChannelJid(null), false);
+});
+
+test('un canale non compare fra le conversazioni', async () => {
+  const gowa = {
+    chats: async () => [
+      { jid: 'a@s.whatsapp.net', name: 'Mario' },
+      { jid: '123456@newsletter', name: 'Notizie' }
+    ],
+    chatMessages: async () => []
+  };
+  const rows = await collectChats({ gowa, limit: 25, log: () => {} });
+  assert.deepStrictEqual(rows.map((r) => r.chatId), ['a@s.whatsapp.net']);
+});
 
 test('previewForMessage uses the body when there is one', () => {
   assert.strictEqual(previewForMessage({ content: 'ciao', media_type: 'text' }), 'ciao');
