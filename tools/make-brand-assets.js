@@ -136,6 +136,17 @@ function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const glyph = buildGlyph();
 
+  // L'icona della tile (modello IconWithBadge): il marchio bianco su sfondo
+  // trasparente e SENZA padding, alla misura che il modello chiede (almeno
+  // 200x200) e alla sua versione a 240% per il telefono. Non e' un logo da
+  // manifest: quelli hanno il padding intorno che il sistema si aspetta, e su
+  // una tile da 150 px quel padding si mangia il disegno.
+  const tileIcons = [['TileIcon.png', 200], ['TileIcon.scale-240.png', 480]];
+  for (const [name, size] of tileIcons) {
+    magick([glyph, '-resize', `${size}x${size}`, '-depth', '8',
+      path.join(OUT_DIR, name)]);
+  }
+
   // 150% / 240% qualified assets, same pixel sizes as the template ones.
   const square = [
     ['Logo.scale-240.png', 360, 0.82],
