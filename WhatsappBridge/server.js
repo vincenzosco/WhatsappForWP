@@ -85,6 +85,11 @@ function createBridge({ config, gowa, log, debug }) {
   let chatsCache = null;
   const CHATS_CACHE_MS = 60000;
 
+  // Quanti messaggi di ogni chat non sono ancora stati letti. Vive qui e non in
+  // GOWA: il suo elenco chat non ha questo campo, e un messaggio che arriva col
+  // telefono spento non lo vede nessun altro. Si azzera con il comando `read`.
+  const unreadByChat = new Map();
+
   async function sendChats() {
     const limits = (config && config.chats) || {};
 
@@ -117,7 +122,8 @@ function createBridge({ config, gowa, log, debug }) {
           text: row.preview || '',
           timestamp: row.timestamp || undefined,
           isGroup: row.isGroup,
-          avatarData: row.avatar || undefined
+          avatarData: row.avatar || undefined,
+          unreadCount: unreadByChat.get(row.chatId) || 0
         });
       }
     } catch (err) {
@@ -406,6 +412,10 @@ function createBridge({ config, gowa, log, debug }) {
     const fields = mapWebhookMessage(event.payload || {});
     if (!fields) return;
 
+    // Un messaggio che non e' mio e' arrivato adesso: la sua chat ha una cosa
+    // in piu' da leggere, anche se l'app non e' collegata in questo momento.
+    unreadByChat.set(fields.chatId, (unreadByChat.get(fields.chatId) || 0) + 1);
+
     let mediaData = null;
     let mediaMimeType = fields.mediaMimeType;
     if (fields.mediaPath) {
@@ -466,6 +476,11 @@ function createBridge({ config, gowa, log, debug }) {
         // protocollo di controllo usa per il dato di accompagnamento, e cosi'
         // non serve un secondo tipo di frame in uscita.
         await sendMessages((msg.Text || '').trim());
+        break;
+      case 'read':
+        // L'app ha mostrato quella conversazione: da adesso non ha piu' niente
+        // da leggere. La chat non deve esistere per forza nell'elenco.
+        unreadByChat.delete((msg.Text || '').trim());
         break;
       case 'logout':
         try { await gowa.logout(); } catch (e) { /* ignora */ }

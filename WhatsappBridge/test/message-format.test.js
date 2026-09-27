@@ -212,3 +212,16 @@ test('buildChatMessage carries IsHistory only when it is set', () => {
   const live = buildChatMessage({ text: 'nuovo' });
   assert.strictEqual(Object.prototype.hasOwnProperty.call(live, 'IsHistory'), false);
 });
+
+test('buildChatMessage porta UnreadCount solo quando la riga lo dichiara', () => {
+  const row = buildChatMessage({ command: 'chat', chatId: 'a@s.whatsapp.net', unreadCount: 3 });
+  assert.strictEqual(row.UnreadCount, 3);
+
+  const empty = buildChatMessage({ command: 'chat', chatId: 'a@s.whatsapp.net', unreadCount: 0 });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(empty, 'UnreadCount'), true);
+  assert.strictEqual(empty.UnreadCount, 0);
+
+  // Un messaggio normale non porta il conteggio.
+  const live = buildChatMessage({ text: 'ciao' });
+  assert.strictEqual(Object.prototype.hasOwnProperty.call(live, 'UnreadCount'), false);
+});
