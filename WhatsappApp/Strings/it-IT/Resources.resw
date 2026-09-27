@@ -157,6 +157,12 @@
   <data name="ChatPage_VideoError" xml:space="preserve">
     <value>Questo video non puo' essere riprodotto.</value>
   </data>
+  <data name="ChatPage_AudioError" xml:space="preserve">
+    <value>Questo vocale non si puo' riprodurre.</value>
+  </data>
+  <data name="ChatPage_DocumentError" xml:space="preserve">
+    <value>Su questo telefono non c'e' un'app che apra questo file.</value>
+  </data>
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Io</value>
   </data>

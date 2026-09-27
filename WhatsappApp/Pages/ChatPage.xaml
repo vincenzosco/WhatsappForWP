@@ -139,6 +139,71 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
+                                <!-- Un vocale o un audio: una barra scura con il triangolo,
+                                     che si tocca per ascoltarlo. Prima dei byte e' lo stesso
+                                     tocco a chiederli. -->
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="56"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsAudio, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Grid>
+                                        <Path Fill="White" Width="30" Height="30"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconPlay -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="6,3" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <PolyLineSegment Points="22,12 6,21"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
+                                </Border>
+                                <!-- Un documento: una barra scura con un foglio, che si
+                                     tocca per aprirlo con l'app di sistema. Prima dei byte
+                                     e' lo stesso tocco a chiederli. -->
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="56"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Grid>
+                                        <Path Fill="White" Width="30" Height="30"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconDocument -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="5,2" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <LineSegment Point="13,2"/>
+                                                                <LineSegment Point="19,8"/>
+                                                                <LineSegment Point="19,22"/>
+                                                                <LineSegment Point="5,22"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
+                                </Border>
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
@@ -192,6 +257,71 @@
                                         <!-- I pezzi stanno arrivando: senza questo il tocco
                                              sembra non aver fatto niente. -->
                                         <ProgressRing IsActive="True" Width="26" Height="26"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
+                                </Border>
+                                <!-- Un vocale o un audio: una barra scura con il triangolo,
+                                     che si tocca per ascoltarlo. Prima dei byte e' lo stesso
+                                     tocco a chiederli. -->
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="56"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsAudio, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Grid>
+                                        <Path Fill="White" Width="30" Height="30"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconPlay -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="6,3" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <PolyLineSegment Points="22,12 6,21"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                                      Foreground="White"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
+                                    </Grid>
+                                </Border>
+                                <!-- Un documento: una barra scura con un foglio, che si
+                                     tocca per aprirlo con l'app di sistema. Prima dei byte
+                                     e' lo stesso tocco a chiederli. -->
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="56"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Grid>
+                                        <Path Fill="White" Width="30" Height="30"
+                                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                                            <!-- IconDocument -->
+                                            <Path.Data>
+                                                <PathGeometry>
+                                                    <PathGeometry.Figures>
+                                                        <PathFigure StartPoint="5,2" IsClosed="True">
+                                                            <PathFigure.Segments>
+                                                                <LineSegment Point="13,2"/>
+                                                                <LineSegment Point="19,8"/>
+                                                                <LineSegment Point="19,22"/>
+                                                                <LineSegment Point="5,22"/>
+                                                            </PathFigure.Segments>
+                                                        </PathFigure>
+                                                    </PathGeometry.Figures>
+                                                </PathGeometry>
+                                            </Path.Data>
+                                        </Path>
+                                        <ProgressRing IsActive="True" Width="24" Height="24"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
