@@ -189,6 +189,9 @@ function mediaFromPayload(p) {
       result.fallbackText = '[Video not downloaded]';
     }
   } else if (p.document !== undefined) {
+    // Un documento resta un documento anche quando non e' stato scaricato:
+    // l'app deve sapere che puo' chiederlo.
+    result.kind = 'document';
     result.fallbackText = '[Document]';
     if (p.document && typeof p.document.path === 'string') {
       result.path = p.document.path;
@@ -208,6 +211,7 @@ function mediaFromPayload(p) {
 
 /// La parola del tipo di media, o vuota per un messaggio di solo testo.
 function mediaKind(media) {
+  if (media && media.kind) return media.kind;
   const type = media && media.type;
   if (type === 1) return 'image';
   if (type === 2) return 'audio';

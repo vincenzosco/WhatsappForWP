@@ -621,3 +621,93 @@ test('un video in arrivo si annuncia come video e i byte seguono a pezzi', async
   assert.strictEqual(bytes[0].MediaChunkTotal, 1);
   assert.strictEqual(bytes[0].MediaData, video.toString('base64'));
 });
+
+test('un vocale Ogg in arrivo arriva come MP3', async () => {
+  const sent = [];
+  const gowa = {
+    fetchBinary: async () => ({ buffer: Buffer.from('vocali-opus'), contentType: 'audio/ogg' })
+  };
+  const transcoder = {
+    probe: async () => true,
+    toPlayable: async () => ({ buffer: Buffer.from('mp3-convertito'), mimeType: 'audio/mpeg', fileName: 'voce.mp3' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    payload: {
+      id: 'A1', chat_id: 'a@s.whatsapp.net', from: 'a@s.whatsapp.net',
+      audio: { path: 'statics/media/v.ogg' }, timestamp: '2026-09-27T08:00:00Z'
+    }
+  });
+
+  assert.strictEqual(sent[0].Type, 2);
+  assert.strictEqual(sent[0].MediaType, 'audio');
+
+  const bytes = sent.filter((f) => f.Command === 'media');
+  assert.strictEqual(bytes.length, 1);
+  assert.strictEqual(bytes[0].MediaType, 'audio');
+  assert.strictEqual(bytes[0].MediaMimeType, 'audio/mpeg');
+  assert.strictEqual(bytes[0].MediaFileName, 'voce.mp3');
+  assert.strictEqual(bytes[0].MediaData, Buffer.from('mp3-convertito').toString('base64'));
+});
+
+test('senza ffmpeg un vocale in arrivo resta quello che e', async () => {
+  const sent = [];
+  const gowa = {
+    fetchBinary: async () => ({ buffer: Buffer.from('vocali-opus'), contentType: 'audio/ogg' })
+  };
+  const transcoder = { probe: async () => false, toPlayable: async () => null };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    payload: {
+      id: 'A2', chat_id: 'a@s.whatsapp.net', from: 'a@s.whatsapp.net',
+      audio: { path: 'statics/media/v.ogg' }, timestamp: '2026-09-27T08:00:00Z'
+    }
+  });
+
+  const bytes = sent.filter((f) => f.Command === 'media');
+  assert.strictEqual(bytes[0].MediaType, 'audio');
+  assert.strictEqual(bytes[0].MediaMimeType, 'audio/ogg');
+});
+
+test('un vocale scaricato a richiesta diventa MP3', async () => {
+  const sent = [];
+  const gowa = {
+    downloadMedia: async () => ({ base64: Buffer.from('opus').toString('base64'), mimeType: 'audio/ogg', fileName: 'voce.ogg' })
+  };
+  const transcoder = {
+    probe: async () => true,
+    toPlayable: async () => ({ buffer: Buffer.from('mp3'), mimeType: 'audio/mpeg', fileName: 'voce.mp3' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'A3' });
+
+  assert.strictEqual(sent[0].MediaType, 'audio');
+  assert.strictEqual(sent[0].MediaMimeType, 'audio/mpeg');
+  assert.strictEqual(sent[0].MediaFileName, 'voce.mp3');
+});
+
+test('un documento scaricato si dichiara documento', async () => {
+  const sent = [];
+  const gowa = {
+    downloadMedia: async () => ({ base64: Buffer.from('pdf').toString('base64'), mimeType: 'application/pdf', fileName: 'contratto.pdf' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'D1' });
+
+  assert.strictEqual(sent[0].MediaType, 'document');
+  assert.strictEqual(sent[0].MediaFileName, 'contratto.pdf');
+});
