@@ -98,6 +98,7 @@ namespace WhatsappApp.Pages
             AttachmentInbox.Ready -= OnAttachmentReady;
             DataService.Instance.ActiveChatId = null;
             _pendingScroll = null;
+            HideFullScreen();
         }
 
         /// <summary>
@@ -154,6 +155,81 @@ namespace WhatsappApp.Pages
             // numero sulla riga si azzera per questo, non per un'esclusione nel
             // contatore.
             MarkRead();
+        }
+
+        /// <summary>
+        /// Un'immagine di questa conversazione che non ha ancora i byte: e' una
+        /// riga di cronologia, e si puo' chiedere al server. Il tipo dice che
+        /// era un'immagine; per un video non c'e' niente da disegnare.
+        /// </summary>
+        private static bool DownloadableImage(ChatMessage message)
+        {
+            if (message == null) return false;
+            return string.Equals(message.MediaType, "image", StringComparison.OrdinalIgnoreCase)
+                && string.IsNullOrEmpty(message.MediaData);
+        }
+
+        private void RequestMedia(ChatMessage message)
+        {
+            if (!CommunicationService.Instance.IsConnected) return;
+#pragma warning disable 4014
+            CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id);
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// La bolla decodifica a 320 px: ingrandirla a tutto schermo la lascia
+        /// sfocata. Qui si decodifica alla misura dello schermo, e si
+        /// restituisce chiudendo: sono i pixel piu' pesanti che questa pagina
+        /// tiene, e non devono sopravvivere alla vista.
+        /// </summary>
+        private const int ViewerDecodePixels = 720;
+
+        private async void Image_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            var element = sender as FrameworkElement;
+            var message = element == null ? null : element.DataContext as ChatMessage;
+            if (message == null) return;
+            e.Handled = true;
+
+            // Con i byte: si apre. Senza, ed e' un'immagine di cronologia: si
+            // chiede al server, e si aprira' al tocco successivo.
+            if (!string.IsNullOrEmpty(message.MediaData))
+            {
+                await ShowFullScreenAsync(message);
+                return;
+            }
+
+            if (DownloadableImage(message)) RequestMedia(message);
+        }
+
+        private async System.Threading.Tasks.Task ShowFullScreenAsync(ChatMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.MediaData)) return;
+
+            try
+            {
+                ImageViewerImage.Source = await ImageHelper.FromBase64Async(
+                    message.MediaData, ViewerDecodePixels);
+                ImageViewer.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.ShowFullScreenAsync", ex);
+                HideFullScreen();
+            }
+        }
+
+        private void ImageViewer_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            HideFullScreen();
+            e.Handled = true;
+        }
+
+        private void HideFullScreen()
+        {
+            ImageViewer.Visibility = Visibility.Collapsed;
+            ImageViewerImage.Source = null;
         }
 
         /// <summary>

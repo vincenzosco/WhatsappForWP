@@ -57,3 +57,8 @@ Thumbs.db
 [Aa][Rr][Mm]/
 x64/
 x86/
+
+# Risultati di build della soluzione WP8.1, rigenerati da MSBuild nella VM:
+# il pacchetto si costruisce da capo, non ha niente da fare nel repository.
+WhatsappApp/AppPackages/
+WhatsappApp/BundleArtifacts/

@@ -101,7 +101,8 @@
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
-                                        MaxWidth="300" MaxHeight="200">
+                                        MaxWidth="300" MaxHeight="200"
+                                        Tapped="Image_Tapped">
                                     <Image Source="{Binding MediaImage}"
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
@@ -125,7 +126,8 @@
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
-                                        MaxWidth="300" MaxHeight="200">
+                                        MaxWidth="300" MaxHeight="200"
+                                        Tapped="Image_Tapped">
                                     <Image Source="{Binding MediaImage}"
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
@@ -276,6 +278,15 @@
                     </Path>
                 </Button>
             </Grid>
+        </Grid>
+
+        <!-- Immagine a tutto schermo. Sta sopra tutto e si chiude toccandola:
+             niente pulsante, niente icona nuova, niente stringa nuova. -->
+        <Grid x:Name="ImageViewer" Grid.RowSpan="3"
+              Background="#F0000000"
+              Visibility="Collapsed"
+              Tapped="ImageViewer_Tapped">
+            <Image x:Name="ImageViewerImage" Stretch="Uniform"/>
         </Grid>
     </Grid>
 </Page>
