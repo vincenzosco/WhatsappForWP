@@ -239,6 +239,9 @@ namespace WhatsappApp.Services
                 case "media":
                     ApplyMediaFrame(message);
                     break;
+                case "error":
+                    ClearMediaLoading(message);
+                    break;
                 case "revoked":
                     RemoveMessage(message.ChatId, message.RelatedMessageId);
                     break;
@@ -387,6 +390,26 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>
+        /// Il server dice che quel media non c'e' piu': l'indicatore smette di
+        /// girare, altrimenti la bolla resta in attesa per sempre.
+        /// </summary>
+        private void ClearMediaLoading(ChatMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.RelatedMessageId)) return;
+
+            var list = GetMessages(message.ChatId);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var target = list[i];
+                if (target != null && target.Id == message.RelatedMessageId)
+                {
+                    target.IsMediaLoading = false;
+                    return;
+                }
+            }
+        }
+
         private async Task ApplyMedia(ChatMessage message, IncomingMediaResult result)
         {
             var list = GetMessages(message.ChatId);
@@ -395,6 +418,8 @@ namespace WhatsappApp.Services
                 var target = list[i];
                 if (target == null || target.Id != message.RelatedMessageId) continue;
 
+                // I byte sono arrivati: il cerchio nella bolla si ferma.
+                target.IsMediaLoading = false;
                 target.MediaMimeType = result.MimeType ?? target.MediaMimeType;
                 target.MediaType = result.MediaType;
 
