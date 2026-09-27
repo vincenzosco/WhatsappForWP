@@ -241,6 +241,35 @@ class GowaClient {
     }
   }
 
+  // I byte del media di un messaggio.
+  //
+  // Due richieste, come per l'avatar: /message/:id/download non restituisce i
+  // byte, restituisce l'indirizzo statico del file scaricato (results.file_url),
+  // e i byte si prendono dopo. Un file_url vuoto significa che il file non e'
+  // sotto statics: per l'app e' "non piu' disponibile", non un guasto.
+  async downloadMedia(phone, messageId) {
+    if (!phone || !messageId) return null;
+
+    try {
+      const r = await this.request('GET',
+        `/message/${encodeURIComponent(messageId)}/download?phone=${encodeURIComponent(phone)}`);
+      const res = (r.data && r.data.results) || {};
+      const url = res.file_url || '';
+      if (!r.ok || !url) return null;
+
+      const media = await this.fetchBinary(url);
+      if (!media.buffer || media.buffer.length === 0) return null;
+
+      return {
+        base64: media.buffer.toString('base64'),
+        mimeType: media.contentType || res.media_type || '',
+        fileName: res.filename || null
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
   async setDeviceWebhook(url) {
     const id = this.deviceId || this.resolvedDeviceId;
     if (!id) return false;

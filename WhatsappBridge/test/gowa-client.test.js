@@ -249,3 +249,42 @@ test('sendVideo posts the video field, and sendFile the file field', async () =>
   assert.strictEqual(seen[1].url, 'http://g/send/file');
   assert.ok(seen[1].field.includes('file'));
 });
+
+test('downloadMedia va sulla rotta del messaggio e segue il file_url', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      seen.push(url);
+      if (seen.length === 1) {
+        return jsonResponse({
+          status: 200,
+          results: { message_id: 'M9', file_url: 'http://127.0.0.1:3000/statics/abc.jpg', filename: 'foto.jpg', media_type: 'image' }
+        });
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/jpeg' },
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+      };
+    }
+  });
+
+  const media = await client.downloadMedia('393401234567@s.whatsapp.net', 'M9');
+
+  assert.strictEqual(seen[0], 'http://127.0.0.1:3000/message/M9/download?phone=393401234567%40s.whatsapp.net');
+  assert.strictEqual(seen[1], 'http://127.0.0.1:3000/statics/abc.jpg');
+  assert.strictEqual(media.base64, Buffer.from([1, 2, 3]).toString('base64'));
+  assert.strictEqual(media.mimeType, 'image/jpeg');
+  assert.strictEqual(media.fileName, 'foto.jpg');
+});
+
+test('downloadMedia non e fatale quando il file non c e piu', async () => {
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async () => jsonResponse({ status: 200, results: { message_id: 'M9' } })
+  });
+
+  assert.strictEqual(await client.downloadMedia('a@s.whatsapp.net', 'M9'), null);
+});
