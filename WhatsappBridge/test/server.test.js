@@ -449,3 +449,62 @@ test('un messaggio in arrivo conta come non letto, e read lo azzera', async () =
   const after = sent.filter((f) => f.Command === 'chat');
   assert.strictEqual(after[0].UnreadCount, 0);
 });
+
+function mediaBridge(gowa) {
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: () => {} });
+  return bridge;
+}
+
+test('i pezzi di un video si ricompongono e vanno a sendVideo', async () => {
+  const delivered = [];
+  const gowa = {
+    sendVideo: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ phone, caption, size: buffer.length, mimeType, fileName });
+      return 'V1';
+    },
+    sendImage: async () => { throw new Error('un video non passa da sendImage'); },
+    sendFile: async () => { throw new Error('un video non passa da sendFile'); }
+  };
+  const bridge = mediaBridge(gowa);
+
+  const bytes = Buffer.from('un video finto, lungo abbastanza da dividersi in due');
+  const base64 = bytes.toString('base64');
+  const middle = Math.ceil((base64.length / 2) / 4) * 4;   // multiplo di 4
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 't1', MediaFileName: 'clip.mp4', MediaMimeType: 'video/mp4', MediaChunkTotal: 2 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 't1', MediaChunkIndex: 0, MediaData: base64.slice(0, middle) });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 't1', MediaChunkIndex: 1, MediaData: base64.slice(middle) });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 't1', Text: 'guarda' });
+
+  assert.strictEqual(delivered.length, 1);
+  assert.strictEqual(delivered[0].phone, 'a@s.whatsapp.net');
+  assert.strictEqual(delivered[0].caption, 'guarda');
+  assert.strictEqual(delivered[0].mimeType, 'video/mp4');
+  assert.strictEqual(delivered[0].fileName, 'clip.mp4');
+  assert.strictEqual(delivered[0].size, bytes.length);
+});
+
+test('un allegato immagine va a sendImage e uno sconosciuto a sendFile', async () => {
+  const delivered = [];
+  const gowa = {
+    sendImage: async (phone, caption, buffer, mimeType) => { delivered.push({ door: 'image', mimeType }); return 'I1'; },
+    sendVideo: async () => { throw new Error('non e un video'); },
+    sendFile: async (phone, caption, buffer, mimeType) => { delivered.push({ door: 'file', mimeType }); return 'F1'; }
+  };
+  const bridge = mediaBridge(gowa);
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'i1', MediaFileName: 'foto.jpg', MediaMimeType: 'image/jpeg', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'i1', MediaChunkIndex: 0, MediaData: Buffer.from('foto').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'i1' });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'd1', MediaFileName: 'doc.pdf', MediaMimeType: 'application/pdf', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'd1', MediaChunkIndex: 0, MediaData: Buffer.from('pdf').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'd1' });
+
+  assert.deepStrictEqual(delivered, [
+    { door: 'image', mimeType: 'image/jpeg' },
+    { door: 'file', mimeType: 'application/pdf' }
+  ]);
+});

@@ -90,6 +90,14 @@ function createBridge({ config, gowa, log, debug }) {
   // telefono spento non lo vede nessun altro. Si azzera con il comando `read`.
   const unreadByChat = new Map();
 
+  // Un allegato in arrivo dall'app, pezzo per pezzo. Il frame ha un tetto di
+  // 8 MiB e una foto o un video sono piu' grandi: i pezzi si accumulano qui e
+  // si mandano a GOWA una volta sola, alla fine.
+  const mediaTransfers = new Map();
+  // WhatsApp rifiuta oltre 64 MB (senza compressione): oltre quel numero i byte
+  // in memoria non servono a nessuno, quindi si fermano prima.
+  const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
+
   async function sendChats() {
     const limits = (config && config.chats) || {};
 
@@ -344,12 +352,87 @@ function createBridge({ config, gowa, log, debug }) {
 
   // ─── Messaggi dall'app verso WhatsApp ─────────────────────────────────────
 
-  async function sendOutgoing(msg) {
-    const hasMedia = !!msg.MediaData;
+  /// La strada giusta per un allegato, dal tipo MIME (o dall'estensione quando
+  /// il tipo non c'e'): image, video, altrimenti file.
+  function mediaKindOf(mimeType, fileName) {
+    const mime = String(mimeType || '').toLowerCase();
+    const name = String(fileName || '').toLowerCase();
+    if (mime.indexOf('video/') === 0 || /\.(mp4|mov|3gp|avi|mkv|webm)$/.test(name)) return 'video';
+    if (mime.indexOf('image/') === 0) return 'image';
+    return 'file';
+  }
+
+  async function sendMediaToGowa(chatId, caption, buffer, mimeType, fileName) {
+    const kind = mediaKindOf(mimeType, fileName);
+    if (kind === 'video') return gowa.sendVideo(chatId, caption || '', buffer, mimeType || 'video/mp4', fileName);
+    if (kind === 'image') return gowa.sendImage(chatId, caption || '', buffer, mimeType || 'image/jpeg', fileName);
+    return gowa.sendFile(chatId, caption || '', buffer, mimeType || 'application/octet-stream', fileName);
+  }
+
+  function mediaBegin(msg) {
+    if (!msg.MediaTransferId) return;
+    // Lo stesso id due volte: il secondo comando riparte da zero invece di
+    // sommarsi al primo.
+    mediaTransfers.set(msg.MediaTransferId, {
+      chatId: msg.ChatId,
+      fileName: msg.MediaFileName || null,
+      mimeType: msg.MediaMimeType || null,
+      parts: []
+    });
+  }
+
+  function mediaChunk(msg) {
+    const transfer = mediaTransfers.get(msg.MediaTransferId);
+    if (!transfer) return;
+    // Ogni pezzo e' un multiplo di 4 caratteri base64: decodificarlo da solo e
+    // concatenare i byte da' esattamente il file intero.
+    transfer.parts[msg.MediaChunkIndex] = Buffer.from(msg.MediaData || '', 'base64');
+  }
+
+  async function mediaEnd(msg) {
+    const transfer = mediaTransfers.get(msg.MediaTransferId);
+    if (!transfer) return;
+    mediaTransfers.delete(msg.MediaTransferId);
+
+    const parts = transfer.parts.filter((part) => part);
+    const buffer = Buffer.concat(parts);
+    if (buffer.length === 0) return;
+
+    if (buffer.length > MAX_MEDIA_BYTES) {
+      logger('WARN', `attachment too large (${buffer.length} bytes), refused`);
+      sendControl({ command: 'error', chatId: transfer.chatId, text: 'The file is too large to send.' });
+      return;
+    }
+
+    if (state.status !== 'connected') {
+      // Come un messaggio di testo: si tiene da parte e parte alla connessione.
+      pendingOutgoing.push({
+        ChatId: transfer.chatId,
+        Text: msg.Text || '',
+        MediaData: buffer.toString('base64'),
+        MediaMimeType: transfer.mimeType,
+        MediaFileName: transfer.fileName
+      });
+      logger('INFO', 'WhatsApp not ready: attachment queued');
+      return;
+    }
+
     try {
-      if (hasMedia) {
-        const buffer = Buffer.from(msg.MediaData, 'base64');
-        await gowa.sendImage(msg.ChatId, msg.Text || '', buffer, msg.MediaMimeType || 'image/jpeg', msg.MediaFileName);
+      logger('MSG', `attachment to ${transfer.chatId}: ${buffer.length} bytes (${mediaKindOf(transfer.mimeType, transfer.fileName)})`);
+      await sendMediaToGowa(transfer.chatId, msg.Text, buffer, transfer.mimeType, transfer.fileName);
+    } catch (err) {
+      logger('ERR', `attachment to ${transfer.chatId} failed: ${err.message}`);
+      sendControl({ command: 'error', chatId: transfer.chatId, text: `Send failed: ${err.message}` });
+    }
+  }
+
+  async function sendOutgoing(msg) {
+    try {
+      if (msg.MediaData) {
+        // Una versione vecchia dell'app manda l'allegato dentro il messaggio:
+        // si accetta ancora, ma sulla strada giusta.
+        await sendMediaToGowa(msg.ChatId, msg.Text, Buffer.from(msg.MediaData, 'base64'),
+          msg.MediaMimeType, msg.MediaFileName);
       } else if (msg.Text && msg.Text.trim()) {
         await gowa.sendText(msg.ChatId, msg.Text);
       }
@@ -481,6 +564,15 @@ function createBridge({ config, gowa, log, debug }) {
         // L'app ha mostrato quella conversazione: da adesso non ha piu' niente
         // da leggere. La chat non deve esistere per forza nell'elenco.
         unreadByChat.delete((msg.Text || '').trim());
+        break;
+      case 'media.begin':
+        mediaBegin(msg);
+        break;
+      case 'media.chunk':
+        mediaChunk(msg);
+        break;
+      case 'media.end':
+        await mediaEnd(msg);
         break;
       case 'logout':
         try { await gowa.logout(); } catch (e) { /* ignora */ }

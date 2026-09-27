@@ -177,10 +177,10 @@ namespace WhatsappApp.Pages
         {
             string text = (MessageTextBox.Text ?? "").Trim();
 
-            // If we have a selected image, send it as an image message
+            // If we have a selected image or video, send it as an attachment
             if (_selectedImageBase64 != null)
             {
-                await SendImageMessage(text);
+                await SendAttachmentAsync(text);
                 return;
             }
 
@@ -203,35 +203,86 @@ namespace WhatsappApp.Pages
             AddAndSendMessage(message);
         }
 
-        private async System.Threading.Tasks.Task SendImageMessage(string caption)
+        /// <summary>
+        /// Un allegato si manda a pezzi. Un frame ha un tetto di 8 MiB e il
+        /// contenuto viaggia in base64, che aggiunge un terzo: un video non ci
+        /// sta in un frame solo. Si taglia la stringa base64 a multipli di 4
+        /// caratteri, cosi' ogni pezzo e' base64 valido e i pezzi si
+        /// ricompongono senza decodificare niente.
+        /// </summary>
+        private const int MediaChunkChars = 700000;
+
+        private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
-            // Il tipo lo decide chi ha consegnato l'immagine: AttachmentInbox lo
-            // ricava dall'estensione una volta sola.
+            if (string.IsNullOrEmpty(_selectedImageBase64)) return;
+
+            string base64 = _selectedImageBase64;
             string mimeType = _selectedImageMimeType ?? "image/jpeg";
+            string fileName = _selectedImageFileName;
+            string kind = AttachmentInbox.KindName(mimeType, fileName);
+
+            // Il video non si disegna, e senza didascalia il fumetto resterebbe
+            // vuoto: la parola si vede, la didascalia che parte e' quella vera.
+            string displayText = caption ?? "";
+            if (string.IsNullOrEmpty(displayText) && kind == "video")
+            {
+                displayText = Loc.Get("ChatMessage_Video", "Video");
+            }
 
             var message = new ChatMessage
             {
                 Id = Guid.NewGuid().ToString("N"),
-                Text = caption ?? "",
+                Text = displayText,
                 SenderId = CommunicationService.Instance.MyUserId ?? "me",
                 SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
                 Timestamp = DateTime.Now,
-                Type = MessageType.Image,
+                Type = kind == "video" ? MessageType.Video : MessageType.Image,
                 IsIncoming = false,
                 Status = MessageStatus.Sending,
-                MediaData = _selectedImageBase64,
+                // I byte si tengono solo per un'immagine: servono a disegnarla.
+                // Un video non si disegna, e tenerne la base64 per tutta la
+                // sessione e' la cosa piu' pesante che questa lista potrebbe
+                // fare.
+                MediaData = kind == "video" ? null : base64,
                 MediaMimeType = mimeType,
-                MediaFileName = _selectedImageFileName
+                MediaFileName = fileName,
+                MediaType = kind
             };
 
-            // Decodifica locale: il mittente deve vedere la propria immagine
-            await message.LoadMediaImageAsync();
+            // Decodifica locale: il mittente vede la propria immagine.
+            if (message.Type == MessageType.Image) await message.LoadMediaImageAsync();
 
-            AddAndSendMessage(message);
-
-            // Clear image preview
+            DataService.Instance.AddMessage(_contact.Id, message);
+            MessageTextBox.Text = "";
+            ScrollToMessage(message);
             ClearSelectedImage();
+
+            if (!CommunicationService.Instance.IsConnected)
+            {
+                message.Status = MessageStatus.Failed;
+                return;
+            }
+
+            string transferId = Guid.NewGuid().ToString("N");
+            int total = (base64.Length + MediaChunkChars - 1) / MediaChunkChars;
+
+            await CommunicationService.Instance.SendMediaBeginAsync(
+                _contact.Id, transferId, fileName, mimeType, total);
+
+            for (int i = 0; i < total; i++)
+            {
+                int start = i * MediaChunkChars;
+                int length = Math.Min(MediaChunkChars, base64.Length - start);
+                await CommunicationService.Instance.SendMediaChunkAsync(
+                    transferId, i, base64.Substring(start, length));
+            }
+
+            await CommunicationService.Instance.SendMediaEndAsync(transferId, caption);
+
+            message.Status = CommunicationService.Instance.IsConnected
+                ? MessageStatus.Sent
+                : MessageStatus.Failed;
         }
 
         private async void AddAndSendMessage(ChatMessage message)

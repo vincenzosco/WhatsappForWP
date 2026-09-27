@@ -689,11 +689,22 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task SendControlAsync(string command, string payload = null)
         {
-            var message = new ChatMessage
+            var message = NewControlFrame(command);
+            message.Text = payload ?? "";
+            await SendMessageAsync(message);
+        }
+
+        /// <summary>
+        /// L'ossatura di un frame di controllo. La costruiva SendControlAsync per
+        /// ogni comando: qui e' un posto solo, perche' anche i comandi di un
+        /// allegato (media.begin/chunk/end) sono frame di controllo.
+        /// </summary>
+        private ChatMessage NewControlFrame(string command)
+        {
+            return new ChatMessage
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Command = command,
-                Text = payload ?? "",
                 SenderId = _myUserId ?? "me",
                 SenderName = _myUsername ?? Loc.Get("CommService_Me", "Me"),
                 ChatId = "system",
@@ -701,7 +712,45 @@ namespace WhatsappApp.Services
                 Type = MessageType.System,
                 IsIncoming = false
             };
-            await SendMessageAsync(message);
+        }
+
+        /// <summary>
+        /// Un allegato comincia. Il contenuto non sta qui: sta nei pezzi. La
+        /// chat viaggia in Text, il file e il suo tipo nei campi che portano
+        /// gia' quel nome.
+        /// </summary>
+        public async Task SendMediaBeginAsync(string chatId, string transferId,
+            string fileName, string mimeType, int totalChunks)
+        {
+            var frame = NewControlFrame("media.begin");
+            frame.Text = chatId;
+            frame.MediaTransferId = transferId;
+            frame.MediaFileName = fileName;
+            frame.MediaMimeType = mimeType;
+            frame.MediaChunkTotal = totalChunks;
+            await SendMessageAsync(frame);
+        }
+
+        /// <summary>
+        /// Un pezzo dell'allegato, gia' base64. La lunghezza e' un multiplo di 4
+        /// caratteri, quindi i pezzi si possono concatenare senza decodificarli.
+        /// </summary>
+        public async Task SendMediaChunkAsync(string transferId, int index, string base64)
+        {
+            var frame = NewControlFrame("media.chunk");
+            frame.MediaTransferId = transferId;
+            frame.MediaChunkIndex = index;
+            frame.MediaData = base64;
+            await SendMessageAsync(frame);
+        }
+
+        /// <summary>L'ultimo pezzo e' passato: l'adapter puo' spedire il file.</summary>
+        public async Task SendMediaEndAsync(string transferId, string caption)
+        {
+            var frame = NewControlFrame("media.end");
+            frame.MediaTransferId = transferId;
+            frame.Text = caption ?? "";
+            await SendMessageAsync(frame);
         }
 
         /// <summary>

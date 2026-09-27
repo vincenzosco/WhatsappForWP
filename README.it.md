@@ -95,7 +95,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - login con **QR code** o con **codice di abbinamento** del numero, entrambi mostrati nell'app
 - si annuncia sulla rete locale in UDP, quindi l'app lo trova senza essere configurata
 - mantiene il canale TCP cifrato (AES-256-GCM) tra app e adapter
-- invia testi e immagini con `POST /send/message` e `POST /send/image`
+- invia testi, foto, video e file (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); un allegato piu' grande di un frame viaggia a pezzi (`media.begin` / `media.chunk` / `media.end`)
 - riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
 - tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
 - carica i messaggi gia' in memoria aprendo una chat (`messages`, fino a `MESSAGES_LIMIT`), con frame marcati `IsHistory`: vengono inseriti in ordine di data e restano fuori dal conteggio dei non letti e dagli avvisi

@@ -90,7 +90,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Login via **QR code** or via **phone number pairing code**, both shown in the app
 - Announces itself on the LAN over UDP, so the app finds it without being configured
 - Keeps the encrypted (AES-256-GCM) TCP channel between app and adapter
-- Sends text and images through `POST /send/message` and `POST /send/image`
+- Sends text, photos, videos and files (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); an attachment larger than one frame travels in pieces (`media.begin` / `media.chunk` / `media.end`)
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
 - Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (two requests per person: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
