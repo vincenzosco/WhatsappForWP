@@ -170,6 +170,7 @@ namespace WhatsappApp.Models
                 _type = value;
                 OnPropertyChanged();
                 OnPropertyChanged("IsVideo");
+                OnPropertyChanged("IsAudio");
                 OnPropertyChanged("ShowsText");
             }
         }
@@ -240,6 +241,8 @@ namespace WhatsappApp.Models
                 _mediaType = value;
                 OnPropertyChanged();
                 OnPropertyChanged("IsVideo");
+                OnPropertyChanged("IsAudio");
+                OnPropertyChanged("IsDocument");
                 OnPropertyChanged("ShowsText");
             }
         }
@@ -491,6 +494,30 @@ namespace WhatsappApp.Models
                 return Type == MessageType.Video
                     || string.Equals(MediaType, "video", StringComparison.OrdinalIgnoreCase);
             }
+        }
+
+        /// <summary>
+        /// Questa bolla e' un vocale o un audio. Vale anche prima che i byte
+        /// arrivino: la riga di cronologia dichiara MediaType "audio".
+        /// </summary>
+        public bool IsAudio
+        {
+            get
+            {
+                return Type == MessageType.Audio
+                    || string.Equals(MediaType, "audio", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
+        /// Questa bolla e' un documento. Non c'e' un MessageType per un
+        /// documento: il tipo dichiarato dal server (MediaType "document") e' la
+        /// sola cosa che lo distingue da un messaggio di testo, e sul filo il
+        /// testo e' gia' il nome del file.
+        /// </summary>
+        public bool IsDocument
+        {
+            get { return string.Equals(MediaType, "document", StringComparison.OrdinalIgnoreCase); }
         }
 
         /// <summary>

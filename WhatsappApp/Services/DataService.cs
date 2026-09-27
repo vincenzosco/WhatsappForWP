@@ -425,10 +425,15 @@ namespace WhatsappApp.Services
 
                 if (!string.IsNullOrEmpty(result.LocalFileName))
                 {
-                    // Un video: i byte stanno su disco, e il lettore li apre da
-                    // li'. In memoria non ci starebbero.
+                    // Video, audio o documento: i byte stanno su disco e il
+                    // lettore (o l'app di sistema) apre il file da li'. In
+                    // memoria non ci starebbero.
                     target.MediaFilePath = result.LocalFileName;
-                    target.Type = MessageType.Video;
+                    if (string.Equals(result.MediaType, "video", StringComparison.OrdinalIgnoreCase))
+                        target.Type = MessageType.Video;
+                    else if (string.Equals(result.MediaType, "audio", StringComparison.OrdinalIgnoreCase))
+                        target.Type = MessageType.Audio;
+                    // Un documento resta testo: la sua bolla e' il nome del file.
                 }
                 else if (string.Equals(result.MediaType, "image", StringComparison.OrdinalIgnoreCase))
                 {
