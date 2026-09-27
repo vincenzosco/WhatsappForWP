@@ -194,7 +194,10 @@ always good to merge.
 
    ```bash
    node tools/check-csharp5.js && node tools/check-icons.js \
-     && node tools/check-resw.js --strict && node tools/check-docs.js
+     && node tools/check-resw.js --strict && node tools/check-docs.js \
+     && node tools/check-framing.js && node tools/check-tile.js \
+     && node tools/check-memory.js && node tools/check-actions.js \
+     && node --test "tools/test/**/*.test.js"
    cd WhatsappBridge && npm test
    ```
 
@@ -403,6 +406,39 @@ node tools/check-icons.js            # rules + consistency + banned fonts
 node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
 ```
 
+The live tile has an asset of its own, `Assets/TileIcon.png` plus its 240% version
+`TileIcon.scale-240.png` (480×480): a transparent PNG with **no padding**, written
+by the same `make-brand-assets.js`. It is not a duplicate of `Logo.png` and the two
+are not interchangeable: the manifest logos carry the padding the system expects,
+and the iconic tile template wants the opposite.
+
+`tools/check-tile.js` guards it, because the failure it catches is invisible. The
+`TileSquare150x150IconWithBadge` template does **not** take the icon from the
+manifest: it wants `<image src="..."/>` in the payload, and with an empty `src` the
+tile renders without an icon and raises no exception at all.
+
+### Memory on a 512 MB device
+
+A 512 MB phone gives the app a hard memory limit (roughly 185 MB; a 1 GB device
+allows about twice that) and suspends or terminates it when the app keeps growing.
+WP8.1 has **no manifest declaration for this** — `AppxManifestSchema2010_v2.xsd` and
+its siblings have no memory element at all — so this is runtime work, in two halves:
+
+- **decode at the size you draw**: `ImageHelper` takes the width the image is shown
+  at and sets `DecodePixelWidth` before `SetSourceAsync`. A 640×640 profile picture
+  drawn as a 52 px circle costs a few tens of KB instead of almost 2 MB, times one
+  per conversation;
+- **let go when asked**: `MemoryWatcher` listens to
+  `MemoryManager.AppMemoryUsageIncreased` and, at `High`, drops the decoded avatars
+  and clears the history of every chat that is not open (the open one is left alone,
+  it is the one being read). While the pressure lasts nothing new is decoded. The
+  limit of the phone is written once, as `DIAG ok: memory budget N MB`.
+
+`tools/check-memory.js` fails the build if a call site forgets the decode width, if
+one asks for more pixels than the screen can show, or if `ImageHelper` sets
+`DecodePixelWidth` after the decode. `WhatsappBridge/test/config.test.js` holds the
+adapter side of the same budget (`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
+
 ### App language
 
 The app follows the device language automatically through `.resw` resources:
@@ -472,6 +508,8 @@ node tools/check-docs.js
 - Message deletions and edits made on the phone reach the app only while it is connected: they are not replayed after a restart. They are matched by WhatsApp's message id, so messages the app itself sent are not matched.
 - Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered on resume, when the app reconnects by itself - it is not announced at the moment it arrives.
 - Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone, and a photo or a video in that history is shown as a word (`[Image]`, `[Video]`): its bytes are not among the ones the webhook delivered.
+- The number on the live tile is drawn by the badge and the icon comes from the tile notification, so both need the app to have run since the count changed. With the count at zero the tile goes back to the one in the manifest.
+- Under memory pressure the app drops the decoded avatars and asks for them again later: on a phone that stays under pressure, the chat list shows initials for a while.
 
 ## Disclaimer
 

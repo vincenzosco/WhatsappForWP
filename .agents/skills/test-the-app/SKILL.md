@@ -7,8 +7,8 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 29 C# files, 103 keys in each `.resw`, 12 inline icon
-Paths (9 distinct icons), 83 adapter tests, 17 tests in `tools/test`.
+Current expected counts: 32 C# files, 104 keys in each `.resw`, 12 inline icon
+Paths (9 distinct icons), 98 adapter tests, 36 tests in `tools/test`.
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -17,6 +17,10 @@ node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
 node tools/check-docs.js          # the two languages of the docs are in step, no emoji
 node tools/check-framing.js      # the frame byte order and the shared frame ceiling
+node tools/check-tile.js        # the tile payload carries its icon, asset within the limits
+node tools/check-memory.js      # no bitmap decoded bigger than it is drawn
+node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
+node --test "tools/test/**/*.test.js"  # the tools' own tests (36)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -236,3 +240,20 @@ empty".
     bubble.
 29. Open that chat again: no duplicates appear, and no toast fires while the
     history loads. The unread number on the chat list must not move either.
+30. Live tile: pin the app, then receive a message with the app in the background
+    so the count goes up. The Start tile must show the app icon **with the
+    number**; with the count back at zero it returns to the tile in the manifest.
+    An icon with no number is a badge problem, a tile with no icon at all is
+    `check-tile`'s bug (the payload sent no `src`).
+31. Memory: the first line of the debug output is `DIAG ok: memory budget N MB`.
+    On a 512 MB phone that is the limit being watched, and it is roughly half of
+    what a 1 GB phone reports. Scroll a long chat list on a 512 MB phone: the app
+    must not be closed, and `DIAG ok: memory under pressure: releasing decoded
+    images` says when it dropped the avatars - the rows fall back to initials and
+    come back later.
+32. Title bar: the bubble with the plus opens the new-chat dialog and the sliders
+    open the settings, in both orientations, and a long press reads the name of
+    the button under the finger. If an icon opens the other action, the build on
+    the phone is not the one in this tree: `node tools/check-actions.js` says what
+    the source does and `obj/x86/Debug/Pages/ChatsPage.g.cs` says what the build
+    did.

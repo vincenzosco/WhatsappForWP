@@ -201,7 +201,10 @@ quasi sempre pronta da integrare.
 
    ```bash
    node tools/check-csharp5.js && node tools/check-icons.js \
-     && node tools/check-resw.js --strict && node tools/check-docs.js
+     && node tools/check-resw.js --strict && node tools/check-docs.js \
+     && node tools/check-framing.js && node tools/check-tile.js \
+     && node tools/check-memory.js && node tools/check-actions.js \
+     && node --test "tools/test/**/*.test.js"
    cd WhatsappBridge && npm test
    ```
 
@@ -416,6 +419,42 @@ node tools/check-icons.js            # regole + coerenza + font vietati
 node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
 ```
 
+La tile live ha un asset suo, `Assets/TileIcon.png` piu' la sua versione al 240%,
+`TileIcon.scale-240.png` (480×480): un PNG trasparente e **senza padding**, scritto
+dallo stesso `make-brand-assets.js`. Non e' un doppione di `Logo.png`, e i due non
+sono intercambiabili: i logo del manifest hanno il padding che il sistema si
+aspetta, e il modello della tile iconica vuole l'opposto.
+
+`tools/check-tile.js` la custodisce, perche' il guasto che intercetta e' invisibile.
+Il modello `TileSquare150x150IconWithBadge` **non** prende l'icona dal manifest: la
+vuole nel payload, in un `<image src="..."/>`, e con `src` vuoto la tile si disegna
+senza icona e non solleva nessuna eccezione.
+
+### Memoria su un telefono da 512 MB
+
+Un telefono da 512 MB da' all'app un tetto di memoria rigido (piu' o meno 185 MB; un
+dispositivo da 1 GB concede circa il doppio) e la sospende o la chiude se continua a
+crescere. WP8.1 **non ha una dichiarazione di manifest per questo** -
+`AppxManifestSchema2010_v2.xsd` e i suoi fratelli non hanno nessun elemento di
+memoria - quindi il lavoro e' a runtime, in due meta':
+
+- **decodifica alla misura che disegni**: `ImageHelper` riceve la larghezza a cui
+  l'immagine viene mostrata e imposta `DecodePixelWidth` prima di `SetSourceAsync`.
+  Un'immagine del profilo da 640×640 disegnata in un cerchio da 52 px costa qualche
+  decina di KB invece di quasi 2 MB, moltiplicato per una conversazione;
+- **molla la presa quando te lo chiede**: `MemoryWatcher` ascolta
+  `MemoryManager.AppMemoryUsageIncreased` e, al livello `High`, butta le bitmap
+  degli avatar decodificate e svuota la cronologia di ogni chat che non e' aperta
+  (quella aperta non si tocca, e' quella che si sta leggendo). Finche' la pressione
+  dura non si decodifica niente di nuovo. Il limite del telefono viene scritto una
+  volta, come `DIAG ok: memory budget N MB`.
+
+`tools/check-memory.js` fa fallire la build se un punto di chiamata dimentica la
+misura di decodifica, se ne chiede piu' pixel di quanti lo schermo sappia mostrare, o
+se `ImageHelper` imposta `DecodePixelWidth` dopo la decodifica.
+`WhatsappBridge/test/config.test.js` tiene l'altra meta' dello stesso budget
+(`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
+
 ### Lingua dell'app
 
 L'app segue automaticamente la lingua del dispositivo tramite risorse `.resw`:
@@ -487,6 +526,8 @@ node tools/check-docs.js
 - Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio. Il confronto usa l'id del messaggio di WhatsApp, quindi i messaggi inviati dall'app non vengono riconosciuti.
 - Le notifiche vengono alzate mentre l'app gira: WP8.1 la sospende in background, il che chiude il socket, e questo progetto non ha un servizio cloud da cui fare push. Un messaggio arrivato con l'app sospesa viene consegnato alla ripresa, quando l'app si ricollega da sola: non viene annunciato nel momento in cui arriva.
 - Aprendo una chat si vedono i messaggi recenti che il server ha gia'. I piu' vecchi non vengono richiesti al telefono, e una foto o un video di quella cronologia si vedono come una parola (`[Image]`, `[Video]`): i suoi byte non sono fra quelli che il webhook ha consegnato.
+- Il numero sulla tile lo disegna il badge e l'icona arriva dalla notifica della tile: entrambi hanno bisogno che l'app sia girata dopo che il conteggio e' cambiato. Con il conteggio a zero la tile torna a quella del manifest.
+- Sotto pressione di memoria l'app butta le bitmap degli avatar decodificate e le richiede piu' tardi: su un telefono che resta sotto pressione, l'elenco chat mostra le iniziali per un po'.
 
 ## Disclaimer
 
