@@ -320,10 +320,16 @@ namespace WhatsappApp.Pages
 #pragma warning restore 4014
         }
 
+        /// <summary>
+        /// L'anteprima dell'immagine da spedire: la pagina e' larga 480 px, quindi
+        /// 720 la copre anche a 1,5x senza decodificare il file intero.
+        /// </summary>
+        private const int PreviewDecodePixels = 720;
+
         /// <summary>Anteprima locale: il mittente vede la propria immagine.</summary>
         private async System.Threading.Tasks.Task ShowLocalPreviewAsync(string base64)
         {
-            SelectedImagePreview.Source = await ImageHelper.FromBase64Async(base64);
+            SelectedImagePreview.Source = await ImageHelper.FromBase64Async(base64, PreviewDecodePixels);
         }
 
         /// <summary>
