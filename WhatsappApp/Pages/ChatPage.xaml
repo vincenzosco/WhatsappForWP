@@ -10,7 +10,6 @@
         <conv:MessageStatusToStringConverter x:Key="MsgStatusToString"/>
         <conv:MessageStatusToColorConverter x:Key="MsgStatusToColor"/>
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
-        <conv:MessageTypeToTextVisibilityConverter x:Key="MsgTypeToTextVis"/>
 
         <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
         <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
@@ -102,13 +101,38 @@
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
                                         MaxWidth="300" MaxHeight="200"
-                                        Tapped="Image_Tapped">
+                                        Tapped="Media_Tapped">
                                     <Image Source="{Binding MediaImage}"
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
                                 </Border>
+                                <!-- Un video: una casella scura con il triangolo, che
+                                     si tocca per aprirlo a tutto schermo. Prima dei
+                                     byte e' lo stesso tocco a chiederli. -->
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="140"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Path Fill="White" Width="54" Height="54"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- IconPlay -->
+                                        <Path.Data>
+                                            <PathGeometry>
+                                                <PathGeometry.Figures>
+                                                    <PathFigure StartPoint="6,3" IsClosed="True">
+                                                        <PathFigure.Segments>
+                                                            <PolyLineSegment Points="22,12 6,21"/>
+                                                        </PathFigure.Segments>
+                                                    </PathFigure>
+                                                </PathGeometry.Figures>
+                                            </PathGeometry>
+                                        </Path.Data>
+                                    </Path>
+                                </Border>
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                           Visibility="{Binding Type, Converter={StaticResource MsgTypeToTextVis}}"
+                                           Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
                                 <TextBlock Text="{Binding FormattedTime}"
                                            HorizontalAlignment="Right" Margin="0,4,0,0"
@@ -127,13 +151,38 @@
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
                                         MaxWidth="300" MaxHeight="200"
-                                        Tapped="Image_Tapped">
+                                        Tapped="Media_Tapped">
                                     <Image Source="{Binding MediaImage}"
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
                                 </Border>
+                                <!-- Un video: una casella scura con il triangolo, che
+                                     si tocca per aprirlo a tutto schermo. Prima dei
+                                     byte e' lo stesso tocco a chiederli. -->
+                                <Border CornerRadius="4"
+                                        Margin="0,0,0,4"
+                                        Width="220" Height="140"
+                                        Background="#FF263238"
+                                        Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
+                                        Tapped="Media_Tapped">
+                                    <Path Fill="White" Width="54" Height="54"
+                                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <!-- IconPlay -->
+                                        <Path.Data>
+                                            <PathGeometry>
+                                                <PathGeometry.Figures>
+                                                    <PathFigure StartPoint="6,3" IsClosed="True">
+                                                        <PathFigure.Segments>
+                                                            <PolyLineSegment Points="22,12 6,21"/>
+                                                        </PathFigure.Segments>
+                                                    </PathFigure>
+                                                </PathGeometry.Figures>
+                                            </PathGeometry>
+                                        </Path.Data>
+                                    </Path>
+                                </Border>
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
-                                           Visibility="{Binding Type, Converter={StaticResource MsgTypeToTextVis}}"
+                                           Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
                                     <TextBlock Text="{Binding FormattedTime}"
@@ -287,6 +336,49 @@
               Visibility="Collapsed"
               Tapped="ImageViewer_Tapped">
             <Image x:Name="ImageViewerImage" Stretch="Uniform"/>
+        </Grid>
+
+        <!-- Un video a tutto schermo. I controlli di trasporto sono quelli di
+             sistema, cosi' c'e' play/pausa/barra senza disegnarli: e' quello che
+             WhatsApp fa. Si chiude con la X, e la X e' un pulsante come gli
+             altri, con il suo nome nel gestore. -->
+        <Grid x:Name="VideoViewer" Grid.RowSpan="3"
+              Background="Black"
+              Visibility="Collapsed">
+            <MediaElement x:Name="VideoPlayer"
+                          AreTransportControlsEnabled="True"
+                          AutoPlay="True"
+                          Stretch="Uniform"
+                          MediaFailed="VideoPlayer_MediaFailed"/>
+            <Button x:Name="VideoCloseButton"
+                    Background="Transparent"
+                    Width="48" Height="48"
+                    Margin="0,8,8,0"
+                    HorizontalAlignment="Right" VerticalAlignment="Top"
+                    BorderThickness="0" Padding="0"
+                    Click="VideoCloseButton_Click">
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Width="24" Height="24">
+                    <!-- IconClose -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="6,6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="18,18"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="18,6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="6,18"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
         </Grid>
     </Grid>
 </Page>

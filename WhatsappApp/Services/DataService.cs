@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using WhatsappApp.Models;
 
 namespace WhatsappApp.Services
@@ -236,7 +237,7 @@ namespace WhatsappApp.Services
                     RaiseChatListCompleted();
                     break;
                 case "media":
-                    ApplyMedia(message);
+                    ApplyMediaFrame(message);
                     break;
                 case "revoked":
                     RemoveMessage(message.ChatId, message.RelatedMessageId);
@@ -364,27 +365,57 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// I byte di un media appena scaricato. Il messaggio e' gia' nell'elenco
-        /// - era una riga di cronologia con la sola parola - e qui riceve i byte
-        /// e, se e' un'immagine, il tipo con cui disegnarla.
+        /// Un pezzo dei byte di un media. Un'immagine ci sta in un frame, un
+        /// video no: l'adapter lo spezza e i pezzi si accumulano qui finche' non
+        /// sono tutti (vedi IncomingMediaStore). Il messaggio esiste gia' -
+        /// era una riga di cronologia con la sola parola - e riceve i byte alla
+        /// fine.
         /// </summary>
-        private async void ApplyMedia(ChatMessage message)
+        private async void ApplyMediaFrame(ChatMessage message)
         {
             if (message == null || string.IsNullOrEmpty(message.RelatedMessageId)) return;
 
+            try
+            {
+                IncomingMediaResult result = await IncomingMediaStore.AddChunkAsync(message);
+                if (result == null) return;
+                await ApplyMedia(message, result);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService.ApplyMediaFrame", ex);
+            }
+        }
+
+        private async Task ApplyMedia(ChatMessage message, IncomingMediaResult result)
+        {
             var list = GetMessages(message.ChatId);
             for (int i = 0; i < list.Count; i++)
             {
                 var target = list[i];
                 if (target == null || target.Id != message.RelatedMessageId) continue;
 
-                target.MediaData = message.MediaData;
-                target.MediaMimeType = message.MediaMimeType;
-                if (string.Equals(target.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+                target.MediaMimeType = result.MimeType ?? target.MediaMimeType;
+                target.MediaType = result.MediaType;
+
+                if (!string.IsNullOrEmpty(result.LocalFileName))
                 {
-                    target.Type = MessageType.Image;
+                    // Un video: i byte stanno su disco, e il lettore li apre da
+                    // li'. In memoria non ci starebbero.
+                    target.MediaFilePath = result.LocalFileName;
+                    target.Type = MessageType.Video;
                 }
-                await target.LoadMediaImageAsync();
+                else if (string.Equals(result.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+                {
+                    target.MediaData = result.Base64;
+                    target.Type = MessageType.Image;
+                    await target.LoadMediaImageAsync();
+                }
+                else
+                {
+                    // Un file che non si disegna: i byte restano, la bolla no.
+                    target.MediaData = result.Base64;
+                }
                 return;
             }
         }
