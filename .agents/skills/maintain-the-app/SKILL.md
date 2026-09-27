@@ -156,6 +156,10 @@ suppressing the *toast* for the chat on screen.
    `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
 5. If the change is user-visible, say which page and which string key changed.
 6. Commit with a message that says *why* (the repo history is the changelog).
+7. **Push.** A change is finished only when it is on `origin/master`: a commit
+   that lives on this machine alone is invisible to everyone else, so every
+   change ends with `git push`, not with the commit. Never leave the branch
+   ahead of `origin/master`.
 
 ## Where a change belongs
 
