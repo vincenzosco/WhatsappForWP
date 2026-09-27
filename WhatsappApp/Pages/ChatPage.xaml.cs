@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Windows.System;
+using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -179,8 +181,8 @@ namespace WhatsappApp.Pages
         /// <summary>
         /// Un media di questa conversazione che non ha ancora i byte: e' una
         /// riga di cronologia (o un video di cui l'adapter non aveva il file),
-        /// e si puo' chiedere al server. Il tipo dice che era un'immagine o un
-        /// video; entrambi si possono chiedere.
+        /// e si puo' chiedere al server. Il tipo dice che era un'immagine, un
+        /// video, un audio o un documento; si possono chiedere tutti.
         /// </summary>
         private static bool Downloadable(ChatMessage message)
         {
@@ -191,13 +193,21 @@ namespace WhatsappApp.Pages
             // chiederlo al server sarebbe una richiesta senza risposta.
             if (!message.IsIncoming) return false;
 
-            if (string.Equals(message.MediaType, "video", StringComparison.OrdinalIgnoreCase))
+            if (IsFileBacked(message.MediaType))
                 return string.IsNullOrEmpty(message.MediaFilePath);
 
             if (string.Equals(message.MediaType, "image", StringComparison.OrdinalIgnoreCase))
                 return string.IsNullOrEmpty(message.MediaData);
 
             return false;
+        }
+
+        /// <summary>I tipi che arrivano su un file: un video, un audio, un documento.</summary>
+        private static bool IsFileBacked(string mediaType)
+        {
+            return string.Equals(mediaType, "video", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mediaType, "audio", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(mediaType, "document", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -243,7 +253,31 @@ namespace WhatsappApp.Pages
             {
                 if (!string.IsNullOrEmpty(message.MediaFilePath))
                 {
-                    PlayVideo(message);
+                    PlayMedia(message, false);
+                    return;
+                }
+
+                if (Downloadable(message)) RequestMedia(message);
+                return;
+            }
+
+            if (message.IsAudio)
+            {
+                if (!string.IsNullOrEmpty(message.MediaFilePath))
+                {
+                    PlayMedia(message, true);
+                    return;
+                }
+
+                if (Downloadable(message)) RequestMedia(message);
+                return;
+            }
+
+            if (message.IsDocument)
+            {
+                if (!string.IsNullOrEmpty(message.MediaFilePath))
+                {
+                    await OpenDocumentAsync(message);
                     return;
                 }
 
@@ -290,27 +324,63 @@ namespace WhatsappApp.Pages
             ImageViewerImage.Source = null;
         }
 
+        // Vero quando cio' che suona e' un vocale: la scena e' la stessa, ma
+        // la frase di errore no.
+        private bool _playingAudio;
+
         /// <summary>
-        /// Apre il video ricevuto nel lettore a tutto schermo. La sorgente e' il
+        /// Apre il media ricevuto nel lettore a tutto schermo. La sorgente e' il
         /// file locale (ms-appdata): il lettore lo apre per conto suo e non c'e'
-        /// nessun flusso da tenere aperto per la vita della pagina.
+        /// nessun flusso da tenere aperto per la vita della pagina. Vale per un
+        /// video e per un vocale: per un audio la scena e' nera e restano i
+        /// controlli di trasporto, che sono quelli di sistema.
         /// </summary>
-        private void PlayVideo(ChatMessage message)
+        private void PlayMedia(ChatMessage message, bool audio)
         {
             if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
 
             try
             {
                 StopVideo();
+                _playingAudio = audio;
                 VideoPlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                 VideoViewer.Visibility = Visibility.Visible;
                 VideoPlayer.Play();
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage.PlayVideo", ex);
+                Diag.Failed("ChatPage.PlayMedia", ex);
                 ShowVideoError();
             }
+        }
+
+        /// <summary>
+        /// Apre un documento ricevuto con l'app che il telefono usa per quel
+        /// tipo di file. Se non ce n'e' una, o il file non e' piu' li', lo dice
+        /// invece di non fare niente.
+        /// </summary>
+        private async System.Threading.Tasks.Task OpenDocumentAsync(ChatMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
+
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(message.MediaFilePath);
+                bool opened = await Launcher.LaunchFileAsync(file);
+                if (!opened) await ShowDocumentErrorAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.OpenDocumentAsync", ex);
+                await ShowDocumentErrorAsync();
+            }
+        }
+
+        private async System.Threading.Tasks.Task ShowDocumentErrorAsync()
+        {
+            var dialog = new MessageDialog(Loc.Get("ChatPage_DocumentError",
+                "There is no app on this phone that can open this file."));
+            await dialog.ShowAsync();
         }
 
         private void VideoCloseButton_Click(object sender, RoutedEventArgs e)
@@ -341,7 +411,9 @@ namespace WhatsappApp.Pages
             {
                 Diag.Failed("ChatPage.ShowVideoError", ex);
             }
-            VideoErrorText.Text = Loc.Get("ChatPage_VideoError", "This video cannot be played.");
+            VideoErrorText.Text = _playingAudio
+                ? Loc.Get("ChatPage_AudioError", "This voice note cannot be played.")
+                : Loc.Get("ChatPage_VideoError", "This video cannot be played.");
             VideoErrorText.Visibility = Visibility.Visible;
         }
 
@@ -358,6 +430,7 @@ namespace WhatsappApp.Pages
                 Diag.Failed("ChatPage.StopVideo", ex);
             }
 
+            _playingAudio = false;
             VideoErrorText.Visibility = Visibility.Collapsed;
             VideoViewer.Visibility = Visibility.Collapsed;
         }

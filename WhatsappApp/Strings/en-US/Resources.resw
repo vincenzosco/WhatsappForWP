@@ -157,6 +157,12 @@
   <data name="ChatPage_VideoError" xml:space="preserve">
     <value>This video cannot be played.</value>
   </data>
+  <data name="ChatPage_AudioError" xml:space="preserve">
+    <value>This voice note cannot be played.</value>
+  </data>
+  <data name="ChatPage_DocumentError" xml:space="preserve">
+    <value>There is no app on this phone that can open this file.</value>
+  </data>
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Me</value>
   </data>
