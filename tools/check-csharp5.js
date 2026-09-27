@@ -17,6 +17,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { stripComments } = require('./csharp');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const SCAN_ROOTS = ['WhatsappApp', 'WhatsappServer'];
@@ -65,6 +66,44 @@ const API_RULES = [
   { name: 'Windows.Foundation.Deferral (does not exist in the WP8.1 projection)', re: /\bWindows\.Foundation\.Deferral\b/ }
 ];
 
+/**
+ * Le righe che contengono un await dentro il corpo di un catch.
+ *
+ * Perche' esiste: C# 5 non lascia attendere dentro un catch, e il compilatore
+ * risponde CS1985 ("Impossibile attendere nel corpo di una clausola catch").
+ * Non e' una proprieta' della riga ma di dove la riga si trova, quindi le
+ * regole per riga qui sopra non lo vedono: lo ha trovato la build Windows, non
+ * questo guard. Un await su una lambda ("=> ... await") appartiene alla lambda,
+ * non al catch, e C# 5 lo accetta: si segnala solo un await nudo.
+ */
+function awaitInCatchBlocks(code) {
+  const hits = [];
+  const re = /\bcatch\b/g;
+  let m;
+  while ((m = re.exec(code)) !== null) {
+    const open = code.indexOf('{', m.index);
+    if (open < 0) continue;
+    let depth = 0;
+    let end = -1;
+    for (let i = open; i < code.length; i++) {
+      const ch = code[i];
+      if (ch === '{') depth++;
+      else if (ch === '}') { depth--; if (depth === 0) { end = i; break; } }
+    }
+    if (end < 0) continue;
+
+    const bodyLines = code.slice(open + 1, end).split('\n');
+    const firstLine = code.slice(0, open).split('\n').length;
+    for (let i = 0; i < bodyLines.length; i++) {
+      if (/\bawait\b/.test(bodyLines[i]) && !/=>/.test(bodyLines[i])) {
+        hits.push(firstLine + i);
+        break;
+      }
+    }
+  }
+  return hits;
+}
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -100,6 +139,13 @@ for (const file of files) {
       violations++;
       console.log(rel + ':' + (i + 1) + ': LINQ extension method without "using System.Linq;"  ->  ' + lines[i].trim());
     }
+  }
+
+  const code = stripComments(source);
+  for (const lineNo of awaitInCatchBlocks(code)) {
+    violations++;
+    console.log(rel + ':' + lineNo + ': await inside a catch block (C# 5 answers CS1985)  ->  ' +
+      (lines[lineNo - 1] || '').trim());
   }
 }
 
