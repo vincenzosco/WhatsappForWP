@@ -549,6 +549,42 @@ namespace WhatsappApp.Services
             NotificationService.SetUnread(TotalUnread());
         }
 
+        /// <summary>
+        /// Libera quello che si puo' rifare: le bitmap degli avatar decodificate
+        /// (una per conversazione, la cosa pesante di questa app) e la cronologia
+        /// delle chat che nessuno sta leggendo.
+        ///
+        /// La chat aperta non si tocca: quella la sta guardando l'utente, e
+        /// svuotarla sotto gli occhi sarebbe peggio della memoria che libera.
+        ///
+        /// La collezione di una chat si svuota invece di essere buttata via: la
+        /// pagina della chat ha in mano quella istanza, e sostituirla la
+        /// lascerebbe agganciata a una lista che non riceve piu' niente. Si
+        /// dimentica invece di aver gia' chiesto la cronologia, cosi' riaprendo
+        /// la chat si richiede: senza, una chat svuotata resterebbe vuota per
+        /// sempre.
+        /// </summary>
+        public void TrimForMemory()
+        {
+            foreach (var contact in _contacts)
+            {
+                if (contact != null) contact.Avatar = null;
+            }
+
+            var emptied = new List<string>();
+            foreach (var pair in _chatMessages)
+            {
+                if (pair.Key == _activeChatId) continue;
+                pair.Value.Clear();
+                emptied.Add(pair.Key);
+            }
+
+            foreach (var chatId in emptied)
+            {
+                _historyRequested.Remove(chatId);
+            }
+        }
+
         /// <summary>Somma dei non letti: e' il numero che va sull'icona.</summary>
         private int TotalUnread()
         {

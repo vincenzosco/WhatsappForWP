@@ -117,6 +117,16 @@ test('the history limit has a default and can be overridden', () => {
   assert.strictEqual(custom.messages.limit, 200);
 });
 
+test('i default dell adapter stanno nel budget di un telefono da 512 MB', () => {
+  // Su un telefono da 512 MB ogni conversazione e' un frame che arriva e
+  // un'immagine che viene decodificata: il tetto e' quante righe l'elenco puo'
+  // mostrare, non quante il server saprebbe mandarne. Se qualcuno alza un
+  // default, questo test lo ferma prima del telefono.
+  const defaults = loadConfig({});
+  assert.ok(defaults.chats.limit <= 30, `CHATS_LIMIT=${defaults.chats.limit}`);
+  assert.ok(defaults.messages.limit <= 60, `MESSAGES_LIMIT=${defaults.messages.limit}`);
+});
+
 test('applyDotEnv non fallisce se .env non esiste', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-env-'));
   const env = {};

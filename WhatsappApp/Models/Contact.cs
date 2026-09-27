@@ -96,6 +96,11 @@ namespace WhatsappApp.Models
         public async Task LoadAvatarAsync()
         {
             if (_avatar != null || string.IsNullOrEmpty(_avatarData)) return;
+
+            // Sotto pressione non si decodifica: senza questa riga il primo frame
+            // di conversazioni rimette dentro tutto quello appena liberato.
+            if (MemoryWatcher.Instance.IsUnderPressure) return;
+
             try
             {
                 Avatar = await ImageHelper.FromBase64Async(_avatarData, AvatarDecodePixels);
