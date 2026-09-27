@@ -373,6 +373,20 @@ suppressing the *toast* for the chat on screen.
   true from `MediaType` alone, so it is tappable before the bytes arrive - the first tap
   downloads them, and `ChatMessage.IsMediaLoading` turns the ring in the bubble while
   they do.
+- **WP8.1 has no Opus decoder.** WhatsApp voice notes are Ogg/Opus, and Opus only
+  arrived on Windows 10: the phone can play MP3, AAC/M4A, AMR and WAV, and cannot
+  play what WhatsApp actually sends. The adapter therefore detects `ffmpeg` once
+  at startup (`WhatsappBridge/ffmpeg.js`, `bridge.probeFfmpeg()`) and converts an
+  Ogg/Opus payload to mono 16 kHz 32 kbit/s MP3 before chunking it to the app.
+  `ffmpeg` is an external program, not an npm dependency, and the adapter must
+  work without it: `toPlayable` returns `null`, the original bytes are sent, and
+  the app shows that the note cannot be played. `FFMPEG_ENABLED` and `FFMPEG_PATH`
+  change it. Audio and documents are `MediaType` values, not `MessageType` values:
+  `MessageType` has no `Document` and adding one would change what every older
+  frame deserializes to, so `ChatMessage.IsAudio` and `ChatMessage.IsDocument`
+  derive from `MediaType` the way `IsVideo` does. A downloaded document is opened
+  with `Launcher.LaunchFileAsync` on the file in `LocalFolder`, so the extension
+  must be the real one (it comes from the file name in `MediaFileName`).
 - **A picked or shared file is copied, not read.** `AttachmentInbox.PutAsync` copies
   the chosen file into `LocalFolder` (`StorageFile.CopyAsync`) and keeps its name;
   `ChatPage.SendAttachmentAsync` streams it out in `MediaChunkBytes` (525000, a

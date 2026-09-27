@@ -113,6 +113,18 @@ Vedi `.env.example`. Le variabili principali:
 | `CALLS_LIMIT` | `50` | numero massimo di chiamate inviate all'app |
 | `CHATS_LIMIT` | `25` | quante conversazioni restituisce l'elenco chat |
 | `CHATS_AVATARS` | `on` | scarica le immagini del profilo (una richiesta per persona, `off` le spegne) |
+| `FFMPEG_ENABLED` | `on` | converte i vocali Ogg/Opus in MP3 per WP8.1 (`off` la spegne) |
+| `FFMPEG_PATH` | `ffmpeg` | l'eseguibile di ffmpeg, quando non e' nel PATH |
+
+### I vocali hanno bisogno di ffmpeg
+
+I messaggi vocali di WhatsApp sono Ogg con codec Opus, e Windows Phone 8.1 non ha un
+decoder Opus (arriva solo su Windows 10). L'adapter esegue quindi **ffmpeg**, se e'
+installato, per convertire un vocale ricevuto in un piccolo MP3 mono prima di mandarlo
+all'app. ffmpeg e' un programma esterno alla macchina che esegue l'adapter, non una
+dipendenza dell'adapter. Senza di esso l'adapter scrive un avviso all'avvio e inoltra i
+byte originali, che il telefono non sa leggere; il vocale arriva lo stesso e dice che
+non si puo' riprodurre.
 
 ## Avvio
 
