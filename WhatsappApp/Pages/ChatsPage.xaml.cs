@@ -41,6 +41,12 @@ namespace WhatsappApp.Pages
             DataService.Instance.Contacts.CollectionChanged += Contacts_CollectionChanged;
             UpdateEmptyState();
 
+            // Un'allegato puo' arrivare mentre questa pagina e' davanti (l'app
+            // torna qui dopo il selettore) oppure prima che esista (processo
+            // avviato da una condivisione): si guarda in tutti e due i casi.
+            AttachmentInbox.Ready += OnAttachmentReady;
+            UpdatePendingAttachment();
+
             // OnNavigatedTo is not async: fire the chats request and ignore the
             // task. Si chiede l'elenco delle conversazioni, non la rubrica:
             // /user/my/contacts e' vuota su un account appena collegato mentre
@@ -56,6 +62,20 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedFrom(e);
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
+            AttachmentInbox.Ready -= OnAttachmentReady;
+        }
+
+        private void OnAttachmentReady()
+        {
+            UpdatePendingAttachment();
+        }
+
+        /// <summary>La riga in cima dice che c'e' un'immagine da mandare.</summary>
+        private void UpdatePendingAttachment()
+        {
+            PendingAttachmentBar.Visibility = AttachmentInbox.HasAttachment
+                ? Visibility.Visible
+                : Visibility.Collapsed;
         }
 
         private void Contacts_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)

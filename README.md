@@ -59,6 +59,12 @@ documented as unsupported on Windows Phone, and on the phone it failed silently:
 the app is deactivated while the picker is open, and the chosen file arrives at
 `App.OnActivated` as a `PickFileContinuation`.
 
+Sharing an image into the app works from any app that offers Share (Photos,
+Gallery, a browser): the manifest declares a `windows.shareTarget` extension for
+`Bitmap` and `StorageItems`, and `App.OnShareTargetActivated` puts the image in
+the same waiting slot the picker uses. The app opens on the chat list, because the
+next step is choosing who to send it to.
+
 ### WhatsappServer (.NET Console App)
 
 A simple TCP relay server that broadcasts messages between connected clients.

@@ -36,6 +36,29 @@
             <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71x71Logo.png"/>
             <m3:SplashScreen Image="Assets\SplashScreen.png"/>
         </m3:VisualElements>
+        <Extensions>
+            <!-- Riceve immagini condivise da un'altra app (Galleria, Foto,
+                 browser). Va dichiarato qui: senza questa estensione WP8.1 non
+                 elenca l'app nel pannello di condivisione. -->
+            <!-- Senza prefisso: ShareTarget sta nel namespace predefinito di
+                 questa manifest (appx/2010), come Extensions e Extension. Con
+                 m3: il validatore risponde APPX3030/APPX3002. -->
+            <Extension Category="windows.shareTarget"
+                       Executable="$targetnametoken$.exe"
+                       EntryPoint="WhatsappApp.App">
+                <ShareTarget>
+                    <SupportedFileTypes>
+                        <FileType>.jpg</FileType>
+                        <FileType>.jpeg</FileType>
+                        <FileType>.png</FileType>
+                        <FileType>.gif</FileType>
+                        <FileType>.bmp</FileType>
+                    </SupportedFileTypes>
+                    <DataFormat>Bitmap</DataFormat>
+                    <DataFormat>StorageItems</DataFormat>
+                </ShareTarget>
+            </Extension>
+        </Extensions>
     </Application>
   </Applications>
   <Capabilities>

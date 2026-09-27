@@ -367,4 +367,7 @@
   <data name="ConnectionPage_QrOverlayRefreshing" xml:space="preserve">
     <value>Aggiorno il codice...</value>
   </data>
+  <data name="ChatsPage_PendingImage.Text" xml:space="preserve">
+    <value>Un'immagine e' pronta: apri una chat per inviarla</value>
+  </data>
 </root>
