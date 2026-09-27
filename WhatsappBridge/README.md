@@ -31,6 +31,8 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   field and because a message that arrives while the phone is off reaches the adapter's
   webhook and nobody else; the app clears it with `read` when the conversation is shown.
   The count lives in memory: restarting the adapter starts it again from zero.
+  Channel JIDs (`...@newsletter`) are skipped here and in the webhook: a channel is
+  not a conversation and cannot be replied to.
 - A photo, a video or a file is sent in pieces (`media.begin` / `media.chunk` /
   `media.end`): the frame ceiling is 8 MiB and base64 adds a third, so a video cannot
   travel in one frame. Each piece is a multiple of 4 base64 characters, so the adapter
