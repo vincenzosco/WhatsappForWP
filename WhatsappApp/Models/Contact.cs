@@ -83,6 +83,13 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
+        /// La misura a cui la XAML disegna l'avatar: il riquadro della riga e' un
+        /// quadrato da 52 px. Decodificare piu' grande e' memoria buttata: quella
+        /// che arriva dal server e' un'immagine intera.
+        /// </summary>
+        public const int AvatarDecodePixels = 52;
+
+        /// <summary>
         /// Decodifica AvatarData una volta sola. Va atteso sul thread UI, come
         /// richiede ImageHelper: BitmapImage non e' agnostico rispetto alla view.
         /// </summary>
@@ -91,7 +98,7 @@ namespace WhatsappApp.Models
             if (_avatar != null || string.IsNullOrEmpty(_avatarData)) return;
             try
             {
-                Avatar = await ImageHelper.FromBase64Async(_avatarData);
+                Avatar = await ImageHelper.FromBase64Async(_avatarData, AvatarDecodePixels);
             }
             catch (Exception ex)
             {

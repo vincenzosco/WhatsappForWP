@@ -317,6 +317,14 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
+        /// Un'immagine dentro un fumetto: la bolla e' larga al massimo ~250 px,
+        /// quindi 320 copre anche il margine. Decodificare il file intero per
+        /// disegnarlo a un terzo della misura e' la voce piu' pesante che una
+        /// conversazione puo' tenere in memoria.
+        /// </summary>
+        private const int MediaDecodePixels = 320;
+
+        /// <summary>
         /// Decodifica MediaData (base64) in MediaImage. Va atteso sul thread UI:
         /// il flusso deve restare aperto finché SetSourceAsync non ha finito.
         /// </summary>
@@ -330,7 +338,7 @@ namespace WhatsappApp.Models
 
             try
             {
-                MediaImage = await ImageHelper.FromBase64Async(MediaData);
+                MediaImage = await ImageHelper.FromBase64Async(MediaData, MediaDecodePixels);
             }
             catch (Exception ex)
             {
