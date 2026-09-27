@@ -237,6 +237,21 @@ suppressing the *toast* for the chat on screen.
 - **`Window.Current` is null off the UI thread**, so it cannot be a fallback for
   anything that may run on a network thread: use `CoreApplication.MainView` there,
   or capture the object while you are on the UI thread.
+- **The app's memory is not the conversation.** Opening a chat used to show only
+  what had arrived while the app was running, because nothing ever asked the
+  adapter for what was already on the server: a receive path is not a read path.
+  `ChatPage.OnNavigatedTo` asks (`messages`, with the chat JID in `Text`, the same
+  field `login.code` carries its number in) once per chat per process -
+  `DataService.MarkHistoryRequested` - and the adapter answers with ordinary
+  message frames carrying `IsHistory`. The flag matters: without it every old
+  message would count as unread and raise a toast. The frames are inserted by
+  date, not appended, because the adapter does not promise an order (see
+  `newestMessage` in `WhatsappBridge/chats.js`). Dedup is by WhatsApp's own
+  message id, so a chat can be requested again without duplicating what is already
+  on screen, and a message the server has no id for is dropped rather than risked
+  twice. History media has no bytes - it is not among what the webhook delivered -
+  so it travels as text (`[Image]`, `[Video]`): a frame of type Image with no
+  `MediaData` would draw an empty bubble.
 - **A `[DataMember]` with a strict type is a whole-frame failure waiting to happen.**
   One unexpected string in one field makes `DataContractJsonSerializer` throw
   `SerializationException 0x8013150C` for the entire object, and `ChatMessage.FromJson`

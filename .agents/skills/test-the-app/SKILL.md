@@ -229,3 +229,10 @@ empty".
 26. Share: in Photos, tapping Share lists WhatsApp; choosing it opens the app on
     the chat list with the notice that an image is waiting, and opening a chat
     shows it in the preview bar.
+27. Open a chat that already has messages, right after starting the app: the
+    conversation appears, oldest first, with its times, and the page ends at the
+    bottom. An empty chat here means `messages` was never answered.
+28. An old photo in that history shows a bubble with `[Image]`, not an empty
+    bubble.
+29. Open that chat again: no duplicates appear, and no toast fires while the
+    history loads. The unread number on the chat list must not move either.

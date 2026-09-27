@@ -712,6 +712,40 @@ git push origin master
 
 ---
 
+## What execution changed about this plan
+
+Recorded after the run.
+
+1. **`mapHistoryMessage` returns the wire timestamp, not a `Date`.** The plan's
+   Interfaces block said `timestamp` and its step-1 test asserted
+   `mapped.timestamp instanceof Date`; the implementation returns the string
+   `formatDateForWp8` produces, `/Date(ms)/`, because the mapped object goes
+   straight to `sendControl`, whose `buildChatMessage` formats whatever it is given.
+   The double pass is safe: `formatDateForWp8` is idempotent through `epochMillis`,
+   which reads an already-formatted `/Date(ms)/` back. The test was rewritten twice -
+   first to compare against `formatDateForWp8` (which would only prove the function
+   equals itself), then to compare against a value built from `Date.parse`, which is
+   an independent source. `mapWebhookMessage` still returns a `Date`, because that
+   value is only ever read by `buildChatMessage`; the two are not inconsistent, but
+   they are not the same shape either.
+2. **The idempotence in (1) is now asserted where it matters.** The server test
+   checks `frames[0].Timestamp` against `Date.parse('2026-09-26T09:00:00Z')`, so the
+   epoch the phone receives is checked through both format passes, not just the
+   first.
+3. **A behaviour the plan relied on without naming it.** History frames are `Type`
+   0, so `CommunicationService` routes them to `MessageReceived`, and `ChatPage`'s
+   existing handler for that event is what scrolls the page to the bottom as the
+   history lands. The page's own scroll on open happens before any of it arrives (the
+   message collection is empty at that moment). If a future change routes history
+   through `ControlMessageReceived` instead, the bubble will be drawn and the page
+   will stay at the top.
+
+Everything else was built as written. Test counts came out as predicted: **97**
+(88 + 5 mapping + 1 config + 3 server). Guards after the last task: **31** C# files,
+**12** inline icon paths, **104** resw keys in both languages, docs, framing, QR
+self-test. Final VM build: `COPIA=0`, `0 Error(s)`, no warnings, `Your package has
+been successfully created`.
+
 ## What only the phone can prove
 
 1. A chat with existing messages shows them on open (Task 2, step 5).
