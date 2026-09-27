@@ -235,6 +235,9 @@ namespace WhatsappApp.Services
                     RememberChatList();
                     RaiseChatListCompleted();
                     break;
+                case "media":
+                    ApplyMedia(message);
+                    break;
                 case "revoked":
                     RemoveMessage(message.ChatId, message.RelatedMessageId);
                     break;
@@ -358,6 +361,32 @@ namespace WhatsappApp.Services
 #pragma warning disable 4014
             ChatCache.SaveAsync(_chatRows);
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// I byte di un media appena scaricato. Il messaggio e' gia' nell'elenco
+        /// - era una riga di cronologia con la sola parola - e qui riceve i byte
+        /// e, se e' un'immagine, il tipo con cui disegnarla.
+        /// </summary>
+        private async void ApplyMedia(ChatMessage message)
+        {
+            if (message == null || string.IsNullOrEmpty(message.RelatedMessageId)) return;
+
+            var list = GetMessages(message.ChatId);
+            for (int i = 0; i < list.Count; i++)
+            {
+                var target = list[i];
+                if (target == null || target.Id != message.RelatedMessageId) continue;
+
+                target.MediaData = message.MediaData;
+                target.MediaMimeType = message.MediaMimeType;
+                if (string.Equals(target.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+                {
+                    target.Type = MessageType.Image;
+                }
+                await target.LoadMediaImageAsync();
+                return;
+            }
         }
 
         /// <summary>La lista delle conversazioni e' finita di arrivare.</summary>

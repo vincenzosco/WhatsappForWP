@@ -754,6 +754,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Chiede i byte del media di un messaggio che l'app ha gia'. La chat
+        /// viaggia in Text, il messaggio in RelatedMessageId.
+        /// </summary>
+        public async Task RequestMediaAsync(string chatId, string messageId)
+        {
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+
+            var frame = NewControlFrame("media.get");
+            frame.Text = chatId;
+            frame.RelatedMessageId = messageId;
+            await SendMessageAsync(frame);
+        }
+
+        /// <summary>
         /// Instrada un messaggio decifrato: i frame di controllo (Type = System)
         /// vanno all'evento ControlMessageReceived, gli altri a MessageReceived.
         /// </summary>

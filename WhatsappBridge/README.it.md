@@ -39,6 +39,11 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   cosi' l'adapter concatena i byte decodificati senza ricodificare niente. La porta di
   GOWA la decide il tipo MIME (o l'estensione): `/send/image`, `/send/video` e
   `/send/file` sono tre rotte diverse, e prima di questo un video partiva come immagine.
+- Una foto o un video nella cronologia di una chat e' arrivato col telefono spento: i suoi
+  byte sono stati consegnati all'adapter e a nessun altro, quindi la riga e' una parola
+  (`[Image]`). Toccarla lo chiede all'adapter (`media.get`), che legge
+  `GET /message/:id/download` da GOWA e risponde con i byte in un frame `media`; l'app li
+  mette sul messaggio che ha gia'. Non si scarica niente finche' non viene chiesto.
 
 ## Protocollo di controllo
 
@@ -59,6 +64,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.begin` | `Text` = JID della chat, `MediaTransferId`, `MediaFileName`, `MediaMimeType`, `MediaChunkTotal` (segue un allegato) |
 | app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = un pezzo in base64 (multiplo di 4 caratteri) |
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = didascalia (ricompone e spedisce) |
+| app -> adapter | `media.get` | `Text` = JID della chat, `RelatedMessageId` = id del messaggio (scarica il media di quel messaggio e risponde con un frame `media`) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
@@ -69,6 +75,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | adapter -> app | `chats.done` | — (l'elenco è finito) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id del messaggio cancellato |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = il nuovo testo |
+| adapter -> app | `media` | `ChatId`, `RelatedMessageId`, `MediaData`, `MediaMimeType`: i byte di un messaggio che l'app ha gia' |
 | adapter -> app | `error` | `Text` |
 
 Un frame e' `[lunghezza 4 byte little-endian][payload]`. Una lunghezza uguale a
