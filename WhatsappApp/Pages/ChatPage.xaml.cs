@@ -586,19 +586,25 @@ namespace WhatsappApp.Pages
                 MessageTextBox.Text = note;
             }
 
-            ImagePreviewBar.Visibility = Visibility.Visible;
-
             bool video = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName) == "video";
-            if (video)
+            PreviewLabel.Text = video
+                ? Loc.Get("ChatPage_VideoSelected", "Video selected")
+                : Loc.Get("ChatPage_ImageSelected.Text", "Image selected");
+            SelectedVideoPreview.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
+            SelectedImagePreview.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+
+            ImagePreviewBar.Visibility = Visibility.Visible;
+            if (!video)
+            {
+#pragma warning disable 4014
+                ShowLocalPreviewAsync(_selectedLocalFileName);
+#pragma warning restore 4014
+            }
+            else
             {
                 // Un video non si decodifica: non c'e' niente da disegnare.
                 SelectedImagePreview.Source = null;
-                return;
             }
-
-#pragma warning disable 4014
-            ShowLocalPreviewAsync(_selectedLocalFileName);
-#pragma warning restore 4014
         }
 
         /// <summary>

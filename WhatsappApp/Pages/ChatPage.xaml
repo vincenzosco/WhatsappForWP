@@ -216,7 +216,26 @@
                 <Image x:Name="SelectedImagePreview" Grid.Column="0"
                        Width="48" Height="48" Margin="8,8,0,8"
                        Stretch="UniformToFill"/>
-                <TextBlock x:Uid="ChatPage_ImageSelected" Grid.Column="1"
+                <!-- Un video non si decodifica: la casella dice cosa si sta
+                     spedendo senza disegnare niente. -->
+                <Path x:Name="SelectedVideoPreview" Grid.Column="0"
+                      Width="30" Height="30" Margin="17,17,0,17"
+                      Fill="#FF606060"
+                      Visibility="Collapsed">
+                    <!-- IconPlay -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="6,3" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="22,12 6,21"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+                <TextBlock x:Uid="ChatPage_ImageSelected" x:Name="PreviewLabel" Grid.Column="1"
                            Text="Image selected"
                            VerticalAlignment="Center"
                            Foreground="#FF606060" FontSize="13"
