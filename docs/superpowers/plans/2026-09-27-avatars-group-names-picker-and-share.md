@@ -1387,6 +1387,66 @@ git push origin master
 
 ---
 
+## What execution changed about this plan
+
+Recorded after the run, with the exact error and the exact fix. Everything else was
+built as written.
+
+1. **The share target belongs in the default namespace, unprefixed.** The plan's
+   first attempt used `m3:` for `Extension`, `ShareTarget`, `SupportedFileTypes`,
+   `FileType` and `DataFormat`, and the build rejected it with
+   `Package.appxmanifest(43,27): error APPX3030: ... Value 'windows.shareTarget' of
+   attribute '/Package/Applications/Application/Extensions/m3:Extension/@Category'
+   must be a valid application extension category` and
+   `Package.appxmanifest(43,14): error APPX3002: ... unrecognized XML element
+   '.../{http://schemas.microsoft.com/appx/2014/manifest}ShareTarget'`. The plan's
+   stated fallback (`m2:`) was also wrong. The answer came from the schema the build
+   itself uses, `C:\Program Files (x86)\Windows Kits\8.1\Include\winrt\AppxManifestSchema2010_v2.xsd`:
+   its `targetNamespace` is `http://schemas.microsoft.com/appx/2010/manifest` (this
+   manifest's `xmlns`), line 232 declares `Extensions` inside the Application type,
+   line 409 takes the `Category` attribute, line 249/253 select
+   `m:Extensions/m:Extension/m:ShareTarget/...` with no prefix, and its category list
+   contains `windows.shareTarget`. Removing every prefix is what validates.
+2. **`ShareOperation` is in `Windows.ApplicationModel.DataTransfer.ShareTarget`.**
+   With only `using Windows.ApplicationModel.DataTransfer;` the compiler answered
+   `App.xaml.cs(317,68): error CS0246: Impossibile trovare il tipo o il nome dello
+   spazio dei nomi 'ShareOperation'`. Adding
+   `using Windows.ApplicationModel.DataTransfer.ShareTarget;` fixed it. The plan
+   listed the wrong namespace.
+3. **A `.resw` key for a `TextBlock` needs the `.Text` suffix.** The plan said
+   `ChatsPage_PendingImage`; `node tools/check-resw.js --strict` answered
+   `WhatsappApp/Pages/ChatsPage.xaml: <TextBlock> Text="An image is ready: open a
+   chat to send it" -> no entry "ChatsPage_PendingImage.Text"` plus
+   `"ChatsPage_PendingImage" is never used`. Every other `TextBlock` key in the
+   project already ends in `.Text`. Renamed in both languages; the count is **104**
+   keys, as the plan predicted for its own (wrong) name.
+4. **The test helper takes the status as a second argument.** Task 1's
+   "no picture" test was written as `jsonResponse({ status: 404, results: {} })`,
+   which puts `status` inside the body and leaves the HTTP status at 200 - so
+   `ok` was `true` and the assertion passed for the wrong reason. Corrected to
+   `jsonResponse({}, 404)`. The same mistake was avoided in the `myGroups()`
+   failure test, which uses `jsonResponse({}, 500)`.
+5. **The warning baseline is now empty, not one CS0618.** Removing
+   `PickSingleFileAsync` removed the last `CS0618` in the project, and
+   `PickSingleFileAndContinue`'s own `CS0618` is inside a `#pragma`, so the final
+   `MSBuild /t:Rebuild` reports no warnings at all. A new warning is therefore
+   fully visible again.
+6. **`ImagePickerService` lost a guard the plan invented.** The first draft wrapped
+   the picker in an `IsSupported()` check on `Window.Current`, which could only ever
+   convert a diagnosable failure into a silent no-op. Removed before the first
+   build.
+7. **Task 4 Step 2 was worth following literally.** Building with the manifest
+   change alone produced the namespace errors on their own, with no new C# in the
+   same output, which is what made the schema dig cheap.
+8. **One `using` moved between tasks.** The plan put `using Windows.Storage;` in
+   `App.xaml.cs` during Task 3, but nothing in Task 3 names a `StorageFile` type;
+   it was added with the Task 4 usings instead.
+
+Adapter test counts came out exactly as planned: **84** after Task 1, **88** after
+Task 2. Guards after the last task: **31** C# files, **12** inline icon paths, **104**
+resw keys in both languages, docs, framing, QR self-test. Final VM build: `COPIA=0`,
+`0 Error(s)`, no warnings, `Your package has been successfully created`.
+
 ## What only the phone can prove
 
 No WP8.1 emulator exists in this environment (XDE is x86 and needs Hyper-V, absent on the ARM64 Windows guest), and the adapter's GOWA server is running on the user's account, not here. So the following stay the user's verification, with the checklist item that covers each:

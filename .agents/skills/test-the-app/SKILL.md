@@ -213,3 +213,19 @@ empty".
     return: the app reconnects and the messages are read on screen. They must not
     haunt the badge afterwards - this was the path where an exclusion in the
     counter lost them for good.
+22. Chat list: people show their profile picture, and initials appear only when
+    GOWA has no picture for them. If every row shows initials, the avatar is being
+    encoded from `/user/avatar`'s JSON instead of downloaded from the address it
+    returns.
+23. Chat list: a group row shows the group's subject, not `Group` followed by its
+    number. If it shows the number, `/user/my/groups` did not answer and the row
+    fell back to the chat list's name.
+24. Chat: the attach button opens the system picker. If nothing happens, look for
+    `ChatPage/image` in the diagnostics - the picker call is the one WP8.1
+    implements, and the file only arrives after the app is reactivated.
+25. After choosing an image in the picker the app comes back **by itself** with
+    the image in the preview bar (it was deactivated, not closed), and Send sends
+    it as an image.
+26. Share: in Photos, tapping Share lists WhatsApp; choosing it opens the app on
+    the chat list with the notice that an image is waiting, and opening a chat
+    shows it in the preview bar.
