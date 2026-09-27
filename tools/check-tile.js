@@ -26,6 +26,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const { stripComments } = require('./csharp');
 
 const ROOT = path.resolve(__dirname, '..');
 const SERVICE = path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs');
@@ -42,42 +43,6 @@ function pngSize(bytes) {
   if (!bytes || bytes.length < 24) return null;
   if (bytes[0] !== 0x89 || bytes[1] !== 0x50 || bytes[2] !== 0x4e || bytes[3] !== 0x47) return null;
   return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
-}
-
-/**
- * Toglie i commenti C# senza toccare le stringhe: "ms-appx:///Assets/..." ha due
- * barre dentro, e trattarle come l'inizio di un commento cancellerebbe proprio il
- * percorso che si sta cercando. Senza questo, una frase in un commento
- * ("su WP8.1 TileWide310x150IconWithBadge non esiste") verrebbe letta come codice.
- * I commenti di blocco non servono qui: questo file usa quelli di riga.
- */
-function stripComments(source) {
-  let out = '';
-  let inString = false;
-  for (let i = 0; i < source.length; i++) {
-    const ch = source[i];
-    if (inString) {
-      out += ch;
-      if (ch === '\\' && i + 1 < source.length) {
-        out += source[++i];
-        continue;
-      }
-      if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') {
-      inString = true;
-      out += ch;
-      continue;
-    }
-    if (ch === '/' && source[i + 1] === '/') {
-      while (i < source.length && source[i] !== '\n') i++;
-      out += '\n';
-      continue;
-    }
-    out += ch;
-  }
-  return out;
 }
 
 /** Le immagini che la tile dichiara, come percorsi di pacchetto. */
