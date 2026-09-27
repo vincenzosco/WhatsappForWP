@@ -94,6 +94,12 @@ test('mapWebhookMessage ignora status broadcast', () => {
   assert.strictEqual(mapWebhookMessage({ chat_id: 'status@broadcast' }), null);
 });
 
+test('un messaggio di un canale non viene inoltrato', () => {
+  assert.strictEqual(
+    mapWebhookMessage({ chat_id: '123456@newsletter', from: '123456@newsletter', body: 'x' }),
+    null);
+});
+
 test('mapWebhookMessage mappa un messaggio di testo', () => {
   const f = mapWebhookMessage({
     id: 'ABC', chat_id: '393401234567@s.whatsapp.net', from: '393401234567@s.whatsapp.net',

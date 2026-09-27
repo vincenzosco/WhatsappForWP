@@ -209,7 +209,9 @@ function mapWebhookMessage(payload) {
   const p = payload || {};
   if (p.is_from_me === true) return null;
   const chatId = p.chat_id || p.from;
-  if (!chatId || chatId === 'status@broadcast') return null;
+  // Un canale non e' una conversazione: i suoi messaggi non si mostrano e non
+  // alzano un non letto (vedi chats.js, isChannelJid).
+  if (!chatId || chatId === 'status@broadcast' || chatId.endsWith('@newsletter')) return null;
 
   const senderId = p.from || chatId;
   const senderName = p.sender_display_name || p.from_name || displayNameForJid(senderId);
