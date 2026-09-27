@@ -125,12 +125,20 @@ test('aggiunge gli header di autenticazione e X-Device-Id', async () => {
   assert.strictEqual(headers['X-Device-Id'], 'd1');
 });
 
-test('avatar() asks GOWA for the person, never for a group, and returns base64', async () => {
+test('avatar() follows the picture URL GOWA returns, then downloads it', async () => {
   const seen = [];
   const client = new GowaClient({
     baseUrl: 'http://127.0.0.1:3000',
     fetchImpl: async (url) => {
       seen.push(url);
+      if (seen.length === 1) {
+        // /user/avatar non restituisce l'immagine: restituisce l'indirizzo
+        // dove sta. Il secondo giro scarica davvero i byte.
+        return jsonResponse({
+          status: 200,
+          results: { url: 'https://pps.whatsapp.net/v/t1/abc.jpg', id: 'abc', type: 'image' }
+        });
+      }
       return {
         ok: true,
         status: 200,
@@ -141,17 +149,43 @@ test('avatar() asks GOWA for the person, never for a group, and returns base64',
   });
 
   const picture = await client.avatar('393401234567@s.whatsapp.net');
-  assert.strictEqual(seen[0], 'http://127.0.0.1:3000/user/avatar?phone=393401234567&is_preview=true');
-  assert.strictEqual(picture, Buffer.from([1, 2, 3]).toString('base64'));
 
+  assert.strictEqual(seen[0], 'http://127.0.0.1:3000/user/avatar?phone=393401234567&is_preview=true');
+  assert.strictEqual(seen[1], 'https://pps.whatsapp.net/v/t1/abc.jpg');
+  assert.strictEqual(picture, Buffer.from([1, 2, 3]).toString('base64'));
+});
+
+test('avatar() asks nothing about a group, and nothing when GOWA has no picture', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      seen.push(url);
+      return jsonResponse({ status: 404, results: {} });
+    }
+  });
+
+  // I gruppi non hanno un avatar personale: nessuna richiesta.
   assert.strictEqual(await client.avatar('123456789012345678@g.us'), null);
+  assert.strictEqual(seen.length, 0);
+
+  // Nessuna immagine: GOWA risponde con un errore e non c'e' niente da
+  // scaricare, quindi una sola richiesta.
+  assert.strictEqual(await client.avatar('393401234567@s.whatsapp.net'), null);
   assert.strictEqual(seen.length, 1);
 });
 
-test('avatar() returns null when GOWA has no picture', async () => {
+test('avatar() returns null when the picture URL does not download', async () => {
+  let calls = 0;
   const client = new GowaClient({
     baseUrl: 'http://127.0.0.1:3000',
-    fetchImpl: async () => ({ ok: false, status: 404, headers: { get: () => null } })
+    fetchImpl: async () => {
+      calls++;
+      if (calls === 1) {
+        return jsonResponse({ status: 200, results: { url: 'https://pps.whatsapp.net/gone.jpg' } });
+      }
+      return { ok: false, status: 410, headers: { get: () => null } };
+    }
   });
 
   assert.strictEqual(await client.avatar('393401234567@s.whatsapp.net'), null);

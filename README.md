@@ -44,7 +44,8 @@ to show.
 The chat list is the account's real conversation list (`GET /chats`, bound by
 `CHATS_LIMIT`), not its address book, which is empty on a freshly linked device.
 Each row carries the last message and, for people, the profile picture
-(`GET /user/avatar`, disabled with `CHATS_AVATARS=off`).
+(`GET /user/avatar` and then the CDN address it returns, so two requests per
+person; disabled with `CHATS_AVATARS=off`).
 
 A new chat can be started in three ways: typing a number with country code,
 picking a contact with the system contact picker (the user's consent, so the app
@@ -79,7 +80,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Sends text and images through `POST /send/message` and `POST /send/image`
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
-- Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (two requests per person: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
 - Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
 
 **Setup (one command)**

@@ -147,8 +147,16 @@ class GowaClient {
     return Array.isArray(res.data) ? res.data : [];
   }
 
-  // Immagine del profilo di una persona. GOWA risponde 404 quando non ce l'ha:
-  // per l'elenco chat e' "nessuna immagine", non un errore da propagare.
+  // Immagine del profilo di una persona.
+  //
+  // Due richieste, non una: /user/avatar non restituisce l'immagine, restituisce
+  // l'indirizzo dove sta (results.url, un URL del CDN di WhatsApp), quindi i byte
+  // si scaricano dopo. Prima si prendeva il corpo di /user/avatar come se fosse
+  // l'immagine: arrivavano i byte del JSON, che non sono una bitmap, e ogni
+  // avatar veniva scartato in silenzio.
+  //
+  // GOWA risponde 404 quando l'immagine non c'e': per l'elenco chat e' "nessuna
+  // immagine", non un errore da propagare.
   // I gruppi non hanno un avatar personale, quindi non si chiede.
   async avatar(jid) {
     const value = String(jid || '');
@@ -156,8 +164,12 @@ class GowaClient {
 
     const phone = value.split('@')[0];
     try {
-      const picture = await this.fetchBinary(
-        `user/avatar?phone=${encodeURIComponent(phone)}&is_preview=true`);
+      const r = await this.request('GET',
+        `/user/avatar?phone=${encodeURIComponent(phone)}&is_preview=true`);
+      const url = (r.data && r.data.results && r.data.results.url) || '';
+      if (!r.ok || !url) return null;
+
+      const picture = await this.fetchBinary(url);
       return picture.buffer.length > 0 ? picture.buffer.toString('base64') : null;
     } catch (err) {
       return null;
