@@ -222,6 +222,11 @@ namespace WhatsappApp
             // contatti sincronizzati) non avevano nessun ascoltatore.
             DataService.Instance.Start();
 
+            // Il budget di memoria del telefono si ascolta da qui in poi: e'
+            // l'unico modo per sapere che l'app sta per essere chiusa a causa
+            // della memoria, e per liberare prima quello che si puo' rifare.
+            MemoryWatcher.Instance.Start();
+
 #if DEBUG
             // Solo in debug: dice in tre righe cosa questo telefono sa fare
             // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
