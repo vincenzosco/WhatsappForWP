@@ -283,8 +283,25 @@ namespace WhatsappApp
             // OnActivated non e' async: il file si deposita e basta, e la pagina
             // che e' davanti lo ritira con l'evento di AttachmentInbox.
 #pragma warning disable 4014
-            AttachmentInbox.PutAsync(continuation.Files[0], null);
+            DepositPickedFileAsync(continuation.Files[0]);
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Un file scelto dal selettore. Un guasto qui non ha nessuno che lo
+        /// raccolga - OnActivated non e' async e nessuno attende questo Task -
+        /// quindi si cattura tutto: un'eccezione non osservata chiude l'app.
+        /// </summary>
+        private async void DepositPickedFileAsync(StorageFile file)
+        {
+            try
+            {
+                await AttachmentInbox.PutAsync(file, null);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/picker", ex);
+            }
         }
 
         /// <summary>
@@ -363,7 +380,7 @@ namespace WhatsappApp
                                 await reader.LoadAsync(size);
                                 var buffer = new byte[size];
                                 reader.ReadBytes(buffer);
-                                AttachmentInbox.PutBytes(buffer, "shared.png", "image/png", null);
+                                await AttachmentInbox.PutBytesAsync(buffer, "shared.png", "image/png", null);
                             }
                         }
                     }

@@ -1,7 +1,6 @@
 using System;
 using System.Threading.Tasks;
 using Windows.Storage;
-using Windows.Storage.Streams;
 
 namespace WhatsappApp.Services
 {
@@ -12,8 +11,13 @@ namespace WhatsappApp.Services
     /// In tutti e due i casi la pagina che lo riceverebbe puo' non esistere piu'
     /// nel momento in cui il file arriva: WP8.1 sospende l'app mentre il
     /// selettore e' aperto, e puo' terminarla. Non si puo' quindi tenere un
-    /// riferimento al file aspettando una pagina: i byte si leggono subito, e la
-    /// pagina che sta davanti li ritira quando puo'.
+    /// riferimento al file aspettando una pagina.
+    ///
+    /// Si COPIA nella cartella dell'app invece di leggerlo in memoria: una
+    /// condivisione e' anche un video, e un video intero in un byte[] (piu' la
+    /// sua base64) e' il modo piu' veloce per farsi chiudere l'app da un
+    /// telefono da 512 MB. Il nome del file copiato e' quello che la pagina
+    /// legge a pezzi quando spedisce (vedi ChatPage.SendAttachmentAsync).
     ///
     /// Chi riceve un allegato: ChatPage, che lo mostra nella barra di anteprima;
     /// ChatsPage, che dice che c'e' qualcosa da inviare. Entrambe si iscrivono a
@@ -22,7 +26,10 @@ namespace WhatsappApp.Services
     /// </summary>
     public static class AttachmentInbox
     {
-        private static string _base64;
+        // Il nome del file copiato: uno solo in attesa alla volta.
+        private const string CopyBaseName = "outgoing_attachment";
+
+        private static string _localFileName;
         private static string _fileName;
         private static string _mimeType;
         private static string _note;
@@ -32,12 +39,13 @@ namespace WhatsappApp.Services
 
         public static bool HasAttachment
         {
-            get { return !string.IsNullOrEmpty(_base64); }
+            get { return !string.IsNullOrEmpty(_localFileName); }
         }
 
-        public static string Base64
+        /// <summary>Il nome, dentro LocalFolder, del file copiato.</summary>
+        public static string LocalFileName
         {
-            get { return _base64; }
+            get { return _localFileName; }
         }
 
         public static string FileName
@@ -57,35 +65,41 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Deposita un file scelto o condiviso. Si legge adesso, non quando
-        /// servira': dopo una riattivazione il riferimento al file puo' non
-        /// essere piu' valido.
+        /// Deposita un file scelto o condiviso copiandolo nella cartella
+        /// dell'app. Si copia adesso, non quando servira': dopo una
+        /// riattivazione il riferimento al file puo' non essere piu' valido, e
+        /// l'app puo' essere stata terminata.
         /// </summary>
         public static async Task PutAsync(StorageFile file, string note)
         {
             if (file == null) return;
 
-            byte[] buffer;
-            using (var stream = await file.OpenReadAsync())
-            {
-                using (var reader = new DataReader(stream))
-                {
-                    uint size = (uint)stream.Size;
-                    await reader.LoadAsync(size);
-                    buffer = new byte[size];
-                    reader.ReadBytes(buffer);
-                }
-            }
+            string mimeType = MimeFor(file.FileType);
+            string extension = ExtensionFor(mimeType, file.Name);
+            StorageFile copy = await file.CopyAsync(
+                ApplicationData.Current.LocalFolder,
+                CopyBaseName + extension,
+                NameCollisionOption.ReplaceExisting);
 
-            PutBytes(buffer, file.Name, MimeFor(file.FileType), note);
+            PutLocal(copy.Name, file.Name, mimeType, note);
         }
 
-        /// <summary>Deposita i byte gia' letti (una bitmap condivisa, per esempio).</summary>
-        public static void PutBytes(byte[] buffer, string fileName, string mimeType, string note)
+        /// <summary>Deposita i byte gia' letti (una bitmap condivisa).</summary>
+        public static async Task PutBytesAsync(byte[] buffer, string fileName, string mimeType, string note)
         {
             if (buffer == null || buffer.Length == 0) return;
 
-            _base64 = Convert.ToBase64String(buffer);
+            string extension = ExtensionFor(mimeType, fileName);
+            StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                CopyBaseName + extension, CreationCollisionOption.ReplaceExisting);
+            await FileIO.WriteBytesAsync(file, buffer);
+
+            PutLocal(file.Name, fileName, mimeType, note);
+        }
+
+        private static void PutLocal(string localName, string fileName, string mimeType, string note)
+        {
+            _localFileName = localName;
             _fileName = fileName;
             _mimeType = string.IsNullOrEmpty(mimeType) ? "image/jpeg" : mimeType;
             _note = note;
@@ -97,7 +111,7 @@ namespace WhatsappApp.Services
         /// <summary>Ritira l'allegato: chi lo mostra lo fa una volta sola.</summary>
         public static void Clear()
         {
-            _base64 = null;
+            _localFileName = null;
             _fileName = null;
             _mimeType = null;
             _note = null;
@@ -117,6 +131,21 @@ namespace WhatsappApp.Services
             if (value == ".mkv") return "video/x-matroska";
             if (value == ".webm") return "video/webm";
             return "image/jpeg";
+        }
+
+        /// <summary>L'estensione del file copiato, dal nome o dal tipo MIME.</summary>
+        private static string ExtensionFor(string mimeType, string fileName)
+        {
+            string name = fileName ?? "";
+            int dot = name.LastIndexOf('.');
+            if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot).ToLower();
+
+            string mime = (mimeType ?? "").ToLower();
+            if (mime.StartsWith("video/")) return ".mp4";
+            if (mime == "image/png") return ".png";
+            if (mime == "image/gif") return ".gif";
+            if (mime == "image/bmp") return ".bmp";
+            return ".jpg";
         }
 
         /// <summary>
