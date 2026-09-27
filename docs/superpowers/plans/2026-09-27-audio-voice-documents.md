@@ -1299,17 +1299,22 @@ with:
         {
             if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
 
+            // C# 5 non lascia attendere dentro un catch (CS1985): si prende nota
+            // del guasto e si aspetta dopo, fuori dal blocco.
+            bool failed = false;
             try
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(message.MediaFilePath);
                 bool opened = await Launcher.LaunchFileAsync(file);
-                if (!opened) await ShowDocumentErrorAsync();
+                failed = !opened;
             }
             catch (Exception ex)
             {
                 Diag.Failed("ChatPage.OpenDocumentAsync", ex);
-                await ShowDocumentErrorAsync();
+                failed = true;
             }
+
+            if (failed) await ShowDocumentErrorAsync();
         }
 
         private async System.Threading.Tasks.Task ShowDocumentErrorAsync()
