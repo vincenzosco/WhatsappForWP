@@ -148,22 +148,5 @@ namespace WhatsappApp.Converters
         }
     }
 
-    /// <summary>
-    /// Converts MessageType to visibility for the text element (collapsed for Image type that has media)
-    /// </summary>
-    public class MessageTypeToTextVisibilityConverter : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, string language)
-        {
-            var type = (Models.MessageType)value;
-            // Only hide text if it's an image type - caption text still shows for images
-            return type == Models.MessageType.Audio ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, string language)
-        {
-            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
-        }
-    }
 }
 

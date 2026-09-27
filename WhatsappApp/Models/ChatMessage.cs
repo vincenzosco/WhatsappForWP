@@ -73,6 +73,7 @@ namespace WhatsappApp.Models
         private int _callDurationSeconds;   // durata in secondi, 0 se sconosciuta
         private bool _callIsVideo;          // chiamata video
         private string _relatedMessageId;   // messaggio toccato da una revoca o una modifica
+        private string _mediaFilePath;       // file locale del video ricevuto (client, non sul filo)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
         // Un serializer per tipo, non uno per messaggio: DataContractJsonSerializer
@@ -91,7 +92,12 @@ namespace WhatsappApp.Models
         public string Text
         {
             get { return _text; }
-            set { _text = value; OnPropertyChanged(); }
+            set
+            {
+                _text = value;
+                OnPropertyChanged();
+                OnPropertyChanged("ShowsText");
+            }
         }
 
         [DataMember]
@@ -159,7 +165,13 @@ namespace WhatsappApp.Models
         public MessageType Type
         {
             get { return _type; }
-            set { _type = value; OnPropertyChanged(); }
+            set
+            {
+                _type = value;
+                OnPropertyChanged();
+                OnPropertyChanged("IsVideo");
+                OnPropertyChanged("ShowsText");
+            }
         }
 
         [DataMember]
@@ -223,7 +235,31 @@ namespace WhatsappApp.Models
         public string MediaType
         {
             get { return _mediaType; }
-            set { _mediaType = value; OnPropertyChanged(); }
+            set
+            {
+                _mediaType = value;
+                OnPropertyChanged();
+                OnPropertyChanged("IsVideo");
+                OnPropertyChanged("ShowsText");
+            }
+        }
+
+        /// <summary>
+        /// Il file locale con i byte di un video ricevuto. Non e' un
+        /// [DataMember]: un video non viaggia nel modello (troppo per un frame),
+        /// quindi sul filo c'e' solo il nome del file in cache locale. Vuoto
+        /// finche' i byte non sono arrivati.
+        /// </summary>
+        public string MediaFilePath
+        {
+            get { return _mediaFilePath; }
+            set
+            {
+                _mediaFilePath = value;
+                OnPropertyChanged();
+                OnPropertyChanged("IsVideo");
+                OnPropertyChanged("ShowsText");
+            }
         }
 
         /// <summary>Comando dei frame di controllo inviati/ricevuti dall'adapter (Type = System).</summary>
@@ -411,6 +447,50 @@ namespace WhatsappApp.Models
         public bool IsOutgoing
         {
             get { return !IsIncoming; }
+        }
+
+        /// <summary>
+        /// Questa bolla e' un video. Vale anche prima che i byte arrivino: una
+        /// riga di cronologia dice il tipo in MediaType, e la casella con il
+        /// triangolo si mostra lo stesso, cosi' si puo' chiedere il file.
+        /// </summary>
+        public bool IsVideo
+        {
+            get
+            {
+                return Type == MessageType.Video
+                    || string.Equals(MediaType, "video", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        /// <summary>
+        /// C'e' qualcosa da scrivere sotto il media. Il segnaposto del tipo
+        /// ("[Video]", "[Image not downloaded]") non e' una didascalia: per un
+        /// video lo dice la casella con il triangolo, e ripetere la parola
+        /// sotto non serve a niente. Per tutto il resto il testo resta quello
+        /// di prima, cosi' una didascalia non sparisce.
+        /// </summary>
+        public bool ShowsText
+        {
+            get
+            {
+                if (Type == MessageType.Audio) return false;
+                if (string.IsNullOrEmpty(Text)) return false;
+                if (IsVideo && IsMediaPlaceholder) return false;
+                return true;
+            }
+        }
+
+        /// <summary>Il testo e' solo il segnaposto che l'adapter scrive per un media.</summary>
+        private bool IsMediaPlaceholder
+        {
+            get
+            {
+                return !string.IsNullOrEmpty(Text)
+                    && Text.Length >= 2
+                    && Text[0] == '['
+                    && Text[Text.Length - 1] == ']';
+            }
         }
 
         // Convenience property: Is this message a media type (image/audio/video)?

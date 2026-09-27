@@ -352,6 +352,19 @@ suppressing the *toast* for the chat on screen.
 - **GOWA's `/message/:id/download` answers with an address, not bytes.** Like
   `/user/avatar`, it is two requests: `results.file_url` is the static file, fetched
   after. An empty `file_url` means the file is not under `statics`, which for the app is
-  "no longer available", not a fault. The bytes go back in a `media` control frame tied
+  "no longer available", not a fault. The bytes go back in `media` control frames tied
   to the existing message by `RelatedMessageId` - a message frame would count as new and
   raise a toast.
+- **Incoming media is chunked too, and a video goes to disk.** The same 8 MiB ceiling
+  applies to what the adapter sends back, so `sendMediaChunks` splits the base64 into
+  `MEDIA_CHUNK_CHARS` (700000) characters - the same number as `ChatPage.MediaChunkChars`
+  - one `media` frame each, with `MediaChunkIndex` / `MediaChunkTotal` / `MediaType`. The
+  webhook path uses it as well: a message with an id is announced first and its bytes
+  follow, so nothing large rides inside a message frame. On the phone
+  `IncomingMediaStore` reassembles by `RelatedMessageId`: a photo into `MediaData`, a
+  video streamed into a file in `LocalFolder` (never whole in memory - that is what the
+  512 MB budget buys) and referenced by `ChatMessage.MediaFilePath`, a client-only field.
+  A `MediaElement` in `ChatPage` plays it with `SetSource(stream, mimeType)` and
+  `AreTransportControlsEnabled`; the stream is held open until the viewer closes. The
+  play box shows on `ChatMessage.IsVideo`, which is true from `MediaType` alone, so it is
+  tappable before the bytes arrive - the first tap downloads them.

@@ -150,6 +150,12 @@ function buildChatMessage(fields) {
     if (f.mediaFileName) msg.MediaFileName = f.mediaFileName;
   }
 
+  // Un media che non sta in un frame solo viaggia a pezzi (vedi
+  // server.js, sendMediaChunks): il pezzo dice quale e' e quanti sono in tutto,
+  // e l'app li ricompone per RelatedMessageId.
+  if (typeof f.mediaChunkIndex === 'number') msg.MediaChunkIndex = f.mediaChunkIndex;
+  if (typeof f.mediaChunkTotal === 'number') msg.MediaChunkTotal = f.mediaChunkTotal;
+
   return msg;
 }
 

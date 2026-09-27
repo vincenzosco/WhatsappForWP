@@ -90,7 +90,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Login via **QR code** or via **phone number pairing code**, both shown in the app
 - Announces itself on the LAN over UDP, so the app finds it without being configured
 - Keeps the encrypted (AES-256-GCM) TCP channel between app and adapter
-- Sends text, photos, videos and files (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); an attachment larger than one frame travels in pieces (`media.begin` / `media.chunk` / `media.end`)
+- Sends text, photos, videos and files (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); an attachment larger than one frame travels in pieces (`media.begin` / `media.chunk` / `media.end`), and media that arrives from WhatsApp comes back the same way in `media` frames that carry their piece index
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
 - Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (two requests per person: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
@@ -98,6 +98,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
 - Loads a chat's stored messages when it is opened (`messages`, up to `MESSAGES_LIMIT`), as frames marked `IsHistory`: they are inserted in date order and stay out of the unread count and the toasts
 - Tapping an image in a chat opens it over the whole page; tapping it again closes it. A `[Image]` from an old conversation is downloaded first and opens at the next tap
+- A received video plays over the whole page on a `MediaElement` with the system transport controls, and closes with the X in the corner. Its bytes arrive in pieces and are written to a file as they come, so a full-length video is never held whole in memory; tapping the play box before the bytes are there downloads them first, like an image
 
 **Setup (one command)**
 
@@ -511,7 +512,7 @@ node tools/check-docs.js
 - Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered on resume, when the app reconnects by itself - it is not announced at the moment it arrives.
 - A chat's unread number is kept by the adapter, in memory, and is cleared when the conversation is opened in the app. Restarting the adapter starts the count again from zero, and messages that arrive while neither the app nor the adapter is running are not counted.
 - A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
-- Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone. A photo or a video in that history shows a word (`[Image]`, `[Video]`) until it is tapped, when the adapter downloads it from the server; a video stays a word because this app has no player for it.
+- Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone. A photo or a video in that history shows a word (`[Image]`, `[Video]`) until it is tapped, when the adapter downloads it from the server and the app plays or draws it. A received video's bytes are written to the app's local folder for as long as the session lasts, and are not cleaned up when the app closes.
 - The number on the live tile is drawn by the badge and the icon comes from the tile notification, so both need the app to have run since the count changed. With the count at zero the tile goes back to the one in the manifest.
 - Under memory pressure the app drops the decoded avatars and asks for them again later: on a phone that stays under pressure, the chat list shows initials for a while.
 

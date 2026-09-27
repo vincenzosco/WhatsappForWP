@@ -97,6 +97,11 @@ function createBridge({ config, gowa, log, debug }) {
   // WhatsApp rifiuta oltre 64 MB (senza compressione): oltre quel numero i byte
   // in memoria non servono a nessuno, quindi si fermano prima.
   const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
+  // Quanti caratteri base64 per frame verso l'app. Lo stesso numero che usa
+  // ChatPage per spedire (media.begin/chunk/end): un video non sta in un frame
+  // solo, e il base64 aggiunge un terzo. E' un multiplo di 4, cosi' ogni pezzo
+  // e' base64 valido da solo e l'app puo' decodificarlo senza aspettare il resto.
+  const MEDIA_CHUNK_CHARS = 700000;
 
   async function sendChats() {
     const limits = (config && config.chats) || {};
@@ -187,6 +192,31 @@ function createBridge({ config, gowa, log, debug }) {
    * e' un pezzo che completa un messaggio esistente, non uno nuovo, e come
    * messaggio alzerebbe il conteggio dei non letti e un avviso.
    */
+  /**
+   * I byte di un media che l'app ha gia' (una riga di cronologia arrivata come
+   * parola), a pezzi. Un video non sta in un frame solo: il tetto e' 8 MiB e il
+   * base64 aggiunge un terzo. Ogni frame e' un `media` con lo stesso
+   * RelatedMessageId, il pezzo e quanti sono in tutto; l'app li ricompone. Sono
+   * frame di controllo e non messaggi, perche' completano un messaggio che
+   * esiste gia' e un messaggio in piu' alzerebbe i non letti.
+   */
+  function sendMediaChunks(chatId, messageId, mediaType, mimeType, fileName, base64) {
+    const total = Math.max(1, Math.ceil(base64.length / MEDIA_CHUNK_CHARS));
+    for (let i = 0; i < total; i++) {
+      sendControl({
+        command: 'media',
+        chatId,
+        relatedMessageId: messageId,
+        mediaType,
+        mediaData: base64.substr(i * MEDIA_CHUNK_CHARS, MEDIA_CHUNK_CHARS),
+        mediaMimeType: mimeType,
+        mediaFileName: fileName || undefined,
+        mediaChunkIndex: i,
+        mediaChunkTotal: total
+      });
+    }
+  }
+
   async function sendMedia(chatId, messageId) {
     if (!chatId || !messageId) return;
 
@@ -204,14 +234,8 @@ function createBridge({ config, gowa, log, debug }) {
         return;
       }
 
-      sendControl({
-        command: 'media',
-        chatId,
-        relatedMessageId: messageId,
-        mediaData: media.base64,
-        mediaMimeType: media.mimeType,
-        mediaFileName: media.fileName
-      });
+      sendMediaChunks(chatId, messageId, mediaKindOf(media.mimeType, media.fileName),
+        media.mimeType, media.fileName, media.base64);
       logger('INFO', `media downloaded for ${messageId} (${media.base64.length} chars)`);
     } catch (err) {
       logger('ERR', `media download failed for ${messageId}: ${err.message}`);
@@ -537,17 +561,22 @@ function createBridge({ config, gowa, log, debug }) {
     // in piu' da leggere, anche se l'app non e' collegata in questo momento.
     unreadByChat.set(fields.chatId, (unreadByChat.get(fields.chatId) || 0) + 1);
 
-    let mediaData = null;
+    let mediaBuffer = null;
     let mediaMimeType = fields.mediaMimeType;
     if (fields.mediaPath) {
       try {
         const media = await gowa.fetchBinary(fields.mediaPath);
-        mediaData = media.buffer.toString('base64');
+        mediaBuffer = media.buffer;
         if (!mediaMimeType) mediaMimeType = media.contentType;
       } catch (err) {
         logger('WARN', `media not downloaded (${fields.mediaPath}): ${err.message}`);
       }
     }
+
+    // Un media grande si manda a pezzi, dopo il messaggio e legato al suo id
+    // (sendMediaChunks). Solo un media senza id - che l'app non potrebbe
+    // nemmeno chiedere - viaggia dentro il messaggio, come prima.
+    const inlineMedia = mediaBuffer && !fields.id;
 
     logger('MSG', `from ${fields.senderName}: ${(fields.text || '[media]').substring(0, 60)}`);
     sendToClients(buildChatMessage({
@@ -560,10 +589,16 @@ function createBridge({ config, gowa, log, debug }) {
       status: 3,
       type: fields.type,
       isIncoming: true,
-      mediaData,
-      mediaMimeType,
+      mediaType: fields.mediaType,
+      mediaData: inlineMedia ? mediaBuffer.toString('base64') : null,
+      mediaMimeType: inlineMedia ? mediaMimeType : undefined,
       mediaFileName: fields.mediaFileName
     }));
+
+    if (mediaBuffer && fields.id) {
+      sendMediaChunks(fields.chatId, fields.id, fields.mediaType, mediaMimeType,
+        fields.mediaFileName, mediaBuffer.toString('base64'));
+    }
   }
 
   // ─── Protocollo di controllo ──────────────────────────────────────────────
