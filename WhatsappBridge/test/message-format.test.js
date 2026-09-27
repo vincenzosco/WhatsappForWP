@@ -168,7 +168,9 @@ test('mapHistoryMessage reads a text message and marks it as history', () => {
   assert.strictEqual(mapped.isIncoming, true);
   assert.strictEqual(mapped.type, 0);
   assert.strictEqual(mapped.isHistory, true);
-  assert.strictEqual(mapped.timestamp, formatDateForWp8(new Date('2026-09-26T09:00:00Z')));
+  // Il valore atteso e' costruito da Date.parse, non da formatDateForWp8:
+  // altrimenti il test direbbe solo che la funzione e' se stessa.
+  assert.strictEqual(mapped.timestamp, `/Date(${Date.parse('2026-09-26T09:00:00Z')})/`);
 });
 
 test('mapHistoryMessage marks my own messages and leaves the sender alone', () => {
