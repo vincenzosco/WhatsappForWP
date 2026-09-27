@@ -46,7 +46,8 @@ quindi non c'e' altro da mostrare.
 L'elenco chat e' la lista vera delle conversazioni dell'account (`GET /chats`,
 limitata da `CHATS_LIMIT`), non la rubrica di WhatsApp, che su un dispositivo
 appena collegato e' vuota. Ogni riga porta l'ultimo messaggio e, per le persone,
-l'immagine del profilo (`GET /user/avatar`, si spegne con `CHATS_AVATARS=off`).
+l'immagine del profilo (`GET /user/avatar` e poi l'indirizzo CDN che restituisce,
+quindi due richieste per persona; si spegne con `CHATS_AVATARS=off`).
 
 Una nuova chat si apre in tre modi: digitando un numero con prefisso, scegliendo
 un contatto con il selettore del sistema (e' il consenso dell'utente, quindi l'app
@@ -83,7 +84,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - invia testi e immagini con `POST /send/message` e `POST /send/image`
 - riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
 - tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
-- elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (due richieste per persona: l'endpoint restituisce l'indirizzo dell'immagine, non l'immagine) (`CHATS_LIMIT`, `CHATS_AVATARS`)
 
 **Avvio (un solo comando)**
 
