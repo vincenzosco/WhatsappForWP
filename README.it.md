@@ -100,6 +100,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
 - carica i messaggi gia' in memoria aprendo una chat (`messages`, fino a `MESSAGES_LIMIT`), con frame marcati `IsHistory`: vengono inseriti in ordine di data e restano fuori dal conteggio dei non letti e dagli avvisi
 - elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (due richieste per persona: l'endpoint restituisce l'indirizzo dell'immagine, non l'immagine) (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- tiene sul telefono l'ultimo elenco delle conversazioni: l'elenco e' a schermo mentre la connessione sta ancora arrivando, e si aggiorna appena WhatsApp si dichiara collegato
 
 **Avvio (un solo comando)**
 

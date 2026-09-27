@@ -61,6 +61,7 @@ namespace WhatsappApp.Models
         private string _avatarData;     // immagine del profilo, base64
         private bool _isGroup;          // la chat e' un gruppo
         private bool _isHistory;        // messaggio vecchio, mandato aprendo la chat
+        private int _unreadCount;       // riga dell'elenco chat: quanti non letti
         private string _accountJid;     // WhatsApp JID of the logged-in account
         private string _callId;             // id della chiamata, da GOWA
         private string _callReason;         // esito riportato da GOWA (timeout, reject, ...)
@@ -298,6 +299,19 @@ namespace WhatsappApp.Models
         {
             get { return _isHistory; }
             set { _isHistory = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Quanti messaggi di questa conversazione non sono ancora stati letti.
+        /// Non e' un dato del messaggio: e' un dato della riga dell'elenco chat,
+        /// e l'adapter lo conta perche' e' l'unico che vede i messaggi arrivati
+        /// mentre il telefono era spento.
+        /// </summary>
+        [DataMember]
+        public int UnreadCount
+        {
+            get { return _unreadCount; }
+            set { _unreadCount = value; OnPropertyChanged(); }
         }
 
         public string FormattedTime

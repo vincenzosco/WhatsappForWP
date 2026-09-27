@@ -33,6 +33,11 @@ namespace WhatsappApp.Services
         // volta per chat, non a ogni apertura.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
 
+        // Le righe dell'elenco chat come le ha mandate il server l'ultima volta
+        // (per la cache) e quelle che stanno arrivando adesso.
+        private readonly List<ChatMessage> _chatRows = new List<ChatMessage>();
+        private readonly List<ChatMessage> _freshChatRows = new List<ChatMessage>();
+
         // Indice per id: senza questo ogni messaggio in arrivo scandiva tutta
         // la lista dei contatti (FirstOrDefault) per trovare la chat.
         private readonly Dictionary<string, Contact> _contactIndex =
@@ -88,6 +93,24 @@ namespace WhatsappApp.Services
 
             CommunicationService.Instance.MessageReceived += OnNetworkMessageReceived;
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+
+            // La copia dell'ultima sessione: si mostra adesso, prima che la
+            // connessione esista. Il server la sostituira' con quella vera.
+#pragma warning disable 4014
+            LoadCachedChatsAsync();
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Riempe l'elenco con l'ultima fotografia sul telefono. Ogni riga passa
+        /// da ApplyChat, come se arrivasse dal server: cosi' non ci sono due
+        /// strade che possono divergere.
+        /// </summary>
+        private async System.Threading.Tasks.Task LoadCachedChatsAsync()
+        {
+            var cached = await ChatCache.LoadAsync();
+            for (int i = 0; i < cached.Count; i++) ApplyChat(cached[i]);
+            NotificationService.SetUnread(TotalUnread());
         }
 
         /// <summary>Registro chiamate, riempito dall'adapter su richiesta.</summary>
@@ -209,6 +232,7 @@ namespace WhatsappApp.Services
                     ApplyChat(message);
                     break;
                 case "chats.done":
+                    RememberChatList();
                     RaiseChatListCompleted();
                     break;
                 case "revoked":
@@ -295,6 +319,45 @@ namespace WhatsappApp.Services
                 contact.LoadAvatarAsync();
 #pragma warning restore 4014
             }
+
+            // Il numero dei non letti e' una proprieta' della riga, non del
+            // messaggio: arriva dal server, che e' l'unico sveglio mentre il
+            // telefono e' spento (vedi server.js, unreadByChat).
+            contact.UnreadCount = message.UnreadCount;
+            RememberChatRow(message);
+        }
+
+        /// <summary>La riga di questo aggiornamento, tenuta da parte per la cache.</summary>
+        private void RememberChatRow(ChatMessage message)
+        {
+            if (string.IsNullOrEmpty(message.ChatId)) return;
+
+            for (int i = 0; i < _freshChatRows.Count; i++)
+            {
+                if (_freshChatRows[i].ChatId == message.ChatId)
+                {
+                    _freshChatRows[i] = message;
+                    return;
+                }
+            }
+            _freshChatRows.Add(message);
+        }
+
+        /// <summary>
+        /// La lista e' finita di arrivare: quella che resta diventa la copia
+        /// sul telefono, e il gruppo appena arrivato riparte da zero.
+        /// </summary>
+        private void RememberChatList()
+        {
+            if (_freshChatRows.Count == 0) return;
+
+            _chatRows.Clear();
+            _chatRows.AddRange(_freshChatRows);
+            _freshChatRows.Clear();
+
+#pragma warning disable 4014
+            ChatCache.SaveAsync(_chatRows);
+#pragma warning restore 4014
         }
 
         /// <summary>La lista delle conversazioni e' finita di arrivare.</summary>
