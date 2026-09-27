@@ -109,6 +109,14 @@ test('the chat list limits have defaults and can be overridden', () => {
   assert.strictEqual(custom.chats.avatars, false);
 });
 
+test('the history limit has a default and can be overridden', () => {
+  const defaults = loadConfig({});
+  assert.strictEqual(defaults.messages.limit, 50);
+
+  const custom = loadConfig({ MESSAGES_LIMIT: '200' });
+  assert.strictEqual(custom.messages.limit, 200);
+});
+
 test('applyDotEnv non fallisce se .env non esiste', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-env-'));
   const env = {};
