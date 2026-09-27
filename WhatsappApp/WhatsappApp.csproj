@@ -111,6 +111,7 @@
     <Compile Include="Services\NotificationService.cs" />
     <Compile Include="Services\ConnectionWatchdog.cs" />
     <Compile Include="Services\AttachmentInbox.cs" />
+    <Compile Include="Services\ChatCache.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
     <Compile Include="Services\MemoryWatcher.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">

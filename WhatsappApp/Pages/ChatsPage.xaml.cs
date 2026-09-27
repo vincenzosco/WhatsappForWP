@@ -57,15 +57,12 @@ namespace WhatsappApp.Pages
             AttachmentInbox.Ready += OnAttachmentReady;
             UpdatePendingAttachment();
 
-            // OnNavigatedTo is not async: fire the chats request and ignore the
-            // task. Si chiede l'elenco delle conversazioni, non la rubrica:
-            // /user/my/contacts e' vuota su un account appena collegato mentre
-            // /chats e' piena. Solo se la lista e' vuota: l'adapter risponde con
-            // un frame per conversazione.
-            if (CommunicationService.Instance.IsConnected && DataService.Instance.Contacts.Count == 0)
-#pragma warning disable 4014
-                CommunicationService.Instance.SendControlAsync("chats");
-#pragma warning restore 4014
+            // La richiesta si rifa' a ogni ingresso e a ogni passaggio a
+            // connected, invece di aspettare che qualcuno apra le impostazioni:
+            // all'avvio la connessione non c'e' ancora, e la lista arrivava solo
+            // se l'utente tornava qui dopo averla aperta.
+            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+            RequestChats();
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -73,6 +70,34 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
             AttachmentInbox.Ready -= OnAttachmentReady;
+            CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
+        }
+
+        /// <summary>
+        /// WhatsApp e' passato a connected adesso. La richiesta fatta
+        /// all'ingresso non poteva avere risposta (l'adapter risponde "non
+        /// collegato" finche' il login non e' finito), e questa e' la sola cosa
+        /// che fa comparire l'elenco senza toccare niente.
+        /// </summary>
+        private void OnControlMessageReceived(object sender, ChatMessage message)
+        {
+            if (message == null || message.Command != "state") return;
+            RequestChats();
+        }
+
+        /// <summary>
+        /// Chiede l'elenco delle conversazioni. Solo se c'e' qualcuno che puo'
+        /// rispondere: con WhatsApp non collegato l'adapter risponde con un
+        /// errore e nessuna riga.
+        /// </summary>
+        private void RequestChats()
+        {
+            if (!CommunicationService.Instance.IsConnected) return;
+            if (CommunicationService.Instance.WhatsAppState != "connected") return;
+
+#pragma warning disable 4014
+            CommunicationService.Instance.SendControlAsync("chats");
+#pragma warning restore 4014
         }
 
         private void OnAttachmentReady()
