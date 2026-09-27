@@ -364,7 +364,32 @@ suppressing the *toast* for the chat on screen.
   `IncomingMediaStore` reassembles by `RelatedMessageId`: a photo into `MediaData`, a
   video streamed into a file in `LocalFolder` (never whole in memory - that is what the
   512 MB budget buys) and referenced by `ChatMessage.MediaFilePath`, a client-only field.
-  A `MediaElement` in `ChatPage` plays it with `SetSource(stream, mimeType)` and
-  `AreTransportControlsEnabled`; the stream is held open until the viewer closes. The
-  play box shows on `ChatMessage.IsVideo`, which is true from `MediaType` alone, so it is
-  tappable before the bytes arrive - the first tap downloads them.
+  A `MediaElement` in `ChatPage` plays it from the `ms-appdata` file URI with
+  `AreTransportControlsEnabled`. The play box shows on `ChatMessage.IsVideo`, which is
+  true from `MediaType` alone, so it is tappable before the bytes arrive - the first tap
+  downloads them, and `ChatMessage.IsMediaLoading` turns the ring in the bubble while
+  they do.
+- **A picked or shared file is copied, not read.** `AttachmentInbox.PutAsync` copies
+  the chosen file into `LocalFolder` (`StorageFile.CopyAsync`) and keeps its name;
+  `ChatPage.SendAttachmentAsync` streams it out in `MediaChunkBytes` (525000, a
+  multiple of 3, so each piece is exactly 700000 base64 characters). Reading the file
+  into a `byte[]` first is what took the app down when a video was shared from the
+  gallery, and `tools/check-memory.js` now fails on it. A fire-and-forget deposit has
+  no one to catch its exception: `App.DepositPickedFileAsync` catches its own.
+- **The video viewer gets the `ms-appdata` file, not a stream.** Holding an
+  `IRandomAccessStream` open for the life of the page means the viewer dies with the
+  page, and a decode failure that closes the overlay is indistinguishable from a tap
+  that did nothing. `ChatPage.PlayVideo` sets `Source` to `ms-appdata:///local/<name>`
+  and leaves `VideoErrorText` up when `MediaFailed` fires. WP8.1 still has no `Deferral`
+  here - see the `ShareOperation` gotcha.
+- **A `Border` takes exactly one child.** Wrapping the play `Path` and the download
+  `ProgressRing` inside the video `Border` is not enough - they need a `<Grid>` around
+  them, or the XAML compiler answers `WMC0035: Duplication assignment to the Child
+  property`.
+- **A cache is a photograph, not a truth.** `MessageCache` holds the last 60 messages
+  of a chat and is written on leaving the page, not per message. It is only read when
+  the in-memory list is empty (`DataService.LoadCachedMessagesAsync`), and its rows go
+  through `AddHistoryMessage`, so the dedupe and the date order are the same as the real
+  history. Its entries are `IsHistory`, so they raise no toast and add no unread count.
+  `MediaFilePath` is not a `[DataMember]`, so a cached video keeps its word and its play
+  box but asks for its bytes again.

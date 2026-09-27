@@ -31,8 +31,9 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
 - Ogni riga dell'elenco porta quanti messaggi non ha ancora letto (`UnreadCount`).
   Quel conteggio lo tiene l'adapter, perche' l'elenco chat di GOWA non ha questo campo e
   perche' un messaggio che arriva col telefono spento raggiunge il webhook dell'adapter e
-  nessun altro; l'app lo azzera con `read` quando la conversazione viene mostrata. Il
-  conteggio vive in memoria: riavviare l'adapter lo riparte da zero.
+  nessun altro; l'app lo azzera con `read` quando la conversazione viene mostrata.Il conteggio vive in memoria: riavviare l'adapter lo riparte da zero.
+  I JID dei canali (`...@newsletter`) si saltano qui e nel webhook: un canale non e'
+  una conversazione e non si puo' rispondere.
 - Una foto, un video o un file si manda a pezzi (`media.begin` / `media.chunk` /
   `media.end`): il tetto di un frame e' 8 MiB e il base64 aggiunge un terzo, quindi un
   video non ci sta in un frame solo. Ogni pezzo e' un multiplo di 4 caratteri base64,
