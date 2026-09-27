@@ -407,3 +407,45 @@ test('the messages command answers with an error when WhatsApp is not connected'
   assert.strictEqual(sent[0].Command, 'error');
   assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
 });
+
+test('un messaggio in arrivo conta come non letto, e read lo azzera', async () => {
+  const sent = [];
+  const gowa = {
+    chats: async () => [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    chatMessages: async () => [],
+    avatar: async () => null
+  };
+  const bridge = createBridge({
+    config: { chats: { limit: 5, avatars: false } },
+    gowa,
+    log: () => {},
+    debug: () => {}
+  });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    payload: {
+      id: 'M1',
+      chat_id: 'a@s.whatsapp.net',
+      from: 'a@s.whatsapp.net',
+      body: 'ciao',
+      timestamp: '2026-09-27T08:00:00Z'
+    }
+  });
+
+  sent.length = 0;
+  await bridge.handleControl({ Type: 3, Command: 'chats', SenderName: 'test' });
+  const rows = sent.filter((f) => f.Command === 'chat');
+  assert.strictEqual(rows.length, 1);
+  assert.strictEqual(rows[0].UnreadCount, 1);
+
+  await bridge.handleControl({ Type: 3, Command: 'read', Text: 'a@s.whatsapp.net' });
+
+  sent.length = 0;
+  bridge.resetChatsCacheForTest();
+  await bridge.handleControl({ Type: 3, Command: 'chats' });
+  const after = sent.filter((f) => f.Command === 'chat');
+  assert.strictEqual(after[0].UnreadCount, 0);
+});

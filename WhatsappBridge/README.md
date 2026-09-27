@@ -26,6 +26,11 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   and keeps them out of the unread count and the toasts: they are not arriving now. A
   message whose media is not among the bytes the webhook delivered is sent as text -
   `[Image]`, `[Video]`, ... - because an empty bubble is worse than a word.
+- Each conversation row carries how many messages it has not read
+  (`UnreadCount`). That count is kept by the adapter, because GOWA's chat list has no such
+  field and because a message that arrives while the phone is off reaches the adapter's
+  webhook and nobody else; the app clears it with `read` when the conversation is shown.
+  The count lives in memory: restarting the adapter starts it again from zero.
 
 ## Control protocol
 
@@ -42,13 +47,14 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `calls` | — (incoming only, from the most recent `CALLS_CHAT_LIMIT` chats) |
 | app -> adapter | `chats` | — (the linked account's conversations, most recent first) |
 | app -> adapter | `messages` | `Text` = chat JID (up to `MESSAGES_LIMIT` messages, as ordinary frames marked `IsHistory`) |
+| app -> adapter | `read` | `Text` = chat JID (that conversation has now been read; clears its unread count) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (the scan is over, even when no call was found) |
-| adapter -> app | `chat` | `ChatId`, `SenderName`, `Text` = last message, `Timestamp`, `IsGroup`, `AvatarData` (base64) |
+| adapter -> app | `chat` | `ChatId`, `SenderName`, `Text` = last message, `Timestamp`, `IsGroup`, `AvatarData` (base64), `UnreadCount` |
 | adapter -> app | `chats.done` | — (the list is over) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id of the deleted message |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = the new text |

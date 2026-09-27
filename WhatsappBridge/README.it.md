@@ -28,6 +28,11 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   avvisi: non stanno arrivando adesso. Un messaggio il cui media non e' fra i byte che
   il webhook ha consegnato viene mandato come testo - `[Image]`, `[Video]`, ... -
   perche' un fumetto vuoto e' peggio di una parola.
+- Ogni riga dell'elenco porta quanti messaggi non ha ancora letto (`UnreadCount`).
+  Quel conteggio lo tiene l'adapter, perche' l'elenco chat di GOWA non ha questo campo e
+  perche' un messaggio che arriva col telefono spento raggiunge il webhook dell'adapter e
+  nessun altro; l'app lo azzera con `read` quando la conversazione viene mostrata. Il
+  conteggio vive in memoria: riavviare l'adapter lo riparte da zero.
 
 ## Protocollo di controllo
 
@@ -44,13 +49,14 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `calls` | — (solo in entrata, dalle `CALLS_CHAT_LIMIT` chat più recenti) |
 | app -> adapter | `chats` | — (le conversazioni dell'account collegato, dalla più recente) |
 | app -> adapter | `messages` | `Text` = JID della chat (fino a `MESSAGES_LIMIT` messaggi, come frame normali marcati `IsHistory`) |
+| app -> adapter | `read` | `Text` = JID della chat (quella conversazione e' stata letta; azzera il suo conteggio dei non letti) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = nome |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (la scansione è finita, anche senza chiamate) |
-| adapter -> app | `chat` | `ChatId`, `SenderName`, `Text` = ultimo messaggio, `Timestamp`, `IsGroup`, `AvatarData` (base64) |
+| adapter -> app | `chat` | `ChatId`, `SenderName`, `Text` = ultimo messaggio, `Timestamp`, `IsGroup`, `AvatarData` (base64), `UnreadCount` |
 | adapter -> app | `chats.done` | — (l'elenco è finito) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id del messaggio cancellato |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = il nuovo testo |
