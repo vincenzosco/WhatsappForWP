@@ -1416,6 +1416,54 @@ git push
 
 ---
 
+## What execution changed about this plan
+
+Recorded after the run. Everything else was built as written.
+
+1. **Task 1 had to generate the asset before running the guard's tests.** The tile
+   test reads `TileIcon.scale-240.png` off disk and the plan generated it one step
+   later, so as written that test would have failed on a missing file instead of on
+   a missing module. Order used: test, guard, **asset**, payload, tests.
+2. **The guard needed a comment-stripper, and that was the first of two false
+   positives it produced.** `bindingProblems` read the *comment* that mentions
+   `TileWide310x150IconWithBadge` as if the code used that template. Stripping `//`
+   comments naively would have destroyed `ms-appx:///Assets/TileIcon.png` (two
+   slashes inside a string), so the stripper is string-aware, it lives in
+   `tools/csharp.js`, and `check-memory.js` shares it: there, the *comment*
+   explaining "set it before `SetSourceAsync`" looked like a call made before the
+   assignment. Both guards' tests now cover the comment case.
+3. **`assetProblems` treats a missing `exists` field as present.** The unit tests
+   describe an asset by its size; only `exists === false` means missing.
+4. **The button guard's message had to name the expected handler.** The test
+   asserts the report contains `NewChatButton_Click`, which the first draft did not
+   say.
+5. **The app has 18 buttons with a `Click`, not 17** (the plan's number came from an
+   earlier grep). Every one of them already follows `<name>_Click`: the rule was
+   true of the whole app *before* the guard existed, which is why the guard could
+   not be satisfied by weakening it.
+6. **`AppMemoryUsageLevel.OverLimit` does not exist on WP8.1.** The compiler
+   answered `CS0117` for it: `Windows.System.AppMemoryUsageLevel` has Low, Medium
+   and High, so the pressure threshold is `High` alone.
+   `AppMemoryUsageIncreased`, `AppMemoryUsageDecreased` and `AppMemoryUsageLimit`
+   all exist and build; `AppMemoryUsageLimitChanging` is Windows 10 1607+ and was
+   not used.
+7. **The VM has no `msbuild` on the PATH for `prlctl exec`,** and `prlctl` rejects a
+   combined `cmd /c "cd /d ... && <path with (x86)>"` string with `PrlJob_GetResult:
+   Invalid argument`. What works is the executable directly, with the solution by
+   absolute path: `prlctl exec "Windows 11" "C:\PROGRA~2\MSBuild\12.0\Bin\MSBuild.exe"
+   "C:\Temp\wp81\WhatsappApp.sln" /t:Rebuild /p:Configuration=Debug /p:Platform=x86`.
+   The summary is in Italian (`Errori: 0`, `Avvisi: 0`), so grepping for `Error(s)`
+   finds nothing and reads as an empty build.
+8. **Numbers, as measured:** 32 C# files, 12 icon paths (9 distinct), 104 `.resw`
+   keys in both languages, **36** tool tests (the plan said 32: `check-tile` grew
+   from 6 to 8 with the comment cases), 98 adapter tests, build `Errori: 0`,
+   `Avvisi: 0`.
+9. **`make-brand-assets.js` re-encodes the six existing brand PNGs** at the same
+   dimensions but with different bytes, so running it dirties them. Only the two new
+   `TileIcon` files were committed; the re-encodes were reverted.
+10. **Commit messages: no apostrophes.** The shell wrapper around the commit command
+    takes one as its own closing quote and the command dies with `unexpected EOF`.
+
 ## What only the phone can prove
 
 The three fixes were built and verified against the WP8.1 compiler and the guards, but the last metre is a device:

@@ -137,7 +137,10 @@ one of those strings:
    `tools/qr-term.js`, `tools/download.js`, `tools/services.js`, `WhatsappServer`).
 2. Update the test that asserts it - the adapter tests assert on `message-format`
    output, and `tools/test` covers the downloader and the service list.
-3. `cd WhatsappBridge && npm test` and `node --test "tools/test/**/*.test.js"`.
+3. The fast gate: `cd WhatsappBridge && npm test`, `node --test "tools/test/**/*.test.js"`,
+   plus the three guards a string change can move: `node tools/check-resw.js --strict`,
+   `node tools/check-docs.js` (both languages in step) and `node tools/check-actions.js`
+   (an icon-only button carries its label, and its name has to match its handler).
 4. Read **every** file with output in it before claiming the change is complete:
    `grep -nE "fail\(|console\.(log|error)|text: "` finds the surface.
 
