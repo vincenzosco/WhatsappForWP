@@ -94,6 +94,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
 - Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (two requests per person: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- Keeps the last chat list on the phone: the list is on screen while the connection is still coming up, and is refreshed as soon as WhatsApp reports itself connected
 - Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
 - Loads a chat's stored messages when it is opened (`messages`, up to `MESSAGES_LIMIT`), as frames marked `IsHistory`: they are inserted in date order and stay out of the unread count and the toasts
 
