@@ -97,6 +97,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Keeps the last chat list on the phone: the list is on screen while the connection is still coming up, and is refreshed as soon as WhatsApp reports itself connected
 - Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
 - Loads a chat's stored messages when it is opened (`messages`, up to `MESSAGES_LIMIT`), as frames marked `IsHistory`: they are inserted in date order and stay out of the unread count and the toasts
+- Tapping an image in a chat opens it over the whole page; tapping it again closes it. A `[Image]` from an old conversation is downloaded first and opens at the next tap
 
 **Setup (one command)**
 
