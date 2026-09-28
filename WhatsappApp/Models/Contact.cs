@@ -15,6 +15,8 @@ namespace WhatsappApp.Models
         private string _lastMessageTime;
         private string _initials;
         private int _unreadCount;
+        private bool _isPinned;
+        private bool _isMuted;
         private string _avatarData;
         private BitmapImage _avatar;
 
@@ -52,6 +54,24 @@ namespace WhatsappApp.Models
         {
             get { return _unreadCount; }
             set { _unreadCount = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// In cima all'elenco. E' una decisione di questo telefono
+        /// (ChatPreferences): WhatsApp non sa niente di un pin fatto qui, e
+        /// l'adapter non manda nessun campo per questo.
+        /// </summary>
+        public bool IsPinned
+        {
+            get { return _isPinned; }
+            set { _isPinned = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>I messaggi di questa chat non alzano un avviso. Il numero dei non letti resta.</summary>
+        public bool IsMuted
+        {
+            get { return _isMuted; }
+            set { _isMuted = value; OnPropertyChanged(); }
         }
 
         /// <summary>L'immagine del profilo arrivata dall'adapter, ancora in base64.</summary>
