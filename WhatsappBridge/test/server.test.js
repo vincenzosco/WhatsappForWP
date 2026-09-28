@@ -509,6 +509,87 @@ test('un allegato immagine va a sendImage e uno sconosciuto a sendFile', async (
   ]);
 });
 
+test('un allegato a cui manca un pezzo non viene mandato, e lo dice', async () => {
+  let sent = 0;
+  const gowa = {
+    sendVideo: async () => { sent++; return 'V1'; },
+    sendImage: async () => { sent++; return 'I1'; },
+    sendFile: async () => { sent++; return 'F1'; }
+  };
+  const handles = [];
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => handles.push(decodeFrame(packet)) });
+
+  const base64 = Buffer.from('un video finto che si divide in tre').toString('base64');
+  const third = Math.ceil((base64.length / 3) / 4) * 4;
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'c1', RelatedMessageId: 'M7', MediaFileName: 'clip.mp4', MediaMimeType: 'video/mp4', MediaChunkTotal: 3 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'c1', MediaChunkIndex: 0, MediaData: base64.slice(0, third) });
+  // il pezzo 1 non arriva mai
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'c1', MediaChunkIndex: 2, MediaData: base64.slice(third * 2) });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'c1' });
+
+  assert.strictEqual(sent, 0, 'un allegato incompleto non deve partire');
+  const errors = handles.filter((f) => f.Command === 'error');
+  assert.strictEqual(errors.length, 1);
+  assert.match(errors[0].Text, /complete/i);
+  assert.strictEqual(errors[0].RelatedMessageId, 'M7');
+});
+
+test('un pezzo con indice fuori dal totale dichiarato viene ignorato', async () => {
+  let size = 0;
+  const gowa = {
+    sendVideo: async (phone, caption, buffer) => { size = buffer.length; return 'V1'; },
+    sendImage: async () => { throw new Error('non e un video'); },
+    sendFile: async () => { throw new Error('non e un video'); }
+  };
+  const bridge = mediaBridge(gowa);
+  const bytes = Buffer.from('due pezzi e due soli');
+  const base64 = bytes.toString('base64');
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'x1', MediaFileName: 'clip.mp4', MediaMimeType: 'video/mp4', MediaChunkTotal: 2 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'x1', MediaChunkIndex: 900000000, MediaData: base64 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'x1', MediaChunkIndex: 0, MediaData: base64 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'x1', MediaChunkIndex: 1, MediaData: '' });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'x1' });
+
+  assert.strictEqual(size, bytes.length, 'il pezzo fuori intervallo non deve entrare nel file');
+});
+
+test('un allegato oltre il tetto si ferma mentre arriva, non alla fine', async () => {
+  let sent = 0;
+  const gowa = {
+    sendVideo: async () => { sent++; return 'V1'; },
+    sendImage: async () => { sent++; return 'I1'; },
+    sendFile: async () => { sent++; return 'F1'; }
+  };
+  const handles = [];
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => handles.push(decodeFrame(packet)) });
+
+  // Il tetto e' 64 MiB: si supera con pezzi da 1 MiB, e il guard deve fermarsi
+  // mentre arrivano, senza mai chiamare Buffer.concat su tutto.
+  const piece = Buffer.alloc(1024 * 1024, 7);
+  const base64 = piece.toString('base64');
+  const repeats = 68;
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'h1', MediaFileName: 'big.mp4', MediaMimeType: 'video/mp4', MediaChunkTotal: repeats });
+  for (let i = 0; i < repeats; i++) {
+    await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'h1', MediaChunkIndex: i, MediaData: base64 });
+    if (handles.some((f) => f.Command === 'error')) break;
+  }
+
+  // L'errore deve essere arrivato mentre i pezzi arrivavano: se si aspetta
+  // media.end, si e' tenuto in memoria tutto il file per decidere.
+  assert.ok(handles.some((f) => f.Command === 'error'),
+    'il tetto deve fermare il file mentre arriva, non alla fine');
+
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'h1' });
+  assert.strictEqual(sent, 0);
+});
+
 test('media.get scarica il media del messaggio e lo manda come frame di controllo', async () => {
   const sent = [];
   const gowa = {

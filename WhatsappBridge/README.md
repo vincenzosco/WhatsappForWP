@@ -89,6 +89,13 @@ above `MAX_FRAME_LENGTH` (8 MiB, exported from `server.js` and equal to
 `CommunicationService.MaxFrameLength` in the app), is treated as a fault: the
 adapter logs the length and closes the socket instead of buffering it.
 
+An attachment is sent to WhatsApp only when every piece it announced has
+arrived: `media.begin` carries `MediaChunkTotal`, and a transfer with a piece
+missing is refused with an `error` frame instead of being sent short. A single
+piece may be at most 8 MiB (the frame ceiling); a whole attachment stops at
+64 MiB while it is still arriving, and at most four transfers can be open at
+once.
+
 ## Configuration
 
 See `.env.example`. The main variables:
