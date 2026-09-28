@@ -29,9 +29,20 @@ test('due azioni scambiate si segnalano', () => {
 });
 
 test("l'icona scambiata sulla barra del titolo si segnala", () => {
-  const xaml = '<Button x:Name="NewChatButton" Click="NewChatButton_Click">\n' +
+  const xaml = '<Button x:Name="NewChatButton" MinWidth="0" MinHeight="0" ' +
+    'Click="NewChatButton_Click">\n' +
     '  <!-- IconSettings -->\n</Button>';
   const problems = actions.titleBarProblems(xaml, FILE);
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /IconNewChat/);
+});
+
+test('un pulsante della barra del titolo senza minimi si segnala', () => {
+  const xaml = '<Button x:Name="MoreButton" MinWidth="0" MinHeight="0" Click="MoreButton_Click">\n' +
+    '  <!-- IconOverflow -->\n</Button>\n' +
+    '<Button x:Name="NewChatButton" Click="NewChatButton_Click">\n' +
+    '  <!-- IconNewChat -->\n</Button>';
+  const problems = actions.titleBarProblems(xaml, FILE);
+  assert.strictEqual(problems.length, 2);
+  assert.ok(problems.every((problem) => problem.includes('NewChatButton')));
 });
