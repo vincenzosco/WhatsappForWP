@@ -33,6 +33,7 @@ const APP = path.join(ROOT, 'WhatsappApp');
  */
 const TITLE_BAR = {
   'Pages/ChatsPage.xaml': {
+    MoreButton: 'IconOverflow',
     NewChatButton: 'IconNewChat',
     SettingsButton: 'IconSettings'
   }
