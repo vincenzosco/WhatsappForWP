@@ -222,15 +222,24 @@ class GowaClient {
   //
   // GOWA risponde 404 quando l'immagine non c'e': per l'elenco chat e' "nessuna
   // immagine", non un errore da propagare.
-  // I gruppi non hanno un avatar personale, quindi non si chiede.
+  //
+  // Si chiede per qualunque JID, gruppo compreso. Il parametro si chiama `phone`
+  // ma e' un JID: dal lato GOWA `SanitizePhone` aggiunge un suffisso solo a un
+  // valore che non contiene '@', e poi `client.GetProfilePictureInfo` riceve il
+  // JID come e' - whatsmeow lo accetta per un gruppo come per una persona. Il
+  // suffisso del dispositivo (:12) invece non e' un JID che WhatsApp riconosce
+  // in una richiesta di profilo, quindi si toglie.
   async avatar(jid) {
     const value = String(jid || '');
-    if (!value || value.endsWith('@g.us')) return null;
+    if (!value || value.indexOf('@') < 0) return null;
 
-    const phone = value.split('@')[0];
+    // Il suffisso del dispositivo sta prima della chiocciola (utente:12@server):
+    // si toglie da li', non tagliando la stringa sul primo ':'.
+    const at = value.indexOf('@');
+    const target = value.slice(0, at).split(':')[0] + value.slice(at);
     try {
       const r = await this.request('GET',
-        `/user/avatar?phone=${encodeURIComponent(phone)}&is_preview=true`);
+        `/user/avatar?phone=${encodeURIComponent(target)}&is_preview=true`);
       const url = (r.data && r.data.results && r.data.results.url) || '';
       if (!r.ok || !url) return null;
 

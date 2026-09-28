@@ -8,8 +8,9 @@ const { displayNameForJid } = require('./message-format');
  * L'app non puo' usare /user/my/contacts per questo: quella e' la *rubrica*
  * di WhatsApp, e su un dispositivo appena collegato e' vuota anche se in
  * /chats ci sono decine di conversazioni. Si legge quindi /chats, e per ogni
- * conversazione si prende l'ultimo messaggio (per l'anteprima) e, per le
- * persone, l'immagine del profilo da /user/avatar.
+ * conversazione si prende l'ultimo messaggio (per l'anteprima) e
+ * l'immagine del profilo da /user/avatar: per una persona come per un gruppo,
+ * perche' quel parametro e' un JID e whatsmeow accetta qualunque JID.
  *
  * Costi: una richiesta HTTP per chat per l'ultimo messaggio, piu' una per
  * l'avatar. Il numero di chat lette e' quindi un limite di configurazione, non
@@ -96,8 +97,11 @@ async function collectChats(options) {
     // "Group <numero>" di GOWA, o il numero nudo.
     const name = (isGroup && groupNames.get(chat.jid)) || chat.name || displayNameForJid(chat.jid);
 
+    // L'immagine del profilo si chiede per ogni conversazione: GOWA la sa dare
+    // anche per un gruppo, perche' il suo parametro `phone` e' un JID e
+    // whatsmeow accetta qualunque JID in una richiesta di profilo.
     let avatar = null;
-    if (withAvatars && !isGroup) {
+    if (withAvatars) {
       try {
         avatar = await gowa.avatar(chat.jid);
       } catch (err) {
