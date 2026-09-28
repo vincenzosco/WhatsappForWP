@@ -106,6 +106,11 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
   // WhatsApp rifiuta oltre 64 MB (senza compressione): oltre quel numero i byte
   // in memoria non servono a nessuno, quindi si fermano prima.
   const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
+  // Quante spedizioni possono essere aperte insieme. L'app ne apre una alla
+  // volta; il numero serve a non tenere in memoria i pezzi di un client che
+  // apre una spedizione e non la chiude mai (non c'e' nessun media.end che
+  // ripulisca, e ogni pezzo resta li').
+  const MAX_LIVE_TRANSFERS = 4;
   // Quanti caratteri base64 per frame verso l'app. Lo stesso numero che usa
   // ChatPage per spedire (media.begin/chunk/end): un video non sta in un frame
   // solo, e il base64 aggiunge un terzo. E' un multiplo di 4, cosi' ogni pezzo
@@ -470,12 +475,33 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
 
   function mediaBegin(msg) {
     if (!msg.MediaTransferId) return;
+
+    // Il totale dichiarato e' quello che rende verificabile la fine: senza,
+    // un allegato a cui manca un pezzo e' indistinguibile da uno intero.
+    const declared = Number(msg.MediaChunkTotal);
+    const chunkTotal = Number.isInteger(declared) && declared > 0 ? declared : null;
+
     // Lo stesso id due volte: il secondo comando riparte da zero invece di
     // sommarsi al primo.
+    mediaTransfers.delete(msg.MediaTransferId);
+
+    // Una spedizione mai chiusa non si accumula all'infinito: la piu' vecchia
+    // paga per la nuova.
+    if (mediaTransfers.size >= MAX_LIVE_TRANSFERS) {
+      const oldest = mediaTransfers.keys().next();
+      if (!oldest.done) {
+        logger('WARN', `too many open attachments: dropping ${oldest.value}`);
+        mediaTransfers.delete(oldest.value);
+      }
+    }
+
     mediaTransfers.set(msg.MediaTransferId, {
       chatId: msg.ChatId,
+      messageId: msg.RelatedMessageId || null,
       fileName: msg.MediaFileName || null,
       mimeType: msg.MediaMimeType || null,
+      chunkTotal,
+      bytes: 0,
       parts: []
     });
   }
@@ -483,9 +509,38 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
   function mediaChunk(msg) {
     const transfer = mediaTransfers.get(msg.MediaTransferId);
     if (!transfer) return;
+
+    const index = Number(msg.MediaChunkIndex);
+    if (!Number.isInteger(index) || index < 0) return;
+
+    // Fuori dall'intervallo dichiarato non e' un pezzo di questo file: usarlo
+    // come indice di un array voleva dire un array con due miliardi di buchi,
+    // che filter percorre tutti.
+    if (transfer.chunkTotal !== null && index >= transfer.chunkTotal) {
+      logger('WARN', `attachment piece ${index} is outside 0..${transfer.chunkTotal - 1}, ignored`);
+      return;
+    }
+
     // Ogni pezzo e' un multiplo di 4 caratteri base64: decodificarlo da solo e
     // concatenare i byte da' esattamente il file intero.
-    transfer.parts[msg.MediaChunkIndex] = Buffer.from(msg.MediaData || '', 'base64');
+    const part = Buffer.from(msg.MediaData || '', 'base64');
+
+    // Il tetto si controlla mentre i byte arrivano, non dopo averli tenuti
+    // tutti in memoria.
+    if (transfer.bytes + part.length > MAX_MEDIA_BYTES) {
+      mediaTransfers.delete(msg.MediaTransferId);
+      logger('WARN', `attachment over ${MAX_MEDIA_BYTES} bytes, refused while arriving`);
+      sendControl({
+        command: 'error',
+        chatId: transfer.chatId,
+        relatedMessageId: transfer.messageId || undefined,
+        text: 'The file is too large to send.'
+      });
+      return;
+    }
+
+    transfer.bytes += part.length;
+    transfer.parts[index] = part;
   }
 
   async function mediaEnd(msg) {
@@ -494,8 +549,22 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
     mediaTransfers.delete(msg.MediaTransferId);
 
     const parts = transfer.parts.filter((part) => part);
+    if (parts.length === 0) return;
+
+    // Un pezzo mancante e' un guasto, non un file piu' corto: mandare meta'
+    // video senza dirlo e' peggio che non mandarlo.
+    if (transfer.chunkTotal !== null && parts.length !== transfer.chunkTotal) {
+      logger('WARN', `attachment incomplete: ${parts.length} of ${transfer.chunkTotal} pieces`);
+      sendControl({
+        command: 'error',
+        chatId: transfer.chatId,
+        relatedMessageId: transfer.messageId || undefined,
+        text: 'The attachment did not arrive complete: send it again.'
+      });
+      return;
+    }
+
     const buffer = Buffer.concat(parts);
-    if (buffer.length === 0) return;
 
     if (buffer.length > MAX_MEDIA_BYTES) {
       logger('WARN', `attachment too large (${buffer.length} bytes), refused`);

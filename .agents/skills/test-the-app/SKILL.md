@@ -8,7 +8,7 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 ## The fast gate (runs on any machine, seconds)
 
 Current expected counts: 37 C# files, 125 keys in each `.resw`, 23 inline icon
-Paths (14 distinct icons), 20 buttons, 1 button style, 133 adapter tests, 47 tests
+Paths (14 distinct icons), 20 buttons, 1 button style, 136 adapter tests, 47 tests
 in `tools/test`.
 
 ```bash
