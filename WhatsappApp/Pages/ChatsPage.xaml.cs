@@ -203,7 +203,10 @@ namespace WhatsappApp.Pages
             flyout.Items.Add(mute);
 
             var remove = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_Delete", "Delete chat") };
-            remove.Click += delegate { ConfirmDeleteAsync(id); };
+            // Il gestore aspetta la domanda invece di lanciarla e andare
+            // avanti: un Task che nessuno guarda e' un'eccezione che nessuno
+            // vede (CS4014), e questo e' il punto in cui l'utente decide.
+            remove.Click += async (s, a) => { await ConfirmDeleteAsync(id); };
             flyout.Items.Add(remove);
 
             flyout.ShowAt(row);
@@ -215,6 +218,27 @@ namespace WhatsappApp.Pages
         /// scivolava: la domanda vale una dialog.
         /// </summary>
         private async Task ConfirmDeleteAsync(string chatId)
+        {
+            // Una dialog che non si apre (un'altra gia' aperta, una pagina che
+            // se ne sta andando) non deve far cadere l'app: si registra e basta,
+            // e la chat resta.
+            bool confirmed;
+            try
+            {
+                confirmed = await AskToDeleteAsync(chatId);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatsPage.ConfirmDeleteAsync", ex);
+                return;
+            }
+
+            if (!confirmed) return;
+            DataService.Instance.DeleteChat(chatId);
+        }
+
+        /// <summary>La domanda: vero se l'utente ha confermato.</summary>
+        private static async Task<bool> AskToDeleteAsync(string chatId)
         {
             var dialog = new ContentDialog
             {
@@ -230,9 +254,7 @@ namespace WhatsappApp.Pages
             };
 
             var result = await dialog.ShowAsync();
-            if (result != ContentDialogResult.Primary) return;
-
-            DataService.Instance.DeleteChat(chatId);
+            return result == ContentDialogResult.Primary;
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
