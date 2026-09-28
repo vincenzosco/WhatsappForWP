@@ -37,12 +37,22 @@ test("l'icona scambiata sulla barra del titolo si segnala", () => {
   assert.match(problems[0], /IconNewChat/);
 });
 
-test('un pulsante della barra del titolo senza minimi si segnala', () => {
-  const xaml = '<Button x:Name="MoreButton" MinWidth="0" MinHeight="0" Click="MoreButton_Click">\n' +
-    '  <!-- IconOverflow -->\n</Button>\n' +
-    '<Button x:Name="NewChatButton" Click="NewChatButton_Click">\n' +
-    '  <!-- IconNewChat -->\n</Button>';
-  const problems = actions.titleBarProblems(xaml, FILE);
-  assert.strictEqual(problems.length, 2);
-  assert.ok(problems.every((problem) => problem.includes('NewChatButton')));
+test('un pulsante a misura fissa senza minimi si segnala', () => {
+  const xaml = '<Button x:Name="SendButton" Width="48" Height="48" Click="SendButton_Click">\n' +
+    '  <!-- IconSend -->\n</Button>';
+  const problems = actions.buttonProblems(xaml, FILE);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /SendButton/);
+  assert.match(problems[0], /MinWidth/);
+});
+
+test('un pulsante a misura fissa con i minimi a zero passa', () => {
+  const xaml = '<Button x:Name="SendButton" Width="48" Height="48" MinWidth="0" MinHeight="0" ' +
+    'Click="SendButton_Click">\n  <!-- IconSend -->\n</Button>';
+  assert.deepStrictEqual(actions.buttonProblems(xaml, FILE), []);
+});
+
+test('un pulsante che dichiara solo Height resta fuori dalla regola', () => {
+  const xaml = '<Button x:Name="ActionButton" Height="52" Click="ActionButton_Click">\n</Button>';
+  assert.deepStrictEqual(actions.buttonProblems(xaml, FILE), []);
 });
