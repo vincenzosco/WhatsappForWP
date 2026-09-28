@@ -409,4 +409,28 @@
   <data name="ChatsPage_Cancel" xml:space="preserve">
     <value>Annulla</value>
   </data>
+  <data name="ChatsPage_Pin" xml:space="preserve">
+    <value>Fissa</value>
+  </data>
+  <data name="ChatsPage_Unpin" xml:space="preserve">
+    <value>Togli il fissaggio</value>
+  </data>
+  <data name="ChatsPage_Mute" xml:space="preserve">
+    <value>Silenzia</value>
+  </data>
+  <data name="ChatsPage_Unmute" xml:space="preserve">
+    <value>Togli il silenzio</value>
+  </data>
+  <data name="ChatsPage_Delete" xml:space="preserve">
+    <value>Elimina chat</value>
+  </data>
+  <data name="ChatsPage_DeleteTitle" xml:space="preserve">
+    <value>Eliminare questa chat?</value>
+  </data>
+  <data name="ChatsPage_DeleteBody" xml:space="preserve">
+    <value>Sparisce da questo telefono. Da WhatsApp non viene eliminato niente, e un messaggio nuovo la fa tornare.</value>
+  </data>
+  <data name="ChatsPage_DeleteConfirm" xml:space="preserve">
+    <value>Elimina</value>
+  </data>
 </root>
