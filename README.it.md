@@ -45,9 +45,9 @@ quindi non c'e' altro da mostrare.
 
 L'elenco chat e' la lista vera delle conversazioni dell'account (`GET /chats`,
 limitata da `CHATS_LIMIT`), non la rubrica di WhatsApp, che su un dispositivo
-appena collegato e' vuota. Ogni riga porta l'ultimo messaggio e, per le persone,
-l'immagine del profilo (`GET /user/avatar` e poi l'indirizzo CDN che restituisce,
-quindi due richieste per persona; si spegne con `CHATS_AVATARS=off`). Il nome di
+appena collegato e' vuota. Ogni riga porta l'ultimo messaggio e la sua immagine
+del profilo (`GET /user/avatar` e poi l'indirizzo CDN che restituisce, quindi due
+richieste per chat, gruppi compresi; si spegne con `CHATS_AVATARS=off`). Il nome di
 un gruppo arriva da `GET /user/my/groups`, una richiesta per tutti, perche'
 l'elenco delle conversazioni non ha un nome utilizzabile per un gruppo e ripiega
 su `Group <numero>`.
@@ -105,7 +105,9 @@ proprio: usa l'API REST e i webhook di GOWA.
 - un documento ricevuto mostra il nome del file e una barra con un foglio, e toccarla apre il file con l'app del telefono. I suoi byte arrivano su un file come quelli di un video, e un documento di una vecchia conversazione viene scaricato al tocco
 - un file condiviso o scelto dalla Galleria viene copiato nella cartella dell'app invece che letto in memoria, quindi un video lungo si spedisce a pezzi invece di chiudere l'app
 - una chat si disegna dai messaggi in cache prima che la connessione ci sia, e gli ultimi messaggi restano sul telefono per conversazione
-- elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e, per le persone, l'**immagine del profilo** da `GET /user/avatar` (due richieste per persona: l'endpoint restituisce l'indirizzo dell'immagine, non l'immagine) (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e la sua **immagine del profilo** da `GET /user/avatar` (due richieste per chat, gruppi compresi: l'endpoint restituisce l'indirizzo dell'immagine, non l'immagine) (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- Le chat si possono **fissare** (il menu dei tre puntini in alto a sinistra, o una pressione prolungata su una riga), **silenziare** (nessun avviso per quella conversazione; il numero dei non letti resta) ed **eliminare da questo telefono** (pressione prolungata, poi Elimina). Sono tre decisioni di questo telefono: il server non ha un endpoint per nessuna delle tre, quindi vivono nella cartella dell'app, e una chat fissata qui non e' fissata sugli altri dispositivi
+- Una chat eliminata torna quando ci arriva un messaggio nuovo, e su WhatsApp non viene cancellato niente: questa app elimina la conversazione da questo telefono, non dall'account
 - tiene sul telefono l'ultimo elenco delle conversazioni: l'elenco e' a schermo mentre la connessione sta ancora arrivando, e si aggiorna appena WhatsApp si dichiara collegato
 
 **Avvio (un solo comando)**
@@ -533,6 +535,7 @@ node tools/check-docs.js
 - Il registro chiamate elenca solo le chiamate in entrata, prese dalle chat più recenti che il server ha scansionato. I limiti esatti sono nella sezione Chiamate qui sotto.
 - Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio. Il confronto usa l'id del messaggio di WhatsApp, quindi i messaggi inviati dall'app non vengono riconosciuti.
 - Le notifiche vengono alzate mentre l'app gira: WP8.1 la sospende in background, il che chiude il socket, e questo progetto non ha un servizio cloud da cui fare push. Un messaggio arrivato con l'app sospesa viene consegnato alla ripresa, quando l'app si ricollega da sola: non viene annunciato nel momento in cui arriva.
+- Fissare, silenziare ed eliminare vivono solo su questo telefono, in `chat-preferences.json` nella cartella dell'app. Niente di tutto questo viene mandato a WhatsApp o all'adapter, quindi un altro dispositivo non lo vede, e si perde quando si cancellano i dati dell'app.
 - Il numero dei non letti di una chat lo tiene l'adapter, in memoria, e si azzera quando la conversazione viene aperta nell'app. Riavviare l'adapter fa ripartire il conteggio da zero, e i messaggi arrivati mentre non gira ne' l'app ne' l'adapter non vengono contati.
 - Un file condiviso da un'altra app viene letto nel momento in cui la condivisione viene consegnata, perche' l'app puo' essere terminata mentre il selettore o l'app che condivide sono aperti. I file molto grandi vengono comunque tenuti in memoria per essere spediti, quindi un video di lunghezza intera puo' non starci su un telefono da 512 MB.
 - Aprendo una chat si vedono i messaggi recenti che il server ha gia'. I piu' vecchi non vengono richiesti al telefono. Una foto o un video di quella cronologia mostrano una parola (`[Image]`, `[Video]`) finche' non vengono toccati, e allora l'adapter li scarica dal server e l'app li riproduce o li disegna. I byte di un video ricevuto restano nella cartella locale dell'app finche' dura la sessione, e non vengono ripuliti alla chiusura. Gli ultimi 60 messaggi di una conversazione sono in una cache sul telefono, quindi la prima vista di una chat e' una fotografia che il server sostituisce.

@@ -7,8 +7,8 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 32 C# files, 104 keys in each `.resw`, 12 inline icon
-Paths (9 distinct icons), 98 adapter tests, 36 tests in `tools/test`.
+Current expected counts: 36 C# files, 125 keys in each `.resw`, 23 inline icon
+Paths (14 distinct icons), 20 buttons, 133 adapter tests, 40 tests in `tools/test`.
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -20,7 +20,7 @@ node tools/check-framing.js      # the frame byte order and the shared frame cei
 node tools/check-tile.js        # the tile payload carries its icon, asset within the limits
 node tools/check-memory.js      # no bitmap decoded bigger than it is drawn
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
-node --test "tools/test/**/*.test.js"  # the tools' own tests (36)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (40)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -69,10 +69,12 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 cd WhatsappBridge && npm test
 ```
 
-Expected `pass 70`, `fail 0`. It covers the config and its `.env` loader, the GOWA
-client, the message format (including the `\/Date(ms)\/` wire format the app
-requires), the TCP server, the webhook receiver and the discovery beacon (a real
-UDP round trip). Add a test with every adapter change.
+Expected `pass 133`, `fail 0`. It covers the config and its `.env` loader, the GOWA
+client, the chat list and the group pictures, the call scan, the `ffmpeg`
+transcode (with the executable injected, so the suite needs no `ffmpeg`), the
+message format (including the `\/Date(ms)\/` wire format the app requires), the TCP
+server, the webhook receiver and the discovery beacon (a real UDP round trip). Add
+a test with every adapter change.
 
 ## Cross-checking the app against the adapter
 
@@ -294,3 +296,20 @@ empty".
     played instead of staying silent.
 46. A document received from WhatsApp shows a document bar and the file name; tapping
     it opens the phone's viewer, or says there is no app for it.
+47. Chat list: a group row shows the group's **picture**, not just its initials.
+    If every group shows initials while people show pictures, the adapter is still
+    skipping `@g.us` in `chats.js` or cutting the JID in `gowa-client.js.avatar`;
+    on the host, `DEBUG` in `.tools/gowa/gowa.log` shows the `/user/avatar` call.
+48. Hold a row for about a second: a menu with Pin, Mute and Delete chat appears
+    next to that row, and it does not appear again when the finger is lifted. Pin
+    it and leave the list: the row is at the top with the pin mark, and it is still
+    there after killing and reopening the app. Mute it: a message that arrives in
+    that chat raises no toast, and its unread number still goes up.
+49. The three-dots button at the top left opens a menu with Pin a chat and Unpin
+    all. Pin a chat opens a list where the pinned chats are already ticked;
+    ticking two and pressing Done puts both at the top, and Unpin all drops every
+    pin. A long press on the button reads More.
+50. Delete a chat from the row menu: the confirmation says it disappears from this
+    phone, the row goes, and the thread is gone when the chat list refreshes.
+    Have someone write in that chat: it comes back with the new message. Kill and
+    reopen the app before that message: the deleted row stays deleted.
