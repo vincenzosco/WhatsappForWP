@@ -108,6 +108,7 @@
     <Compile Include="Services\ImageHelper.cs" />
     <Compile Include="Services\Loc.cs" />
     <Compile Include="Services\SelfCheck.cs" />
+    <Compile Include="Services\SerialQueue.cs" />
     <Compile Include="Services\SessionService.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\NotificationService.cs" />
