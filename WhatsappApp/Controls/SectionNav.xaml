@@ -10,6 +10,11 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
+            <!-- Il tema di WP8.1 impone 109 x 57.5: senza i due minimi a 0
+                 l'altezza dichiarata qui sotto non vale e i pulsanti sbordano
+                 dalla barra alta 48. -->
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
             <Setter Property="Height" Value="48"/>
         </Style>
     </UserControl.Resources>
