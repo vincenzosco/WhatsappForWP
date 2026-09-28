@@ -112,7 +112,7 @@ Vedi `.env.example`. Le variabili principali:
 | `CALLS_MESSAGES_PER_CHAT` | `100` | messaggi letti per ogni chat scansionata |
 | `CALLS_LIMIT` | `50` | numero massimo di chiamate inviate all'app |
 | `CHATS_LIMIT` | `25` | quante conversazioni restituisce l'elenco chat |
-| `CHATS_AVATARS` | `on` | scarica le immagini del profilo (una richiesta per persona, `off` le spegne) |
+| `CHATS_AVATARS` | `on` | scarica le immagini del profilo, una richiesta per chat, gruppi compresi (`off` le spegne) |
 | `FFMPEG_ENABLED` | `on` | converte i vocali Ogg/Opus in MP3 per WP8.1 (`off` la spegne) |
 | `FFMPEG_PATH` | `ffmpeg` | l'eseguibile di ffmpeg, quando non e' nel PATH |
 

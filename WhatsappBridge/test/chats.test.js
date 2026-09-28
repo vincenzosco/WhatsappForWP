@@ -86,31 +86,37 @@ test('collectChats fills the name from the jid when GOWA does not send one', asy
   assert.strictEqual(rows.find((r) => r.chatId === '123@g.us').isGroup, true);
 });
 
-test('collectChats asks for the avatar of people only, and survives a failure', async () => {
+test('collectChats asks for the avatar of every chat, groups included', async () => {
   const asked = [];
   const gowa = {
     chats: async () => [
       { jid: 'a@s.whatsapp.net', name: 'Anna' },
-      { jid: '123@g.us', name: 'Gruppo' }
+      { jid: '123456789012345678@g.us', name: 'Gruppo' }
     ],
     chatMessages: async () => [],
     avatar: async (jid) => {
       asked.push(jid);
-      return jid === 'a@s.whatsapp.net' ? 'AAAA' : null;
+      return jid.endsWith('@g.us') ? 'GRUPPO' : 'AAAA';
     }
   };
 
   const rows = await collectChats({ gowa, limit: 10, avatars: true, log: () => {} });
-  assert.deepStrictEqual(asked, ['a@s.whatsapp.net']);
+  assert.deepStrictEqual(asked.slice().sort(), ['123456789012345678@g.us', 'a@s.whatsapp.net']);
   assert.strictEqual(rows.find((r) => r.chatId === 'a@s.whatsapp.net').avatar, 'AAAA');
+  // Un gruppo non e' una riga senza immagine per definizione: la sua immagine
+  // si chiede come quella di una persona.
+  assert.strictEqual(rows.find((r) => r.chatId === '123456789012345678@g.us').avatar, 'GRUPPO');
+});
 
-  // Un avatar che non si scarica e' un avatar in meno, non una chat in meno.
+test('collectChats survives an avatar that does not download', async () => {
   const failing = fakeGowa({
     chats: [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
     messagesByJid: { 'a@s.whatsapp.net': [{ content: 'x', timestamp: '2026-09-26T09:00:00Z' }] },
     avatarsByJid: {},
     failAvatarFor: ['a@s.whatsapp.net']
   });
+
+  // Un avatar che non si scarica e' un avatar in meno, non una chat in meno.
   const again = await collectChats({ gowa: failing, limit: 10, avatars: true, log: () => {} });
   assert.strictEqual(again.length, 1);
   assert.strictEqual(again[0].avatar, null);

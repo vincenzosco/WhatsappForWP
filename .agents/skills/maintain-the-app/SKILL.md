@@ -118,8 +118,10 @@ established the hard way:
 - **The chat list is `GET /chats`, not `GET /user/my/contacts`.** The second one
   is the WhatsApp *address book*: on a freshly linked device it is empty while
   `/chats` is full, which is exactly how the chat list came up blank. Profile
-  pictures come from `GET /user/avatar?phone=<digits>&is_preview=true`, and only
-  for people: groups have none.
+  pictures come from `GET /user/avatar?phone=<JID>&is_preview=true`, for people
+  **and** groups: the parameter is a JID (GOWA appends a suffix only to a value
+  with no `@` in it, `SanitizePhone`), and the profile-picture lookup accepts any
+  JID. Asking with the bare digits is what made every group show initials.
 - **Notifications can only be raised while the app runs.** WP8.1 suspends the
   app, which closes the TCP socket, and this project has no cloud service to push
   through, so a toast can only be raised for a message that arrives while the app

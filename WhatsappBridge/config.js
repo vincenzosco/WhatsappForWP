@@ -75,7 +75,7 @@ function loadConfig(env = process.env) {
     },
     chats: {
       // Quante conversazioni elencare. Gli avatar costano una richiesta HTTP
-      // per persona, e si possono spegnere.
+      // per chat (gruppi compresi), e si possono spegnere.
       limit: parseInt(pick(env, 'CHATS_LIMIT'), 10),
       avatars: pick(env, 'CHATS_AVATARS').toLowerCase() !== 'off'
     },
