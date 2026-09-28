@@ -409,4 +409,28 @@
   <data name="ChatsPage_Cancel" xml:space="preserve">
     <value>Cancel</value>
   </data>
+  <data name="ChatsPage_Pin" xml:space="preserve">
+    <value>Pin</value>
+  </data>
+  <data name="ChatsPage_Unpin" xml:space="preserve">
+    <value>Unpin</value>
+  </data>
+  <data name="ChatsPage_Mute" xml:space="preserve">
+    <value>Mute</value>
+  </data>
+  <data name="ChatsPage_Unmute" xml:space="preserve">
+    <value>Unmute</value>
+  </data>
+  <data name="ChatsPage_Delete" xml:space="preserve">
+    <value>Delete chat</value>
+  </data>
+  <data name="ChatsPage_DeleteTitle" xml:space="preserve">
+    <value>Delete this chat?</value>
+  </data>
+  <data name="ChatsPage_DeleteBody" xml:space="preserve">
+    <value>It disappears from this phone. Nothing is deleted from WhatsApp, and a new message brings it back.</value>
+  </data>
+  <data name="ChatsPage_DeleteConfirm" xml:space="preserve">
+    <value>Delete</value>
+  </data>
 </root>

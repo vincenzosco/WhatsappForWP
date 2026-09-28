@@ -822,6 +822,40 @@ namespace WhatsappApp.Services
             ChatPreferences.SetMuted(chatId, muted);
         }
 
+        /// <summary>
+        /// Elimina una chat da questo telefono: la riga, i messaggi, la copia su
+        /// disco e - per ultimo, perche' e' quello che dura - la decisione in
+        /// ChatPreferences, che la tiene fuori dal prossimo elenco del server.
+        ///
+        /// Non si tocca niente su WhatsApp: non c'e' un endpoint, e un
+        /// "elimina" che cancella la conversazione anche per l'altra parte
+        /// sarebbe una cosa diversa da quella che chiede l'utente.
+        ///
+        /// Un messaggio nuovo la fa tornare (OnNetworkMessageReceived), come fa
+        /// WhatsApp: una chat cancellata per sbaglio non resta persa.
+        /// </summary>
+        public void DeleteChat(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            var contact = FindContact(chatId);
+            if (contact != null)
+            {
+                _contacts.Remove(contact);
+                _contactIndex.Remove(chatId);
+            }
+
+            _chatMessages.Remove(chatId);
+            _historyRequested.Remove(chatId);
+
+            ChatPreferences.Hide(chatId);
+            NotificationService.SetUnread(TotalUnread());
+
+#pragma warning disable 4014
+            MessageCache.DeleteAsync(chatId);
+#pragma warning restore 4014
+        }
+
         /// <summary>Somma dei non letti: e' il numero che va sull'icona.</summary>
         private int TotalUnread()
         {
