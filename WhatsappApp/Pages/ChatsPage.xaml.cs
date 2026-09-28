@@ -4,7 +4,9 @@ using System.Text;
 using System.Threading.Tasks;
 using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;
 using Windows.UI;
+using Windows.UI.Input;
 using Windows.UI.Xaml;
+using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Automation;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Markup;
@@ -146,6 +148,91 @@ namespace WhatsappApp.Pages
             {
                 DataService.Instance.SetPinned(rows[i].Id, list.SelectedItems.Contains(rows[i]));
             }
+        }
+
+        /// <summary>
+        /// Tenere premuta una riga apre le azioni di quella chat.
+        ///
+        /// Si guarda HoldingState: un tocco prolungato ne alza due, e senza
+        /// questo controllo il menu si aprirebbe anche quando il dito si alza.
+        /// </summary>
+        private void ChatRow_Holding(object sender, HoldingRoutedEventArgs e)
+        {
+            if (e.HoldingState != HoldingState.Started) return;
+
+            var row = sender as FrameworkElement;
+            if (row == null) return;
+
+            var contact = row.DataContext as Contact;
+            if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
+
+            e.Handled = true;
+            ShowChatMenu(row, contact);
+        }
+
+        /// <summary>
+        /// Pin, silenzio ed eliminazione di una riga. L'id e lo stato si
+        /// catturano adesso e non si rileggono nel gestore: quando si tocca la
+        /// voce, la riga puo' essere gia' stata rimossa (eliminazione) e il suo
+        /// DataContext non e' piu' quello che il menu mostra.
+        /// </summary>
+        private void ShowChatMenu(FrameworkElement row, Contact contact)
+        {
+            string id = contact.Id;
+            bool pinned = contact.IsPinned;
+            bool muted = contact.IsMuted;
+
+            var flyout = new MenuFlyout();
+
+            var pin = new MenuFlyoutItem
+            {
+                Text = pinned
+                    ? Loc.Get("ChatsPage_Unpin", "Unpin")
+                    : Loc.Get("ChatsPage_Pin", "Pin")
+            };
+            pin.Click += delegate { DataService.Instance.SetPinned(id, !pinned); };
+            flyout.Items.Add(pin);
+
+            var mute = new MenuFlyoutItem
+            {
+                Text = muted
+                    ? Loc.Get("ChatsPage_Unmute", "Unmute")
+                    : Loc.Get("ChatsPage_Mute", "Mute")
+            };
+            mute.Click += delegate { DataService.Instance.SetMuted(id, !muted); };
+            flyout.Items.Add(mute);
+
+            var remove = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_Delete", "Delete chat") };
+            remove.Click += delegate { ConfirmDeleteAsync(id); };
+            flyout.Items.Add(remove);
+
+            flyout.ShowAt(row);
+        }
+
+        /// <summary>
+        /// Eliminare e' l'unica azione del menu che non si puo' disfare con un
+        /// altro tocco, e un dito appoggiato a lungo e' anche un dito che
+        /// scivolava: la domanda vale una dialog.
+        /// </summary>
+        private async Task ConfirmDeleteAsync(string chatId)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = Loc.Get("ChatsPage_DeleteTitle", "Delete this chat?"),
+                Content = new TextBlock
+                {
+                    Text = Loc.Get("ChatsPage_DeleteBody",
+                        "It disappears from this phone. Nothing is deleted from WhatsApp, and a new message brings it back."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = Loc.Get("ChatsPage_DeleteConfirm", "Delete"),
+                SecondaryButtonText = Loc.Get("ChatsPage_Cancel", "Cancel")
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            DataService.Instance.DeleteChat(chatId);
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

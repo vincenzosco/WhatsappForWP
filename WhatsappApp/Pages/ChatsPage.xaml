@@ -201,7 +201,7 @@
                 </ListView.ItemsPanel>
                 <ListView.ItemTemplate>
                     <DataTemplate>
-                        <Grid Height="72" Background="White">
+                        <Grid Height="72" Background="White" Holding="ChatRow_Holding">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="72"/>
                                 <ColumnDefinition Width="*"/>

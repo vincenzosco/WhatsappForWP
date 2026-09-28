@@ -96,6 +96,27 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Butta la copia di una chat. La chiama l'eliminazione: senza questa, la
+        /// conversazione cancellata tornerebbe a schermo al primo apri-e-chiudi,
+        /// perche' DataService legge la cache quando la lista in memoria e'
+        /// vuota. Mai un'eccezione: un file che non c'e' non e' un guasto.
+        /// </summary>
+        public static async Task DeleteAsync(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameFor(chatId));
+                await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("MessageCache.Delete", ex);
+            }
+        }
+
+        /// <summary>
         /// La copia di un messaggio senza i byte del media: quelli riempirebbero
         /// il file, e per un video non ci starebbero nemmeno. Marca IsHistory,
         /// cosi' un messaggio pescato dalla cache non conta come non letto e non
