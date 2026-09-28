@@ -1,5 +1,7 @@
 'use strict';
 
+const { createAvatarCache } = require('./avatar-cache');
+
 // Unico modulo che parla HTTP con il server GOWA.
 // Usa fetch/FormData/Blob globali di Node 18.13+.
 
@@ -35,13 +37,16 @@ function groupName(group) {
 }
 
 class GowaClient {
-  constructor({ baseUrl, deviceId, user, pass, fetchImpl } = {}) {
+  constructor({ baseUrl, deviceId, user, pass, fetchImpl, avatarCache } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
     this.deviceId = deviceId || '';
     this.authHeader = buildAuthHeader(user, pass);
     this.fetch = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
     if (!this.fetch) throw new Error('fetch is not available: Node 18.13+ is required');
     this.resolvedDeviceId = null;
+    // Le foto gia' scaricate: l'elenco chat si richiede a ogni riconnessione,
+    // e senza questa una foto per chat tornava da WhatsApp ogni volta.
+    this.avatars = avatarCache || createAvatarCache();
   }
 
   headers(extra) {
@@ -237,15 +242,27 @@ class GowaClient {
     // si toglie da li', non tagliando la stringa sul primo ':'.
     const at = value.indexOf('@');
     const target = value.slice(0, at).split(':')[0] + value.slice(at);
+
+    // undefined vuol dire "non si sa": null vuol dire "non ce l'ha", ed e' una
+    // risposta che si tiene (per poco, vedi avatar-cache.js).
+    const remembered = this.avatars.get(target);
+    if (remembered !== undefined) return remembered;
+
     try {
       const r = await this.request('GET',
         `/user/avatar?phone=${encodeURIComponent(target)}&is_preview=true`);
       const url = (r.data && r.data.results && r.data.results.url) || '';
-      if (!r.ok || !url) return null;
+      if (!r.ok || !url) {
+        this.avatars.put(target, null);
+        return null;
+      }
 
       const picture = await this.fetchBinary(url);
-      return picture.buffer.length > 0 ? picture.buffer.toString('base64') : null;
+      const base64 = picture.buffer.length > 0 ? picture.buffer.toString('base64') : null;
+      this.avatars.put(target, base64);
+      return base64;
     } catch (err) {
+      // Un guasto non si tiene: il prossimo elenco lo riprova.
       return null;
     }
   }

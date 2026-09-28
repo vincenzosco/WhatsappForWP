@@ -200,9 +200,11 @@ test('avatar() drops a device suffix, and answers null when there is no picture'
     'http://127.0.0.1:3000/user/avatar?phone=393401234567%40s.whatsapp.net&is_preview=true');
 
   // Nessuna immagine: GOWA risponde con un errore e non c'e' niente da
-  // scaricare, quindi una sola richiesta.
+  // scaricare, quindi una sola richiesta. La seconda chiamata e' lo stesso JID,
+  // quindi risponde la cache e non si richiede niente: "non ce l'ha" e' una
+  // risposta anche lei, e vale per un minuto (vedi avatar-cache.js).
   assert.strictEqual(await client.avatar('393401234567@s.whatsapp.net'), null);
-  assert.strictEqual(seen.length, 2);
+  assert.strictEqual(seen.length, 1);
 });
 
 test('myGroups() maps every joined group to its real name', async () => {
@@ -308,6 +310,34 @@ test('downloadMedia va sulla rotta del messaggio e segue il file_url', async () 
   assert.strictEqual(media.base64, Buffer.from([1, 2, 3]).toString('base64'));
   assert.strictEqual(media.mimeType, 'image/jpeg');
   assert.strictEqual(media.fileName, 'foto.jpg');
+});
+
+test('avatar() non richiede due volte la stessa immagine', async () => {
+  const requests = [];
+  const client = new GowaClient({
+    baseUrl: 'http://127.0.0.1:3000',
+    fetchImpl: async (url) => {
+      requests.push(url);
+      if (requests.length === 1) {
+        return jsonResponse({ status: 200, results: { url: 'https://pps.whatsapp.net/v/t1/abc.jpg' } });
+      }
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => 'image/jpeg' },
+        arrayBuffer: async () => new Uint8Array([1, 2, 3]).buffer
+      };
+    }
+  });
+
+  const first = await client.avatar('393401234567@s.whatsapp.net');
+  const second = await client.avatar('393401234567:12@s.whatsapp.net');
+
+  assert.strictEqual(first, Buffer.from([1, 2, 3]).toString('base64'));
+  // Il suffisso del dispositivo si toglie prima di guardare nella cache,
+  // quindi e' la stessa chiave: due richieste in tutto, nessuna la seconda volta.
+  assert.strictEqual(second, first);
+  assert.strictEqual(requests.length, 2);
 });
 
 test('downloadMedia non e fatale quando il file non c e piu', async () => {
