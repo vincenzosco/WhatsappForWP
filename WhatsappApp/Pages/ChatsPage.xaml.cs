@@ -268,6 +268,11 @@ namespace WhatsappApp.Pages
             DataService.Instance.Contacts.CollectionChanged += Contacts_CollectionChanged;
             UpdateEmptyState();
 
+            // Le immagini che ci sono ancora in byte ma non piu' decodificate:
+            // MemoryWatcher le ha buttate via, e senza questo l'elenco resta con
+            // le iniziali finche' il server non rimanda le righe.
+            DataService.Instance.RestoreAvatars();
+
             // Un'allegato puo' arrivare mentre questa pagina e' davanti (l'app
             // torna qui dopo il selettore) oppure prima che esista (processo
             // avviato da una condivisione): si guarda in tutti e due i casi.
