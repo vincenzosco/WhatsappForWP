@@ -792,6 +792,10 @@ namespace WhatsappApp.Services
         /// La chat aperta non si tocca: quella la sta guardando l'utente, e
         /// svuotarla sotto gli occhi sarebbe peggio della memoria che libera.
         ///
+        /// I byte di un'immagine non si buttano via: si butta via la copia
+        /// decodificata, che e' quella che pesa, e si rifa' quando l'elenco
+        /// torna davanti (vedi RestoreAvatars).
+        ///
         /// La collezione di una chat si svuota invece di essere buttata via: la
         /// pagina della chat ha in mano quella istanza, e sostituirla la
         /// lascerebbe agganciata a una lista che non riceve piu' niente. Si
@@ -817,6 +821,37 @@ namespace WhatsappApp.Services
             foreach (var chatId in emptied)
             {
                 _historyRequested.Remove(chatId);
+            }
+        }
+
+        /// <summary>
+        /// Ridisegna gli avatar di cui ci sono ancora i byte. Sotto pressione di
+        /// memoria TrimForMemory butta via la copia decodificata e la riga resta
+        /// con le iniziali: il server la rimanda solo al prossimo elenco, e
+        /// intanto la lista sembra vuota di facce. I byte invece ci sono ancora
+        /// - in memoria, o nella cache sul telefono - quindi si rifa' qui,
+        /// quando l'elenco torna davanti.
+        ///
+        /// Va chiamata sul thread UI: BitmapImage non e' agnostica rispetto
+        /// alla view (vedi ImageHelper).
+        /// </summary>
+        public void RestoreAvatars()
+        {
+            if (MemoryWatcher.Instance.IsUnderPressure) return;
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                var contact = _contacts[i];
+                if (contact == null || contact.Avatar != null) continue;
+
+                string data = contact.AvatarData;
+                if (string.IsNullOrEmpty(data)) data = AvatarCache.Get(contact.Id);
+                if (string.IsNullOrEmpty(data)) continue;
+
+                contact.AvatarData = data;
+#pragma warning disable 4014
+                contact.LoadAvatarAsync();
+#pragma warning restore 4014
             }
         }
 
