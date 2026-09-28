@@ -16,6 +16,42 @@ namespace WhatsappServer
         private static Dictionary<string, string> _userNames = new Dictionary<string, string>();
         private static bool _isRunning = true;
 
+        /// <summary>
+        /// Il tetto di un frame. E' lo stesso numero di CommunicationService e
+        /// di server.js: il prefisso di 4 byte e' l'unica cosa che l'altro capo
+        /// controlla, e una lunghezza creduta e' una dimensione di allocazione.
+        /// Senza questo un client che annuncia 2 GB fa allocare 2 GB a questo
+        /// processo, e un client disallineato lo fa cadere dove vuole.
+        /// </summary>
+        private const int MaxFrameLength = 8 * 1024 * 1024;
+
+        /// <summary>
+        /// _clients e' toccata dal loop che accetta e da ogni task di un
+        /// client: senza un lucchetto un broadcast durante una connessione o
+        /// una disconnessione puo' lanciare "Collection was modified".
+        /// </summary>
+        private static readonly object _clientsGate = new object();
+
+        private static void AddClient(TcpClient client)
+        {
+            lock (_clientsGate) { _clients.Add(client); }
+        }
+
+        private static void RemoveClient(TcpClient client)
+        {
+            lock (_clientsGate) { _clients.Remove(client); }
+        }
+
+        private static List<TcpClient> SnapshotClients()
+        {
+            lock (_clientsGate) { return new List<TcpClient>(_clients); }
+        }
+
+        private static int ClientCount()
+        {
+            lock (_clientsGate) { return _clients.Count; }
+        }
+
         // Il progetto targetta .NET Framework 4.5.1 e il compilatore C# 5 non
         // accetta un entry point asincrono (deve essere void, non Task): la
         // soluzione rispondeva CS0028 (firma errata) + CS5001 (nessun Main) e non
@@ -61,7 +97,7 @@ namespace WhatsappServer
                 while (_isRunning)
                 {
                     var client = await _server.AcceptTcpClientAsync();
-                    _clients.Add(client);
+                    AddClient(client);
 
                     var endpoint = client.Client.RemoteEndPoint as IPEndPoint;
                     Console.WriteLine("New client connected: " + Describe(endpoint));
@@ -110,6 +146,17 @@ namespace WhatsappServer
 
                     int messageLength = BitConverter.ToInt32(lengthBytes, 0);
 
+                    // Un frame vuoto, negativo o sopra il tetto non e' un
+                    // payload: e' un disallineamento o un client che chiede
+                    // memoria. Si chiude questa connessione invece di credergli.
+                    if (messageLength < 1 || messageLength > MaxFrameLength)
+                    {
+                        Console.WriteLine("Client sent an unusable frame length (" +
+                            messageLength + "), connection dropped: " +
+                            Describe(client.Client.RemoteEndPoint as IPEndPoint));
+                        break;
+                    }
+
                     // Read message content
                     var messageData = new byte[messageLength];
                     bytesRead = await ReadExactAsync(stream, messageData, messageLength);
@@ -133,9 +180,9 @@ namespace WhatsappServer
             }
             finally
             {
-                _clients.Remove(client);
+                RemoveClient(client);
                 client.Close();
-                Console.WriteLine("Client removed. Active connections: " + _clients.Count + "\n");
+                Console.WriteLine("Client removed. Active connections: " + ClientCount() + "\n");
             }
         }
 
@@ -146,7 +193,7 @@ namespace WhatsappServer
 
             var deadClients = new List<TcpClient>();
 
-            foreach (var client in _clients)
+            foreach (var client in SnapshotClients())
             {
                 if (client == sender || !client.Connected) 
                 {
@@ -170,7 +217,7 @@ namespace WhatsappServer
             // Clean up dead clients
             foreach (var dead in deadClients)
             {
-                _clients.Remove(dead);
+                RemoveClient(dead);
             }
         }
 
