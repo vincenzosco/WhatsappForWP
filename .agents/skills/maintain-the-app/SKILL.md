@@ -265,6 +265,18 @@ the adapter:
   `IconWithBadge` templates exist: they put the app icon back while the badge does
   the counting. `Clear()` on both updaters is what returns the tile and the icon
   to the manifest's defaults.
+- **A shared writer is written through a queue, never by two callers at once.**
+  The receive path is fire-and-forget on purpose (`DispatchOnUiThread` and the
+  frame handlers are `async void`, and the read loop does not await the
+  dispatch), so an awaiting handler is running while the next frame is already
+  being handled. Two `DataWriter.StoreAsync` calls on one writer put one frame's
+  length prefix in front of the other's payload, and the peer reads a frame that
+  does not exist; two `FileIO` writes on one file lose one of the two.
+  `Services/SerialQueue.cs` is the answer: `_writes.RunAsync(...)` in
+  `CommunicationService`, and the same queue in `IncomingMediaStore` and
+  `ChatPreferences`. Put the *decision* (the encrypted payload, the JSON
+  snapshot) on the caller's thread and only the write in the queue, or the queue
+  touches state that another thread is still changing.
 - **On WP8.1 a theme minimum overrides the size you declare.** The default
   `Button` style sets `MinWidth = PhoneButtonMinWidth = 109` and
   `MinHeight = PhoneButtonMinHeight = 57.5` (the phone kit's `generic.xaml` and
