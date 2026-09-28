@@ -388,4 +388,25 @@
   <data name="ChatsPage_PendingImage.Text" xml:space="preserve">
     <value>Un'immagine e' pronta: apri una chat per inviarla</value>
   </data>
+  <data name="ChatsPage_MoreTooltip" xml:space="preserve">
+    <value>Altro</value>
+  </data>
+  <data name="ChatsPage_PinChat" xml:space="preserve">
+    <value>Fissa una chat</value>
+  </data>
+  <data name="ChatsPage_UnpinAll" xml:space="preserve">
+    <value>Togli tutte le chat fissate</value>
+  </data>
+  <data name="ChatsPage_PinTitle" xml:space="preserve">
+    <value>Chat fissate</value>
+  </data>
+  <data name="ChatsPage_PinHint" xml:space="preserve">
+    <value>Le chat fissate restano in cima all'elenco, su questo telefono.</value>
+  </data>
+  <data name="ChatsPage_PinDone" xml:space="preserve">
+    <value>Fatto</value>
+  </data>
+  <data name="ChatsPage_Cancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
 </root>

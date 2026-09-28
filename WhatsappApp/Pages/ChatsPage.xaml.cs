@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;
@@ -38,6 +39,113 @@ namespace WhatsappApp.Pages
                 Loc.Get("ChatsPage_NewChatTooltip", "New chat"));
             AutomationProperties.SetName(SettingsButton,
                 Loc.Get("ChatsPage_SettingsTooltip", "Settings"));
+
+            ToolTipService.SetToolTip(MoreButton, Loc.Get("ChatsPage_MoreTooltip", "More"));
+            AutomationProperties.SetName(MoreButton, Loc.Get("ChatsPage_MoreTooltip", "More"));
+        }
+
+        /// <summary>
+        /// Il menu dei tre puntini: quello che vale per l'elenco intero. Le
+        /// azioni di una singola chat non stanno qui, perche' qui non c'e' una
+        /// riga - stanno nella pressione prolungata (ChatRow_Holding).
+        /// </summary>
+        private void MoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var flyout = new MenuFlyout();
+
+            var pinItem = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_PinChat", "Pin a chat") };
+            pinItem.Click += PinChatMenuItem_Click;
+            flyout.Items.Add(pinItem);
+
+            var unpinItem = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_UnpinAll", "Unpin all") };
+            unpinItem.Click += UnpinAllMenuItem_Click;
+            flyout.Items.Add(unpinItem);
+
+            flyout.ShowAt(MoreButton);
+        }
+
+        private async void PinChatMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            await ShowPinPickerAsync();
+        }
+
+        private void UnpinAllMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            var rows = SnapshotContacts();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].IsPinned) DataService.Instance.SetPinned(rows[i].Id, false);
+            }
+        }
+
+        /// <summary>
+        /// Le righe come sono adesso, in una lista nostra. Serve perche'
+        /// SetPinned sposta le righe (le fissate tornano in cima): un ciclo che
+        /// legge DataService.Contacts mentre quella stessa collezione si muove
+        /// salterebbe delle righe.
+        /// </summary>
+        private static List<Contact> SnapshotContacts()
+        {
+            var rows = new List<Contact>();
+            for (int i = 0; i < DataService.Instance.Contacts.Count; i++)
+            {
+                var contact = DataService.Instance.Contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+                rows.Add(contact);
+            }
+            return rows;
+        }
+
+        /// <summary>
+        /// Una o piu' chat da fissare, con le fissate gia' scelte: il menu dice
+        /// cosa cambiare, non fa ricominciare da zero.
+        /// </summary>
+        private async Task ShowPinPickerAsync()
+        {
+            var rows = SnapshotContacts();
+
+            var list = new ListView
+            {
+                ItemsSource = DataService.Instance.Contacts,
+                SelectionMode = ListViewSelectionMode.Multiple,
+                Height = 320
+            };
+            list.ItemTemplate = (DataTemplate)XamlReader.Load(
+                "<DataTemplate xmlns=\"http://schemas.microsoft.com/winfx/2006/xaml/presentation\">" +
+                "<TextBlock Text=\"{Binding Name}\" Foreground=\"Black\" FontSize=\"16\" Margin=\"0,8,0,8\"/>" +
+                "</DataTemplate>");
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (rows[i].IsPinned) list.SelectedItems.Add(rows[i]);
+            }
+
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock
+            {
+                Text = Loc.Get("ChatsPage_PinHint", "Pinned chats stay at the top of the list, on this phone."),
+                Foreground = new SolidColorBrush(Colors.Gray),
+                FontSize = 13,
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 0, 0, 8)
+            });
+            content.Children.Add(list);
+
+            var dialog = new ContentDialog
+            {
+                Title = Loc.Get("ChatsPage_PinTitle", "Pin chats"),
+                Content = content,
+                PrimaryButtonText = Loc.Get("ChatsPage_PinDone", "Done"),
+                SecondaryButtonText = Loc.Get("ChatsPage_Cancel", "Cancel")
+            };
+
+            var result = await dialog.ShowAsync();
+            if (result != ContentDialogResult.Primary) return;
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                DataService.Instance.SetPinned(rows[i].Id, list.SelectedItems.Contains(rows[i]));
+            }
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
