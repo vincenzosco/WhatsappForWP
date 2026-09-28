@@ -44,8 +44,13 @@
 
             <!-- I tre puntini stanno a sinistra: le azioni che valgono per
                  tutto l'elenco, e non per una riga. -->
+            <!-- Il minimo del tema (Button: 109 x 57.5) scavalca Width/Height:
+                 senza MinWidth/MinHeight a 0 ognuno di questi tre pulsanti
+                 occupa 109 px, la colonna del titolo si stringe e "WhatsApp"
+                 finisce tagliato a destra. tools/check-actions.js lo impedisce. -->
             <Button x:Name="MoreButton" Grid.Column="0"
                     Background="Transparent" BorderThickness="0" Padding="0"
+                    MinWidth="0" MinHeight="0"
                     Width="48" Height="48" Margin="4,0,0,0" Click="MoreButton_Click">
                 <Path Stroke="White" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
@@ -92,6 +97,7 @@
                  appoggiato sul bordo non cade sull'azione accanto. -->
             <Button x:Name="NewChatButton" Grid.Column="2"
                     Background="Transparent" BorderThickness="0" Padding="0"
+                    MinWidth="0" MinHeight="0"
                     Width="48" Height="48" Margin="0,0,8,0" Click="NewChatButton_Click">
                 <Path Stroke="White" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
@@ -123,6 +129,7 @@
 
             <Button x:Name="SettingsButton" Grid.Column="3"
                     Background="Transparent" BorderThickness="0" Padding="0"
+                    MinWidth="0" MinHeight="0"
                     Width="48" Height="48" Margin="0,0,4,0" Click="SettingsButton_Click">
                 <Path Stroke="White" StrokeThickness="2"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"

@@ -74,6 +74,19 @@ function titleBarProblems(xaml, file) {
       problems.push(`${file}: ${name} draws ${icon || 'no icon'}, and it must be ` +
         `${declared[name]}: the two buttons of the title bar are one next to the other`);
     }
+
+    // Il tema di WP8.1 da' a ogni Button un MinWidth di 109 e un MinHeight di
+    // 57.5, e un minimo scavalca la misura dichiarata: con Width="48" e senza
+    // MinWidth="0" ogni pulsante occupa 109 px, la colonna del titolo si
+    // stringe e "WhatsApp" arriva sul telefono tagliato a destra.
+    if (attribute(m[1], 'MinWidth') !== '0') {
+      problems.push(`${file}: ${name} does not set MinWidth="0", so the WP8.1 theme ` +
+        'minimum (109) overrides its Width and the button takes the room of the title');
+    }
+    if (attribute(m[1], 'MinHeight') !== '0') {
+      problems.push(`${file}: ${name} does not set MinHeight="0", so the WP8.1 theme ` +
+        'minimum (57.5) overrides its Height and the button is taller than the bar it sits in');
+    }
   }
   return problems;
 }
