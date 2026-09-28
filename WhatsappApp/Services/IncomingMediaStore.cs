@@ -56,9 +56,30 @@ namespace WhatsappApp.Services
             new Dictionary<string, Pending>();
 
         /// <summary>
-        /// Aggiunge un pezzo. Restituisce null finche' il media non e' completo.
+        /// I pezzi di tutti i media in arrivo, uno alla volta.
+        ///
+        /// Perche' serve: il controllo d'ordine qui sotto confronta l'indice del
+        /// pezzo con Received, e Received si incrementa dopo la scrittura su
+        /// disco. Il percorso che porta qui non aspetta (DispatchOnUiThread e'
+        /// async void, ApplyMediaFrame e' async void), quindi il pezzo dopo
+        /// poteva arrivare mentre il primo era ancora in scrittura: il
+        /// confronto falliva, il media veniva buttato via, e ogni pezzo
+        /// successivo ne apriva un altro che falliva allo stesso modo. Un video
+        /// o un vocale non arrivavano mai.
         /// </summary>
-        public static async Task<IncomingMediaResult> AddChunkAsync(ChatMessage frame)
+        private static readonly SerialQueue Chunks = new SerialQueue();
+
+        /// <summary>
+        /// Aggiunge un pezzo. Restituisce null finche' il media non e' completo.
+        /// Il pezzo entra in coda: il controllo d'ordine e la scrittura devono
+        /// essere un'operazione sola.
+        /// </summary>
+        public static Task<IncomingMediaResult> AddChunkAsync(ChatMessage frame)
+        {
+            return Chunks.RunAsync(delegate { return AddChunkCoreAsync(frame); });
+        }
+
+        private static async Task<IncomingMediaResult> AddChunkCoreAsync(ChatMessage frame)
         {
             if (frame == null || string.IsNullOrEmpty(frame.RelatedMessageId)) return null;
             if (string.IsNullOrEmpty(frame.MediaData)) return null;
