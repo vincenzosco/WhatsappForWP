@@ -36,18 +36,61 @@
         <!-- Title bar -->
         <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <TextBlock Text="WhatsApp"
+            <!-- I tre puntini stanno a sinistra: le azioni che valgono per
+                 tutto l'elenco, e non per una riga. -->
+            <Button x:Name="MoreButton" Grid.Column="0"
+                    Background="Transparent" BorderThickness="0" Padding="0"
+                    Width="48" Height="48" Margin="4,0,0,0" Click="MoreButton_Click">
+                <Path Stroke="White" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24">
+                    <!-- IconOverflow -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="6,10.5" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="6,13.5"/>
+                                        <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="6,10.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="12,10.5" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="12,13.5"/>
+                                        <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="12,10.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="18,10.5" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="18,13.5"/>
+                                        <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                    SweepDirection="Clockwise" Point="18,10.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
+
+            <TextBlock Grid.Column="1" Text="WhatsApp"
                        Foreground="White" FontSize="24" FontWeight="SemiBold"
-                       VerticalAlignment="Center" Margin="16,0,0,4"/>
+                       VerticalAlignment="Center" Margin="4,0,0,4"/>
 
             <!-- I due pulsanti non si toccano: con il margine a 8 un dito
                  appoggiato sul bordo non cade sull'azione accanto. -->
-            <Button x:Name="NewChatButton" Grid.Column="1"
+            <Button x:Name="NewChatButton" Grid.Column="2"
                     Background="Transparent" BorderThickness="0" Padding="0"
                     Width="48" Height="48" Margin="0,0,8,0" Click="NewChatButton_Click">
                 <Path Stroke="White" StrokeThickness="2"
@@ -78,7 +121,7 @@
                 </Path>
             </Button>
 
-            <Button x:Name="SettingsButton" Grid.Column="2"
+            <Button x:Name="SettingsButton" Grid.Column="3"
                     Background="Transparent" BorderThickness="0" Padding="0"
                     Width="48" Height="48" Margin="0,0,4,0" Click="SettingsButton_Click">
                 <Path Stroke="White" StrokeThickness="2"
