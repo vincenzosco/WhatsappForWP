@@ -114,6 +114,11 @@ namespace WhatsappApp.Services
             // di no a tutte e tre.
             await ChatPreferences.LoadAsync();
 
+            // E anche prima delle righe, per lo stesso motivo: la copia locale
+            // non ha i byte delle immagini (ChatCache li lascia fuori), e
+            // ApplyChat li chiede qui.
+            await AvatarCache.LoadAsync();
+
             var cached = await ChatCache.LoadAsync();
             for (int i = 0; i < cached.Count; i++) ApplyChat(cached[i]);
             NotificationService.SetUnread(TotalUnread());
@@ -354,12 +359,26 @@ namespace WhatsappApp.Services
                 contact.LastMessageTime = message.FormattedTime;
             }
 
-            if (!string.IsNullOrEmpty(message.AvatarData) && contact.AvatarData != message.AvatarData)
+            // L'immagine del profilo. Quando la riga la porta, i byte si tengono
+            // anche sul telefono: alla prossima apertura l'elenco ha una faccia
+            // prima che l'adapter risponda. Quando non la porta - una riga della
+            // copia locale - si usa quella tenuta.
+            string avatar = message.AvatarData;
+            if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(message.ChatId);
+
+            if (!string.IsNullOrEmpty(avatar) && contact.AvatarData != avatar)
             {
-                contact.AvatarData = message.AvatarData;
+                contact.AvatarData = avatar;
 #pragma warning disable 4014
                 contact.LoadAvatarAsync();
 #pragma warning restore 4014
+            }
+
+            // Solo i byte arrivati dal server si tengono: una riga letta dal
+            // disco non e' una notizia, e' quello che c'e' gia' scritto.
+            if (!string.IsNullOrEmpty(message.AvatarData))
+            {
+                AvatarCache.Remember(message.ChatId, message.AvatarData);
             }
 
             // Il numero dei non letti e' una proprieta' della riga, non del
