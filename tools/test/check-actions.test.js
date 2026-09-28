@@ -56,3 +56,36 @@ test('un pulsante che dichiara solo Height resta fuori dalla regola', () => {
   const xaml = '<Button x:Name="ActionButton" Height="52" Click="ActionButton_Click">\n</Button>';
   assert.deepStrictEqual(actions.buttonProblems(xaml, FILE), []);
 });
+
+test('uno stile che dimensiona un pulsante senza minimi si segnala', () => {
+  const xaml = '<Style x:Key="NavIconButtonStyle" TargetType="Button">\n' +
+    '  <Setter Property="Height" Value="48"/>\n</Style>';
+  const problems = actions.styleProblems(xaml, 'Controls/SectionNav.xaml');
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /NavIconButtonStyle/);
+  assert.match(problems[0], /Height="48"/);
+});
+
+test('uno stile che dimensiona un pulsante con i minimi a zero passa', () => {
+  const xaml = '<Style x:Key="NavIconButtonStyle" TargetType="Button">\n' +
+    '  <Setter Property="MinWidth" Value="0"/>\n' +
+    '  <Setter Property="MinHeight" Value="0"/>\n' +
+    '  <Setter Property="Height" Value="48"/>\n</Style>';
+  assert.deepStrictEqual(actions.styleProblems(xaml, 'Controls/SectionNav.xaml'), []);
+});
+
+test('uno stile di un altro controllo, o senza misure, resta fuori', () => {
+  const items = '<Style x:Key="ChatItemContainerStyle" TargetType="ListViewItem">\n' +
+    '  <Setter Property="Height" Value="72"/>\n</Style>';
+  const unpadded = '<Style x:Key="PlainButtonStyle" TargetType="Button">\n' +
+    '  <Setter Property="Padding" Value="0"/>\n</Style>';
+  assert.deepStrictEqual(actions.styleProblems(items, FILE), []);
+  assert.deepStrictEqual(actions.styleProblems(unpadded, FILE), []);
+});
+
+test('uno stile che eredita da un altro resta fuori', () => {
+  const xaml = '<Style x:Key="SmallerStyle" TargetType="Button" ' +
+    'BasedOn="{StaticResource NavIconButtonStyle}">\n' +
+    '  <Setter Property="Height" Value="40"/>\n</Style>';
+  assert.deepStrictEqual(actions.styleProblems(xaml, FILE), []);
+});
