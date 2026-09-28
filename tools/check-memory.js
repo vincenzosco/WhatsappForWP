@@ -17,7 +17,10 @@
  *  2. nessuna misura di decodifica supera la larghezza dello schermo (720 copre
  *     un 480 px a 1,5x);
  *  3. ImageHelper imposta DecodePixelWidth prima di SetSourceAsync (dopo non ha
- *     effetto).
+ *     effetto);
+ *  4. la copia dell'elenco chat (ChatCache) non tiene i byte di un'immagine:
+ *     quelli stanno nella cache degli avatar, che ha dei tetti ed e' letta
+ *     prima che le righe salvate vengano applicate.
  *
  * Usage:
  *   node tools/check-memory.js
@@ -140,6 +143,89 @@ function attachmentProblems(source, file) {
   return problems;
 }
 
+const CHAT_CACHE = 'WhatsappApp/Services/ChatCache.cs';
+const AVATAR_CACHE = 'WhatsappApp/Services/AvatarCache.cs';
+const DATA_SERVICE = 'WhatsappApp/Services/DataService.cs';
+
+/**
+ * Problemi delle due cache dell'elenco chat.
+ *
+ * Perche' esiste: le due cache si dividono lo stesso lavoro e si difendono a
+ * vicenda. ChatCache e' il file che l'app legge prima che la connessione
+ * esista, e deve restare piccolo: i byte di un'immagine non sono suoi, e da
+ * quando c'e' AvatarCache non c'e' piu' nessuna ragione per rimetterli li'.
+ * I byte stanno in AvatarCache, che per questo ha bisogno di tetti (una cache
+ * senza tetto e' una crescita lenta che nessuno vede) e della stessa coda di
+ * scrittura delle preferenze (due scritture sullo stesso file, lanciate senza
+ * aspettarsi, finiscono fuori ordine - e' il difetto che ChatPreferences ha
+ * gia' avuto).
+ */
+function avatarCacheProblems(source, file) {
+  const problems = [];
+  const code = stripComments(source);
+
+  if (file === CHAT_CACHE) {
+    if (/AvatarData\s*=/.test(code)) {
+      problems.push(`${file}: the row cache saves AvatarData into chats.json: that file ` +
+        'is read before the connection exists, holds one row per chat, and the pictures ' +
+        'have a bounded cache of their own (AvatarCache, avatar-cache.json)');
+    }
+    return problems;
+  }
+
+  if (file !== AVATAR_CACHE) return problems;
+
+  if (!/MaxChats\s*=\s*\d+/.test(code) || !/MaxTotalChars\s*=\s*\d+/.test(code)) {
+    problems.push(`${file}: no MaxChats/MaxTotalChars cap: the avatar cache would grow ` +
+      'with the account, one picture per conversation, and nothing would ever drop one');
+  }
+  if (!/Writes\.RunAsync\s*\(/.test(code)) {
+    problems.push(`${file}: writes the file without the serial queue: two pictures ` +
+      'arriving together start two writes on the same file, and the older snapshot can ' +
+      'win (this is the bug ChatPreferences had)');
+  }
+  return problems;
+}
+
+/**
+ * Problemi dell'ordine con cui si carica la copia locale.
+ *
+ * Perche' esiste: la copia locale non ha i byte delle immagini (ChatCache li
+ * lascia fuori), quindi ApplyChat li chiede ad AvatarCache. Se la cache non e'
+ * ancora stata letta risponde di no a tutte, e un riavvio mostra le iniziali
+ * finche' l'adapter non rimanda ogni riga - che e' esattamente il difetto che
+ * questa cache esiste per togliere. Il file viene letto dal disco una volta
+ * sola, e ci vuole un await: l'ordine e' il contenuto di questa regola.
+ */
+function cachedRowsProblems(source, file) {
+  const problems = [];
+  if (file !== DATA_SERVICE) return problems;
+
+  const code = stripComments(source);
+  const start = code.indexOf('LoadCachedChatsAsync');
+  if (start < 0) {
+    problems.push(`${file}: LoadCachedChatsAsync is gone (did the cached rows move? ` +
+      'then this guard must move too)');
+    return problems;
+  }
+
+  const body = code.slice(start, start + 1500);
+  const load = body.indexOf('AvatarCache.LoadAsync');
+  const apply = body.indexOf('ApplyChat(');
+
+  if (load < 0) {
+    problems.push(`${file}: LoadCachedChatsAsync does not await AvatarCache.LoadAsync: ` +
+      'the cached rows are applied with the pictures still unread, so a restart shows ' +
+      'initials until the adapter answers');
+    return problems;
+  }
+  if (apply >= 0 && load > apply) {
+    problems.push(`${file}: AvatarCache.LoadAsync comes after the first ApplyChat: the ` +
+      'rows are applied with the pictures still unread');
+  }
+  return problems;
+}
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -159,6 +245,8 @@ function main() {
     const source = fs.readFileSync(file, 'utf8');
     problems.push(...decodeProblems(source, rel));
     problems.push(...attachmentProblems(source, rel));
+    problems.push(...avatarCacheProblems(source, rel));
+    problems.push(...cachedRowsProblems(source, rel));
     if (rel === HELPER) problems.push(...sourceShapeProblems(source, rel));
   }
 
@@ -167,7 +255,8 @@ function main() {
     console.log(`\n${problems.length} memory problem(s).`);
     process.exit(1);
   }
-  console.log('OK: every decoded bitmap asks for the width it is shown at.');
+  console.log('OK: every decoded bitmap asks for the width it is shown at, the row cache ' +
+    'stays slim, and the pictures have a bounded cache read before the rows.');
 }
 
 if (require.main === module) main();
@@ -175,6 +264,8 @@ if (require.main === module) main();
 module.exports = {
   decodeProblems,
   attachmentProblems,
+  avatarCacheProblems,
+  cachedRowsProblems,
   sourceShapeProblems,
   splitArguments,
   MAX_DECODE
