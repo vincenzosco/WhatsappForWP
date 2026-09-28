@@ -8,7 +8,7 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 ## The fast gate (runs on any machine, seconds)
 
 Current expected counts: 36 C# files, 125 keys in each `.resw`, 23 inline icon
-Paths (14 distinct icons), 20 buttons, 133 adapter tests, 40 tests in `tools/test`.
+Paths (14 distinct icons), 20 buttons, 133 adapter tests, 43 tests in `tools/test`.
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -20,7 +20,7 @@ node tools/check-framing.js      # the frame byte order and the shared frame cei
 node tools/check-tile.js        # the tile payload carries its icon, asset within the limits
 node tools/check-memory.js      # no bitmap decoded bigger than it is drawn
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
-node --test "tools/test/**/*.test.js"  # the tools' own tests (40)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (43)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -43,6 +43,7 @@ Two lessons the gates taught:
   its `DIAG` output is the evidence to ask for.
 | `check-docs.js` | A README section added to one language and not the other (the heading counts stop matching), a missing link between the two versions, a `## Disclosure` section that is absent or no longer last, an emoji anywhere in the Markdown (the warning sign U+26A0 is the only exception). |
 | `check-framing.js` | A socket `DataReader`/`DataWriter` created without `ByteOrder = ByteOrder.LittleEndian` (the WinRT default byte-swaps the frame length: `0x00000121` came back as `0x21010000`, 553713664, and a good frame was thrown away), an adapter that stopped using `writeUInt32LE`/`readUInt32LE`, a frame ceiling that differs between the app and the adapter. |
+| `check-actions.js` | A button whose `Click` handler does not carry its `x:Name` (an icon that opens its neighbour's action), the wrong icon on a title-bar button, and a button that declares a `Width` without `MinWidth="0" MinHeight="0"` - the WP8.1 theme minimums (109 x 57.5) would override the declared size, the `Auto` column would grow and its neighbour would be squeezed, which is exactly how the chat list title was clipped. |
 
 Also worth running while the tree is open:
 
@@ -313,3 +314,13 @@ empty".
     phone, the row goes, and the thread is gone when the chat list refreshes.
     Have someone write in that chat: it comes back with the new message. Kill and
     reopen the app before that message: the deleted row stays deleted.
+51. Title bar: the whole word `WhatsApp` is on screen, with no letters missing on
+    the right, the three dots at the left edge and the two icons at the right. If
+    the title is still cut, the build on the phone is not the one in this tree:
+    `node tools/check-actions.js` says what the source does. The theme minimums
+    behind this are in `maintain-the-app`, under the known gotchas.
+52. Open a chat: the photo button sits at the left edge of the input row, the send
+    button at the right edge, and the text box between them is about 376 px wide.
+    Go back: the arrow is at the left edge and the name starts right after it. The
+    same on the settings page, whose back arrow is a 48 px button and not a 109 px
+    one.

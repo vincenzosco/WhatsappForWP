@@ -265,6 +265,20 @@ the adapter:
   `IconWithBadge` templates exist: they put the app icon back while the badge does
   the counting. `Clear()` on both updaters is what returns the tile and the icon
   to the manifest's defaults.
+- **On WP8.1 a theme minimum overrides the size you declare.** The default
+  `Button` style sets `MinWidth = PhoneButtonMinWidth = 109` and
+  `MinHeight = PhoneButtonMinHeight = 57.5` (the phone kit's `generic.xaml` and
+  `themeresources.xaml`), and a minimum beats `Width`/`Height`: an icon button
+  written `Width="48" Height="48"` is really drawn 109 x 57.5. A fixed-size
+  button must therefore also declare `MinWidth="0" MinHeight="0"`, or the `Auto`
+  column around it grows past the drawing and squeezes its neighbour - that is how
+  the chat list title lost its last letters when the three-dots button was added,
+  and why the message box of a chat was 122 px narrower than drawn.
+  `tools/check-actions.js` refuses a button that declares a `Width` without the
+  two minimums; a style that sizes icon buttons (`NavIconButtonStyle`) needs the
+  same two setters. Buttons that declare only a `Height` (the connection page
+  Connect/Disconnect/login buttons) are outside that rule on purpose: they are
+  full width and nothing sits next to them, so the extra height costs nothing.
 - **`CommunicationService.IsConnected` can be true on a dead socket.** Nothing
   observes a socket that the OS closed, so a suspended-then-resumed app looks
   connected and is mute. `LastInboundUtc` plus `ConnectionWatchdog` are the only
