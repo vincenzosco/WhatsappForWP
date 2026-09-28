@@ -109,6 +109,11 @@ namespace WhatsappApp.Services
         /// </summary>
         private async System.Threading.Tasks.Task LoadCachedChatsAsync()
         {
+            // Prima delle righe: ApplyChat chiede subito quali sono pinnate,
+            // silenziate o eliminate, e un file non ancora letto risponderebbe
+            // di no a tutte e tre.
+            await ChatPreferences.LoadAsync();
+
             var cached = await ChatCache.LoadAsync();
             for (int i = 0; i < cached.Count; i++) ApplyChat(cached[i]);
             NotificationService.SetUnread(TotalUnread());
@@ -146,6 +151,11 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            // Un messaggio nuovo fa tornare una chat eliminata: e' quello che fa
+            // WhatsApp. Senza questo, una chat cancellata per sbaglio non
+            // tornerebbe mai piu'.
+            if (ChatPreferences.IsHidden(message.ChatId)) ChatPreferences.Reveal(message.ChatId);
+
             // Add to the appropriate chat's message list
             if (!_chatMessages.ContainsKey(message.ChatId))
             {
@@ -168,6 +178,8 @@ namespace WhatsappApp.Services
                     LastMessage = message.Text,
                     LastMessageTime = message.FormattedTime,
                     Initials = InitialsFor(name),
+                    IsPinned = ChatPreferences.IsPinned(message.ChatId),
+                    IsMuted = ChatPreferences.IsMuted(message.ChatId),
                     // Il conteggio non guarda quale chat e' aperta: un messaggio
                     // in arrivo e' non letto finche' qualcuno lo legge (vedi
                     // MarkDisplayedRead), e chi decide e' la pagina che lo
@@ -193,13 +205,19 @@ namespace WhatsappApp.Services
                 var idx = _contacts.IndexOf(contact);
                 if (idx > 0)
                     _contacts.Move(idx, 0);
+
+                // Un messaggio in una chat non pinnata non deve scavalcare le
+                // pinnate: si rimettono in cima, e questa resta subito sotto.
+                ResortContacts();
             }
 
-            // Un avviso solo per una chat che non stiamo guardando: con la chat
-            // aperta un toast e' rumore. Il badge invece si aggiorna sempre: il
-            // conteggio e' vero, e la chat aperta si azzera quando la pagina la
-            // mostra (ClearUnread), non perche' l'ha saltata nessuno.
-            if (message.IsIncoming && message.ChatId != _activeChatId)
+            // Un avviso solo per una chat che non stiamo guardando e che non e'
+            // silenziata: il silenzio e' la sola cosa che "silenziare" fa - il
+            // numero dei non letti resta, perche' il messaggio e' comunque non
+            // letto. Il badge invece si aggiorna sempre: il conteggio e' vero, e
+            // la chat aperta si azzera quando la pagina la mostra (ClearUnread),
+            // non perche' l'ha saltata nessuno.
+            if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
                 NotificationService.ShowMessage(contact.Name, message.Text);
 
             NotificationService.SetUnread(TotalUnread());
@@ -256,6 +274,10 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
 
+            // Vale come per l'elenco chat: una chat eliminata da questo telefono
+            // non torna perche' il server ne manda di nuovo il nome.
+            if (ChatPreferences.IsHidden(message.ChatId)) return;
+
             var contact = FindContact(message.ChatId);
             string name = string.IsNullOrEmpty(message.SenderName)
                 ? DisplayNameForJid(message.ChatId)
@@ -278,6 +300,14 @@ namespace WhatsappApp.Services
                 contact.Name = name;
                 contact.Initials = InitialsFor(name);
             }
+
+            var target = FindContact(message.ChatId);
+            if (target != null)
+            {
+                target.IsPinned = ChatPreferences.IsPinned(message.ChatId);
+                target.IsMuted = ChatPreferences.IsMuted(message.ChatId);
+                ResortContacts();
+            }
         }
 
         /// <summary>
@@ -287,6 +317,11 @@ namespace WhatsappApp.Services
         private void ApplyChat(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
+
+            // Una chat eliminata da questo telefono non torna con l'elenco del
+            // server: la decisione sta sul telefono (ChatPreferences) e la
+            // annulla solo un messaggio nuovo.
+            if (ChatPreferences.IsHidden(message.ChatId)) return;
 
             var contact = FindContact(message.ChatId);
             string name = string.IsNullOrEmpty(message.SenderName)
@@ -331,6 +366,10 @@ namespace WhatsappApp.Services
             // messaggio: arriva dal server, che e' l'unico sveglio mentre il
             // telefono e' spento (vedi server.js, unreadByChat).
             contact.UnreadCount = message.UnreadCount;
+            contact.IsPinned = ChatPreferences.IsPinned(message.ChatId);
+            contact.IsMuted = ChatPreferences.IsMuted(message.ChatId);
+            ResortContacts();
+
             RememberChatRow(message);
         }
 
@@ -705,6 +744,7 @@ namespace WhatsappApp.Services
 
                 // Move contact to top
                 _contacts.Move(_contacts.IndexOf(contact), 0);
+                ResortContacts();
             }
         }
 
@@ -761,6 +801,27 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>Mette (o toglie) una chat in cima all'elenco. Decide il telefono, non il server.</summary>
+        public void SetPinned(string chatId, bool pinned)
+        {
+            var contact = FindContact(chatId);
+            if (contact == null) return;
+
+            contact.IsPinned = pinned;
+            ChatPreferences.SetPinned(chatId, pinned);
+            ResortContacts();
+        }
+
+        /// <summary>Silenzia la chat: i suoi messaggi non alzano un avviso.</summary>
+        public void SetMuted(string chatId, bool muted)
+        {
+            var contact = FindContact(chatId);
+            if (contact == null) return;
+
+            contact.IsMuted = muted;
+            ChatPreferences.SetMuted(chatId, muted);
+        }
+
         /// <summary>Somma dei non letti: e' il numero che va sull'icona.</summary>
         private int TotalUnread()
         {
@@ -770,6 +831,24 @@ namespace WhatsappApp.Services
                 if (contact != null) total += contact.UnreadCount;
             }
             return total;
+        }
+
+        /// <summary>
+        /// Riporta in cima le chat pinnate lasciando le altre dove sono (la piu'
+        /// recente per prima): ognuna viene spostata davanti alla prima non
+        /// pinnata, quindi l'ordine relativo delle altre non cambia. Non e' un
+        /// sort: una chiave di data servirebbe a rifare un ordine che la
+        /// collezione ha gia'.
+        /// </summary>
+        private void ResortContacts()
+        {
+            int target = 0;
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                if (_contacts[i] == null || !_contacts[i].IsPinned) continue;
+                if (i != target) _contacts.Move(i, target);
+                target++;
+            }
         }
 
         public void AddContact(Contact contact)
