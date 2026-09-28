@@ -43,9 +43,9 @@ to show.
 
 The chat list is the account's real conversation list (`GET /chats`, bound by
 `CHATS_LIMIT`), not its address book, which is empty on a freshly linked device.
-Each row carries the last message and, for people, the profile picture
+Each row carries the last message and the profile picture
 (`GET /user/avatar` and then the CDN address it returns, so two requests per
-person; disabled with `CHATS_AVATARS=off`). A group row is named from
+chat, a group included; disabled with `CHATS_AVATARS=off`). A group row is named from
 `GET /user/my/groups`, one request for all of them, because the chat list has no
 usable name for a group and falls back to `Group <number>`.
 
@@ -93,7 +93,9 @@ client any more: it uses GOWA's REST API and webhooks.
 - Sends text, photos, videos and files (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); an attachment larger than one frame travels in pieces (`media.begin` / `media.chunk` / `media.end`), and media that arrives from WhatsApp comes back the same way in `media` frames that carry their piece index
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
-- Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and, for people, the **profile picture** from `GET /user/avatar` (two requests per person: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- Lists the account's real **conversations** from `GET /chats` (the address book is empty on a freshly linked device), each with its last message and its **profile picture** from `GET /user/avatar` (two requests per chat, a group included: the endpoint returns the picture's address, not the picture) (`CHATS_LIMIT`, `CHATS_AVATARS`)
+- Chats can be **pinned** (the three-dots menu at the top left, or a long press on a row), **muted** (no notification for that conversation; the unread number stays) and **deleted from this phone** (a long press, then Delete). The three are decisions of this phone: the server has no endpoint for any of them, so they are kept in the app's own folder and a chat pinned here is not pinned on your other devices
+- A deleted chat comes back when a new message arrives in it, and nothing is deleted on WhatsApp: this app deletes the conversation from this phone, not from the account
 - Keeps the last chat list on the phone: the list is on screen while the connection is still coming up, and is refreshed as soon as WhatsApp reports itself connected
 - Keeps the connection alive by itself: a watchdog asks for the state every 20 s, and a connection that has been silent for 60 s is dropped and reopened, so the app recovers on its own when WP8.1 closes the socket while it is suspended
 - Loads a chat's stored messages when it is opened (`messages`, up to `MESSAGES_LIMIT`), as frames marked `IsHistory`: they are inserted in date order and stay out of the unread count and the toasts
@@ -515,6 +517,7 @@ node tools/check-docs.js
 - Call records list incoming calls only, taken from the most recent chats the server scanned. See the Calls section below for the exact bound.
 - Message deletions and edits made on the phone reach the app only while it is connected: they are not replayed after a restart. They are matched by WhatsApp's message id, so messages the app itself sent are not matched.
 - Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered on resume, when the app reconnects by itself - it is not announced at the moment it arrives.
+- Pinning, muting and deleting live on this phone only, in `chat-preferences.json` in the app's folder. Nothing about them is sent to WhatsApp or to the adapter, so another device does not see them, and they are lost when the app's data is cleared.
 - A chat's unread number is kept by the adapter, in memory, and is cleared when the conversation is opened in the app. Restarting the adapter starts the count again from zero, and messages that arrive while neither the app nor the adapter is running are not counted.
 - A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
 - Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone. A photo or a video in that history shows a word (`[Image]`, `[Video]`) until it is tapped, when the adapter downloads it from the server and the app plays or draws it. A received video's bytes are written to the app's local folder for as long as the session lasts, and are not cleaned up when the app closes. The last 60 messages of a conversation are cached on the phone, so the first view of a chat is a photograph that the server replaces.

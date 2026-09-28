@@ -32,7 +32,16 @@ node tools/check-docs.js           # documenti: inglese e italiano allineati, di
   hardcoded — e ognuno ha un guard che lo verifica.
 - **Aggiornare**: seguire la ricetta corrispondente in `update-the-app`. Ogni
   ricetta finisce con i guard, un commit e un `git push`: il lavoro non e' finito
-  finche' non e' su `origin/master`.
+  finche' non e' su `origin/master`. E un commit che tocca `WhatsappBridge/` non
+  e' finito nemmeno li': lo stesso commit va portato nel repository Docker
+  `docker-whatsappforwp` con il suo `tools/sync.js`, perche' l'immagine e' quello
+  che gira sulla maggior parte delle installazioni (vedi *The Docker repository*
+  in `maintain-the-app`, che spiega anche come farlo passare in CI).
+- **Pianificare**: un piano in `docs/superpowers/plans/` si scrive per eseguirlo
+  subito, in questa stessa sessione e task per task, fino all'ultimo commit
+  pushato. Il documento e' il resoconto del lavoro, non il risultato: fermarsi al
+  piano vuol dire lasciare il lavoro non fatto e spedire la descrizione di un
+  codice che non esiste.
 - **Testare**: eseguire la matrice in `test-the-app`. Qui si ferma tutto cio' che
   si puo' verificare senza dispositivo; il gate autorevole e' `msbuild` sulla
   macchina Windows, e in fondo c'e' la checklist da fare sul telefono.
