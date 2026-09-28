@@ -39,6 +39,15 @@ namespace WhatsappApp.Services
         private bool _isConnected = false;
 
         /// <summary>
+        /// Una scrittura alla volta su un socket. Il DataWriter ha un solo
+        /// buffer: due StoreAsync in volo insieme mettono il prefisso di
+        /// lunghezza di uno davanti al payload dell'altro, e l'altro capo legge
+        /// un frame che non esiste. Succedeva mandando un messaggio mentre un
+        /// allegato stava ancora salendo.
+        /// </summary>
+        private readonly SerialQueue _writes = new SerialQueue();
+
+        /// <summary>
         /// Frame piu' grande che accettiamo. Il prefisso di 4 byte e' l'unica
         /// cosa che l'altro capo controlla: se il lettore e' disallineato quella
         /// lunghezza e' un pezzo di JSON, cioe' un numero enorme. Senza un
@@ -809,18 +818,21 @@ namespace WhatsappApp.Services
             {
                 if (client == excludeSocket) continue;
 
+                StreamSocket target = client;
                 try
                 {
-                    var writer = CreateFrameWriter(client.OutputStream);
-                    writer.WriteUInt32((uint)payload.Length);
-                    writer.WriteBytes(payload);
-                    await writer.StoreAsync();
-                    await writer.FlushAsync();
+                    // Una trasmissione intera e' un pezzo della coda: due
+                    // trasmissioni in volo sullo stesso OutputStream si
+                    // intreccerebbero come due StoreAsync sullo stesso buffer.
+                    await _writes.RunAsync(delegate
+                    {
+                        return WriteFrameAsync(CreateFrameWriter(target.OutputStream), payload);
+                    });
                 }
                 catch (Exception ex)
                 {
                     Diag.Failed("BroadcastToAllClientsAsync", ex);
-                    deadClients.Add(client);
+                    deadClients.Add(target);
                 }
             }
 
@@ -841,10 +853,18 @@ namespace WhatsappApp.Services
         /// Il writer arriva da fuori perche' e' quello del socket, creato una
         /// volta in ConnectToServerAsync: prima ne veniva creato — e mai
         /// chiuso — uno nuovo per ogni frame inviato.
+        /// Il payload si cifra adesso, con il writer di adesso: quello che entra
+        /// in coda e' una scrittura gia' decisa, non una promessa di scrivere.
         /// </summary>
-        private async Task SendFrameAsync(DataWriter writer, byte[] jsonBytes)
+        private Task SendFrameAsync(DataWriter writer, byte[] jsonBytes)
         {
             byte[] payload = CryptoHelper.Encrypt(jsonBytes);
+            return _writes.RunAsync(delegate { return WriteFrameAsync(writer, payload); });
+        }
+
+        /// <summary>La scrittura, eseguita dalla coda.</summary>
+        private static async Task WriteFrameAsync(DataWriter writer, byte[] payload)
+        {
             writer.WriteUInt32((uint)payload.Length);
             writer.WriteBytes(payload);
             await writer.StoreAsync();

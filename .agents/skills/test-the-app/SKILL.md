@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 36 C# files, 125 keys in each `.resw`, 23 inline icon
+Current expected counts: 37 C# files, 125 keys in each `.resw`, 23 inline icon
 Paths (14 distinct icons), 20 buttons, 1 button style, 133 adapter tests, 47 tests
 in `tools/test`.
 
@@ -325,3 +325,7 @@ empty".
     Go back: the arrow is at the left edge and the name starts right after it. The
     same on the settings page, whose back arrow is a 48 px button and not a 109 px
     one.
+53. Send a text message while a large video is still uploading (the progress
+    line keeps moving): the video arrives whole, the text is not lost, and the
+    connection does not drop. A dropped connection here means two writes on one
+    socket: see the `SerialQueue` gotcha in `maintain-the-app`.
