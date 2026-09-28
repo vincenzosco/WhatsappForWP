@@ -153,20 +153,30 @@ suppressing the *toast* for the chat on screen.
 ## Workflow for any change
 
 1. `git status --short` - start from a clean tree.
-2. Read the file you are about to change **completely**; this codebase keeps
+2. **A plan is written to be executed now.** When a change is multi-step enough to
+   deserve one, write it to `docs/superpowers/plans/YYYY-MM-DD-<name>.md` and then
+   execute it in the same session, task by task, until the last task is committed
+   and pushed. The document is the record of the work, never the deliverable:
+   stopping at the plan leaves the change undone and ships a description of code
+   that does not exist. While executing, append a
+   `## What execution changed about this plan` section at the end of the plan
+   listing every divergence, and do not rewrite the tasks above it.
+3. Read the file you are about to change **completely**; this codebase keeps
    per-file invariants in comments.
-3. Make the change.
-4. Run the fast gate: `node tools/check-csharp5.js && node tools/check-icons.js &&
+4. Make the change.
+5. Run the fast gate: `node tools/check-csharp5.js && node tools/check-icons.js &&
    node tools/check-resw.js --strict && node tools/check-docs.js &&
    node tools/check-framing.js && node tools/check-tile.js &&
    node tools/check-memory.js && node tools/check-actions.js`, plus
    `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
-5. If the change is user-visible, say which page and which string key changed.
-6. Commit with a message that says *why* (the repo history is the changelog).
-7. **Push.** A change is finished only when it is on `origin/master`: a commit
+6. If the change is user-visible, say which page and which string key changed.
+7. Commit with a message that says *why* (the repo history is the changelog).
+8. **Push.** A change is finished only when it is on `origin/master`: a commit
    that lives on this machine alone is invisible to everyone else, so every
    change ends with `git push`, not with the commit. Never leave the branch
-   ahead of `origin/master`.
+   ahead of `origin/master`. A change under `WhatsappBridge/` is not finished
+   either until it is mirrored into the Docker repository - see *The Docker
+   repository* below.
 
 ## Where a change belongs
 
@@ -180,10 +190,60 @@ suppressing the *toast* for the chat on screen.
 | State kept across suspend/termination | `Services/SessionService.cs` |
 | Image handling | `Services/ImageHelper.cs` |
 | A new GOWA call | `WhatsappBridge/gowa-client.js`, a control command in `server.js`, and the app side in `ConnectionPage`/`CommunicationService` |
+| A change to the adapter (`WhatsappBridge/`) | the same change in the Docker repository (`docker-whatsappforwp`): run its `tools/sync.js`, commit and push - see *The Docker repository* |
 | Local start-up behaviour (ports, login, stop) | `tools/start-login.js` (+ the `run-the-login-server` skill) |
 | Drawing of the login QR | `tools/qr-term.js` (run its `--self-test` afterwards) |
 | Anything a reader reads (README, guides) | the English file **and** its Italian pair, then `node tools/check-docs.js` |
 | A claim about the project (open source, maintainers, AI-written, responsibility) | `## Disclosure` at the end of `README.md` **and** `README.it.md` |
+
+## The Docker repository
+
+`WhatsappBridge/` is the source of truth for the adapter; the repository
+`vincenzosco/docker-whatsappforwp` holds a **copy** of it in `server/`, plus the
+`Dockerfile` that puts GOWA and the adapter in one image. That image is what most
+people run, so an adapter change that stops at this repository is a change half
+the users never get. **Every commit that touches `WhatsappBridge/` ends with the
+same commit mirrored into the Docker repository.**
+
+The mirror is not a patch. `tools/sync.js` **in the Docker repository** reads the
+list of adapter files out of this checkout (its `adapterFiles`), so a new module
+cannot be forgotten, and writes `server/SOURCE_COMMIT` with the commit the copy
+came from.
+
+```bash
+# 1. here: the adapter change, its tests, the commit, the push
+cd WhatsappBridge && npm test
+git push
+
+# 2. in a checkout of the Docker repository
+#    (git clone https://github.com/vincenzosco/docker-whatsappforwp /tmp/docker-whatsappforwp)
+cd /tmp/docker-whatsappforwp
+git pull
+node tools/sync.js --from /Users/vincenzo/Documents/WhatsappForWP
+node tools/sync.js --check --from /Users/vincenzo/Documents/WhatsappForWP  # OK: server/ matches ...
+(cd server && npm test)                                                    # same count as step 1
+git add -A && git commit -m "fix: ..." && git push
+```
+
+What makes it *pass*: the `sync` job of `.github/workflows/image.yml` checks this
+repository out at the commit `server/SOURCE_COMMIT` names, runs
+`node tools/sync.js --check --from ../app`, and fails the build if the copy no
+longer matches. A mirrored commit that missed a file therefore turns the image
+build red instead of shipping an old adapter. After the push, the workflow builds
+linux/amd64 and linux/arm64 and publishes
+`ghcr.io/vincenzosco/docker-whatsappforwp:latest`.
+
+Two things the copy cannot carry, because they belong to the container and not to
+the adapter:
+
+- **An external program.** The runtime stage of the `Dockerfile` installs
+  `ffmpeg`, which the adapter calls for Ogg/Opus voice notes; the Node.js path in
+  the Docker README tells the reader to install it by hand. Anything new the
+  adapter starts executing needs the same treatment, or it is present when run
+  from a checkout and missing in the image most people use.
+- **A new environment variable**, in `.env.example` and in **both** Docker README
+  tables, or it is an option nobody can set. Both compose files pass `.env`
+  through with `env_file`, so there is nothing else to wire.
 
 ## Known gotchas
 
@@ -418,3 +478,36 @@ suppressing the *toast* for the chat on screen.
   history. Its entries are `IsHistory`, so they raise no toast and add no unread count.
   `MediaFilePath` is not a `[DataMember]`, so a cached video keeps its word and its play
   box but asks for its bytes again.
+- **A pin, a silence and a deletion are this phone's, and the file that holds them
+  is not the chat cache.** `ChatCache` is a photograph the server replaces row by
+  row, so a decision kept there would be gone at the next `chats` reply and a chat
+  that `CHATS_LIMIT` no longer lists would lose it. `ChatPreferences` is the other
+  thing: `chat-preferences.json` in `LocalFolder`, read once at start-up (before
+  the first row is built, in `DataService.LoadCachedChatsAsync`) and written by the
+  caller that changes it. `Hidden` keeps a deleted chat out of `ApplyChat` and
+  `ApplyContact`; a live incoming message calls `Reveal`, which is what makes a
+  chat deleted by mistake come back - and is why nothing here is a one-way door.
+  Muting suppresses the toast only: the unread count is still true.
+- **A pinned chat is moved, not sorted.** `DataService.ResortContacts` walks the
+  collection and moves each pinned row in front of the first row that is not
+  pinned, so the rows keep the recency order the collection already had. Every
+  path that moves a row to the top (`OnNetworkMessageReceived`, `AddMessage`) must
+  call it afterwards, or an arriving message in an unpinned chat jumps over the
+  pinned ones.
+- **`Holding` fires twice.** `ChatRow_Holding` returns unless
+  `e.HoldingState == HoldingState.Started`; without that test the menu is built
+  again on the release, and a tap on a menu item that lands on the row re-opens it.
+  The namespace is `Windows.UI.Xaml.Input`, not `Windows.UI.Input`.
+- **The row's menu captures the id and the state before it is shown.** By the time
+  a menu item is tapped the row may already be gone (delete), so the handlers close
+  over the values the menu was built from instead of reading `contact` again. The
+  loops that apply a pin snapshot `DataService.Contacts` first
+  (`SnapshotContacts`): `SetPinned` moves rows inside that same collection.
+- **A group has a picture like anyone else.** `GET /user/avatar` accepts a group
+  JID: `SanitizePhone` only appends a suffix when the value has no `@`, and
+  `GetProfilePictureInfo` takes the JID as it comes. So `chats.js` asks for a
+  group's picture too, and `gowa-client.js.avatar()` keeps the whole JID (cutting
+  `:device` off the front of the local part, not the `@g.us` off the end). Skipping
+  `@g.us`, or cutting the JID to its digits, is what made groups show initials.
+  `POST /group/photo` is the other direction - it sets a group's picture, it does
+  not read one.
