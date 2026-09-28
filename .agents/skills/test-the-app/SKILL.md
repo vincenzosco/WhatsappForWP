@@ -7,8 +7,8 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 37 C# files, 125 keys in each `.resw`, 23 inline icon
-Paths (14 distinct icons), 20 buttons, 1 button style, 136 adapter tests, 47 tests
+Current expected counts: 38 C# files, 125 keys in each `.resw`, 23 inline icon
+Paths (14 distinct icons), 20 buttons, 1 button style, 144 adapter tests, 58 tests
 in `tools/test`.
 
 ```bash
@@ -19,9 +19,9 @@ node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, 
 node tools/check-docs.js          # the two languages of the docs are in step, no emoji
 node tools/check-framing.js      # the frame byte order and the shared frame ceiling
 node tools/check-tile.js        # the tile payload carries its icon, asset within the limits
-node tools/check-memory.js      # no bitmap decoded bigger than it is drawn
+node tools/check-memory.js      # no bitmap decoded bigger than it is drawn, and the picture caches stay bounded
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
-node --test "tools/test/**/*.test.js"  # the tools' own tests (47)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (58)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -45,6 +45,7 @@ Two lessons the gates taught:
 | `check-docs.js` | A README section added to one language and not the other (the heading counts stop matching), a missing link between the two versions, a `## Disclosure` section that is absent or no longer last, an emoji anywhere in the Markdown (the warning sign U+26A0 is the only exception). |
 | `check-framing.js` | A socket `DataReader`/`DataWriter` created without `ByteOrder = ByteOrder.LittleEndian` (the WinRT default byte-swaps the frame length: `0x00000121` came back as `0x21010000`, 553713664, and a good frame was thrown away), an adapter that stopped using `writeUInt32LE`/`readUInt32LE`, a frame ceiling that differs between the app and the adapter. |
 | `check-actions.js` | A button whose `Click` handler does not carry its `x:Name` (an icon that opens its neighbour's action), the wrong icon on a title-bar button, a button that declares a `Width` without `MinWidth="0" MinHeight="0"`, and a `Style` with `TargetType="Button"` that declares a `Width` or a `Height` without them - the WP8.1 theme minimums (109 x 57.5) would override the declared size, the `Auto` column would grow and its neighbour would be squeezed, which is exactly how the chat list title was clipped. A style with `BasedOn` is left alone: its base holds the setters. |
+| `check-memory.js` | A decode call without its display width, a width wider than the screen, `DecodePixelWidth` set after `SetSourceAsync`, a whole picked or shared file read into a `byte[]`, the row cache carrying picture bytes, the avatar cache without its caps or without the serial queue, and the avatar cache read after the cached rows - a restart then shows initials until the adapter answers. |
 
 Also worth running while the tree is open:
 
@@ -337,3 +338,21 @@ empty".
 55. Pin two chats, then press Unpin all and immediately kill the app: on the next
     start no chat is pinned. A pin that comes back means two writes of the same
     file overlapped: see `ChatPreferences`.
+56. Restart: close the app from the phone (long-press the back arrow), then open it
+    again. The chat list shows the pictures of the conversations you have seen
+    before, not the initials, and they are there before the adapter answers (the
+    `DIAG ok: connected` line arrives after them). Initials here mean the cache was
+    not read before the rows, or was never written: see `AvatarCache`.
+57. The cache file: no `DIAG failed` line for `AvatarCache`, and a second launch does
+    not rewrite `avatar-cache.json` when nothing new arrived (its timestamp in the
+    app folder stays the same). A file that grows at every launch is a cache with no
+    cap, or one written for rows that already had the bytes.
+58. Under pressure: on a 512 MB phone, open and close a few chats until
+    `DIAG ok: memory under pressure: releasing decoded images` appears. Go back to
+    the chat list: the pictures are drawn again (the bytes were kept, only the
+    decoded bitmaps were dropped). Initials that stay mean `RestoreAvatars` was not
+    called, or the row had no bytes to rebuild from.
+59. A picture the adapter already sent: with the adapter running, switch between
+    Chats and Calls a few times. The adapter log shows the avatar requests of the
+    first read only - the second chat list is answered from `avatar-cache.js` for
+    five minutes.
