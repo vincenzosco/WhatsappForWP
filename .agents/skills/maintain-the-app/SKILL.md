@@ -519,6 +519,19 @@ the adapter:
   `ApplyContact`; a live incoming message calls `Reveal`, which is what makes a
   chat deleted by mistake come back - and is why nothing here is a one-way door.
   Muting suppresses the toast only: the unread count is still true.
+- **The pictures have a cache of their own, and it is read before the rows.** The row
+  cache (`ChatCache`, `chats.json`) leaves `AvatarData` out on purpose: it is the file the
+  app reads before the connection exists, and one picture per chat would multiply it.
+  The bytes live in `AvatarCache` (`avatar-cache.json`), capped at 40 chats, 150000
+  characters per picture and 1500000 for the file, written through the same
+  `SerialQueue` as `ChatPreferences` (two writes on the same file, launched without
+  waiting, can land out of order - that bug was already fixed once in
+  `ChatPreferences`). `DataService.LoadCachedChatsAsync` awaits `AvatarCache.LoadAsync()`
+  before the first `ApplyChat`, because `ApplyChat` asks the cache for the picture of a
+  row that carries none, and a restart then shows the faces before the adapter answers.
+  `MemoryWatcher` drops only the decoded bitmap, never the bytes, and
+  `DataService.RestoreAvatars` (called by `ChatsPage.OnNavigatedTo`) redraws them.
+  `tools/check-memory.js` fails on all three of these.
 - **A pinned chat is moved, not sorted.** `DataService.ResortContacts` walks the
   collection and moves each pinned row in front of the first row that is not
   pinned, so the rows keep the recency order the collection already had. Every

@@ -441,13 +441,20 @@ its siblings have no memory element at all — so this is runtime work, in two h
 - **let go when asked**: `MemoryWatcher` listens to
   `MemoryManager.AppMemoryUsageIncreased` and, at `High`, drops the decoded avatars
   and clears the history of every chat that is not open (the open one is left alone,
-  it is the one being read). While the pressure lasts nothing new is decoded. The
-  limit of the phone is written once, as `DIAG ok: memory budget N MB`.
+  it is the one being read). While the pressure lasts nothing new is decoded. The  limit of the phone is written once, as `DIAG ok: memory budget N MB`;
+- **and ask again from the phone**: the bytes of a picture are kept in
+  `avatar-cache.json` (at most 40 conversations, about 1 MB), so a restart shows
+  the faces before the adapter answers, and a row whose decoded bitmap was dropped
+  is redrawn when the list comes back to the front. The pictures are the app's copy
+  of what the adapter sent: the adapter keeps them for five minutes as well, so a
+  chat list read twice does not go back to WhatsApp.
 
 `tools/check-memory.js` fails the build if a call site forgets the decode width, if
-one asks for more pixels than the screen can show, or if `ImageHelper` sets
-`DecodePixelWidth` after the decode. `WhatsappBridge/test/config.test.js` holds the
-adapter side of the same budget (`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
+one asks for more pixels than the screen can show, if `ImageHelper` sets
+`DecodePixelWidth` after the decode, if the row cache starts carrying picture bytes,
+if the avatar cache loses its caps or its serial queue, or if the avatar cache is not
+read before the cached rows are applied.
+`WhatsappBridge/test/config.test.js` holds the adapter side of the same budget (`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
 
 ### App language
 
@@ -522,7 +529,7 @@ node tools/check-docs.js
 - A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
 - Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone. A photo or a video in that history shows a word (`[Image]`, `[Video]`) until it is tapped, when the adapter downloads it from the server and the app plays or draws it. A received video's bytes are written to the app's local folder for as long as the session lasts, and are not cleaned up when the app closes. The last 60 messages of a conversation are cached on the phone, so the first view of a chat is a photograph that the server replaces.
 - The number on the live tile is drawn by the badge and the icon comes from the tile notification, so both need the app to have run since the count changed. With the count at zero the tile goes back to the one in the manifest.
-- Under memory pressure the app drops the decoded avatars and asks for them again later: on a phone that stays under pressure, the chat list shows initials for a while.
+- Under memory pressure the app drops the decoded avatars; the bytes stay, and the pictures are redrawn when the chat list comes back. While the pressure lasts nothing new is decoded, so on a phone that stays under pressure the list shows initials for a while.
 
 ## Disclaimer
 

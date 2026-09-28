@@ -457,11 +457,20 @@ memoria - quindi il lavoro e' a runtime, in due meta':
   degli avatar decodificate e svuota la cronologia di ogni chat che non e' aperta
   (quella aperta non si tocca, e' quella che si sta leggendo). Finche' la pressione
   dura non si decodifica niente di nuovo. Il limite del telefono viene scritto una
-  volta, come `DIAG ok: memory budget N MB`.
+  volta, come `DIAG ok: memory budget N MB`;
+- **e si richiedono dal telefono**: i byte di un'immagine si tengono in
+  `avatar-cache.json` (al massimo 40 conversazioni, circa 1 MB), cosi' un riavvio
+  mostra le facce prima che l'adapter risponda, e una riga la cui bitmap decodificata
+  e' stata buttata via si ridisegna quando l'elenco torna davanti. Le immagini sono
+  la copia di quello che l'adapter ha mandato: anche l'adapter le tiene per cinque
+  minuti, cosi' un elenco chat letto due volte non torna da WhatsApp.
 
 `tools/check-memory.js` fa fallire la build se un punto di chiamata dimentica la
-misura di decodifica, se ne chiede piu' pixel di quanti lo schermo sappia mostrare, o
-se `ImageHelper` imposta `DecodePixelWidth` dopo la decodifica.
+misura di decodifica, se ne chiede piu' pixel di quanti lo schermo sappia mostrare, se
+`ImageHelper` imposta `DecodePixelWidth` dopo la decodifica, se la copia dell'elenco
+comincia a portarsi dietro i byte delle immagini, se la cache degli avatar perde i
+suoi tetti o la coda di scrittura, o se la cache degli avatar non viene letta prima
+delle righe salvate.
 `WhatsappBridge/test/config.test.js` tiene l'altra meta' dello stesso budget
 (`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
 
@@ -540,7 +549,7 @@ node tools/check-docs.js
 - Un file condiviso da un'altra app viene letto nel momento in cui la condivisione viene consegnata, perche' l'app puo' essere terminata mentre il selettore o l'app che condivide sono aperti. I file molto grandi vengono comunque tenuti in memoria per essere spediti, quindi un video di lunghezza intera puo' non starci su un telefono da 512 MB.
 - Aprendo una chat si vedono i messaggi recenti che il server ha gia'. I piu' vecchi non vengono richiesti al telefono. Una foto o un video di quella cronologia mostrano una parola (`[Image]`, `[Video]`) finche' non vengono toccati, e allora l'adapter li scarica dal server e l'app li riproduce o li disegna. I byte di un video ricevuto restano nella cartella locale dell'app finche' dura la sessione, e non vengono ripuliti alla chiusura. Gli ultimi 60 messaggi di una conversazione sono in una cache sul telefono, quindi la prima vista di una chat e' una fotografia che il server sostituisce.
 - Il numero sulla tile lo disegna il badge e l'icona arriva dalla notifica della tile: entrambi hanno bisogno che l'app sia girata dopo che il conteggio e' cambiato. Con il conteggio a zero la tile torna a quella del manifest.
-- Sotto pressione di memoria l'app butta le bitmap degli avatar decodificate e le richiede piu' tardi: su un telefono che resta sotto pressione, l'elenco chat mostra le iniziali per un po'.
+- Sotto pressione di memoria l'app butta le bitmap degli avatar decodificate; i byte restano, e le immagini si ridisegnano quando l'elenco chat torna davanti. Finche' la pressione dura non si decodifica niente di nuovo, quindi su un telefono che resta sotto pressione l'elenco mostra le iniziali per un po'.
 
 ## Disclaimer
 
