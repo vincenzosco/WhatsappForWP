@@ -329,3 +329,11 @@ empty".
     line keeps moving): the video arrives whole, the text is not lost, and the
     connection does not drop. A dropped connection here means two writes on one
     socket: see the `SerialQueue` gotcha in `maintain-the-app`.
+54. Have someone send a video of about 30 MB (several pieces) with the app closed,
+    then open the chat and tap the play box: the video plays through to the end,
+    and the file on the phone is as long as the original. Half a video, or a
+    video that says it cannot be played, means the pieces were assembled two at
+    a time: see `IncomingMediaStore` and the `SerialQueue` gotcha.
+55. Pin two chats, then press Unpin all and immediately kill the app: on the next
+    start no chat is pinned. A pin that comes back means two writes of the same
+    file overlapped: see `ChatPreferences`.
