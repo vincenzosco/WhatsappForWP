@@ -275,10 +275,15 @@ the adapter:
   the chat list title lost its last letters when the three-dots button was added,
   and why the message box of a chat was 122 px narrower than drawn.
   `tools/check-actions.js` refuses a button that declares a `Width` without the
-  two minimums; a style that sizes icon buttons (`NavIconButtonStyle`) needs the
-  same two setters. Buttons that declare only a `Height` (the connection page
-  Connect/Disconnect/login buttons) are outside that rule on purpose: they are
-  full width and nothing sits next to them, so the extra height costs nothing.
+  two minimums, and it refuses the same omission in a `Style` with
+  `TargetType="Button"` that declares a `Width` or a `Height` (a style holds for
+  every button that uses it, so it cannot know which column they land in and must
+  be safe on both axes; `NavIconButtonStyle` in `SectionNav.xaml` is the one that
+  exists). A style with `BasedOn` is left alone, because the base holds the
+  setters and may live in another file. Buttons that declare only a `Height` in
+  their own markup (the connection page Connect/Disconnect/login buttons) are
+  outside the rule on purpose: they are full width and nothing sits next to them,
+  so the extra height costs nothing.
 - **`CommunicationService.IsConnected` can be true on a dead socket.** Nothing
   observes a socket that the OS closed, so a suspended-then-resumed app looks
   connected and is mute. `LastInboundUtc` plus `ConnectionWatchdog` are the only
