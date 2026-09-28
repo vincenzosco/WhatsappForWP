@@ -200,10 +200,68 @@
                                            Opacity="0.8"/>
                             </StackPanel>
 
-                            <!-- Time and unread badge -->
+                            <!-- Time, the marks of this phone, and unread badge -->
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,12,0">
-                                <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF808080" FontSize="12"
-                                           HorizontalAlignment="Right"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <!-- Il pin e il silenzio sono decisioni di
+                                         questo telefono: la riga lo dice, o il
+                                         menu sarebbe l'unico posto dove
+                                         scoprirlo. -->
+                                    <Path Width="12" Height="12" Margin="0,0,3,0"
+                                          VerticalAlignment="Center"
+                                          Stroke="#FF808080" StrokeThickness="1.5"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}">
+                                        <!-- IconPin -->
+                                        <Path.Data>
+                                            <PathGeometry>
+                                                <PathGeometry.Figures>
+                                                    <PathFigure StartPoint="6,1.5" IsClosed="True">
+                                                        <PathFigure.Segments>
+                                                            <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
+                                                                        SweepDirection="Clockwise" Point="6,7.5"/>
+                                                            <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
+                                                                        SweepDirection="Clockwise" Point="6,1.5"/>
+                                                        </PathFigure.Segments>
+                                                    </PathFigure>
+                                                    <PathFigure StartPoint="6,7.5">
+                                                        <PathFigure.Segments>
+                                                            <LineSegment Point="6,11"/>
+                                                        </PathFigure.Segments>
+                                                    </PathFigure>
+                                                </PathGeometry.Figures>
+                                            </PathGeometry>
+                                        </Path.Data>
+                                    </Path>
+                                    <Path Width="12" Height="12" Margin="0,0,3,0"
+                                          VerticalAlignment="Center"
+                                          Stroke="#FF808080" StrokeThickness="1.5"
+                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}">
+                                        <!-- IconMute -->
+                                        <Path.Data>
+                                            <PathGeometry>
+                                                <PathGeometry.Figures>
+                                                    <PathFigure StartPoint="1,4.5" IsClosed="True">
+                                                        <PathFigure.Segments>
+                                                            <PolyLineSegment Points="3.5,4.5 6,2 6,10 3.5,7.5 1,7.5"/>
+                                                        </PathFigure.Segments>
+                                                    </PathFigure>
+                                                    <PathFigure StartPoint="7.5,3.5">
+                                                        <PathFigure.Segments>
+                                                            <LineSegment Point="11,8.5"/>
+                                                        </PathFigure.Segments>
+                                                    </PathFigure>
+                                                </PathGeometry.Figures>
+                                            </PathGeometry>
+                                        </Path.Data>
+                                    </Path>
+                                    <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF808080" FontSize="12"
+                                               VerticalAlignment="Center"
+                                               HorizontalAlignment="Right"/>
+                                </StackPanel>
                                 <Border MinWidth="20" Height="20"
                                         CornerRadius="10"
                                         Background="{StaticResource WhatsAppAccentBrush}"
