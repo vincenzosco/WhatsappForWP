@@ -25,6 +25,7 @@
 
             <Button x:Name="BackButton" Grid.Column="0"
                     Background="Transparent"
+                    MinWidth="0" MinHeight="0"
                     Width="48" Height="48" Margin="0,4,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">

@@ -46,6 +46,7 @@
 
             <Button x:Name="BackButton" Grid.Column="0"
                     Background="Transparent"
+                    MinWidth="0" MinHeight="0"
                     Width="48" Height="48" Margin="0,4,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
@@ -388,6 +389,7 @@
                            Margin="8,0,0,0"/>
                 <Button x:Name="ClearImageButton" Grid.Column="2"
                         Background="Transparent"
+                        MinWidth="0" MinHeight="0"
                         Width="44" Height="44" BorderThickness="0" Padding="0"
                         Click="ClearImageButton_Click">
                     <Path Stroke="#FF808080" StrokeThickness="2.4"
@@ -424,6 +426,7 @@
 
                 <Button x:Name="AttachButton" Grid.Column="0"
                         Background="Transparent"
+                        MinWidth="0" MinHeight="0"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="AttachButton_Click">
@@ -472,6 +475,7 @@
                 <Button x:Name="SendButton" Grid.Column="2"
                         Background="{StaticResource WhatsAppAccentBrush}"
                         Foreground="White"
+                        MinWidth="0" MinHeight="0"
                         Width="48" Height="48"
                         Margin="0,4,8,4"
                         BorderThickness="0" Padding="0"
@@ -517,6 +521,7 @@
                           MediaFailed="VideoPlayer_MediaFailed"/>
             <Button x:Name="VideoCloseButton"
                     Background="Transparent"
+                    MinWidth="0" MinHeight="0"
                     Width="48" Height="48"
                     Margin="0,8,8,0"
                     HorizontalAlignment="Right" VerticalAlignment="Top"
