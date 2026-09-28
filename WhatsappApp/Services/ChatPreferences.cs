@@ -57,6 +57,9 @@ namespace WhatsappApp.Services
         private static readonly Dictionary<string, ChatPreference> Known =
             new Dictionary<string, ChatPreference>();
 
+        /// <summary>Le scritture del file, una alla volta e in ordine.</summary>
+        private static readonly SerialQueue Writes = new SerialQueue();
+
         private static bool _loaded;
 
         /// <summary>Vero quando il file e' stato letto. Solo per la diagnosi.</summary>
@@ -187,14 +190,36 @@ namespace WhatsappApp.Services
             Known.Remove(chatId);
         }
 
+        /// <summary>
+        /// Scatta adesso e scrive in coda. Lo scatto si fa sul thread di chi ha
+        /// cambiato la preferenza, dove l'elenco e' fermo: dentro la coda il
+        /// lavoro tocca solo una stringa, non Known.
+        ///
+        /// Scrivere subito e senza aspettare perdeva l'ultimo cambio: due
+        /// modifiche ravvicinate (Unpin all ne fa una per chat) lanciavano due
+        /// scritture sullo stesso file, e poteva finire sul disco quella piu'
+        /// vecchia. Ora la seconda aspetta la prima, e l'ultima scritta e'
+        /// l'ultima decisa.
+        /// </summary>
         private static void Save()
+        {
+            string json = Serialize();
+#pragma warning disable 4014
+            Writes.RunAsync(delegate { return WriteFileAsync(json); });
+#pragma warning restore 4014
+        }
+
+        /// <summary>L'elenco come sta adesso, in JSON. Va chiamato sul thread che ha cambiato la preferenza.</summary>
+        private static string Serialize()
         {
             var file = new ChatPreferenceFile { Chats = new List<ChatPreference>() };
             foreach (var entry in Known.Values) file.Chats.Add(entry);
 
-#pragma warning disable 4014
-            WriteAsync(file);
-#pragma warning restore 4014
+            using (var stream = new MemoryStream())
+            {
+                Serializer.WriteObject(stream, file);
+                return Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
+            }
         }
 
         /// <summary>
@@ -202,17 +227,10 @@ namespace WhatsappApp.Services
         /// da fare con l'esito - quindi cattura da sola: un deposito senza
         /// padrone non deve poter far cadere la pagina. Mai un'eccezione.
         /// </summary>
-        private static async Task WriteAsync(ChatPreferenceFile file)
+        private static async Task WriteFileAsync(string json)
         {
             try
             {
-                string json;
-                using (var stream = new MemoryStream())
-                {
-                    Serializer.WriteObject(stream, file);
-                    json = Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
-                }
-
                 StorageFile storage = await ApplicationData.Current.LocalFolder.CreateFileAsync(
                     FileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(storage, json);
