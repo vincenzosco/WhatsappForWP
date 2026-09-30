@@ -4,21 +4,20 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
-// Un utente del servizio: un token che l'app tiene, e il device GOWA che gli
-// appartiene. Il token non si salva mai: si salva il suo hash scrypt, perche'
-// un file di token in chiaro e' un file di chiavi, e una copia di quel file
-// (un backup, un volume mal montato) darebbe l'account a chi la legge.
+// A user of the service: a token the app holds, and the GOWA device that
+// belongs to it. The token is never stored: its scrypt hash is, because a file
+// of plain tokens is a file of keys, and a copy of that file (a backup, a badly
+// mounted volume) would hand the account to whoever reads it.
 //
-// scrypt e' lento di proposito: un token da 32 byte casuali non si indovina,
-// ma se il file finisse in mano a qualcuno il costo di provare a indovinarlo
-// deve restare alto. Il sale e' per utente, cosi' due token uguali non hanno lo
-// stesso hash.
+// scrypt is slow on purpose: a 32-byte random token cannot be guessed, but if
+// the file fell into someone's hands the cost of trying to guess it must stay
+// high. The salt is per user, so two identical tokens do not share a hash.
 
 function hashToken(token, salt, scryptSync) {
   return scryptSync(String(token), salt, 64).toString('hex');
 }
 
-/** Un token nuovo: 32 byte casuali, in una forma che si puo' copiare e incollare. */
+/** A new token: 32 random bytes, in a form that can be copied and pasted. */
 function newToken(randomBytes) {
   return randomBytes(32).toString('base64url');
 }
@@ -42,8 +41,8 @@ function createUserStore(options) {
       const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
       users = Array.isArray(raw.users) ? raw.users : [];
     } catch (err) {
-      // Un file che non c'e' e' un servizio nuovo: nessun utente. Un file che
-      // c'e' ma non si legge e' un'altra cosa, e non si nasconde.
+      // A file that is not there is a new service: no users. A file that is
+      // there but cannot be read is another matter, and is not hidden.
       if (err && err.code === 'ENOENT') {
         users = [];
       } else {
@@ -56,16 +55,16 @@ function createUserStore(options) {
   function save() {
     if (!file) return;
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    // Scrittura atomica: un file scritto a meta' perche' il processo e' caduto
-    // non deve poter sostituire un elenco valido.
+    // Atomic write: a file written halfway because the process fell over must
+    // not be able to replace a valid list.
     const tmp = file + '.tmp';
     fs.writeFileSync(tmp, JSON.stringify({ users }, null, 2));
     fs.renameSync(tmp, file);
   }
 
   /**
-   * Un utente nuovo, con il suo token. Il token in chiaro esce da qui una volta
-   * sola: non e' recuperabile dopo, perche' non e' salvato.
+   * A new user, with the token. The plain token leaves here exactly once: it
+   * is not recoverable afterwards, because it is not stored.
    */
   function register(name) {
     const token = newToken(randomBytes);
@@ -85,8 +84,8 @@ function createUserStore(options) {
   }
 
   /**
-   * Il token corrisponde a un utente? Il confronto e' a tempo costante, perche'
-   * un confronto che esce al primo byte diverso si puo' misurare.
+   * Does the token match a user? The comparison is constant-time, because a
+   * comparison that exits at the first differing byte can be measured.
    */
   function verify(token) {
     if (!token || !users.length) return null;

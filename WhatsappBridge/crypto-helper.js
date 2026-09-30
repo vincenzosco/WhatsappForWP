@@ -2,27 +2,27 @@
  * ============================================================================
  *  Encryption helper (AES-256-CBC + HMAC-SHA256, AES-256-GCM accepted)
  * ============================================================================
- *  Cifra e autentica il payload scambiato con l'app WP8 con una chiave
- *  condivisa derivata (HMAC-SHA256) da una passphrase.
+ *  Encrypts and authenticates the payload exchanged with the WP8 app with a
+ *  shared key derived (HMAC-SHA256) from a passphrase.
  *
- *  Formato del payload (dopo il prefisso di 4 byte con la lunghezza):
- *    [1 byte tag cifrario][corpo]
- *      tag 1 -> corpo = [12 byte IV][AES-256-GCM ciphertext || 16 byte tag]
- *      tag 2 -> corpo = [16 byte IV][AES-256-CBC ciphertext
- *                                    || 32 byte HMAC-SHA256(IV || ciphertext)]
+ *  Payload format (after the 4-byte length prefix):
+ *    [1-byte cipher tag][body]
+ *      tag 1 -> body = [12-byte IV][AES-256-GCM ciphertext || 16-byte tag]
+ *      tag 2 -> body = [16-byte IV][AES-256-CBC ciphertext
+ *                                   || 32-byte HMAC-SHA256(IV || ciphertext)]
  *
- *  Perche' due cifrari: AES-GCM e' il piu' comodo, ma su Windows Phone 8.1 a
- *  runtime risponde NotImplementedException (0x80004001) anche se il membro
- *  esiste nella proiezione WinRT. L'app scrive quindi sempre con il tag 2;
- *  l'adapter accetta entrambi i tag e risponde a ciascun client con il
- *  cifrario che quel client ha usato (vedi server.js). Finche' un client non
- *  ha scritto niente, l'adapter usa il tag 2, che tutti sanno leggere.
+ *  Why two ciphers: AES-GCM is the more convenient one, but on Windows Phone
+ *  8.1 it answers NotImplementedException (0x80004001) at run time even though
+ *  the member exists in the WinRT projection. The app therefore always writes
+ *  with tag 2; the adapter accepts both tags and answers each client with the
+ *  cipher that client used (see server.js). Until a client has written
+ *  anything, the adapter uses tag 2, which everyone can read.
  *
- *  Chiavi (devono combaciare con WhatsappApp/Services/CryptoHelper.cs):
+ *  Keys (they must match WhatsappApp/Services/CryptoHelper.cs):
  *    master = SHA-256(passphrase)
  *    encKey = HMAC-SHA256(master, "wp8-adapter enc")
  *    macKey = HMAC-SHA256(master, "wp8-adapter mac")
- *  La passphrase e' BRIDGE_KEY, altrimenti quella predefinita qui sotto.
+ *  The passphrase is BRIDGE_KEY, otherwise the default one below.
  *
  *  Set BRIDGE_ENCRYPTION=off to disable encryption (plaintext payloads,
  *  no cipher tag), matching the old unencrypted protocol.
@@ -33,11 +33,11 @@ const crypto = require('crypto');
 
 const DEFAULT_PASSPHRASE = 'WhatsAppCommunityWP8-2026';
 
-/** Tag del cifrario, primo byte del payload. */
+/** Cipher tag, the first byte of the payload. */
 const CIPHER_GCM = 1;
 const CIPHER_CBC_HMAC = 2;
 
-/** Cifrario usato verso un client che non ha ancora scritto niente. */
+/** Cipher used toward a client that has not written anything yet. */
 const DEFAULT_CIPHER_TAG = CIPHER_CBC_HMAC;
 
 const GCM_IV_LENGTH = 12;
@@ -66,7 +66,7 @@ function encryptCbc(plaintext) {
   return Buffer.concat([Buffer.from([CIPHER_CBC_HMAC]), iv, body, mac]);
 }
 
-/** Verifica la firma e solo dopo decifra (encrypt-then-MAC). */
+/** Verifies the signature and only then decrypts (encrypt-then-MAC). */
 function decryptCbc(payload) {
   if (payload.length < CBC_IV_LENGTH + 16 + MAC_LENGTH) {
     throw new Error('Invalid CBC payload (too short)');
@@ -109,8 +109,8 @@ function decryptGcm(payload) {
 }
 
 /**
- * Cifra una stringa JSON nel payload v3. Il tag dice al destinatario con quale
- * cifrario e' stato scritto; senza indicazione si usa quello che tutti leggono.
+ * Encrypts a JSON string into the v3 payload. The tag tells the receiver which
+ * cipher it was written with; without one, the cipher everyone can read is used.
  */
 function encryptPayload(jsonStr, tag) {
   if (!ENCRYPTION_ENABLED) {
@@ -124,8 +124,8 @@ function encryptPayload(jsonStr, tag) {
 }
 
 /**
- * Decifra un payload v3 leggendo il tag dal primo byte.
- * Lancia su payload troncato, firma non valida o tag sconosciuto.
+ * Decrypts a v3 payload by reading the tag from the first byte.
+ * Throws on a truncated payload, an invalid signature or an unknown tag.
  */
 function decodePayload(payload) {
   if (!ENCRYPTION_ENABLED) {
@@ -143,8 +143,8 @@ function decodePayload(payload) {
 }
 
 /**
- * Il tag cifrario di un payload, 0 se non e' cifrato o non si riconosce.
- * Serve al server per rispondere a ogni client con il cifrario del client.
+ * The cipher tag of a payload, 0 if it is not encrypted or not recognized.
+ * The server uses it to answer each client with that client's cipher.
  */
 function cipherTagOf(payload) {
   if (!ENCRYPTION_ENABLED) return 0;
@@ -153,7 +153,7 @@ function cipherTagOf(payload) {
   return tag === CIPHER_CBC_HMAC || tag === CIPHER_GCM ? tag : 0;
 }
 
-/** Un frame TCP completo: [4-byte UInt32LE lunghezza][payload]. */
+/** A complete TCP frame: [4-byte UInt32LE length][payload]. */
 function buildFrame(jsonStr, tag) {
   const payload = encryptPayload(jsonStr, tag);
   const lenBuf = Buffer.alloc(4);

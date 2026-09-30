@@ -4,8 +4,8 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-// Legge la configurazione dall'ambiente con valori di default sensati.
-// Non contiene segreti: quelli restano in .env / variabili d'ambiente.
+// Reads the configuration from the environment with sensible defaults.
+// It holds no secrets: those stay in .env / environment variables.
 
 const DEFAULTS = {
   GOWA_URL: 'http://127.0.0.1:3000',
@@ -62,9 +62,9 @@ function loadConfig(env = process.env) {
       secret: pick(env, 'WEBHOOK_SECRET')
     },
     auth: {
-      // Su un'istanza privata non serve, e resta spento: accenderlo senza
-      // consegnare un token al telefono vorrebbe dire chiudere fuori l'unico
-      // utente. Si accende sul servizio condiviso, dopo aver creato l'utente.
+      // On a private instance it is not needed, and stays off: turning it on
+      // without handing a token to the phone would shut out the only user. It is
+      // turned on for the shared service, after creating the user.
       required: pick(env, 'AUTH_REQUIRED').toLowerCase() === 'on',
       usersFile: pick(env, 'USERS_FILE')
     },
@@ -72,31 +72,31 @@ function loadConfig(env = process.env) {
     discovery: {
       enabled: pick(env, 'DISCOVERY_ENABLED').toLowerCase() !== 'off',
       port: parseInt(pick(env, 'DISCOVERY_PORT'), 10),
-      // Nome che l'app mostra nella lista dei server trovati.
+      // Name the app shows in the list of found servers.
       name: pick(env, 'DISCOVERY_NAME') || os.hostname()
     },
     calls: {
-      // Quante chat scansionare e quanti messaggi per chat: la scansione fa
-      // una richiesta HTTP per chat, quindi il limite e' la durata.
+      // How many chats to scan and how many messages per chat: the scan makes
+      // one HTTP request per chat, so the limit is the duration.
       chatLimit: parseInt(pick(env, 'CALLS_CHAT_LIMIT'), 10),
       messagesPerChat: parseInt(pick(env, 'CALLS_MESSAGES_PER_CHAT'), 10),
       limit: parseInt(pick(env, 'CALLS_LIMIT'), 10)
     },
     chats: {
-      // Quante conversazioni elencare. Gli avatar costano una richiesta HTTP
-      // per chat (gruppi compresi), e si possono spegnere.
+      // How many conversations to list. The avatars cost one HTTP request per
+      // chat (groups included), and can be turned off.
       limit: parseInt(pick(env, 'CHATS_LIMIT'), 10),
       avatars: pick(env, 'CHATS_AVATARS').toLowerCase() !== 'off'
     },
     messages: {
-      // Quanti messaggi caricare aprendo una chat. Una sola lettura, ma la
-      // risposta e' un frame per messaggio: il limite e' quanti frame passano,
-      // non quanto dura la lettura.
+      // How many messages to load when opening a chat. A single read, but the
+      // answer is one frame per message: the limit is how many frames pass, not
+      // how long the read takes.
       limit: parseInt(pick(env, 'MESSAGES_LIMIT'), 10)
     },
     ffmpeg: {
-      // La conversione e' opzionale: senza ffmpeg l'app riceve l'audio
-      // originale e non lo sa leggere, quindi il vocale resta muto.
+      // The conversion is optional: without ffmpeg the app receives the
+      // original audio and cannot read it, so the voice note stays silent.
       enabled: pick(env, 'FFMPEG_ENABLED').toLowerCase() !== 'off',
       path: pick(env, 'FFMPEG_PATH') || 'ffmpeg'
     }
@@ -104,11 +104,11 @@ function loadConfig(env = process.env) {
 }
 
 /**
- * Carica un file .env (formato CHIAVE=valore, # per i commenti) dentro `env`.
- * Le variabili gia' presenti nell'ambiente hanno la precedenza, cosi' che le
- * variabili passate a mano o dallo script di avvio non vengano scavalcate.
- * Senza questo, il `cp .env.example .env` documentato nel README non avrebbe
- * alcun effetto: il processo leggeva solo l'ambiente.
+ * Loads a .env file (KEY=value format, # for comments) into `env`.
+ * Variables already present in the environment win, so the ones passed by hand
+ * or by the start script are not overridden. Without this, the
+ * `cp .env.example .env` documented in the README would have no effect at all:
+ * the process read only the environment.
  */
 function applyDotEnv(env = process.env, dir = __dirname) {
   let content;

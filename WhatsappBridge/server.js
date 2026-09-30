@@ -2,31 +2,31 @@
  * ============================================================================
  *  WhatsApp Community Adapter v2.0
  * ============================================================================
- *  Sostituisce il vecchio bridge whatsapp-web.js.
+ *  Replaces the old whatsapp-web.js bridge.
  *
- *  Fa da ponte tra l'app Windows Phone 8.1 e un server GOWA self-hosted
+ *  It sits between the Windows Phone 8.1 app and a self-hosted GOWA server
  *  (github.com/vincenzosco/go-whatsapp-web-multidevice):
  *
- *   - TCP cifrato (AES-256-CBC + HMAC-SHA256) verso l'app WP8, protocollo
- *     invariato salvo il tag cifrario in testa al payload: l'app WP8.1 non
- *     implementa AES-GCM. L'adapter accetta anche i frame GCM e risponde a
- *     ciascun client con il cifrario del client.
- *   - HTTP verso l'API REST di GOWA (login QR / login con numero, stato,
- *     invio testo e immagini, contatti).
- *   - Server HTTP webhook che riceve da GOWA i messaggi in arrivo e li
- *     inoltra all'app WP8.
+ *   - Encrypted TCP (AES-256-CBC + HMAC-SHA256) to the WP8 app, protocol
+ *     unchanged except for the cipher tag at the head of the payload: the WP8.1
+ *     app does not implement AES-GCM. The adapter also accepts GCM frames and
+ *     answers each client with the cipher of that client.
+ *   - HTTP to the GOWA REST API (QR login / phone login, status, text and image
+ *     sending, contacts).
+ *   - The webhook HTTP server that receives incoming messages from GOWA and
+ *     forwards them to the WP8 app.
  *
- *  Sul servizio condiviso una sola istanza tiene piu' account: ogni utente ha
- *  il suo device GOWA (una `X-Device-Id`), e tutto lo stato di un account
- *  (chat, non letti, login, cache) vive in una sessione separata. Un webhook
- *  porta il `device_id` che l'ha generato, quindi un messaggio di un device
- *  non puo' arrivare ai socket di un altro.
+ *  On the shared service one instance holds several accounts: every user has
+ *  a GOWA device of their own (an `X-Device-Id`), and all the state of an
+ *  account (chats, unread, login, caches) lives in a separate session. A
+ *  webhook carries the `device_id` that produced it, so a message for one
+ *  device cannot reach the sockets of another.
  *
- *  Protocollo di controllo (frame Type = 3, ChatId = "system"):
+ *  Control protocol (frame Type = 3, ChatId = "system"):
  *    app -> adapter : hello | status | login.qr | login.code | contacts | logout
  *    adapter -> app : state | qr | paircode | contact | error
  *
- *  Avvio:  npm install && npm start
+ *  Start:  npm install && npm start
  * ============================================================================
  */
 
@@ -50,18 +50,18 @@ const { createUserStore } = require('./users');
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
 /**
- * Oltre questa lunghezza il prefisso di 4 byte non e' un payload, e' un
- * guasto (client disallineato o ostile). Deve restare uguale a
- * CommunicationService.MaxFrameLength nell'app WP8.1: le due parti parlano
- * dello stesso frame, quindi ne hanno lo stesso tetto.
+ * Past this length the 4-byte prefix is not a payload, it is a fault (a
+ * misaligned or hostile client). It must stay equal to
+ * CommunicationService.MaxFrameLength in the WP8.1 app: the two sides speak
+ * of the same frame, so they share the same ceiling.
  */
 const MAX_FRAME_LENGTH = 8 * 1024 * 1024;
 
 /**
- * Quanti caratteri base64 per frame verso l'app. Lo stesso numero che usa
- * ChatPage per spedire (media.begin/chunk/end): un video non sta in un frame
- * solo, e il base64 aggiunge un terzo. E' un multiplo di 4, cosi' ogni pezzo
- * e' base64 valido da solo e l'app puo' decodificarlo senza aspettare il resto.
+ * How many base64 characters per frame to the app. The same number ChatPage
+ * uses to send (media.begin/chunk/end): a video does not fit in a single frame,
+ * and base64 adds a third. It is a multiple of 4, so every piece is valid
+ * base64 on its own and the app can decode it without waiting for the rest.
  */
 const MEDIA_CHUNK_CHARS = 700000;
 
@@ -73,9 +73,9 @@ function makeLogger(enabled) {
   };
 }
 
-// I nomi dei gruppi in una richiesta. Un nome che manca costa un nome, non
-// l'elenco: se GOWA non risponde si torna una mappa vuota e le righe dei gruppi
-// restano con quello che l'elenco delle conversazioni diceva.
+// The group names in one request. A missing name costs a name, not the whole
+// list: if GOWA does not answer, an empty map comes back and the group rows keep
+// whatever the conversation list said.
 async function groupNamesOrEmpty(client, logger) {
   try {
     return await client.myGroups();
@@ -92,17 +92,17 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   const authRequired = !!(config && config.auth && config.auth.required);
   const webhookPublicUrl = (config && config.webhook && config.webhook.publicUrl) || '';
 
-  // La conversione dei vocali: un ffmpeg trovato all'avvio, oppure quello che
-  // i test iniettano. `enabled` viene dalla configurazione.
+  // Voice-note conversion: an ffmpeg found at startup, or the one the tests
+  // inject. `enabled` comes from the configuration.
   const mediaTools = transcoder || createTranscoder({
     enabled: !config || !config.ffmpeg || config.ffmpeg.enabled !== false,
     path: config && config.ffmpeg ? config.ffmpeg.path : undefined,
     log: logger
   });
 
-  // Una sessione e' un account WhatsApp con il suo device GOWA. La chiave ''
-  // e' quella anonima: l'istanza privata (o un client che non ha ancora fatto
-  // l'handshake) e, nei test, l'unico account che esiste.
+  // A session is one WhatsApp account with its GOWA device. The key '' is the
+  // anonymous one: the private instance (or a client that has not handshaked
+  // yet) and, in the tests, the only account that exists.
   const sessions = new Map();
 
   function newSession(key) {
@@ -138,13 +138,13 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   }
 
   /**
-   * La sessione di un utente autenticato, creandone il device GOWA alla prima
-   * connessione. L'etichetta e' il nome dell'utente: e' quello che si vede
-   * nell'interfaccia di GOWA, e senza un nome i device diventano anonimi.
+   * The session of an authenticated user, creating the GOWA device on the first
+   * connection. The label is the user name: it is what shows in the GOWA
+   * interface, and without a name the devices turn anonymous.
    *
-   * Se il client GOWA non sa creare device (nei test, o su un server vecchio)
-   * si prosegue con il client di base: la sessione e' comunque separata per
-   * stato e per socket, che e' quello che tiene le due conversazioni distinte.
+   * If the GOWA client cannot create devices (in the tests, or on an old
+   * server), the base client is used: the session is still separate by state
+   * and by socket, which is what keeps the two conversations apart.
    */
   async function sessionForUser(user) {
     if (!user) return anonymous;
@@ -178,8 +178,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     sessions.set(session.key, session);
     if (deviceId) sessions.set(deviceId, session);
 
-    // Il webhook va registrato sul device nuovo, altrimenti i messaggi di
-    // questo utente non arrivano da nessuna parte.
+    // The webhook must be registered on the new device, or this user's
+    // messages arrive nowhere.
     if (deviceId && client && typeof client.setDeviceWebhook === 'function' && webhookPublicUrl) {
       try { await client.setDeviceWebhook(webhookPublicUrl); }
       catch (err) { logger('WARN', `webhook registration failed for device ${deviceId}: ${err.message}`); }
@@ -188,17 +188,17 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     return session;
   }
 
-  // Quanti messaggi di ogni chat non sono ancora stati letti. Vive qui e non in
-  // GOWA: il suo elenco chat non ha questo campo, e un messaggio che arriva col
-  // telefono spento non lo vede nessun altro. Si azzera con il comando `read`.
+  // How many messages of every chat are still unread. It lives here and not in
+  // GOWA: its chat list has no such field, and a message that arrives with the
+  // phone off is seen by nobody else. It is cleared by the `read` command.
 
-  // WhatsApp rifiuta oltre 64 MB (senza compressione): oltre quel numero i byte
-  // in memoria non servono a nessuno, quindi si fermano prima.
+  // WhatsApp refuses past 64 MB (uncompressed): past that number the bytes in
+  // memory are of use to no one, so they stop earlier.
   const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
-  // Quante spedizioni possono essere aperte insieme. L'app ne apre una alla
-  // volta; il numero serve a non tenere in memoria i pezzi di un client che
-  // apre una spedizione e non la chiude mai (non c'e' nessun media.end che
-  // ripulisca, e ogni pezzo resta li').
+  // How many transfers may be open at once. The app opens one at a time; the
+  // number keeps the pieces of a client that opens a transfer and never closes
+  // it out of memory (there is no media.end that cleans it up, and every piece
+  // stays there).
   const MAX_LIVE_TRANSFERS = 4;
 
   async function sendChats(session) {
@@ -246,11 +246,11 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   }
 
   /**
-   * Lo storico di una chat, come frame di messaggio.
+   * The history of one chat, as message frames.
    *
-   * Non e' un frame per chat come `chats`: e' un frame per messaggio, quindi il
-   * limite e' quanti frame passano. Ogni frame porta `IsHistory`, perche' l'app
-   * deve disegnarlo ma non contarlo fra i non letti.
+   * It is not one frame per chat like `chats`: it is one frame per message, so
+   * the limit is how many frames pass. Every frame carries `IsHistory`, because
+   * the app must draw it but not count it as unread.
    */
   async function sendMessages(session, chatId) {
     if (!chatId) return;
@@ -267,9 +267,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
       for (const raw of list) {
         const mapped = mapHistoryMessage(raw);
-        // Senza l'id di WhatsApp l'app non puo' riconoscere un doppione, e
-        // riaprendo la chat si accumulerebbero copie: meglio un messaggio in
-        // meno di una lista che si allunga da sola.
+        // Without the WhatsApp id the app cannot recognize a duplicate, and
+        // reopening the chat would pile up copies: better one message less than
+        // a list that grows on its own.
         if (!mapped.id) continue;
         if (!mapped.chatId) mapped.chatId = chatId;
 
@@ -285,12 +285,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   }
 
   /**
-   * I byte di un media che l'app ha gia' (una riga di cronologia arrivata come
-   * parola), a pezzi. Un video non sta in un frame solo: il tetto e' 8 MiB e il
-   * base64 aggiunge un terzo. Ogni frame e' un `media` con lo stesso
-   * RelatedMessageId, il pezzo e quanti sono in tutto; l'app li ricompone. Sono
-   * frame di controllo e non messaggi, perche' completano un messaggio che
-   * esiste gia' e un messaggio in piu' alzerebbe i non letti.
+   * The bytes of a media the app already has (a history row that arrived as a
+   * word), in pieces. A video does not fit in one frame: the ceiling is 8 MiB
+   * and base64 adds a third. Every frame is a `media` with the same
+   * RelatedMessageId, the piece and how many there are in all; the app reassembles
+   * them. These are control frames and not messages, because they complete a
+   * message that already exists and one more message would raise the unread count.
    */
   function sendMediaChunks(session, chatId, messageId, mediaType, mimeType, fileName, base64) {
     const total = Math.max(1, Math.ceil(base64.length / MEDIA_CHUNK_CHARS));
@@ -310,9 +310,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   }
 
   /**
-   * I byte da mandare all'app per un media ricevuto. Un audio che WP8.1 non
-   * legge (Ogg/Opus) diventa MP3; tutto il resto passa invariato, e cosi' fa
-   * anche un vocale quando ffmpeg non c'e' o la conversione fallisce.
+   * The bytes to send to the app for a received media. An audio WP8.1 cannot
+   * read (Ogg/Opus) becomes MP3; everything else passes unchanged, and a voice
+   * note does the same when ffmpeg is absent or the conversion fails.
    */
   async function playableMedia(buffer, mediaType, mimeType, fileName) {
     if (mediaType !== 'audio') return { buffer, mimeType, fileName };
@@ -332,8 +332,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     try {
       const media = await session.gowa.downloadMedia(chatId, messageId);
       if (!media) {
-        // Il file non c'e' piu': si dice, invece di lasciare la bolla in attesa
-        // per sempre (vedi il test del comando).
+        // The file is gone: say so, instead of leaving the bubble waiting
+        // forever (see the command test).
         sendControl(session, {
           command: 'error',
           chatId,
@@ -403,11 +403,11 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  // ─── Invio verso l'app WP8 ────────────────────────────────────────────────
+  // ─── Sending to the WP8 app ───────────────────────────────────────────────
   //
-  // Ogni socket ricorda con quale cifrario il client ha scritto (wp8Cipher) e
-  // riceve le risposte con lo stesso: un telefono WP8.1 non sa fare AES-GCM e
-  // deve poter leggere tutto, un client capace di GCM non deve degradare.
+  // Every socket remembers which cipher the client wrote with (wp8Cipher) and
+  // receives replies with the same: a WP8.1 phone cannot do AES-GCM and must be
+  // able to read everything, a client capable of GCM must not degrade.
 
   function frameFor(socket, jsonObject) {
     const tag = socket.wp8Cipher || cryptoHelper.DEFAULT_CIPHER_TAG;
@@ -421,8 +421,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   function sendToClients(session, msg) {
     if (!session || session.sockets.size === 0) return;
     const json = JSON.stringify(msg);
-    // Un frame per cifrario distinto, non uno per socket: i client CBC (in
-    // pratica tutti) condividono lo stesso buffer.
+    // One frame per distinct cipher, not one per socket: the CBC clients (in
+    // practice all of them) share the same buffer.
     const packets = {};
     const dead = [];
     for (const socket of session.sockets) {
@@ -447,7 +447,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     sendToClients(session, buildChatMessage(Object.assign({ chatId: 'system', isIncoming: true }, fields)));
   }
 
-  // ─── Stato e login ────────────────────────────────────────────────────────
+  // ─── State and login ──────────────────────────────────────────────────────
 
   async function refreshSession(session) {
     try {
@@ -475,7 +475,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  // Lo stato dell'istanza privata: il ciclo di polling di main() guarda questo.
+  // The state of the private instance: the polling loop of main() watches this.
   const refreshStatus = () => refreshSession(anonymous);
 
   async function requestQr(session) {
@@ -491,7 +491,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       const base64 = image.buffer.toString('base64');
       session.qrCache = { base64, duration, expiresAt: now + duration * 1000 };
       session.state = { status: 'waiting', jid: '' };
-      // L'immagine va inviata prima dello stato, così l'app la mostra subito.
+      // The picture is sent before the state, so the app shows it right away.
       sendControl(session, { command: 'qr', qrImageData: base64, qrDuration: duration });
       broadcastState(session);
       logger('QR', 'new QR code sent to the app');
@@ -532,13 +532,13 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  /// Il numero leggibile di un JID (es. +393401234567). Vuoto per un gruppo.
+  /// The readable number of a JID (e.g. +393401234567). Empty for a group.
   function numberForJid(jid) {
     const user = String(jid || '').split('@')[0].split(':')[0];
     return /^\d+$/.test(user) ? '+' + user : '';
   }
 
-  /// Il profilo aziendale nella forma che l'app si aspetta, o null.
+  /// The business profile in the shape the app expects, or null.
   function businessFrom(profile) {
     if (!profile) return null;
     return {
@@ -557,8 +557,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     };
   }
 
-  /// Un membro di un gruppo come lo mostra l'app: un nome c'e' sempre, anche
-  /// quando WhatsApp ne manda uno solo per un numero.
+  /// A group member as the app shows it: there is always a name, even when
+  /// WhatsApp sends only one for a number.
   function groupMember(p) {
     return {
       Jid: p.jid || '',
@@ -570,16 +570,16 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   }
 
   /**
-   * Le informazioni di un profilo, in un solo frame di controllo.
+   * The information of one profile, in a single control frame.
    *
-   * Tre richieste a monte (il profilo e, se e' un business, il profilo
-   * aziendale; per un gruppo i membri e la descrizione) e una sola risposta:
-   * l'app chiede una cosa e aspetta una cosa. L'immagine la porta `avatar`, che
-   * ha gia' la sua cache, cosi' la pagina grande la ha anche per una chat il cui
-   * elenco non l'aveva.
+   * Three upstream requests (the profile and, for a business, the business
+   * profile; for a group, the members and the description) and one answer only:
+   * the app asks one thing and waits for one thing. The picture is carried by
+   * `avatar`, which already has its cache, so the large page has it even for a
+   * chat whose list did not.
    *
-   * Qualunque guasto diventa un profilo vuoto: la pagina deve smettere di
-   * aspettare, non restare in caricamento per sempre.
+   * Any failure becomes an empty profile: the page must stop waiting, not stay
+   * loading forever.
    */
   async function sendContactInfo(session, jid) {
     if (!jid) return;
@@ -617,12 +617,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     sendControl(session, { command: 'contact.info', chatId: jid, text: JSON.stringify(info) });
   }
 
-  // ─── Messaggi dall'app verso WhatsApp ─────────────────────────────────────
+  // ─── Messages from the app to WhatsApp ────────────────────────────────────
 
-  /// La strada giusta per un allegato, dal tipo MIME (o dall'estensione quando
-  /// il tipo non c'e'): image, video, audio, altrimenti document. Il tipo che
-  /// ne esce viaggia anche verso l'app, che da esso decide come disegnare la
-  /// bolla (vedi ChatMessage.IsAudio / IsDocument).
+  /// The right path for an attachment, from the MIME type (or the extension
+  /// when the type is missing): image, video, audio, otherwise document. The
+  /// type that comes out also travels to the app, which uses it to decide how
+  /// to draw the bubble (see ChatMessage.IsAudio / IsDocument).
   function mediaKindOf(mimeType, fileName) {
     const mime = String(mimeType || '').toLowerCase();
     const name = String(fileName || '').toLowerCase();
@@ -642,17 +642,17 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   function mediaBegin(session, msg) {
     if (!msg.MediaTransferId) return;
 
-    // Il totale dichiarato e' quello che rende verificabile la fine: senza,
-    // un allegato a cui manca un pezzo e' indistinguibile da uno intero.
+    // The declared total is what makes the end verifiable: without it, an
+    // attachment missing a piece is indistinguishable from a whole one.
     const declared = Number(msg.MediaChunkTotal);
     const chunkTotal = Number.isInteger(declared) && declared > 0 ? declared : null;
 
-    // Lo stesso id due volte: il secondo comando riparte da zero invece di
-    // sommarsi al primo.
+    // The same id twice: the second command starts from scratch instead of
+    // adding to the first.
     session.mediaTransfers.delete(msg.MediaTransferId);
 
-    // Una spedizione mai chiusa non si accumula all'infinito: la piu' vecchia
-    // paga per la nuova.
+    // A transfer never closed does not pile up forever: the oldest pays for
+    // the new one.
     if (session.mediaTransfers.size >= MAX_LIVE_TRANSFERS) {
       const oldest = session.mediaTransfers.keys().next();
       if (!oldest.done) {
@@ -679,20 +679,20 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     const index = Number(msg.MediaChunkIndex);
     if (!Number.isInteger(index) || index < 0) return;
 
-    // Fuori dall'intervallo dichiarato non e' un pezzo di questo file: usarlo
-    // come indice di un array voleva dire un array con due miliardi di buchi,
-    // che filter percorre tutti.
+    // Outside the declared range it is not a piece of this file: using it as
+    // an array index meant an array with two billion holes, which filter walks
+    // through all of.
     if (transfer.chunkTotal !== null && index >= transfer.chunkTotal) {
       logger('WARN', `attachment piece ${index} is outside 0..${transfer.chunkTotal - 1}, ignored`);
       return;
     }
 
-    // Ogni pezzo e' un multiplo di 4 caratteri base64: decodificarlo da solo e
-    // concatenare i byte da' esattamente il file intero.
+    // Every piece is a multiple of 4 base64 characters: decoding it alone and
+    // concatenating the bytes gives exactly the whole file.
     const part = Buffer.from(msg.MediaData || '', 'base64');
 
-    // Il tetto si controlla mentre i byte arrivano, non dopo averli tenuti
-    // tutti in memoria.
+    // The ceiling is checked while the bytes arrive, not after holding them
+    // all in memory.
     if (transfer.bytes + part.length > MAX_MEDIA_BYTES) {
       session.mediaTransfers.delete(msg.MediaTransferId);
       logger('WARN', `attachment over ${MAX_MEDIA_BYTES} bytes, refused while arriving`);
@@ -717,8 +717,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     const parts = transfer.parts.filter((part) => part);
     if (parts.length === 0) return;
 
-    // Un pezzo mancante e' un guasto, non un file piu' corto: mandare meta'
-    // video senza dirlo e' peggio che non mandarlo.
+    // A missing piece is a fault, not a shorter file: sending half a video
+    // without saying so is worse than not sending it.
     if (transfer.chunkTotal !== null && parts.length !== transfer.chunkTotal) {
       logger('WARN', `attachment incomplete: ${parts.length} of ${transfer.chunkTotal} pieces`);
       sendControl(session, {
@@ -739,7 +739,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
 
     if (session.state.status !== 'connected') {
-      // Come un messaggio di testo: si tiene da parte e parte alla connessione.
+      // Like a text message: held aside and sent at connection time.
       session.pendingOutgoing.push({
         ChatId: transfer.chatId,
         Text: msg.Text || '',
@@ -763,8 +763,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   async function sendOutgoing(session, msg) {
     try {
       if (msg.MediaData) {
-        // Una versione vecchia dell'app manda l'allegato dentro il messaggio:
-        // si accetta ancora, ma sulla strada giusta.
+        // An old version of the app sends the attachment inside the message:
+        // still accepted, but on the right path.
         await sendMediaToGowa(session, msg.ChatId, msg.Text, Buffer.from(msg.MediaData, 'base64'),
           msg.MediaMimeType, msg.MediaFileName);
       } else if (msg.Text && msg.Text.trim()) {
@@ -800,14 +800,14 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     await sendOutgoing(session, msg);
   }
 
-  // ─── Messaggi da WhatsApp verso l'app ─────────────────────────────────────
+  // ─── Messages from WhatsApp to the app ────────────────────────────────────
 
   /**
-   * La sessione che ha generato un evento. GOWA mette il `device_id` in cima a
-   * ogni webhook (docs/webhook-payload.md): e' quello che tiene separati gli
-   * account. Senza, su un'istanza privata si ricade sull'unica sessione; sul
-   * servizio condiviso non si indovina e l'evento si scarta, perche' mandarlo a
-   * tutti sarebbe peggio che non mandarlo.
+   * The session that produced an event. GOWA puts `device_id` at the top of
+   * every webhook (docs/webhook-payload.md): that is what keeps the accounts
+   * apart. Without it, on a private instance it falls back to the only session;
+   * on the shared service it is not guessed and the event is dropped, because
+   * sending it to everyone would be worse than not sending it.
    */
   function sessionForEvent(event) {
     const deviceId = event && (event.device_id || event.deviceId);
@@ -843,14 +843,14 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       return;
     }
 
-    // message.reaction e i tipi futuri restano ignorati: nell'app non c'e'
-    // dove mostrarli.
+    // message.reaction and future types stay ignored: the app has nowhere to
+    // show them.
     if (event.event !== 'message') return;
     const fields = mapWebhookMessage(event.payload || {});
     if (!fields) return;
 
-    // Un messaggio che non e' mio e' arrivato adesso: la sua chat ha una cosa
-    // in piu' da leggere, anche se l'app non e' collegata in questo momento.
+    // A message that is not mine has arrived now: its chat has one more thing
+    // to read, even if the app is not connected at this moment.
     session.unreadByChat.set(fields.chatId, (session.unreadByChat.get(fields.chatId) || 0) + 1);
 
     let mediaBuffer = null;
@@ -865,8 +865,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       }
     }
 
-    // Un vocale arriva Ogg/Opus e il telefono non lo legge: si converte prima
-    // di spezzarlo verso l'app.
+    // A voice note arrives Ogg/Opus and the phone cannot read it: it is
+    // converted before being split toward the app.
     if (mediaBuffer && fields.mediaType === 'audio') {
       const playable = await playableMedia(mediaBuffer, 'audio', mediaMimeType, fields.mediaFileName);
       mediaBuffer = playable.buffer;
@@ -874,9 +874,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       fields.mediaFileName = playable.fileName;
     }
 
-    // Un media grande si manda a pezzi, dopo il messaggio e legato al suo id
-    // (sendMediaChunks). Solo un media senza id - che l'app non potrebbe
-    // nemmeno chiedere - viaggia dentro il messaggio, come prima.
+    // A large media is sent in pieces, after the message and tied to its id
+    // (sendMediaChunks). Only a media without an id - which the app could not
+    // even ask for - travels inside the message, as before.
     const inlineMedia = mediaBuffer && !fields.id;
 
     logger('MSG', `from ${fields.senderName}: ${(fields.text || '[media]').substring(0, 60)}`);
@@ -902,7 +902,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  // ─── Protocollo di controllo ──────────────────────────────────────────────
+  // ─── Control protocol ─────────────────────────────────────────────────────
 
   function refuseUnauthorized(socket) {
     const refusal = buildChatMessage({ command: 'unauthorized', chatId: 'system', isIncoming: true });
@@ -914,7 +914,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  /// Sposta un socket da una sessione all'altra (handshake riuscito).
+  /// Moves a socket from one session to another (successful handshake).
   function moveSocket(socket, from, to) {
     if (!socket) return;
     if (from && from !== to) from.sockets.delete(socket);
@@ -932,8 +932,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
           break;
         }
         if (socket) socket.user = verdict.user || null;
-        // Con il token valido il socket passa alla sessione dell'utente; senza
-        // auth resta (o torna) a quella anonima dell'istanza privata.
+        // With a valid token the socket moves to the user's session; without
+        // auth it stays (or returns) to the anonymous one of the private
+        // instance.
         const session = verdict.user ? await sessionForUser(verdict.user) : anonymous;
         if (socket) moveSocket(socket, anonymous, session);
         logger('NET', `handshake from "${msg.SenderName || 'unknown'}"`);
@@ -941,8 +942,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         break;
       }
       default: {
-        // Un comando prima dell'handshake, su un servizio che lo chiede, non ha
-        // una sessione a cui appartenere: si rifiuta invece di indovinare.
+        // A command before the handshake, on a service that asks for one, has
+        // no session to belong to: it is refused instead of guessed.
         if (authRequired && (!socket || !socket.user)) {
           logger('WARN', `command ${msg.Command} before authentication, refused`);
           refuseUnauthorized(socket);
@@ -975,19 +976,19 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         await sendChats(session);
         break;
       case 'messages':
-        // Il JID viaggia in `Text`, come per `login.code`: e' il campo che il
-        // protocollo di controllo usa per il dato di accompagnamento, e cosi'
-        // non serve un secondo tipo di frame in uscita.
+        // The JID travels in `Text`, as for `login.code`: that is the field the
+        // control protocol uses for the accompanying datum, so a second kind of
+        // outgoing frame is not needed.
         await sendMessages(session, (msg.Text || '').trim());
         break;
       case 'contact.info':
-        // Il JID viaggia in `Text`, come per `messages`: e' il campo che il
-        // protocollo di controllo usa per il dato di accompagnamento.
+        // The JID travels in `Text`, as for `messages`: that is the field the
+        // control protocol uses for the accompanying datum.
         await sendContactInfo(session, (msg.Text || '').trim());
         break;
       case 'read':
-        // L'app ha mostrato quella conversazione: da adesso non ha piu' niente
-        // da leggere. La chat non deve esistere per forza nell'elenco.
+        // The app has shown that conversation: from now on it has nothing left
+        // to read. The chat does not have to exist in the list.
         session.unreadByChat.delete((msg.Text || '').trim());
         break;
       case 'media.begin':
@@ -1000,8 +1001,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         await mediaEnd(session, msg);
         break;
       case 'media.get':
-        // Il JID della chat in Text (come `messages`), l'id del messaggio in
-        // RelatedMessageId: e' il campo che dice a cosa si riferisce un frame.
+        // The chat JID in Text (as for `messages`), the message id in
+        // RelatedMessageId: that is the field that says what a frame refers to.
         await sendMedia(session, (msg.Text || '').trim(), msg.RelatedMessageId);
         break;
       case 'logout':
@@ -1015,7 +1016,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  // ─── Server TCP ───────────────────────────────────────────────────────────
+  // ─── TCP server ───────────────────────────────────────────────────────────
 
   const tcpServer = net.createServer((socket) => {
     const remote = `${socket.remoteAddress}:${socket.remotePort}`;
@@ -1023,13 +1024,13 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     socket.session = anonymous;
     anonymous.sockets.add(socket);
 
-    // Finche' il client non scrive non sappiamo cosa sa leggere: si parte dal
-    // cifrario che tutti leggono.
+    // Until the client writes we do not know what it can read: we start from
+    // the cipher everyone can read.
     socket.wp8Cipher = cryptoHelper.DEFAULT_CIPHER_TAG;
 
-    // Sull'istanza privata lo stato arriva subito. Su quella condivisa no: prima
-    // dell'handshake non si sa di chi sia il socket, e lo stato dell'istanza
-    // non e' il suo.
+    // On the private instance the state arrives at once. On the shared one it
+    // does not: before the handshake we do not know whose socket it is, and the
+    // instance state is not its own.
     if (!authRequired) {
       sendToClient(socket, buildChatMessage({
         command: 'state',
@@ -1046,10 +1047,10 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       while (buffer.length >= 4) {
         const msgLen = buffer.readUInt32LE(0);
 
-        // Un client disallineato annuncia una lunghezza enorme: senza un tetto
-        // il server resterebbe in attesa di gigabyte e il buffer crescerebbe
-        // finche' il processo non cade. Zero e' l'altro caso degenere: un frame
-        // vuoto farebbe girare il ciclo senza consumare niente.
+        // A misaligned client announces a huge length: without a ceiling the
+        // server would wait for gigabytes and the buffer would grow until the
+        // process falls over. Zero is the other degenerate case: an empty frame
+        // would spin the loop without consuming anything.
         if (msgLen === 0 || msgLen > MAX_FRAME_LENGTH) {
           logger('ERR', `unacceptable frame from ${remote} (length ${msgLen}): closing the connection`);
           socket.destroy();
@@ -1060,8 +1061,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         const payload = buffer.slice(4, 4 + msgLen);
         buffer = buffer.slice(4 + msgLen);
         try {
-          // Il tag del frame appena arrivato dice con che cifrario e' stato
-          // scritto: da qui in poi gli si risponde con lo stesso.
+          // The tag of the frame just received says which cipher it was
+          // written with: from here on it is answered with the same one.
           const tag = cryptoHelper.cipherTagOf(payload);
           if (tag) socket.wp8Cipher = tag;
 
@@ -1086,9 +1087,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     probeFfmpeg: () => mediaTools.probe(),
     handleControl,
     syncContacts: () => syncContacts(anonymous),
-    // Usato solo dai test: forza lo stato "connected" senza passare da GOWA.
+    // Used only by the tests: forces the "connected" state without going through GOWA.
     setConnectedForTest() { anonymous.state = { status: 'connected', jid: '39@s.whatsapp.net' }; },
-    // Usato solo dai test: aggiunge un client finto alla lista dei destinatari.
+    // Used only by the tests: adds a fake client to the recipient list.
     addClientForTest(socket) {
       socket.session = anonymous;
       anonymous.sockets.add(socket);
@@ -1101,7 +1102,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   };
 }
 
-// ─── Avvio ──────────────────────────────────────────────────────────────────
+// ─── Startup ────────────────────────────────────────────────────────────────
 
 async function main() {
   const debug = process.argv.includes('--debug');
@@ -1123,8 +1124,8 @@ async function main() {
     pass: config.gowa.pass
   });
 
-  // Gli utenti del servizio, se e' condiviso. Senza file configurato la
-  // memoria basta e non serve nessun disco: e' il caso dell'istanza privata.
+  // The users of the service, if it is shared. With no file configured, memory
+  // is enough and no disk is needed: that is the private-instance case.
   const users = createUserStore({
     file: config.auth.usersFile || undefined
   });
@@ -1171,8 +1172,8 @@ async function main() {
     log('OK', `webhook listening on port ${config.webhook.port}${config.webhook.path}`);
   });
 
-  // Il corpo del beacon si costruisce con l'unico builder del modulo di
-  // discovery: sei chiavi, le stesse che l'app legge in BeaconPayload.cs.
+  // The beacon body is built with the single builder of the discovery module:
+  // six keys, the same ones the app reads in BeaconPayload.cs.
   let beacon = null;
   if (config.discovery.enabled) {
     beacon = createDiscoveryBeacon({

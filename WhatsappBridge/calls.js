@@ -1,24 +1,23 @@
 'use strict';
 
 /**
- * Registro delle chiamate ricavato dalla history di GOWA.
+ * Call records drawn from the GOWA history.
  *
- * GOWA non manda le chiamate nei webhook (gli eventi sono solo message,
- * message.reaction, message.revoked, message.edited) e non ha una rotta per
- * elencarle: le registra pero' nella chat storage come messaggi con
- * media_type = "call" e una colonna call_metadata in JSON. L'unico modo di
- * leggerle e' scorrere le chat una per una, quindi la scansione e' limitata:
- * le prime N chat e i primi M messaggi di ognuna.
+ * GOWA does not send calls in the webhooks (the events are only message,
+ * message.reaction, message.revoked, message.edited) and has no route to list
+ * them: it does record them in the chat storage as messages with
+ * media_type = "call" and a call_metadata column in JSON. The only way to read
+ * them is to walk the chats one by one, so the scan is bounded: the first N
+ * chats and the first M messages of each.
  *
- * Attenzione: GOWA registra solo le chiamate *in entrata* (vedi
- * CreateIncomingCallRecord nel suo codice). Una chiamata fatta da qui non
- * compare.
+ * Careful: GOWA records only *incoming* calls (see CreateIncomingCallRecord in
+ * its source). A call made from here does not appear.
  */
 
-// Chiavi lette da call_metadata. "call_id" e' certo (compare come struct tag
-// `json:"call_id"` nel binario di GOWA); "reason", "duration" e "is_video"
-// sono opzionali: se non ci sono, la voce resta valida e la UI mostra
-// semplicemente meno dettagli.
+// Keys read from call_metadata. "call_id" is certain (it appears as the struct
+// tag `json:"call_id"` in the GOWA binary); "reason", "duration" and "is_video"
+// are optional: without them the record is still valid and the UI simply shows
+// fewer details.
 function parseCallMetadata(raw) {
   const result = { callId: '', reason: '', durationSeconds: 0, isVideo: false };
   if (typeof raw !== 'string' || !raw.trim()) return result;
@@ -47,8 +46,8 @@ function timeOf(value) {
 }
 
 /**
- * Scorre le chat indicate da GOWA e raccoglie le chiamate.
- * Una chat illeggibile (storage assente, jid sbagliato) non ferma la raccolta.
+ * Walks the chats GOWA returns and collects the calls.
+ * An unreadable chat (missing storage, wrong jid) does not stop the collection.
  */
 async function collectCalls(options) {
   const opts = options || {};

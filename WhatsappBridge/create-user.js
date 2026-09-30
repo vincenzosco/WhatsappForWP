@@ -3,15 +3,15 @@
 
 const { createUserStore } = require('./users');
 
-// Registra un utente sul servizio condiviso e stampa il suo token. Il token
-// esce una volta sola: non e' salvato, si salva il suo hash. Chi lo perde ne
-// crea un altro, non lo recupera.
+// Registers a user on the shared service and prints the token. The token comes
+// out once: it is not stored, only its hash is. Whoever loses it creates
+// another one, does not recover it.
 //
 // Usage:
-//   node create-user.js <nome> [--file /data/users.json]
+//   node create-user.js <name> [--file /data/users.json]
 //
-// Dive lo si usa: nell'immagine Docker il file sta in /data (il volume), cosi'
-// gli utenti sopravvivono a un riavvio come la sessione di WhatsApp.
+// Where it is used: in the Docker image the file lives in /data (the volume), so
+// the users survive a restart like the WhatsApp session does.
 //   docker exec whatsapp-for-wp8 node /opt/adapter/create-user.js vincenzo
 
 function parseArgs(argv) {
