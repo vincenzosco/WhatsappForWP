@@ -486,6 +486,90 @@ test('i pezzi di un video si ricompongono e vanno a sendVideo', async () => {
   assert.strictEqual(delivered[0].size, bytes.length);
 });
 
+test('un video non rimpicciolito dal telefono lo rimpicciolisce l adapter', async () => {
+  const delivered = [];
+  const gowa = {
+    sendVideo: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ size: buffer.length, mimeType, fileName });
+      return 'V1';
+    },
+    sendImage: async () => { throw new Error('non e un video'); },
+    sendFile: async () => { throw new Error('non e un video'); }
+  };
+  const transcoder = {
+    probe: async () => true,
+    toPlayable: async () => null,
+    toSmallerVideo: async () => ({
+      buffer: Buffer.alloc(10),
+      mimeType: 'video/mp4',
+      fileName: 'clip.mp4'
+    })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: () => {} });
+
+  const bytes = Buffer.from('un video grande finto');
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 's1', MediaFileName: 'clip.mov', MediaMimeType: 'video/quicktime', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 's1', MediaChunkIndex: 0, MediaData: bytes.toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 's1' });
+
+  assert.strictEqual(delivered.length, 1);
+  assert.strictEqual(delivered[0].size, 10, 'va a WhatsApp il video ridotto, non l originale');
+  assert.strictEqual(delivered[0].mimeType, 'video/mp4');
+  assert.strictEqual(delivered[0].fileName, 'clip.mp4');
+});
+
+test('senza compressore il video parte come sta', async () => {
+  const delivered = [];
+  const gowa = {
+    sendVideo: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ size: buffer.length, mimeType, fileName });
+      return 'V1';
+    },
+    sendImage: async () => { throw new Error('non e un video'); },
+    sendFile: async () => { throw new Error('non e un video'); }
+  };
+  // Il transcoder dei vocali, senza il metodo dei video: la chiamata non deve
+  // rompersi solo perche' non c'e'.
+  const transcoder = { probe: async () => true, toPlayable: async () => null };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: () => {} });
+
+  const bytes = Buffer.from('un video grande finto');
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 's2', MediaFileName: 'clip.mov', MediaMimeType: 'video/quicktime', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 's2', MediaChunkIndex: 0, MediaData: bytes.toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 's2' });
+
+  assert.strictEqual(delivered.length, 1);
+  assert.strictEqual(delivered[0].size, bytes.length);
+  assert.strictEqual(delivered[0].fileName, 'clip.mov');
+});
+
+test('un immagine non passa dal compressore dei video', async () => {
+  let compressed = 0;
+  const gowa = {
+    sendImage: async () => 'I1',
+    sendVideo: async () => { throw new Error('non e un video'); },
+    sendFile: async () => { throw new Error('non e un video'); }
+  };
+  const transcoder = {
+    probe: async () => true,
+    toPlayable: async () => null,
+    toSmallerVideo: async () => { compressed++; return null; }
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: () => {} });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 's3', MediaFileName: 'foto.jpg', MediaMimeType: 'image/jpeg', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 's3', MediaChunkIndex: 0, MediaData: Buffer.from('foto').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 's3' });
+
+  assert.strictEqual(compressed, 0);
+});
+
 test('un allegato immagine va a sendImage e uno sconosciuto a sendFile', async () => {
   const delivered = [];
   const gowa = {

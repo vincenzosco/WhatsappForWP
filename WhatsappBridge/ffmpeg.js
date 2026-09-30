@@ -16,6 +16,37 @@ const { execFile } = require('child_process');
 // (MAX_MEDIA_BYTES): past it there is no media any more, only a fault.
 const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
 
+// Below this the conversion is not worth its cost: the phone has already made
+// the video small, and the adapter would spend cpu to save a few kilobytes.
+const VIDEO_COMPRESS_MIN_BYTES = 4 * 1024 * 1024;
+
+// 480 lines at most, H.264 at crf 28: a video for a chat, not a copy of the
+// camera file. `-2` keeps the width even and the aspect ratio; the comma inside
+// min() is escaped with a backslash because there is no shell here to quote it.
+const VIDEO_ARGS = [
+  '-hide_banner',
+  '-loglevel', 'error',
+  '-i', 'pipe:0',
+  '-vf', 'scale=min(854\\,iw):-2',
+  '-c:v', 'libx264',
+  '-preset', 'veryfast',
+  '-crf', '28',
+  '-pix_fmt', 'yuv420p',
+  '-c:a', 'aac',
+  '-b:a', '96k',
+  '-movflags', 'frag_keyframe+empty_moov',
+  '-f', 'mp4',
+  'pipe:1'
+];
+
+/** Whether these bytes are a video, from the type or from the name. */
+function isVideo(mimeType, fileName) {
+  const mime = String(mimeType || '').toLowerCase();
+  const name = String(fileName || '').toLowerCase();
+  if (mime.indexOf('video/') === 0) return true;
+  return /\.(mp4|mov|3gp|avi|mkv|webm)$/.test(name);
+}
+
 // Mono, 16 kHz, 32 kbit/s: a WhatsApp voice note is speech, and this is the
 // smallest form that stays intelligible. The file is downloaded from the phone.
 const TRANSCODE_ARGS = [
@@ -116,8 +147,46 @@ function createTranscoder(options) {
         logger('WARN', `ffmpeg transcode failed: ${err.message}`);
         return null;
       }
+    },
+
+    /**
+     * The same video, smaller, for the one that arrives large anyway: the phone
+     * could not shrink it (no transcoder, or the transcode failed), and sending
+     * the camera file to WhatsApp is what makes the send slow.
+     *
+     * Returns null when ffmpeg is absent, the file is not a video, it is already
+     * small, or the conversion did not make it smaller: the caller sends the
+     * original in every one of those cases.
+     */
+    async toSmallerVideo(buffer, mimeType, fileName) {
+      if (!enabled || available !== true) return null;
+      if (!isVideo(mimeType, fileName)) return null;
+      if (!buffer || buffer.length < VIDEO_COMPRESS_MIN_BYTES) return null;
+
+      try {
+        const smaller = await run(VIDEO_ARGS, buffer);
+        if (!smaller || smaller.length === 0) return null;
+        // A conversion that came out bigger is not a conversion.
+        if (smaller.length >= buffer.length) return null;
+        return {
+          buffer: smaller,
+          mimeType: 'video/mp4',
+          fileName: replaceExtension(fileName || 'video.mp4', '.mp4')
+        };
+      } catch (err) {
+        logger('WARN', `ffmpeg video transcode failed: ${err.message}`);
+        return null;
+      }
     }
   };
 }
 
-module.exports = { createTranscoder, isOggOpus, replaceExtension, TRANSCODE_ARGS };
+module.exports = {
+  createTranscoder,
+  isOggOpus,
+  isVideo,
+  replaceExtension,
+  TRANSCODE_ARGS,
+  VIDEO_ARGS,
+  VIDEO_COMPRESS_MIN_BYTES
+};
