@@ -225,6 +225,12 @@ namespace WhatsappApp.Services
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
                 NotificationService.ShowMessage(contact.Name, message.Text);
 
+            // E la tile ruota sul mittente: la sua foto e il suo nome. Solo per
+            // una persona, non per un gruppo, e solo per un messaggio arrivato
+            // mentre la chat non era aperta.
+            if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
+                NotificationService.RotateSenderTile(message.ChatId, contact.Name, contact.AvatarData);
+
             NotificationService.SetUnread(TotalUnread());
 
             // Decodifica asincrona dell'immagine: il binding XAML segue MediaImage
