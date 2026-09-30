@@ -538,6 +538,31 @@ qualunque emoji diversa dal segno di pericolo:
 node tools/check-docs.js
 ```
 
+## Server condiviso ed endpoint pubblico
+
+L'adapter puo' ospitare piu' di un account. Ogni utente ha un device GOWA suo,
+creato al primo handshake, e il token in `hello` decide quale e' il suo; con
+`AUTH_REQUIRED=on`, un messaggio instradato dal suo `device_id` non arriva mai al
+socket di un altro utente. Con l'interruttore spento non cambia niente e
+l'istanza resta privata, senza token.
+
+Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
+legge `endpoint.json` da
+[whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
+perche' il tunnel bore.pub che espone il server prende una porta nuova a ogni
+riavvio. Quel file contiene un indirizzo e nient'altro. L'interruttore nella
+pagina di connessione sceglie tra il servizio pubblico e un server proprio.
+
+Quello che resta vero, e vale la pena dire chiaramente:
+
+- Il trasporto e' cifrato dal cifrario dell'app (AES-256-CBC + HMAC-SHA256) con
+  la passphrase compilata dentro. Sotto non c'e' TLS: uno `StreamSocket` di
+  WP8.1 non sa fissare un certificato, quindi uno autofirmato non e' una strada.
+- Chi gestisce un server condiviso puo' tecnicamente arrivare alle sessioni
+  sulla macchina. Il token separa gli utenti tra loro, non dall'operatore.
+- I token sono salvati solo come hash scrypt, e la sessione WhatsApp e'
+  protetta cifrando il volume sull'host.
+
 ## Limiti
 
 - Gli aggiornamenti non sono disponibili: il server GOWA con cui parla questa app non ha un endpoint per gli stati, quindi la sezione Stato resta vuota per scelta.
