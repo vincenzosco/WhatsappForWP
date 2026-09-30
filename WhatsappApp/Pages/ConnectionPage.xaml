@@ -113,6 +113,11 @@
                 <TextBox x:Name="TokenBox" Text=""
                          Background="White" FontSize="16" Margin="0,4,0,0"/>
 
+                <ToggleSwitch x:Name="PublicServerToggle" x:Uid="ConnectionPage_PublicServer"
+                              Header="Use the public server"
+                              Margin="0,12,0,0"
+                              Toggled="PublicServerToggle_Toggled"/>
+
                 <ToggleSwitch x:Name="NotificationsToggle" x:Uid="ConnectionPage_Notifications"
                               Header="Notify me about new messages"
                               Margin="0,12,0,0"

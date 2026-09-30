@@ -214,6 +214,12 @@
   <data name="ConnectionPage_Notifications.Header" xml:space="preserve">
     <value>Notify me about new messages</value>
   </data>
+  <data name="ConnectionPage_PublicServer.Header" xml:space="preserve">
+    <value>Use the public server</value>
+  </data>
+  <data name="EndpointService_PublicName" xml:space="preserve">
+    <value>Public server</value>
+  </data>
   <data name="ConnectionPage_Connect.Content" xml:space="preserve">
     <value>Connect to the server</value>
   </data>
