@@ -7,8 +7,8 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 38 C# files, 125 keys in each `.resw`, 23 inline icon
-Paths (14 distinct icons), 20 buttons, 1 button style, 144 adapter tests, 58 tests
+Current expected counts: 40 C# files, 141 keys in each `.resw`, 24 inline icon
+Paths (14 distinct icons), 21 buttons, 1 button style, 153 adapter tests, 58 tests
 in `tools/test`.
 
 ```bash
@@ -356,3 +356,16 @@ empty".
     Chats and Calls a few times. The adapter log shows the avatar requests of the
     first read only - the second chat list is answered from `avatar-cache.js` for
     five minutes.
+60. Open a chat whose contact has a picture: the header shows the round picture.
+    Tap it: the picture fills the screen, and a tap closes it. Nothing else
+    navigates.
+61. Tap the name in the same chat: the contact-info page opens with the big
+    picture, the name and, when the server knows them, the number and the about
+    text.
+62. Open a group chat and tap the name: the page shows the group description and
+    the members, with the admin label on the ones that have it. A member without a
+    name shows the number.
+63. Open a chat with no picture at all: the header shows the initials, tapping them
+    does nothing, and the name still opens the info page.
+64. Open the info page with the adapter off: after a moment it says there is no
+    information from the server, instead of staying in a loading state forever.
