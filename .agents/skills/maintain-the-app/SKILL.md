@@ -532,6 +532,17 @@ the adapter:
   `MemoryWatcher` drops only the decoded bitmap, never the bytes, and
   `DataService.RestoreAvatars` (called by `ChatsPage.OnNavigatedTo`) redraws them.
   `tools/check-memory.js` fails on all three of these.
+- **The profile information is composed by the adapter, not on the phone.** The chat
+  header and `ContactInfoPage` need a profile, a business profile and the members of a
+  group, which live on three GOWA routes the phone cannot reach (`/user/info`,
+  `/user/business-profile`, `/group/participants` plus `/group/info` for the
+  description). The adapter answers one `contact.info` command with one JSON frame
+  (`server.js`, `sendContactInfo`), and it always answers, even when WhatsApp is down:
+  a page that waits forever is worse than a page that says nothing is available. The
+  picture rides inside that JSON (`AvatarData`), from the adapter avatar cache, so the
+  big photo exists even for a chat whose row never carried one. Adding a field means
+  changing the adapter JSON, `WhatsappApp/Models/ContactInfo.cs` and
+  `ContactInfoPage` in the same push: the two ends are case-sensitive.
 - **A pinned chat is moved, not sorted.** `DataService.ResortContacts` walks the
   collection and moves each pinned row in front of the first row that is not
   pinned, so the rows keep the recency order the collection already had. Every
