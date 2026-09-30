@@ -3,10 +3,10 @@ using System.Runtime.Serialization;
 namespace WhatsappApp.Models
 {
     /// <summary>
-    /// Beacon UDP dell'adapter (WhatsappBridge/discovery.js).
-    /// I [DataMember] devono restare identici alle chiavi del JSON:
-    /// DataContractJsonSerializer e' case-sensitive e un campo che non combacia
-    /// resta al valore di default senza nessun errore.
+    /// The UDP beacon of the adapter (WhatsappBridge/discovery.js).
+    /// The [DataMember] names must stay identical to the JSON keys:
+    /// DataContractJsonSerializer is case-sensitive and a field that does not
+    /// match stays at its default with no error.
     /// </summary>
     [DataContract]
     public class BeaconPayload

@@ -5,16 +5,16 @@ using WhatsappApp.Controls;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Stato della sessione che sopravvive alla terminazione dell'app: in quale
-    /// sezione si trovava l'utente. Contatti e messaggi invece non si salvano:
-    /// arrivano dall'adapter, che li rimanda ad ogni connessione.
+    /// Session state that survives the app being terminated: which section the
+    /// user was in. Contacts and messages are not saved, instead: they come from
+    /// the adapter, which sends them again on every connection.
     /// </summary>
     public static class SessionService
     {
         private const string KeySection = "Session.Section";
 
-        // Snapshot in memoria, come SettingsService: la sezione viene letta
-        // all'avvio e scritta alla sospensione, non ad ogni navigazione.
+        // In-memory snapshot, as in SettingsService: the section is read at
+        // startup and written on suspension, not on every navigation.
         private static bool _loaded;
         private static AppSection _section = AppSection.Chats;
 
@@ -23,7 +23,7 @@ namespace WhatsappApp.Services
             get { return ApplicationData.Current.LocalSettings; }
         }
 
-        /// <summary>Sezione da mostrare all'avvio dopo una terminazione.</summary>
+        /// <summary>Section to show at startup after a termination.</summary>
         public static AppSection Section
         {
             get

@@ -29,12 +29,12 @@ namespace WhatsappApp.Pages
         {
             this.InitializeComponent();
             ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
-            // Il Toggled parte anche assegnando IsOn: la guardia evita di
-            // riscrivere l'impostazione (e spegnere il badge) solo per averla letta.
+            // Toggled also fires when IsOn is assigned: the guard avoids
+            // rewriting the setting (and turning off the badge) just for reading it.
             _notificationsInitializing = true;
             NotificationsToggle.IsOn = SettingsService.NotificationsEnabled;
-            // Stessa guardia per l'interruttore del servizio pubblico: parte
-            // anche assegnando IsOn.
+            // Same guard for the public-service switch: it also fires when IsOn
+            // is assigned.
             PublicServerToggle.IsOn = SettingsService.UsePublicServer;
             UpdateAddressFieldsState();
             _notificationsInitializing = false;
@@ -51,10 +51,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Servizio pubblico o server proprio. Il primo non ha un indirizzo da
-        /// scrivere (arriva da solo dal file su GitHub), quindi con
-        /// l'interruttore acceso i campi indirizzo e porta si spengono invece di
-        /// restare li' a suggerire che servano.
+        /// Public service or private server. The first has no address to type (it
+        /// arrives on its own from the file on GitHub), so with the switch on the
+        /// address and port fields turn off instead of sitting there suggesting
+        /// they are needed.
         /// </summary>
         private void PublicServerToggle_Toggled(object sender, RoutedEventArgs e)
         {
@@ -114,12 +114,12 @@ namespace WhatsappApp.Pages
             {
                 ShowConnectedState();
 
-                // Due richieste distinte. Lo stato dipinge il pannello; il QR
-                // serve perche' la connessione puo' essere stata aperta
-                // dall'avvio automatico, prima che questa pagina esistesse: in
-                // quel caso ConnectionEstablished e' gia' passato e nessuno ha
-                // mai chiesto il codice. Il login si fa dal telefono, quindi il
-                // codice si chiede da soli a ogni ingresso.
+                // Two separate requests. The state paints the panel; the QR is
+                // needed because the connection may have been opened by the
+                // automatic start, before this page existed: in that case
+                // ConnectionEstablished has already passed and nobody ever asked
+                // for the code. The login is done from the phone, so the code is
+                // requested on its own on every entry.
 #pragma warning disable 4014
                 CommunicationService.Instance.SendControlAsync("status");
                 if (CommunicationService.Instance.WhatsAppState != "connected")
@@ -147,8 +147,8 @@ namespace WhatsappApp.Pages
         {
             ShowConnectedState();
 
-            // Il login si fa dal telefono: il codice si chiede subito, senza che
-            // l'utente debba cercare il pulsante.
+            // The login is done from the phone: the code is requested at once,
+            // without the user having to look for the button.
             if (CommunicationService.Instance.WhatsAppState != "connected")
             {
 #pragma warning disable 4014
@@ -174,8 +174,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Unico punto in cui si apre la connessione: lo usano il pulsante, la
-        /// lista dei server trovati e la riconnessione automatica.
+        /// The only place where the connection is opened: the button, the list of
+        /// found servers and the automatic reconnection all use it.
         /// </summary>
         private async Task ConnectAsync(string address, int port)
         {
@@ -186,8 +186,8 @@ namespace WhatsappApp.Pages
                 UsernameBox.Text = username;
             }
 
-            // Il token si legge adesso: e' il primo frame dopo la connessione a
-            // portarlo, quindi cambiarlo dopo non lo manderebbe.
+            // The token is read now: the first frame after the connection is what
+            // carries it, so changing it later would not send it.
             SettingsService.Token = (TokenBox.Text ?? "").Trim();
 
             StatusPanel.Visibility = Visibility.Visible;
@@ -210,12 +210,12 @@ namespace WhatsappApp.Pages
             }
         }
 
-        // ─── Scoperta automatica del server ──────────────────────────────────
+        // ─── Automatic server discovery ──────────────────────────────────────
 
         /// <summary>
-        /// Apre l'ascolto dei beacon e, se non c'e' nulla di salvato, prova a
-        /// connettersi all'unico adapter che si annuncia. Resta comunque
-        /// l'inserimento manuale: ci sono reti che filtrano l'UDP.
+        /// Opens the beacon listener and, if nothing is saved, tries to connect
+        /// to the single adapter that announces itself. Manual entry stays anyway:
+        /// some networks filter UDP.
         /// </summary>
         private async void StartDiscovery()
         {
@@ -239,8 +239,8 @@ namespace WhatsappApp.Pages
         {
             System.Collections.Generic.List<DiscoveredServer> found = DiscoveryService.Instance.Snapshot();
 
-            // Prima "sto cercando", poi "non ho trovato niente": due stati
-            // diversi, perche' l'utente deve sapere quando smettere di aspettare.
+            // First "looking", then "found nothing": two different states,
+            // because the user must know when to stop waiting.
             bool searching = found.Count == 0
                 && DiscoveryService.Instance.IsListening
                 && (DateTime.Now - _discoveryStartedAt).TotalSeconds < 8;
@@ -256,7 +256,7 @@ namespace WhatsappApp.Pages
             }
             ServersList.Visibility = found.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
-            // Un solo server in vista e nessuna connessione: ci si va da soli.
+            // A single server in view and no connection: we go there on our own.
             if (found.Count == 1 && !_autoConnectTried && !CommunicationService.Instance.IsConnected)
             {
                 _autoConnectTried = true;
@@ -267,8 +267,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Ricostruire la lista a ogni beacon (uno ogni 2 secondi) farebbe
-        /// perdere la selezione e lo scorrimento: si tocca solo se cambia.
+        /// Rebuilding the list on every beacon (one every 2 seconds) would lose
+        /// the selection and the scroll: it is touched only when it changes.
         /// </summary>
         private bool SameServers(System.Collections.Generic.List<DiscoveredServer> found)
         {
@@ -420,7 +420,7 @@ namespace WhatsappApp.Pages
             }
         }
 
-        // ─── Schermata del codice (il login si fa dal telefono) ──────────────
+        // ─── Code screen (the login is done from the phone) ──────────────
 
         private void OpenQrOverlay()
         {
@@ -438,15 +438,14 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Lo schermo resta acceso: se si spegne o si abbassa la luminosita'
-        /// mentre si inquadra, il codice diventa illeggibile e la scansione
-        /// fallisce senza nessun messaggio d'errore.
+        /// The screen stays on: if it turns off or dims while the code is on
+        /// screen, the code becomes unreadable and the scan fails with no error
+        /// message at all.
         ///
-        /// Tutto dentro il try, costruzione compresa: creare la richiesta puo'
-        /// fallire sulla piattaforma, e una comodita' non deve mai impedire di
-        /// mostrare il codice. Prima la costruzione stava fuori dal try, e
-        /// l'eccezione usciva dal gestore del frame di controllo, dove non c'e'
-        /// nessuno che la raccolga.
+        /// All inside the try, construction included: creating the request can
+        /// fail on the platform, and a convenience must never stop the code from
+        /// being shown. The construction used to sit outside the try, and the
+        /// exception escaped the control-frame handler, where nobody catches it.
         /// </summary>
         private void KeepScreenOn()
         {
@@ -459,8 +458,8 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
-                // Limite di richieste attive raggiunto, o membro non
-                // implementato su questo telefono: si prosegue senza.
+                // Active-request limit reached, or member not implemented on this
+                // phone: we carry on without.
                 Diag.Failed("KeepScreenOn", ex);
             }
         }
@@ -474,8 +473,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Chiede un codice nuovo poco prima che scada: quello vecchio non e'
-        /// piu' valido e l'app lo terrebbe a schermo per sempre.
+        /// Asks for a new code shortly before it expires: the old one is no
+        /// longer valid and the app would keep it on screen forever.
         /// </summary>
         private void ScheduleQrRefresh(int duration)
         {
@@ -567,7 +566,7 @@ namespace WhatsappApp.Pages
 
         private void DisconnectButton_Click(object sender, RoutedEventArgs e)
         {
-            // Dopo una disconnessione voluta non ci si riconnette da soli.
+            // After a deliberate disconnect, nothing reconnects on its own.
             _autoConnectTried = true;
             CommunicationService.Instance.Disconnect();
             StatusPanel.Visibility = Visibility.Collapsed;
@@ -578,8 +577,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Mostra solo il messaggio: se la connessione e' riuscita lo dice
-        /// l'evento ConnectionEstablished, non il testo (che e' localizzato).
+        /// Shows only the message: whether the connection succeeded is said by
+        /// the ConnectionEstablished event, not the text (which is localized).
         /// </summary>
         private void OnConnectionStatusChanged(object sender, string status)
         {
@@ -588,8 +587,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Il server principale non ha risposto dopo i tentativi automatici.
-        /// La frase e' la sua, non un guasto di socket da spiegare.
+        /// The main server did not answer after the automatic attempts. The
+        /// sentence is its own, not a socket failure to explain.
         /// </summary>
         private void OnServerUnavailable(object sender, EventArgs e)
         {

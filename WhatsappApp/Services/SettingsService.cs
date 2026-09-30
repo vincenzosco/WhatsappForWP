@@ -25,9 +25,9 @@ namespace WhatsappApp.Services
             get { return ApplicationData.Current.LocalSettings; }
         }
 
-        // Snapshot in memoria: senza questo ogni lettura attraversa il confine
-        // WinRT di ApplicationData, ed e' il caso tipico (piu' proprieta' lette
-        // una dopo l'altra mentre si costruisce la pagina).
+        // In-memory snapshot: without this every read crosses the WinRT boundary
+        // of ApplicationData, and that is the common case (several properties read
+        // one after another while the page is built).
         private static bool _loaded;
         private static string _serverAddress;
         private static int _serverPort;
@@ -41,8 +41,8 @@ namespace WhatsappApp.Services
         {
             if (_loaded) return;
 
-            // L'indirizzo resta vuoto finche' l'utente non ne salva uno:
-            // HasSavedSettings distingue "primo avvio" da "gia' configurato".
+            // The address stays empty until the user saves one: HasSavedSettings
+            // tells "first run" from "already configured".
             _serverAddress = ReadString(KeyServerAddress, "");
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
@@ -54,7 +54,7 @@ namespace WhatsappApp.Services
             _loaded = true;
         }
 
-        /// <summary>Indirizzo proposto quando il campo e' vuoto.</summary>
+        /// <summary>Address proposed when the field is empty.</summary>
         public static string DefaultAddress
         {
             get { return DefaultServerAddress; }
@@ -79,9 +79,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Il token del servizio condiviso, se e' uno. Su un server proprio
-        /// resta vuoto e il server non lo chiede; sul servizio pubblico e' la
-        /// sola cosa che distingue un telefono da un altro.
+        /// The token of the shared service, if it is one. On a private server it
+        /// stays empty and the server does not ask for it; on the public service
+        /// it is the only thing that tells one phone from another.
         /// </summary>
         public static string Token
         {
@@ -90,9 +90,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Vero quando l'app deve usare il servizio pubblico invece di un
-        /// indirizzo scritto a mano: l'indirizzo lo legge da sola, e cambia da
-        /// solo quando il tunnel cambia porta.
+        /// True when the app must use the public service instead of a typed
+        /// address: it reads the address by itself, and changes by itself when the
+        /// tunnel changes port.
         /// </summary>
         public static bool UsePublicServer
         {
@@ -100,14 +100,14 @@ namespace WhatsappApp.Services
             set { EnsureLoaded(); _usePublicServer = value; Settings.Values[KeyUsePublicServer] = value; }
         }
 
-        /// <summary>Il file dell'indirizzo. Vuoto significa quello predefinito.</summary>
+        /// <summary>The address file. Empty means the default one.</summary>
         public static string EndpointUrl
         {
             get { EnsureLoaded(); return _endpointUrl; }
             set { EnsureLoaded(); _endpointUrl = value; Settings.Values[KeyEndpointUrl] = value; }
         }
 
-        /// <summary>Se l'app puo' alzare un avviso quando arriva un messaggio.</summary>
+        /// <summary>Whether the app may raise a notification when a message arrives.</summary>
         public static bool NotificationsEnabled
         {
             get { return _notificationsEnabled; }
