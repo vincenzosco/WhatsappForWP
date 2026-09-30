@@ -437,11 +437,12 @@ the adapter:
 - **A screen that is shown before the socket is up cannot ask for its data.**
   `ChatsPage.OnNavigatedTo` used to request the list only when
   `IsConnected && Contacts.Count == 0`; on a cold start neither is true, so the list
-  stayed empty until the user walked through the settings page, which is what "I have
-  to press Continue every time" was. The request now happens in `RequestChats()` -
-  called on navigation and on every `state` frame - and it waits for
-  `WhatsAppState == "connected"`, because the adapter answers "not connected" until
-  the WhatsApp login is done. `ChatCache` keeps the last list on the phone so the
+  stayed empty until the user walked through the settings page. The request now happens
+  in `RequestChats()` - called on navigation, on every `state` frame, and after the page
+  asks the adapter for the state (`status`) - and it waits for
+  `WhatsAppState == "connected"`, because the adapter answers "not connected" until the
+  WhatsApp login is done. There is no Continue button any more: a configured app opens
+  on the chats and never on the settings. `ChatCache` keeps the last list on the phone so the
   screen is not empty while that happens: it is a photograph, replaced row by row by
   `ApplyChat`, and it holds no avatar bytes.
 - **`ShareOperation` has an order, and on WP8.1 it has no `GetDeferral()`.** Report

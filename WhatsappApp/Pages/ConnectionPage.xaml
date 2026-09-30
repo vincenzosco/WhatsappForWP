@@ -194,13 +194,6 @@
                                        FontWeight="Bold" TextAlignment="Center"
                                        TextWrapping="Wrap" Margin="0,10,0,0"/>
 
-                            <Button x:Name="ContinueButton" x:Uid="ConnectionPage_Continue"
-                                    Content="Continue"
-                                    Background="{StaticResource WhatsAppAccentBrush}"
-                                    Foreground="White" FontSize="18" FontWeight="SemiBold"
-                                    Height="48" BorderThickness="0" Margin="0,14,0,0"
-                                    IsEnabled="False"
-                                    Click="ContinueButton_Click"/>
                         </StackPanel>
                     </Border>
 
