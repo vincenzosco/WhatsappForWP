@@ -14,6 +14,7 @@ namespace WhatsappApp.Services
         private const string KeyServerPort = "ServerPort";
         private const string KeyUsername = "Username";
         private const string KeyNotifications = "NotificationsEnabled";
+        private const string KeyToken = "ServiceToken";
         private const string DefaultServerAddress = "192.168.1.100";
         private const int DefaultServerPort = 8585;
 
@@ -29,6 +30,7 @@ namespace WhatsappApp.Services
         private static string _serverAddress;
         private static int _serverPort;
         private static string _username;
+        private static string _token;
         private static bool _notificationsEnabled;
 
         private static void EnsureLoaded()
@@ -40,6 +42,7 @@ namespace WhatsappApp.Services
             _serverAddress = ReadString(KeyServerAddress, "");
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
+            _token = ReadString(KeyToken, "");
             _notificationsEnabled = ReadBool(KeyNotifications, true);
 
             _loaded = true;
@@ -67,6 +70,17 @@ namespace WhatsappApp.Services
         {
             get { EnsureLoaded(); return _username; }
             set { EnsureLoaded(); _username = value; Settings.Values[KeyUsername] = value; }
+        }
+
+        /// <summary>
+        /// Il token del servizio condiviso, se e' uno. Su un server proprio
+        /// resta vuoto e il server non lo chiede; sul servizio pubblico e' la
+        /// sola cosa che distingue un telefono da un altro.
+        /// </summary>
+        public static string Token
+        {
+            get { EnsureLoaded(); return _token; }
+            set { EnsureLoaded(); _token = value; Settings.Values[KeyToken] = value; }
         }
 
         /// <summary>Se l'app puo' alzare un avviso quando arriva un messaggio.</summary>

@@ -38,6 +38,8 @@ const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 const { collectCalls } = require('./calls');
 const { collectChats } = require('./chats');
 const { createTranscoder } = require('./ffmpeg');
+const { authenticate } = require('./auth');
+const { createUserStore } = require('./users');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
@@ -69,7 +71,7 @@ async function groupNamesOrEmpty(client, logger) {
   }
 }
 
-function createBridge({ config, gowa, log, debug, transcoder }) {
+function createBridge({ config, gowa, log, debug, transcoder, users }) {
   const logger = typeof log === 'function' ? log : () => {};
   const dbg = typeof debug === 'function' ? debug : () => {};
 
@@ -803,12 +805,31 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
 
   // ─── Protocollo di controllo ──────────────────────────────────────────────
 
-  async function handleControl(msg) {
+  async function handleControl(msg, socket) {
     switch (msg.Command) {
-      case 'hello':
+      case 'hello': {
+        const verdict = authenticate({
+          frame: msg,
+          users,
+          authRequired: !!(config.auth && config.auth.required)
+        });
+        if (!verdict.ok) {
+          logger('WARN', `refused a handshake: ${verdict.reason}`);
+          const refusal = buildChatMessage({
+            command: 'unauthorized', chatId: 'system', isIncoming: true
+          });
+          if (socket) sendToClient(socket, refusal);
+          else sendToClients(refusal);
+          if (socket && typeof socket.destroy === 'function') socket.destroy();
+          break;
+        }
+        // Chi e' questo socket, per il resto della conversazione. Null su
+        // un'istanza privata, dove nessuno chiede un token.
+        if (socket) socket.user = verdict.user || null;
         logger('NET', `handshake from "${msg.SenderName || 'unknown'}"`);
         broadcastState();
         break;
+      }
       case 'status':
         broadcastState();
         break;
@@ -914,7 +935,7 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
           if (tag) socket.wp8Cipher = tag;
 
           const msg = JSON.parse(cryptoHelper.decodePayload(payload));
-          if (msg.Type === 3) handleControl(msg).catch((e) => logger('ERR', e.message));
+          if (msg.Type === 3) handleControl(msg, socket).catch((e) => logger('ERR', e.message));
           else handleUserMessage(msg).catch((e) => logger('ERR', e.message));
         } catch (err) {
           logger('ERR', `invalid frame from the app: ${err.message}`);
@@ -968,7 +989,16 @@ async function main() {
     pass: config.gowa.pass
   });
 
-  const bridge = createBridge({ config, gowa, log, debug: dbg });
+  // Gli utenti del servizio, se e' condiviso. Senza file configurato la
+  // memoria basta e non serve nessun disco: e' il caso dell'istanza privata.
+  const users = createUserStore({
+    file: config.auth.usersFile || undefined
+  });
+  if (config.auth.required) {
+    log('INFO', `Auth:        required, ${users.count()} user(s)`);
+  }
+
+  const bridge = createBridge({ config, gowa, log, debug: dbg, users });
   await bridge.probeFfmpeg();
 
   const webhookServer = createWebhookServer({

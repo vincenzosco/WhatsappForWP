@@ -114,6 +114,9 @@ function buildChatMessage(fields) {
     IsIncoming: typeof f.isIncoming === 'boolean' ? f.isIncoming : true
   };
 
+  // Il token del servizio condiviso: viaggia nell'handshake, e per ogni altro
+  // frame resta vuoto.
+  if (f.token) msg.Token = f.token;
   if (f.command) msg.Command = f.command;
   if (f.state) msg.State = f.state;
   if (f.pairCode) msg.PairCode = f.pairCode;

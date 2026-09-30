@@ -1,76 +1,59 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/2010/manifest" xmlns:m2="http://schemas.microsoft.com/appx/2013/manifest" xmlns:m3="http://schemas.microsoft.com/appx/2014/manifest" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest">
-
-  <Identity Name="7ccc5b77-3cf2-4020-92a7-9542b250bb49"
-            Publisher="CN=Vincenzo"
-            Version="1.0.1.0" />
-
-  <mp:PhoneIdentity PhoneProductId="7ccc5b77-3cf2-4020-92a7-9542b250bb49" PhonePublisherId="00000000-0000-0000-0000-000000000000"/>
-
+  <Identity Name="7ccc5b77-3cf2-4020-92a7-9542b250bb49" Publisher="CN=Vincenzo" Version="1.0.0.0" />
+  <mp:PhoneIdentity PhoneProductId="7ccc5b77-3cf2-4020-92a7-9542b250bb49" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>WhatsApp</DisplayName>
     <PublisherDisplayName>Vincenzo</PublisherDisplayName>
     <Logo>Assets\StoreLogo.png</Logo>
   </Properties>
-
   <Prerequisites>
     <OSMinVersion>6.3.1</OSMinVersion>
     <OSMaxVersionTested>6.3.1</OSMaxVersionTested>
   </Prerequisites>
-  
   <Resources>
-    <Resource Language="x-generate"/>
+    <Resource Language="x-generate" />
   </Resources>
-
   <Applications>
-    <Application Id="App"
-        Executable="$targetnametoken$.exe"
-        EntryPoint="WhatsappApp.App">
-        <m3:VisualElements
-            DisplayName="WhatsApp"
-            Square150x150Logo="Assets\Logo.png"
-            Square44x44Logo="Assets\SmallLogo.png"
-            Description="WhatsApp per Windows Phone 8.1"
-            ForegroundText="light"
-            BackgroundColor="#075E54">
-            <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71x71Logo.png"/>
-            <m3:SplashScreen Image="Assets\SplashScreen.png"/>
-        </m3:VisualElements>
-        <Extensions>
-            <!-- Riceve immagini e video condivisi da un'altra app (Galleria,
+    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="WhatsappApp.App">
+      <m3:VisualElements DisplayName="WhatsApp" Square150x150Logo="Assets\Logo.png" Square44x44Logo="Assets\SmallLogo.png" Description="WhatsApp per Windows Phone 8.1" ForegroundText="light" BackgroundColor="#075E54">
+        <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71x71Logo.png">
+        </m3:DefaultTile>
+        <m3:SplashScreen Image="Assets\SplashScreen.png" />
+      </m3:VisualElements>
+      <Extensions>
+        <Extension Category="windows.shareTarget" Executable="$targetnametoken$.exe" EntryPoint="WhatsappApp.App">
+          <ShareTarget>
+            <SupportedFileTypes>
+              <FileType>.jpg</FileType>
+              <FileType>.jpeg</FileType>
+              <FileType>.png</FileType>
+              <FileType>.gif</FileType>
+              <FileType>.bmp</FileType>
+              <FileType>.mp4</FileType>
+              <FileType>.mov</FileType>
+              <FileType>.3gp</FileType>
+              <FileType>.avi</FileType>
+              <FileType>.mkv</FileType>
+              <FileType>.webm</FileType>
+            </SupportedFileTypes>
+            <DataFormat>Bitmap</DataFormat>
+            <DataFormat>StorageItems</DataFormat>
+          </ShareTarget>
+        </Extension>
+        <!-- Riceve immagini e video condivisi da un'altra app (Galleria,
                  Foto, browser). Va dichiarato qui: senza questa estensione
                  WP8.1 non elenca l'app nel pannello di condivisione, e senza i
                  tipi dei video l'app non viene nemmeno offerta per loro. -->
-            <!-- Senza prefisso: ShareTarget sta nel namespace predefinito di
+        <!-- Senza prefisso: ShareTarget sta nel namespace predefinito di
                  questa manifest (appx/2010), come Extensions e Extension. Con
                  m3: il validatore risponde APPX3030/APPX3002. -->
-            <Extension Category="windows.shareTarget"
-                       Executable="$targetnametoken$.exe"
-                       EntryPoint="WhatsappApp.App">
-                <ShareTarget>
-                    <SupportedFileTypes>
-                        <FileType>.jpg</FileType>
-                        <FileType>.jpeg</FileType>
-                        <FileType>.png</FileType>
-                        <FileType>.gif</FileType>
-                        <FileType>.bmp</FileType>
-                        <FileType>.mp4</FileType>
-                        <FileType>.mov</FileType>
-                        <FileType>.3gp</FileType>
-                        <FileType>.avi</FileType>
-                        <FileType>.mkv</FileType>
-                        <FileType>.webm</FileType>
-                    </SupportedFileTypes>
-                    <DataFormat>Bitmap</DataFormat>
-                    <DataFormat>StorageItems</DataFormat>
-                </ShareTarget>
-            </Extension>
-        </Extensions>
+      </Extensions>
     </Application>
   </Applications>
   <Capabilities>
     <Capability Name="internetClientServer" />
-    <!-- Serve per ricevere i beacon UDP dell'adapter sulla rete locale. -->
     <Capability Name="privateNetworkClientServer" />
+    <!-- Serve per ricevere i beacon UDP dell'adapter sulla rete locale. -->
   </Capabilities>
 </Package>
