@@ -303,8 +303,9 @@ creato in un altro modo.
 Tutto cio' che il server e l'app stampano a runtime e' in inglese: il log e i
 messaggi di errore dell'adapter, e le righe `DIAG` dell'app con i messaggi delle
 eccezioni che ci finiscono. Anche i commenti nel sorgente sono in inglese: il
-codice si spiega in una lingua sola. Restano fuori i nomi dei test dell'adapter e
-le stringhe localizzate in `Strings/it-IT`, che sono strumenti per sviluppatori e
+codice si spiega in una lingua sola. Restano fuori i nomi dei test e le
+diagnostiche degli script di guardia in `tools/` - strumenti per sviluppatori che
+nessun operatore esegue - e le stringhe localizzate in `Strings/it-IT`, che sono
 traduzioni, non diagnostica. Anche i testi di errore che l'adapter manda all'app
 per essere mostrati sono contenuto UI, e restano in italiano in attesa della
 localizzazione dell'app.
@@ -488,7 +489,8 @@ L'interfaccia dell'app e' l'**unica superficie localizzata**: tutto cio' che gli
 script e il server stampano (il banner del launcher, il suo `--help`, il log
 dell'adapter, il relay legacy) e' solo in inglese, cosi' leggere un log non
 richiede una seconda lingua. Anche i commenti nel sorgente sono in inglese, quindi
-l'italiano resta solo nei nomi dei test dell'adapter, che nessuno esegue a runtime.
+l'italiano resta solo nei nomi dei test e nelle diagnostiche degli script di
+guardia, che nessuno esegue a runtime.
 
 - I testi dichiarati in XAML usano `x:Uid`, e la proprieta' deve corrispondere al
   tipo dell'elemento: `TextBlock` -> `.Text`, `Button` -> `.Content`,
@@ -546,6 +548,13 @@ creato al primo handshake, e il token in `hello` decide quale e' il suo; con
 `AUTH_REQUIRED=on`, un messaggio instradato dal suo `device_id` non arriva mai al
 socket di un altro utente. Con l'interruttore spento non cambia niente e
 l'istanza resta privata, senza token.
+
+Un telefono che arriva senza token ne riceve uno alla prima connessione
+(`AUTH_REGISTER=on`, il valore predefinito): l'adapter crea il device, risponde
+con un frame `registered` e l'app conserva il token, quindi il servizio condiviso
+non chiede altro che l'interruttore. Il token identifica il dispositivo, non e'
+una password da digitare; con `AUTH_REGISTER=off` si torna a consegnare i token a
+mano.
 
 Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da

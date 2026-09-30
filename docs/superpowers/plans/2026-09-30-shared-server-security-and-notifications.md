@@ -373,3 +373,26 @@ Still open, with the reason:
   published to `whatsappforwp-endpoint` so the app can follow it without an update.
   `bore.pub` hands out a new port on every tunnel restart, so `publish.js --commit`
   must be run again whenever the container restarts.
+
+## What the first real phone asked for
+
+- **The token is created on the first connection.** The plan had the operator
+  create a user with `create-user.js` and type the token into the phone. That is not
+  a step a user of a free shared service can take, so `AUTH_REGISTER` (on by
+  default, `AUTH_MAX_USERS` as the ceiling) makes `hello` without a valid token mint
+  a user, authenticate the socket in the same step, and answer with a `registered`
+  frame carrying the token, which the app keeps. `AUTH_REGISTER=off` is the closed
+  service, where the tokens are handed out by hand as before.
+- **The Connect button now goes through `AutoConnector` when the public switch is
+  on.** It used to read the address box, which is empty on a first run, so it dialled
+  the LAN placeholder, never connected, and the WhatsApp login panel - the QR button
+  and the phone-number button - stayed collapsed. That was the whole of "I cannot
+  find the buttons to scan the QR".
+- **A socket's frames are served in the order they arrived** (a promise chain per
+  socket). They used to be started together, and `hello` awaits the GOWA device: a
+  command sent right after the handshake could be handled first, find no user on the
+  socket, and be refused by closing a connection whose client had done nothing wrong.
+- **The last Italian comments left the adapter** (`message-format.js`,
+  `webhook-server.js`, `server.js`), so the comment sweep of this plan is finished.
+  The adapter's test names and the guard scripts in `tools/` stay Italian on purpose:
+  they are developer tooling, and that is written down in the READMEs.
