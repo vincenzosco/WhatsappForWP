@@ -211,6 +211,37 @@ class GowaClient {
       mimeType || 'application/octet-stream', fileName || 'file');
   }
 
+  /**
+   * Our own presence on WhatsApp: "available" while the app is connected,
+   * "unavailable" when nobody is watching.
+   *
+   * It is not cosmetic. WhatsApp sends typing notifications only to a client
+   * that is online, and GOWA connects as "unavailable": without this the
+   * chat_presence events would arrive only in the five minutes of GOWA's daily
+   * presence pulse.
+   */
+  async sendPresence(type) {
+    const r = await this.request('POST', '/send/presence', { json: { type } });
+    if (!r.ok) throw new Error(errorMessage(r.data, 'sending the presence failed'));
+    return true;
+  }
+
+  /**
+   * Our own typing state in one chat, so the contact sees "typing...".
+   *
+   * GOWA names the two values differently from the webhook that carries the
+   * same notion: here it is "start"/"stop", there it is "composing"/"paused".
+   * The two lists are not interchangeable, so the translation lives in the
+   * caller.
+   */
+  async sendChatPresence(jid, action) {
+    const r = await this.request('POST', '/send/chat-presence', {
+      json: { phone: jid, action }
+    });
+    if (!r.ok) throw new Error(errorMessage(r.data, 'sending the chat presence failed'));
+    return true;
+  }
+
   async fetchBinary(urlOrPath) {
     const value = String(urlOrPath || '');
     const absolute = /^https?:\/\//i.test(value) ? value : `${this.baseUrl}/${value.replace(/^\/+/, '')}`;

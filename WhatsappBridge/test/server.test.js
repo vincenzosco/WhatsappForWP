@@ -313,6 +313,148 @@ test('reactions and incomplete events are ignored without sending anything', asy
   assert.strictEqual(sent.length, 0);
 });
 
+// La sessione di un utente con il suo client gia' collegato: le presenze hanno
+// bisogno di sapere chi e' collegato, e questo e' l unico posto che lo prepara.
+async function connectedUserSession() {
+  const shared = sharedBridge();
+  const socket = collectingSocket();
+  shared.bridge.addClientForTest(socket);
+  await shared.bridge.handleControl(
+    { Type: 3, Command: 'hello', Token: shared.a.token, SenderName: 'anna' }, socket);
+  // GOWA sa che l account e' collegato: l adapter lo scopre alla rilettura.
+  shared.setLoggedIn(true);
+  await shared.bridge.refreshStatus();
+  socket.frames.length = 0;
+  return Object.assign({}, shared, { socket: socket });
+}
+
+test('un contatto che scrive diventa un frame typing per il suo utente', async () => {
+  const { bridge, a, socket } = await connectedUserSession();
+
+  await bridge.handleWebhookEvent({
+    event: 'chat_presence',
+    device_id: a.user.deviceId,
+    payload: {
+      from: 'b@s.whatsapp.net', chat_id: 'b@s.whatsapp.net',
+      state: 'composing', media: '', is_group: false
+    }
+  });
+  await bridge.handleWebhookEvent({
+    event: 'chat_presence',
+    device_id: a.user.deviceId,
+    payload: { from: 'b@s.whatsapp.net', chat_id: 'b@s.whatsapp.net', state: 'paused' }
+  });
+
+  const typing = socket.frames.filter((f) => f.Command === 'typing');
+  assert.strictEqual(typing.length, 2);
+  assert.strictEqual(typing[0].Type, 3);
+  assert.strictEqual(typing[0].ChatId, 'b@s.whatsapp.net');
+  assert.strictEqual(typing[0].State, 'composing');
+  assert.strictEqual(typing[1].State, 'paused');
+});
+
+test('la presenza del nostro stesso account non torna indietro all app', async () => {
+  const { bridge, socket } = await connectedUserSession();
+
+  // GOWA firma gli eventi con il JID dell account, non con l uuid del device:
+  // un contatto che scrive deve comunque arrivare, ed e' la stessa strada.
+  await bridge.handleWebhookEvent({
+    event: 'chat_presence',
+    device_id: '39@s.whatsapp.net',
+    payload: { from: 'b@s.whatsapp.net', chat_id: 'b@s.whatsapp.net', state: 'composing' }
+  });
+  assert.strictEqual(socket.frames.filter((f) => f.Command === 'typing').length, 1);
+
+  // Il nostro telefono, o un altro device collegato: WhatsApp non lo mostra a
+  // chi scrive, e nemmeno l app deve mostrarlo.
+  socket.frames.length = 0;
+  await bridge.handleWebhookEvent({
+    event: 'chat_presence',
+    device_id: '39@s.whatsapp.net',
+    payload: { from: '39@s.whatsapp.net', chat_id: 'b@s.whatsapp.net', state: 'composing' }
+  });
+  assert.strictEqual(socket.frames.filter((f) => f.Command === 'typing').length, 0);
+});
+
+test('una presenza senza chat o con uno stato inventato non manda niente', async () => {
+  const { bridge, a, socket } = await connectedUserSession();
+
+  await bridge.handleWebhookEvent({
+    event: 'chat_presence', device_id: a.user.deviceId, payload: { state: 'composing' }
+  });
+  await bridge.handleWebhookEvent({
+    event: 'chat_presence',
+    device_id: a.user.deviceId,
+    payload: { chat_id: 'b@s.whatsapp.net', state: 'sto scrivendo' }
+  });
+
+  assert.strictEqual(socket.frames.filter((f) => f.Command === 'typing').length, 0);
+});
+
+test('l account e online mentre un telefono guarda, e offline quando se ne va', async () => {
+  const presence = [];
+  const gowa = fakeGowa({
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' }),
+    sendPresence: async (type) => { presence.push(type); return true; }
+  });
+  const config = { bridge: { port: 0 }, webhook: {}, pollIntervalMs: 60000 };
+  const bridge = createBridge({ config, gowa, log: noop, debug: noop });
+  await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+  const port = bridge.tcpServer.address().port;
+  const client = connectClient(port);
+  try {
+    await client.next();
+    await bridge.refreshStatus();
+    assert.deepStrictEqual(presence, ['available'],
+      'un telefono collegato e collegato a un account connesso: si e online');
+
+    // Lo stesso stato non si ripete a ogni giro di polling.
+    await bridge.refreshStatus();
+    assert.deepStrictEqual(presence, ['available']);
+
+    // Il telefono se ne va: l account non ha piu nessuno che lo guarda.
+    client.socket.destroy();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepStrictEqual(presence, ['available', 'unavailable']);
+  } finally {
+    bridge.tcpServer.close();
+    bridge.stop();
+  }
+});
+
+test('typing porta a GOWA start e stop, e niente quando non e collegato', async () => {
+  const chatPresence = [];
+  const gowa = fakeGowa({
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' }),
+    sendChatPresence: async (jid, action) => { chatPresence.push({ jid, action }); return true; }
+  });
+  const bridge = createBridge({ config: {}, gowa, log: noop, debug: noop });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: () => {} });
+
+  await bridge.handleControl({ Type: 3, Command: 'typing', Text: 'b@s.whatsapp.net', State: 'composing' });
+  await bridge.handleControl({ Type: 3, Command: 'typing', Text: 'b@s.whatsapp.net', State: 'paused' });
+  assert.deepStrictEqual(chatPresence, [
+    { jid: 'b@s.whatsapp.net', action: 'start' },
+    { jid: 'b@s.whatsapp.net', action: 'stop' }
+  ], 'i nomi del webhook (composing/paused) diventano quelli di GOWA (start/stop)');
+
+  // Uno stato che non esiste, o una chat vuota, non diventano una chiamata.
+  await bridge.handleControl({ Type: 3, Command: 'typing', Text: 'b@s.whatsapp.net', State: 'forse' });
+  await bridge.handleControl({ Type: 3, Command: 'typing', Text: '', State: 'composing' });
+  assert.strictEqual(chatPresence.length, 2);
+
+  // Su una sessione non collegata non c e nessuna presenza da mandare.
+  const offline = [];
+  const away = createBridge({
+    config: {},
+    gowa: fakeGowa({ sendChatPresence: async () => { offline.push(1); } }),
+    log: noop, debug: noop
+  });
+  await away.handleControl({ Type: 3, Command: 'typing', Text: 'b@s.whatsapp.net', State: 'composing' });
+  assert.strictEqual(offline.length, 0);
+});
+
 test('the messages command sends one frame per stored message, marked as history', async () => {
   const sent = [];
   const gowa = {
@@ -1040,7 +1182,16 @@ function sharedBridge() {
       created.push({ id, label });
       return id;
     },
-    withDevice: (id) => ({ deviceId: id, setDeviceWebhook: async () => true, status: status })
+    // The presence of a user session: it is answered instead of missing so that
+    // the tests do not depend on a swallowed TypeError.
+    sendPresence: async () => true,
+    withDevice: (id) => ({
+      deviceId: id,
+      setDeviceWebhook: async () => true,
+      status: status,
+      sendPresence: async () => true,
+      sendChatPresence: async () => true
+    })
   };
 
   const bridge = createBridge({

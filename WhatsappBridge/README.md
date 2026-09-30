@@ -46,6 +46,19 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   alone - the conversion would cost more than it saves - and a conversion that came out
   bigger is thrown away. With `FFMPEG_ENABLED=off` the adapter does not touch it; the
   phone still shrinks its own videos.
+- Typing indicators exist in both directions, and they are the only piece of presence this
+  project shows. A contact who starts or stops writing arrives as a `chat_presence`
+  webhook event (GOWA 9.5), which the adapter turns into a `typing` control frame; the
+  app draws it as a bubble with three dots and takes it away on `paused`. While you
+  write, the app sends `typing` the other way and the adapter passes it on as
+  `/send/chat-presence`. Nothing is invented: the state on screen comes from WhatsApp, and
+  the bubble goes away by itself when the message it was waiting for arrives.
+- The account is online exactly while a phone is watching it. WhatsApp sends typing
+  notifications only to a client that is marked online, and GOWA connects as
+  `unavailable` with a five-minute pulse once a day, so the adapter marks the account
+  `available` when the first app client connects and `unavailable` when the last one
+  leaves (`POST /send/presence`). That is also what the contacts see: online while the app
+  is in use, offline when it is not.
 - A photo or a video in a chat's history arrived while the phone was off: its bytes were
   delivered to the adapter and nowhere else, so the row is a word (`[Image]`). Tapping it
   asks the adapter (`media.get`), which reads `GET /message/:id/download` from GOWA and
@@ -79,6 +92,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = caption (reassemble and send) |
 | app -> adapter | `media.get` | `Text` = chat JID, `RelatedMessageId` = message id (downloads that message media and answers with one `media` frame per piece) |
 | app -> adapter | `contact.info` | `Text` = chat JID (the adapter composes name, about, picture, business profile and, for a group, the description and the members into one JSON `Text`) |
+| app -> adapter | `typing` | `Text` = chat JID, `State` = `composing` or `paused` (what the contact sees while you write) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
@@ -89,6 +103,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | adapter -> app | `chats.done` | — (the list is over) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id of the deleted message |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = the new text |
+| adapter -> app | `typing` | `ChatId`, `State` = `composing` or `paused` (someone is writing in that chat) |
 | adapter -> app | `media` | `ChatId`, `RelatedMessageId`, `MediaData` = one base64 piece, `MediaMimeType`, `MediaFileName`, `MediaType`, `MediaChunkIndex`, `MediaChunkTotal`: a piece of a message the app already has |
 | adapter -> app | `error` | `Text` |
 
