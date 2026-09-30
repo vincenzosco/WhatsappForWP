@@ -40,6 +40,13 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   cosi' l'adapter concatena i byte decodificati senza ricodificare niente. La porta di
   GOWA la decide il tipo MIME (o l'estensione): `/send/image`, `/send/video` e
   `/send/file` sono tre rotte diverse, e prima di questo un video partiva come immagine.
+- Un video viene rimpicciolito prima di viaggiare. Lo fa prima il telefono, mentre il
+  fumetto dice "invio"; quando non ha potuto (nessun transcoder per quel file, niente
+  spazio, la piattaforma che rifiuta) lo fa l'adapter con ffmpeg prima di passare il
+  video a GOWA, quindi a WhatsApp non arriva mai tutto il file della fotocamera.
+  L'adapter lascia stare un video sotto i 4 MB - la conversione costerebbe piu' di quanto
+  risparmia - e una conversione venuta piu' grande viene buttata. Con `FFMPEG_ENABLED=off`
+  l'adapter non lo tocca; il telefono rimpicciolisce comunque i suoi video.
 - Una foto o un video nella cronologia di una chat e' arrivato col telefono spento: i suoi
   byte sono stati consegnati all'adapter e a nessun altro, quindi la riga e' una parola
   (`[Image]`). Toccarla lo chiede all'adapter (`media.get`), che legge

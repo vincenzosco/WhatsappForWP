@@ -688,6 +688,21 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
   async function sendMediaToGowa(session, chatId, caption, buffer, mimeType, fileName) {
     const kind = mediaKindOf(mimeType, fileName);
+
+    // A video that is still large here was not shrunk on the phone: the app
+    // could not (no transcoder on the device, or the conversion failed), and
+    // what would reach WhatsApp is the whole camera file. It is shrunk now,
+    // and only when that makes it smaller: see ffmpeg.toSmallerVideo.
+    if (kind === 'video' && mediaTools && typeof mediaTools.toSmallerVideo === 'function') {
+      const smaller = await mediaTools.toSmallerVideo(buffer, mimeType, fileName);
+      if (smaller) {
+        logger('INFO', `video shrunk: ${buffer.length} -> ${smaller.buffer.length} bytes`);
+        buffer = smaller.buffer;
+        mimeType = smaller.mimeType;
+        fileName = smaller.fileName;
+      }
+    }
+
     if (kind === 'video') return session.gowa.sendVideo(chatId, caption || '', buffer, mimeType || 'video/mp4', fileName);
     if (kind === 'image') return session.gowa.sendImage(chatId, caption || '', buffer, mimeType || 'image/jpeg', fileName);
     return session.gowa.sendFile(chatId, caption || '', buffer, mimeType || 'application/octet-stream', fileName);
