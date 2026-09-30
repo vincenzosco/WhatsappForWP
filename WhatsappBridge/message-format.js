@@ -1,22 +1,22 @@
 'use strict';
 
-// Funzioni pure di formattazione: nessuna I/O, nessuna dipendenza da rete.
-// Il JSON prodotto deve combaciare ESATTAMENTE con i [DataMember] di
-// WhatsappApp/Models/ChatMessage.cs (DataContractJsonSerializer è case-sensitive).
+// Pure formatting functions: no I/O, no network dependency.
+// The JSON produced must match EXACTLY the [DataMember] names of
+// WhatsappApp/Models/ChatMessage.cs (DataContractJsonSerializer is case-sensitive).
 
 const DEFAULT_SENDER = 'Unknown';
 
-// Il valore che il campo Timestamp deve avere *dopo* JSON.parse: Microsoft scrive
-// /Date(ms)/ e DataContractJsonSerializer se lo aspetta cosi'. Il \/ che si vede
-// nel testo JSON e' un escape del lettore, non parte del valore: metterlo nel
-// valore lo raddoppia e il telefono risponde "String was not recognized as a
-// valid DateTime" (0x8013150C), buttando via l'intero frame.
+// The value the Timestamp field must have *after* JSON.parse: Microsoft writes
+// /Date(ms)/ and DataContractJsonSerializer expects it that way. The \/ seen in
+// the JSON text is an escape of the reader, not part of the value: putting it in
+// the value doubles it and the phone answers "String was not recognized as a
+// valid DateTime" (0x8013150C), throwing away the whole frame.
 const WP8_DATE = /^\/Date\((-?\d+)\)\/$/;
 
 /**
- * Millisecondi dall'epoch, da qualunque cosa arrivi nel campo timestamp. Non
- * lancia e non restituisce mai NaN: un timestamp storto e' un timestamp
- * in meno, non un messaggio in meno.
+ * Milliseconds from the epoch, from whatever arrives in the timestamp field. It
+ * never throws and never returns NaN: a crooked timestamp is one timestamp less,
+ * not one message less.
  */
 function epochMillis(value) {
   if (value === undefined || value === null || value === '') return Date.now();
@@ -32,10 +32,10 @@ function epochMillis(value) {
     return Math.round(Math.abs(value) < 1e12 ? value * 1000 : value);
   }
 
-  // I backslash sono escape del lettore JSON: qui non servono.
+  // The backslashes are escapes of the JSON reader: they are not needed here.
   const text = String(value).replace(/\\/g, '').trim();
 
-  // Gia' nel formato Microsoft (un valore rispedito indietro, per esempio).
+  // Already in the Microsoft format (a value sent back, for example).
   const microsoft = WP8_DATE.exec(text);
   if (microsoft) return Number(microsoft[1]);
 
@@ -60,10 +60,10 @@ function displayNameForJid(jid) {
   return user || '?';
 }
 
-// I media vecchi restano una parola nel fumetto, come nell'anteprima della riga
-// dell'elenco chat: i byte di una foto che e' arrivata mesi fa non sono fra
-// quelli che il webhook ha consegnato, e un fumetto vuoto e' peggio di una
-// parola che dice cosa c'era.
+// Old media stay a word in the bubble, as in the preview of the chat-list row:
+// the bytes of a photo that arrived months ago are not among the ones the
+// webhook delivered, and an empty bubble is worse than a word that says what
+// was there.
 const HISTORY_MEDIA_LABEL = {
   image: '[Image]',
   video: '[Video]',
@@ -73,11 +73,11 @@ const HISTORY_MEDIA_LABEL = {
 };
 
 /**
- * Un messaggio dello storico di una chat (`GET /chat/:chat_jid/messages`).
+ * One message from a chat history (`GET /chat/:chat_jid/messages`).
  *
- * Sempre testo, mai immagine: il tipo del media lo dice `media_type`, ma i byte
- * non ci sono, e un messaggio di tipo immagine senza dati disegnerebbe un
- * fumetto vuoto.
+ * Always text, never an image: `media_type` gives the media type, but the bytes
+ * are not there, and a message of type image with no data would draw an empty
+ * bubble.
  */
 function mapHistoryMessage(raw) {
   const m = raw || {};
@@ -114,8 +114,8 @@ function buildChatMessage(fields) {
     IsIncoming: typeof f.isIncoming === 'boolean' ? f.isIncoming : true
   };
 
-  // Il token del servizio condiviso: viaggia nell'handshake, e per ogni altro
-  // frame resta vuoto.
+  // The token of the shared service: it travels in the handshake, and for every
+  // other frame it stays empty.
   if (f.token) msg.Token = f.token;
   if (f.command) msg.Command = f.command;
   if (f.state) msg.State = f.state;
@@ -124,27 +124,27 @@ function buildChatMessage(fields) {
   if (typeof f.qrDuration === 'number') msg.QrDuration = f.qrDuration;
   if (f.accountJid) msg.AccountJid = f.accountJid;
 
-  // Campi delle chiamate e delle revoche (vedi calls.js e server.js).
+  // Fields of calls and revocations (see calls.js and server.js).
   if (f.callId) msg.CallId = f.callId;
   if (f.callReason) msg.CallReason = f.callReason;
   if (typeof f.callDurationSeconds === 'number') msg.CallDurationSeconds = f.callDurationSeconds;
   if (typeof f.callIsVideo === 'boolean') msg.CallIsVideo = f.callIsVideo;
   if (f.relatedMessageId) msg.RelatedMessageId = f.relatedMessageId;
-  // Riga dell'elenco chat: il gruppo e la sua immagine (vedi chats.js).
+  // Chat-list row: the group and its picture (see chats.js).
   if (typeof f.isGroup === 'boolean') msg.IsGroup = f.isGroup;
   if (f.avatarData) msg.AvatarData = f.avatarData;
-  // Riga dell'elenco chat: quanti messaggi di questa conversazione non sono
-  // ancora stati letti. Lo conta l'adapter, perche' GOWA non lo dice e perche'
-  // i messaggi arrivati col telefono spento non li vede nessun altro.
+  // Chat-list row: how many messages of this conversation are still unread. The
+  // adapter counts them, because GOWA does not say and because messages that
+  // arrived with the phone off are seen by nobody else.
   if (typeof f.unreadCount === 'number') msg.UnreadCount = f.unreadCount;
 
-  // Cronologia: un messaggio vecchio, mandato aprendo la chat (vedi server.js).
-  // E' un messaggio normale - va disegnato - ma non e' arrivato adesso, e l'app
-  // non lo conta come non letto ne' avvisa per ognuno.
+  // History: an old message, sent when the chat is opened (see server.js).
+  // It is a normal message - it must be drawn - but it did not arrive now, and
+  // the app does not count it as unread or notify for each one.
   if (f.isHistory === true) msg.IsHistory = true;
 
-  // Il tipo di media dichiarato ("image", "video"): serve a sapere che una riga
-  // di cronologia *e'* un'immagine anche quando i byte non sono arrivati.
+  // The declared media type ("image", "video"): it tells that a history row
+  // *is* an image even when the bytes did not arrive.
   if (f.mediaType) msg.MediaType = f.mediaType;
 
   if (f.mediaData) {
@@ -153,16 +153,16 @@ function buildChatMessage(fields) {
     if (f.mediaFileName) msg.MediaFileName = f.mediaFileName;
   }
 
-  // Un media che non sta in un frame solo viaggia a pezzi (vedi
-  // server.js, sendMediaChunks): il pezzo dice quale e' e quanti sono in tutto,
-  // e l'app li ricompone per RelatedMessageId.
+  // A media that does not fit in a single frame travels in pieces (see
+  // server.js, sendMediaChunks): the piece says which one it is and how many
+  // there are in all, and the app reassembles them by RelatedMessageId.
   if (typeof f.mediaChunkIndex === 'number') msg.MediaChunkIndex = f.mediaChunkIndex;
   if (typeof f.mediaChunkTotal === 'number') msg.MediaChunkTotal = f.mediaChunkTotal;
 
   return msg;
 }
 
-// Estrae path/didascalia/tipo da un payload webhook GOWA.
+// Extracts path/caption/type from a GOWA webhook payload.
 function mediaFromPayload(p) {
   const result = { type: 0, path: null, mimeType: null, fileName: null, fallbackText: '' };
 
@@ -171,8 +171,8 @@ function mediaFromPayload(p) {
     else if (p.image && typeof p.image.path === 'string') { result.type = 1; result.path = p.image.path; }
     else { result.fallbackText = '[Image not downloaded]'; }
   } else if (p.audio !== undefined) {
-    // La parola c'e' sempre: con i byte o senza, un fumetto vuoto non dice
-    // niente, e un audio non si disegna.
+    // The word is always there: with the bytes or without, an empty bubble says
+    // nothing, and an audio is not drawn.
     result.type = 2;
     result.fallbackText = '[Audio]';
     if (typeof p.audio === 'string') {
@@ -181,9 +181,9 @@ function mediaFromPayload(p) {
       result.path = p.audio.path; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
     }
   } else if (p.video !== undefined) {
-    // Un video non si disegna in un fumetto: la parola resta, e una didascalia
-    // vince su di essa come per le immagini. Il tipo 4 e' quello che l'app
-    // conosce come Video (vedi MessageType in ChatMessage.cs).
+    // A video is not drawn in a bubble: the word stays, and a caption wins over
+    // it as for images. Type 4 is the one the app knows as Video (see
+    // MessageType in ChatMessage.cs).
     result.type = 4;
     result.fallbackText = '[Video]';
     if (p.video && typeof p.video.path === 'string') {
@@ -192,15 +192,14 @@ function mediaFromPayload(p) {
       result.fallbackText = '[Video not downloaded]';
     }
   } else if (p.document !== undefined) {
-    // Un documento resta un documento anche quando non e' stato scaricato:
-    // l'app deve sapere che puo' chiederlo.
+    // A document stays a document even when it was not downloaded: the app must
+    // know it can ask for it.
     result.kind = 'document';
     result.fallbackText = '[Document]';
     if (p.document && typeof p.document.path === 'string') {
       result.path = p.document.path;
       result.fileName = p.document.filename || null;
-      // Il nome del file e' piu' utile di una parola: e' quello che l'utente
-      // ha mandato.
+      // The file name is more useful than a word: it is what the user sent.
       if (result.fileName) result.fallbackText = result.fileName;
     } else {
       result.fallbackText = '[Document not downloaded]';
@@ -212,7 +211,7 @@ function mediaFromPayload(p) {
   return result;
 }
 
-/// La parola del tipo di media, o vuota per un messaggio di solo testo.
+/// The word of the media type, or empty for a text-only message.
 function mediaKind(media) {
   if (media && media.kind) return media.kind;
   const type = media && media.type;
@@ -226,8 +225,8 @@ function mapWebhookMessage(payload) {
   const p = payload || {};
   if (p.is_from_me === true) return null;
   const chatId = p.chat_id || p.from;
-  // Un canale non e' una conversazione: i suoi messaggi non si mostrano e non
-  // alzano un non letto (vedi chats.js, isChannelJid).
+  // A channel is not a conversation: its messages are not shown and do not
+  // raise an unread (see chats.js, isChannelJid).
   if (!chatId || chatId === 'status@broadcast' || chatId.endsWith('@newsletter')) return null;
 
   const senderId = p.from || chatId;
