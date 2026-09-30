@@ -8,19 +8,18 @@ using WhatsappApp.Models;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// L'indirizzo pubblico del servizio condiviso, letto da un file che sta su
-    /// GitHub invece che compilato nell'app.
+    /// The public address of the shared service, read from a file on GitHub
+    /// instead of compiled into the app.
     ///
-    /// Perche' non e' una costante: il servizio sta dietro un tunnel bore.pub, e
-    /// bore assegna una porta nuova a ogni riavvio. Un indirizzo scritto nel
-    /// codice sarebbe sbagliato entro un giorno, e per correggerlo servirebbe un
-    /// aggiornamento dell'app su ogni telefono. Il file lo riscrive lo script
-    /// del tunnel; l'app lo rilegge.
+    /// Why it is not a constant: the service sits behind a bore.pub tunnel, and
+    /// bore assigns a new port on every restart. An address written into the code
+    /// would be wrong within a day, and fixing it would need an app update on
+    /// every phone. The tunnel script rewrites the file; the app reads it again.
     ///
-    /// Se la rete non risponde si usa l'ultimo indirizzo letto bene, e solo se
-    /// non ce n'e' mai stato uno si dichiara il guasto: un telefono che ha
-    /// gia' parlato col servizio deve poterci riprovare anche se GitHub non
-    /// risponde in quel momento.
+    /// If the network does not answer, the last successfully read address is used,
+    /// and only if there never was one is the failure declared: a phone that has
+    /// already talked to the service must be able to try again even if GitHub is
+    /// not answering at that moment.
     /// </summary>
     public sealed class EndpointService
     {
@@ -35,7 +34,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Il file dell'indirizzo, in un posto solo.</summary>
+        /// <summary>The address file, in one place only.</summary>
         public const string DefaultUrl =
             "https://raw.githubusercontent.com/vincenzosco/whatsappforwp-endpoint/main/endpoint.json";
 
@@ -48,7 +47,7 @@ namespace WhatsappApp.Services
         {
         }
 
-        /// <summary>L'ultimo indirizzo letto bene, o null se non ce n'e' mai stato uno.</summary>
+        /// <summary>The last address read successfully, or null if there never was one.</summary>
         public DiscoveredServer Cached()
         {
             object hostValue;
@@ -73,8 +72,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// L'indirizzo da usare adesso: quello appena letto, o l'ultimo buono.
-        /// Null solo quando non c'e' ne' rete ne' memoria.
+        /// The address to use now: the one just read, or the last good one. Null
+        /// only when there is neither network nor memory.
         /// </summary>
         public async Task<DiscoveredServer> ResolveAsync()
         {

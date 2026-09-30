@@ -8,9 +8,9 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Pages
 {
     /// <summary>
-    /// Registro chiamate. I dati non sono locali: l'adapter li ricava dalla
-    /// history di GOWA (solo chiamate in entrata, dalle chat piu' recenti) e li
-    /// manda quando riceve il comando "calls".
+    /// Call log. The data is not local: the adapter derives it from the GOWA
+    /// history (incoming calls only, from the most recent chats) and sends it
+    /// when it receives the "calls" command.
     /// </summary>
     public sealed partial class CallsPage : Page
     {
@@ -56,8 +56,8 @@ namespace WhatsappApp.Pages
             DataService.Instance.ClearCalls();
             ShowMessage(Loc.Get("CallsPage_Scanning", "Looking for calls..."));
 
-            // OnNavigatedTo non e' async: si manda la richiesta e si aspetta il
-            // frame "calls.done" per sapere che l'adapter ha finito.
+            // OnNavigatedTo is not async: the request is sent and the
+            // "calls.done" frame is awaited to know the adapter has finished.
 #pragma warning disable 4014
             CommunicationService.Instance.SendControlAsync("calls");
 #pragma warning restore 4014
@@ -75,7 +75,7 @@ namespace WhatsappApp.Pages
             StatusText.Visibility = Visibility.Collapsed;
         }
 
-        /// <summary>Mostra una riga di stato al posto (o sopra) della lista vuota.</summary>
+        /// <summary>Shows a status line instead of (or above) the empty list.</summary>
         private void ShowMessage(string text)
         {
             StatusText.Text = text;

@@ -5,8 +5,8 @@ using WhatsappApp.Controls;
 namespace WhatsappApp.Pages
 {
     /// <summary>
-    /// Sezione stato: la pagina esiste e si naviga, ma non ha dati finche'
-    /// l'adapter non espone gli stati.
+    /// Status section: the page exists and navigates, but it has no data until
+    /// the adapter exposes the statuses.
     /// </summary>
     public sealed partial class StatusPage : Page
     {

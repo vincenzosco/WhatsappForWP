@@ -8,7 +8,7 @@ using WhatsappApp.Services;
 
 namespace WhatsappApp.Controls
 {
-    /// <summary>Le tre sezioni dell'app, ognuna con la propria pagina.</summary>
+    /// <summary>The three sections of the app, each with its own page.</summary>
     public enum AppSection
     {
         Chats,
@@ -17,10 +17,10 @@ namespace WhatsappApp.Controls
     }
 
     /// <summary>
-    /// Barra di navigazione inferiore condivisa dalle pagine di sezione.
-    /// Naviga sul Frame radice e toglie dallo stack la sezione appena lasciata,
-    /// cosi' il tasto Indietro esce dall'app invece di ripassare tra le sezioni
-    /// gia' viste.
+    /// Bottom navigation bar shared by the section pages.
+    /// It navigates on the root Frame and removes the section just left from the
+    /// stack, so the Back button exits the app instead of walking back through the
+    /// sections already seen.
     /// </summary>
     public sealed partial class SectionNav : UserControl
     {
@@ -35,8 +35,8 @@ namespace WhatsappApp.Controls
         {
             this.InitializeComponent();
 
-            // I pulsanti sono solo icone: il testo e' un tooltip (che il
-            // sistema legge anche come etichetta di accessibilita').
+            // The buttons are icon-only: the text is a tooltip (which the system
+            // also reads as an accessibility label).
             ToolTipService.SetToolTip(ChatsButton, Loc.Get("Nav_Chats", "chats"));
             ToolTipService.SetToolTip(StatusButton, Loc.Get("Nav_Status", "status"));
             ToolTipService.SetToolTip(CallsButton, Loc.Get("Nav_Calls", "calls"));
@@ -44,7 +44,7 @@ namespace WhatsappApp.Controls
             UpdateColors();
         }
 
-        /// <summary>Sezione mostrata dalla pagina che ospita la barra.</summary>
+        /// <summary>Section shown by the page hosting the bar.</summary>
         public AppSection Current
         {
             get { return _current; }
@@ -70,8 +70,8 @@ namespace WhatsappApp.Controls
         {
             if (section == _current) return;
 
-            // UserControl non ha una proprieta' Frame: il Frame radice e'
-            // quello che App.OnLaunched assegna a Window.Current.Content.
+            // A UserControl has no Frame property: the root Frame is the one
+            // App.OnLaunched assigns to Window.Current.Content.
             var frame = Window.Current.Content as Frame;
             if (frame == null) return;
 
@@ -87,7 +87,7 @@ namespace WhatsappApp.Controls
             }
         }
 
-        /// <summary>Pagina di una sezione (la usa anche l'avvio dell'app).</summary>
+        /// <summary>Page of a section (the app startup uses it too).</summary>
         public static Type PageFor(AppSection section)
         {
             switch (section)
