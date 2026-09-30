@@ -475,4 +475,10 @@
   <data name="ContactInfoPage_NoInfo" xml:space="preserve">
     <value>Nessuna informazione dal server.</value>
   </data>
+  <data name="ChatPage_ProfilePhotoTooltip" xml:space="preserve">
+    <value>Mostra la foto del profilo</value>
+  </data>
+  <data name="ChatPage_ContactInfoTooltip" xml:space="preserve">
+    <value>Info contatto</value>
+  </data>
 </root>
