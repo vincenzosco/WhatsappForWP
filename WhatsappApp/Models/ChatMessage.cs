@@ -41,11 +41,11 @@ namespace WhatsappApp.Models
         private string _chatId;
         private DateTime _timestamp = DateTime.Now;
 
-        // Il valore del campo Timestamp cosi' come e' arrivato. E' una stringa e
-        // non un DateTime perche' la deserializzazione non deve poter fallire:
-        // una data che il telefono non riconosce faceva cadere l'intero frame
-        // ("String was not recognized as a valid DateTime", 0x8013150C) e il
-        // messaggio spariva senza che l'utente vedesse niente.
+        // The value of the Timestamp field as it arrived. It is a string and not a
+        // DateTime because deserialization must not be able to fail: a date the
+        // phone does not recognize used to bring down the whole frame ("String was
+        // not recognized as a valid DateTime", 0x8013150C) and the message vanished
+        // without the user seeing anything.
         private string _timestampWire;
         private MessageStatus _status;
         private MessageType _type;
@@ -77,8 +77,8 @@ namespace WhatsappApp.Models
         private string _mediaFilePath;       // file locale del video ricevuto (client, non sul filo)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
-        // Un serializer per tipo, non uno per messaggio: DataContractJsonSerializer
-        // costruisce internamente il grafo del contratto a ogni istanza.
+        // One serializer per type, not one per message: DataContractJsonSerializer
+        // builds the contract graph internally on every instance.
         private static readonly DataContractJsonSerializer JsonSerializer =
             new DataContractJsonSerializer(typeof(ChatMessage));
 
@@ -123,9 +123,10 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Il campo che viaggia sul filo, cosi' com'e'. Quando il messaggio e'
-        /// stato costruito qui (e non letto da un frame) e' vuoto, e il getter
-        /// lo scrive dal DateTime: e' l'unica sorgente della forma /Date(ms)/.
+        /// The field that travels on the wire, as it is. When the message was
+        /// built here (and not read from a frame) it is empty, and the getter
+        /// writes it from the DateTime: it is the only source of the /Date(ms)/
+        /// shape.
         /// </summary>
         [DataMember(Name = "Timestamp")]
         public string TimestampWire
@@ -141,7 +142,7 @@ namespace WhatsappApp.Models
             }
         }
 
-        /// <summary>La stessa data come la usa l'app. Non e' un [DataMember]: sul filo va la stringa.</summary>
+        /// <summary>The same date as the app uses it. It is not a [DataMember]: the string goes on the wire.</summary>
         public DateTime Timestamp
         {
             get { return _timestamp; }
@@ -204,7 +205,7 @@ namespace WhatsappApp.Models
             set { _mediaFileName = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Identificativo di un allegato che viaggia a pezzi (media.begin/end).</summary>
+        /// <summary>Identifier of an attachment that travels in pieces (media.begin/end).</summary>
         [DataMember]
         public string MediaTransferId
         {
@@ -212,7 +213,7 @@ namespace WhatsappApp.Models
             set { _mediaTransferId = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Quale pezzo di un allegato e' questo frame.</summary>
+        /// <summary>Which piece of an attachment this frame is.</summary>
         [DataMember]
         public int MediaChunkIndex
         {
@@ -220,7 +221,7 @@ namespace WhatsappApp.Models
             set { _mediaChunkIndex = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Quanti pezzi ha in tutto l'allegato.</summary>
+        /// <summary>How many pieces the attachment has in all.</summary>
         [DataMember]
         public int MediaChunkTotal
         {
@@ -229,9 +230,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Il tipo di media come lo dichiara il server ("image", "video"). Non e'
-        /// il tipo MIME: serve a sapere che una riga di cronologia *e'* un'immagine
-        /// anche quando i byte non sono arrivati.
+        /// The media type as the server declares it ("image", "video"). It is not
+        /// the MIME type: it tells that a history row *is* an image even when the
+        /// bytes did not arrive.
         /// </summary>
         [DataMember]
         public string MediaType
@@ -249,10 +250,10 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Il file locale con i byte di un video ricevuto. Non e' un
-        /// [DataMember]: un video non viaggia nel modello (troppo per un frame),
-        /// quindi sul filo c'e' solo il nome del file in cache locale. Vuoto
-        /// finche' i byte non sono arrivati.
+        /// The local file with the bytes of a received video. It is not a
+        /// [DataMember]: a video does not travel in the model (too much for one
+        /// frame), so on the wire there is only the file name in the local cache.
+        /// Empty until the bytes have arrived.
         /// </summary>
         public string MediaFilePath
         {
@@ -269,10 +270,10 @@ namespace WhatsappApp.Models
         private bool _isMediaLoading;
 
         /// <summary>
-        /// Vero mentre i byte di questo media stanno arrivando. Non e' un dato
-        /// del filo: lo alza la pagina quando chiede il media e lo abbassa il
-        /// servizio dati quando i pezzi sono tutti, o quando il server dice che
-        /// non c'e' piu'. E' quello che fa girare l'indicatore nella bolla.
+        /// True while the bytes of this media are arriving. It is not wire data:
+        /// the page raises it when it asks for the media and the data service lowers
+        /// it when the pieces are all there, or when the server says it is gone. It
+        /// is what spins the indicator in the bubble.
         /// </summary>
         public bool IsMediaLoading
         {
@@ -280,7 +281,7 @@ namespace WhatsappApp.Models
             set { _isMediaLoading = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Comando dei frame di controllo inviati/ricevuti dall'adapter (Type = System).</summary>
+        /// <summary>Command of the control frames sent/received by the adapter (Type = System).</summary>
         [DataMember]
         public string Command
         {
@@ -288,7 +289,7 @@ namespace WhatsappApp.Models
             set { _command = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Stato della connessione WhatsApp: "disconnected", "waiting" o "connected".</summary>
+        /// <summary>WhatsApp connection state: "disconnected", "waiting" or "connected".</summary>
         [DataMember]
         public string State
         {
@@ -296,7 +297,7 @@ namespace WhatsappApp.Models
             set { _state = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Codice di abbinamento da inserire sul telefono (login via numero).</summary>
+        /// <summary>Pairing code to enter on the phone (phone-number login).</summary>
         [DataMember]
         public string PairCode
         {
@@ -304,7 +305,7 @@ namespace WhatsappApp.Models
             set { _pairCode = value; OnPropertyChanged(); }
         }
 
-        /// <summary>QR code di login codificato in base64 (PNG).</summary>
+        /// <summary>Login QR code encoded in base64 (PNG).</summary>
         [DataMember]
         public string QrImageData
         {
@@ -312,7 +313,7 @@ namespace WhatsappApp.Models
             set { _qrImageData = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Durata di validità del QR code, in secondi.</summary>
+        /// <summary>Validity of the QR code, in seconds.</summary>
         [DataMember]
         public int QrDuration
         {
@@ -320,7 +321,7 @@ namespace WhatsappApp.Models
             set { _qrDuration = value; OnPropertyChanged(); }
         }
 
-        /// <summary>JID dell'account WhatsApp collegato (es. 393401234567@s.whatsapp.net).</summary>
+        /// <summary>JID of the linked WhatsApp account (e.g. 393401234567@s.whatsapp.net).</summary>
         [DataMember]
         public string AccountJid
         {
@@ -328,7 +329,7 @@ namespace WhatsappApp.Models
             set { _accountJid = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Identificativo della chiamata come lo conosce GOWA.</summary>
+        /// <summary>Call identifier as GOWA knows it.</summary>
         [DataMember]
         public string CallId
         {
@@ -336,7 +337,7 @@ namespace WhatsappApp.Models
             set { _callId = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Esito della chiamata secondo GOWA: "timeout", "reject", ... Vuoto se non lo dice.</summary>
+        /// <summary>Call outcome according to GOWA: "timeout", "reject", ... Empty if it does not say.</summary>
         [DataMember]
         public string CallReason
         {
@@ -344,7 +345,7 @@ namespace WhatsappApp.Models
             set { _callReason = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Durata della chiamata in secondi. 0 significa "non lo sappiamo".</summary>
+        /// <summary>Call duration in seconds. 0 means "we do not know".</summary>
         [DataMember]
         public int CallDurationSeconds
         {
@@ -352,7 +353,7 @@ namespace WhatsappApp.Models
             set { _callDurationSeconds = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Vero se la chiamata era video.</summary>
+        /// <summary>True if the call was a video call.</summary>
         [DataMember]
         public bool CallIsVideo
         {
@@ -361,9 +362,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Il token del servizio condiviso. Viaggia nel frame `hello`, come
-        /// tutto il resto: questo protocollo non ha header dove metterlo. Su un
-        /// servizio privato resta vuoto, e il server non lo chiede.
+        /// The token of the shared service. It travels in the `hello` frame, like
+        /// everything else: this protocol has no headers to put it in. On a private
+        /// service it stays empty, and the server does not ask for it.
         /// </summary>
         [DataMember]
         public string Token
@@ -372,7 +373,7 @@ namespace WhatsappApp.Models
             set { _token = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Id del messaggio a cui si riferisce un frame di revoca o modifica.</summary>
+        /// <summary>Id of the message a revocation or edit frame refers to.</summary>
         [DataMember]
         public string RelatedMessageId
         {
@@ -380,7 +381,7 @@ namespace WhatsappApp.Models
             set { _relatedMessageId = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Immagine del profilo della chat, in base64. Vuota se non ce l'ha.</summary>
+        /// <summary>Profile picture of the chat, in base64. Empty if it has none.</summary>
         [DataMember]
         public string AvatarData
         {
@@ -388,7 +389,7 @@ namespace WhatsappApp.Models
             set { _avatarData = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Vero per i gruppi: GOWA non ha un avatar personale per loro.</summary>
+        /// <summary>True for groups: GOWA has no personal avatar for them.</summary>
         [DataMember]
         public bool IsGroup
         {
@@ -397,9 +398,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Cronologia: un messaggio vecchio, che l'adapter manda aprendo la chat.
-        /// E' un messaggio normale e va disegnato come tale, ma non e' arrivato
-        /// adesso: non conta come non letto e non alza nessun avviso.
+        /// History: an old message, which the adapter sends when the chat is
+        /// opened. It is a normal message and must be drawn as such, but it did not
+        /// arrive now: it does not count as unread and raises no notification.
         /// </summary>
         [DataMember]
         public bool IsHistory
@@ -409,10 +410,10 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Quanti messaggi di questa conversazione non sono ancora stati letti.
-        /// Non e' un dato del messaggio: e' un dato della riga dell'elenco chat,
-        /// e l'adapter lo conta perche' e' l'unico che vede i messaggi arrivati
-        /// mentre il telefono era spento.
+        /// How many messages of this conversation are still unread. It is not data
+        /// of the message: it is data of the chat-list row, and the adapter counts
+        /// it because it is the only one that sees the messages that arrived while
+        /// the phone was off.
         /// </summary>
         [DataMember]
         public int UnreadCount
@@ -428,8 +429,8 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Immagine decodificata da MediaData. Non è un [DataMember]: resta
-        /// solo lato client e serve al binding XAML della bolla.
+        /// Picture decoded from MediaData. It is not a [DataMember]: it stays
+        /// client-side only and serves the XAML binding of the bubble.
         /// </summary>
         public BitmapImage MediaImage
         {
@@ -438,17 +439,16 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Un'immagine dentro un fumetto: la bolla e' larga al massimo ~250 px,
-        /// quindi 320 copre anche il margine. Decodificare il file intero per
-        /// disegnarlo a un terzo della misura e' la voce piu' pesante che una
-        /// conversazione puo' tenere in memoria.
+        /// An image inside a bubble: the bubble is at most ~250 px wide, so 320
+        /// covers the margin as well. Decoding the whole file to draw it at a third
+        /// of the size is the heaviest item a conversation can keep in memory.
         /// </summary>
         private const int MediaDecodePixels = 320;
 
         /// <summary>
-        /// Decodifica la bitmap di questo messaggio, da base64 o dal file locale,
-        /// alla larghezza richiesta. La usano la bolla, lo schermo intero e
-        /// l'anteprima di un allegato appena scelto.
+        /// Decodes the bitmap of this message, from base64 or the local file, at
+        /// the requested width. The bubble, the full screen and the preview of a
+        /// just-chosen attachment use it.
         /// </summary>
         public async Task<BitmapImage> LoadBitmapAsync(int decodePixelWidth)
         {
@@ -460,21 +460,21 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Decodifica MediaData (base64) o il file locale in MediaImage. Va
-        /// atteso sul thread UI: il flusso deve restare aperto finché
-        /// SetSourceAsync non ha finito.
+        /// Decodes MediaData (base64) or the local file into MediaImage. It must
+        /// be awaited on the UI thread: the stream must stay open until
+        /// SetSourceAsync has finished.
         /// </summary>
         public async Task LoadMediaImageAsync()
         {
             if (Type != MessageType.Image) return;
 
-            // Gia' decodificata (es. si torna sulla pagina): rifarlo sprecherebbe
-            // CPU e memoria per un risultato identico.
+            // Already decoded (e.g. coming back to the page): doing it again would
+            // waste CPU and memory for an identical result.
             if (MediaImage != null) return;
 
-            // Un'immagine dentro un fumetto e' la cosa piu' pesante che si possa
-            // decodificare, e sotto pressione si rimanda a quando il telefono
-            // respira: nel frattempo resta il segnaposto.
+            // An image inside a bubble is the heaviest thing that can be decoded,
+            // and under pressure it is postponed until the phone breathes: in the
+            // meantime the placeholder stays.
             if (MemoryWatcher.Instance.IsUnderPressure) return;
             if (string.IsNullOrEmpty(MediaData) && string.IsNullOrEmpty(MediaFilePath)) return;
 
@@ -496,9 +496,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Questa bolla e' un video. Vale anche prima che i byte arrivino: una
-        /// riga di cronologia dice il tipo in MediaType, e la casella con il
-        /// triangolo si mostra lo stesso, cosi' si puo' chiedere il file.
+        /// This bubble is a video. It is true even before the bytes arrive: a
+        /// history row gives the type in MediaType, and the box with the triangle
+        /// is shown all the same, so the file can be requested.
         /// </summary>
         public bool IsVideo
         {
@@ -510,8 +510,8 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Questa bolla e' un vocale o un audio. Vale anche prima che i byte
-        /// arrivino: la riga di cronologia dichiara MediaType "audio".
+        /// This bubble is a voice note or audio. It is true even before the bytes
+        /// arrive: the history row declares MediaType "audio".
         /// </summary>
         public bool IsAudio
         {
@@ -523,10 +523,10 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Questa bolla e' un documento. Non c'e' un MessageType per un
-        /// documento: il tipo dichiarato dal server (MediaType "document") e' la
-        /// sola cosa che lo distingue da un messaggio di testo, e sul filo il
-        /// testo e' gia' il nome del file.
+        /// This bubble is a document. There is no MessageType for a document: the
+        /// type declared by the server (MediaType "document") is the only thing that
+        /// tells it from a text message, and on the wire the text is already the
+        /// file name.
         /// </summary>
         public bool IsDocument
         {
@@ -534,11 +534,11 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// C'e' qualcosa da scrivere sotto il media. Il segnaposto del tipo
-        /// ("[Video]", "[Image not downloaded]") non e' una didascalia: per un
-        /// video lo dice la casella con il triangolo, e ripetere la parola
-        /// sotto non serve a niente. Per tutto il resto il testo resta quello
-        /// di prima, cosi' una didascalia non sparisce.
+        /// There is something to write under the media. The type placeholder
+        /// ("[Video]", "[Image not downloaded]") is not a caption: for a video the
+        /// box with the triangle says it, and repeating the word underneath serves
+        /// no purpose. For everything else the text stays what it was, so a caption
+        /// does not disappear.
         /// </summary>
         public bool ShowsText
         {
@@ -550,7 +550,7 @@ namespace WhatsappApp.Models
             }
         }
 
-        /// <summary>Il testo e' solo il segnaposto che l'adapter scrive per un media.</summary>
+        /// <summary>The text is only the placeholder the adapter writes for a media.</summary>
         private bool IsMediaPlaceholder
         {
             get
@@ -594,11 +594,11 @@ namespace WhatsappApp.Models
                 handler(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        /// <summary>Il primo istante dell'epoch, in UTC: la base del formato Microsoft.</summary>
+        /// <summary>The first instant of the epoch, in UTC: the base of the Microsoft format.</summary>
         private static readonly DateTime Epoch =
             new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-        /// <summary>Millisecondi dall'epoch, nella forma /Date(ms)/ che l'altro capo legge.</summary>
+        /// <summary>Milliseconds from the epoch, in the /Date(ms)/ shape the other end reads.</summary>
         private static string FormatWire(DateTime value)
         {
             DateTime utc = value.Kind == DateTimeKind.Utc ? value : value.ToUniversalTime();
@@ -607,14 +607,14 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Interpreta il campo Timestamp di un frame.
+        /// Interprets the Timestamp field of a frame.
         ///
-        /// Accetta /Date(ms)/ con un numero qualsiasi di backslash davanti agli
-        /// slash - un adattatore piu' vecchio li raddoppiava, e quei backslash
-        /// sono escape del lettore JSON, non parte del valore -, una data ISO
-        /// 8601 con o senza fuso, e i millisecondi nudi. Qualunque altra cosa
-        /// diventa l'ora attuale, con la riga di Diag che dice cosa non andava:
-        /// un campo illeggibile non deve far sparire il messaggio.
+        /// It accepts /Date(ms)/ with any number of backslashes before the slashes
+        /// - an older adapter doubled them, and those backslashes are escapes of the
+        /// JSON reader, not part of the value -, an ISO 8601 date with or without a
+        /// zone, and raw milliseconds. Anything else becomes the current time, with
+        /// the Diag line saying what was wrong: an unreadable field must not make
+        /// the message disappear.
         /// </summary>
         private static DateTime ParseWire(string value)
         {
@@ -630,7 +630,7 @@ namespace WhatsappApp.Models
                 long fromWire;
                 if (long.TryParse(inner, NumberStyles.Integer, CultureInfo.InvariantCulture, out fromWire))
                 {
-                    // FormatTime si aspetta una data locale: il filo porta UTC.
+                    // FormatTime expects a local date: the wire carries UTC.
                     return Epoch.AddMilliseconds(fromWire).ToLocalTime();
                 }
             }
@@ -655,8 +655,8 @@ namespace WhatsappApp.Models
 
         private static string FormatTime(DateTime dt)
         {
-            // Il serializer legge /Date(ms)/ come UTC: senza questa conversione
-            // l'orario mostrato è sfasato rispetto a quello del telefono.
+            // The serializer reads /Date(ms)/ as UTC: without this conversion the
+            // time shown is offset from the phone one.
             if (dt.Kind == DateTimeKind.Utc)
                 dt = dt.ToLocalTime();
 
