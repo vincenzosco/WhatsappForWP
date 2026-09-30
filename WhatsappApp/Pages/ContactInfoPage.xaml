@@ -1,0 +1,169 @@
+<Page
+    x:Class="WhatsappApp.Pages.ContactInfoPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:WhatsappApp.Converters"
+    Background="White">
+
+    <Page.Resources>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+        <conv:InitialToColorConverter x:Key="InitialToColor"/>
+        <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header: back + title. Come nelle altre pagine, la barra e' disegnata
+             qui e il titolo lo scrive il gestore con Loc.Get. -->
+        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="BackButton" Grid.Column="0"
+                    Background="Transparent"
+                    MinWidth="0" MinHeight="0"
+                    Width="48" Height="48" Margin="0,4,0,0" Padding="0"
+                    Click="BackButton_Click"
+                    BorderThickness="0">
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24">
+                    <!-- IconBack -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="15.5,4">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="7.5,12 15.5,20"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
+
+            <TextBlock x:Name="TitleText" Grid.Column="1"
+                       VerticalAlignment="Center" Margin="8,0,0,4"
+                       Foreground="White" FontSize="18" FontWeight="SemiBold"
+                       TextTrimming="WordEllipsis"/>
+        </Grid>
+
+        <ScrollViewer Grid.Row="1">
+            <StackPanel Margin="0,0,0,24">
+
+                <!-- La foto grande. E' un Border e non un'Image per lo stesso
+                     motivo della riga dell'elenco: WP8.1 ritaglia un cerchio
+                     solo con il CornerRadius di uno sfondo. -->
+                <Border x:Name="BigAvatar" Width="160" Height="160" CornerRadius="80"
+                        Margin="0,20,0,12" HorizontalAlignment="Center"
+                        Tapped="BigAvatar_Tapped">
+                    <Grid>
+                        <Ellipse Width="160" Height="160"
+                                 Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                        <Border Width="160" Height="160" CornerRadius="80"
+                                Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                            <Border.Background>
+                                <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                            </Border.Background>
+                        </Border>
+                        <TextBlock Text="{Binding Initials}"
+                                   Foreground="White" FontSize="56" FontWeight="SemiBold"
+                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                   Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+                    </Grid>
+                </Border>
+
+                <TextBlock x:Name="NameText" FontSize="24" FontWeight="SemiBold"
+                           Foreground="#DE000000" HorizontalAlignment="Center"
+                           TextTrimming="WordEllipsis" Margin="16,0,16,0"/>
+
+                <TextBlock x:Name="NumberLabel" FontSize="13" Foreground="#8A000000"
+                           HorizontalAlignment="Center" Margin="16,8,16,0"
+                           Visibility="Collapsed"/>
+                <TextBlock x:Name="NumberText" FontSize="18" Foreground="#DE000000"
+                           HorizontalAlignment="Center" Margin="16,0,16,0"
+                           Visibility="Collapsed"/>
+
+                <TextBlock x:Name="AboutLabel" FontSize="13" Foreground="#8A000000"
+                           Margin="16,20,16,0" Visibility="Collapsed"/>
+                <TextBlock x:Name="AboutText" FontSize="17" Foreground="#DE000000"
+                           TextWrapping="Wrap" Margin="16,2,16,0" Visibility="Collapsed"/>
+
+                <StackPanel x:Name="BusinessPanel" Visibility="Collapsed" Margin="16,24,16,0">
+                    <TextBlock x:Name="BusinessLabel" FontSize="18" FontWeight="SemiBold"
+                               Foreground="#DE000000"/>
+                    <TextBlock x:Name="BusinessEmailLabel" FontSize="13" Foreground="#8A000000"
+                               Margin="0,10,0,0" Visibility="Collapsed"/>
+                    <TextBlock x:Name="BusinessEmailText" FontSize="16" Foreground="#DE000000"
+                               TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <TextBlock x:Name="BusinessAddressLabel" FontSize="13" Foreground="#8A000000"
+                               Margin="0,10,0,0" Visibility="Collapsed"/>
+                    <TextBlock x:Name="BusinessAddressText" FontSize="16" Foreground="#DE000000"
+                               TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <TextBlock x:Name="BusinessCategoriesLabel" FontSize="13" Foreground="#8A000000"
+                               Margin="0,10,0,0" Visibility="Collapsed"/>
+                    <TextBlock x:Name="BusinessCategoriesText" FontSize="16" Foreground="#DE000000"
+                               TextWrapping="Wrap" Visibility="Collapsed"/>
+                    <TextBlock x:Name="BusinessHoursLabel" FontSize="13" Foreground="#8A000000"
+                               Margin="0,10,0,0" Visibility="Collapsed"/>
+                    <ListView x:Name="HoursList" SelectionMode="None" IsHitTestVisible="False"
+                              MaxHeight="240">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Display}" Foreground="#DE000000"
+                                           FontSize="16" TextWrapping="Wrap" Margin="0,2,0,2"/>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+
+                <StackPanel x:Name="GroupPanel" Visibility="Collapsed" Margin="16,24,16,0">
+                    <TextBlock x:Name="GroupDescriptionLabel" FontSize="18" FontWeight="SemiBold"
+                               Foreground="#DE000000" Visibility="Collapsed"/>
+                    <TextBlock x:Name="GroupDescriptionText" FontSize="16" Foreground="#DE000000"
+                               TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed"/>
+                    <TextBlock x:Name="MembersLabel" FontSize="18" FontWeight="SemiBold"
+                               Foreground="#DE000000" Margin="0,18,0,0"/>
+                    <ListView x:Name="MembersList" SelectionMode="None" IsHitTestVisible="False"
+                              MaxHeight="320">
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,6,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Display}"
+                                               Foreground="#DE000000" FontSize="16"
+                                               TextTrimming="WordEllipsis"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding Role}"
+                                               Foreground="#8A000000" FontSize="13"
+                                               Margin="8,0,0,0"
+                                               Visibility="{Binding IsRoleVisible, Converter={StaticResource BoolToVisibility}}"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+                </StackPanel>
+
+                <TextBlock x:Name="EmptyText" FontSize="15" Foreground="#8A000000"
+                           TextWrapping="Wrap" Margin="16,24,16,0" Visibility="Collapsed"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- La foto a tutto schermo: si chiude toccandola, come per una bolla. -->
+        <Grid x:Name="ImageViewer" Grid.RowSpan="2"
+              Background="#F0000000"
+              Visibility="Collapsed"
+              Tapped="ImageViewer_Tapped">
+            <Image x:Name="ImageViewerImage" Stretch="Uniform"/>
+        </Grid>
+    </Grid>
+</Page>
