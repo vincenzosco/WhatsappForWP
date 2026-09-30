@@ -10,6 +10,7 @@ using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
 using WhatsappApp.Services;
@@ -29,6 +30,35 @@ namespace WhatsappApp.Pages
         private string _selectedMediaMimeType;
         private ChatMessage _pendingScroll;
         private bool _scrollQueued;
+
+        // The conversation's own scroll viewer, looked up once: finding it means
+        // walking the visual tree, and the position is read on every arriving
+        // message and on every frame of a scroll.
+        private ScrollViewer _messagesViewer;
+
+        // What WhatsApp last said about the person in this chat (the three dots).
+        private bool _contactTyping;
+        private Storyboard _typingStoryboard;
+
+        // Our own typing, toward the contact: whether "composing" has been said
+        // and not yet taken back, and when the last key was pressed.
+        private bool _typingSent;
+        private DispatcherTimer _typingTimer;
+        private DateTime _lastKeystroke;
+        private const int TypingRefreshSeconds = 4;
+
+        // A message left below because the conversation was being read somewhere
+        // else: it is told to the server when the reader gets to it, not before.
+        private bool _markReadPending;
+        private bool _viewChangedHooked;
+
+        /// <summary>
+        /// How far from the bottom the conversation still counts as "at the
+        /// bottom". A bubble is about sixty pixels tall: a smaller margin would
+        /// answer "no" while the newest bubble is still fully on screen, and a
+        /// larger one would follow a reader who has scrolled away.
+        /// </summary>
+        private const int BottomFollowMargin = 80;
 
         public ChatPage()
         {
@@ -53,6 +83,9 @@ namespace WhatsappApp.Pages
             if (contact != null)
             {
                 _contact = contact;
+                _contactTyping = false;
+                _typingSent = false;
+                _markReadPending = false;
 
                 // The avatar and the initials come from the contact: the page does
                 // not rebuild them.
@@ -100,6 +133,10 @@ namespace WhatsappApp.Pages
                 // Listen for new messages
                 CommunicationService.Instance.MessageReceived += OnMessageReceived;
 
+                // And for what WhatsApp says about the person of this chat, which
+                // is not a message: the three dots of "writing".
+                DataService.Instance.TypingChanged += OnTypingChanged;
+
                 // An image shared from outside may have arrived while this page
                 // did not exist (process restarted): it is picked up here, and from
                 // here on also on arrival.
@@ -112,7 +149,14 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
+            DataService.Instance.TypingChanged -= OnTypingChanged;
             AttachmentInbox.Ready -= OnAttachmentReady;
+
+            // Leaving while writing: the contact must not keep seeing the dots,
+            // and the timer that refreshes them has no reason to run any more.
+            StopTyping();
+            HideTyping();
+            UnwatchBottomReached();
 
             // The snapshot of the conversation: leaving is what writes it, not
             // every message, otherwise it would write a file in bursts.
@@ -175,7 +219,7 @@ namespace WhatsappApp.Pages
                 // The new row has to exist before it can be revealed.
                 MessagesListView.UpdateLayout();
 
-                ScrollViewer viewer = FindScrollViewer(MessagesListView);
+                ScrollViewer viewer = MessagesViewer();
                 if (viewer != null && viewer.ScrollableHeight > 0)
                 {
                     viewer.ChangeView(null, viewer.ScrollableHeight, null);
@@ -185,6 +229,29 @@ namespace WhatsappApp.Pages
                 MessagesListView.ScrollIntoView(target);
             });
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The scroll viewer of the conversation, looked up once and kept.
+        /// </summary>
+        private ScrollViewer MessagesViewer()
+        {
+            if (_messagesViewer == null) _messagesViewer = FindScrollViewer(MessagesListView);
+            return _messagesViewer;
+        }
+
+        /// <summary>
+        /// Whether the conversation is showing its newest row.
+        ///
+        /// Only the scroll viewer knows: the list does not expose where it is. A
+        /// list shorter than its viewport, and one without a viewer yet, are both
+        /// "at the bottom" - there is nothing below to be torn away from.
+        /// </summary>
+        private bool AtBottom()
+        {
+            ScrollViewer viewer = MessagesViewer();
+            if (viewer == null || viewer.ScrollableHeight <= 0) return true;
+            return viewer.ScrollableHeight - viewer.VerticalOffset <= BottomFollowMargin;
         }
 
         /// <summary>
@@ -215,14 +282,174 @@ namespace WhatsappApp.Pages
             // here we only scroll, otherwise the bubble would show up twice.
             if (message.ChatId != _contact.Id) return;
 
-            ScrollToMessage(message);
+            // A message is the end of "someone is writing": WhatsApp does not always
+            // send the `paused` when the message follows at once, and the dots would
+            // stay on screen for a conversation that is no longer being written.
+            HideTyping();
+
+            // The conversation is brought to the newest bubble only when the reader
+            // is already at the bottom. Following every message dragged the screen
+            // away from whoever was reading something older, and it also marked as
+            // read a message that had never been shown: below here the message is
+            // left where it is, and the server is told it has been read when the
+            // reader really reaches it.
+            if (AtBottom())
+            {
+                ScrollToMessage(message);
+                MarkRead();
+                return;
+            }
 
             // This handler lives only while this page is the one in front (it is
             // attached in OnNavigatedTo and detached in OnNavigatedFrom), so a
-            // message that arrives here is a message the user is watching scroll
-            // by: it is read now, as on WhatsApp. The number on the row is cleared
-            // for this reason, not because of an exclusion in the counter.
+            // message that arrives here is a message the user is one scroll away
+            // from. The number on the row stays until then.
+            _markReadPending = true;
+            WatchBottomReached();
+        }
+
+        // ─── Someone is writing ───────────────────────────────────────────────
+
+        /// <summary>
+        /// WhatsApp says that the person of a chat is writing, or has stopped. It
+        /// is forwarded by the adapter as a `typing` frame; this page is the only
+        /// one that can show it, and only for its own chat.
+        /// </summary>
+        private void OnTypingChanged(object sender, ChatMessage message)
+        {
+            if (message == null || _contact == null) return;
+            if (message.ChatId != _contact.Id) return;
+
+            bool typing = message.State == "composing";
+            // The same state arrives again and again while the words keep coming:
+            // restarting the animation on each one would make the dots stutter.
+            if (typing == _contactTyping) return;
+
+            if (typing) ShowTyping();
+            else HideTyping();
+        }
+
+        private void ShowTyping()
+        {
+            _contactTyping = true;
+            TypingBar.Visibility = Visibility.Visible;
+
+            if (_typingStoryboard == null) _typingStoryboard = Resources["TypingDots"] as Storyboard;
+            if (_typingStoryboard != null) _typingStoryboard.Begin();
+        }
+
+        /// <summary>
+        /// Takes the dots away, animation included: a storyboard that repeats
+        /// forever and is only hidden keeps working in the background.
+        /// </summary>
+        private void HideTyping()
+        {
+            _contactTyping = false;
+            TypingBar.Visibility = Visibility.Collapsed;
+            if (_typingStoryboard != null) _typingStoryboard.Stop();
+        }
+
+        // ─── Reading the conversation ─────────────────────────────────────────
+
+        /// <summary>
+        /// Starts watching the position of the conversation, so that a message left
+        /// below is marked as read when the reader reaches the bottom. The handler
+        /// is put on once: ViewChanged fires on every frame of a scroll.
+        /// </summary>
+        private void WatchBottomReached()
+        {
+            if (_viewChangedHooked) return;
+
+            ScrollViewer viewer = MessagesViewer();
+            if (viewer == null) return;
+
+            viewer.ViewChanged += OnMessagesViewChanged;
+            _viewChangedHooked = true;
+        }
+
+        private void UnwatchBottomReached()
+        {
+            if (!_viewChangedHooked) return;
+
+            ScrollViewer viewer = MessagesViewer();
+            if (viewer != null) viewer.ViewChanged -= OnMessagesViewChanged;
+            _viewChangedHooked = false;
+        }
+
+        private void OnMessagesViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
+        {
+            if (!_markReadPending || !AtBottom()) return;
+
+            _markReadPending = false;
             MarkRead();
+        }
+
+        // ─── Our own typing ──────────────────────────────────────────────────
+
+        /// <summary>
+        /// Our own typing state, sent while there is something in the box.
+        ///
+        /// WhatsApp refreshes "composing" while the words keep coming and takes it
+        /// back when the writer stops; one repeating timer does both. Emptying the
+        /// box counts as stopping, and so does sending: that path sets Text to ""
+        /// in code, which lands here like any other change.
+        /// </summary>
+        private void MessageTextBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            string text = (MessageTextBox.Text ?? "").Trim();
+            if (text.Length == 0) { StopTyping(); return; }
+
+            _lastKeystroke = DateTime.Now;
+            if (_typingTimer == null)
+            {
+                _typingTimer = new DispatcherTimer
+                {
+                    Interval = TimeSpan.FromSeconds(TypingRefreshSeconds)
+                };
+                _typingTimer.Tick += OnTypingTimerTick;
+            }
+            _typingTimer.Start();
+
+            if (_typingSent || !CommunicationService.Instance.IsConnected) return;
+            _typingSent = true;
+            SendTyping("composing");
+        }
+
+        /// <summary>
+        /// A whole interval without a keystroke: the writer stopped with the words
+        /// still in the box, and the contact must stop seeing the dots. While the
+        /// words keep coming the state is refreshed instead.
+        /// </summary>
+        private void OnTypingTimerTick(object sender, object e)
+        {
+            if ((DateTime.Now - _lastKeystroke).TotalSeconds >= TypingRefreshSeconds)
+            {
+                StopTyping();
+                return;
+            }
+            SendTyping("composing");
+        }
+
+        /// <summary>Takes our own typing indicator back from the contact.</summary>
+        private void StopTyping()
+        {
+            if (_typingTimer != null) _typingTimer.Stop();
+            if (!_typingSent) return;
+
+            _typingSent = false;
+            SendTyping("paused");
+        }
+
+        /// <summary>
+        /// One frame, with the chat in `Text` and the state in `State`. Without a
+        /// connection there is nowhere to say it; the next keystroke will.
+        /// </summary>
+        private void SendTyping(string state)
+        {
+            if (_contact == null || !CommunicationService.Instance.IsConnected) return;
+#pragma warning disable 4014
+            CommunicationService.Instance.SendControlAsync("typing", _contact.Id, state);
+#pragma warning restore 4014
         }
 
         /// <summary>

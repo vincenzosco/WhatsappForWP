@@ -132,8 +132,12 @@ established the hard way:
   not want.
 
 The rule that follows: when a source has a limit, the screen and the README pair
-state it, and **no screen invents state that no server sends** - presence, "online",
-"last seen at" were all removed for exactly that reason.
+state it, and **no screen invents state that no server sends** - "online" and
+"last seen at" were removed for exactly that reason. The other half of the rule is
+that what a server *does* send may be shown: WhatsApp sends typing notifications
+(`chat_presence`, GOWA 9.5), but only to a client marked online, so the three dots
+appear only because the adapter marks the account `available` while an app client
+is connected. A limit is stated, never filled in with a guess.
 
 ### "Read" is a decision, never an assumption
 
@@ -149,6 +153,14 @@ older shape) hid a real bug: with the app suspended on an open chat, messages
 delivered on resume were never counted **and** never cleared, so they vanished
 from both the row and the badge. `DataService.ActiveChatId` now has one job only -
 suppressing the *toast* for the chat on screen.
+
+Showing is not the same as being read, either. A conversation follows its newest
+bubble only while the reader is **already at the bottom** (`ChatPage.AtBottom`),
+and a message that arrives while someone is reading something older is neither
+brought into view nor marked read: the two were one action, so every arriving
+message both dragged the screen and told the server it had been seen. The position
+is watched (`ScrollViewer.ViewChanged`, hooked only while there is a message
+waiting) and the message is marked read when the reader reaches it.
 
 ## Workflow for any change
 

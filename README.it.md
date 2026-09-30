@@ -14,13 +14,14 @@ L'app principale, con un'interfaccia utente autentica di WhatsApp.
 
 **Funzioni:**
 - tema verde WhatsApp (intestazione #075E54, accento #25D366, fumetti dei messaggi)
-- elenco chat con avatar, contatori dei non letti, indicatori di presenza
+- elenco chat con avatar e contatori dei non letti
 - fumetti con orario e stato inviato/consegnato/letto
 - messaggi di testo con Invio per inviare
 - allegati immagine: si sceglie una foto dalla galleria e si invia attraverso il ponte
 - anteprima dell'immagine nel fumetto (base64 sul canale TCP)
 - l'app trova l'adapter sulla rete locale da sola, quindi non c'e' nessun indirizzo da digitare
 - login dal telefono: il QR o il codice di abbinamento compare a tutto schermo nell'app
+- indicatore di scrittura: tre puntini animati nella conversazione mentre l'altra persona scrive, e lo stesso stato viene mandato mentre scrivi tu
 - interfaccia nella lingua del dispositivo: inglese e italiano
 
 **Architettura:**
@@ -56,6 +57,14 @@ Una nuova chat si apre in tre modi: digitando un numero con prefisso, scegliendo
 un contatto con il selettore del sistema (e' il consenso dell'utente, quindi l'app
 non legge mai la rubrica per conto suo), oppure toccando una conversazione che il
 server conosce gia'.
+
+Mentre qualcuno scrive, nella conversazione compare un fumetto con tre puntini, uno
+che sale dopo l'altro, e sparisce quando smette. E' l'unica cosa che questa app mostra
+che non sia un messaggio, e arriva da WhatsApp (l'evento `chat_presence`, che GOWA 9.5
+inoltra), non da un'ipotesi. Nell'altra direzione funziona allo stesso modo: mentre
+scrivi tu, l'adapter lo dice a WhatsApp e il contatto vede gli stessi puntini. Le due
+direzioni hanno bisogno che l'account sia online, quindi l'adapter lo mette `available`
+mentre l'app e' collegata e `unavailable` quando non lo e'.
 
 Allegare un'immagine usa `PickSingleFileAndContinue`. `PickSingleFileAsync` e'
 documentata come non supportata su Windows Phone, e sul telefono falliva in
@@ -575,6 +584,7 @@ Quello che resta vero, e vale la pena dire chiaramente:
 
 ## Limiti
 
+- Gli indicatori di scrittura dipendono dal fatto che l'account sia online, ed e' la stessa cosa che vedono i contatti: WhatsApp manda quegli eventi solo a un client marcato online, l'adapter mette l'account `available` mentre un client dell'app e' collegato e `unavailable` quando esce l'ultimo. Con l'app chiusa non si manda e non si riceve nessuna presenza, quindi in quel momento non si vede niente.
 - Gli aggiornamenti non sono disponibili: il server GOWA con cui parla questa app non ha un endpoint per gli stati, quindi la sezione Stato resta vuota per scelta.
 - Il registro chiamate elenca solo le chiamate in entrata, prese dalle chat più recenti che il server ha scansionato. I limiti esatti sono nella sezione Chiamate qui sotto.
 - Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio. Il confronto usa l'id del messaggio di WhatsApp, quindi i messaggi inviati dall'app non vengono riconosciuti.
