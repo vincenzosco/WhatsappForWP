@@ -62,3 +62,6 @@ x86/
 # il pacchetto si costruisce da capo, non ha niente da fare nel repository.
 WhatsappApp/AppPackages/
 WhatsappApp/BundleArtifacts/
+
+# macOS
+.DS_Store
