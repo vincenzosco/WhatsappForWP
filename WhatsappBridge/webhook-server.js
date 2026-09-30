@@ -32,7 +32,7 @@ function createWebhookServer({ path, secret, onEvent, log }) {
 
     const chunks = [];
     req.on('data', (chunk) => chunks.push(chunk));
-    req.on('error', () => { /* la risposta arriverà comunque sotto */ });
+    req.on('error', () => { /* the response still arrives below */ });
     req.on('end', () => {
       const raw = Buffer.concat(chunks);
       if (!verifySignature(raw, req.headers['x-hub-signature-256'], secret)) {

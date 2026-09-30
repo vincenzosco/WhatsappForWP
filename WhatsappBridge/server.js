@@ -92,6 +92,15 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   const authRequired = !!(config && config.auth && config.auth.required);
   const webhookPublicUrl = (config && config.webhook && config.webhook.publicUrl) || '';
 
+  // Whether a phone that arrives without a token is handed one (see the `hello`
+  // case). On by default: the shared service is meant to be usable by someone
+  // who has no way to run `create-user.js` on the machine that hosts it. The
+  // ceiling keeps an open service from growing a user per connection forever.
+  const authRegister = !(config && config.auth && config.auth.register === false);
+  const authMaxUsers = config && config.auth && Number.isFinite(config.auth.maxUsers)
+    ? config.auth.maxUsers
+    : 50;
+
   // Voice-note conversion: an ffmpeg found at startup, or the one the tests
   // inject. `enabled` comes from the configuration.
   const mediaTools = transcoder || createTranscoder({
@@ -925,7 +934,21 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   async function handleControl(msg, socket) {
     switch (msg.Command) {
       case 'hello': {
-        const verdict = authenticate({ frame: msg, users, authRequired });
+        let verdict = authenticate({ frame: msg, users, authRequired });
+        let created = null;
+
+        // A phone with no token on a service that hands them out: the token is
+        // created here, and the socket is authenticated in the same step. Waiting
+        // for a second handshake would let the commands already in flight (the app
+        // asks for the QR code right after connecting) arrive while the socket has
+        // no user yet, and those are refused by closing the connection.
+        if (!verdict.ok && authRegister && users && users.count() < authMaxUsers
+            && (verdict.reason === 'missing token' || verdict.reason === 'unknown token')) {
+          created = users.register(msg.SenderName || 'device');
+          verdict = { ok: true, user: created.user };
+          logger('OK', `device registered: ${created.user.id} (${created.user.name})`);
+        }
+
         if (!verdict.ok) {
           logger('WARN', `refused a handshake: ${verdict.reason}`);
           refuseUnauthorized(socket);
@@ -937,6 +960,20 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         // instance.
         const session = verdict.user ? await sessionForUser(verdict.user) : anonymous;
         if (socket) moveSocket(socket, anonymous, session);
+
+        // The token leaves exactly once: it is not stored, so this frame is the
+        // only copy the phone will ever have. It is sent after the session exists,
+        // so the app holds a token that already works.
+        if (created && socket) {
+          sendToClient(socket, buildChatMessage({
+            command: 'registered',
+            token: created.token,
+            senderName: created.user.name,
+            chatId: 'system',
+            isIncoming: true
+          }));
+        }
+
         logger('NET', `handshake from "${msg.SenderName || 'unknown'}"`);
         broadcastState(session);
         break;
@@ -1028,6 +1065,10 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     // the cipher everyone can read.
     socket.wp8Cipher = cryptoHelper.DEFAULT_CIPHER_TAG;
 
+    // The frames of one socket are handled in the order they arrived (see the
+    // `data` handler): this is the chain that enforces it.
+    socket.chain = Promise.resolve();
+
     // On the private instance the state arrives at once. On the shared one it
     // does not: before the handshake we do not know whose socket it is, and the
     // instance state is not its own.
@@ -1067,8 +1108,14 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
           if (tag) socket.wp8Cipher = tag;
 
           const msg = JSON.parse(cryptoHelper.decodePayload(payload));
-          if (msg.Type === 3) handleControl(msg, socket).catch((e) => logger('ERR', e.message));
-          else handleUserMessage(msg, socket).catch((e) => logger('ERR', e.message));
+          // In the order they arrived, one at a time. The handlers used to be
+          // started together, and `hello` awaits the GOWA device (an HTTP call):
+          // a command sent right after the handshake could be handled before it
+          // had finished, find no user on the socket, and be refused by closing a
+          // connection whose client had done nothing wrong.
+          socket.chain = socket.chain.then(() => (
+            msg.Type === 3 ? handleControl(msg, socket) : handleUserMessage(msg, socket)
+          )).catch((e) => logger('ERR', e.message));
         } catch (err) {
           logger('ERR', `invalid frame from the app: ${err.message}`);
         }
@@ -1098,7 +1145,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     resetCallsCacheForTest() { anonymous.callsCache = null; },
     sendChats: () => sendChats(anonymous),
     resetChatsCacheForTest() { anonymous.chatsCache = null; },
-    stop() { /* il timer di polling è gestito da main() */ }
+    stop() { /* the polling timer is managed by main() */ }
   };
 }
 
@@ -1130,7 +1177,8 @@ async function main() {
     file: config.auth.usersFile || undefined
   });
   if (config.auth.required) {
-    log('INFO', `Auth:        required, ${users.count()} user(s)`);
+    log('INFO', `Auth:        required, ${users.count()} user(s)`
+      + (config.auth.register === false ? '' : ', new devices register on first connection'));
   }
 
   const bridge = createBridge({ config, gowa, log, debug: dbg, users });
