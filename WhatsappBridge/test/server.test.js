@@ -941,14 +941,22 @@ function sharedBridge() {
   const b = users.register('bruno');
 
   const created = [];
+  // What GOWA answers about the login. It is a variable because the tests that
+  // watch a user session change state flip it, the way a finished QR login does.
+  let loggedIn = false;
+  const status = async () => ({
+    isConnected: true,
+    isLoggedIn: loggedIn,
+    jid: loggedIn ? '39@s.whatsapp.net' : ''
+  });
   const base = {
-    status: async () => ({ isConnected: true, isLoggedIn: false, jid: '' }),
+    status: status,
     createDevice: async (label) => {
       const id = `dev-${created.length + 1}`;
       created.push({ id, label });
       return id;
     },
-    withDevice: (id) => ({ deviceId: id, setDeviceWebhook: async () => true })
+    withDevice: (id) => ({ deviceId: id, setDeviceWebhook: async () => true, status: status })
   };
 
   const bridge = createBridge({
@@ -958,7 +966,7 @@ function sharedBridge() {
     log: () => {},
     debug: () => {}
   });
-  return { bridge, a, b, users, created };
+  return { bridge, a, b, users, created, setLoggedIn: (value) => { loggedIn = value; } };
 }
 
 function collectingSocket() {
@@ -985,6 +993,34 @@ test('ogni utente ha un device GOWA suo, creato al primo handshake', async () =>
   // L'etichetta e' il nome dell'utente: senza, i device sono anonimi.
   assert.ok(created[0].label.indexOf('anna') !== -1);
   assert.ok(created[1].label.indexOf('bruno') !== -1);
+});
+
+test('lo stato di una sessione utente viene riletto a ogni giro di polling', async () => {
+  const { bridge, a, setLoggedIn } = sharedBridge();
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'anna' }, socket);
+
+  // Il telefono ha appena finito il login QR: GOWA lo sa, l adapter no.
+  setLoggedIn(true);
+  await bridge.refreshStatus();
+
+  const states = socket.frames.filter((f) => f.Command === 'state');
+  assert.strictEqual(states[states.length - 1].State, 'connected',
+    'senza questa rilettura il telefono resta su waiting e non chiede mai la lista');
+});
+
+test('status chiede a GOWA lo stato della sessione invece di quello che ricorda', async () => {
+  const { bridge, a, setLoggedIn } = sharedBridge();
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'anna' }, socket);
+
+  setLoggedIn(true);
+  await bridge.handleControl({ Type: 3, Command: 'status' }, socket);
+
+  const states = socket.frames.filter((f) => f.Command === 'state');
+  assert.strictEqual(states[states.length - 1].State, 'connected');
 });
 
 test('un messaggio per il device di un utente non arriva all altro', async () => {
