@@ -54,27 +54,27 @@ namespace WhatsappApp.Models
         private string _mediaData;      // base64-encoded media content
         private string _mediaMimeType;  // e.g. "image/jpeg", "image/png"
         private string _mediaFileName;  // optional filename
-        private string _mediaTransferId;   // id di un allegato che viaggia a pezzi
-        private int _mediaChunkIndex;      // quale pezzo e' questo
-        private int _mediaChunkTotal;      // quanti pezzi in tutto
-        private string _mediaType;         // "image", "video": il tipo dichiarato dal server
+        private string _mediaTransferId;   // id of an attachment that travels in pieces
+        private int _mediaChunkIndex;      // which piece this is
+        private int _mediaChunkTotal;      // how many pieces in all
+        private string _mediaType;         // "image", "video": the type declared by the server
         private string _command;        // control frame command (see adapter protocol)
         private string _state;          // "disconnected" | "waiting" | "connected"
         private string _pairCode;       // pairing code for phone-number login
         private string _qrImageData;    // base64 PNG of the login QR code
         private int _qrDuration;        // QR validity in seconds
-        private string _avatarData;     // immagine del profilo, base64
-        private bool _isGroup;          // la chat e' un gruppo
-        private bool _isHistory;        // messaggio vecchio, mandato aprendo la chat
-        private int _unreadCount;       // riga dell'elenco chat: quanti non letti
+        private string _avatarData;     // profile picture, base64
+        private bool _isGroup;          // the chat is a group
+        private bool _isHistory;        // old message, sent when the chat is opened
+        private int _unreadCount;       // chat-list row: how many unread messages
         private string _accountJid;     // WhatsApp JID of the logged-in account
-        private string _callId;             // id della chiamata, da GOWA
-        private string _callReason;         // esito riportato da GOWA (timeout, reject, ...)
-        private int _callDurationSeconds;   // durata in secondi, 0 se sconosciuta
-        private bool _callIsVideo;          // chiamata video
-        private string _relatedMessageId;   // messaggio toccato da una revoca o una modifica
-        private string _token;              // token del servizio condiviso (vedi handshake)
-        private string _mediaFilePath;       // file locale del video ricevuto (client, non sul filo)
+        private string _callId;             // call id, from GOWA
+        private string _callReason;         // outcome reported by GOWA (timeout, reject, ...)
+        private int _callDurationSeconds;   // duration in seconds, 0 when unknown
+        private bool _callIsVideo;          // video call
+        private string _relatedMessageId;   // message touched by a revocation or an edit
+        private string _token;              // token of the shared service (see handshake)
+        private string _mediaFilePath;       // local file of the received video (client-side, not on the wire)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
         // One serializer per type, not one per message: DataContractJsonSerializer
@@ -149,7 +149,7 @@ namespace WhatsappApp.Models
             set
             {
                 _timestamp = value;
-                _timestampWire = null;   // si riscrive dal DateTime alla prossima serializzazione
+                _timestampWire = null;   // rewritten from the DateTime at the next serialization
                 FormattedTime = FormatTime(value);
                 OnPropertyChanged("Timestamp");
                 OnPropertyChanged("FormattedTime");
@@ -649,7 +649,7 @@ namespace WhatsappApp.Models
             }
 
             Diag.Failed("ChatMessage/Timestamp",
-                new FormatException("data non riconosciuta: " + text));
+                new FormatException("unrecognized date: " + text));
             return DateTime.Now;
         }
 

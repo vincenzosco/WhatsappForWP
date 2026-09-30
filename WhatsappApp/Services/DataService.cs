@@ -12,7 +12,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Central data service that holds contacts and messages,
     /// bridges the communication service with the UI.
-    /// I contatti arrivano dall'adapter (GOWA), non più da dati di esempio.
+    /// Contacts come from the adapter (GOWA), no longer from sample data.
     /// </summary>
     public class DataService : INotifyPropertyChanged
     {
@@ -30,17 +30,17 @@ namespace WhatsappApp.Services
         private readonly ObservableCollection<CallLogEntry> _calls;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
 
-        // Le chat di cui questa sessione ha gia' chiesto la cronologia: una
-        // volta per chat, non a ogni apertura.
+        // The chats whose history this session has already requested: once per
+        // chat, not on every opening.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
 
-        // Le righe dell'elenco chat come le ha mandate il server l'ultima volta
-        // (per la cache) e quelle che stanno arrivando adesso.
+        // The chat-list rows as the server last sent them (for the cache) and the
+        // ones that are arriving now.
         private readonly List<ChatMessage> _chatRows = new List<ChatMessage>();
         private readonly List<ChatMessage> _freshChatRows = new List<ChatMessage>();
 
-        // Indice per id: senza questo ogni messaggio in arrivo scandiva tutta
-        // la lista dei contatti (FirstOrDefault) per trovare la chat.
+        // Index by id: without this every incoming message scanned the whole
+        // contact list (FirstOrDefault) to find the chat.
         private readonly Dictionary<string, Contact> _contactIndex =
             new Dictionary<string, Contact>();
         private Contact _selectedContact;
@@ -50,10 +50,10 @@ namespace WhatsappApp.Services
         private bool _listening;
 
         /// <summary>
-        /// Chat attualmente aperta. Serve a una cosa sola: non alzare un avviso
-        /// per un messaggio che l'utente sta gia' guardando. Non decide piu' il
-        /// conteggio dei non letti: quello lo decide chi mostra i messaggi
-        /// (vedi ClearUnread).
+        /// Currently open chat. It serves one purpose only: not to raise an alert
+        /// for a message the user is already watching. It no longer decides the
+        /// unread count: that is decided by whoever shows the messages (see
+        /// ClearUnread).
         /// </summary>
         public string ActiveChatId
         {
@@ -82,10 +82,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Aggancia il servizio alla rete. Va chiamato una volta, all'avvio e
-        /// sul thread UI: se nessuno costruisce il servizio prima che l'app si
-        /// colleghi, i messaggi in arrivo (e i contatti) non hanno ascoltatori e
-        /// si perdono senza lasciare traccia.
+        /// Hooks the service up to the network. Must be called once, at startup and
+        /// on the UI thread: if nobody builds the service before the app connects,
+        /// the incoming messages (and the contacts) have no listeners and are lost
+        /// without a trace.
         /// </summary>
         public void Start()
         {
@@ -95,28 +95,27 @@ namespace WhatsappApp.Services
             CommunicationService.Instance.MessageReceived += OnNetworkMessageReceived;
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
 
-            // La copia dell'ultima sessione: si mostra adesso, prima che la
-            // connessione esista. Il server la sostituira' con quella vera.
+            // The copy of the last session: it is shown now, before the connection
+            // exists. The server will replace it with the real one.
 #pragma warning disable 4014
             LoadCachedChatsAsync();
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// Riempe l'elenco con l'ultima fotografia sul telefono. Ogni riga passa
-        /// da ApplyChat, come se arrivasse dal server: cosi' non ci sono due
-        /// strade che possono divergere.
+        /// Fills the list with the last snapshot on the phone. Every row passes
+        /// through ApplyChat, as if it arrived from the server: this way there are
+        /// not two paths that can diverge.
         /// </summary>
         private async System.Threading.Tasks.Task LoadCachedChatsAsync()
         {
-            // Prima delle righe: ApplyChat chiede subito quali sono pinnate,
-            // silenziate o eliminate, e un file non ancora letto risponderebbe
-            // di no a tutte e tre.
+            // Before the rows: ApplyChat immediately asks which are pinned, muted or
+            // deleted, and a file not yet read would answer no to all three.
             await ChatPreferences.LoadAsync();
 
-            // E anche prima delle righe, per lo stesso motivo: la copia locale
-            // non ha i byte delle immagini (ChatCache li lascia fuori), e
-            // ApplyChat li chiede qui.
+            // And also before the rows, for the same reason: the local copy does not
+            // have the image bytes (ChatCache leaves them out), and ApplyChat asks
+            // for them here.
             await AvatarCache.LoadAsync();
 
             var cached = await ChatCache.LoadAsync();
@@ -124,13 +123,13 @@ namespace WhatsappApp.Services
             NotificationService.SetUnread(TotalUnread());
         }
 
-        /// <summary>Registro chiamate, riempito dall'adapter su richiesta.</summary>
+        /// <summary>Call log, filled by the adapter on request.</summary>
         public ObservableCollection<CallLogEntry> Calls
         {
             get { return _calls; }
         }
 
-        /// <summary>La scansione lato adapter e' finita: la pagina puo' smettere di aspettare.</summary>
+        /// <summary>The adapter-side scan is done: the page can stop waiting.</summary>
         public event EventHandler CallsScanCompleted;
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -147,18 +146,17 @@ namespace WhatsappApp.Services
             // Ignore system/handshake messages
             if (message.Type == MessageType.System) return;
 
-            // La cronologia e' testo, ma non e' arrivata adesso: entra in ordine
-            // e senza contare. Tutto il resto di questo metodo e' per quello che
-            // arriva adesso - anteprima della riga, non letti, avviso.
+            // History is text, but it did not arrive now: it enters in order and
+            // without counting. Everything else in this method is for what arrives
+            // now - row preview, unread, alert.
             if (message.IsHistory)
             {
                 AddHistoryMessage(message);
                 return;
             }
 
-            // Un messaggio nuovo fa tornare una chat eliminata: e' quello che fa
-            // WhatsApp. Senza questo, una chat cancellata per sbaglio non
-            // tornerebbe mai piu'.
+            // A new message brings back a deleted chat: it is what WhatsApp does.
+            // Without this, a chat deleted by mistake would never come back.
             if (ChatPreferences.IsHidden(message.ChatId)) ChatPreferences.Reveal(message.ChatId);
 
             // Add to the appropriate chat's message list
@@ -185,12 +183,12 @@ namespace WhatsappApp.Services
                     Initials = InitialsFor(name),
                     IsPinned = ChatPreferences.IsPinned(message.ChatId),
                     IsMuted = ChatPreferences.IsMuted(message.ChatId),
-                    // Il conteggio non guarda quale chat e' aperta: un messaggio
-                    // in arrivo e' non letto finche' qualcuno lo legge (vedi
-                    // MarkDisplayedRead), e chi decide e' la pagina che lo
-                    // mostra. Escludere qui la chat attiva perdeva i messaggi
-                    // arrivati mentre l'app era sospesa con quella chat aperta:
-                    // non venivano contati e nessuno li azzerava.
+                    // The count does not look at which chat is open: an incoming
+                    // message is unread until someone reads it (see
+                    // MarkDisplayedRead), and the page that shows it decides. Excluding
+                    // the active chat here lost the messages that arrived while the app
+                    // was suspended with that chat open: they were not counted and
+                    // nobody cleared them.
                     UnreadCount = message.IsIncoming ? 1 : 0
                 };
                 _contacts.Insert(0, contact);
@@ -211,37 +209,36 @@ namespace WhatsappApp.Services
                 if (idx > 0)
                     _contacts.Move(idx, 0);
 
-                // Un messaggio in una chat non pinnata non deve scavalcare le
-                // pinnate: si rimettono in cima, e questa resta subito sotto.
+                // A message in a non-pinned chat must not jump the pinned ones: they
+                // go back to the top, and this one stays right below.
                 ResortContacts();
             }
 
-            // Un avviso solo per una chat che non stiamo guardando e che non e'
-            // silenziata: il silenzio e' la sola cosa che "silenziare" fa - il
-            // numero dei non letti resta, perche' il messaggio e' comunque non
-            // letto. Il badge invece si aggiorna sempre: il conteggio e' vero, e
-            // la chat aperta si azzera quando la pagina la mostra (ClearUnread),
-            // non perche' l'ha saltata nessuno.
+            // An alert only for a chat we are not watching and that is not muted:
+            // silence is the only thing "mute" does - the unread count stays, because
+            // the message is unread all the same. The badge, on the other hand, is
+            // always updated: the count is true, and the open chat is cleared when
+            // the page shows it (ClearUnread), not because someone skipped it.
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
                 NotificationService.ShowMessage(contact.Name, message.Text);
 
-            // E la tile ruota sul mittente: la sua foto e il suo nome. Solo per
-            // una persona, non per un gruppo, e solo per un messaggio arrivato
-            // mentre la chat non era aperta.
+            // And the tile rotates to the sender: their picture and their name. Only
+            // for a person, not for a group, and only for a message that arrived
+            // while the chat was not open.
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
                 NotificationService.RotateSenderTile(message.ChatId, contact.Name, contact.AvatarData);
 
             NotificationService.SetUnread(TotalUnread());
 
-            // Decodifica asincrona dell'immagine: il binding XAML segue MediaImage
+            // Asynchronous decoding of the image: the XAML binding follows MediaImage
             if (message.Type == MessageType.Image)
                 await message.LoadMediaImageAsync();
         }
 
         /// <summary>
-        /// Frame di controllo dall'adapter: contatti, registro chiamate,
-        /// revoche e modifiche. Arrivano tutti sul thread UI, quindi qui si
-        /// puo' toccare direttamente quello che e' legato alle liste.
+        /// Control frames from the adapter: contacts, call log, revocations and
+        /// edits. They all arrive on the UI thread, so here what is bound to the
+        /// lists can be touched directly.
         /// </summary>
         private void OnControlMessageReceived(object sender, ChatMessage message)
         {
@@ -280,13 +277,13 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Un contatto nuovo (o il nome aggiornato) dall'adapter.</summary>
+        /// <summary>A new contact (or the updated name) from the adapter.</summary>
         private void ApplyContact(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
 
-            // Vale come per l'elenco chat: una chat eliminata da questo telefono
-            // non torna perche' il server ne manda di nuovo il nome.
+            // It counts as for the chat list: a chat deleted from this phone does not
+            // come back because the server sends its name again.
             if (ChatPreferences.IsHidden(message.ChatId)) return;
 
             var contact = FindContact(message.ChatId);
@@ -322,16 +319,16 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Una riga dell'elenco chat: la conversazione esiste in WhatsApp anche
-        /// se in questa sessione non ne abbiamo mai ricevuto un messaggio.
+        /// A chat-list row: the conversation exists in WhatsApp even if in this
+        /// session we never received a message from it.
         /// </summary>
         private void ApplyChat(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
 
-            // Una chat eliminata da questo telefono non torna con l'elenco del
-            // server: la decisione sta sul telefono (ChatPreferences) e la
-            // annulla solo un messaggio nuovo.
+            // A chat deleted from this phone does not come back with the server list:
+            // the decision lives on the phone (ChatPreferences) and only a new
+            // message undoes it.
             if (ChatPreferences.IsHidden(message.ChatId)) return;
 
             var contact = FindContact(message.ChatId);
@@ -357,18 +354,18 @@ namespace WhatsappApp.Services
                 contact.Initials = InitialsFor(name);
             }
 
-            // L'anteprima arriva dal server: se in questa sessione abbiamo gia'
-            // un messaggio piu' recente, quello resta (non si torna indietro).
+            // The preview comes from the server: if in this session we already have a
+            // more recent message, that one stays (it does not go backwards).
             if (!string.IsNullOrEmpty(message.Text) && string.IsNullOrEmpty(contact.LastMessage))
             {
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
             }
 
-            // L'immagine del profilo. Quando la riga la porta, i byte si tengono
-            // anche sul telefono: alla prossima apertura l'elenco ha una faccia
-            // prima che l'adapter risponda. Quando non la porta - una riga della
-            // copia locale - si usa quella tenuta.
+            // The profile picture. When the row carries it, the bytes are also kept
+            // on the phone: at the next opening the list has a face before the adapter
+            // answers. When it does not carry it - a row from the local copy - the
+            // kept one is used.
             string avatar = message.AvatarData;
             if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(message.ChatId);
 
@@ -380,16 +377,16 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
             }
 
-            // Solo i byte arrivati dal server si tengono: una riga letta dal
-            // disco non e' una notizia, e' quello che c'e' gia' scritto.
+            // Only the bytes that arrived from the server are kept: a row read from
+            // disk is not news, it is what is already written there.
             if (!string.IsNullOrEmpty(message.AvatarData))
             {
                 AvatarCache.Remember(message.ChatId, message.AvatarData);
             }
 
-            // Il numero dei non letti e' una proprieta' della riga, non del
-            // messaggio: arriva dal server, che e' l'unico sveglio mentre il
-            // telefono e' spento (vedi server.js, unreadByChat).
+            // The unread count is a property of the row, not of the message: it comes
+            // from the server, which is the only one awake while the phone is off (see
+            // server.js, unreadByChat).
             contact.UnreadCount = message.UnreadCount;
             contact.IsPinned = ChatPreferences.IsPinned(message.ChatId);
             contact.IsMuted = ChatPreferences.IsMuted(message.ChatId);
@@ -398,7 +395,7 @@ namespace WhatsappApp.Services
             RememberChatRow(message);
         }
 
-        /// <summary>La riga di questo aggiornamento, tenuta da parte per la cache.</summary>
+        /// <summary>This update row, kept aside for the cache.</summary>
         private void RememberChatRow(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
@@ -415,8 +412,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// La lista e' finita di arrivare: quella che resta diventa la copia
-        /// sul telefono, e il gruppo appena arrivato riparte da zero.
+        /// The list has finished arriving: what remains becomes the copy on the
+        /// phone, and the batch that just arrived restarts from scratch.
         /// </summary>
         private void RememberChatList()
         {
@@ -432,11 +429,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Un pezzo dei byte di un media. Un'immagine ci sta in un frame, un
-        /// video no: l'adapter lo spezza e i pezzi si accumulano qui finche' non
-        /// sono tutti (vedi IncomingMediaStore). Il messaggio esiste gia' -
-        /// era una riga di cronologia con la sola parola - e riceve i byte alla
-        /// fine.
+        /// One piece of a media byte stream. An image fits in one frame, a video does
+        /// not: the adapter splits it and the pieces accumulate here until they are
+        /// all there (see IncomingMediaStore). The message already exists - it was a
+        /// history row with only the word - and receives the bytes at the end.
         /// </summary>
         private async void ApplyMediaFrame(ChatMessage message)
         {
@@ -455,8 +451,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Il server dice che quel media non c'e' piu': l'indicatore smette di
-        /// girare, altrimenti la bolla resta in attesa per sempre.
+        /// The server says that media is gone: the indicator stops spinning,
+        /// otherwise the bubble waits forever.
         /// </summary>
         private void ClearMediaLoading(ChatMessage message)
         {
@@ -482,22 +478,22 @@ namespace WhatsappApp.Services
                 var target = list[i];
                 if (target == null || target.Id != message.RelatedMessageId) continue;
 
-                // I byte sono arrivati: il cerchio nella bolla si ferma.
+                // The bytes have arrived: the spinner in the bubble stops.
                 target.IsMediaLoading = false;
                 target.MediaMimeType = result.MimeType ?? target.MediaMimeType;
                 target.MediaType = result.MediaType;
 
                 if (!string.IsNullOrEmpty(result.LocalFileName))
                 {
-                    // Video, audio o documento: i byte stanno su disco e il
-                    // lettore (o l'app di sistema) apre il file da li'. In
-                    // memoria non ci starebbero.
+                    // Video, audio or document: the bytes are on disk and the player
+                    // (or the system app) opens the file from there. They would not fit
+                    // in memory.
                     target.MediaFilePath = result.LocalFileName;
                     if (string.Equals(result.MediaType, "video", StringComparison.OrdinalIgnoreCase))
                         target.Type = MessageType.Video;
                     else if (string.Equals(result.MediaType, "audio", StringComparison.OrdinalIgnoreCase))
                         target.Type = MessageType.Audio;
-                    // Un documento resta testo: la sua bolla e' il nome del file.
+                    // A document stays text: its bubble is the file name.
                 }
                 else if (string.Equals(result.MediaType, "image", StringComparison.OrdinalIgnoreCase))
                 {
@@ -507,14 +503,14 @@ namespace WhatsappApp.Services
                 }
                 else
                 {
-                    // Un file che non si disegna: i byte restano, la bolla no.
+                    // A file that is not drawn: the bytes stay, the bubble does not.
                     target.MediaData = result.Base64;
                 }
                 return;
             }
         }
 
-        /// <summary>La lista delle conversazioni e' finita di arrivare.</summary>
+        /// <summary>The conversation list has finished arriving.</summary>
         public event EventHandler ChatListCompleted;
 
         private void RaiseChatListCompleted()
@@ -523,7 +519,7 @@ namespace WhatsappApp.Services
             if (handler != null) handler(this, EventArgs.Empty);
         }
 
-        /// <summary>Una voce del registro chiamate.</summary>
+        /// <summary>A call-log entry.</summary>
         private void AddCall(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
@@ -542,7 +538,7 @@ namespace WhatsappApp.Services
             });
         }
 
-        /// <summary>Svuota il registro prima di una nuova scansione.</summary>
+        /// <summary>Empties the log before a new scan.</summary>
         public void ClearCalls()
         {
             _calls.Clear();
@@ -555,10 +551,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Toglie un messaggio revocato su WhatsApp. L'id di un messaggio in
-        /// arrivo e' quello di WhatsApp, quindi il confronto e' esatto; se non
-        /// lo troviamo (messaggio nostro, o arrivato prima dell'iscrizione) non
-        /// si tocca niente.
+        /// Removes a message revoked on WhatsApp. The id of an incoming message is
+        /// the WhatsApp one, so the comparison is exact; if we do not find it (our
+        /// own message, or one that arrived before subscribing) nothing is touched.
         /// </summary>
         private void RemoveMessage(string chatId, string messageId)
         {
@@ -576,7 +571,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Applica una modifica arrivata da WhatsApp (stesso id di prima).</summary>
+        /// <summary>Applies an edit that arrived from WhatsApp (same id as before).</summary>
         private void ApplyEdit(string chatId, string messageId, string text)
         {
             if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId) || text == null) return;
@@ -594,8 +589,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Riallinea l'anteprima della chat all'ultimo messaggio rimasto: dopo
-        /// una revoca o una modifica l'anteprima resterebbe quella vecchia.
+        /// Realigns the chat preview to the last remaining message: after a
+        /// revocation or an edit the preview would stay the old one.
         /// </summary>
         private void RefreshPreview(string chatId)
         {
@@ -615,7 +610,7 @@ namespace WhatsappApp.Services
             contact.LastMessageTime = last.FormattedTime;
         }
 
-        /// <summary>Nome mostrato per un JID quando non ne conosciamo il nome.</summary>
+        /// <summary>Name shown for a JID when we do not know its name.</summary>
         public static string DisplayNameForJid(string jid)
         {
             if (string.IsNullOrEmpty(jid)) return "?";
@@ -635,9 +630,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Trova un contatto per id. L'indice viene ricostruito se non lo
-        /// conosce (la collezione e' pubblica: qualcuno puo' averla modificata
-        /// senza passare da AddContact) e ripulito dagli id non piu' presenti.
+        /// Finds a contact by id. The index is rebuilt if it does not know it (the
+        /// collection is public: someone may have modified it without going through
+        /// AddContact) and cleaned of ids no longer present.
         /// </summary>
         public Contact FindContact(string id)
         {
@@ -676,11 +671,11 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Mette i messaggi salvati nella conversazione, se e' ancora vuota.
-        /// Passano da AddHistoryMessage come la cronologia vera: stessa
-        /// inserzione in ordine e stesso scarto degli id gia' presenti, cosi' i
-        /// messaggi che arrivano dopo non entrano due volte. Sono marcati
-        /// IsHistory, quindi non contano e non alzano avvisi.
+        /// Puts the saved messages into the conversation, if it is still empty. They
+        /// pass through AddHistoryMessage like the real history: same in-order
+        /// insertion and same discarding of ids already present, so the messages that
+        /// arrive later do not enter twice. They are marked IsHistory, so they do not
+        /// count and raise no alerts.
         /// </summary>
         public async Task LoadCachedMessagesAsync(string chatId)
         {
@@ -699,9 +694,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Dice se la cronologia di questa chat va chiesta adesso, e nel caso se
-        /// ne ricorda: una volta per chat per sessione. Riaprire la stessa chat
-        /// la mostra subito dalla memoria, invece di rifare il giro sul filo.
+        /// Says whether this chat history must be requested now, and if so remembers
+        /// it: once per chat per session. Reopening the same chat shows it right away
+        /// from memory, instead of redoing the round trip on the wire.
         /// </summary>
         public bool MarkHistoryRequested(string chatId)
         {
@@ -710,17 +705,16 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Inserisce un messaggio di cronologia al posto giusto.
+        /// Inserts a history message in the right place.
         ///
-        /// Al posto giusto e non in fondo: l'adapter non promette l'ordine - lo
-        /// dice gia' chats.js - e riaprendo una chat i messaggi vecchi devono
-        /// finire prima di quelli arrivati in questa sessione. Lo stesso id due
-        /// volte non entra: e' la chiave per cui chiedere la cronologia non puo'
-        /// duplicare quello che c'e' gia'.
+        /// In the right place and not at the bottom: the adapter does not promise the
+        /// order - chats.js already says so - and reopening a chat means the old
+        /// messages must end up before the ones that arrived in this session. The
+        /// same id twice does not enter: it is the key that makes requesting the
+        /// history unable to duplicate what is already there.
         ///
-        /// Non tocca la riga dell'elenco: l'anteprima e' l'ultimo messaggio
-        /// vero, e un messaggio vecchio non deve riscriverla ne' spostare la
-        /// conversazione in cima.
+        /// It does not touch the list row: the preview is the last real message, and
+        /// an old message must not rewrite it or move the conversation to the top.
         /// </summary>
         private void AddHistoryMessage(ChatMessage message)
         {
@@ -774,11 +768,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// I messaggi di questa chat sono stati mostrati: da qui in poi sono
-        /// letti. La chiama solo la pagina della chat, ed e' l'unico posto in
-        /// cui "letto" e' una decisione e non un'ipotesi: e' quello che fa
-        /// WhatsApp - il numero sparisce dalla riga perche' la stai leggendo,
-        /// non perche' il contatore la salta.
+        /// The messages of this chat have been shown: from here on they are read.
+        /// Only the chat page calls it, and it is the only place "read" is a decision
+        /// and not a guess: it is what WhatsApp does - the number disappears from the
+        /// row because you are reading it, not because the counter skips it.
         /// </summary>
         public void ClearUnread(string chatId)
         {
@@ -791,23 +784,22 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Libera quello che si puo' rifare: le bitmap degli avatar decodificate
-        /// (una per conversazione, la cosa pesante di questa app) e la cronologia
-        /// delle chat che nessuno sta leggendo.
+        /// Frees what can be rebuilt: the decoded avatar bitmaps (one per
+        /// conversation, the heavy thing in this app) and the history of the chats
+        /// nobody is reading.
         ///
-        /// La chat aperta non si tocca: quella la sta guardando l'utente, e
-        /// svuotarla sotto gli occhi sarebbe peggio della memoria che libera.
+        /// The open chat is not touched: the user is watching that one, and emptying
+        /// it under their eyes would be worse than the memory it frees.
         ///
-        /// I byte di un'immagine non si buttano via: si butta via la copia
-        /// decodificata, che e' quella che pesa, e si rifa' quando l'elenco
-        /// torna davanti (vedi RestoreAvatars).
+        /// The image bytes are not thrown away: the decoded copy is thrown away,
+        /// which is the heavy one, and it is rebuilt when the list comes back to the
+        /// front (see RestoreAvatars).
         ///
-        /// La collezione di una chat si svuota invece di essere buttata via: la
-        /// pagina della chat ha in mano quella istanza, e sostituirla la
-        /// lascerebbe agganciata a una lista che non riceve piu' niente. Si
-        /// dimentica invece di aver gia' chiesto la cronologia, cosi' riaprendo
-        /// la chat si richiede: senza, una chat svuotata resterebbe vuota per
-        /// sempre.
+        /// A chat collection is emptied instead of thrown away: the chat page holds
+        /// that instance, and replacing it would leave it attached to a list that
+        /// receives nothing more. Instead, it forgets having already requested the
+        /// history, so reopening the chat requests it again: without that, an emptied
+        /// chat would stay empty forever.
         /// </summary>
         public void TrimForMemory()
         {
@@ -831,15 +823,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Ridisegna gli avatar di cui ci sono ancora i byte. Sotto pressione di
-        /// memoria TrimForMemory butta via la copia decodificata e la riga resta
-        /// con le iniziali: il server la rimanda solo al prossimo elenco, e
-        /// intanto la lista sembra vuota di facce. I byte invece ci sono ancora
-        /// - in memoria, o nella cache sul telefono - quindi si rifa' qui,
-        /// quando l'elenco torna davanti.
+        /// Redraws the avatars whose bytes are still there. Under memory pressure
+        /// TrimForMemory throws away the decoded copy and the row stays with the
+        /// initials: the server sends it again only at the next list, and meanwhile
+        /// the list looks empty of faces. The bytes, however, are still there - in
+        /// memory, or in the cache on the phone - so it is rebuilt here, when the list
+        /// comes back to the front.
         ///
-        /// Va chiamata sul thread UI: BitmapImage non e' agnostica rispetto
-        /// alla view (vedi ImageHelper).
+        /// It must be called on the UI thread: BitmapImage is not agnostic with
+        /// respect to the view (see ImageHelper).
         /// </summary>
         public void RestoreAvatars()
         {
@@ -861,7 +853,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Mette (o toglie) una chat in cima all'elenco. Decide il telefono, non il server.</summary>
+        /// <summary>Pins (or unpins) a chat at the top of the list. The phone decides, not the server.</summary>
         public void SetPinned(string chatId, bool pinned)
         {
             var contact = FindContact(chatId);
@@ -872,7 +864,7 @@ namespace WhatsappApp.Services
             ResortContacts();
         }
 
-        /// <summary>Silenzia la chat: i suoi messaggi non alzano un avviso.</summary>
+        /// <summary>Mutes the chat: its messages raise no alert.</summary>
         public void SetMuted(string chatId, bool muted)
         {
             var contact = FindContact(chatId);
@@ -883,16 +875,16 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Elimina una chat da questo telefono: la riga, i messaggi, la copia su
-        /// disco e - per ultimo, perche' e' quello che dura - la decisione in
-        /// ChatPreferences, che la tiene fuori dal prossimo elenco del server.
+        /// Deletes a chat from this phone: the row, the messages, the copy on disk
+        /// and - last, because it is the one that lasts - the decision in
+        /// ChatPreferences, which keeps it out of the next server list.
         ///
-        /// Non si tocca niente su WhatsApp: non c'e' un endpoint, e un
-        /// "elimina" che cancella la conversazione anche per l'altra parte
-        /// sarebbe una cosa diversa da quella che chiede l'utente.
+        /// Nothing is touched on WhatsApp: there is no endpoint, and a "delete" that
+        /// wiped the conversation for the other party too would be a different thing
+        /// from what the user asks.
         ///
-        /// Un messaggio nuovo la fa tornare (OnNetworkMessageReceived), come fa
-        /// WhatsApp: una chat cancellata per sbaglio non resta persa.
+        /// A new message brings it back (OnNetworkMessageReceived), as WhatsApp does:
+        /// a chat deleted by mistake does not stay lost.
         /// </summary>
         public void DeleteChat(string chatId)
         {
@@ -916,7 +908,7 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
         }
 
-        /// <summary>Somma dei non letti: e' il numero che va sull'icona.</summary>
+        /// <summary>Sum of the unread: it is the number that goes on the icon.</summary>
         private int TotalUnread()
         {
             int total = 0;
@@ -928,11 +920,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Riporta in cima le chat pinnate lasciando le altre dove sono (la piu'
-        /// recente per prima): ognuna viene spostata davanti alla prima non
-        /// pinnata, quindi l'ordine relativo delle altre non cambia. Non e' un
-        /// sort: una chiave di data servirebbe a rifare un ordine che la
-        /// collezione ha gia'.
+        /// Brings the pinned chats to the top leaving the others where they are (the
+        /// most recent first): each one is moved in front of the first non-pinned one,
+        /// so the relative order of the others does not change. It is not a sort: a
+        /// date key would only redo an order the collection already has.
         /// </summary>
         private void ResortContacts()
         {

@@ -8,28 +8,28 @@ using Windows.UI.Notifications;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Gli avvisi che questa app puo' dare mentre gira: un toast e il numero
-    /// sull'icona. Non c'e' nessun servizio cloud dietro, quindi un messaggio
-    /// che arriva con l'app sospesa non produce niente: la connessione TCP e'
-    /// dell'app, e WP8.1 la chiude quando la sospende. Le notifiche push vere
-    /// richiederebbero un servizio esterno che questo progetto non ha.
+    /// The alerts this app can raise while it runs: a toast and the number on the
+    /// icon. There is no cloud service behind it, so a message that arrives with
+    /// the app suspended produces nothing: the TCP connection belongs to the app,
+    /// and WP8.1 closes it when it suspends it. Real push notifications would
+    /// require an external service this project does not have.
     ///
-    /// Ogni chiamata e' protetta: un telefono che rifiuta il toast non deve
-    /// far cadere la ricezione del messaggio.
+    /// Every call is guarded: a phone that rejects the toast must not bring down
+    /// the message reception.
     /// </summary>
     public static class NotificationService
     {
         /// <summary>
-        /// Un messaggio arrivato da una persona, in una chat che non e' quella
-        /// aperta: la tile ruota su di lei, con la sua foto e il suo nome.
+        /// A message arrived from a person, in a chat that is not the open one:
+        /// the tile rotates to it, with their picture and their name.
         ///
-        /// Solo le persone: un gruppo non ha una faccia sola, e mettere la
-        /// foto di un gruppo sulla tile direbbe meno di niente. Il nome del
-        /// gruppo, senza foto, lo lascia fuori anche lui.
+        /// People only: a group has no single face, and putting a group picture on
+        /// the tile would say even less than nothing. The group name, without a
+        /// picture, is left out as well.
         ///
-        /// Il filesystem non si puo' toccare da qui (siamo sul thread UI che
-        /// ha appena ricevuto il messaggio), quindi l'aggiornamento parte e va
-        /// avanti per conto suo.
+        /// The filesystem cannot be touched from here (we are on the UI thread that
+        /// just received the message), so the update starts and carries on by
+        /// itself.
         /// </summary>
         public static void RotateSenderTile(string chatId, string name, string avatarData)
         {
@@ -43,16 +43,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// La tile del mittente. La coda delle notifiche e' quello che fa
-        /// ruotare davvero la tile: senza EnableNotificationQueue una tile
-        /// tiene un avviso solo, e il secondo sostituisce il primo invece di
-        /// aggiungersi.
+        /// The sender tile. The notification queue is what really makes the tile
+        /// rotate: without EnableNotificationQueue a tile holds a single alert, and
+        /// the second replaces the first instead of adding to it.
         ///
-        /// La foto viene dai byte che l'adapter ha gia' mandato (base64): si
-        /// scrivono come sono su un file locale, perche' una tile vuole un
-        /// percorso, non un'immagine in memoria. Oltre il tetto del sistema la
-        /// foto si lascia stare e la tile resta di solo testo: meglio un nome
-        /// che una tile che il telefono rifiuta.
+        /// The picture comes from the bytes the adapter already sent (base64): they
+        /// are written as they are to a local file, because a tile wants a path,
+        /// not an in-memory image. Over the system ceiling the picture is left
+        /// alone and the tile stays text-only: better a name than a tile the phone
+        /// rejects.
         /// </summary>
         private static async Task UpdateSenderTileAsync(string chatId, string name, string avatarData)
         {
@@ -89,8 +88,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// La foto del mittente su un file dell'app, e il percorso da mettere
-        /// nella tile. Null quando non c'e' una foto o quando e' troppo grande.
+        /// The sender picture in an app file, and the path to put in the tile. Null
+        /// when there is no picture or when it is too large.
         /// </summary>
         private static async Task<string> StoreTileImageAsync(string chatId, string avatarData)
         {
@@ -115,9 +114,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Un nome di file da una chat: un JID ha una chiocciola e forse due
-        /// punti, che in un percorso sono un rischio, quindi si tiene solo cio'
-        /// che e' lettera o cifra.
+        /// A file name from a chat: a JID has an at sign and maybe two dots, which
+        /// are a risk in a path, so only what is a letter or a digit is kept.
         /// </summary>
         private static string TileFileName(string chatId)
         {
@@ -132,19 +130,19 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Il tetto che il sistema accetta per l'immagine di una tile. Sopra,
-        /// l'aggiornamento viene rifiutato: si preferisce la tile di testo.
+        /// The ceiling the system accepts for a tile image. Above it the update is
+        /// rejected: the text tile is preferred.
         /// </summary>
         private const int MaxTileImageBytes = 200 * 1024;
 
         /// <summary>
-        /// Vero dopo che la coda delle notifiche e' stata accesa. Si accende
-        /// una volta sola: e' una proprieta' dell'updater, non del singolo
-        /// aggiornamento, e richiamarla a ogni messaggio non cambia niente.
+        /// True after the notification queue has been enabled. It is enabled once
+        /// only: it is a property of the updater, not of the single update, and
+        /// calling it on every message changes nothing.
         /// </summary>
         private static bool _queueEnabled;
 
-        /// <summary>Un avviso per un messaggio arrivato in una chat chiusa.</summary>
+        /// <summary>An alert for a message that arrived in a closed chat.</summary>
         public static void ShowMessage(string title, string body)
         {
             if (!SettingsService.NotificationsEnabled) return;
@@ -164,10 +162,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Il numero di non letti, sui due posti dove WP8.1 lo sa mostrare: il
-        /// badge dell'icona e la tile. Sono due notifiche diverse e una puo'
-        /// fallire senza l'altra, quindi ognuna ha la sua guardia. Con 0 si
-        /// azzera tutto: la tile torna a quella del manifest.
+        /// The unread count, in the two places WP8.1 can show it: the icon badge
+        /// and the tile. They are two different notifications and one can fail
+        /// without the other, so each has its own guard. With 0 everything is
+        /// cleared: the tile goes back to the manifest one.
         /// </summary>
         public static void SetUnread(int count)
         {
@@ -175,7 +173,7 @@ namespace WhatsappApp.Services
             SetTileBadge(count);
         }
 
-        /// <summary>Il numero sull'icona: 0 lo toglie.</summary>
+        /// <summary>The number on the icon: 0 removes it.</summary>
         private static void SetBadge(int count)
         {
             try
@@ -199,21 +197,22 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Mette l'icona dell'app sulla tile, nelle due misure che WP8.1 sa
-        /// aggiornare con un'icona: 150x150 e 71x71 (il modello IconWithBadge).
+        /// Puts the app icon on the tile, in the two sizes WP8.1 can update with an
+        /// icon: 150x150 and 71x71 (the IconWithBadge template).
         ///
-        /// Da notare, perche' e' il punto: **il numero lo disegna il badge, non
-        /// la tile.** Questo aggiornamento serve a tenere la tile sull'icona
-        /// dell'app mentre il badge e' attivo, e a riportarla a quella del
-        /// manifest quando non c'e' piu' niente da leggere (Clear).
+        /// Worth noting, because it is the point: **the badge draws the number, not
+        /// the tile.** This update keeps the tile on the app icon while the badge is
+        /// active, and brings it back to the manifest one when there is nothing
+        /// left to read (Clear).
         ///
-        /// La misura larga non si tocca: su WP8.1 il modello
-        /// `TileWide310x150IconWithBadge` non esiste, e comunque il badge viene
-        /// disegnato anche sulla tile larga, quindi il numero si vede lo stesso.
+        /// The wide size is not touched: on WP8.1 the
+        /// `TileWide310x150IconWithBadge` template does not exist, and the badge is
+        /// drawn on the wide tile anyway, so the number is visible all the same.
         ///
-        /// L'icona invece va passata: il modello IconWithBadge NON la prende dal
-        /// manifest, la vuole nel payload. Con src vuoto la tile resta senza
-        /// icona - e senza sollevare niente, quindi in silenzio.
+        /// The icon, on the other hand, must be passed in: the IconWithBadge
+        /// template does NOT take it from the manifest, it wants it in the payload.
+        /// With an empty src the tile stays without an icon - and without raising
+        /// anything, so silently.
         /// </summary>
         private static void SetTileBadge(int count)
         {
@@ -243,12 +242,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Copia il binding di un altro modello dentro il documento della tile.
-        /// Un nodo appartiene al suo documento, quindi va importato: appenderlo
-        /// cosi' com'e' solleva un'eccezione.
+        /// Copies the binding of another template into the tile document. A node
+        /// belongs to its own document, so it must be imported: appending it as is
+        /// raises an exception.
         ///
-        /// Il binding importato e' un binding che parte, quindi vuole la sua
-        /// icona come l'altro: senza, la misura che lo riceve si disegna senza.
+        /// The imported binding is a fresh binding, so it wants its own icon like
+        /// the other one: without it, the size that receives it draws without one.
         /// </summary>
         private static void AppendBinding(XmlDocument xml, XmlElement visual, TileTemplateType template)
         {
@@ -263,7 +262,7 @@ namespace WhatsappApp.Services
             visual.AppendChild(imported);
         }
 
-        /// <summary>L'icona sul binding che sta dentro il visual del modello.</summary>
+        /// <summary>The icon on the binding inside the template visual.</summary>
         private static void SetTileIcon(XmlDocument xml, XmlElement visual, string uri)
         {
             var binding = visual.SelectSingleNode("binding") as XmlElement;
@@ -272,9 +271,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Scrive l'icona sull'image del binding, creandola se il modello non ne
-        /// ha una: l'elemento va creato con il documento di destinazione, non con
-        /// quello del modello, altrimenti l'inserimento solleva un'eccezione.
+        /// Writes the icon on the binding image, creating it if the template has
+        /// none: the element must be created with the destination document, not
+        /// with the template one, otherwise insertion raises an exception.
         /// </summary>
         private static void SetImage(XmlDocument xml, XmlElement binding, string uri)
         {
@@ -289,9 +288,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// L'immagine della tile, in un posto solo. E' un PNG trasparente senza
-        /// padding: i logo del manifest hanno il padding che il sistema si
-        /// aspetta, e su una tile da 150 px quel padding si mangia il disegno.
+        /// The tile image, in one place only. It is a transparent PNG with no
+        /// padding: the manifest logos have the padding the system expects, and on
+        /// a 150 px tile that padding eats the drawing.
         /// </summary>
         private const string TileIconUri = "ms-appx:///Assets/TileIcon.png";
 

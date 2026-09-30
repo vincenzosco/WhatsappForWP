@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -23,29 +23,29 @@ using WhatsappApp.Controls;
 using WhatsappApp.Pages;
 using WhatsappApp.Services;
 
-// Il modello di applicazione vuota è documentato all'indirizzo http://go.microsoft.com/fwlink/?LinkId=391641
+// The Blank Application template is documented at http://go.microsoft.com/fwlink/?LinkId=391641
 
 namespace WhatsappApp
 {
     /// <summary>
-    ///Fornisce un comportamento specifico dell'applicazione in supplemento alla classe Application predefinita.
+    /// Provides application-specific behavior to supplement the default Application class.
     /// </summary>
     public sealed partial class App : Application
     {
         private TransitionCollection transitions;
 
-        // Navigate() fallisce restituendo false, non lanciando: il motivo vero
-        // arriva qui. Senza questo, un errore XAML in una pagina si presenta
-        // come "Failed to create initial page" e nient'altro.
+        // Navigate() fails by returning false, not by throwing: the real reason
+        // arrives here. Without this, a XAML error in a page shows up as
+        // "Failed to create initial page" and nothing else.
         private Exception navigationFailure;
 
-        // Servizi e watchdog esistono una volta per processo: una condivisione
-        // puo' riattivare un'app gia' avviata, e non si devono raddoppiare.
+        // Services and watchdogs exist once per process: a share can reactivate
+        // an already-started app, and they must not be duplicated.
         private bool servicesStarted;
 
         /// <summary>
-        /// Inizializza l'oggetto singleton Application. Si tratta della prima riga del codice creato
-        /// eseguita e, come tale, corrisponde all'equivalente logico di main() o WinMain().
+        /// Initializes the singleton application object. This is the first line of
+        /// authored code executed, and as such is the logical equivalent of main() or WinMain().
         /// </summary>
         public App()
         {
@@ -55,11 +55,11 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Richiamato quando l'applicazione viene avviata normalmente dall'utente.  All'avvio dell'applicazione
-        /// verranno utilizzati altri punti di ingresso per aprire un file specifico, per visualizzare
-        /// risultati di ricerche e così via.
+        /// Invoked when the application is launched normally by the end user. Other
+        /// entry points will be used to open a specific file, to display search
+        /// results, and so on.
         /// </summary>
-        /// <param name="e">Dettagli sulla richiesta e sul processo di avvio.</param>
+        /// <param name="e">Details about the launch request and process.</param>
         protected override void OnLaunched(LaunchActivatedEventArgs e)
         {
 #if DEBUG
@@ -88,10 +88,10 @@ namespace WhatsappApp
                 rootFrame.Navigated += this.RootFrame_FirstNavigated;
                 rootFrame.NavigationFailed += this.RootFrame_NavigationFailed;
 
-                // Dopo una terminazione (l'OS ha chiuso il processo mentre l'app era
-                // sospesa) si riparte dalla sezione in cui l'utente si trovava,
-                // invece che sempre dalle chat. Contatti e messaggi non si
-                // ripristinano: l'adapter li rimanda alla connessione.
+                // After a termination (the OS closed the process while the app was
+                // suspended) we restart from the section the user was in, instead
+                // of always from the chats. Contacts and messages are not
+                // restored: the adapter sends them again on connection.
                 Type startPage;
                 if (!SettingsService.HasSavedSettings)
                 {
@@ -107,9 +107,8 @@ namespace WhatsappApp
                 }
                 if (!rootFrame.Navigate(startPage, e.Arguments))
                 {
-                    // Il nome della pagina e l'eccezione vera, non solo la
-                    // frase del modello: senza di essi un XAML rotto e' un
-                    // crash muto.
+                    // The page name and the real exception, not just the template
+                    // sentence: without them a broken XAML is a silent crash.
                     throw new Exception(
                         "Failed to create initial page: " + startPage.FullName,
                         this.navigationFailure);
@@ -120,8 +119,8 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Navigazione fallita: conserva l'eccezione per il messaggio di
-        /// OnLaunched, che altrimenti riporterebbe solo il valore false.
+        /// Navigation failed: keeps the exception for the OnLaunched message,
+        /// which would otherwise report only the false value.
         /// </summary>
         private void RootFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)
         {
@@ -129,10 +128,10 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Ripristina le transizioni del contenuto dopo l'avvio dell'applicazione.
+        /// Restores the content transitions after the application launches.
         /// </summary>
-        /// <param name="sender">Oggetto a cui è associato il gestore.</param>
-        /// <param name="e">Dettagli sull'evento di navigazione.</param>
+        /// <param name="sender">The object where the handler is attached.</param>
+        /// <param name="e">Details about the navigation event.</param>
         private void RootFrame_FirstNavigated(object sender, NavigationEventArgs e)
         {
             var rootFrame = sender as Frame;
@@ -141,37 +140,37 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Richiamato quando l'esecuzione dell'applicazione viene sospesa. Lo stato dell'applicazione viene salvato
-        /// senza che sia noto se l'applicazione verrà terminata o ripresa con il contenuto
-        /// della memoria ancora integro.
+        /// Invoked when application execution is being suspended. Application state
+        /// is saved without knowing whether the application will be terminated or
+        /// resumed with the contents of memory still intact.
         /// </summary>
-        /// <param name="sender">Origine della richiesta di sospensione.</param>
-        /// <param name="e">Dettagli relativi alla richiesta di sospensione.</param>
+        /// <param name="sender">The source of the suspend request.</param>
+        /// <param name="e">Details about the suspend request.</param>
         private void OnSuspending(object sender, SuspendingEventArgs e)
         {
             var deferral = e.SuspendingOperation.GetDeferral();
 
-            // Se l'OS termina il processo mentre l'app e' sospesa, OnLaunched
-            // riparte da qui.
+            // If the OS terminates the process while the app is suspended,
+            // OnLaunched restarts from here.
             SessionService.Section = CurrentSection();
 
-            // Il socket non si chiude qui: l'OS lo chiude da solo mentre l'app
-            // e' sospesa, e chiuderlo noi lascerebbe l'app segnata come
-            // disconnessa senza che nessuno riprovi. Se ne occupa OnResuming,
-            // che trova una connessione silenziosa e la rifa'.
+            // The socket is not closed here: the OS closes it on its own while
+            // the app is suspended, and closing it ourselves would leave the app
+            // marked as disconnected with nobody retrying. OnResuming handles
+            // that, finding a silent connection and redoing it.
 
             deferral.Complete();
         }
 
         /// <summary>
-        /// L'app torna in primo piano. Il socket che aveva e' quasi sempre gia'
-        /// morto - e' l'OS a chiuderlo sospendendo il processo - ma
-        /// `CommunicationService.IsConnected` e' ancora true, perche' un socket
-        /// chiuso dall'esterno non genera nessun evento finche' non lo si usa.
+        /// The app comes back to the foreground. The socket it had is almost
+        /// always already dead - the OS closes it when suspending the process -
+        /// but `CommunicationService.IsConnected` is still true, because a socket
+        /// closed from the outside raises no event until it is used.
         ///
-        /// Si controlla subito invece di aspettare il tick del watchdog: quei
-        /// venti secondi sarebbero venti secondi di app che sembra collegata e
-        /// non riceve niente.
+        /// We check right away instead of waiting for the watchdog tick: those
+        /// twenty seconds would be twenty seconds of an app that looks connected
+        /// and receives nothing.
         /// </summary>
         private void OnResuming(object sender, object e)
         {
@@ -179,16 +178,16 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Prova a ricollegarsi in sottofondo. Volutamente muta: qualunque
-        /// messaggio lo scrive la pagina delle impostazioni, che e' anche
-        /// l'unico posto in cui la lingua e' gia' pronta.
+        /// Tries to reconnect in the background. Deliberately silent: any message
+        /// is written by the settings page, which is also the only place where the
+        /// language is already ready.
         /// </summary>
         private async void StartAutoConnect()
         {
             await AutoConnector.Instance.TryConnectAsync(SettingsService.Username, 6);
         }
 
-        /// <summary>Sezione della pagina in primo piano (la chat sta nelle chat).</summary>
+        /// <summary>Section of the foreground page (a chat lives inside the chats).</summary>
         private static AppSection CurrentSection()
         {
             var frame = Window.Current.Content as Frame;
@@ -199,57 +198,57 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Tutto cio' che deve esistere una volta sola per processo, prima della
-        /// prima pagina. Lo chiamano sia OnLaunched sia una condivisione: un'app
-        /// avviata dalla condivisione non passa da OnLaunched.
+        /// Everything that must exist once per process, before the first page.
+        /// Both OnLaunched and a share call it: an app started by a share does not
+        /// go through OnLaunched.
         /// </summary>
         private void StartServicesOnce()
         {
             if (servicesStarted) return;
             servicesStarted = true;
 
-            // Il loader delle risorse non si puo' creare da un thread di
-            // background: lo si crea qui, una volta, sul thread UI.
+            // The resource loader cannot be created from a background thread:
+            // it is created here, once, on the UI thread.
             Loc.Prewarm();
 
-            // Stesso motivo del loader: il dispatcher si trova di sicuro solo
-            // qui, sul thread UI. Risolverlo piu' tardi, da un thread di rete,
-            // lasciava il servizio senza dispatcher per tutta la sessione.
+            // Same reason as the loader: the dispatcher is reliably available
+            // only here, on the UI thread. Resolving it later, from a network
+            // thread, left the service without a dispatcher for the whole session.
             CommunicationService.Instance.Prewarm();
 
-            // Il servizio dati si aggancia qui: prima si creava alla prima
-            // pagina che lo toccava, e i messaggi arrivati nel frattempo (o i
-            // contatti sincronizzati) non avevano nessun ascoltatore.
+            // The data service is hooked up here: it used to be created at the
+            // first page that touched it, and the messages that arrived
+            // meanwhile (or the synced contacts) had no listener.
             DataService.Instance.Start();
 
-            // Il budget di memoria del telefono si ascolta da qui in poi: e'
-            // l'unico modo per sapere che l'app sta per essere chiusa a causa
-            // della memoria, e per liberare prima quello che si puo' rifare.
+            // The phone memory budget is watched from here on: it is the only
+            // way to know the app is about to be closed because of memory, and to
+            // free early what can be rebuilt.
             MemoryWatcher.Instance.Start();
 
 #if DEBUG
-            // Solo in debug: dice in tre righe cosa questo telefono sa fare
-            // davvero, invece di lasciarlo scoprire da un catch silenzioso. In
-            // rilascio non esiste, quindi non costa niente all'avvio.
+            // Debug only: it says in three lines what this phone can really do,
+            // instead of letting a silent catch discover it. It does not exist in
+            // release, so it costs nothing at startup.
             SelfCheck.RunAsync();
 #endif
 
-            // Riconnessione automatica: l'app non riprova da sola dopo un
-            // riavvio, e senza questo l'elenco chat resta vuoto finche' l'utente
-            // non apre le impostazioni.
+            // Automatic reconnection: the app does not retry by itself after a
+            // restart, and without this the chat list stays empty until the user
+            // opens the settings.
             if (SettingsService.HasSavedSettings) StartAutoConnect();
 
-            // E poi la tiene viva: WP8.1 chiude il socket sospendendo l'app, e
-            // alla ripresa la connessione risulta attiva ma non passa piu'
-            // niente (vedi ConnectionWatchdog).
+            // And then it keeps the connection alive: WP8.1 closes the socket
+            // when suspending the app, and on resume the connection looks active
+            // but nothing gets through anymore (see ConnectionWatchdog).
             ConnectionWatchdog.Instance.Start();
         }
 
         /// <summary>
-        /// Il frame radice, creato se non c'e'. Tre pagine di sezione
-        /// (Chats/Status/Calls) con NavigationCacheMode.Enabled: la cache le
-        /// tiene in vita, cosi' passare da una sezione all'altra non ricostruisce
-        /// la pagina (l'elenco chat conserva anche la posizione di scorrimento).
+        /// The root frame, created if missing. Three section pages
+        /// (Chats/Status/Calls) with NavigationCacheMode.Enabled: the cache keeps
+        /// them alive, so moving from one section to another does not rebuild the
+        /// page (the chat list also keeps its scroll position).
         /// </summary>
         private static Frame EnsureFrame()
         {
@@ -264,9 +263,9 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Riattivazione: non e' un avvio. L'unico caso che questo punto di
-        /// ingresso deve gestire e' il selettore di file, che non ha un
-        /// risultato di ritorno: il file scelto arriva qui.
+        /// Reactivation: this is not a launch. The only case this entry point must
+        /// handle is the file picker, which has no return value: the chosen file
+        /// arrives here.
         /// </summary>
         protected override void OnActivated(IActivatedEventArgs e)
         {
@@ -280,17 +279,17 @@ namespace WhatsappApp
                 return;
             }
 
-            // OnActivated non e' async: il file si deposita e basta, e la pagina
-            // che e' davanti lo ritira con l'evento di AttachmentInbox.
+            // OnActivated is not async: the file is just deposited, and the page
+            // in front picks it up with the AttachmentInbox event.
 #pragma warning disable 4014
             DepositPickedFileAsync(continuation.Files[0]);
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// Un file scelto dal selettore. Un guasto qui non ha nessuno che lo
-        /// raccolga - OnActivated non e' async e nessuno attende questo Task -
-        /// quindi si cattura tutto: un'eccezione non osservata chiude l'app.
+        /// A file chosen from the picker. A failure here has nobody to collect it
+        /// - OnActivated is not async and nobody awaits this Task - so everything
+        /// is caught: an unobserved exception closes the app.
         /// </summary>
         private async void DepositPickedFileAsync(StorageFile file)
         {
@@ -305,9 +304,9 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Un'altra applicazione sta condividendo qualcosa con questa (Galleria,
-        /// Foto, browser). L'immagine si deposita e si portano davanti le chat:
-        /// il passo successivo e' scegliere a chi mandarla.
+        /// Another application is sharing something with this one (Gallery, Photos,
+        /// browser). The image is deposited and the chats are brought to the
+        /// front: the next step is choosing who to send it to.
         /// </summary>
         protected override void OnShareTargetActivated(ShareTargetActivatedEventArgs e)
         {
@@ -315,8 +314,8 @@ namespace WhatsappApp
 
             if (e == null || e.ShareOperation == null) return;
 
-            // Questa attivazione puo' essere l'avvio del processo: i servizi e il
-            // frame non ci sono ancora.
+            // This activation can be the process start: the services and the frame
+            // do not exist yet.
             StartServicesOnce();
             var rootFrame = EnsureFrame();
             if (!(rootFrame.Content is ChatsPage))
@@ -331,25 +330,25 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// Legge cio' che e' stato condiviso, se e' un'immagine.
+        /// Reads what was shared, if it is an image.
         ///
-        /// Due forme possibili: un elenco di file (quasi tutte le app) o una
-        /// bitmap sola. Un testo non si usa: l'utente ha chiesto di condividere
-        /// un'immagine, e l'app si limita a non fare niente se non c'e'.
+        /// Two possible shapes: a list of files (almost every app) or a single
+        /// bitmap. Text is not used: the user asked to share an image, and the app
+        /// simply does nothing if there is none.
         /// </summary>
         private async System.Threading.Tasks.Task AcceptShareAsync(ShareOperation operation)
         {
-            // Lo stato della condivisione si racconta nell'ordine che WP8.1 si
-            // aspetta: started, poi (quando i byte ci sono) data retrieved, poi
-            // completed. Un ReportCompleted senza ReportStarted lascia l'app
-            // chiamante in attesa e fa cadere il processo, ed e' quello che
-            // succedeva condividendo una foto.
+            // The share state is reported in the order WP8.1 expects: started,
+            // then (when the bytes are there) data retrieved, then completed. A
+            // ReportCompleted without ReportStarted leaves the calling app waiting
+            // and brings down the process, and that is what happened when sharing
+            // a photo.
             //
-            // Niente deferral: su WP8.1 ShareOperation non ha GetDeferral (il
-            // tipo Deferral di Windows.Foundation nemmeno esiste in questa
-            // proiezione), e non serve: l'app che riceve la condivisione e' in
-            // primo piano, e l'operazione resta valida finche' e' lei davanti.
-            // Il contratto e' l'ordine delle tre chiamate, non un deferral.
+            // No deferral: on WP8.1 ShareOperation has no GetDeferral (the Deferral
+            // type of Windows.Foundation does not even exist in this projection),
+            // and none is needed: the app receiving the share is in the foreground,
+            // and the operation stays valid while it is in front. The contract is
+            // the order of the three calls, not a deferral.
             try
             {
                 operation.ReportStarted();
@@ -394,8 +393,8 @@ namespace WhatsappApp
                 Diag.Failed("App/share", ex);
                 try
                 {
-                    // Una condivisione fallita va detta: senza questo l'app
-                    // chiamante resta a girare a vuoto per sempre.
+                    // A failed share must be reported: without this the calling app
+                    // spins forever.
                     operation.ReportError(Loc.Get("App_ShareFailed",
                         "The shared file could not be read."));
                 }
