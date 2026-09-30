@@ -612,9 +612,9 @@ namespace WhatsappApp.Models
         /// It accepts /Date(ms)/ with any number of backslashes before the slashes
         /// - an older adapter doubled them, and those backslashes are escapes of the
         /// JSON reader, not part of the value -, an ISO 8601 date with or without a
-        /// zone, and raw milliseconds. Anything else becomes the current time, with
-        /// the Diag line saying what was wrong: an unreadable field must not make
-        /// the message disappear.
+        /// zone, raw milliseconds, and a date written in the culture of the phone.
+        /// Anything else becomes the current time, with the Diag line saying what
+        /// was wrong: an unreadable field must not make the message disappear.
         /// </summary>
         private static DateTime ParseWire(string value)
         {
@@ -646,6 +646,18 @@ namespace WhatsappApp.Models
                     DateTimeStyles.AdjustToUniversal | DateTimeStyles.AssumeUniversal, out parsed))
             {
                 return parsed.ToLocalTime();
+            }
+
+            // The culture of the phone, as the last attempt. It is not a guess:
+            // a chats.json written by an older build stored the local time as
+            // text ("28/09/2026 04:44:44"), which the invariant culture cannot
+            // read - its short date puts the month first, and there is no month
+            // 28. Without this every cached row showed the time of the moment
+            // the app opened, until the server replaced the list.
+            if (DateTime.TryParse(text, CultureInfo.CurrentCulture,
+                    DateTimeStyles.AssumeLocal, out parsed))
+            {
+                return parsed.Kind == DateTimeKind.Utc ? parsed.ToLocalTime() : parsed;
             }
 
             Diag.Failed("ChatMessage/Timestamp",
