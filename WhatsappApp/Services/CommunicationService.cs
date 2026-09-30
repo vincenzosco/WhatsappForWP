@@ -416,6 +416,9 @@ namespace WhatsappApp.Services
                 {
                     Id = "handshake",
                     Text = username,
+                    // Il token del servizio condiviso, se ce n'e' uno: e' quello
+                    // che dice al server a chi appartiene questo telefono.
+                    Token = SettingsService.Token,
                     Command = "hello",
                     SenderId = _myUserId,
                     SenderName = username,

@@ -28,7 +28,9 @@ const DEFAULTS = {
   CHATS_AVATARS: 'on',
   MESSAGES_LIMIT: '50',
   FFMPEG_ENABLED: 'on',
-  FFMPEG_PATH: ''
+  FFMPEG_PATH: '',
+  AUTH_REQUIRED: 'off',
+  USERS_FILE: ''
 };
 
 function pick(env, key) {
@@ -58,6 +60,13 @@ function loadConfig(env = process.env) {
       path: webhookPath,
       publicUrl,
       secret: pick(env, 'WEBHOOK_SECRET')
+    },
+    auth: {
+      // Su un'istanza privata non serve, e resta spento: accenderlo senza
+      // consegnare un token al telefono vorrebbe dire chiudere fuori l'unico
+      // utente. Si accende sul servizio condiviso, dopo aver creato l'utente.
+      required: pick(env, 'AUTH_REQUIRED').toLowerCase() === 'on',
+      usersFile: pick(env, 'USERS_FILE')
     },
     pollIntervalMs: parseInt(pick(env, 'POLL_INTERVAL_MS'), 10),
     discovery: {
