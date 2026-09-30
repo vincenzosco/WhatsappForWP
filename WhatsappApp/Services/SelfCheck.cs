@@ -7,23 +7,23 @@ using Windows.Storage.Streams;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Verifica all'avvio, solo in DEBUG, che le tre cose di piattaforma da cui
-    /// l'app non puo' prescindere esistano davvero su questo telefono.
+    /// Checks at startup, in DEBUG only, that the three platform things the app
+    /// cannot do without really exist on this phone.
     ///
-    /// Serve perche' compilare non lo dimostra: la proiezione WinRT di WP8.1
-    /// elenca dei membri che a runtime possono rispondere "non implementato", e
-    /// da un Mac non c'e' modo di accorgersene. Il risultato finisce nel log con
-    /// la forma di Diag, cosi' un giro di debug dice tutto in tre righe:
+    /// It is needed because compiling does not prove it: the WP8.1 WinRT
+    /// projection lists members that at run time can answer "not implemented", and
+    /// from a Mac there is no way to notice. The result goes into the log in the
+    /// Diag shape, so one debug round says everything in three lines:
     ///
     ///     DIAG ok: crypto AES-256-CBC + HMAC-SHA256
     ///     DIAG ok: screen kept awake (DisplayRequest)
     ///     DIAG ok: UDP discovery beacon listening on port 8587
     ///
-    /// e al posto di una riga "ok" una riga con il guasto e il suo HRESULT.
+    /// and in place of an "ok" line a line with the failure and its HRESULT.
     /// </summary>
     public static class SelfCheck
     {
-        /// <summary>Non restituisce niente e non lancia: e' un messaggio nel log.</summary>
+        /// <summary>Returns nothing and throws nothing: it is a message in the log.</summary>
         public static async void RunAsync()
         {
             CheckCrypto();
@@ -32,15 +32,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Il cifrario del canale. Prima il giro di andata e ritorno, poi il
-        /// vettore di prova: quello e' calcolato dal server con la sua
-        /// derivazione delle chiavi, quindi se combacia le due parti si parlano
-        /// davvero. Quando fallisce, il sito dice a quale passo.
+        /// The channel cipher. First the round trip, then the test vector: that is
+        /// computed by the server with its key derivation, so if it matches the two
+        /// sides really speak to each other. When it fails, the site says at which
+        /// step.
         /// </summary>
         private static void CheckCrypto()
         {
-            // Stesso vettore di WhatsappBridge/test/crypto-helper.test.js:
-            // IV = 000102...0e0f, testo {"Type":0,"Text":"ciao"}.
+            // The same vector as WhatsappBridge/test/crypto-helper.test.js:
+            // IV = 000102...0e0f, text {"Type":0,"Text":"ciao"}.
             const string VectorHex =
                 "02000102030405060708090a0b0c0d0e0f" +
                 "2fc17f6d19a9bea8e286ceebf69ca87c72cf5e563e0d09ee3d755fb40f87c336" +
@@ -56,8 +56,8 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Se fallisce qui il canale non puo' funzionare: era il caso del
-                // vecchio CryptoHelper, che usava AES-GCM (0x80004001).
+                // If it fails here the channel cannot work: that was the case of
+                // the old CryptoHelper, which used AES-GCM (0x80004001).
                 Diag.Failed("SelfCheck.crypto/encrypt", ex);
                 return;
             }
@@ -101,7 +101,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Lo schermo acceso mentre si inquadra il codice.</summary>
+        /// <summary>The screen kept on while the code is on screen.</summary>
         private static void CheckScreenRequest()
         {
             try
@@ -117,7 +117,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>L'ascolto dei beacon: e' quello che fa trovare il server da soli.</summary>
+        /// <summary>The beacon listening: it is what makes the server found on its own.</summary>
         private static async Task CheckDiscoveryAsync()
         {
             try

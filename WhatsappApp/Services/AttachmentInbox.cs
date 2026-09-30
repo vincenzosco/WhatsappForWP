@@ -5,28 +5,28 @@ using Windows.Storage;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Un file che entra nell'app da fuori: il selettore immagini o la
-    /// condivisione di un'altra applicazione.
+    /// A file that enters the app from outside: the image picker or the share of
+    /// another application.
     ///
-    /// In tutti e due i casi la pagina che lo riceverebbe puo' non esistere piu'
-    /// nel momento in cui il file arriva: WP8.1 sospende l'app mentre il
-    /// selettore e' aperto, e puo' terminarla. Non si puo' quindi tenere un
-    /// riferimento al file aspettando una pagina.
+    /// In both cases the page that would receive it may no longer exist when the
+    /// file arrives: WP8.1 suspends the app while the picker is open, and may
+    /// terminate it. A reference to the file cannot therefore be kept while
+    /// waiting for a page.
     ///
-    /// Si COPIA nella cartella dell'app invece di leggerlo in memoria: una
-    /// condivisione e' anche un video, e un video intero in un byte[] (piu' la
-    /// sua base64) e' il modo piu' veloce per farsi chiudere l'app da un
-    /// telefono da 512 MB. Il nome del file copiato e' quello che la pagina
-    /// legge a pezzi quando spedisce (vedi ChatPage.SendAttachmentAsync).
+    /// It is COPIED into the app folder instead of read into memory: a share is
+    /// also a video, and a whole video in a byte[] (plus its base64) is the
+    /// fastest way to get the app closed by a 512 MB phone. The name of the copied
+    /// file is what the page reads in pieces when it sends (see
+    /// ChatPage.SendAttachmentAsync).
     ///
-    /// Chi riceve un allegato: ChatPage, che lo mostra nella barra di anteprima;
-    /// ChatsPage, che dice che c'e' qualcosa da inviare. Entrambe si iscrivono a
-    /// Ready, perche' dopo il selettore la pagina e' ancora quella davanti senza
-    /// che OnNavigatedTo venga chiamato di nuovo.
+    /// Who receives an attachment: ChatPage, which shows it in the preview bar;
+    /// ChatsPage, which says there is something to send. Both subscribe to Ready,
+    /// because after the picker the page is still the one in front without
+    /// OnNavigatedTo being called again.
     /// </summary>
     public static class AttachmentInbox
     {
-        // Il nome del file copiato: uno solo in attesa alla volta.
+        // The name of the copied file: only one waiting at a time.
         private const string CopyBaseName = "outgoing_attachment";
 
         private static string _localFileName;
@@ -34,7 +34,7 @@ namespace WhatsappApp.Services
         private static string _mimeType;
         private static string _note;
 
-        /// <summary>Un allegato che nessuno ha ancora ritirato.</summary>
+        /// <summary>An attachment nobody has taken yet.</summary>
         public static event Action Ready;
 
         public static bool HasAttachment
@@ -42,7 +42,7 @@ namespace WhatsappApp.Services
             get { return !string.IsNullOrEmpty(_localFileName); }
         }
 
-        /// <summary>Il nome, dentro LocalFolder, del file copiato.</summary>
+        /// <summary>The name, inside LocalFolder, of the copied file.</summary>
         public static string LocalFileName
         {
             get { return _localFileName; }
@@ -58,17 +58,17 @@ namespace WhatsappApp.Services
             get { return _mimeType; }
         }
 
-        /// <summary>Testo che accompagnava la condivisione, se ce n'era uno.</summary>
+        /// <summary>Text that came with the share, if there was one.</summary>
         public static string Note
         {
             get { return _note; }
         }
 
         /// <summary>
-        /// Deposita un file scelto o condiviso copiandolo nella cartella
-        /// dell'app. Si copia adesso, non quando servira': dopo una
-        /// riattivazione il riferimento al file puo' non essere piu' valido, e
-        /// l'app puo' essere stata terminata.
+        /// Deposits a chosen or shared file by copying it into the app folder. It
+        /// is copied now, not when it will be needed: after a reactivation the
+        /// reference to the file may no longer be valid, and the app may have been
+        /// terminated.
         /// </summary>
         public static async Task PutAsync(StorageFile file, string note)
         {
@@ -84,7 +84,7 @@ namespace WhatsappApp.Services
             PutLocal(copy.Name, file.Name, mimeType, note);
         }
 
-        /// <summary>Deposita i byte gia' letti (una bitmap condivisa).</summary>
+        /// <summary>Deposits the bytes already read (a shared bitmap).</summary>
         public static async Task PutBytesAsync(byte[] buffer, string fileName, string mimeType, string note)
         {
             if (buffer == null || buffer.Length == 0) return;
@@ -108,7 +108,7 @@ namespace WhatsappApp.Services
             if (handler != null) handler();
         }
 
-        /// <summary>Ritira l'allegato: chi lo mostra lo fa una volta sola.</summary>
+        /// <summary>Takes the attachment: whoever shows it does so once.</summary>
         public static void Clear()
         {
             _localFileName = null;
@@ -117,7 +117,7 @@ namespace WhatsappApp.Services
             _note = null;
         }
 
-        /// <summary>Il tipo MIME di un'estensione, come lo manda WhatsApp.</summary>
+        /// <summary>The MIME type of an extension, as WhatsApp sends it.</summary>
         private static string MimeFor(string extension)
         {
             string value = (extension ?? "").ToLower();
@@ -133,7 +133,7 @@ namespace WhatsappApp.Services
             return "image/jpeg";
         }
 
-        /// <summary>L'estensione del file copiato, dal nome o dal tipo MIME.</summary>
+        /// <summary>The extension of the copied file, from the name or the MIME type.</summary>
         private static string ExtensionFor(string mimeType, string fileName)
         {
             string name = fileName ?? "";
@@ -149,9 +149,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// "image" o "video": la parola che l'adapter e l'app usano per decidere
-        /// come spedire e come disegnare. Il tipo MIME puo' mancare (una bitmap
-        /// condivisa), quindi la parola si ricava anche dall'estensione.
+        /// "image" or "video": the word the adapter and the app use to decide how
+        /// to send and how to draw. The MIME type may be missing (a shared
+        /// bitmap), so the word is also derived from the extension.
         /// </summary>
         public static string KindName(string mimeType, string fileName)
         {

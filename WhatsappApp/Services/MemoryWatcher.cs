@@ -4,31 +4,31 @@ using Windows.System;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Il budget di memoria di questo telefono, e cosa l'app fa quando lo
-    /// avvicina.
+    /// The memory budget of this phone, and what the app does when it gets close
+    /// to it.
     ///
-    /// Perche' esiste: su WP8.1 la memoria non si dichiara da nessuna parte - lo
-    /// schema della manifest non la prevede - e non si vede. Il sistema avvisa e
-    /// poi sospende o termina; il modo documentato di ascoltarlo e'
-    /// `MemoryManager`. La chiamata utile qui e' `AppMemoryUsageIncreased`:
-    /// quando il livello passa a High, l'app deve liberare quello che puo' subito.
+    /// Why it exists: on WP8.1 the memory is not declared anywhere - the manifest
+    /// schema does not have it - and it is not visible. The system warns and then
+    /// suspends or terminates; the documented way to listen to it is
+    /// `MemoryManager`. The useful call here is `AppMemoryUsageIncreased`: when the
+    /// level moves to High, the app must free what it can at once.
     ///
-    /// Due cose che su questa piattaforma NON ci sono, e che il compilatore
-    /// segnala invece di lasciarle scoperte a runtime:
+    /// Two things that do NOT exist on this platform, and that the compiler flags
+    /// instead of leaving them uncovered at run time:
     ///
-    ///  - `AppMemoryUsageLimitChanging` esiste da Windows 10 1607 (su WP8.1 non
-    ///    e' dichiarato);
-    ///  - `AppMemoryUsageLevel` qui ha tre valori - Low, Medium, High - e
-    ///    **OverLimit non esiste** (CS0117): quello e' arrivato con Windows 10.
-    ///    Quindi la soglia da guardare e' `High`, e basta.
+    ///  - `AppMemoryUsageLimitChanging` exists since Windows 10 1607 (on WP8.1 it
+    ///    is not declared);
+    ///  - `AppMemoryUsageLevel` here has three values - Low, Medium, High - and
+    ///    **OverLimit does not exist** (CS0117): that one came with Windows 10.
+    ///    So the threshold to watch is `High`, and that is all.
     ///
-    /// Cosa libera: le bitmap degli avatar decodificate - la cosa pesante, una per
-    /// conversazione - e la cronologia delle chat che nessuno sta leggendo. Non
-    /// libera quello che l'utente sta guardando: la chat aperta resta intera.
+    /// What it frees: the decoded avatar bitmaps - the heavy thing, one per
+    /// conversation - and the history of the chats nobody is reading. It does not
+    /// free what the user is looking at: the open chat stays whole.
     ///
-    /// Finche' la pressione c'e' non si decodifica niente di nuovo: senza questo,
-    /// il primo frame di conversazioni rimette dentro tutto quello appena
-    /// buttato. Quando il livello riscende, si riprende a decodificare.
+    /// While the pressure lasts nothing new is decoded: without this, the first
+    /// frame of conversations puts back everything just dropped. When the level
+    /// falls again, decoding resumes.
     /// </summary>
     public sealed class MemoryWatcher
     {
@@ -42,17 +42,17 @@ namespace WhatsappApp.Services
             get { return InstanceHolder; }
         }
 
-        /// <summary>Vero finche' il livello di memoria e' High.</summary>
+        /// <summary>True while the memory level is High.</summary>
         public bool IsUnderPressure
         {
             get { return _underPressure; }
         }
 
         /// <summary>
-        /// Una volta per processo. Lo chiama App.StartServicesOnce: un'app avviata
-        /// da una condivisione non passa da OnLaunched, e un secondo aggancio
-        /// raddoppierebbe i gestori. Ogni chiamata e' protetta: un telefono che
-        /// rifiuta l'evento non deve far cadere l'avvio dell'app.
+        /// Once per process. App.StartServicesOnce calls it: an app started from a
+        /// share does not go through OnLaunched, and a second hookup would double
+        /// the handlers. Every call is guarded: a phone that refuses the event must
+        /// not bring the app startup down.
         /// </summary>
         public void Start()
         {
@@ -64,8 +64,8 @@ namespace WhatsappApp.Services
                 MemoryManager.AppMemoryUsageIncreased += OnUsageIncreased;
                 MemoryManager.AppMemoryUsageDecreased += OnUsageDecreased;
 
-                // Il limite del telefono, una volta sola nel log: e' l'unico posto
-                // dove si distingue un dispositivo da 512 MB da uno da 1 GB.
+                // The phone limit, once in the log: it is the only place a 512 MB
+                // device is told apart from a 1 GB one.
                 Diag.Ok("memory budget " + Mbytes(MemoryManager.AppMemoryUsageLimit) + " MB");
 
                 Apply(MemoryManager.AppMemoryUsageLevel);
@@ -102,12 +102,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Applica un livello: si libera entrando in pressione, si smette di
-        /// liberare uscendone. La liberazione avviene una volta per transizione,
-        /// non a ogni evento: sotto pressione gli eventi si susseguono.
+        /// Applies a level: it frees on entering pressure, it stops freeing on
+        /// leaving it. The freeing happens once per transition, not on every event:
+        /// under pressure the events follow one another.
         ///
-        /// High e' la soglia piu' alta che questo sistema sa nominare: OverLimit
-        /// non esiste su WP8.1.
+        /// High is the highest threshold this system can name: OverLimit does not
+        /// exist on WP8.1.
         /// </summary>
         private void Apply(AppMemoryUsageLevel level)
         {
