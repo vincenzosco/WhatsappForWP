@@ -81,6 +81,45 @@ test('ensureDevice riusa il primo device esistente', async () => {
   assert.strictEqual(fetchImpl.calls.length, 1);
 });
 
+test('listDevices legge i device presenti sul server GOWA', async () => {
+  const fetchImpl = makeFetch(async (url) => {
+    assert.strictEqual(url, 'http://g/devices');
+    return jsonResponse({ status: 200, results: [{ id: 'd1' }, { id: 'd2' }] });
+  });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const devices = await client.listDevices();
+  assert.deepStrictEqual(devices.map((d) => d.id), ['d1', 'd2']);
+});
+
+test('createDevice manda il nome dell utente e pretende un id', async () => {
+  const fetchImpl = makeFetch(async (url, options) => {
+    assert.strictEqual(url, 'http://g/devices');
+    assert.strictEqual(options.method, 'POST');
+    assert.deepStrictEqual(JSON.parse(options.body), { name: 'wp8-anna' });
+    return jsonResponse({ status: 200, results: { id: 'new-1' } });
+  });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  assert.strictEqual(await client.createDevice('wp8-anna'), 'new-1');
+});
+
+test('createDevice senza id e un guasto, non un device vuoto', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: {} }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  await assert.rejects(() => client.createDevice('x'), /device id/i);
+});
+
+test('withDevice ribalta lo stesso server su un altro device, con la stessa auth', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: { is_logged_in: true, jid: '39@x' } }));
+  const base = new GowaClient({ baseUrl: 'http://g', user: 'admin', pass: 'secret', fetchImpl });
+
+  const derived = base.withDevice('dev-7');
+  await derived.status();
+
+  const headers = fetchImpl.calls[0].options.headers;
+  assert.strictEqual(headers['X-Device-Id'], 'dev-7');
+  assert.strictEqual(headers.Authorization, 'Basic ' + Buffer.from('admin:secret').toString('base64'));
+});
+
 test('loginQr restituisce qr_link e qr_duration', async () => {
   const fetchImpl = makeFetch(async () => jsonResponse({
     status: 200, results: { device_id: 'd', qr_link: 'http://g/statics/qr.png', qr_duration: 30 }
