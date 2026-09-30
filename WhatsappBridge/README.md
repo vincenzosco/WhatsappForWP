@@ -71,6 +71,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = one base64 piece (a multiple of 4 characters) |
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = caption (reassemble and send) |
 | app -> adapter | `media.get` | `Text` = chat JID, `RelatedMessageId` = message id (downloads that message media and answers with one `media` frame per piece) |
+| app -> adapter | `contact.info` | `Text` = chat JID (the adapter composes name, about, picture, business profile and, for a group, the description and the members into one JSON `Text`) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
