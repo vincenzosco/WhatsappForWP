@@ -4,19 +4,19 @@ using Windows.ApplicationModel.Resources;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Unico punto di accesso alle stringhe localizzate
-    /// (Strings\&lt;lingua&gt;\Resources.resw). La lingua la sceglie il sistema
-    /// in base a quella del dispositivo; se manca una risorsa si usa il testo
-    /// di fallback, quindi un errore nelle risorse non fa mai esplodere l'app.
+    /// The single access point to the localized strings
+    /// (Strings\&lt;language&gt;\Resources.resw). The language is chosen by the
+    /// system from the device one; if a resource is missing the fallback text is
+    /// used, so an error in the resources never blows the app up.
     /// </summary>
     public static class Loc
     {
         private static ResourceLoader _loader;
 
         /// <summary>
-        /// Vero dopo che GetForCurrentView ha fallito una volta. Senza questo,
-        /// ogni Loc.Get riprovava la stessa chiamata e ne registrava
-        /// l'eccezione: un guasto solo diventava un'eccezione per stringa.
+        /// True after GetForCurrentView has failed once. Without this, every
+        /// Loc.Get retried the same call and logged its exception: one failure
+        /// became one exception per string.
         /// </summary>
         private static bool _loaderUnavailable;
 
@@ -40,13 +40,13 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Crea il loader sul thread UI. GetForCurrentView non si puo' chiamare
-        /// da un thread di background; una volta creato, invece, il loader si
-        /// puo' interrogare da qualsiasi thread.
+        /// Creates the loader on the UI thread. GetForCurrentView cannot be called
+        /// from a background thread; once created, however, the loader can be
+        /// queried from any thread.
         ///
-        /// E' anche l'unico punto in cui si ritenta dopo un fallimento: se il
-        /// primo tentativo e' partito da un thread di background, qui si azzera
-        /// il blocco e si prova di nuovo, sul thread giusto.
+        /// It is also the only place a retry happens after a failure: if the first
+        /// attempt started from a background thread, here the block is cleared and
+        /// it is tried again, on the right thread.
         /// </summary>
         public static void Prewarm()
         {
@@ -72,10 +72,10 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // L'etichetta non si costruisce con la parentesi dopo il punto:
-                // check-resw.js legge ogni chiamata con una stringa letterale
-                // come una chiave da cercare nei .resw, e cosi' costruita
-                // sembrava una chiave mancante (anche scritta in un commento).
+                // The label is not built with the parenthesis right after the
+                // dot: check-resw.js reads every call with a literal string as a
+                // key to look for in the .resw files, and built that way it looked
+                // like a missing key (even when written in a comment).
                 Diag.Failed("Loc.Get key " + key, ex);
                 return fallback;
             }
