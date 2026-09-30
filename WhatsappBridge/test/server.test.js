@@ -1194,14 +1194,20 @@ function sharedBridge() {
     })
   };
 
+  // The lines the adapter logs, kept so that a test can assert that something was
+  // routed (a message is accepted and logged) or was not (an unknown device).
+  const logs = [];
   const bridge = createBridge({
     config: { auth: { required: true } },
     gowa: base,
     users,
-    log: () => {},
+    log: (level, message) => { logs.push(`${level} ${message}`); },
     debug: () => {}
   });
-  return { bridge, a, b, users, created, setLoggedIn: (value) => { loggedIn = value; } };
+  return {
+    bridge, a, b, users, created, logs,
+    setLoggedIn: (value) => { loggedIn = value; }
+  };
 }
 
 function collectingSocket() {
@@ -1345,6 +1351,31 @@ test('un webhook per un device sconosciuto non arriva a nessuno', async () => {
   });
 
   assert.strictEqual(socketA.frames.filter((f) => f.Text === 'per nessuno').length, 0);
+});
+
+test('un webhook arriva al suo utente anche senza nessun telefono collegato', async () => {
+  const { bridge, setLoggedIn, logs } = sharedBridge();
+  setLoggedIn(true);
+
+  // Nessun socket: e' il caso del telefono spento, quello per cui esiste il
+  // conteggio dei non letti. Le sessioni degli utenti conosciuti si aprono lo
+  // stesso, cosi' il JID dell account e' noto prima che arrivi il webhook.
+  await bridge.openKnownSessions();
+  await bridge.refreshStatus();
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    device_id: '39@s.whatsapp.net',
+    payload: {
+      id: 'M1', chat_id: 'b@s.whatsapp.net', from: 'b@s.whatsapp.net',
+      body: 'ciao', timestamp: '2026-09-30T19:00:00Z', is_from_me: false
+    }
+  });
+
+  assert.ok(logs.some((l) => l.indexOf('MSG') === 0),
+    'il messaggio deve essere accettato: senza instradamento veniva scartato');
+  assert.ok(!logs.some((l) => l.indexOf('unknown device') !== -1),
+    'nessun webhook deve finire fra i device sconosciuti');
 });
 
 test('un comando prima del token viene rifiutato sul servizio condiviso', async () => {
