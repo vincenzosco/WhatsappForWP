@@ -97,6 +97,7 @@
     <Compile Include="Models\CallLogEntry.cs" />
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\Contact.cs" />
+    <Compile Include="Models\ContactInfo.cs" />
     <Compile Include="Models\DiscoveredServer.cs" />
     <Compile Include="Converters\Converters.cs" />
     <Compile Include="Services\AutoConnector.cs" />
