@@ -39,6 +39,13 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   concatenates the decoded bytes without re-encoding anything. Which door GOWA gets is
   decided by the MIME type (or the extension): `/send/image`, `/send/video` and
   `/send/file` are three different routes, and before this a video went out as an image.
+- A video is shrunk before it travels. The phone does it first, while the bubble says
+  "sending"; when it could not (no transcoder for that file, no space, the platform
+  refusing) the adapter does it with ffmpeg before handing the video to GOWA, so what
+  reaches WhatsApp is never the whole camera file. The adapter leaves a video under 4 MB
+  alone - the conversion would cost more than it saves - and a conversion that came out
+  bigger is thrown away. With `FFMPEG_ENABLED=off` the adapter does not touch it; the
+  phone still shrinks its own videos.
 - A photo or a video in a chat's history arrived while the phone was off: its bytes were
   delivered to the adapter and nowhere else, so the row is a word (`[Image]`). Tapping it
   asks the adapter (`media.get`), which reads `GET /message/:id/download` from GOWA and

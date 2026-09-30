@@ -1,7 +1,8 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { createTranscoder, isOggOpus, replaceExtension } = require('../ffmpeg');
+const { createTranscoder, isOggOpus, isVideo, replaceExtension, VIDEO_COMPRESS_MIN_BYTES } =
+  require('../ffmpeg');
 
 const silent = () => {};
 
@@ -80,4 +81,86 @@ test('disabilitato non si prova nemmeno', async () => {
   });
   assert.strictEqual(await transcoder.probe(), false);
   assert.strictEqual(ran, 0);
+});
+
+test('isVideo riconosce il tipo e il nome, e non scambia un audio per un video', () => {
+  assert.ok(isVideo('video/mp4', 'clip.mp4'));
+  assert.ok(isVideo('video/quicktime', null));
+  assert.ok(isVideo(null, 'clip.MOV'));
+  assert.ok(!isVideo('audio/ogg', 'voce.ogg'));
+  assert.ok(!isVideo('image/jpeg', 'foto.jpg'));
+});
+
+test('un video grande si rimpicciolisce', async () => {
+  const calls = [];
+  const transcoder = createTranscoder({
+    log: silent,
+    run: async (args, input) => {
+      calls.push({ args, input });
+      return args[0] === '-version' ? Buffer.alloc(0) : Buffer.alloc(1000);
+    }
+  });
+  await transcoder.probe();
+
+  const big = Buffer.alloc(VIDEO_COMPRESS_MIN_BYTES + 1);
+  const out = await transcoder.toSmallerVideo(big, 'video/mp4', 'clip.mp4');
+
+  assert.ok(out, 'il video viene convertito');
+  assert.strictEqual(out.mimeType, 'video/mp4');
+  assert.strictEqual(out.fileName, 'clip.mp4');
+  assert.ok(out.buffer.length < big.length);
+  assert.ok(calls.some((c) => c.args.includes('pipe:1')), 'ffmpeg legge e scrive dalle pipe');
+});
+
+test('un video gia piccolo non si tocca', async () => {
+  let ran = 0;
+  const transcoder = createTranscoder({
+    log: silent,
+    run: async (args) => { ran++; return Buffer.alloc(0); }
+  });
+  await transcoder.probe();
+  const before = ran;
+
+  const small = Buffer.alloc(VIDEO_COMPRESS_MIN_BYTES - 1);
+  assert.strictEqual(await transcoder.toSmallerVideo(small, 'video/mp4', 'clip.mp4'), null);
+  assert.strictEqual(ran, before, 'nessuna chiamata in piu');
+});
+
+test('una conversione che non riduce si scarta', async () => {
+  const transcoder = createTranscoder({
+    log: silent,
+    run: async (args, input) => {
+      if (args[0] === '-version') return Buffer.alloc(0);
+      return Buffer.alloc(input.length + 1);
+    }
+  });
+  await transcoder.probe();
+
+  const big = Buffer.alloc(VIDEO_COMPRESS_MIN_BYTES + 1);
+  assert.strictEqual(await transcoder.toSmallerVideo(big, 'video/mp4', 'clip.mp4'), null);
+});
+
+test('se ffmpeg fallisce su un video si manda l originale', async () => {
+  const transcoder = createTranscoder({
+    log: silent,
+    run: async (args) => {
+      if (args[0] === '-version') return Buffer.alloc(0);
+      throw new Error('boom');
+    }
+  });
+  await transcoder.probe();
+
+  const big = Buffer.alloc(VIDEO_COMPRESS_MIN_BYTES + 1);
+  assert.strictEqual(await transcoder.toSmallerVideo(big, 'video/mp4', 'clip.mp4'), null);
+});
+
+test('senza ffmpeg un video grande resta com e', async () => {
+  const transcoder = createTranscoder({
+    log: silent,
+    run: async () => { throw new Error('not found'); }
+  });
+  await transcoder.probe();
+
+  const big = Buffer.alloc(VIDEO_COMPRESS_MIN_BYTES + 1);
+  assert.strictEqual(await transcoder.toSmallerVideo(big, 'video/mp4', 'clip.mp4'), null);
 });
