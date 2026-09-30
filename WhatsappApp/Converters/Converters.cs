@@ -5,12 +5,11 @@ using Windows.UI.Xaml.Media;
 
 namespace WhatsappApp.Converters
 {
-    // Tutti questi converter sono a senso unico: XAML li usa per leggere, mai per
-    // scrivere. ConvertBack restituisce UnsetValue, che e' il modo in cui si dice
-    // al motore di binding "lascia stare la sorgente". Lanciare un'eccezione
-    // invece no: un TextBox legato a uno di questi (TextBox.Text e' TwoWay per
-    // default) la farebbe esplodere addosso all'utente, e per un converter a senso
-    // unico l'eccezione non aggiunge nessuna informazione.
+    // All these converters are one-way: XAML uses them to read, never to write.
+    // ConvertBack returns UnsetValue, which is how the binding engine is told
+    // "leave the source alone". Throwing instead would not: a TextBox bound to one
+    // of these (TextBox.Text is TwoWay by default) would blow up on the user, and
+    // for a one-way converter the exception adds no information.
 
     /// <summary>
     /// Converts a boolean to a Visibility value (true = Visible, false = Collapsed)
