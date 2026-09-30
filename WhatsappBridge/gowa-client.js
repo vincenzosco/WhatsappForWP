@@ -36,6 +36,15 @@ function groupName(group) {
   return '';
 }
 
+// Un JID senza il suffisso del dispositivo (utente:12@server -> utente@server).
+// Il suffisso non e' un JID che WhatsApp riconosce in una richiesta di profilo.
+function normalizeJid(jid) {
+  const value = String(jid || '');
+  const at = value.indexOf('@');
+  if (at < 0) return value;
+  return value.slice(0, at).split(':')[0] + value.slice(at);
+}
+
 class GowaClient {
   constructor({ baseUrl, deviceId, user, pass, fetchImpl, avatarCache } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
@@ -263,6 +272,103 @@ class GowaClient {
       return base64;
     } catch (err) {
       // Un guasto non si tiene: il prossimo elenco lo riprova.
+      return null;
+    }
+  }
+
+  // Nome, testo "about" (status) e id dell'immagine di una persona. GOWA
+  // risponde con un array di un elemento: quello e' il profilo.
+  async userInfo(jid) {
+    const target = normalizeJid(jid);
+    if (!target || target.indexOf('@') < 0) return null;
+
+    try {
+      const r = await this.request('GET', `/user/info?phone=${encodeURIComponent(target)}`);
+      const data = (r.data && r.data.results && r.data.results.data) || [];
+      const info = Array.isArray(data) ? data[0] : null;
+      if (!r.ok || !info) return null;
+
+      return {
+        name: info.name || info.verified_name || '',
+        verifiedName: info.verified_name || '',
+        status: info.status || '',
+        pictureId: info.picture_id || ''
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // Il profilo aziendale: c'e' solo per un numero business, e per tutti gli
+  // altri GOWA risponde con un errore. Per l'app e' "non c'e'", non un guasto.
+  async businessProfile(jid) {
+    const target = normalizeJid(jid);
+    if (!target || target.indexOf('@') < 0) return null;
+
+    try {
+      const r = await this.request('GET',
+        `/user/business-profile?phone=${encodeURIComponent(target)}`);
+      const res = (r.data && r.data.results) || null;
+      if (!r.ok || !res) return null;
+
+      return {
+        email: res.email || '',
+        address: res.address || '',
+        categories: Array.isArray(res.categories)
+          ? res.categories.map((c) => (c && c.name) || '').filter(Boolean)
+          : [],
+        timezone: res.business_hours_timezone || '',
+        hours: Array.isArray(res.business_hours) ? res.business_hours : []
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // I membri di un gruppo, con il ruolo. Senza membri non e' un gruppo: null.
+  async groupParticipants(jid) {
+    const target = normalizeJid(jid);
+    if (!target || target.indexOf('@') < 0) return null;
+
+    try {
+      const r = await this.request('GET',
+        `/group/participants?group_id=${encodeURIComponent(target)}`);
+      const res = (r.data && r.data.results) || null;
+      if (!r.ok || !res || !Array.isArray(res.participants)) return null;
+
+      return {
+        name: res.name || '',
+        participants: res.participants.map((p) => ({
+          jid: p.jid || '',
+          phoneNumber: p.phone_number || '',
+          lid: p.lid || '',
+          displayName: p.display_name || '',
+          isAdmin: p.is_admin === true,
+          isSuperAdmin: p.is_super_admin === true
+        }))
+      };
+    } catch (err) {
+      return null;
+    }
+  }
+
+  // La descrizione di un gruppo: GOWA la restituisce dentro un oggetto opaco,
+  // quindi si leggono i nomi che whatsmeow usa per il testo e, se non ce n'e'
+  // nessuno, si risponde vuoto invece di inventare un campo.
+  async groupInfo(jid) {
+    const target = normalizeJid(jid);
+    if (!target || target.indexOf('@') < 0) return null;
+
+    try {
+      const r = await this.request('GET', `/group/info?group_id=${encodeURIComponent(target)}`);
+      const res = (r.data && r.data.results) || null;
+      if (!r.ok || !res) return null;
+
+      return {
+        name: res.Name || res.name || '',
+        topic: res.Topic || res.topic || res.Description || res.description || ''
+      };
+    } catch (err) {
       return null;
     }
   }
