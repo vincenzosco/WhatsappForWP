@@ -33,6 +33,33 @@ test('chatMessages() encodes the jid in the path', async () => {
   assert.strictEqual(seen[0], 'http://127.0.0.1:3000/chat/393401234567%40s.whatsapp.net/messages?limit=100');
 });
 
+// Le due rotte della presenza. GOWA le rifiuta senza l header X-Device-Id (e una
+// prova dal vivo lo ha confermato), quindi il test pinna anche quello: senza,
+// l account non va mai online e le notifiche di scrittura non arrivano.
+test('sendPresence manda il tipo sulla rotta che lo vuole, con il device', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: {} }));
+  const client = new GowaClient({ baseUrl: 'http://127.0.0.1:3000', deviceId: 'dev-1', fetchImpl });
+
+  await client.sendPresence('available');
+
+  assert.strictEqual(fetchImpl.calls[0].url, 'http://127.0.0.1:3000/send/presence');
+  assert.strictEqual(fetchImpl.calls[0].options.method, 'POST');
+  assert.strictEqual(fetchImpl.calls[0].options.headers['X-Device-Id'], 'dev-1');
+  assert.strictEqual(fetchImpl.calls[0].options.body, JSON.stringify({ type: 'available' }));
+});
+
+test('sendChatPresence manda il jid e start/stop, e un errore diventa messaggio', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ code: 'INVALID_JID', message: 'non su whatsapp' }, 400));
+  const client = new GowaClient({ baseUrl: 'http://127.0.0.1:3000', deviceId: 'dev-1', fetchImpl });
+
+  await assert.rejects(() => client.sendChatPresence('39@s.whatsapp.net', 'start'),
+    /non su whatsapp/);
+
+  assert.strictEqual(fetchImpl.calls[0].url, 'http://127.0.0.1:3000/send/chat-presence');
+  assert.strictEqual(fetchImpl.calls[0].options.body,
+    JSON.stringify({ phone: '39@s.whatsapp.net', action: 'start' }));
+});
+
 function jsonResponse(body, status = 200) {
   return {
     ok: status >= 200 && status < 300,
