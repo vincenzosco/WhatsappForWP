@@ -72,6 +72,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.chunk` | `MediaTransferId`, `MediaChunkIndex`, `MediaData` = un pezzo in base64 (multiplo di 4 caratteri) |
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = didascalia (ricompone e spedisce) |
 | app -> adapter | `media.get` | `Text` = JID della chat, `RelatedMessageId` = id del messaggio (scarica il media di quel messaggio e risponde con un frame `media` per pezzo) |
+| app -> adapter | `contact.info` | `Text` = JID della chat (l'adapter mette insieme nome, about, immagine, profilo aziendale e, per un gruppo, descrizione e membri in un solo `Text` JSON) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
