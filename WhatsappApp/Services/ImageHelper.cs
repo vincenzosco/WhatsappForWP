@@ -7,13 +7,13 @@ using Windows.UI.Xaml.Media.Imaging;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Decodifica di immagini in bitmap per il binding XAML. Va usato sul
-    /// thread UI: BitmapImage non e' agnostico rispetto alla view.
+    /// Decoding of images into bitmaps for XAML binding. It must be used on the
+    /// UI thread: BitmapImage is not view-agnostic.
     /// </summary>
     public static class ImageHelper
     {
         /// <summary>
-        /// base64 -> bitmap, decodificata a `decodePixelWidth` px di larghezza.
+        /// base64 -> bitmap, decoded at `decodePixelWidth` px wide.
         /// </summary>
         public static async Task<BitmapImage> FromBase64Async(string base64, int decodePixelWidth)
         {
@@ -22,15 +22,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// bytes -> bitmap. `decodePixelWidth` e' la larghezza a cui l'immagine
-        /// viene mostrata: BitmapImage decodifica alla misura chiesta invece che a
-        /// quella del file. Un'immagine del profilo da 640x640 decodificata a 52
-        /// pesa qualche decina di KB invece di quasi due MB, e su un telefono da
-        /// 512 MB con venticinque conversazioni la differenza e' di decine di MB.
+        /// bytes -> bitmap. `decodePixelWidth` is the width at which the image is
+        /// shown: BitmapImage decodes at the requested size instead of the file
+        /// size. A 640x640 profile picture decoded at 52 weighs a few tens of KB
+        /// instead of almost two MB, and on a 512 MB phone with twenty-five
+        /// conversations the difference is tens of MB.
         ///
-        /// Va impostato PRIMA di SetSourceAsync: dopo la decodifica non ha piu'
-        /// effetto. 0 significa "alla misura del file", e va usato solo dove la
-        /// misura del file e' davvero quella che serve.
+        /// It must be set BEFORE SetSourceAsync: after the decode it has no effect.
+        /// 0 means "at the file size", and must be used only where the file size is
+        /// really the one needed.
         /// </summary>
         public static async Task<BitmapImage> FromBytesAsync(byte[] bytes, int decodePixelWidth)
         {
@@ -53,9 +53,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// bitmap da un file gia' nella cartella dell'app, alla larghezza a cui
-        /// viene mostrato. Serve agli allegati: dopo il selettore o una
-        /// condivisione i byte stanno su disco, non in memoria.
+        /// bitmap from a file already in the app folder, at the width it is shown
+        /// at. It serves the attachments: after the picker or a share the bytes sit
+        /// on disk, not in memory.
         /// </summary>
         public static async Task<BitmapImage> FromFileAsync(string localFileName, int decodePixelWidth)
         {

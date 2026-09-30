@@ -9,9 +9,9 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Models
 {
     /// <summary>
-    /// Le informazioni di un profilo come le compone l'adapter (comando
-    /// `contact.info`). I nomi dei campi sono quelli del filo: DataContractJson
-    /// Serializer e' case-sensitive, e i due capi devono restare d'accordo.
+    /// The information of a profile as the adapter composes it (command
+    /// `contact.info`). The field names are the wire ones: DataContractJson
+    /// Serializer is case-sensitive, and the two sides must stay in agreement.
     /// </summary>
     [DataContract]
     public class ContactInfo
@@ -19,30 +19,30 @@ namespace WhatsappApp.Models
         [DataMember]
         public string Name { get; set; }
 
-        /// <summary>Il testo "about" (lo status di WhatsApp).</summary>
+        /// <summary>The "about" text (the WhatsApp status).</summary>
         [DataMember]
         public string About { get; set; }
 
-        /// <summary>Il numero leggibile, per una persona. Vuoto per un gruppo.</summary>
+        /// <summary>The readable number, for a person. Empty for a group.</summary>
         [DataMember]
         public string Number { get; set; }
 
-        /// <summary>L'immagine del profilo in base64, se l'adapter ce l'ha.</summary>
+        /// <summary>The profile picture in base64, if the adapter has it.</summary>
         [DataMember]
         public string AvatarData { get; set; }
 
-        /// <summary>Il profilo aziendale. Null quando non e' un account business.</summary>
+        /// <summary>The business profile. Null when it is not a business account.</summary>
         [DataMember]
         public ContactBusiness Business { get; set; }
 
-        /// <summary>Descrizione e membri. Null quando non e' un gruppo.</summary>
+        /// <summary>Description and members. Null when it is not a group.</summary>
         [DataMember]
         public ContactGroup Group { get; set; }
 
         private static readonly DataContractJsonSerializer JsonSerializer =
             new DataContractJsonSerializer(typeof(ContactInfo));
 
-        /// <summary>Un frame illeggibile non e' un guasto: e' "niente da mostrare".</summary>
+        /// <summary>An unreadable frame is not a failure: it is "nothing to show".</summary>
         public static ContactInfo FromJson(string json)
         {
             if (string.IsNullOrEmpty(json)) return null;
@@ -95,7 +95,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public string Close { get; set; }
 
-        /// <summary>Una riga sola da mostrare: il giorno e la fascia, o solo il giorno.</summary>
+        /// <summary>A single line to show: the day and the hours, or the day alone.</summary>
         public string Display
         {
             get
@@ -134,7 +134,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public bool IsSuperAdmin { get; set; }
 
-        /// <summary>Il nome se c'e', altrimenti il numero: una riga vuota non serve a nessuno.</summary>
+        /// <summary>The name if there is one, otherwise the number: an empty line serves no one.</summary>
         public string Display
         {
             get
@@ -144,7 +144,7 @@ namespace WhatsappApp.Models
             }
         }
 
-        /// <summary>Il ruolo, vuoto per un membro normale.</summary>
+        /// <summary>The role, empty for a normal member.</summary>
         public string Role
         {
             get

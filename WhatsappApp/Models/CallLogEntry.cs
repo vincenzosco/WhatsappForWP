@@ -4,12 +4,12 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Models
 {
     /// <summary>
-    /// Una voce del registro chiamate. I dati arrivano dall'adapter, che li
-    /// ricava dalla history di GOWA: sono solo chiamate in entrata, prese dalle
-    /// chat piu' recenti che il server ha scansionato.
+    /// A call-log entry. The data comes from the adapter, which derives it from
+    /// the GOWA history: they are incoming calls only, taken from the most recent
+    /// chats the server scanned.
     ///
-    /// Non implementa INotifyPropertyChanged: la collezione viene svuotata e
-    /// riempita ad ogni scansione, non modificata campo per campo.
+    /// It does not implement INotifyPropertyChanged: the collection is emptied and
+    /// refilled on every scan, not changed field by field.
     /// </summary>
     public class CallLogEntry
     {
@@ -21,7 +21,7 @@ namespace WhatsappApp.Models
         public int DurationSeconds { get; set; }
         public bool IsVideo { get; set; }
 
-        /// <summary>Iniziali per l'avatar, come nell'elenco chat.</summary>
+        /// <summary>Initials for the avatar, as in the chat list.</summary>
         public string Initials
         {
             get
@@ -34,7 +34,7 @@ namespace WhatsappApp.Models
             }
         }
 
-        /// <summary>Orario come nell'elenco chat (oggi -> HH:mm, ieri -> "Yesterday").</summary>
+        /// <summary>Time as in the chat list (today -> HH:mm, yesterday -> "Yesterday").</summary>
         public string TimeText
         {
             get
@@ -51,9 +51,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// Riga di dettaglio: esito, eventuale "video" e durata quando la
-        /// conosciamo. Un esito che non riconosciamo resta una chiamata in
-        /// entrata generica, invece di mostrare testo preso dal server.
+        /// Detail line: outcome, an optional "video" and the duration when we know
+        /// it. An outcome we do not recognize stays a generic incoming call,
+        /// instead of showing text taken from the server.
         /// </summary>
         public string Detail
         {

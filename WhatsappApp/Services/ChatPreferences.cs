@@ -9,7 +9,7 @@ using Windows.Storage;
 
 namespace WhatsappApp.Services
 {
-    /// <summary>Quello che questo telefono ha deciso di una chat.</summary>
+    /// <summary>What this phone has decided about a chat.</summary>
     [DataContract]
     internal class ChatPreference
     {
@@ -26,7 +26,7 @@ namespace WhatsappApp.Services
         public bool Hidden { get; set; }
     }
 
-    /// <summary>Il file su disco: un solo campo, l'elenco delle decisioni.</summary>
+    /// <summary>The on-disk file: a single field, the list of decisions.</summary>
     [DataContract]
     internal class ChatPreferenceFile
     {
@@ -35,15 +35,13 @@ namespace WhatsappApp.Services
     }
 
     /// <summary>
-    /// Pinnare, silenziare ed eliminare una chat sono decisioni di questo
-    /// telefono, non di WhatsApp: GOWA non ha nessun endpoint per nessuna delle
-    /// tre, e l'elenco delle conversazioni che l'adapter manda e' di sola
-    /// lettura.
+    /// Pinning, muting and deleting a chat are decisions of this phone, not of
+    /// WhatsApp: GOWA has no endpoint for any of the three, and the conversation
+    /// list the adapter sends is read-only.
     ///
-    /// Perche' non nella cache dell'elenco (ChatCache): quella e' una fotografia
-    /// che il server sostituisce riga per riga, e una chat che in quell'elenco
-    /// non compare piu' (vecchia, o tagliata fuori da CHATS_LIMIT) perderebbe il
-    /// suo pin. Qui invece sopravvive al server.
+    /// Why not in the list cache (ChatCache): that is a photograph the server
+    /// replaces row by row, and a chat that no longer appears in that list (old,
+    /// or cut off by CHATS_LIMIT) would lose its pin. Here it survives the server.
     /// </summary>
     public static class ChatPreferences
     {
@@ -52,23 +50,23 @@ namespace WhatsappApp.Services
         private static readonly DataContractJsonSerializer Serializer =
             new DataContractJsonSerializer(typeof(ChatPreferenceFile));
 
-        // Snapshot in memoria: l'elenco chat chiede queste risposte per ogni
-        // riga, e leggerle dal disco ogni volta sarebbe un file per messaggio.
+        // In-memory snapshot: the chat list asks for these answers for every row,
+        // and reading them from disk each time would be one file per message.
         private static readonly Dictionary<string, ChatPreference> Known =
             new Dictionary<string, ChatPreference>();
 
-        /// <summary>Le scritture del file, una alla volta e in ordine.</summary>
+        /// <summary>The file writes, one at a time and in order.</summary>
         private static readonly SerialQueue Writes = new SerialQueue();
 
         private static bool _loaded;
 
-        /// <summary>Vero quando il file e' stato letto. Solo per la diagnosi.</summary>
+        /// <summary>True when the file has been read. For diagnosis only.</summary>
         public static bool IsLoaded
         {
             get { return _loaded; }
         }
 
-        /// <summary>Legge il file una volta sola. Mai un'eccezione: al primo avvio non c'e'.</summary>
+        /// <summary>Reads the file once. Never an exception: on first run there is none.</summary>
         public static async Task LoadAsync()
         {
             if (_loaded) return;
@@ -95,7 +93,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Primo avvio, o file scritto da una versione diversa.
+                // First run, or a file written by a different version.
                 Diag.Failed("ChatPreferences.Load", ex);
             }
         }
@@ -137,10 +135,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// La chat e' stata eliminata da questo telefono: resta fuori
-        /// dall'elenco anche quando il server la rimanda. Non e' la fine della
-        /// conversazione - Reveal la fa tornare, e la chiama un messaggio nuovo,
-        /// come fa WhatsApp.
+        /// The chat was deleted from this phone: it stays out of the list even
+        /// when the server sends it again. It is not the end of the conversation -
+        /// Reveal brings it back, and a new message calls it, as WhatsApp does.
         /// </summary>
         public static void Hide(string chatId)
         {
@@ -150,7 +147,7 @@ namespace WhatsappApp.Services
             Save();
         }
 
-        /// <summary>La chat torna nell'elenco. Pin e silenzio restano come erano.</summary>
+        /// <summary>The chat returns to the list. Pin and mute stay as they were.</summary>
         public static void Reveal(string chatId)
         {
             var entry = Find(chatId);
@@ -181,8 +178,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Una voce senza niente da dire non si tiene: un file di righe tutte a
-        /// false cresce con l'elenco delle conversazioni, che cambia da solo.
+        /// An entry with nothing to say is not kept: a file of all-false rows
+        /// grows with the conversation list, which changes on its own.
         /// </summary>
         private static void Forget(string chatId, ChatPreference entry)
         {
@@ -191,15 +188,14 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Scatta adesso e scrive in coda. Lo scatto si fa sul thread di chi ha
-        /// cambiato la preferenza, dove l'elenco e' fermo: dentro la coda il
-        /// lavoro tocca solo una stringa, non Known.
+        /// Snaps now and writes in the queue. The snap happens on the thread of
+        /// whoever changed the preference, where the list is still: inside the
+        /// queue the work touches only a string, not Known.
         ///
-        /// Scrivere subito e senza aspettare perdeva l'ultimo cambio: due
-        /// modifiche ravvicinate (Unpin all ne fa una per chat) lanciavano due
-        /// scritture sullo stesso file, e poteva finire sul disco quella piu'
-        /// vecchia. Ora la seconda aspetta la prima, e l'ultima scritta e'
-        /// l'ultima decisa.
+        /// Writing at once without waiting lost the last change: two close
+        /// edits (Unpin all does one per chat) launched two writes on the same
+        /// file, and the older one could reach the disk. Now the second waits for
+        /// the first, and the last written is the last decided.
         /// </summary>
         private static void Save()
         {
@@ -209,7 +205,7 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
         }
 
-        /// <summary>L'elenco come sta adesso, in JSON. Va chiamato sul thread che ha cambiato la preferenza.</summary>
+        /// <summary>The list as it is now, in JSON. Call it on the thread that changed the preference.</summary>
         private static string Serialize()
         {
             var file = new ChatPreferenceFile { Chats = new List<ChatPreference>() };
@@ -223,9 +219,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Scrive il file. Non aspetta nessuno - chi cambia un pin non ha niente
-        /// da fare con l'esito - quindi cattura da sola: un deposito senza
-        /// padrone non deve poter far cadere la pagina. Mai un'eccezione.
+        /// Writes the file. Nobody awaits it - whoever changes a pin has nothing
+        /// to do with the outcome - so it catches on its own: an unowned deposit
+        /// must not be able to bring the page down. Never an exception.
         /// </summary>
         private static async Task WriteFileAsync(string json)
         {
