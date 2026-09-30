@@ -289,7 +289,11 @@ namespace WhatsappApp.Models
             set { _command = value; OnPropertyChanged(); }
         }
 
-        /// <summary>WhatsApp connection state: "disconnected", "waiting" or "connected".</summary>
+        /// <summary>
+        /// What the frame says about its subject: the WhatsApp connection state
+        /// ("disconnected", "waiting", "connected") for a `state` frame, or what
+        /// someone is doing in a chat ("composing", "paused") for a `typing` one.
+        /// </summary>
         [DataMember]
         public string State
         {

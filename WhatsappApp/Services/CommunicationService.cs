@@ -715,8 +715,19 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task SendControlAsync(string command, string payload = null)
         {
+            await SendControlAsync(command, payload, null);
+        }
+
+        /// <summary>
+        /// The same frame with the third field some commands need (`State`, for the
+        /// typing indicator): `Text` carries the chat, `State` carries what is being
+        /// said about it.
+        /// </summary>
+        public async Task SendControlAsync(string command, string payload, string state)
+        {
             var message = NewControlFrame(command);
             message.Text = payload ?? "";
+            message.State = state;
             await SendMessageAsync(message);
         }
 

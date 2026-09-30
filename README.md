@@ -12,13 +12,14 @@ The main client app with an authentic WhatsApp user interface.
 
 **Features:**
 - WhatsApp green theme (header #075E54, accent #25D366, chat bubbles)
-- Chat list with avatars, unread badges, online indicators
+- Chat list with avatars and unread badges
 - Message bubbles with timestamps and sent/delivered/read status
 - Text messaging with Enter-to-send
 - Image attachment: pick photos from the gallery and send them through the bridge
 - Image preview in chat bubbles (base64 over TCP)
 - The app finds the adapter on the local network by itself, so there is no address to type
 - Login from the phone: the QR code or the phone pairing code is shown full screen in the app
+- Typing indicator: three animated dots in the conversation while the other person writes, and the same state is sent back while you write
 - UI in the device language: English and Italian
 
 **Architecture:**
@@ -53,6 +54,14 @@ A new chat can be started in three ways: typing a number with country code,
 picking a contact with the system contact picker (the user's consent, so the app
 never reads the address book by itself), or tapping a conversation the server
 already knows.
+
+While someone is writing, the conversation shows a bubble with three dots, one
+rising after the other, and it goes away when they stop. It is the one thing this
+app shows that is not a message, and it comes from WhatsApp (`chat_presence`, an
+event GOWA 9.5 forwards), not from a guess. The other direction works the same way:
+while you type, the adapter tells WhatsApp, and the contact sees the same dots. Both
+directions need the account to be online, so the adapter marks it `available` while
+the app is connected and `unavailable` when it is not.
 
 Attaching an image uses `PickSingleFileAndContinue`. `PickSingleFileAsync` is
 documented as unsupported on Windows Phone, and on the phone it failed silently:
@@ -561,6 +570,7 @@ What remains true, and is worth saying plainly:
 - Pinning, muting and deleting live on this phone only, in `chat-preferences.json` in the app's folder. Nothing about them is sent to WhatsApp or to the adapter, so another device does not see them, and they are lost when the app's data is cleared.
 - A chat's unread number is kept by the adapter, in memory, and is cleared when the conversation is opened in the app. Restarting the adapter starts the count again from zero, and messages that arrive while neither the app nor the adapter is running are not counted.
 - A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
+- Typing indicators depend on the account being online, which is what the contacts also see: WhatsApp sends those events only to a client marked online, the adapter marks the account available while an app client is connected, and offline when the last one leaves. With the app closed no presence is sent or received, so nothing is shown in the meantime.
 - Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone. A photo or a video in that history shows a word (`[Image]`, `[Video]`) until it is tapped, when the adapter downloads it from the server and the app plays or draws it. A received video's bytes are written to the app's local folder for as long as the session lasts, and are not cleaned up when the app closes. The last 60 messages of a conversation are cached on the phone, so the first view of a chat is a photograph that the server replaces.
 - The number on the live tile is drawn by the badge and the icon comes from the tile notification, so both need the app to have run since the count changed. With the count at zero the tile goes back to the one in the manifest.
 - Under memory pressure the app drops the decoded avatars; the bytes stay, and the pictures are redrawn when the chat list comes back. While the pressure lasts nothing new is decoded, so on a phone that stays under pressure the list shows initials for a while.

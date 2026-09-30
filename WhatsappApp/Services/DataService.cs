@@ -276,7 +276,27 @@ namespace WhatsappApp.Services
                 case "edited":
                     ApplyEdit(message.ChatId, message.RelatedMessageId, message.Text);
                     break;
+                case "typing":
+                    RaiseTypingChanged(message);
+                    break;
             }
+        }
+
+        /// <summary>
+        /// Someone in a chat is writing, or has stopped. It is the only thing the
+        /// server says about a person that is not a message, and the page of that
+        /// chat is the only one that can show it.
+        ///
+        /// The frame is the whole content: ChatId is the conversation, State is
+        /// "composing" or "paused". Nothing is passed on that the server did not
+        /// say, and no chat is invented for it.
+        /// </summary>
+        public event EventHandler<ChatMessage> TypingChanged;
+
+        private void RaiseTypingChanged(ChatMessage message)
+        {
+            var handler = TypingChanged;
+            if (handler != null) handler(this, message);
         }
 
         /// <summary>A new contact (or the updated name) from the adapter.</summary>
