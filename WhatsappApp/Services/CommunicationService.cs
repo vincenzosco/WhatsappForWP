@@ -100,6 +100,14 @@ namespace WhatsappApp.Services
         public event EventHandler<string> ErrorOccurred;
 
         /// <summary>
+        /// Il server non ha risposto dopo i tentativi automatici. E' distinto
+        /// da ErrorOccurred perche' non e' un guasto di socket da spiegare: e'
+        /// uno stato che vale una frase sola, e le pagine non devono dedurlo dal
+        /// testo (che cambia con la lingua).
+        /// </summary>
+        public event EventHandler ServerUnavailable;
+
+        /// <summary>
         /// Sollevato (sul thread UI) quando il socket e' pronto. Sostituisce il
         /// controllo sul testo dello stato, che si rompeva cambiando lingua.
         /// </summary>
@@ -201,6 +209,20 @@ namespace WhatsappApp.Services
                 Diag.Failed("GetUiDispatcher", new InvalidOperationException("no CoreDispatcher available"));
             }
             return _uiDispatcher;
+        }
+
+        /// <summary>
+        /// Lo dice il connettore automatico quando ha finito i tentativi senza
+        /// una connessione. Passa dal dispatcher perche' chi ascolta scrive
+        /// sulla pagina, e chi chiama e' un thread di background.
+        /// </summary>
+        public void NotifyServerUnavailable()
+        {
+            DispatchOnUiThread(() =>
+            {
+                var handler = ServerUnavailable;
+                if (handler != null) handler(this, EventArgs.Empty);
+            });
         }
 
         /// <summary>

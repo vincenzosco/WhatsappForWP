@@ -68,11 +68,18 @@ namespace WhatsappApp.Services
 
                 await DiscoveryService.Instance.StartAsync();
                 DiscoveredServer server = await DiscoveryService.Instance.WaitForSingleAsync(discoverySeconds);
-                if (server == null) return false;
+                if (server == null)
+                {
+                    // Nessun server che risponde, ne' quello salvato ne' uno
+                    // annunciato: e' il caso che merita una frase all'utente.
+                    CommunicationService.Instance.NotifyServerUnavailable();
+                    return false;
+                }
 
                 bool connected = await CommunicationService.Instance.ConnectToServerAsync(
                     server.Address, server.Port, username);
                 if (connected) SettingsService.Save(server.Address, server.Port, username);
+                else CommunicationService.Instance.NotifyServerUnavailable();
                 return connected;
             }
             finally
