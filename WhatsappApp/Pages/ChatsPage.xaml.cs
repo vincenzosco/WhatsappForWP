@@ -289,6 +289,19 @@ namespace WhatsappApp.Pages
             // the bar is governed by these two events.
             CommunicationService.Instance.ServerUnavailable += OnServerUnavailable;
             CommunicationService.Instance.ConnectionEstablished += OnServerAvailable;
+
+            // The adapter says nothing on its own until something asks: if the
+            // socket came up before this page existed, the state frame has already
+            // gone by and the list would wait for another one forever. Asking here
+            // makes the answer arrive now, and OnControlMessageReceived turns it
+            // into the list request.
+            if (CommunicationService.Instance.IsConnected)
+            {
+#pragma warning disable 4014
+                CommunicationService.Instance.SendControlAsync("status");
+#pragma warning restore 4014
+            }
+
             RequestChats();
         }
 
@@ -316,6 +329,13 @@ namespace WhatsappApp.Pages
         private void OnServerAvailable(object sender, EventArgs e)
         {
             ServerUnavailableBar.Visibility = Visibility.Collapsed;
+
+            // The socket is up. Whether WhatsApp is linked is a separate answer,
+            // and the list is asked for only once it is connected: this is the
+            // request that produces it.
+#pragma warning disable 4014
+            CommunicationService.Instance.SendControlAsync("status");
+#pragma warning restore 4014
         }
 
         /// <summary>
@@ -338,6 +358,10 @@ namespace WhatsappApp.Pages
         {
             if (!CommunicationService.Instance.IsConnected) return;
             if (CommunicationService.Instance.WhatsAppState != "connected") return;
+
+            // The rows that come back are the server order, and this is where that
+            // batch starts: everything ApplyChat records from here on belongs to it.
+            DataService.Instance.BeginChatList();
 
 #pragma warning disable 4014
             CommunicationService.Instance.SendControlAsync("chats");

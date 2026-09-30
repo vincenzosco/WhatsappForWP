@@ -418,12 +418,38 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// A chat list is about to arrive. The rows of the cached snapshot went
+        /// through ApplyChat at startup, and each of them registered itself in the
+        /// batch: without this the batch - and so the file written back, and the
+        /// order taken from it - is the previous session, not the server one.
+        /// </summary>
+        public void BeginChatList()
+        {
+            _freshChatRows.Clear();
+        }
+
+        /// <summary>
         /// The list has finished arriving: what remains becomes the copy on the
         /// phone, and the batch that just arrived restarts from scratch.
         /// </summary>
         private void RememberChatList()
         {
             if (_freshChatRows.Count == 0) return;
+
+            // The server sends the conversations most recent first, and that is the
+            // order the list has to show. A conversation that wrote while the phone
+            // was off would otherwise keep the position it had in the cached
+            // snapshot, and a brand new one would sit at the bottom, off screen.
+            for (int i = 0; i < _freshChatRows.Count; i++)
+            {
+                if (i >= _contacts.Count) break;
+                Contact contact = FindContact(_freshChatRows[i].ChatId);
+                if (contact == null) continue;
+                int at = _contacts.IndexOf(contact);
+                if (at < 0 || at == i) continue;
+                _contacts.Move(at, i);
+            }
+            ResortContacts();
 
             _chatRows.Clear();
             _chatRows.AddRange(_freshChatRows);
