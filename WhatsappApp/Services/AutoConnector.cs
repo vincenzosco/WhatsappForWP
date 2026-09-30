@@ -5,12 +5,12 @@ using WhatsappApp.Models;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Decide a quale adapter connettersi senza che l'utente scriva nulla:
-    /// l'indirizzo salvato se risponde, altrimenti l'unico adapter annunciato
-    /// sulla rete. La usano sia l'avvio dell'app sia la pagina delle
-    /// impostazioni, che e' l'unico posto in cui la logica puo' stare (DRY).
+    /// Decides which adapter to connect to without the user typing anything: the
+    /// saved address if it answers, otherwise the single adapter announced on the
+    /// network. Both the app startup and the settings page use it, which is the
+    /// only place the logic can live (DRY).
     ///
-    /// Non mostra nulla e non lancia: il chiamante sa dove scrivere.
+    /// It shows nothing and throws nothing: the caller knows where to write.
     /// </summary>
     public sealed class AutoConnector
     {
@@ -37,7 +37,7 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// True quando alla fine la connessione e' attiva.
+        /// True when the connection is active in the end.
         /// </summary>
         public async Task<bool> TryConnectAsync(string username, int discoverySeconds)
         {
@@ -47,9 +47,9 @@ namespace WhatsappApp.Services
             _running = true;
             try
             {
-                // Il servizio pubblico: l'indirizzo si legge da un file, non si
-                // scrive a mano, perche' il tunnel che lo espone cambia porta.
-                // La scoperta in rete non ha niente da trovare qui.
+                // The public service: the address is read from a file, not typed,
+                // because the tunnel that exposes it changes port. Network
+                // discovery has nothing to find here.
                 if (SettingsService.UsePublicServer)
                 {
                     DiscoveredServer remote = await EndpointService.Instance.ResolveAsync();
@@ -77,9 +77,9 @@ namespace WhatsappApp.Services
                         return true;
                     }
 
-                    // L'indirizzo salvato non risponde piu' (il DHCP ha dato al
-                    // PC un altro IP): non e' un guasto da mostrare, e' un dato
-                    // da dimenticare. Si prova l'unico adapter che si annuncia.
+                    // The saved address no longer answers (DHCP gave the PC
+                    // another IP): it is not a failure to show, it is data to
+                    // forget. The single adapter that announces itself is tried.
                     Diag.Failed("AutoConnector/saved",
                         new InvalidOperationException("no answer from " + address + ":" + port));
                 }
@@ -88,8 +88,8 @@ namespace WhatsappApp.Services
                 DiscoveredServer server = await DiscoveryService.Instance.WaitForSingleAsync(discoverySeconds);
                 if (server == null)
                 {
-                    // Nessun server che risponde, ne' quello salvato ne' uno
-                    // annunciato: e' il caso che merita una frase all'utente.
+                    // No server answers, neither the saved one nor an announced
+                    // one: this is the case that deserves a sentence for the user.
                     CommunicationService.Instance.NotifyServerUnavailable();
                     return false;
                 }

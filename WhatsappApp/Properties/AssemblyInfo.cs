@@ -1,10 +1,10 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
-// Le informazioni generali relative a un assembly sono controllate dal seguente 
-// set di attributi. Modificare i valori di questi attributi per modificare le informazioni
-// associate a un assembly.
+// General information about an assembly is controlled through the following 
+// set of attributes. Change these attribute values to modify the information
+// associated with an assembly.
 [assembly: AssemblyTitle("WhatsappApp")]
 [assembly: AssemblyDescription("")]
 [assembly: AssemblyConfiguration("")]
@@ -14,15 +14,15 @@ using System.Runtime.InteropServices;
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
-// Le informazioni sulla versione di un assembly sono costituite dai seguenti quattro valori:
+// Version information for an assembly consists of the following four values:
 //
-//      Versione principale
-//      Versione secondaria 
-//      Numero di build
-//      Revisione
+//      Major Version
+//      Minor Version 
+//      Build Number
+//      Revision
 //
-// È possibile specificare tutti i valori oppure impostare valori predefiniti per i numeri relativi alla revisione e alla build 
-// usando l'asterisco '*' come illustrato di seguito:
+// You can specify all the values or you can default the Build and Revision Numbers 
+// by using the asterisk '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
 [assembly: AssemblyVersion("1.0.0.0")]
 [assembly: AssemblyFileVersion("1.0.0.0")]
