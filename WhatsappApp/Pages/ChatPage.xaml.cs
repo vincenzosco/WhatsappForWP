@@ -40,6 +40,10 @@ namespace WhatsappApp.Pages
             ToolTipService.SetToolTip(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
             ToolTipService.SetToolTip(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
             ToolTipService.SetToolTip(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
+
+            // La foto e il nome sono due bersagli: il tooltip li distingue.
+            ToolTipService.SetToolTip(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
+            ToolTipService.SetToolTip(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -50,6 +54,10 @@ namespace WhatsappApp.Pages
             if (contact != null)
             {
                 _contact = contact;
+
+                // L'avatar e le iniziali vengono dal contatto: la pagina non li
+                // ricostruisce.
+                DataContext = contact;
 
                 ContactNameText.Text = contact.Name;
 
@@ -316,6 +324,39 @@ namespace WhatsappApp.Pages
         {
             HideFullScreen();
             e.Handled = true;
+        }
+
+        /// <summary>
+        /// La foto del profilo a tutto schermo: si decodifica alla misura dello
+        /// schermo, come per una bolla, e si chiude toccandola (ImageViewer).
+        /// Senza byte non si apre niente: non c'e' una richiesta da fare qui,
+        /// l'elenco chat li ha gia' chiesti.
+        /// </summary>
+        private async void HeaderAvatar_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            e.Handled = true;
+            if (_contact == null || string.IsNullOrEmpty(_contact.AvatarData)) return;
+
+            try
+            {
+                var bitmap = await ImageHelper.FromBase64Async(_contact.AvatarData, ViewerDecodePixels);
+                if (bitmap == null) return;
+                ImageViewerImage.Source = bitmap;
+                ImageViewer.Visibility = Visibility.Visible;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.HeaderAvatar_Tapped", ex);
+                HideFullScreen();
+            }
+        }
+
+        /// <summary>Il nome apre le informazioni: la foto resta per la foto.</summary>
+        private void ContactHeader_Tapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (_contact == null) return;
+            e.Handled = true;
+            Frame.Navigate(typeof(ContactInfoPage), _contact);
         }
 
         private void HideFullScreen()

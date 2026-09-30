@@ -10,6 +10,7 @@
         <conv:MessageStatusToStringConverter x:Key="MsgStatusToString"/>
         <conv:MessageStatusToColorConverter x:Key="MsgStatusToColor"/>
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
+        <conv:InitialToColorConverter x:Key="InitialToColor"/>
 
         <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
         <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
@@ -37,9 +38,12 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header: back + name/status, as in the released app (no dead call buttons) -->
+        <!-- Header: back + picture + name/status. La foto e' una cosa a parte
+             dalla riga del nome: toccandola si apre a tutto schermo, toccando il
+             nome si aprono le informazioni. -->
         <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
             <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
@@ -68,13 +72,38 @@
                 </Path>
             </Button>
 
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,0,4">
-                <TextBlock x:Name="ContactNameText" Text=""
-                           Foreground="White" FontSize="18" FontWeight="SemiBold"
-                           TextTrimming="WordEllipsis"/>
-                <TextBlock x:Name="OnlineStatusText" Text=""
-                           Foreground="#B0FFFFFF" FontSize="12" Margin="0,-2,0,0"/>
-            </StackPanel>
+            <Border x:Name="HeaderAvatar" Grid.Column="1"
+                    Width="40" Height="40" CornerRadius="20"
+                    Margin="8,0,0,0" VerticalAlignment="Center"
+                    Tapped="HeaderAvatar_Tapped">
+                <Grid>
+                    <Ellipse Width="40" Height="40"
+                             Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                    <Border Width="40" Height="40" CornerRadius="20"
+                            Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                        <Border.Background>
+                            <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                        </Border.Background>
+                    </Border>
+                    <TextBlock Text="{Binding Initials}"
+                               Foreground="White" FontSize="15" FontWeight="SemiBold"
+                               VerticalAlignment="Center" HorizontalAlignment="Center"
+                               Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+                </Grid>
+            </Border>
+
+            <Grid x:Name="ContactHeader" Grid.Column="2"
+                  Background="Transparent"
+                  Margin="8,0,0,4"
+                  Tapped="ContactHeader_Tapped">
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock x:Name="ContactNameText" Text=""
+                               Foreground="White" FontSize="18" FontWeight="SemiBold"
+                               TextTrimming="WordEllipsis"/>
+                    <TextBlock x:Name="OnlineStatusText" Text=""
+                               Foreground="#B0FFFFFF" FontSize="12" Margin="0,-2,0,0"/>
+                </StackPanel>
+            </Grid>
         </Grid>
 
         <!-- Messages -->
