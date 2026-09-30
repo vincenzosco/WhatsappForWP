@@ -137,6 +137,9 @@
     <Compile Include="Pages\CallsPage.xaml.cs">
       <DependentUpon>CallsPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Pages\ContactInfoPage.xaml.cs">
+      <DependentUpon>ContactInfoPage.xaml</DependentUpon>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <AppxManifest Include="Package.appxmanifest">
@@ -186,6 +189,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\ConnectionPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\ContactInfoPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
