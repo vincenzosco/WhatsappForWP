@@ -44,6 +44,15 @@ namespace WhatsappApp.Models
             set { _lastMessageTime = value; OnPropertyChanged(); }
         }
 
+        /// <summary>
+        /// When the preview was written. It is not data that comes off the wire:
+        /// ApplyChat uses it to tell a server row newer than the preview from one
+        /// that is not. Without it the preview was only filled when empty, and a
+        /// row of the cached list - which always has one - was never replaced, so
+        /// the list kept the previews of the previous session.
+        /// </summary>
+        public DateTime LastMessageAt { get; set; }
+
         public string Initials
         {
             get { return _initials; }

@@ -180,6 +180,7 @@ namespace WhatsappApp.Services
                     Name = name,
                     LastMessage = message.Text,
                     LastMessageTime = message.FormattedTime,
+                    LastMessageAt = message.Timestamp,
                     Initials = InitialsFor(name),
                     IsPinned = ChatPreferences.IsPinned(message.ChatId),
                     IsMuted = ChatPreferences.IsMuted(message.ChatId),
@@ -199,6 +200,7 @@ namespace WhatsappApp.Services
                 // Update the contact preview and move to top
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
+                contact.LastMessageAt = message.Timestamp;
                 if (message.IsIncoming)
                 {
                     contact.UnreadCount++;
@@ -354,12 +356,16 @@ namespace WhatsappApp.Services
                 contact.Initials = InitialsFor(name);
             }
 
-            // The preview comes from the server: if in this session we already have a
-            // more recent message, that one stays (it does not go backwards).
-            if (!string.IsNullOrEmpty(message.Text) && string.IsNullOrEmpty(contact.LastMessage))
+            // The preview comes from the server, and it replaces the one a cached
+            // row brought in: that is the whole point of the snapshot on disk, and
+            // the row is taken only when it is not older than what is already
+            // there - a message that arrived in this session while the phone was
+            // on must not go backwards.
+            if (!string.IsNullOrEmpty(message.Text) && message.Timestamp >= contact.LastMessageAt)
             {
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
+                contact.LastMessageAt = message.Timestamp;
             }
 
             // The profile picture. When the row carries it, the bytes are also kept
@@ -602,12 +608,14 @@ namespace WhatsappApp.Services
             {
                 contact.LastMessage = "";
                 contact.LastMessageTime = "";
+                contact.LastMessageAt = DateTime.MinValue;
                 return;
             }
 
             var last = messages[messages.Count - 1];
             contact.LastMessage = last.Text;
             contact.LastMessageTime = last.FormattedTime;
+            contact.LastMessageAt = last.Timestamp;
         }
 
         /// <summary>Name shown for a JID when we do not know its name.</summary>
@@ -755,6 +763,7 @@ namespace WhatsappApp.Services
             {
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
+                contact.LastMessageAt = message.Timestamp;
                 if (message.IsIncoming)
                 {
                     contact.UnreadCount++;
