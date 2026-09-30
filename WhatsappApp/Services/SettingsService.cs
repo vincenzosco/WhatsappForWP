@@ -41,13 +41,18 @@ namespace WhatsappApp.Services
         {
             if (_loaded) return;
 
-            // The address stays empty until the user saves one: HasSavedSettings
-            // tells "first run" from "already configured".
+            // The address stays empty until the user saves one, or until the public
+            // service is connected to at least once: HasSavedSettings tells "first
+            // run" from "already configured".
             _serverAddress = ReadString(KeyServerAddress, "");
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
             _token = ReadString(KeyToken, "");
-            _usePublicServer = ReadBool(KeyUsePublicServer, false);
+            // The service this app is built around is the shared one: it needs no
+            // address, so a phone that has never been configured can go straight to
+            // the chats and find it. A private server is one switch away, in the
+            // settings page, which the gear of the chats screen opens.
+            _usePublicServer = ReadBool(KeyUsePublicServer, true);
             _endpointUrl = ReadString(KeyEndpointUrl, "");
             _notificationsEnabled = ReadBool(KeyNotifications, true);
 
@@ -119,11 +124,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// True when a server address has been saved (first-run setup done).
+        /// True when the app has enough to connect on its own: a typed address, or
+        /// the public service, which needs no address at all because it reads one
+        /// from GitHub. Without the second half, a phone set up for the public
+        /// server counted as a first run, so every launch opened the settings page
+        /// and the chats screen never asked for its list.
         /// </summary>
         public static bool HasSavedSettings
         {
-            get { return !string.IsNullOrEmpty(ServerAddress); }
+            get { return UsePublicServer || !string.IsNullOrEmpty(ServerAddress); }
         }
 
         public static void Save(string address, int port, string username)
