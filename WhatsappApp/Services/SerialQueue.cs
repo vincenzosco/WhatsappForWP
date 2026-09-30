@@ -4,20 +4,19 @@ using System.Threading.Tasks;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Una cosa alla volta, nell'ordine in cui arrivano.
+    /// One thing at a time, in the order they arrive.
     ///
-    /// Perche' esiste: mezzo servizio di questa app e' asincrono, e i suoi
-    /// handler non si aspettano - DispatchOnUiThread e' async void, i gestori
-    /// dei frame sono async void, e la scrittura di un file parte senza che
-    /// nessuno la aspetti. Due di loro che toccano la stessa risorsa si
-    /// intrecciano: due StoreAsync sullo stesso DataWriter mettono il prefisso
-    /// di lunghezza di uno davanti al payload dell'altro, e la connessione cade
-    /// su un frame che non esiste.
+    /// Why it exists: half of this app's work is asynchronous, and its handlers
+    /// are not awaited - DispatchOnUiThread is async void, the frame handlers are
+    /// async void, and a file write starts without anyone awaiting it. Two of them
+    /// touching the same resource interleave: two StoreAsync on one DataWriter put
+    /// one length prefix in front of the other payload, and the connection falls
+    /// over a frame that does not exist.
     ///
-    /// Il lavoro entra qui e viene eseguito tutto, in fila: la coda e' una
-    /// catena di Task, non un thread, quindi non costa niente quando e' vuota.
-    /// Un pezzo che fallisce non ferma la coda: il guasto lo vede chi ha
-    /// chiamato, e il pezzo dopo parte lo stesso.
+    /// Work enters here and runs to completion, in line: the queue is a chain of
+    /// Tasks, not a thread, so it costs nothing when empty. A piece that fails
+    /// does not stop the queue: the caller sees the failure, and the next piece
+    /// starts anyway.
     /// </summary>
     public sealed class SerialQueue
     {
@@ -32,9 +31,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Accoda il lavoro e restituisce il suo esito. La prima parte viene
-        /// eseguita subito se la coda e' vuota (ExecuteSynchronously), come
-        /// farebbe una chiamata diretta.
+        /// Queues the work and returns its outcome. The first piece runs
+        /// immediately if the queue is empty (ExecuteSynchronously), as a direct
+        /// call would.
         /// </summary>
         public Task<T> RunAsync<T>(Func<Task<T>> work)
         {
@@ -48,8 +47,8 @@ namespace WhatsappApp.Services
                         TaskContinuationOptions.ExecuteSynchronously)
                     .Unwrap();
 
-                // La coda continua anche se questo pezzo fallisce: l'eccezione
-                // resta nel Task che e' stato restituito, e va osservata li'.
+                // The queue continues even if this piece fails: the exception
+                // stays in the returned Task, and is observed there.
                 _tail = next.ContinueWith(
                     delegate(Task<T> finished) { AggregateException ignored = finished.Exception; },
                     TaskContinuationOptions.ExecuteSynchronously);
@@ -57,7 +56,7 @@ namespace WhatsappApp.Services
             return next;
         }
 
-        /// <summary>La stessa coda, per un lavoro che non restituisce niente.</summary>
+        /// <summary>The same queue, for work that returns nothing.</summary>
         public Task RunAsync(Func<Task> work)
         {
             if (work == null) throw new ArgumentNullException("work");

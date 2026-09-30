@@ -57,9 +57,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// In cima all'elenco. E' una decisione di questo telefono
-        /// (ChatPreferences): WhatsApp non sa niente di un pin fatto qui, e
-        /// l'adapter non manda nessun campo per questo.
+        /// At the top of the list. It is a decision of this phone
+        /// (ChatPreferences): WhatsApp knows nothing of a pin made here, and the
+        /// adapter sends no field for it.
         /// </summary>
         public bool IsPinned
         {
@@ -67,14 +67,14 @@ namespace WhatsappApp.Models
             set { _isPinned = value; OnPropertyChanged(); }
         }
 
-        /// <summary>I messaggi di questa chat non alzano un avviso. Il numero dei non letti resta.</summary>
+        /// <summary>The messages of this chat raise no notification. The unread count stays.</summary>
         public bool IsMuted
         {
             get { return _isMuted; }
             set { _isMuted = value; OnPropertyChanged(); }
         }
 
-        /// <summary>L'immagine del profilo arrivata dall'adapter, ancora in base64.</summary>
+        /// <summary>The profile picture that arrived from the adapter, still in base64.</summary>
         public string AvatarData
         {
             get { return _avatarData; }
@@ -82,8 +82,9 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// L'immagine decodificata. Non e' un dato che arriva dal filo: la
-        /// costruisce LoadAvatarAsync, e la XAML la usa al posto delle iniziali.
+        /// The decoded picture. It is not data that comes off the wire:
+        /// LoadAvatarAsync builds it, and the XAML uses it in place of the
+        /// initials.
         /// </summary>
         public BitmapImage Avatar
         {
@@ -96,29 +97,29 @@ namespace WhatsappApp.Models
             }
         }
 
-        /// <summary>Vero quando c'e' un'immagine da mostrare al posto delle iniziali.</summary>
+        /// <summary>True when there is a picture to show in place of the initials.</summary>
         public bool HasAvatar
         {
             get { return _avatar != null; }
         }
 
         /// <summary>
-        /// La misura a cui la XAML disegna l'avatar: il riquadro della riga e' un
-        /// quadrato da 52 px. Decodificare piu' grande e' memoria buttata: quella
-        /// che arriva dal server e' un'immagine intera.
+        /// The size at which the XAML draws the avatar: the row box is a 52 px
+        /// square. Decoding any larger is wasted memory: what arrives from the
+        /// server is a full-size image.
         /// </summary>
         public const int AvatarDecodePixels = 52;
 
         /// <summary>
-        /// Decodifica AvatarData una volta sola. Va atteso sul thread UI, come
-        /// richiede ImageHelper: BitmapImage non e' agnostico rispetto alla view.
+        /// Decodes AvatarData once. It must be awaited on the UI thread, as
+        /// ImageHelper requires: BitmapImage is not view-agnostic.
         /// </summary>
         public async Task LoadAvatarAsync()
         {
             if (_avatar != null || string.IsNullOrEmpty(_avatarData)) return;
 
-            // Sotto pressione non si decodifica: senza questa riga il primo frame
-            // di conversazioni rimette dentro tutto quello appena liberato.
+            // Under pressure nothing is decoded: without this line the first
+            // frame of conversations puts back everything just freed.
             if (MemoryWatcher.Instance.IsUnderPressure) return;
 
             try
