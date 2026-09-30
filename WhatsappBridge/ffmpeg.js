@@ -1,24 +1,23 @@
 'use strict';
 
-// Trascodifica l'audio che Windows Phone 8.1 non sa decodificare.
+// Transcodes the audio Windows Phone 8.1 cannot decode.
 //
-// Perche' esiste: i messaggi vocali di WhatsApp sono Ogg con codec Opus, e
-// WP8.1 non ha un decoder Opus (arriva solo da Windows 10). Senza questa
-// conversione un vocale resta una parola che non si puo' toccare. L'adapter
-// chiama ffmpeg, se c'e', e manda all'app un MP3, che il telefono legge.
+// Why it exists: WhatsApp voice notes are Ogg with the Opus codec, and WP8.1
+// has no Opus decoder (it only arrived with Windows 10). Without this
+// conversion a voice note stays a word that cannot be played. The adapter calls
+// ffmpeg, if present, and sends the app an MP3, which the phone reads.
 //
-// ffmpeg e' un programma esterno, non una dipendenza npm: l'adapter deve
-// funzionare anche senza. La chiamata e' iniettabile, cosi' i test non hanno
-// bisogno di ffmpeg installato.
+// ffmpeg is an external program, not an npm dependency: the adapter must work
+// without it too. The call is injectable, so the tests need no ffmpeg installed.
 
 const { execFile } = require('child_process');
 
-// Il tetto dei byte in memoria. Lo stesso numero di server.js (MAX_MEDIA_BYTES):
-// oltre non c'e' piu' un media ma un guasto.
+// The ceiling of bytes in memory. The same number as server.js
+// (MAX_MEDIA_BYTES): past it there is no media any more, only a fault.
 const MAX_MEDIA_BYTES = 64 * 1024 * 1024;
 
-// Mono, 16 kHz, 32 kbit/s: un vocale WhatsApp e' parlato, e questa e' la forma
-// piu' piccola che resta intelligibile. Il file si scarica dal telefono.
+// Mono, 16 kHz, 32 kbit/s: a WhatsApp voice note is speech, and this is the
+// smallest form that stays intelligible. The file is downloaded from the phone.
 const TRANSCODE_ARGS = [
   '-hide_banner',
   '-loglevel', 'error',
@@ -31,7 +30,7 @@ const TRANSCODE_ARGS = [
   'pipe:1'
 ];
 
-/** Il tipo che WP8.1 non sa leggere: Ogg, Opus o il loro contenitore. */
+/** The type WP8.1 cannot read: Ogg, Opus or their container. */
 function isOggOpus(mimeType, fileName) {
   const mime = String(mimeType || '').toLowerCase();
   const name = String(fileName || '').toLowerCase();
@@ -39,7 +38,7 @@ function isOggOpus(mimeType, fileName) {
   return name.endsWith('.ogg') || name.endsWith('.opus') || name.endsWith('.oga');
 }
 
-/** Il nome del file con un'altra estensione, o con quella se non ne ha. */
+/** The file name with another extension, or with the one it has if it has none. */
 function replaceExtension(fileName, extension) {
   const name = String(fileName || 'audio');
   const dot = name.lastIndexOf('.');
@@ -47,7 +46,7 @@ function replaceExtension(fileName, extension) {
   return `${base}${extension}`;
 }
 
-/** ffmpeg legge l'input da stdin e scrive l'output su stdout: nessun file di mezzo. */
+/** ffmpeg reads the input from stdin and writes the output to stdout: no file in between. */
 function execFfmpeg(command, args, input) {
   return new Promise((resolve, reject) => {
     const child = execFile(command, args, { maxBuffer: MAX_MEDIA_BYTES, encoding: 'buffer' },
@@ -60,8 +59,8 @@ function execFfmpeg(command, args, input) {
 }
 
 /**
- * Un transcodificatore ffmpeg. `run` e' iniettabile: i test non hanno ffmpeg
- * installato e non devono averlo.
+ * An ffmpeg transcoder. `run` is injectable: the tests do not have ffmpeg
+ * installed and must not need it.
  */
 function createTranscoder(options) {
   const o = options || {};
@@ -70,14 +69,14 @@ function createTranscoder(options) {
   const enabled = o.enabled !== false;
   const run = typeof o.run === 'function' ? o.run : (args, input) => execFfmpeg(command, args, input);
 
-  // null finche' non si e' provato: un vocale non deve far partire ffmpeg una
-  // volta per messaggio solo per scoprire che non c'e'.
+  // null until it has been probed: a voice note must not start ffmpeg once per
+  // message just to find out it is not there.
   let available = null;
 
   return {
     isAvailable() { return available === true; },
 
-    /** Si prova una volta, all'avvio, e si dice nel log com'e' andata. */
+    /** Probed once, at startup, and the log says how it went. */
     async probe() {
       if (!enabled) {
         available = false;
@@ -96,9 +95,9 @@ function createTranscoder(options) {
     },
 
     /**
-     * I byte da mandare all'app. Per un audio che WP8.1 non legge restituisce
-     * l'MP3 e la sua identita'; per tutto il resto, o quando ffmpeg non c'e'
-     * o fallisce, restituisce null e l'adapter manda l'originale.
+     * The bytes to send to the app. For an audio WP8.1 cannot read it returns
+     * the MP3 and its identity; for everything else, or when ffmpeg is absent
+     * or fails, it returns null and the adapter sends the original.
      */
     async toPlayable(buffer, mimeType, fileName) {
       if (!enabled || available !== true) return null;

@@ -3,9 +3,8 @@
 const http = require('http');
 const crypto = require('crypto');
 
-// Verifica la firma HMAC-SHA256 inviata da GOWA nell'header
-// X-Hub-Signature-256 ("sha256=<hex>"). Se non è configurato un secret,
-// la verifica è disattivata.
+// Verifies the HMAC-SHA256 signature GOWA sends in the X-Hub-Signature-256
+// header ("sha256=<hex>"). If no secret is configured, verification is off.
 function verifySignature(rawBody, signatureHeader, secret) {
   if (!secret) return true;
   if (!signatureHeader) return false;
@@ -46,7 +45,7 @@ function createWebhookServer({ path, secret, onEvent, log }) {
       let event = null;
       try { event = JSON.parse(raw.toString('utf8')); } catch (e) { event = null; }
 
-      // Rispondi subito: GOWA ha un timeout breve sull'inoltro webhook.
+      // Answer at once: GOWA has a short timeout on the webhook forward.
       res.writeHead(200, { 'Content-Type': 'text/plain' });
       res.end('OK');
 

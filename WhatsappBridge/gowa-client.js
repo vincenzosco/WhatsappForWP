@@ -2,8 +2,8 @@
 
 const { createAvatarCache } = require('./avatar-cache');
 
-// Unico modulo che parla HTTP con il server GOWA.
-// Usa fetch/FormData/Blob globali di Node 18.13+.
+// The only module that speaks HTTP with the GOWA server.
+// It uses the global fetch/FormData/Blob of Node 18.13+.
 
 function errorMessage(data, fallback) {
   if (data && typeof data.message === 'string' && data.message.trim()) return data.message;
@@ -16,13 +16,13 @@ function buildAuthHeader(user, pass) {
   return 'Basic ' + Buffer.from(`${user}:${pass || ''}`, 'utf8').toString('base64');
 }
 
-// Il nome di un gruppo come lo restituisce GOWA.
+// The name of a group as GOWA returns it.
 //
-// whatsmeow's types.GroupInfo non ha tag json e incorpora GroupName, e
-// encoding/json promuove i campi di una struct incorporata: il nome arriva
-// quindi come "Name" di primo livello. Si accettano anche le forme annidate
-// perche' questo e' l'unico punto in cui il nome entra, e un cambio di forma a
-// monte non deve svuotare i nomi dei gruppi.
+// whatsmeow's types.GroupInfo has no json tags and embeds GroupName, and
+// encoding/json promotes the fields of an embedded struct: the name therefore
+// arrives as a top-level "Name". Nested forms are accepted too, because this is
+// the only place the name enters, and a change of shape upstream must not empty
+// the group names.
 function groupName(group) {
   if (!group) return '';
   const candidates = [group.Name, group.name];
@@ -36,8 +36,8 @@ function groupName(group) {
   return '';
 }
 
-// Un JID senza il suffisso del dispositivo (utente:12@server -> utente@server).
-// Il suffisso non e' un JID che WhatsApp riconosce in una richiesta di profilo.
+// A JID without the device suffix (user:12@server -> user@server).
+// The suffix is not a JID WhatsApp recognizes in a profile request.
 function normalizeJid(jid) {
   const value = String(jid || '');
   const at = value.indexOf('@');
@@ -49,14 +49,15 @@ class GowaClient {
   constructor({ baseUrl, deviceId, user, pass, authHeader, fetchImpl, avatarCache } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
     this.deviceId = deviceId || '';
-    // `authHeader` gia' pronto serve a `withDevice`: un client derivato non
-    // riparte da utente e password, che non ha.
+    // A ready `authHeader` serves `withDevice`: a derived client does not start
+    // from a user and password, which it does not have.
     this.authHeader = authHeader || buildAuthHeader(user, pass);
     this.fetch = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
     if (!this.fetch) throw new Error('fetch is not available: Node 18.13+ is required');
     this.resolvedDeviceId = null;
-    // Le foto gia' scaricate: l'elenco chat si richiede a ogni riconnessione,
-    // e senza questa una foto per chat tornava da WhatsApp ogni volta.
+    // The pictures already downloaded: the chat list is requested on every
+    // reconnection, and without this one picture per chat came back from
+    // WhatsApp every time.
     this.avatars = avatarCache || createAvatarCache();
   }
 
@@ -96,12 +97,12 @@ class GowaClient {
   }
 
   /**
-   * Lo stesso server GOWA, ma legato a un device preciso.
+   * The same GOWA server, but bound to one specific device.
    *
-   * Sul servizio condiviso ogni utente ha la sua sessione WhatsApp, e la
-   * sessione e' il device: una `X-Device-Id` diversa per ogni utente e' quello
-   * che li tiene separati. Il client di partenza resta senza device (o con
-   * quello configurato), perche' e' quello che crea i device.
+   * On the shared service every user has their own WhatsApp session, and the
+   * session is the device: a different `X-Device-Id` per user is what keeps them
+   * apart. The starting client stays without a device (or with the configured
+   * one), because it is the one that creates devices.
    */
   withDevice(deviceId) {
     return new GowaClient({
@@ -113,7 +114,7 @@ class GowaClient {
     });
   }
 
-  /** I device gia' presenti sul server GOWA. */
+  /** The devices already present on the GOWA server. */
   async listDevices() {
     const r = await this.request('GET', '/devices');
     const devices = (r.data && r.data.results) || [];
@@ -121,9 +122,9 @@ class GowaClient {
   }
 
   /**
-   * Un device nuovo, con un'etichetta leggibile (il nome dell'utente), e il suo
-   * id. GOWA risponde con `results.id`: senza quell'id non c'e' sessione da
-   * aprire, quindi un id mancante e' un guasto e non un valore vuoto.
+   * A new device, with a readable label (the user name), and its id. GOWA
+   * answers with `results.id`: without that id there is no session to open, so a
+   * missing id is a fault and not an empty value.
    */
   async createDevice(label) {
     const created = await this.request('POST', '/devices', {
@@ -175,9 +176,9 @@ class GowaClient {
   }
 
   /**
-   * Un file verso GOWA. Le tre rotte differiscono solo per il nome del campo
-   * multipart e per il percorso: prima ce n'era una sola (sendImage), e un
-   * video finiva spedito come immagine.
+   * A file toward GOWA. The three routes differ only in the multipart field name
+   * and the path: there used to be a single one (sendImage), and a video ended up
+   * sent as an image.
    */
   async postMedia(path, field, phone, caption, buffer, mimeType, fileName) {
     const form = new FormData();
@@ -227,13 +228,13 @@ class GowaClient {
     return data.map((c) => ({ jid: c.jid, name: c.name || '' }));
   }
 
-  // I gruppi a cui l'account partecipa, con il nome vero.
+  // The groups the account takes part in, with the real name.
   //
-  // Serve perche' l'elenco chat non e' una fonte affidabile per i nomi dei
-  // gruppi: quando GOWA non ha un nome in storage risponde "Group <numero>"
-  // (vedi chat_display_name.go nel sorgente di GOWA), che e' il numero e non il
-  // nome. Una richiesta sola per tutti i gruppi, e 500 gruppi sono il tetto che
-  // impone WhatsApp.
+  // It is needed because the chat list is not a reliable source for group names:
+  // when GOWA has no name in storage it answers "Group <number>" (see
+  // chat_display_name.go in the GOWA source), which is the number and not the
+  // name. One request for all the groups, and 500 groups is the ceiling WhatsApp
+  // imposes.
   async myGroups() {
     const names = new Map();
     try {
@@ -252,14 +253,14 @@ class GowaClient {
     return names;
   }
 
-  // Elenco delle chat presenti nella storage di GOWA (paginato lato server).
+  // List of the chats in the GOWA storage (paginated server-side).
   async chats(limit) {
     const r = await this.request('GET', `/chats?limit=${encodeURIComponent(limit)}`);
     const res = (r.data && r.data.results) || {};
     return Array.isArray(res.data) ? res.data : [];
   }
 
-  // Messaggi di una chat. La rotta di GOWA e' /chat/:chat_jid/messages.
+  // Messages of a chat. The GOWA route is /chat/:chat_jid/messages.
   async chatMessages(jid, limit) {
     const r = await this.request('GET',
       `/chat/${encodeURIComponent(jid)}/messages?limit=${encodeURIComponent(limit)}`);
@@ -267,34 +268,34 @@ class GowaClient {
     return Array.isArray(res.data) ? res.data : [];
   }
 
-  // Immagine del profilo di una persona.
+  // Profile picture of a person.
   //
-  // Due richieste, non una: /user/avatar non restituisce l'immagine, restituisce
-  // l'indirizzo dove sta (results.url, un URL del CDN di WhatsApp), quindi i byte
-  // si scaricano dopo. Prima si prendeva il corpo di /user/avatar come se fosse
-  // l'immagine: arrivavano i byte del JSON, che non sono una bitmap, e ogni
-  // avatar veniva scartato in silenzio.
+  // Two requests, not one: /user/avatar does not return the picture, it returns
+  // the address where it is (results.url, a WhatsApp CDN URL), so the bytes are
+  // downloaded afterwards. It used to take the body of /user/avatar as if it were
+  // the picture: the JSON bytes arrived, which are not a bitmap, and every avatar
+  // was silently discarded.
   //
-  // GOWA risponde 404 quando l'immagine non c'e': per l'elenco chat e' "nessuna
-  // immagine", non un errore da propagare.
+  // GOWA answers 404 when the picture is not there: for the chat list that is
+  // "no picture", not an error to propagate.
   //
-  // Si chiede per qualunque JID, gruppo compreso. Il parametro si chiama `phone`
-  // ma e' un JID: dal lato GOWA `SanitizePhone` aggiunge un suffisso solo a un
-  // valore che non contiene '@', e poi `client.GetProfilePictureInfo` riceve il
-  // JID come e' - whatsmeow lo accetta per un gruppo come per una persona. Il
-  // suffisso del dispositivo (:12) invece non e' un JID che WhatsApp riconosce
-  // in una richiesta di profilo, quindi si toglie.
+  // It is asked for any JID, a group included. The parameter is named `phone` but
+  // it is a JID: on the GOWA side `SanitizePhone` adds a suffix only to a value
+  // that does not contain '@', and then `client.GetProfilePictureInfo` receives
+  // the JID as it is - whatsmeow accepts it for a group as for a person. The
+  // device suffix (:12), on the other hand, is not a JID WhatsApp recognizes in a
+  // profile request, so it is dropped.
   async avatar(jid) {
     const value = String(jid || '');
     if (!value || value.indexOf('@') < 0) return null;
 
-    // Il suffisso del dispositivo sta prima della chiocciola (utente:12@server):
-    // si toglie da li', non tagliando la stringa sul primo ':'.
+    // The device suffix is before the at sign (user:12@server): it is removed
+    // from there, not by cutting the string at the first ':'.
     const at = value.indexOf('@');
     const target = value.slice(0, at).split(':')[0] + value.slice(at);
 
-    // undefined vuol dire "non si sa": null vuol dire "non ce l'ha", ed e' una
-    // risposta che si tiene (per poco, vedi avatar-cache.js).
+    // undefined means "not known": null means "it has none", and that is an
+    // answer that is kept (briefly, see avatar-cache.js).
     const remembered = this.avatars.get(target);
     if (remembered !== undefined) return remembered;
 
@@ -312,13 +313,13 @@ class GowaClient {
       this.avatars.put(target, base64);
       return base64;
     } catch (err) {
-      // Un guasto non si tiene: il prossimo elenco lo riprova.
+      // A failure is not kept: the next list tries again.
       return null;
     }
   }
 
-  // Nome, testo "about" (status) e id dell'immagine di una persona. GOWA
-  // risponde con un array di un elemento: quello e' il profilo.
+  // Name, "about" text (status) and picture id of a person. GOWA answers with
+  // an array of one element: that one is the profile.
   async userInfo(jid) {
     const target = normalizeJid(jid);
     if (!target || target.indexOf('@') < 0) return null;
@@ -340,8 +341,9 @@ class GowaClient {
     }
   }
 
-  // Il profilo aziendale: c'e' solo per un numero business, e per tutti gli
-  // altri GOWA risponde con un errore. Per l'app e' "non c'e'", non un guasto.
+  // The business profile: it exists only for a business number, and for all the
+  // others GOWA answers with an error. For the app that is "there is none", not
+  // a failure.
   async businessProfile(jid) {
     const target = normalizeJid(jid);
     if (!target || target.indexOf('@') < 0) return null;
@@ -366,7 +368,7 @@ class GowaClient {
     }
   }
 
-  // I membri di un gruppo, con il ruolo. Senza membri non e' un gruppo: null.
+  // The members of a group, with the role. Without members it is not a group: null.
   async groupParticipants(jid) {
     const target = normalizeJid(jid);
     if (!target || target.indexOf('@') < 0) return null;
@@ -393,9 +395,9 @@ class GowaClient {
     }
   }
 
-  // La descrizione di un gruppo: GOWA la restituisce dentro un oggetto opaco,
-  // quindi si leggono i nomi che whatsmeow usa per il testo e, se non ce n'e'
-  // nessuno, si risponde vuoto invece di inventare un campo.
+  // The description of a group: GOWA returns it inside an opaque object, so the
+  // names whatsmeow uses for the text are read and, if there is none, an empty
+  // answer goes back instead of inventing a field.
   async groupInfo(jid) {
     const target = normalizeJid(jid);
     if (!target || target.indexOf('@') < 0) return null;
@@ -414,12 +416,13 @@ class GowaClient {
     }
   }
 
-  // I byte del media di un messaggio.
+  // The bytes of the media of a message.
   //
-  // Due richieste, come per l'avatar: /message/:id/download non restituisce i
-  // byte, restituisce l'indirizzo statico del file scaricato (results.file_url),
-  // e i byte si prendono dopo. Un file_url vuoto significa che il file non e'
-  // sotto statics: per l'app e' "non piu' disponibile", non un guasto.
+  // Two requests, as for the avatar: /message/:id/download does not return the
+  // bytes, it returns the static address of the downloaded file
+  // (results.file_url), and the bytes are taken afterwards. An empty file_url
+  // means the file is not under statics: for the app that is "no longer
+  // available", not a failure.
   async downloadMedia(phone, messageId) {
     if (!phone || !messageId) return null;
 

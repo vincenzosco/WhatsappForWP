@@ -1,19 +1,20 @@
 'use strict';
 
 /**
- * Annuncio UDP dell'adapter.
+ * UDP announcement of the adapter.
  *
- * L'app WP8 non ha modo di sapere su quale indirizzo sta il computer, e
- * scriverlo a mano e' l'unico passo manuale rimasto. Qui l'adapter si annuncia
- * su ogni interfaccia fisica ogni due secondi; l'app ascolta e usa l'indirizzo
- * del *mittente* come indirizzo del server: il computer puo' avere piu'
- * interfacce (Wi-Fi, Ethernet, Parallels), e solo quella da cui e' arrivato il
- * pacchetto e' per definizione raggiungibile dal telefono.
+ * The WP8 app has no way to know which address the computer is on, and typing
+ * it by hand is the only manual step left. Here the adapter announces itself on
+ * every physical interface every two seconds; the app listens and uses the
+ * *sender's* address as the server address: the computer may have several
+ * interfaces (Wi-Fi, Ethernet, Parallels), and only the one the packet came from
+ * is reachable from the phone by definition.
  *
- * Il payload e' volutamente minimo e senza segreti: hostname, porta e stato.
+ * The payload is deliberately minimal and holds no secrets: hostname, port and
+ * state.
  *
- * Nota: questo modulo non sa nulla di WhatsApp e non importa `server.js`; il
- * contenuto del beacon arriva da `getPayload`, cosi' e' testabile da solo.
+ * Note: this module knows nothing about WhatsApp and does not import `server.js`;
+ * the beacon content arrives from `getPayload`, so it is testable on its own.
  */
 
 const dgram = require('dgram');
@@ -25,8 +26,8 @@ const DEFAULT_INTERVAL_MS = 2000;
 const DEFAULT_NETMASK = '255.255.255.0';
 const GLOBAL_BROADCAST = '255.255.255.255';
 
-// Interfacce che non portano da nessuna parte per un telefono della stessa rete:
-// VPN, AirDrop, hotspot, bridge di macchine virtuali.
+// Interfaces that lead nowhere for a phone on the same network: VPN, AirDrop,
+// hotspot, virtual-machine bridges.
 const VIRTUAL = /^(utun|awdl|llw|bridge|ap\d|gif|stf|xhci|anpi|vmenet|docker)/;
 
 function ipv4ToInt(ip) {
@@ -45,7 +46,7 @@ function intToIpv4(value) {
   return [24, 16, 8, 0].map((shift) => (value >>> shift) & 0xff).join('.');
 }
 
-/** Indirizzo di broadcast (a tutti gli host) della rete di `address`. */
+/** Broadcast address (to every host) of the network of `address`. */
 function ipv4Broadcast(address, netmask) {
   const host = ipv4ToInt(address);
   const mask = ipv4ToInt(netmask || DEFAULT_NETMASK);
@@ -53,7 +54,7 @@ function ipv4Broadcast(address, netmask) {
   return intToIpv4(((host & mask) | (~mask >>> 0)) >>> 0);
 }
 
-/** Indirizzi su cui mandare il beacon, uno per interfaccia fisica. */
+/** Addresses to send the beacon to, one per physical interface. */
 function broadcastTargets(interfaces) {
   const targets = [];
   let physical = false;
@@ -66,15 +67,16 @@ function broadcastTargets(interfaces) {
       if (address && targets.indexOf(address) === -1) targets.push(address);
     }
   }
-  // Ultima risorsa: alcune reti filtrano il broadcast locale ma accettano questo.
+  // Last resort: some networks filter the local broadcast but accept this one.
   if (physical && targets.indexOf(GLOBAL_BROADCAST) === -1) targets.push(GLOBAL_BROADCAST);
   return targets;
 }
 
 /**
- * Corpo del beacon. Le sei chiavi devono restare identiche a
- * WhatsappApp/Models/BeaconPayload.cs: DataContractJsonSerializer e'
- * case-sensitive e un campo che non combacia resta a default senza errori.
+ * Beacon body. The six keys must stay identical to
+ * WhatsappApp/Models/BeaconPayload.cs: DataContractJsonSerializer is
+ * case-sensitive and a field that does not match stays at its default without
+ * an error.
  */
 function buildPayload(fields) {
   const source = fields || {};
@@ -107,8 +109,8 @@ function createDiscoveryBeacon(options) {
     }
   }
 
-  // Il primo invio aspetta il bind: prima del bind il socket non ha ancora
-  // SO_BROADCAST e il pacchetto verrebbe rifiutato.
+  // The first send waits for the bind: before the bind the socket does not have
+  // SO_BROADCAST yet and the packet would be refused.
   socket.bind(() => {
     try {
       socket.setBroadcast(true);
@@ -128,7 +130,7 @@ function createDiscoveryBeacon(options) {
       try {
         socket.close();
       } catch (err) {
-        // gia' chiuso
+        // already closed
       }
     },
   };

@@ -1,22 +1,23 @@
 'use strict';
 
-// Le immagini del profilo gia' scaricate, tenute in memoria per un po'.
+// The profile pictures already downloaded, kept in memory for a while.
 //
-// Perche' esiste: l'elenco chat costa una richiesta HTTP per conversazione per
-// l'ultimo messaggio e due per la sua immagine (una per l'indirizzo, una per i
-// byte dal CDN di WhatsApp), e l'app lo richiede a ogni riconnessione e a ogni
-// cambio di sezione una volta scaduto il minuto di cache di server.js. Gli
-// stessi venti avatar si riscaricavano quindi piu' volte al giorno: lenti, e
-// sono le richieste che WhatsApp guarda quando decide di limitare un account.
+// Why it exists: the chat list costs one HTTP request per conversation for the
+// last message and two for its picture (one for the address, one for the bytes
+// from the WhatsApp CDN), and the app asks for it on every reconnection and on
+// every section change once the minute of cache in server.js has expired. The
+// same twenty avatars were therefore downloaded several times a day: slow, and
+// they are the requests WhatsApp watches when it decides to rate-limit an
+// account.
 //
-// I byte di una foto non cambiano sotto i piedi, quindi valgono qualche
-// minuto. Un JID che una foto non ce l'ha vale meno, perche' quella si puo'
-// aggiungere: la sua risposta scade prima.
+// The bytes of a picture do not change under your feet, so they are worth a few
+// minutes. A JID that has no picture is worth less, because one can be added
+// later: its answer expires sooner.
 //
-// Limiti: mai piu' di maxEntries voci - un telefono con cinquanta
-// conversazioni ne disegna comunque CHATS_LIMIT, quindi il resto e' memoria
-// buttata. Una voce scaduta si butta al primo accesso: non c'e' nessun timer
-// che gira, e la memoria si libera quando qualcuno guarda.
+// Limits: never more than maxEntries entries - a phone with fifty conversations
+// still draws only CHATS_LIMIT of them, so the rest is wasted memory. An expired
+// entry is dropped on first access: no timer runs, and the memory is freed when
+// somebody looks.
 
 const DEFAULT_TTL_MS = 5 * 60 * 1000;
 const DEFAULT_MISSING_TTL_MS = 60 * 1000;
@@ -31,12 +32,12 @@ function createAvatarCache(options) {
   const maxEntries = typeof opts.maxEntries === 'number' ? opts.maxEntries : DEFAULT_MAX_ENTRIES;
   const now = typeof opts.now === 'function' ? opts.now : () => Date.now();
 
-  // Map conserva l'ordine di inserimento: la prima chiave e' la piu' vecchia,
-  // ed e' quella che esce quando si e' sopra il tetto.
+  // Map keeps insertion order: the first key is the oldest, and it is the one
+  // that goes out when the ceiling is passed.
   const entries = new Map();
 
   return {
-    /** L'immagine tenuta, null se la risposta era "non ce l'ha", undefined se non si sa. */
+    /** The kept picture, null if the answer was "it has none", undefined if unknown. */
     get(key) {
       const entry = entries.get(key);
       if (!entry) return undefined;
@@ -47,7 +48,7 @@ function createAvatarCache(options) {
       return entry.value;
     },
 
-    /** Tiene una risposta. null e' una risposta: "questo JID non ha una foto". */
+    /** Keeps an answer. null is an answer too: "this JID has no picture". */
     put(key, value) {
       if (typeof key !== 'string' || key === '') return;
 
@@ -64,7 +65,7 @@ function createAvatarCache(options) {
       }
     },
 
-    /** Quante voci si tengono adesso. Per i test e per la diagnosi. */
+    /** How many entries are kept right now. For the tests and for diagnosis. */
     size() {
       return entries.size;
     }

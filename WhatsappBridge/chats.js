@@ -3,22 +3,22 @@
 const { displayNameForJid } = require('./message-format');
 
 /**
- * Elenco delle conversazioni presenti nell'account collegato.
+ * List of the conversations present in the linked account.
  *
- * L'app non puo' usare /user/my/contacts per questo: quella e' la *rubrica*
- * di WhatsApp, e su un dispositivo appena collegato e' vuota anche se in
- * /chats ci sono decine di conversazioni. Si legge quindi /chats, e per ogni
- * conversazione si prende l'ultimo messaggio (per l'anteprima) e
- * l'immagine del profilo da /user/avatar: per una persona come per un gruppo,
- * perche' quel parametro e' un JID e whatsmeow accetta qualunque JID.
+ * The app cannot use /user/my/contacts for this: that is the WhatsApp
+ * *address book*, and on a freshly linked device it is empty even when /chats
+ * holds dozens of conversations. So /chats is read, and for every conversation
+ * the last message (for the preview) and the profile picture from /user/avatar
+ * are taken: for a person as for a group, because that parameter is a JID and
+ * whatsmeow accepts any JID.
  *
- * Costi: una richiesta HTTP per chat per l'ultimo messaggio, piu' una per
- * l'avatar. Il numero di chat lette e' quindi un limite di configurazione, non
- * un dettaglio.
+ * Cost: one HTTP request per chat for the last message, plus one for the
+ * avatar. How many chats are read is therefore a configuration limit, not a
+ * detail.
  */
 
-// Nomi mostrati quando il messaggio non ha testo: il tipo lo dice GOWA, la
-// parola la scegliamo qui perche' l'anteprima e' testo destinato a una persona.
+// Names shown when the message has no text: GOWA gives the type, the word is
+// chosen here because the preview is text aimed at a person.
 const MEDIA_LABEL = {
   image: '[Image]',
   video: '[Video]',
@@ -27,7 +27,7 @@ const MEDIA_LABEL = {
   sticker: '[Sticker]'
 };
 
-/** L'anteprima di una riga: il testo, o il nome del media quando il testo non c'e'. */
+/** The preview of a row: the text, or the media name when there is no text. */
 function previewForMessage(message) {
   if (!message) return '';
   const text = typeof message.content === 'string' ? message.content.trim() : '';
@@ -40,7 +40,7 @@ function timeOf(value) {
   return isNaN(parsed) ? 0 : parsed;
 }
 
-/** Il messaggio piu' recente della lista, qualunque ordine usi GOWA. */
+/** The most recent message in the list, whatever order GOWA uses. */
 function newestMessage(messages) {
   let best = null;
   let bestTime = -1;
@@ -59,15 +59,15 @@ function isGroupJid(jid) {
   return typeof jid === 'string' && jid.endsWith('@g.us');
 }
 
-// Un canale non e' una conversazione: non si puo' rispondere, e nell'elenco
-// chat occupa il posto di una persona. GOWA li elenca, quindi si saltano qui.
+// A channel is not a conversation: it cannot be answered, and in the chat list
+// it takes the place of a person. GOWA lists them, so they are skipped here.
 function isChannelJid(jid) {
   return typeof jid === 'string' && jid.endsWith('@newsletter');
 }
 
 /**
- * Scorre le conversazioni indicate da GOWA. Una chat illeggibile, o un avatar
- * che non si scarica, non fermano l'elenco: si perde quel dettaglio.
+ * Walks the conversations GOWA returns. An unreadable chat, or an avatar that
+ * does not download, does not stop the list: that one detail is lost.
  */
 async function collectChats(options) {
   const opts = options || {};
@@ -92,14 +92,14 @@ async function collectChats(options) {
     }
 
     const isGroup = isGroupJid(chat.jid);
-    // Per un gruppo si preferisce il nome vero da /user/my/groups: quello che
-    // arriva con l'elenco delle conversazioni puo' essere il segnaposto
-    // "Group <numero>" di GOWA, o il numero nudo.
+    // For a group the real name from /user/my/groups is preferred: what comes
+    // with the conversation list may be the "Group <number>" placeholder of
+    // GOWA, or the bare number.
     const name = (isGroup && groupNames.get(chat.jid)) || chat.name || displayNameForJid(chat.jid);
 
-    // L'immagine del profilo si chiede per ogni conversazione: GOWA la sa dare
-    // anche per un gruppo, perche' il suo parametro `phone` e' un JID e
-    // whatsmeow accetta qualunque JID in una richiesta di profilo.
+    // The profile picture is asked for every conversation: GOWA can give it for
+    // a group too, because its `phone` parameter is a JID and whatsmeow accepts
+    // any JID in a profile request.
     let avatar = null;
     if (withAvatars) {
       try {
