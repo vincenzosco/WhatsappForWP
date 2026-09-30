@@ -174,6 +174,29 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
    * server), the base client is used: the session is still separate by state
    * and by socket, which is what keeps the two conversations apart.
    */
+  /**
+   * The sessions of the users the store remembers, opened now instead of at the
+   * first handshake.
+   *
+   * A webhook is routed to its user by the account JID, which is learned in
+   * `refreshSession`, and a session no phone had ever opened had no JID at all:
+   * after a restart every message was dropped as an unknown device until the app
+   * connected once. That is precisely the case the unread counter exists for -
+   * messages that arrive while the phone is off.
+   */
+  async function openKnownSessions() {
+    if (!users || typeof users.all !== 'function') return;
+
+    for (const user of users.all()) {
+      try {
+        await sessionForUser(user);
+      } catch (err) {
+        const who = user && user.name ? user.name : 'a user';
+        logger('WARN', `session of ${who} not opened: ${err.message}`);
+      }
+    }
+  }
+
   async function sessionForUser(user) {
     if (!user) return anonymous;
 
@@ -551,20 +574,25 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  // Every session a phone is attached to, plus the anonymous one of a private
-  // instance. A session nobody is on is not asked: there would be no one to
-  // tell.
+  // Every session a phone is attached to, every session whose account is not
+  // known yet, plus the anonymous one of a private instance.
   //
   // This used to be the anonymous session only, and a user session was never
   // read: a phone that had just finished the QR login stayed on "waiting"
   // forever - the app asks for the chat list only once it is told the account is
   // connected -, its messages were queued as "WhatsApp not ready", and the list
   // on screen stayed the cached one of the previous session.
+  //
+  // A session with no JID is read even with no phone on it, because the JID is
+  // what routes its webhooks: one that is skipped stays unroutable, and an
+  // account that logs in while the phone is off would never be found. Once the
+  // JID is known, only a watched session is read - there is no one to tell, and
+  // reading it again would fetch the chat list and its pictures for nobody.
   function sessionsToRefresh() {
     const live = new Set();
     live.add(anonymous);
     for (const session of sessions.values()) {
-      if (session.sockets.size > 0) live.add(session);
+      if (session.sockets.size > 0 || !session.jidKey) live.add(session);
     }
     return Array.from(live);
   }
@@ -1307,6 +1335,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     handleWebhookEvent,
     probeFfmpeg: () => mediaTools.probe(),
     handleControl,
+    openKnownSessions,
     syncContacts: () => syncContacts(anonymous),
     // Used only by the tests: forces the "connected" state without going through GOWA.
     setConnectedForTest() { anonymous.state = { status: 'connected', jid: '39@s.whatsapp.net' }; },
@@ -1420,6 +1449,9 @@ async function main() {
     process.exit(1);
   });
 
+  // Before the first read of the state, so that the account JID of every user is
+  // known when the first webhook arrives, and not only when a phone connects.
+  await bridge.openKnownSessions();
   await bridge.refreshStatus();
   const timer = setInterval(() => bridge.refreshStatus(), config.pollIntervalMs);
 
