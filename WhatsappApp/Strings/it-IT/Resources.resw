@@ -268,6 +268,9 @@
   <data name="ConnectionPage_Connecting" xml:space="preserve">
     <value>Connessione a {0}:{1}...</value>
   </data>
+  <data name="ConnectionPage_ConnectingPublic" xml:space="preserve">
+    <value>Connessione al server pubblico...</value>
+  </data>
   <data name="ConnectionPage_Connected" xml:space="preserve">
     <value>Connesso!</value>
   </data>
@@ -490,7 +493,13 @@
   <data name="CommService_ServerUnavailable" xml:space="preserve">
     <value>Server non disponibile, riprova tra qualche minuto :)</value>
   </data>
+  <data name="CommService_Registered" xml:space="preserve">
+    <value>Registrato sul server: questo dispositivo ha un suo account.</value>
+  </data>
+  <data name="CommService_NotAuthorized" xml:space="preserve">
+    <value>Questo server non riconosce il dispositivo. Controlla il token nelle impostazioni.</value>
+  </data>
   <data name="ConnectionPage_TokenLabel.Text" xml:space="preserve">
-    <value>Token del server (lascialo vuoto sul tuo server)</value>
+    <value>Token del server (creato automaticamente alla prima connessione)</value>
   </data>
 </root>
