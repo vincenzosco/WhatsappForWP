@@ -481,4 +481,7 @@
   <data name="ChatPage_ContactInfoTooltip" xml:space="preserve">
     <value>Info contatto</value>
   </data>
+  <data name="CommService_ServerUnavailable" xml:space="preserve">
+    <value>Server non disponibile, riprova tra qualche minuto :)</value>
+  </data>
 </root>
