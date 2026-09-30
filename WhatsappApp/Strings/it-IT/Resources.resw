@@ -241,9 +241,6 @@
   <data name="ConnectionPage_GetCode.Content" xml:space="preserve">
     <value>Ottieni codice</value>
   </data>
-  <data name="ConnectionPage_Continue.Content" xml:space="preserve">
-    <value>Continua</value>
-  </data>
   <data name="ConnectionPage_HelpTitle.Text" xml:space="preserve">
     <value>Come accedere</value>
   </data>

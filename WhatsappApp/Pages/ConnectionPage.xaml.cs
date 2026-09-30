@@ -386,7 +386,6 @@ namespace WhatsappApp.Pages
                     PairCodeText.Text = "";
                     CloseQrOverlay();
                     StopQrTimer();
-                    ContinueButton.IsEnabled = true;
                     break;
 
                 case "waiting":
@@ -395,7 +394,6 @@ namespace WhatsappApp.Pages
                     LoginQrButton.Visibility = Visibility.Visible;
                     PhoneBox.Visibility = Visibility.Visible;
                     LoginCodeButton.Visibility = Visibility.Visible;
-                    ContinueButton.IsEnabled = false;
                     break;
 
                 default:
@@ -408,7 +406,6 @@ namespace WhatsappApp.Pages
                     PairCodeText.Text = "";
                     QrInfoText.Text = "";
                     StopQrTimer();
-                    ContinueButton.IsEnabled = false;
                     break;
             }
         }
@@ -617,11 +614,6 @@ namespace WhatsappApp.Pages
             QrInfoText.Text = "";
             WhatsAppStateText.Text = Loc.Get("ConnectionPage_RequestingCode", "Requesting the code...");
             await CommunicationService.Instance.SendControlAsync("login.code", phone);
-        }
-
-        private void ContinueButton_Click(object sender, RoutedEventArgs e)
-        {
-            ContinueToChatsPage();
         }
 
         private void ContinueToChatsPage()
