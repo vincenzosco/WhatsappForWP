@@ -294,10 +294,11 @@ perfectly fine. `tools/check-framing.js` fails the fast gate if a
 Everything the server and the app print at run time is English: the adapter's log
 and error messages, and the app's `DIAG` lines with the exception messages that
 reach them. Source comments are English too: the code explains itself in one
-language. The adapter's test names and the localized UI strings in `Strings/it-IT`
-are the two exceptions, being developer tooling nobody runs and translation rather
-than diagnostics. The error texts the adapter sends to the app for display are UI
-content too, and are still Italian pending the app's own localization.
+language. The exceptions are the test names and the diagnostics of the guard scripts
+under `tools/` - developer tooling that no operator runs - and the localized UI
+strings in `Strings/it-IT`, which are translation rather than diagnostics. The error
+texts the adapter sends to the app for display are UI content too, and are still
+Italian pending the app's own localization.
 
 A connection attempt owns its socket, its `DataReader` and its read loop: only
 the newest attempt publishes them and only its loop reads them, so a failed
@@ -469,8 +470,8 @@ The app follows the device language automatically through `.resw` resources:
 The app UI is the **only localized surface**: everything the scripts and the
 server print (the launcher banner, its `--help`, the adapter log, the legacy
 relay) is English only, so reading a log never needs a second language. Source
-comments are English too, so Italian survives only in the adapter's test names,
-which nobody runs at run time.
+comments are English too, so Italian survives only in the test names and the
+guard-script diagnostics, which nobody runs at run time.
 
 - Texts declared in XAML use `x:Uid`, and the property must match the type of the
   element: `TextBlock` -> `.Text`, `Button` -> `.Content`, `TextBox` ->
@@ -527,6 +528,12 @@ their own, created on the first handshake, and a token in `hello` decides which
 one is theirs; with `AUTH_REQUIRED=on`, a message routed by its `device_id`
 never reaches another user's socket. With the switch off nothing changes and the
 instance stays private, with no token.
+
+A phone that arrives without a token is given one on its first connection
+(`AUTH_REGISTER=on`, the default): the adapter creates the device, answers with a
+`registered` frame and the app keeps the token, so the shared service asks for
+nothing but the switch. The token identifies the device, it is not a password to
+be typed; `AUTH_REGISTER=off` goes back to handing the tokens out by hand.
 
 The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from

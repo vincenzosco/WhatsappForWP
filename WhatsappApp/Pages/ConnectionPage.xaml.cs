@@ -159,6 +159,16 @@ namespace WhatsappApp.Pages
 
         private async void ActionButton_Click(object sender, RoutedEventArgs e)
         {
+            // The public service has no address to type: the switch is the whole
+            // configuration. Without this branch the button would connect to the
+            // LAN address in the box, which is empty on a first run, and the login
+            // panel would never appear.
+            if (PublicServerToggle.IsOn)
+            {
+                await ConnectToPublicServerAsync();
+                return;
+            }
+
             string address = (ServerAddressBox.Text ?? "").Trim();
             if (string.IsNullOrEmpty(address)) address = SettingsService.DefaultAddress;
 
@@ -174,10 +184,40 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// The only place where the connection is opened: the button, the list of
-        /// found servers and the automatic reconnection all use it.
+        /// The public service: the address is read from the file on GitHub instead
+        /// of typed, because the tunnel that exposes it changes port. AutoConnector
+        /// owns that step, so the button and the automatic start cannot disagree
+        /// about what the public server is.
         /// </summary>
-        private async Task ConnectAsync(string address, int port)
+        private async Task ConnectToPublicServerAsync()
+        {
+            string username = EnsureUsername();
+            KeepTypedToken();
+
+            StatusPanel.Visibility = Visibility.Visible;
+            ActionButton.IsEnabled = false;
+            StatusText.Text = Loc.Get("ConnectionPage_ConnectingPublic",
+                "Connecting to the public server...");
+
+            bool connected = await AutoConnector.Instance.TryConnectAsync(username, 8);
+            if (connected)
+            {
+                StatusText.Text = Loc.Get("ConnectionPage_Connected", "Connected!");
+                ShowConnectedState();
+                await CommunicationService.Instance.SendControlAsync("status");
+            }
+            else
+            {
+                // AutoConnector has already said why, through ServerUnavailable.
+                ActionButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// The name to send: the one in the box, or the default, put back in the box
+        /// so the user sees what was used.
+        /// </summary>
+        private string EnsureUsername()
         {
             string username = (UsernameBox.Text ?? "").Trim();
             if (string.IsNullOrEmpty(username))
@@ -185,10 +225,31 @@ namespace WhatsappApp.Pages
                 username = Loc.Get("ConnectionPage_DefaultUsername", "User");
                 UsernameBox.Text = username;
             }
+            return username;
+        }
+
+        /// <summary>
+        /// Writes down the token typed by hand, if there is one. An empty box is not
+        /// an order to forget the token: the server may have handed this phone one,
+        /// and that copy is the only one that exists.
+        /// </summary>
+        private void KeepTypedToken()
+        {
+            string typed = (TokenBox.Text ?? "").Trim();
+            if (!string.IsNullOrEmpty(typed)) SettingsService.Token = typed;
+        }
+
+        /// <summary>
+        /// The only place where the connection is opened: the button, the list of
+        /// found servers and the automatic reconnection all use it.
+        /// </summary>
+        private async Task ConnectAsync(string address, int port)
+        {
+            string username = EnsureUsername();
 
             // The token is read now: the first frame after the connection is what
             // carries it, so changing it later would not send it.
-            SettingsService.Token = (TokenBox.Text ?? "").Trim();
+            KeepTypedToken();
 
             StatusPanel.Visibility = Visibility.Visible;
             ActionButton.IsEnabled = false;
@@ -375,6 +436,13 @@ namespace WhatsappApp.Pages
                     QrOverlayImage.Visibility = Visibility.Collapsed;
                     QrOverlayCodeText.Text = message.PairCode;
                     OpenQrOverlay();
+                    break;
+
+                case "registered":
+                    // The service created this phone's token on its first
+                    // connection: it is shown, because it is the only copy and the
+                    // user may want to keep it.
+                    TokenBox.Text = message.Token;
                     break;
 
                 case "error":

@@ -808,6 +808,29 @@ namespace WhatsappApp.Services
                     WhatsAppState = string.IsNullOrEmpty(message.State) ? "disconnected" : message.State;
                     AccountJid = message.AccountJid ?? "";
                 }
+
+                // The shared service created this phone's token on its first
+                // connection (see the `hello` case in the adapter), and this frame
+                // is the only copy that will ever exist: it is written down before
+                // the frame goes anywhere else.
+                if (message.Command == "registered" && !string.IsNullOrEmpty(message.Token))
+                {
+                    string created = message.Token;
+                    DispatchOnUiThread(() =>
+                    {
+                        SettingsService.Token = created;
+                        RaiseConnectionStatusChanged(Loc.Get("CommService_Registered",
+                            "This device is now registered on the server."));
+                    });
+                }
+                else if (message.Command == "unauthorized")
+                {
+                    // The service hands its tokens out by hand (registration is
+                    // off) and this phone has none that it accepts.
+                    DispatchOnUiThread(() => RaiseConnectionStatusChanged(Loc.Get("CommService_NotAuthorized",
+                        "This server did not recognize this device. Check the token in the settings.")));
+                }
+
                 DispatchOnUiThread(() => RaiseControlMessageReceived(message));
             }
             else
