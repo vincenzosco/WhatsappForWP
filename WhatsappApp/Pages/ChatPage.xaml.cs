@@ -146,9 +146,17 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Scrolls to the last message once per burst: a burst of incoming messages
-        /// used to do an UpdateLayout + ScrollIntoView for each one, that is a full
-        /// layout pass per message.
+        /// Brings the newest message into view once per burst: a burst of incoming
+        /// messages used to do an UpdateLayout + ScrollIntoView for each one, that is
+        /// a full layout pass per message.
+        ///
+        /// ScrollIntoView alone was not enough. The container of a message that was
+        /// just added does not exist until the list has laid out again, and on this
+        /// platform the call is often a no-op for the last row of a virtualizing
+        /// list, so a message that arrived or was sent stayed below the fold. The
+        /// list is therefore asked to scroll to its bottom - which is where the
+        /// newest message is - and ScrollIntoView stays as the fallback for a list
+        /// whose scroll viewer cannot be found.
         /// </summary>
         private void ScrollToMessage(ChatMessage message)
         {
@@ -160,12 +168,45 @@ namespace WhatsappApp.Pages
             Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () =>
             {
                 _scrollQueued = false;
-                if (_pendingScroll == null) return;
-
-                MessagesListView.ScrollIntoView(_pendingScroll);
+                ChatMessage target = _pendingScroll;
+                if (target == null) return;
                 _pendingScroll = null;
+
+                // The new row has to exist before it can be revealed.
+                MessagesListView.UpdateLayout();
+
+                ScrollViewer viewer = FindScrollViewer(MessagesListView);
+                if (viewer != null && viewer.ScrollableHeight > 0)
+                {
+                    viewer.ChangeView(null, viewer.ScrollableHeight, null);
+                    return;
+                }
+
+                MessagesListView.ScrollIntoView(target);
             });
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The scroll viewer a ListView keeps its items in. The list does not expose
+        /// it, and it is the only handle that reaches the bottom exactly: its height
+        /// is the end of the list, whatever the rows happen to measure.
+        /// </summary>
+        private static ScrollViewer FindScrollViewer(DependencyObject root)
+        {
+            if (root == null) return null;
+
+            int count = VisualTreeHelper.GetChildrenCount(root);
+            for (int i = 0; i < count; i++)
+            {
+                DependencyObject child = VisualTreeHelper.GetChild(root, i);
+                ScrollViewer viewer = child as ScrollViewer;
+                if (viewer != null) return viewer;
+
+                viewer = FindScrollViewer(child);
+                if (viewer != null) return viewer;
+            }
+            return null;
         }
 
         private void OnMessageReceived(object sender, ChatMessage message)
@@ -578,6 +619,24 @@ namespace WhatsappApp.Pages
             {
                 message.Status = MessageStatus.Failed;
                 return;
+            }
+
+            // The video is made smaller here, after the bubble is on screen: the
+            // bubble says "sending" while the conversion runs, and what is read
+            // and uploaded below is the smaller file. On a phone that cannot
+            // convert it, the original is sent and the adapter shrinks it.
+            if (kind == "video")
+            {
+                string smaller = await VideoCompressor.SmallerAsync(localFileName);
+                if (!string.IsNullOrEmpty(smaller) && smaller != localFileName)
+                {
+                    localFileName = smaller;
+                    fileName = smaller;
+                    mimeType = "video/mp4";
+                    message.MediaFilePath = smaller;
+                    message.MediaFileName = smaller;
+                    message.MediaMimeType = mimeType;
+                }
             }
 
             try
