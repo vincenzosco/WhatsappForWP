@@ -3,18 +3,18 @@ using Windows.Storage.Pickers;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Apre il selettore di file di WP8.1.
+    /// Opens the WP8.1 file picker.
     ///
-    /// Si usa PickSingleFileAndContinue e NON PickSingleFileAsync: la
-    /// documentazione Microsoft dice che PickSingleFileAsync non e' supportato
-    /// su Windows Phone (ne' per Windows Runtime ne' per Silverlight) e indica
-    /// PickSingleFileAndContinue. Sul telefono la prima falliva, e il pulsante
-    /// allegato sembrava morto.
+    /// It uses PickSingleFileAndContinue and NOT PickSingleFileAsync: the
+    /// Microsoft documentation says PickSingleFileAsync is not supported on
+    /// Windows Phone (neither for Windows Runtime nor for Silverlight) and points
+    /// at PickSingleFileAndContinue. On the phone the first one failed, and the
+    /// attach button looked dead.
     ///
-    /// La differenza che conta: PickSingleFileAndContinue non restituisce
-    /// niente. Deattiva l'app, e il file scelto torna ad App.OnActivated come
-    /// PickFileContinuation. Il risultato non passa quindi da qui: lo deposita
-    /// App in AttachmentInbox.
+    /// The difference that matters: PickSingleFileAndContinue returns nothing. It
+    /// deactivates the app, and the chosen file comes back to App.OnActivated as a
+    /// PickFileContinuation. The result therefore does not pass through here: App
+    /// deposits it in AttachmentInbox.
     /// </summary>
     public static class ImagePickerService
     {
@@ -31,8 +31,8 @@ namespace WhatsappApp.Services
             picker.FileTypeFilter.Add(".gif");
             picker.FileTypeFilter.Add(".bmp");
 
-            // Un video non e' un'immagine, ma arriva dallo stesso pulsante: il
-            // tipo lo dice il file, e l'invio sceglie la strada giusta.
+            // A video is not an image, but it comes from the same button: the
+            // file gives the type, and the send path chooses the right way.
             picker.FileTypeFilter.Add(".mp4");
             picker.FileTypeFilter.Add(".mov");
             picker.FileTypeFilter.Add(".3gp");
@@ -40,8 +40,8 @@ namespace WhatsappApp.Services
             picker.FileTypeFilter.Add(".mkv");
             picker.FileTypeFilter.Add(".webm");
 
-            // CS0618: deprecata da Windows 10, ma e' l'unica che Windows Phone
-            // 8.1 implementa. Non e' un warning da sistemare, e' la piattaforma.
+            // CS0618: deprecated since Windows 10, but it is the only one Windows
+            // Phone 8.1 implements. It is not a warning to fix, it is the platform.
 #pragma warning disable 618
             picker.PickSingleFileAndContinue();
 #pragma warning restore 618
