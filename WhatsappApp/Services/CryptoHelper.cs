@@ -5,51 +5,52 @@ using Windows.Security.Cryptography.Core;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Cifra e autentica i frame scambiati con l'adapter (WhatsappBridge).
+    /// Encrypts and authenticates the frames exchanged with the adapter
+    /// (WhatsappBridge).
     ///
-    /// AES-256-CBC + HMAC-SHA256, non AES-GCM: su Windows Phone 8.1 il membro
-    /// esiste nella proiezione WinRT ma a runtime lancia
-    /// NotImplementedException 0x80004001 (visto sul dispositivo in
-    /// DIAG SelfCheck.crypto), e CBC e' l'alternativa autenticata che il
-    /// telefono esegue davvero.
+    /// AES-256-CBC + HMAC-SHA256, not AES-GCM: on Windows Phone 8.1 the member
+    /// exists in the WinRT projection but at run time throws
+    /// NotImplementedException 0x80004001 (seen on the device in
+    /// DIAG SelfCheck.crypto), and CBC is the authenticated alternative the phone
+    /// really executes.
     ///
-    /// Formato del payload, dopo il prefisso di 4 byte con la lunghezza:
-    ///   [1 byte tag cifrario][16 byte IV][cifrato][32 byte HMAC-SHA256]
-    /// L'HMAC copre IV e cifrato (encrypt-then-MAC) e si verifica PRIMA di
-    /// decifrare: un payload manomesso non arriva mai a CBC.
+    /// Payload format, after the 4-byte length prefix:
+    ///   [1-byte cipher tag][16-byte IV][ciphertext][32-byte HMAC-SHA256]
+    /// The HMAC covers the IV and the ciphertext (encrypt-then-MAC) and is
+    /// verified BEFORE decrypting: a tampered payload never reaches CBC.
     ///
-    /// Le chiavi devono combaciare con WhatsappBridge/crypto-helper.js:
+    /// The keys must match WhatsappBridge/crypto-helper.js:
     ///   master = SHA-256(passphrase)
     ///   encKey = HMAC-SHA256(master, "wp8-adapter enc")
     ///   macKey = HMAC-SHA256(master, "wp8-adapter mac")
     /// </summary>
     public static class CryptoHelper
     {
-        // Deve restare identica a DEFAULT_PASSPHRASE in crypto-helper.js
-        // (o al valore di BRIDGE_KEY sul server).
+        // It must stay identical to DEFAULT_PASSPHRASE in crypto-helper.js
+        // (or to the BRIDGE_KEY value on the server).
         private const string Passphrase = "WhatsAppCommunityWP8-2026";
 
-        /// <summary>Tag del cifrario CBC+HMAC: primo byte del payload.</summary>
+        /// <summary>Cipher tag of CBC+HMAC: the first byte of the payload.</summary>
         public const byte CipherCbcHmac = 2;
 
-        /// <summary>Tag di AES-GCM: riconosciuto e rifiutato, vedi il commento in testa.</summary>
+        /// <summary>AES-GCM tag: recognized and refused, see the comment at the top.</summary>
         public const byte CipherGcm = 1;
 
-        /// <summary>Nome del cifrario, per la riga di SelfCheck.</summary>
+        /// <summary>Cipher name, for the SelfCheck line.</summary>
         public const string ModeDescription = "AES-256-CBC + HMAC-SHA256";
 
         private const int IvLength = 16;
         private const int MacLength = 32;
 
-        // tag + IV + almeno un blocco + HMAC
+        // tag + IV + at least one block + HMAC
         private const int MinPayloadLength = 1 + IvLength + 16 + MacLength;
 
         private static readonly byte[] EncKey = DeriveKey("wp8-adapter enc");
         private static readonly byte[] MacKey = DeriveKey("wp8-adapter mac");
 
         /// <summary>
-        /// Deriva una delle due chiavi dal master come fa il server:
-        /// HMAC-SHA256(SHA-256(passphrase), etichetta).
+        /// Derives one of the two keys from the master the way the server does:
+        /// HMAC-SHA256(SHA-256(passphrase), label).
         /// </summary>
         private static byte[] DeriveKey(string label)
         {
@@ -69,8 +70,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Cifra in [tag][IV][cifrato][HMAC]. Il tag dice all'adapter con quale
-        /// cifrario e' stato scritto il frame.
+        /// Encrypts into [tag][IV][ciphertext][HMAC]. The tag tells the adapter
+        /// which cipher the frame was written with.
         /// </summary>
         public static byte[] Encrypt(byte[] plaintext)
         {
@@ -89,8 +90,8 @@ namespace WhatsappApp.Services
             CryptographicBuffer.CopyToByteArray(iv, out ivBytes);
             CryptographicBuffer.CopyToByteArray(encrypted, out cipherBytes);
 
-            // L'HMAC copre IV e cifrato, in quest'ordine: e' quello che calcola
-            // crypto-helper.js con update(iv).update(body).
+            // The HMAC covers the IV and the ciphertext, in that order: that is
+            // what crypto-helper.js computes with update(iv).update(body).
             var signed = new byte[ivBytes.Length + cipherBytes.Length];
             Buffer.BlockCopy(ivBytes, 0, signed, 0, ivBytes.Length);
             Buffer.BlockCopy(cipherBytes, 0, signed, ivBytes.Length, cipherBytes.Length);
@@ -105,9 +106,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Verifica la firma e poi decifra. Lancia ArgumentException quando il
-        /// payload e' troppo corto, quando il tag non e' quello che sappiamo
-        /// eseguire o quando la firma non torna.
+        /// Verifies the signature and then decrypts. It throws ArgumentException
+        /// when the payload is too short, when the tag is not one we can execute
+        /// or when the signature does not match.
         /// </summary>
         public static byte[] Decrypt(byte[] data)
         {
@@ -118,8 +119,8 @@ namespace WhatsappApp.Services
 
             if (data[0] != CipherCbcHmac)
             {
-                // Il tag 1 e' AES-GCM: l'adapter non lo usa verso questa app, ma
-                // se succedesse e' meglio rifiutarlo che interpretarlo male.
+                // Tag 1 is AES-GCM: the adapter does not use it toward this app,
+                // but if it happened, refusing it is better than misreading it.
                 throw new ArgumentException("Unsupported cipher tag: " + data[0]);
             }
 
@@ -167,8 +168,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Confronto a tempo costante: un confronto che esce al primo byte
-        /// diverso lascia misurare la firma.
+        /// Constant-time comparison: a comparison that exits at the first
+        /// differing byte lets the signature be measured.
         /// </summary>
         private static bool FixedTimeEquals(byte[] a, byte[] b)
         {

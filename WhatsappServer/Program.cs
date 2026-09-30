@@ -17,18 +17,18 @@ namespace WhatsappServer
         private static bool _isRunning = true;
 
         /// <summary>
-        /// Il tetto di un frame. E' lo stesso numero di CommunicationService e
-        /// di server.js: il prefisso di 4 byte e' l'unica cosa che l'altro capo
-        /// controlla, e una lunghezza creduta e' una dimensione di allocazione.
-        /// Senza questo un client che annuncia 2 GB fa allocare 2 GB a questo
-        /// processo, e un client disallineato lo fa cadere dove vuole.
+        /// The ceiling of a frame. It is the same number as in
+        /// CommunicationService and server.js: the 4-byte prefix is the only thing
+        /// the other end controls, and a believed length is an allocation size.
+        /// Without this a client announcing 2 GB makes this process allocate
+        /// 2 GB, and a misaligned client brings it down wherever it likes.
         /// </summary>
         private const int MaxFrameLength = 8 * 1024 * 1024;
 
         /// <summary>
-        /// _clients e' toccata dal loop che accetta e da ogni task di un
-        /// client: senza un lucchetto un broadcast durante una connessione o
-        /// una disconnessione puo' lanciare "Collection was modified".
+        /// _clients is touched by the accept loop and by every client task:
+        /// without a lock a broadcast during a connection or a disconnection can
+        /// throw "Collection was modified".
         /// </summary>
         private static readonly object _clientsGate = new object();
 
@@ -52,11 +52,11 @@ namespace WhatsappServer
             lock (_clientsGate) { return _clients.Count; }
         }
 
-        // Il progetto targetta .NET Framework 4.5.1 e il compilatore C# 5 non
-        // accetta un entry point asincrono (deve essere void, non Task): la
-        // soluzione rispondeva CS0028 (firma errata) + CS5001 (nessun Main) e non
-        // si compilava affatto. Il corpo async resta in MainAsync, Main lo
-        // attende. Anche check-csharp5.js ora riconosce questo caso.
+        // The project targets .NET Framework 4.5.1 and the C# 5 compiler does not
+        // accept an async entry point (it must be void, not Task): the solution
+        // answered CS0028 (wrong signature) + CS5001 (no Main) and did not compile
+        // at all. The async body stays in MainAsync, Main awaits it. check-csharp5.js
+        // recognizes this case too now.
         static void Main(string[] args)
         {
             MainAsync(args).GetAwaiter().GetResult();
@@ -146,9 +146,9 @@ namespace WhatsappServer
 
                     int messageLength = BitConverter.ToInt32(lengthBytes, 0);
 
-                    // Un frame vuoto, negativo o sopra il tetto non e' un
-                    // payload: e' un disallineamento o un client che chiede
-                    // memoria. Si chiude questa connessione invece di credergli.
+                    // An empty, negative or over-the-ceiling frame is not a
+                    // payload: it is a misalignment or a client asking for memory.
+                    // This connection is closed instead of believing it.
                     if (messageLength < 1 || messageLength > MaxFrameLength)
                     {
                         Console.WriteLine("Client sent an unusable frame length (" +

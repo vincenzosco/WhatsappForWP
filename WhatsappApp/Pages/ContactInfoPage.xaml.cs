@@ -10,10 +10,10 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Pages
 {
     /// <summary>
-    /// Le informazioni di una persona o di un gruppo: la foto grande, il nome,
-    /// il numero, l'about, il profilo aziendale e, per un gruppo, la descrizione
-    /// e i membri. La pagina chiede una cosa sola (`contact.info`) e aspetta una
-    /// cosa sola; l'adapter ha gia' messo insieme il resto.
+    /// The information of a person or a group: the large picture, the name, the
+    /// number, the about, the business profile and, for a group, the description
+    /// and the members. The page asks one thing (`contact.info`) and waits for one
+    /// thing; the adapter has already put the rest together.
     /// </summary>
     public sealed partial class ContactInfoPage : Page
     {
@@ -52,8 +52,8 @@ namespace WhatsappApp.Pages
             _contact = e.Parameter as Contact;
             if (_contact == null) return;
 
-            // L'avatar e le iniziali vengono dal contatto: la pagina non li
-            // ricostruisce.
+            // The avatar and the initials come from the contact: the page does not
+            // rebuild them.
             DataContext = _contact;
             NameText.Text = _contact.Name;
 
@@ -69,8 +69,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Chiede il profilo. Non c'e' niente da attendere: la risposta e' un
-        /// frame di controllo, e arriva all'evento.
+        /// Asks for the profile. There is nothing to await: the answer is a
+        /// control frame, and it arrives at the event.
         /// </summary>
         private void RequestInfo()
         {
@@ -89,8 +89,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Riempie la pagina. `any` dice se c'e' qualcosa da mostrare: quando non
-        /// c'e' niente, la pagina lo dice invece di restare mezza vuota.
+        /// Fills the page. `any` says whether there is something to show: when
+        /// there is nothing, the page says so instead of staying half empty.
         /// </summary>
         private void Apply(ContactInfo info)
         {
@@ -100,8 +100,8 @@ namespace WhatsappApp.Pages
             {
                 if (!string.IsNullOrEmpty(info.Name)) NameText.Text = info.Name;
 
-                // L'immagine che arriva adesso vale anche per l'elenco chat: si
-                // tiene, cosi' la prossima apertura la ha senza chiederla.
+                // The picture that arrives now is good for the chat list too: it is
+                // kept, so the next opening has it without asking.
                 if (!string.IsNullOrEmpty(info.AvatarData))
                 {
                     if (_contact.AvatarData != info.AvatarData)
@@ -165,8 +165,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Un'etichetta e il suo valore compaiono solo se il valore c'e': un
-        /// titolo con sotto niente e' peggio di un titolo in meno.
+        /// A label and its value appear only when the value is there: a heading
+        /// with nothing under it is worse than one heading fewer.
         /// </summary>
         private static void ShowIf(TextBlock label, TextBlock value, string text)
         {
@@ -203,8 +203,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// La foto a tutto schermo si decodifica alla misura dello schermo: il
-        /// cerchio grande e' 160 px e ingrandirlo lo lascerebbe sfocato.
+        /// The full-screen picture is decoded at the screen size: the large circle
+        /// is 160 px and enlarging it would leave it blurry.
         /// </summary>
         private const int ViewerDecodePixels = 720;
 
