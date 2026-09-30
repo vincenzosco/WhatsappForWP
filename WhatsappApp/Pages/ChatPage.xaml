@@ -20,8 +20,8 @@
         <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#DE000000"/>
         <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#8A000000"/>
 
-        <!-- Containers senza padding/animazioni: i fumetti usano tutta la
-             larghezza e ogni item costa meno layout durante lo scorrimento. -->
+        <!-- Containers without padding/animations: the bubbles use the whole
+             width and each item costs less layout while scrolling. -->
         <Style x:Key="MessageItemContainerStyle" TargetType="ListViewItem">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
@@ -38,9 +38,9 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header: back + picture + name/status. La foto e' una cosa a parte
-             dalla riga del nome: toccandola si apre a tutto schermo, toccando il
-             nome si aprono le informazioni. -->
+        <!-- Header: back + picture + name/status. The picture is a thing of its
+             own apart from the name row: tapping it opens it full screen,
+             tapping the name opens the contact info. -->
         <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -136,9 +136,9 @@
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
                                 </Border>
-                                <!-- Un video: una casella scura con il triangolo, che
-                                     si tocca per aprirlo a tutto schermo. Prima dei
-                                     byte e' lo stesso tocco a chiederli. -->
+                                <!-- A video: a dark box with the triangle, tapped
+                                     to open it full screen. Before the bytes it is
+                                     the same tap that fetches them. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="140"
@@ -161,17 +161,17 @@
                                                 </PathGeometry>
                                             </Path.Data>
                                         </Path>
-                                        <!-- I pezzi stanno arrivando: senza questo il tocco
-                                             sembra non aver fatto niente. -->
+                                        <!-- The pieces are arriving: without this the tap
+                                             looks like it did nothing. -->
                                         <ProgressRing IsActive="True" Width="26" Height="26"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- Un vocale o un audio: una barra scura con il triangolo,
-                                     che si tocca per ascoltarlo. Prima dei byte e' lo stesso
-                                     tocco a chiederli. -->
+                                <!-- A voice note or an audio file: a dark bar with the
+                                     triangle, tapped to play it. Before the bytes it is
+                                     the same tap that fetches them. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
@@ -200,9 +200,9 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- Un documento: una barra scura con un foglio, che si
-                                     tocca per aprirlo con l'app di sistema. Prima dei byte
-                                     e' lo stesso tocco a chiederli. -->
+                                <!-- A document: a dark bar with a sheet, tapped to open
+                                     it with the system app. Before the bytes it is the
+                                     same tap that fetches them. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
@@ -259,9 +259,9 @@
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
                                 </Border>
-                                <!-- Un video: una casella scura con il triangolo, che
-                                     si tocca per aprirlo a tutto schermo. Prima dei
-                                     byte e' lo stesso tocco a chiederli. -->
+                                <!-- A video: a dark box with the triangle, tapped
+                                     to open it full screen. Before the bytes it is
+                                     the same tap that fetches them. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="140"
@@ -284,17 +284,17 @@
                                                 </PathGeometry>
                                             </Path.Data>
                                         </Path>
-                                        <!-- I pezzi stanno arrivando: senza questo il tocco
-                                             sembra non aver fatto niente. -->
+                                        <!-- The pieces are arriving: without this the tap
+                                             looks like it did nothing. -->
                                         <ProgressRing IsActive="True" Width="26" Height="26"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- Un vocale o un audio: una barra scura con il triangolo,
-                                     che si tocca per ascoltarlo. Prima dei byte e' lo stesso
-                                     tocco a chiederli. -->
+                                <!-- A voice note or an audio file: a dark bar with the
+                                     triangle, tapped to play it. Before the bytes it is
+                                     the same tap that fetches them. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
@@ -323,9 +323,9 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- Un documento: una barra scura con un foglio, che si
-                                     tocca per aprirlo con l'app di sistema. Prima dei byte
-                                     e' lo stesso tocco a chiederli. -->
+                                <!-- A document: a dark bar with a sheet, tapped to open
+                                     it with the system app. Before the bytes it is the
+                                     same tap that fetches them. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
@@ -392,8 +392,8 @@
                 <Image x:Name="SelectedImagePreview" Grid.Column="0"
                        Width="48" Height="48" Margin="8,8,0,8"
                        Stretch="UniformToFill"/>
-                <!-- Un video non si decodifica: la casella dice cosa si sta
-                     spedendo senza disegnare niente. -->
+                <!-- A video is not decoded: the box says what is being sent
+                     without drawing anything. -->
                 <Path x:Name="SelectedVideoPreview" Grid.Column="0"
                       Width="30" Height="30" Margin="17,17,0,17"
                       Fill="#FF606060"
@@ -527,8 +527,8 @@
             </Grid>
         </Grid>
 
-        <!-- Immagine a tutto schermo. Sta sopra tutto e si chiude toccandola:
-             niente pulsante, niente icona nuova, niente stringa nuova. -->
+        <!-- Full-screen image. It sits above everything and closes on tap:
+             no button, no new icon, no new string. -->
         <Grid x:Name="ImageViewer" Grid.RowSpan="3"
               Background="#F0000000"
               Visibility="Collapsed"
@@ -536,10 +536,10 @@
             <Image x:Name="ImageViewerImage" Stretch="Uniform"/>
         </Grid>
 
-        <!-- Un video a tutto schermo. I controlli di trasporto sono quelli di
-             sistema, cosi' c'e' play/pausa/barra senza disegnarli: e' quello che
-             WhatsApp fa. Si chiude con la X, e la X e' un pulsante come gli
-             altri, con il suo nome nel gestore. -->
+        <!-- A full-screen video. The transport controls are the system ones, so
+             there is play/pause/bar without drawing them: that is what WhatsApp
+             does. It closes with the X, and the X is a button like the others,
+             with its name in the handler. -->
         <Grid x:Name="VideoViewer" Grid.RowSpan="3"
               Background="Black"
               Visibility="Collapsed">

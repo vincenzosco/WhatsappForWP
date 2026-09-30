@@ -55,7 +55,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,16,16,16">
 
-                <!-- Server trovati sulla rete -->
+                <!-- Servers found on the network -->
                 <TextBlock x:Uid="ConnectionPage_DiscoveredLabel" Text="Servers found"
                            Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
                 <TextBlock x:Name="DiscoveryStatusText" x:Uid="ConnectionPage_Discovering"
@@ -80,8 +80,8 @@
                            Foreground="#FF606060" FontSize="12" TextWrapping="Wrap"
                            Visibility="Collapsed" Margin="0,4,0,0"/>
 
-                <!-- Inserimento manuale: resta la via di riserva quando la
-                     scoperta automatica non vede nulla (reti che filtrano UDP). -->
+                <!-- Manual entry: it stays the fallback when automatic discovery
+                     sees nothing (networks that filter UDP). -->
                 <Button x:Name="ManualToggleButton" x:Uid="ConnectionPage_ManualToggle"
                         Content="Enter the address by hand"
                         Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="14"
@@ -226,8 +226,8 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- QR a tutto schermo: il codice lo inquadra il telefono con WhatsApp,
-             quindi serve grande, su fondo bianco e con lo schermo acceso. -->
+        <!-- Full-screen QR: the phone scans the code with WhatsApp, so it must be
+             big, on a white background and with the screen kept on. -->
         <Grid x:Name="QrOverlay" Grid.RowSpan="2" Background="White" Visibility="Collapsed">
             <StackPanel VerticalAlignment="Center" Margin="16,16,16,16">
                 <TextBlock x:Uid="ConnectionPage_QrOverlayTitle"
@@ -239,9 +239,9 @@
                 <TextBlock x:Name="QrOverlayCodeText" Text="" FontSize="30" FontWeight="Bold"
                            Foreground="#FF075E54" TextAlignment="Center"
                            TextWrapping="Wrap" Margin="0,12,0,0"/>
-                <!-- Testo riempito dal code-behind, che alterna l'istruzione al
-                     "aggiorno il codice": per questo non ha x:Uid e la chiave
-                     .resw e' senza suffisso. -->
+                <!-- Text filled by the code-behind, which alternates the
+                     instruction with "I am refreshing the code": that is why it
+                     has no x:Uid and the .resw key has no suffix. -->
                 <TextBlock x:Name="QrOverlayHintText" Text=""
                            Foreground="#FF606060" FontSize="13" TextAlignment="Center"
                            TextWrapping="Wrap" Margin="0,12,0,0"/>

@@ -17,8 +17,8 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header: back + title. Come nelle altre pagine, la barra e' disegnata
-             qui e il titolo lo scrive il gestore con Loc.Get. -->
+        <!-- Header: back + title. As on the other pages, the bar is drawn here
+             and the handler writes the title with Loc.Get. -->
         <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -58,9 +58,9 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Margin="0,0,0,24">
 
-                <!-- La foto grande. E' un Border e non un'Image per lo stesso
-                     motivo della riga dell'elenco: WP8.1 ritaglia un cerchio
-                     solo con il CornerRadius di uno sfondo. -->
+                <!-- The big picture. It is a Border and not an Image for the same
+                     reason as the list row: WP8.1 clips a circle only with the
+                     CornerRadius of a background. -->
                 <Border x:Name="BigAvatar" Width="160" Height="160" CornerRadius="80"
                         Margin="0,20,0,12" HorizontalAlignment="Center"
                         Tapped="BigAvatar_Tapped">
@@ -158,7 +158,7 @@
             </StackPanel>
         </ScrollViewer>
 
-        <!-- La foto a tutto schermo: si chiude toccandola, come per una bolla. -->
+        <!-- The full-screen picture: it closes on tap, as for a bubble. -->
         <Grid x:Name="ImageViewer" Grid.RowSpan="2"
               Background="#F0000000"
               Visibility="Collapsed"

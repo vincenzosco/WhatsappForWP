@@ -87,7 +87,7 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <!-- Stato: "in cerca" e "niente da mostrare" sono due cose diverse -->
+            <!-- Status: "searching" and "nothing to show" are two different things -->
             <TextBlock x:Name="StatusText"
                        Foreground="#FF9E9E9E" FontSize="15"
                        TextWrapping="Wrap" TextAlignment="Center" MaxWidth="300"
