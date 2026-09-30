@@ -348,3 +348,86 @@ test('downloadMedia non e fatale quando il file non c e piu', async () => {
 
   assert.strictEqual(await client.downloadMedia('a@s.whatsapp.net', 'M9'), null);
 });
+
+test('userInfo legge nome, about e id immagine di un profilo', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({
+    status: 200,
+    results: { data: [{ name: 'Anna', verified_name: 'Anna B', status: 'in giro', picture_id: 'P1' }] }
+  }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const info = await client.userInfo('393401234567:12@s.whatsapp.net');
+
+  assert.strictEqual(fetchImpl.calls[0].url,
+    'http://g/user/info?phone=393401234567%40s.whatsapp.net');
+  assert.strictEqual(info.name, 'Anna');
+  assert.strictEqual(info.verifiedName, 'Anna B');
+  assert.strictEqual(info.status, 'in giro');
+  assert.strictEqual(info.pictureId, 'P1');
+});
+
+test('userInfo risponde null quando GOWA non conosce il profilo', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: { data: [] } }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  assert.strictEqual(await client.userInfo('393401234567@s.whatsapp.net'), null);
+  assert.strictEqual(await client.userInfo('non-un-jid'), null);
+});
+
+test('businessProfile legge email, indirizzo, categorie e orari', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({
+    status: 200,
+    results: {
+      email: 'info@bar.it',
+      address: 'Via Roma 1',
+      categories: [{ id: '1', name: 'Bar' }, { id: '2', name: 'Caffe' }],
+      business_hours_timezone: 'Europe/Rome',
+      business_hours: [{ day_of_week: 1, mode: 'open', open_time: '09:00', close_time: '18:00' }]
+    }
+  }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const business = await client.businessProfile('393401234567@s.whatsapp.net');
+
+  assert.strictEqual(fetchImpl.calls[0].url,
+    'http://g/user/business-profile?phone=393401234567%40s.whatsapp.net');
+  assert.strictEqual(business.email, 'info@bar.it');
+  assert.deepStrictEqual(business.categories, ['Bar', 'Caffe']);
+  assert.strictEqual(business.hours.length, 1);
+});
+
+test('businessProfile risponde null per un profilo che non e business', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 404, message: 'not a business account' }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  assert.strictEqual(await client.businessProfile('393401234567@s.whatsapp.net'), null);
+});
+
+test('groupParticipants legge i membri e i loro ruoli', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({
+    status: 200,
+    results: {
+      group_id: '123@g.us',
+      name: 'Famiglia',
+      participants: [
+        { jid: '1@s.whatsapp.net', phone_number: '39', display_name: 'Anna', is_admin: true, is_super_admin: false },
+        { jid: '2@s.whatsapp.net', display_name: 'Bruno' }
+      ]
+    }
+  }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const group = await client.groupParticipants('123@g.us');
+
+  assert.strictEqual(fetchImpl.calls[0].url, 'http://g/group/participants?group_id=123%40g.us');
+  assert.strictEqual(group.name, 'Famiglia');
+  assert.strictEqual(group.participants.length, 2);
+  assert.strictEqual(group.participants[0].isAdmin, true);
+  assert.strictEqual(group.participants[1].isAdmin, false);
+  assert.strictEqual(group.participants[1].displayName, 'Bruno');
+});
+
+test('groupInfo legge la descrizione, che GOWA non nomina sempre allo stesso modo', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: { Name: 'Famiglia', Topic: 'solo foto' } }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  const info = await client.groupInfo('123@g.us');
+
+  assert.strictEqual(fetchImpl.calls[0].url, 'http://g/group/info?group_id=123%40g.us');
+  assert.strictEqual(info.name, 'Famiglia');
+  assert.strictEqual(info.topic, 'solo foto');
+});
