@@ -91,8 +91,8 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
    `qr-term.js` and `download.js`, the service-list reasons, and the legacy relay's
    console text. An operator reading a container log or a debugger window needs no
    second language. Only the app UI is localized, through the `.resw` pairs;
-   source comments and the adapter's test names stay Italian, because nobody reads
-   them at run time.
+   source comments are English too, while the adapter's test names stay Italian,
+   because nobody reads them at run time.
 9. **The docs are written in pairs, English and Italian.** `README.md` and
    `README.it.md` are versions of each other, and so are
    `WhatsappBridge/README.md` and `WhatsappBridge/README.it.md`: a section is
