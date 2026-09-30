@@ -138,6 +138,10 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       qrCache: null,
       callsCache: null,
       chatsCache: null,
+      // The presence last sent toward WhatsApp ("available"/"unavailable"), so
+      // that the polling loop does not repeat the same call. null = not known
+      // yet, and a failed call puts it back here so the next round tries again.
+      presenceSent: null,
       unreadByChat: new Map(),
       mediaTransfers: new Map(),
       pendingOutgoing: [],
@@ -473,6 +477,40 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
   // ─── State and login ──────────────────────────────────────────────────────
 
+  /**
+   * Our own presence on WhatsApp: online while a phone is watching the account,
+   * unavailable when nobody is.
+   *
+   * It is what makes typing notifications arrive at all: WhatsApp sends
+   * `chat_presence` only to a client that is marked online, and GOWA connects as
+   * "unavailable" with a daily five-minute pulse. Being online exactly while the
+   * app is connected is also the honest thing for the contacts to see.
+   *
+   * A failure is not fatal: without presence the bridge works as before, only
+   * without typing indicators, so it is logged and forgotten.
+   */
+  async function updatePresence(session) {
+    if (!session || !session.gowa) return;
+
+    const watching = session.sockets.size > 0;
+    // Nobody is watching and nothing was ever said: there is nothing to correct,
+    // because GOWA connects as "unavailable" by itself. It is what keeps the
+    // anonymous session of a shared instance from talking to WhatsApp at all.
+    if (!watching && session.presenceSent === null) return;
+
+    const wanted = watching && session.state.status === 'connected' ? 'available' : 'unavailable';
+    if (session.presenceSent === wanted) return;
+
+    session.presenceSent = wanted;
+    try {
+      await session.gowa.sendPresence(wanted);
+      logger('INFO', `presence sent: ${wanted}`);
+    } catch (err) {
+      session.presenceSent = null;
+      logger('WARN', `presence ${wanted} not sent: ${err.message}`);
+    }
+  }
+
   async function refreshSession(session) {
     try {
       const s = await session.gowa.status();
@@ -503,6 +541,11 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       } else if (changed) {
         broadcastState(session);
       }
+
+      // Right after the state is learned, and only when it really is: the
+      // account goes online while a phone watches it and offline when the last
+      // one leaves. `updatePresence` does nothing when it has already been said.
+      await updatePresence(session);
     } catch (err) {
       dbg(`status unavailable: ${err.message}`);
     }
@@ -918,6 +961,22 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       return;
     }
 
+    // Typing notifications, in either direction of the same notion: composing /
+    // paused here, and the app draws them as a bubble with three dots.
+    if (event.event === 'chat_presence') {
+      const payload = event.payload || {};
+      const chatId = payload.chat_id || payload.from;
+      const state = payload.state;
+      if (!chatId || (state !== 'composing' && state !== 'paused')) return;
+
+      // Typing on our own account - our phone, or another linked device - is not
+      // something the app shows, and WhatsApp does not show it either.
+      if (session.jidKey && jidKey(payload.from) === session.jidKey) return;
+
+      sendControl(session, { command: 'typing', chatId, state });
+      return;
+    }
+
     // message.reaction and future types stay ignored: the app has nowhere to
     // show them.
     if (event.event !== 'message') return;
@@ -990,6 +1049,22 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   }
 
   /// Moves a socket from one session to another (successful handshake).
+  /**
+   * A socket that is gone leaves the anonymous list and the session it had been
+   * moved to.
+   *
+   * It used to be dropped from `anonymous` only: the session of a user kept the
+   * dead socket, so it was counted as a watching client - and every frame
+   * written to it was a write to a closed connection. That count is what decides
+   * whether the account is online, so it has to be true.
+   */
+  function dropSocket(socket) {
+    const session = socket && socket.session ? socket.session : anonymous;
+    anonymous.sockets.delete(socket);
+    if (session) session.sockets.delete(socket);
+    updatePresence(session);
+  }
+
   function moveSocket(socket, from, to) {
     if (!socket) return;
     if (from && from !== to) from.sockets.delete(socket);
@@ -1062,6 +1137,23 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
+  /**
+   * Our own typing state toward WhatsApp: the chat JID travels in `Text` (as for
+   * `messages`) and `State` is "composing" or "paused", the names of the
+   * webhook. GOWA wants "start" or "stop": that is the only translation.
+   */
+  async function sendTypingPresence(session, chatId, state) {
+    if (!chatId) return;
+    if (state !== 'composing' && state !== 'paused') return;
+    if (session.state.status !== 'connected') return;
+
+    try {
+      await session.gowa.sendChatPresence(chatId, state === 'composing' ? 'start' : 'stop');
+    } catch (err) {
+      logger('WARN', `typing ${state} not sent for ${chatId}: ${err.message}`);
+    }
+  }
+
   async function handleCommand(session, msg, socket) {
     switch (msg.Command) {
       case 'status':
@@ -1104,6 +1196,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         // to read. The chat does not have to exist in the list.
         session.unreadByChat.delete((msg.Text || '').trim());
         break;
+      case 'typing':
+        await sendTypingPresence(session, (msg.Text || '').trim(), msg.State);
+        break;
       case 'media.begin':
         mediaBegin(session, msg);
         break;
@@ -1123,6 +1218,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         session.state = { status: 'disconnected', jid: '' };
         session.qrCache = null;
         broadcastState(session);
+        // The account is not connected any more: it must not stay "online"
+        // toward WhatsApp.
+        await updatePresence(session);
         break;
       default:
         dbg(`unknown command: ${msg.Command}`);
@@ -1198,8 +1296,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       }
     });
 
-    socket.on('close', () => { logger('NET', `app client disconnected: ${remote}`); anonymous.sockets.delete(socket); });
-    socket.on('error', (err) => { logger('NET', `socket error [${remote}]: ${err.message}`); anonymous.sockets.delete(socket); });
+    socket.on('close', () => { logger('NET', `app client disconnected: ${remote}`); dropSocket(socket); });
+    socket.on('error', (err) => { logger('NET', `socket error [${remote}]: ${err.message}`); dropSocket(socket); });
   });
 
   return {

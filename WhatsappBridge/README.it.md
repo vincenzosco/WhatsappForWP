@@ -47,6 +47,19 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   L'adapter lascia stare un video sotto i 4 MB - la conversione costerebbe piu' di quanto
   risparmia - e una conversione venuta piu' grande viene buttata. Con `FFMPEG_ENABLED=off`
   l'adapter non lo tocca; il telefono rimpicciolisce comunque i suoi video.
+- Gli indicatori di scrittura adesso ci sono, nelle due direzioni, ed e' l'unico pezzo di
+  presenza che questo progetto mostra. Chi comincia o smette di scrivere arriva come
+  evento webhook `chat_presence` (GOWA 9.5), che l'adapter gira all'app come frame di
+  controllo `typing`; l'app lo disegna come un fumetto con tre puntini e lo toglie al
+  `paused`. Mentre scrivi tu, l'app manda `typing` nel verso opposto e l'adapter lo passa
+  a `/send/chat-presence`. Non si inventa niente: lo stato sullo schermo arriva da
+  WhatsApp, e il fumetto sparisce da solo quando arriva il messaggio che aspettava.
+- L'account e' online esattamente mentre un telefono lo guarda. WhatsApp manda le
+  notifiche di scrittura solo a un client marcato online, e GOWA si collega come
+  `unavailable` con un impulso di cinque minuti una volta al giorno: per questo l'adapter
+  mette l'account `available` quando si collega il primo client dell'app e `unavailable`
+  quando esce l'ultimo (`POST /send/presence`). E' anche quello che vedono i contatti:
+  online mentre usi l'app, offline quando non la usi.
 - Una foto o un video nella cronologia di una chat e' arrivato col telefono spento: i suoi
   byte sono stati consegnati all'adapter e a nessun altro, quindi la riga e' una parola
   (`[Image]`). Toccarla lo chiede all'adapter (`media.get`), che legge
@@ -80,6 +93,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.end` | `MediaTransferId`, `Text` = didascalia (ricompone e spedisce) |
 | app -> adapter | `media.get` | `Text` = JID della chat, `RelatedMessageId` = id del messaggio (scarica il media di quel messaggio e risponde con un frame `media` per pezzo) |
 | app -> adapter | `contact.info` | `Text` = JID della chat (l'adapter mette insieme nome, about, immagine, profilo aziendale e, per un gruppo, descrizione e membri in un solo `Text` JSON) |
+| app -> adapter | `typing` | `Text` = JID della chat, `State` = `composing` o `paused` (quello che vede il contatto mentre scrivi) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
@@ -90,6 +104,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | adapter -> app | `chats.done` | — (l'elenco è finito) |
 | adapter -> app | `revoked` | `ChatId`, `RelatedMessageId` = id del messaggio cancellato |
 | adapter -> app | `edited` | `ChatId`, `RelatedMessageId`, `Text` = il nuovo testo |
+| adapter -> app | `typing` | `ChatId`, `State` = `composing` o `paused` (qualcuno sta scrivendo in quella chat) |
 | adapter -> app | `media` | `ChatId`, `RelatedMessageId`, `MediaData` = un pezzo base64, `MediaMimeType`, `MediaFileName`, `MediaType`, `MediaChunkIndex`, `MediaChunkTotal`: un pezzo di un messaggio che l'app ha gia' |
 | adapter -> app | `error` | `Text` |
 
