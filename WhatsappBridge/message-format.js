@@ -28,7 +28,7 @@ function epochMillis(value) {
 
   if (typeof value === 'number') {
     if (!Number.isFinite(value)) return Date.now();
-    // GOWA a volte manda i secondi: 1.7e9 invece di 1.7e12.
+    // GOWA sometimes sends seconds: 1.7e9 instead of 1.7e12.
     return Math.round(Math.abs(value) < 1e12 ? value * 1000 : value);
   }
 
@@ -109,7 +109,7 @@ function buildChatMessage(fields) {
     ChatId: f.chatId || '0',
     Timestamp: formatDateForWp8(f.timestamp),
     Status: typeof f.status === 'number' ? f.status : 1,
-    // I frame di controllo sono sempre di tipo System (3).
+    // Control frames are always of type System (3).
     Type: typeof f.type === 'number' ? f.type : (f.command ? 3 : 0),
     IsIncoming: typeof f.isIncoming === 'boolean' ? f.isIncoming : true
   };
