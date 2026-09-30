@@ -284,6 +284,11 @@ namespace WhatsappApp.Pages
             // all'avvio la connessione non c'e' ancora, e la lista arrivava solo
             // se l'utente tornava qui dopo averla aperta.
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+
+            // Il server che non risponde e la connessione che torna: la
+            // striscia la governano questi due eventi.
+            CommunicationService.Instance.ServerUnavailable += OnServerUnavailable;
+            CommunicationService.Instance.ConnectionEstablished += OnServerAvailable;
             RequestChats();
         }
 
@@ -293,6 +298,24 @@ namespace WhatsappApp.Pages
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
             AttachmentInbox.Ready -= OnAttachmentReady;
             CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
+            CommunicationService.Instance.ServerUnavailable -= OnServerUnavailable;
+            CommunicationService.Instance.ConnectionEstablished -= OnServerAvailable;
+        }
+
+        /// <summary>
+        /// Il server principale non ha risposto dopo i tentativi automatici: la
+        /// striscia lo dice, e resta finche' una connessione non riesce.
+        /// </summary>
+        private void OnServerUnavailable(object sender, EventArgs e)
+        {
+            ServerUnavailableText.Text = Loc.Get("CommService_ServerUnavailable",
+                "Server non disponibile, riprova tra qualche minuto :)");
+            ServerUnavailableBar.Visibility = Visibility.Visible;
+        }
+
+        private void OnServerAvailable(object sender, EventArgs e)
+        {
+            ServerUnavailableBar.Visibility = Visibility.Collapsed;
         }
 
         /// <summary>

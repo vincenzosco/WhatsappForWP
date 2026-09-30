@@ -77,6 +77,7 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ErrorOccurred += OnErrorOccurred;
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
             CommunicationService.Instance.ConnectionEstablished += OnConnectionEstablished;
+            CommunicationService.Instance.ServerUnavailable += OnServerUnavailable;
 
             if (CommunicationService.Instance.IsConnected)
             {
@@ -105,6 +106,7 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ErrorOccurred -= OnErrorOccurred;
             CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
             CommunicationService.Instance.ConnectionEstablished -= OnConnectionEstablished;
+            CommunicationService.Instance.ServerUnavailable -= OnServerUnavailable;
             DiscoveryService.Instance.ServersChanged -= OnServersChanged;
             StopQrTimer();
             CloseQrOverlay();
@@ -548,6 +550,16 @@ namespace WhatsappApp.Pages
         {
             StatusText.Text = status;
             StatusPanel.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Il server principale non ha risposto dopo i tentativi automatici.
+        /// La frase e' la sua, non un guasto di socket da spiegare.
+        /// </summary>
+        private void OnServerUnavailable(object sender, EventArgs e)
+        {
+            StatusText.Text = Loc.Get("CommService_ServerUnavailable",
+                "Server non disponibile, riprova tra qualche minuto :)");
         }
 
         private void OnErrorOccurred(object sender, string error)

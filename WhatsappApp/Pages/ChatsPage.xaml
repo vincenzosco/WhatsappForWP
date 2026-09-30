@@ -332,6 +332,18 @@
                 </ListView.ItemTemplate>
             </ListView>
 
+            <!-- Il server non ha risposto: una striscia in cima, che resta
+                 finche' una connessione non riesce. Non e' il posto vuoto: una
+                 lista in cache puo' esserci comunque. -->
+            <Border x:Name="ServerUnavailableBar" Grid.Row="2"
+                    Background="#FFB26A00"
+                    VerticalAlignment="Top"
+                    Visibility="Collapsed">
+                <TextBlock x:Name="ServerUnavailableText"
+                           Foreground="White" FontSize="13" TextWrapping="Wrap"
+                           Margin="12,8,12,8"/>
+            </Border>
+
             <!-- Empty state: shown by UpdateEmptyState() -->
             <StackPanel x:Name="EmptyStatePanel" Visibility="Collapsed"
                         VerticalAlignment="Center" HorizontalAlignment="Center">
