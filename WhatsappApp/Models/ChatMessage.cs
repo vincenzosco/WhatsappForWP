@@ -73,6 +73,7 @@ namespace WhatsappApp.Models
         private int _callDurationSeconds;   // durata in secondi, 0 se sconosciuta
         private bool _callIsVideo;          // chiamata video
         private string _relatedMessageId;   // messaggio toccato da una revoca o una modifica
+        private string _token;              // token del servizio condiviso (vedi handshake)
         private string _mediaFilePath;       // file locale del video ricevuto (client, non sul filo)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
@@ -357,6 +358,18 @@ namespace WhatsappApp.Models
         {
             get { return _callIsVideo; }
             set { _callIsVideo = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>
+        /// Il token del servizio condiviso. Viaggia nel frame `hello`, come
+        /// tutto il resto: questo protocollo non ha header dove metterlo. Su un
+        /// servizio privato resta vuoto, e il server non lo chiede.
+        /// </summary>
+        [DataMember]
+        public string Token
+        {
+            get { return _token; }
+            set { _token = value; OnPropertyChanged(); }
         }
 
         /// <summary>Id del messaggio a cui si riferisce un frame di revoca o modifica.</summary>

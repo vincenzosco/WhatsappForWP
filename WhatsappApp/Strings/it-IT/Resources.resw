@@ -484,4 +484,7 @@
   <data name="CommService_ServerUnavailable" xml:space="preserve">
     <value>Server non disponibile, riprova tra qualche minuto :)</value>
   </data>
+  <data name="ConnectionPage_TokenLabel.Text" xml:space="preserve">
+    <value>Token del server (lascialo vuoto sul tuo server)</value>
+  </data>
 </root>

@@ -868,3 +868,57 @@ test('contact.info answers an empty profile instead of staying silent', async ()
     Name: '', About: '', Number: '', AvatarData: '', Business: null, Group: null
   });
 });
+
+test('un handshake senza token viene rifiutato quando il servizio lo chiede', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  // scrypt vero su un token ogni test e' lento: la logica e' la stessa, la
+  // robustezza della funzione non e' quello che questo test misura.
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  const { token } = users.register('vincenzo');
+
+  const bridge = createBridge({
+    config: { auth: { required: true } },
+    gowa: {},
+    users,
+    log: () => {},
+    debug: () => {}
+  });
+
+  const written = [];
+  const destroyed = [];
+  const socket = {
+    write: (packet) => written.push(decodeFrame(packet)),
+    destroy: () => destroyed.push(true)
+  };
+  bridge.addClientForTest(socket);
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', SenderName: 'x' }, socket);
+  assert.strictEqual(written.length, 1);
+  assert.strictEqual(written[0].Command, 'unauthorized');
+  assert.strictEqual(destroyed.length, 1);
+
+  written.length = 0;
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: token, SenderName: 'x' }, socket);
+  assert.ok(written.some((f) => f.Command === 'state'),
+    'un token valido deve ricevere lo stato');
+});
+
+test('senza auth richiesta un handshake passa come prima', async () => {
+  const sent = [];
+  const bridge = createBridge({
+    config: {},
+    gowa: { status: async () => ({ isConnected: false, isLoggedIn: false, jid: '' }) },
+    log: () => {},
+    debug: () => {}
+  });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', SenderName: 'x' });
+  assert.ok(sent.some((f) => f.Command === 'state'));
+  assert.ok(!sent.some((f) => f.Command === 'unauthorized'));
+});

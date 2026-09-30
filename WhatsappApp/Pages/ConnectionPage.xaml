@@ -108,6 +108,11 @@
                 <TextBox x:Name="UsernameBox" Text=""
                          Background="White" FontSize="16" Margin="0,4,0,0"/>
 
+                <TextBlock x:Uid="ConnectionPage_TokenLabel" Text="Server token (leave it empty on your own server)"
+                           Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                <TextBox x:Name="TokenBox" Text=""
+                         Background="White" FontSize="16" Margin="0,4,0,0"/>
+
                 <ToggleSwitch x:Name="NotificationsToggle" x:Uid="ConnectionPage_Notifications"
                               Header="Notify me about new messages"
                               Margin="0,12,0,0"

@@ -64,6 +64,10 @@ namespace WhatsappApp.Pages
             if (!string.IsNullOrEmpty(savedUsername))
                 UsernameBox.Text = savedUsername;
 
+            string savedToken = SettingsService.Token;
+            if (!string.IsNullOrEmpty(savedToken))
+                TokenBox.Text = savedToken;
+
             ServersList.ItemsSource = _servers;
             _discoveryStartedAt = DateTime.Now;
             DiscoveryService.Instance.ServersChanged += OnServersChanged;
@@ -154,6 +158,10 @@ namespace WhatsappApp.Pages
                 username = Loc.Get("ConnectionPage_DefaultUsername", "User");
                 UsernameBox.Text = username;
             }
+
+            // Il token si legge adesso: e' il primo frame dopo la connessione a
+            // portarlo, quindi cambiarlo dopo non lo manderebbe.
+            SettingsService.Token = (TokenBox.Text ?? "").Trim();
 
             StatusPanel.Visibility = Visibility.Visible;
             ActionButton.IsEnabled = false;
