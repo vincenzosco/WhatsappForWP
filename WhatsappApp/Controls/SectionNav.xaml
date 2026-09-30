@@ -10,12 +10,19 @@
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
-            <!-- Il tema di WP8.1 impone 109 x 57.5: senza i due minimi a 0
-                 l'altezza dichiarata qui sotto non vale e i pulsanti sbordano
-                 dalla barra alta 48. -->
+            <!-- WP8.1 gives a Button 109 x 57.5: without the two minimums at 0
+                 the height declared below is ignored and the buttons spill out
+                 of the 48 px bar. -->
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="MinHeight" Value="0"/>
             <Setter Property="Height" Value="48"/>
+            <!-- The theme Button hugs its content instead of filling its cell:
+                 each icon would sit at the left edge of its own star column,
+                 so the three of them look shifted left together. Stretching the
+                 button and centering its content puts each icon in the middle
+                 of its column. -->
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
         </Style>
     </UserControl.Resources>
 
