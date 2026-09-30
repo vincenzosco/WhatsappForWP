@@ -13,7 +13,7 @@
 - **C# 5 only** (`node tools/check-csharp5.js`): no `$"..."`, no `nameof`, no expression-bodied members, no `?.` on the left of an assignment.
 - Colours, fonts: the WP8.1 theme only. No `Segoe MDL2 Assets`; an icon is an inline `Path` with an `<!-- IconX -->` comment.
 - User-visible strings live in **both** `WhatsappApp/Strings/en-US/Resources.resw` and `WhatsappApp/Strings/it-IT/Resources.resw` (141 keys today, `--strict` fails on an unused one).
-- Source comments are **Italian, no accented characters**; user strings carry accents normally.
+- Source comments are **Italian, no accented characters**; user strings carry accents normally. (Superseded during execution: the whole tree, app and adapter, is now commented in English - see the note at the end of this document.)
 - **Fast gate after every task:**
   `node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-resw.js --strict && node tools/check-docs.js && node tools/check-framing.js && node tools/check-tile.js && node tools/check-memory.js && node tools/check-actions.js && node --test "tools/test/**/*.test.js"`, then `cd WhatsappBridge && npm test`.
 - **Build gate after every task that touches the app**, on the Parallels VM `Windows 11` (retry the same MSBuild call once on exit 255 + `PrlJob_GetRetCode: Invalid argument`): rmdir `C:\Temp\wp81`, robocopy the repo minus `obj bin AppPackages BundleArtifacts node_modules .tools .git`, then `MSBuild.exe WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86 /nologo /v:m /p:WarningLevel=4` → `Avvisi: 0`, `Errori: 0`, `Your package has been successfully created.`
@@ -356,3 +356,20 @@ Still open, with the reason:
   AES-256-CBC + HMAC-SHA256 cipher; a TLS layer with a public certificate is still worth
   adding for the framing metadata, but the pinning half of A3 needs a different design.
 - **Phase C2/C3** (volume encryption guidance and `tools/backup.js`) are next.
+
+## Deployed and translated
+
+- **The comments are English everywhere.** The adapter's fifteen files and then the
+  app's remaining shell, pages, services and models were translated in a sequence of
+  comment-only commits, so the repository now has a single comment language. The
+  Global Constraints line above about Italian comments is superseded: the READMEs and
+  the `maintain-the-app` skill state that comments are English, with the adapter's test
+  names as the one Italian surface left in the code.
+- **The server runs on the NAS.** The stack was deployed from the Docker repository on
+  the Synology NAS at `192.168.0.108` (`/volume1/docker/whatsapp-for-wp8`), with
+  `docker-compose.yaml` plus `docker-compose.nas.yaml`: the adapter is healthy on ports
+  8585/8586, and the `bore` container publishes it at `bore.pub`. A service user was
+  created inside the container with `create-user.js`, and the resulting address was
+  published to `whatsappforwp-endpoint` so the app can follow it without an update.
+  `bore.pub` hands out a new port on every tunnel restart, so `publish.js --commit`
+  must be run again whenever the container restarts.

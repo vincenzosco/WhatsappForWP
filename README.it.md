@@ -302,11 +302,12 @@ creato in un altro modo.
 
 Tutto cio' che il server e l'app stampano a runtime e' in inglese: il log e i
 messaggi di errore dell'adapter, e le righe `DIAG` dell'app con i messaggi delle
-eccezioni che ci finiscono. I commenti nel sorgente e i nomi dei test
-dell'adapter non rientrano nella regola, e nemmeno le stringhe localizzate in
-`Strings/it-IT`, che sono traduzioni e non diagnostica. Anche i testi di errore
-che l'adapter manda all'app per essere mostrati sono contenuto UI, e restano in
-italiano in attesa della localizzazione dell'app.
+eccezioni che ci finiscono. Anche i commenti nel sorgente sono in inglese: il
+codice si spiega in una lingua sola. Restano fuori i nomi dei test dell'adapter e
+le stringhe localizzate in `Strings/it-IT`, che sono strumenti per sviluppatori e
+traduzioni, non diagnostica. Anche i testi di errore che l'adapter manda all'app
+per essere mostrati sono contenuto UI, e restano in italiano in attesa della
+localizzazione dell'app.
 
 Un tentativo di connessione possiede il suo socket, il suo `DataReader` e il suo
 ciclo di lettura: solo il tentativo piu' recente li pubblica e solo il suo ciclo
@@ -486,8 +487,8 @@ L'app segue automaticamente la lingua del dispositivo tramite risorse `.resw`:
 L'interfaccia dell'app e' l'**unica superficie localizzata**: tutto cio' che gli
 script e il server stampano (il banner del launcher, il suo `--help`, il log
 dell'adapter, il relay legacy) e' solo in inglese, cosi' leggere un log non
-richiede una seconda lingua. L'italiano resta solo nei commenti al codice, che
-nessuno esegue.
+richiede una seconda lingua. Anche i commenti nel sorgente sono in inglese, quindi
+l'italiano resta solo nei nomi dei test dell'adapter, che nessuno esegue a runtime.
 
 - I testi dichiarati in XAML usano `x:Uid`, e la proprieta' deve corrispondere al
   tipo dell'elemento: `TextBlock` -> `.Text`, `Button` -> `.Content`,
