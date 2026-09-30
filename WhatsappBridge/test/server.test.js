@@ -792,3 +792,79 @@ test('un documento scaricato si dichiara documento', async () => {
   assert.strictEqual(sent[0].MediaType, 'document');
   assert.strictEqual(sent[0].MediaFileName, 'contratto.pdf');
 });
+
+test('contact.info composes the profile of a person into one frame', async () => {
+  const sent = [];
+  const gowa = {
+    avatar: async (jid) => {
+      assert.strictEqual(jid, 'a@s.whatsapp.net');
+      return 'AAAA';
+    },
+    userInfo: async () => ({ name: 'Anna', verifiedName: '', status: 'in giro', pictureId: 'P1' }),
+    businessProfile: async () => ({
+      email: 'info@bar.it', address: 'Via Roma 1', categories: ['Bar'], timezone: 'Europe/Rome', hours: []
+    })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'contact.info', Text: 'a@s.whatsapp.net' });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'contact.info');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+  assert.strictEqual(sent[0].Type, 3);
+  const info = JSON.parse(sent[0].Text);
+  assert.strictEqual(info.Name, 'Anna');
+  assert.strictEqual(info.About, 'in giro');
+  assert.strictEqual(info.Number, '');
+  assert.strictEqual(info.AvatarData, 'AAAA');
+  assert.strictEqual(info.Business.Email, 'info@bar.it');
+  assert.strictEqual(info.Group, null);
+});
+
+test('contact.info reads the members and the description of a group', async () => {
+  const sent = [];
+  const gowa = {
+    avatar: async () => null,
+    groupParticipants: async () => ({
+      name: 'Famiglia',
+      participants: [
+        { jid: '1@s.whatsapp.net', phoneNumber: '', displayName: 'Anna', isAdmin: true, isSuperAdmin: false },
+        { jid: '2@s.whatsapp.net', phoneNumber: '', displayName: '', isAdmin: false, isSuperAdmin: false }
+      ]
+    }),
+    groupInfo: async () => ({ name: 'Famiglia', topic: 'solo foto' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'contact.info', Text: '123@g.us' });
+
+  const info = JSON.parse(sent[0].Text);
+  assert.strictEqual(info.Name, 'Famiglia');
+  assert.strictEqual(info.Group.Description, 'solo foto');
+  assert.strictEqual(info.Group.Members.length, 2);
+  assert.strictEqual(info.Group.Members[0].IsAdmin, true);
+  assert.strictEqual(info.Group.Members[1].Name, '+2');
+});
+
+test('contact.info answers an empty profile instead of staying silent', async () => {
+  const sent = [];
+  const gowa = {
+    avatar: async () => { throw new Error('senza rete'); },
+    userInfo: async () => null,
+    businessProfile: async () => null
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'contact.info', Text: 'a@s.whatsapp.net' });
+
+  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent[0].Command, 'contact.info');
+  assert.strictEqual(sent[0].ChatId, 'a@s.whatsapp.net');
+  assert.deepStrictEqual(JSON.parse(sent[0].Text), {
+    Name: '', About: '', Number: '', AvatarData: '', Business: null, Group: null
+  });
+});

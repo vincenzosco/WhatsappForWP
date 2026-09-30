@@ -451,6 +451,91 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
     }
   }
 
+  /// Il numero leggibile di un JID (es. +393401234567). Vuoto per un gruppo.
+  function numberForJid(jid) {
+    const user = String(jid || '').split('@')[0].split(':')[0];
+    return /^\d+$/.test(user) ? '+' + user : '';
+  }
+
+  /// Il profilo aziendale nella forma che l'app si aspetta, o null.
+  function businessFrom(profile) {
+    if (!profile) return null;
+    return {
+      Email: profile.email || '',
+      Address: profile.address || '',
+      Categories: profile.categories || [],
+      Timezone: profile.timezone || '',
+      Hours: (profile.hours || []).map(function (h) {
+        return {
+          Day: h.day_of_week === undefined || h.day_of_week === null ? '' : String(h.day_of_week),
+          Mode: h.mode || '',
+          Open: h.open_time || '',
+          Close: h.close_time || ''
+        };
+      })
+    };
+  }
+
+  /// Un membro di un gruppo come lo mostra l'app: un nome c'e' sempre, anche
+  /// quando WhatsApp ne manda uno solo per un numero.
+  function groupMember(p) {
+    return {
+      Jid: p.jid || '',
+      Number: p.phoneNumber || numberForJid(p.jid),
+      Name: p.displayName || numberForJid(p.jid) || p.jid || '',
+      IsAdmin: p.isAdmin === true,
+      IsSuperAdmin: p.isSuperAdmin === true
+    };
+  }
+
+  /**
+   * Le informazioni di un profilo, in un solo frame di controllo.
+   *
+   * Tre richieste a monte (il profilo e, se e' un business, il profilo
+   * aziendale; per un gruppo i membri e la descrizione) e una sola risposta:
+   * l'app chiede una cosa e aspetta una cosa. L'immagine la porta `avatar`, che
+   * ha gia' la sua cache, cosi' la pagina grande la ha anche per una chat il cui
+   * elenco non l'aveva.
+   *
+   * Qualunque guasto diventa un profilo vuoto: la pagina deve smettere di
+   * aspettare, non restare in caricamento per sempre.
+   */
+  async function sendContactInfo(jid) {
+    if (!jid) return;
+
+    const info = {
+      Name: '', About: '', Number: '', AvatarData: '', Business: null, Group: null
+    };
+
+    try {
+      info.AvatarData = (await gowa.avatar(jid)) || '';
+
+      if (jid.endsWith('@g.us')) {
+        const participants = await gowa.groupParticipants(jid);
+        const description = await gowa.groupInfo(jid);
+        info.Group = {
+          Description: (description && description.topic) || '',
+          Members: participants && participants.participants
+            ? participants.participants.map(groupMember)
+            : []
+        };
+        if (participants && participants.name) info.Name = participants.name;
+      } else {
+        const user = await gowa.userInfo(jid);
+        if (user) {
+          info.Name = user.name || user.verifiedName || '';
+          info.About = user.status || '';
+        }
+        info.Number = numberForJid(jid);
+        info.Business = businessFrom(await gowa.businessProfile(jid));
+      }
+    } catch (err) {
+      logger('WARN', `contact info failed for ${jid}: ${err.message}`);
+    }
+
+    sendControl({ command: 'contact.info', chatId: jid, text: JSON.stringify(info) });
+  }
+
   // ─── Messaggi dall'app verso WhatsApp ─────────────────────────────────────
 
   /// La strada giusta per un allegato, dal tipo MIME (o dall'estensione quando
@@ -747,6 +832,11 @@ function createBridge({ config, gowa, log, debug, transcoder }) {
         // protocollo di controllo usa per il dato di accompagnamento, e cosi'
         // non serve un secondo tipo di frame in uscita.
         await sendMessages((msg.Text || '').trim());
+        break;
+      case 'contact.info':
+        // Il JID viaggia in `Text`, come per `messages`: e' il campo che il
+        // protocollo di controllo usa per il dato di accompagnamento.
+        await sendContactInfo((msg.Text || '').trim());
         break;
       case 'read':
         // L'app ha mostrato quella conversazione: da adesso non ha piu' niente
