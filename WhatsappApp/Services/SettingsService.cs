@@ -15,6 +15,8 @@ namespace WhatsappApp.Services
         private const string KeyUsername = "Username";
         private const string KeyNotifications = "NotificationsEnabled";
         private const string KeyToken = "ServiceToken";
+        private const string KeyUsePublicServer = "UsePublicServer";
+        private const string KeyEndpointUrl = "EndpointUrl";
         private const string DefaultServerAddress = "192.168.1.100";
         private const int DefaultServerPort = 8585;
 
@@ -31,6 +33,8 @@ namespace WhatsappApp.Services
         private static int _serverPort;
         private static string _username;
         private static string _token;
+        private static bool _usePublicServer;
+        private static string _endpointUrl;
         private static bool _notificationsEnabled;
 
         private static void EnsureLoaded()
@@ -43,6 +47,8 @@ namespace WhatsappApp.Services
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
             _token = ReadString(KeyToken, "");
+            _usePublicServer = ReadBool(KeyUsePublicServer, false);
+            _endpointUrl = ReadString(KeyEndpointUrl, "");
             _notificationsEnabled = ReadBool(KeyNotifications, true);
 
             _loaded = true;
@@ -81,6 +87,24 @@ namespace WhatsappApp.Services
         {
             get { EnsureLoaded(); return _token; }
             set { EnsureLoaded(); _token = value; Settings.Values[KeyToken] = value; }
+        }
+
+        /// <summary>
+        /// Vero quando l'app deve usare il servizio pubblico invece di un
+        /// indirizzo scritto a mano: l'indirizzo lo legge da sola, e cambia da
+        /// solo quando il tunnel cambia porta.
+        /// </summary>
+        public static bool UsePublicServer
+        {
+            get { EnsureLoaded(); return _usePublicServer; }
+            set { EnsureLoaded(); _usePublicServer = value; Settings.Values[KeyUsePublicServer] = value; }
+        }
+
+        /// <summary>Il file dell'indirizzo. Vuoto significa quello predefinito.</summary>
+        public static string EndpointUrl
+        {
+            get { EnsureLoaded(); return _endpointUrl; }
+            set { EnsureLoaded(); _endpointUrl = value; Settings.Values[KeyEndpointUrl] = value; }
         }
 
         /// <summary>Se l'app puo' alzare un avviso quando arriva un messaggio.</summary>

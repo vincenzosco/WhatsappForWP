@@ -33,6 +33,10 @@ namespace WhatsappApp.Pages
             // riscrivere l'impostazione (e spegnere il badge) solo per averla letta.
             _notificationsInitializing = true;
             NotificationsToggle.IsOn = SettingsService.NotificationsEnabled;
+            // Stessa guardia per l'interruttore del servizio pubblico: parte
+            // anche assegnando IsOn.
+            PublicServerToggle.IsOn = SettingsService.UsePublicServer;
+            UpdateAddressFieldsState();
             _notificationsInitializing = false;
         }
 
@@ -44,6 +48,29 @@ namespace WhatsappApp.Pages
 
             SettingsService.NotificationsEnabled = NotificationsToggle.IsOn;
             if (!NotificationsToggle.IsOn) NotificationService.SetUnread(0);
+        }
+
+        /// <summary>
+        /// Servizio pubblico o server proprio. Il primo non ha un indirizzo da
+        /// scrivere (arriva da solo dal file su GitHub), quindi con
+        /// l'interruttore acceso i campi indirizzo e porta si spengono invece di
+        /// restare li' a suggerire che servano.
+        /// </summary>
+        private void PublicServerToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_notificationsInitializing) return;
+
+            SettingsService.UsePublicServer = PublicServerToggle.IsOn;
+            UpdateAddressFieldsState();
+        }
+
+        private void UpdateAddressFieldsState()
+        {
+            bool manual = !PublicServerToggle.IsOn;
+            ServerAddressBox.IsEnabled = manual;
+            ServerPortBox.IsEnabled = manual;
+            ManualToggleButton.IsEnabled = manual;
+            if (!manual) ManualPanel.Visibility = Visibility.Collapsed;
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

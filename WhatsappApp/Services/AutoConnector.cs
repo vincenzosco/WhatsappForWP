@@ -47,6 +47,24 @@ namespace WhatsappApp.Services
             _running = true;
             try
             {
+                // Il servizio pubblico: l'indirizzo si legge da un file, non si
+                // scrive a mano, perche' il tunnel che lo espone cambia porta.
+                // La scoperta in rete non ha niente da trovare qui.
+                if (SettingsService.UsePublicServer)
+                {
+                    DiscoveredServer remote = await EndpointService.Instance.ResolveAsync();
+                    if (remote != null &&
+                        await CommunicationService.Instance.ConnectToServerAsync(
+                            remote.Address, remote.Port, username))
+                    {
+                        SettingsService.Save(remote.Address, remote.Port, username);
+                        return true;
+                    }
+
+                    CommunicationService.Instance.NotifyServerUnavailable();
+                    return false;
+                }
+
                 string address = SettingsService.ServerAddress;
                 int port = SettingsService.ServerPort;
 
