@@ -922,3 +922,118 @@ test('senza auth richiesta un handshake passa come prima', async () => {
   assert.ok(sent.some((f) => f.Command === 'state'));
   assert.ok(!sent.some((f) => f.Command === 'unauthorized'));
 });
+
+/**
+ * Un servizio condiviso: due utenti, due token, due device GOWA. Il client di
+ * base crea un device per ogni utente e ne restituisce uno con il suo id.
+ */
+function sharedBridge() {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  const a = users.register('anna');
+  const b = users.register('bruno');
+
+  const created = [];
+  const base = {
+    status: async () => ({ isConnected: true, isLoggedIn: false, jid: '' }),
+    createDevice: async (label) => {
+      const id = `dev-${created.length + 1}`;
+      created.push({ id, label });
+      return id;
+    },
+    withDevice: (id) => ({ deviceId: id, setDeviceWebhook: async () => true })
+  };
+
+  const bridge = createBridge({
+    config: { auth: { required: true } },
+    gowa: base,
+    users,
+    log: () => {},
+    debug: () => {}
+  });
+  return { bridge, a, b, created };
+}
+
+function collectingSocket() {
+  const frames = [];
+  return {
+    frames,
+    write: (packet) => frames.push(decodeFrame(packet)),
+    destroy: () => {}
+  };
+}
+
+test('ogni utente ha un device GOWA suo, creato al primo handshake', async () => {
+  const { bridge, a, b, created } = sharedBridge();
+  const socketA = collectingSocket();
+  const socketB = collectingSocket();
+  bridge.addClientForTest(socketA);
+  bridge.addClientForTest(socketB);
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'a' }, socketA);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: b.token, SenderName: 'b' }, socketB);
+
+  assert.strictEqual(created.length, 2, 'un device per utente');
+  assert.notStrictEqual(a.user.deviceId, b.user.deviceId);
+  // L'etichetta e' il nome dell'utente: senza, i device sono anonimi.
+  assert.ok(created[0].label.indexOf('anna') !== -1);
+  assert.ok(created[1].label.indexOf('bruno') !== -1);
+});
+
+test('un messaggio per il device di un utente non arriva all altro', async () => {
+  const { bridge, a, b } = sharedBridge();
+  const socketA = collectingSocket();
+  const socketB = collectingSocket();
+  bridge.addClientForTest(socketA);
+  bridge.addClientForTest(socketB);
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'a' }, socketA);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: b.token, SenderName: 'b' }, socketB);
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    device_id: a.user.deviceId,
+    payload: {
+      id: 'X1', chat_id: '39@s.whatsapp.net', from: '39@s.whatsapp.net',
+      sender_display_name: 'Mario', body: 'solo per Anna', timestamp: '2026-01-02T03:04:05Z'
+    }
+  });
+
+  const annaMessages = socketA.frames.filter((f) => f.Text === 'solo per Anna');
+  const brunoMessages = socketB.frames.filter((f) => f.Text === 'solo per Anna');
+  assert.strictEqual(annaMessages.length, 1, 'il messaggio arriva al suo utente');
+  assert.strictEqual(brunoMessages.length, 0, 'e a nessun altro');
+});
+
+test('un webhook per un device sconosciuto non arriva a nessuno', async () => {
+  const { bridge, a } = sharedBridge();
+  const socketA = collectingSocket();
+  bridge.addClientForTest(socketA);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'a' }, socketA);
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    device_id: 'dev-sconosciuto',
+    payload: {
+      id: 'X2', chat_id: '39@s.whatsapp.net', from: '39@s.whatsapp.net', body: 'per nessuno'
+    }
+  });
+
+  assert.strictEqual(socketA.frames.filter((f) => f.Text === 'per nessuno').length, 0);
+});
+
+test('un comando prima del token viene rifiutato sul servizio condiviso', async () => {
+  const { bridge } = sharedBridge();
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+
+  await bridge.handleControl({ Type: 3, Command: 'chats' }, socket);
+
+  assert.strictEqual(socket.frames.length, 1);
+  assert.strictEqual(socket.frames[0].Command, 'unauthorized');
+});

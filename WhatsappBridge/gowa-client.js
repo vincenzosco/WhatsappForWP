@@ -46,10 +46,12 @@ function normalizeJid(jid) {
 }
 
 class GowaClient {
-  constructor({ baseUrl, deviceId, user, pass, fetchImpl, avatarCache } = {}) {
+  constructor({ baseUrl, deviceId, user, pass, authHeader, fetchImpl, avatarCache } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
     this.deviceId = deviceId || '';
-    this.authHeader = buildAuthHeader(user, pass);
+    // `authHeader` gia' pronto serve a `withDevice`: un client derivato non
+    // riparte da utente e password, che non ha.
+    this.authHeader = authHeader || buildAuthHeader(user, pass);
     this.fetch = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
     if (!this.fetch) throw new Error('fetch is not available: Node 18.13+ is required');
     this.resolvedDeviceId = null;
@@ -91,6 +93,45 @@ class GowaClient {
     const id = created.data && created.data.results && created.data.results.id;
     this.resolvedDeviceId = id || null;
     return this.resolvedDeviceId;
+  }
+
+  /**
+   * Lo stesso server GOWA, ma legato a un device preciso.
+   *
+   * Sul servizio condiviso ogni utente ha la sua sessione WhatsApp, e la
+   * sessione e' il device: una `X-Device-Id` diversa per ogni utente e' quello
+   * che li tiene separati. Il client di partenza resta senza device (o con
+   * quello configurato), perche' e' quello che crea i device.
+   */
+  withDevice(deviceId) {
+    return new GowaClient({
+      baseUrl: this.baseUrl,
+      deviceId: deviceId || '',
+      authHeader: this.authHeader,
+      fetchImpl: this.fetch,
+      avatarCache: this.avatars
+    });
+  }
+
+  /** I device gia' presenti sul server GOWA. */
+  async listDevices() {
+    const r = await this.request('GET', '/devices');
+    const devices = (r.data && r.data.results) || [];
+    return Array.isArray(devices) ? devices : [];
+  }
+
+  /**
+   * Un device nuovo, con un'etichetta leggibile (il nome dell'utente), e il suo
+   * id. GOWA risponde con `results.id`: senza quell'id non c'e' sessione da
+   * aprire, quindi un id mancante e' un guasto e non un valore vuoto.
+   */
+  async createDevice(label) {
+    const created = await this.request('POST', '/devices', {
+      json: { name: String(label || '') }
+    });
+    const id = created.data && created.data.results && created.data.results.id;
+    if (!id) throw new Error('GOWA did not return a device id');
+    return id;
   }
 
   async status() {

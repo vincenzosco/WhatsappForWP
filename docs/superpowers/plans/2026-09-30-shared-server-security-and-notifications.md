@@ -318,3 +318,26 @@ Deferred, with the reason:
   adapter that authenticates a token but does not scope every command and every webhook to
   that user's GOWA device would give a false sense of isolation. That is the next session's
   first work, not a tail-end commit.
+
+Landed in the following pushes:
+
+- **Phase D2**: `EndpointService` reads the public address from a file on GitHub, caches it
+  in `LocalSettings`, falls back to the last good one, and the settings page gained a
+  public/own switch. 143 -> 145 keys.
+- **Phase A2** (already landed earlier): the token in `hello`, refused with `unauthorized`
+  and a closed socket.
+- **Phase B**: the adapter is now session-scoped. `createBridge` keeps a session per GOWA
+  device (empty key for the private instance), and every command, cache, unread count and
+  socket set lives in it. `hello` with a valid token creates the user's device
+  (`gowa.createDevice`, labelled with the user name) and moves the socket there; a webhook
+  is routed by its top-level `device_id`, so one user's message never reaches another's
+  socket. Four isolation tests in `test/server.test.js`. 165 -> 173 adapter tests.
+
+Still open, with the reason:
+
+- **Phase A3** (TLS underneath the app cipher). WP8.1 `StreamSocket` has no certificate
+  validation callback, so a self-signed certificate cannot be pinned in the app the way the
+  plan assumed. The transport is already end-to-end encrypted by the app-level
+  AES-256-CBC + HMAC-SHA256 cipher; a TLS layer with a public certificate is still worth
+  adding for the framing metadata, but the pinning half of A3 needs a different design.
+- **Phase C2/C3** (volume encryption guidance and `tools/backup.js`) are next.
