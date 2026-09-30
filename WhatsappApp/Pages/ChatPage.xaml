@@ -20,6 +20,35 @@
         <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#DE000000"/>
         <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#8A000000"/>
 
+        <!-- The three dots of "someone is writing": each one rises and comes back,
+             one after the other, and the whole thing repeats for as long as the
+             bubble is on screen. It is WhatsApp's animation drawn with three
+             ellipses, so nothing has to be decoded to show it, and it is stopped
+             (not just hidden) the moment the bubble goes away. -->
+        <Storyboard x:Key="TypingDots" RepeatBehavior="Forever">
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="TypingDot1"
+                                           Storyboard.TargetProperty="(UIElement.RenderTransform).(CompositeTransform.TranslateY)"
+                                           Duration="0:0:0.9">
+                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.15" Value="-3.5"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="0"/>
+            </DoubleAnimationUsingKeyFrames>
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="TypingDot2"
+                                           Storyboard.TargetProperty="(UIElement.RenderTransform).(CompositeTransform.TranslateY)"
+                                           Duration="0:0:0.9">
+                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.3" Value="-3.5"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.45" Value="0"/>
+            </DoubleAnimationUsingKeyFrames>
+            <DoubleAnimationUsingKeyFrames Storyboard.TargetName="TypingDot3"
+                                           Storyboard.TargetProperty="(UIElement.RenderTransform).(CompositeTransform.TranslateY)"
+                                           Duration="0:0:0.9">
+                <EasingDoubleKeyFrame KeyTime="0:0:0" Value="0"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.45" Value="-3.5"/>
+                <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0"/>
+            </DoubleAnimationUsingKeyFrames>
+        </Storyboard>
+
         <!-- Containers without padding/animations: the bubbles use the whole
              width and each item costs less layout while scrolling. -->
         <Style x:Key="MessageItemContainerStyle" TargetType="ListViewItem">
@@ -35,6 +64,10 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <!-- The typing bubble. It is a row of its own, outside the list: a
+                 bubble inside the list would be a message the conversation has
+                 to scroll past, and it comes and goes on its own. -->
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -374,8 +407,40 @@
             </ListView.ItemTemplate>
         </ListView>
 
+        <!-- Someone is writing: the same bubble as a message of theirs, with the
+             three dots of WhatsApp instead of words. It is shown and hidden by
+             the page, never by a binding, because only the page knows whether it
+             is the conversation on screen. -->
+        <Grid x:Name="TypingBar" Grid.Row="2"
+              Background="Transparent"
+              Visibility="Collapsed">
+            <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
+                    CornerRadius="8"
+                    Padding="14,13,14,11"
+                    Margin="4,2,4,2"
+                    HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                    <Ellipse x:Name="TypingDot1" Width="7" Height="7" Fill="#FF9E9E9E">
+                        <Ellipse.RenderTransform>
+                            <CompositeTransform/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse x:Name="TypingDot2" Width="7" Height="7" Margin="5,0,0,0" Fill="#FF9E9E9E">
+                        <Ellipse.RenderTransform>
+                            <CompositeTransform/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                    <Ellipse x:Name="TypingDot3" Width="7" Height="7" Margin="5,0,0,0" Fill="#FF9E9E9E">
+                        <Ellipse.RenderTransform>
+                            <CompositeTransform/>
+                        </Ellipse.RenderTransform>
+                    </Ellipse>
+                </StackPanel>
+            </Border>
+        </Grid>
+
         <!-- Input area -->
-        <Grid Grid.Row="2" Background="#FFF0F0F0">
+        <Grid Grid.Row="3" Background="#FFF0F0F0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="56"/>
@@ -499,6 +564,7 @@
                          Background="White"
                          BorderThickness="0"
                          KeyDown="MessageTextBox_KeyDown"
+                         TextChanged="MessageTextBox_TextChanged"
                          Margin="0,0,4,0"/>
 
                 <Button x:Name="SendButton" Grid.Column="2"
@@ -529,7 +595,7 @@
 
         <!-- Full-screen image. It sits above everything and closes on tap:
              no button, no new icon, no new string. -->
-        <Grid x:Name="ImageViewer" Grid.RowSpan="3"
+        <Grid x:Name="ImageViewer" Grid.RowSpan="4"
               Background="#F0000000"
               Visibility="Collapsed"
               Tapped="ImageViewer_Tapped">
@@ -540,7 +606,7 @@
              there is play/pause/bar without drawing them: that is what WhatsApp
              does. It closes with the X, and the X is a button like the others,
              with its name in the handler. -->
-        <Grid x:Name="VideoViewer" Grid.RowSpan="3"
+        <Grid x:Name="VideoViewer" Grid.RowSpan="4"
               Background="Black"
               Visibility="Collapsed">
             <MediaElement x:Name="VideoPlayer"
