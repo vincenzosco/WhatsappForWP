@@ -123,6 +123,7 @@
     <Compile Include="Services\MessageCache.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
     <Compile Include="Services\MemoryWatcher.cs" />
+    <Compile Include="Services\VideoCompressor.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>
