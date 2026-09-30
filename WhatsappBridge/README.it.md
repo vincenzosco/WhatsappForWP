@@ -123,11 +123,18 @@ Vedi `.env.example`. Le variabili principali:
 | `CHATS_AVATARS` | `on` | scarica le immagini del profilo, una richiesta per chat, gruppi compresi (`off` le spegne). Un'immagine gia' scaricata si tiene per cinque minuti, un JID senza immagine per uno, cosi' un elenco chat riletto non torna da WhatsApp (vedi `avatar-cache.js`) |
 | `FFMPEG_ENABLED` | `on` | converte i vocali Ogg/Opus in MP3 per WP8.1 (`off` la spegne) |
 | `FFMPEG_PATH` | `ffmpeg` | l'eseguibile di ffmpeg, quando non e' nel PATH |
-| `AUTH_REQUIRED` | `off` | chiede un token in `hello` (`on` per un servizio condiviso, dopo aver creato l'utente) |
+| `AUTH_REQUIRED` | `off` | chiede un token in `hello` (`on` per un servizio condiviso) |
+| `AUTH_REGISTER` | `on` | un telefono che arriva senza token ne riceve uno alla prima connessione (`off` chiude il servizio: i token si consegnano a mano) |
+| `AUTH_MAX_USERS` | `50` | tetto ai device che possono registrarsi da soli |
 | `USERS_FILE` | — | dove vivono gli utenti; vuoto li tiene in memoria, un percorso sopravvive a un riavvio |
 
-Il token e' l'unica cosa che distingue un telefono su un servizio condiviso. Crea
-un utente per telefono e consegna a ciascuno il suo token:
+Il token e' l'unica cosa che distingue un telefono su un servizio condiviso, e un
+telefono che non ne ha uno lo riceve: con `AUTH_REGISTER=on` (il valore
+predefinito) l'adapter crea l'utente al primo handshake e risponde con un frame
+`registered` che porta il token, che l'app conserva. L'interruttore nella pagina
+di connessione e' tutta la configurazione - il token identifica il dispositivo,
+non e' una password da digitare. Creare l'utente a mano resta per un servizio che
+deve restare chiuso, con `AUTH_REGISTER=off`:
 
 ```bash
 node create-user.js vincenzo            # stampa id, nome e token, una volta sola
@@ -140,7 +147,8 @@ cache e webhook e' limitato a quello: un messaggio per un device non arriva mai
 al socket di un altro utente. Con `AUTH_REQUIRED=off` l'adapter si comporta come
 prima, con un account solo e nessun token. L'instradamento dei webhook usa il
 `device_id` di primo livello che GOWA mette su ogni evento. I token sono tenuti
-solo come hash scrypt; un token perso si sostituisce, non si recupera.
+solo come hash scrypt; un token perso si sostituisce, non si recupera, e un
+telefono che lo perde e torna viene semplicemente registrato come device nuovo.
 
 ### I vocali hanno bisogno di ffmpeg
 

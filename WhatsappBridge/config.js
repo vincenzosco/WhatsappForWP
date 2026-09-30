@@ -30,6 +30,8 @@ const DEFAULTS = {
   FFMPEG_ENABLED: 'on',
   FFMPEG_PATH: '',
   AUTH_REQUIRED: 'off',
+  AUTH_REGISTER: 'on',
+  AUTH_MAX_USERS: '50',
   USERS_FILE: ''
 };
 
@@ -66,7 +68,16 @@ function loadConfig(env = process.env) {
       // without handing a token to the phone would shut out the only user. It is
       // turned on for the shared service, after creating the user.
       required: pick(env, 'AUTH_REQUIRED').toLowerCase() === 'on',
-      usersFile: pick(env, 'USERS_FILE')
+      usersFile: pick(env, 'USERS_FILE'),
+      // On the shared service a phone that arrives without a token is given one
+      // on its first connection (see the `hello` case in server.js): nobody who
+      // cannot read the server console can be asked to type a token by hand. A
+      // service that must stay closed turns this off and hands the tokens out
+      // itself.
+      register: pick(env, 'AUTH_REGISTER').toLowerCase() !== 'off',
+      // Ceiling on the devices that can register themselves, so an open service
+      // cannot fill its disk one handshake at a time.
+      maxUsers: parseInt(pick(env, 'AUTH_MAX_USERS'), 10)
     },
     pollIntervalMs: parseInt(pick(env, 'POLL_INTERVAL_MS'), 10),
     discovery: {

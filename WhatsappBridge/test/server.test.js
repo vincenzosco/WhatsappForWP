@@ -869,7 +869,7 @@ test('contact.info answers an empty profile instead of staying silent', async ()
   });
 });
 
-test('un handshake senza token viene rifiutato quando il servizio lo chiede', async () => {
+test('un handshake senza token viene rifiutato se il servizio non registra', async () => {
   const crypto = require('crypto');
   const { createUserStore } = require('../users');
 
@@ -881,8 +881,10 @@ test('un handshake senza token viene rifiutato quando il servizio lo chiede', as
   });
   const { token } = users.register('vincenzo');
 
+  // Registration off: this is the closed service, where the tokens are handed
+  // out by hand and a phone without one has nothing to do here.
   const bridge = createBridge({
-    config: { auth: { required: true } },
+    config: { auth: { required: true, register: false } },
     gowa: {},
     users,
     log: () => {},
@@ -956,7 +958,7 @@ function sharedBridge() {
     log: () => {},
     debug: () => {}
   });
-  return { bridge, a, b, created };
+  return { bridge, a, b, users, created };
 }
 
 function collectingSocket() {
@@ -1036,4 +1038,108 @@ test('un comando prima del token viene rifiutato sul servizio condiviso', async 
 
   assert.strictEqual(socket.frames.length, 1);
   assert.strictEqual(socket.frames[0].Command, 'unauthorized');
+});
+
+test('un telefono senza token viene registrato al primo handshake', async () => {
+  const { bridge, users, created } = sharedBridge();
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', SenderName: 'carla' }, socket);
+
+  assert.ok(!socket.frames.some((f) => f.Command === 'unauthorized'), 'non viene rifiutato');
+  const registered = socket.frames.find((f) => f.Command === 'registered');
+  assert.ok(registered, 'il token arriva in un frame registered');
+  assert.ok(registered.Token, 'il frame porta il token');
+  assert.ok(users.verify(registered.Token), 'il token e gia valido');
+  assert.strictEqual(users.count(), 3, 'il terzo utente e questo telefono');
+  assert.ok(socket.frames.some((f) => f.Command === 'state'), 'la sessione parte subito');
+  assert.strictEqual(created.length, 1, 'con il suo device GOWA');
+
+  // The handshake authenticated the socket in the same step: the command the app
+  // sends right after it is accepted instead of refused.
+  await bridge.handleControl({ Type: 3, Command: 'chats' }, socket);
+  assert.ok(!socket.frames.some((f) => f.Command === 'unauthorized'));
+});
+
+test('il tetto degli utenti ferma la registrazione automatica', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+
+  const bridge = createBridge({
+    config: { auth: { required: true, maxUsers: 1 } },
+    gowa: { status: async () => ({ isConnected: true, isLoggedIn: false, jid: '' }) },
+    users,
+    log: () => {},
+    debug: () => {}
+  });
+
+  const first = collectingSocket();
+  const second = collectingSocket();
+  bridge.addClientForTest(first);
+  bridge.addClientForTest(second);
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', SenderName: 'uno' }, first);
+  assert.ok(first.frames.some((f) => f.Command === 'registered'), 'il primo entra');
+
+  await bridge.handleControl({ Type: 3, Command: 'hello', SenderName: 'due' }, second);
+  assert.strictEqual(users.count(), 1, 'il tetto non viene superato');
+  assert.strictEqual(second.frames[0].Command, 'unauthorized', 'il secondo viene rifiutato');
+});
+
+test('i frame di un socket vengono gestiti nell ordine in cui arrivano', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  const anna = users.register('anna');
+
+  const created = [];
+  const gowa = {
+    status: async () => ({ isConnected: true, isLoggedIn: false, jid: '' }),
+    // Slow on purpose: the handshake is what the frame after it must wait for.
+    createDevice: async (label) => {
+      await new Promise((r) => setTimeout(r, 20));
+      const id = 'dev-' + (created.length + 1);
+      created.push({ id, label });
+      return id;
+    },
+    withDevice: (id) => ({ deviceId: id, setDeviceWebhook: async () => true })
+  };
+
+  const bridge = createBridge({
+    config: { bridge: { port: 0 }, webhook: {}, auth: { required: true } },
+    gowa,
+    users,
+    log: noop,
+    debug: noop
+  });
+  await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+  const port = bridge.tcpServer.address().port;
+  const client = connectClient(port);
+
+  try {
+    // The handshake and the command leave together, as the app sends them.
+    client.send({ Type: 3, ChatId: 'system', Command: 'hello', Token: anna.token, SenderName: 'anna' });
+    client.send({ Type: 3, ChatId: 'system', Command: 'chats' });
+
+    await new Promise((r) => setTimeout(r, 150));
+
+    assert.strictEqual(client.messages.filter((m) => m.Command === 'unauthorized').length, 0,
+      'nessun rifiuto: il comando aspetta l handshake');
+    assert.ok(client.messages.some((m) => m.Command === 'chats.done'),
+      'il comando dopo l handshake viene eseguito');
+  } finally {
+    client.socket.destroy();
+    bridge.tcpServer.close();
+    bridge.stop();
+  }
 });

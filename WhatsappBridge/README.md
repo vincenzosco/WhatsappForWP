@@ -122,11 +122,18 @@ See `.env.example`. The main variables:
 | `CHATS_AVATARS` | `on` | fetch profile pictures, one request per chat, groups included (`off` disables). A picture that was downloaded is kept for five minutes, a JID with no picture for one, so a chat list that is read again does not go back to WhatsApp (see `avatar-cache.js`) |
 | `FFMPEG_ENABLED` | `on` | convert Ogg/Opus voice notes to MP3 for WP8.1 (`off` disables) |
 | `FFMPEG_PATH` | `ffmpeg` | the ffmpeg executable, when it is not on the PATH |
-| `AUTH_REQUIRED` | `off` | require a token in `hello` (`on` for a shared service, after creating the user) |
+| `AUTH_REQUIRED` | `off` | require a token in `hello` (`on` for a shared service) |
+| `AUTH_REGISTER` | `on` | a phone that arrives without a token is given one on its first connection (`off` closes the service: the tokens are handed out by hand) |
+| `AUTH_MAX_USERS` | `50` | ceiling on the devices that can register themselves |
 | `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
 
-The token is the only thing that distinguishes a phone on a shared service. Create
-one user per phone and hand each phone its token:
+The token is the only thing that distinguishes a phone on a shared service, and a
+phone that has none is given one: with `AUTH_REGISTER=on` (the default) the adapter
+creates the user on the first handshake and answers with a `registered` frame
+carrying the token, which the app keeps. The switch on the connection page is the
+whole configuration - the token identifies the device, it is not a password to be
+typed. Creating a user by hand is still there for a service that must stay closed,
+with `AUTH_REGISTER=off`:
 
 ```bash
 node create-user.js vincenzo            # prints id, name and the token, once
@@ -139,7 +146,8 @@ every command, cache and webhook is scoped to it: a message for one device never
 reaches another user's socket. With `AUTH_REQUIRED=off` the adapter behaves as
 before, with a single account and no token. The webhook routing uses the
 top-level `device_id` GOWA puts on every event. Tokens are kept only as scrypt
-hashes; a lost token is replaced, not recovered.
+hashes; a lost token is replaced, not recovered, and a phone that loses one and
+comes back is simply registered again as a new device.
 
 ### Voice notes need ffmpeg
 
