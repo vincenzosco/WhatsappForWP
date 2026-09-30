@@ -10,7 +10,7 @@ using WhatsappApp.Models;
 
 namespace WhatsappApp.Services
 {
-    /// <summary>Il file su disco: un solo campo, i messaggi di una chat.</summary>
+    /// <summary>The on-disk file: a single field, the messages of one chat.</summary>
     [DataContract]
     internal class MessageCacheFile
     {
@@ -19,27 +19,27 @@ namespace WhatsappApp.Services
     }
 
     /// <summary>
-    /// Gli ultimi messaggi di una conversazione, tenuti sul telefono.
+    /// The last messages of a conversation, kept on the phone.
     ///
-    /// Perche' esiste: aprendo una chat l'elenco partiva vuoto e aspettava la
-    /// cronologia dal server, che e' l'unica cosa che il telefono non puo'
-    /// affrettare. Con questa copia la conversazione si vede subito, e i
-    /// messaggi veri la sostituiscono quando arrivano.
+    /// Why it exists: opening a chat used to start from an empty list and wait
+    /// for the history from the server, which is the one thing the phone cannot
+    /// hurry. With this copy the conversation is seen at once, and the real
+    /// messages replace it when they arrive.
     ///
-    /// E' una fotografia, non una verita': si tiene solo l'ultima parte della
-    /// conversazione, e si riscrive uscendo dalla chat (non a ogni messaggio,
-    /// che scriverebbe un file a raffica).
+    /// It is a photograph, not the truth: only the tail of the conversation is
+    /// kept, and it is rewritten on leaving the chat (not on every message, which
+    /// would write a file in bursts).
     /// </summary>
     public static class MessageCache
     {
-        /// <summary>Quanti messaggi si tengono per chat: abbastanza per riempire
-        /// lo schermo, non abbastanza per pesare.</summary>
+        /// <summary>How many messages are kept per chat: enough to fill the
+        /// screen, not enough to weigh.</summary>
         private const int Keep = 60;
 
         private static readonly DataContractJsonSerializer Serializer =
             new DataContractJsonSerializer(typeof(MessageCacheFile));
 
-        /// <summary>I messaggi salvati. Mai un'eccezione: la prima volta non c'e' file.</summary>
+        /// <summary>The saved messages. Never an exception: the first time there is no file.</summary>
         public static async Task<List<ChatMessage>> LoadAsync(string chatId)
         {
             var empty = new List<ChatMessage>();
@@ -59,13 +59,13 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Prima apertura, o cache scritta da una versione diversa.
+                // First open, or a cache written by a different version.
                 Diag.Failed("MessageCache.Load", ex);
             }
             return empty;
         }
 
-        /// <summary>Scrive la coda della conversazione. Mai un'eccezione.</summary>
+        /// <summary>Writes the tail of the conversation. Never an exception.</summary>
         public static async Task SaveAsync(string chatId, IList<ChatMessage> messages)
         {
             if (string.IsNullOrEmpty(chatId) || messages == null || messages.Count == 0) return;
@@ -89,17 +89,18 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Una cache che non si scrive non e' un guasto da mostrare:
-                // la cronologia arriva comunque dal server.
+                // A cache that does not write is not a failure to show: the
+                // history arrives from the server anyway.
                 Diag.Failed("MessageCache.Save", ex);
             }
         }
 
         /// <summary>
-        /// Butta la copia di una chat. La chiama l'eliminazione: senza questa, la
-        /// conversazione cancellata tornerebbe a schermo al primo apri-e-chiudi,
-        /// perche' DataService legge la cache quando la lista in memoria e'
-        /// vuota. Mai un'eccezione: un file che non c'e' non e' un guasto.
+        /// Drops the copy of one chat. Deletion calls it: without this, the
+        /// deleted conversation would come back on screen at the first
+        /// open-and-close, because DataService reads the cache when the in-memory
+        /// list is empty. Never an exception: a file that is not there is not a
+        /// failure.
         /// </summary>
         public static async Task DeleteAsync(string chatId)
         {
@@ -117,10 +118,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// La copia di un messaggio senza i byte del media: quelli riempirebbero
-        /// il file, e per un video non ci starebbero nemmeno. Marca IsHistory,
-        /// cosi' un messaggio pescato dalla cache non conta come non letto e non
-        /// alza un avviso, esattamente come la cronologia vera.
+        /// The copy of a message without the media bytes: those would fill the
+        /// file, and for a video they would not even fit. It marks IsHistory, so a
+        /// message taken from the cache does not count as unread and raises no
+        /// notification, exactly like the real history.
         /// </summary>
         private static ChatMessage Slim(ChatMessage message)
         {
@@ -142,8 +143,8 @@ namespace WhatsappApp.Services
             };
         }
 
-        /// <summary>Un nome di file per chat: l'id ripulito dai caratteri che un
-        /// nome di file non accetta.</summary>
+        /// <summary>A file name per chat: the id cleaned of the characters a
+        /// file name does not accept.</summary>
         private static string FileNameFor(string chatId)
         {
             var builder = new StringBuilder("messages_");

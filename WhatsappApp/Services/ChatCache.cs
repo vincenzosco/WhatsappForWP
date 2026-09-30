@@ -10,7 +10,7 @@ using WhatsappApp.Models;
 
 namespace WhatsappApp.Services
 {
-    /// <summary>Il file su disco: un solo campo, l'elenco delle righe.</summary>
+    /// <summary>The on-disk file: a single field, the list of rows.</summary>
     [DataContract]
     internal class ChatCacheFile
     {
@@ -19,17 +19,17 @@ namespace WhatsappApp.Services
     }
 
     /// <summary>
-    /// L'elenco chat dell'ultima sessione, tenuto sul telefono.
+    /// The chat list of the last session, kept on the phone.
     ///
-    /// Perche' esiste: all'avvio la connessione non c'e' ancora, e l'adapter
-    /// risponde alla richiesta dell'elenco solo quando WhatsApp e' collegato.
-    /// Senza questa copia l'app si apre su un elenco vuoto per i secondi che
-    /// servono, e sembra che non sia successo niente.
+    /// Why it exists: at startup the connection is not there yet, and the adapter
+    /// answers the list request only when WhatsApp is linked. Without this copy
+    /// the app opens on an empty list for the seconds it takes, and it looks like
+    /// nothing happened.
     ///
-    /// Non e' una verita': e' una fotografia. Appena il server risponde, ogni
-    /// riga viene sostituita da quella vera (vedi DataService.ApplyChat). Senza
-    /// i byte dell'avatar la copia resta piccola, e l'immagine arriva con il
-    /// primo aggiornamento.
+    /// It is not the truth: it is a photograph. As soon as the server answers,
+    /// every row is replaced by the real one (see DataService.ApplyChat). Without
+    /// the avatar bytes the copy stays small, and the picture arrives with the
+    /// first update.
     /// </summary>
     public static class ChatCache
     {
@@ -38,7 +38,7 @@ namespace WhatsappApp.Services
         private static readonly DataContractJsonSerializer Serializer =
             new DataContractJsonSerializer(typeof(ChatCacheFile));
 
-        /// <summary>Le righe salvate. Mai un'eccezione: al primo avvio non c'e' file.</summary>
+        /// <summary>The saved rows. Never an exception: on first run there is no file.</summary>
         public static async Task<List<ChatMessage>> LoadAsync()
         {
             try
@@ -56,17 +56,16 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Primo avvio, o cache scritta da una versione diversa.
+                // First run, or a cache written by a different version.
                 Diag.Failed("ChatCache.Load", ex);
             }
             return new List<ChatMessage>();
         }
 
         /// <summary>
-        /// Scrive quello che il server ha appena mandato. Senza i byte
-        /// dell'avatar: quelli si rifanno a ogni connessione, e un file da
-        /// megabyte per un elenco che serve solo a riempire i primi secondi non
-        /// e' un buon cambio.
+        /// Writes what the server just sent. Without the avatar bytes: those are
+        /// rebuilt on every connection, and a megabyte file for a list that only
+        /// serves to fill the first seconds is not a good trade.
         /// </summary>
         public static async Task SaveAsync(List<ChatMessage> chats)
         {
@@ -90,13 +89,13 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Una cache che non si scrive non e' un guasto da mostrare:
-                // l'elenco arriva comunque dal server.
+                // A cache that does not write is not a failure to show: the list
+                // arrives from the server anyway.
                 Diag.Failed("ChatCache.Save", ex);
             }
         }
 
-        /// <summary>La copia di una riga con i soli campi che l'elenco disegna.</summary>
+        /// <summary>The copy of a row with only the fields the list draws.</summary>
         private static ChatMessage Slim(ChatMessage row)
         {
             return new ChatMessage
