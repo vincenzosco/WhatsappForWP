@@ -1048,6 +1048,53 @@ test('un messaggio per il device di un utente non arriva all altro', async () =>
   assert.strictEqual(brunoMessages.length, 0, 'e a nessun altro');
 });
 
+test('un webhook con il JID dell account come device_id arriva al suo utente', async () => {
+  const { bridge, a, setLoggedIn } = sharedBridge();
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'anna' }, socket);
+
+  // GOWA mette il JID dell'account sul webhook, non l'UUID che elenca in
+  // /devices: senza l'indice per JID ogni messaggio finisce nel vuoto, ed e'
+  // quello che si vede come "le chat non si aggiornano".
+  setLoggedIn(true);
+  await bridge.refreshStatus();
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    device_id: '39@s.whatsapp.net',
+    payload: {
+      id: 'X3', chat_id: '39@s.whatsapp.net', from: '39@s.whatsapp.net',
+      sender_display_name: 'Mario', body: 'via JID', timestamp: '2026-01-02T03:04:05Z'
+    }
+  });
+
+  assert.strictEqual(socket.frames.filter((f) => f.Text === 'via JID').length, 1);
+});
+
+test('il device_id con la parte device del JID viene comunque instradato', async () => {
+  const { bridge, a, setLoggedIn } = sharedBridge();
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: a.token, SenderName: 'anna' }, socket);
+
+  // WhatsApp scrive la parte device nel JID (`39:92@s.whatsapp.net`): i due nomi
+  // sono lo stesso account e devono instradare allo stesso modo.
+  setLoggedIn(true);
+  await bridge.refreshStatus();
+
+  await bridge.handleWebhookEvent({
+    event: 'message',
+    device_id: '39:92@s.whatsapp.net',
+    payload: {
+      id: 'X4', chat_id: '39@s.whatsapp.net', from: '39@s.whatsapp.net',
+      sender_display_name: 'Mario', body: 'via JID con device', timestamp: '2026-01-02T03:04:05Z'
+    }
+  });
+
+  assert.strictEqual(socket.frames.filter((f) => f.Text === 'via JID con device').length, 1);
+});
+
 test('un webhook per un device sconosciuto non arriva a nessuno', async () => {
   const { bridge, a } = sharedBridge();
   const socketA = collectingSocket();

@@ -114,6 +114,21 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   // yet) and, in the tests, the only account that exists.
   const sessions = new Map();
 
+  // The same sessions, by the account they are logged in as. GOWA names a
+  // device by its UUID in `/devices`, but the `device_id` it puts on a webhook
+  // is the WhatsApp JID of the logged-in account (`393892672185@s.whatsapp.net`),
+  // and WhatsApp itself writes the device part into that JID
+  // (`393892672185:92@s.whatsapp.net`). The two have to be matched as well as
+  // the UUID, or every message arriving from WhatsApp is dropped for a device
+  // the bridge has never heard of.
+  const sessionsByJid = new Map();
+
+  // The device part (`:92`) is not part of the account, so it is dropped before
+  // two JIDs are compared.
+  function jidKey(jid) {
+    return String(jid || '').replace(/:[0-9]+@/, '@');
+  }
+
   function newSession(key) {
     return {
       key,
@@ -464,6 +479,15 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       const next = s.isLoggedIn ? 'connected' : (session.state.status === 'waiting' ? 'waiting' : 'disconnected');
       const changed = next !== session.state.status || (s.jid || '') !== session.state.jid;
       session.state = { status: next, jid: s.jid || '' };
+
+      // Keep the JID index current: it is what routes this account's webhooks,
+      // and refreshSession is where the account becomes known.
+      const account = jidKey(session.state.jid);
+      if (account && session.jidKey !== account) {
+        if (session.jidKey) sessionsByJid.delete(session.jidKey);
+        sessionsByJid.set(account, session);
+        session.jidKey = account;
+      }
 
       if (next === 'connected') {
         session.qrCache = null;
@@ -842,6 +866,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   function sessionForEvent(event) {
     const deviceId = event && (event.device_id || event.deviceId);
     if (deviceId && sessions.has(deviceId)) return sessions.get(deviceId);
+    // GOWA sends the account JID here, not the UUID it lists in `/devices`:
+    // both names have to be tried before giving up on the event.
+    if (deviceId) {
+      const byJid = sessionsByJid.get(jidKey(deviceId));
+      if (byJid) return byJid;
+    }
     if (!authRequired) return anonymous;
     if (deviceId) logger('WARN', `webhook for an unknown device (${deviceId}), ignored`);
     else logger('WARN', 'webhook without a device id on a shared server, ignored');
@@ -996,6 +1026,10 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         }
 
         logger('NET', `handshake from "${msg.SenderName || 'unknown'}"`);
+        // Read GOWA now: this is where the account JID becomes known, and
+        // without it an incoming message is routed to no session at all until
+        // the next poll.
+        await refreshSession(session);
         broadcastState(session);
         break;
       }
