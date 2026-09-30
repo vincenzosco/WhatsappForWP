@@ -484,8 +484,29 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
   }
 
-  // The state of the private instance: the polling loop of main() watches this.
-  const refreshStatus = () => refreshSession(anonymous);
+  // Every session a phone is attached to, plus the anonymous one of a private
+  // instance. A session nobody is on is not asked: there would be no one to
+  // tell.
+  //
+  // This used to be the anonymous session only, and a user session was never
+  // read: a phone that had just finished the QR login stayed on "waiting"
+  // forever - the app asks for the chat list only once it is told the account is
+  // connected -, its messages were queued as "WhatsApp not ready", and the list
+  // on screen stayed the cached one of the previous session.
+  function sessionsToRefresh() {
+    const live = new Set();
+    live.add(anonymous);
+    for (const session of sessions.values()) {
+      if (session.sockets.size > 0) live.add(session);
+    }
+    return Array.from(live);
+  }
+
+  // The state of the private instance and of every session in use: the polling
+  // loop of main() watches this.
+  const refreshStatus = async () => {
+    for (const session of sessionsToRefresh()) await refreshSession(session);
+  };
 
   async function requestQr(session) {
     if (session.state.status === 'connected') { broadcastState(session); return; }
@@ -995,6 +1016,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   async function handleCommand(session, msg, socket) {
     switch (msg.Command) {
       case 'status':
+        // The remembered state can be older than the truth, and after a QR or
+        // code login only the phone knows it worked: this command is the moment
+        // the adapter is told to look at GOWA. The frame is sent either way,
+        // even when nothing changed: the app's watchdog reads it as the answer
+        // that proves the socket is alive.
+        await refreshSession(session);
         broadcastState(session);
         break;
       case 'login.qr':
