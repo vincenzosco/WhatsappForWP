@@ -433,4 +433,46 @@
   <data name="ChatsPage_DeleteConfirm" xml:space="preserve">
     <value>Elimina</value>
   </data>
+  <data name="ContactInfoPage_Title" xml:space="preserve">
+    <value>Info contatto</value>
+  </data>
+  <data name="ContactInfoPage_BackTooltip" xml:space="preserve">
+    <value>Indietro</value>
+  </data>
+  <data name="ContactInfoPage_Number" xml:space="preserve">
+    <value>Numero di telefono</value>
+  </data>
+  <data name="ContactInfoPage_About" xml:space="preserve">
+    <value>Info</value>
+  </data>
+  <data name="ContactInfoPage_Business" xml:space="preserve">
+    <value>Attivita</value>
+  </data>
+  <data name="ContactInfoPage_Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="ContactInfoPage_Address" xml:space="preserve">
+    <value>Indirizzo</value>
+  </data>
+  <data name="ContactInfoPage_Categories" xml:space="preserve">
+    <value>Categorie</value>
+  </data>
+  <data name="ContactInfoPage_Hours" xml:space="preserve">
+    <value>Orari</value>
+  </data>
+  <data name="ContactInfoPage_GroupDescription" xml:space="preserve">
+    <value>Descrizione del gruppo</value>
+  </data>
+  <data name="ContactInfoPage_MembersCount" xml:space="preserve">
+    <value>Membri ({0})</value>
+  </data>
+  <data name="ContactInfoPage_Admin" xml:space="preserve">
+    <value>Amministratore</value>
+  </data>
+  <data name="ContactInfoPage_SuperAdmin" xml:space="preserve">
+    <value>Amministratore principale</value>
+  </data>
+  <data name="ContactInfoPage_NoInfo" xml:space="preserve">
+    <value>Nessuna informazione dal server.</value>
+  </data>
 </root>
