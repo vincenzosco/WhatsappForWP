@@ -20,11 +20,10 @@ namespace WhatsappApp.Pages
     {
         private Contact _contact;
         private ObservableCollection<ChatMessage> _messages;
-        // L'allegato scelto: il nome del file copiato nella cartella dell'app,
-        // piu' cio' che serve per spedirlo. Non i byte: un video intero in
-        // memoria e' la cosa piu' pesante che questa pagina potrebbe tenere, ed
-        // e' quello che faceva chiudere l'app condividendo un video (vedi
-        // AttachmentInbox).
+        // The chosen attachment: the name of the file copied into the app folder,
+        // plus what is needed to send it. Not the bytes: a whole video in memory
+        // is the heaviest thing this page could hold, and it is what used to close
+        // the app when sharing a video (see AttachmentInbox).
         private string _selectedLocalFileName;
         private string _selectedMediaFileName;
         private string _selectedMediaMimeType;
@@ -41,7 +40,7 @@ namespace WhatsappApp.Pages
             ToolTipService.SetToolTip(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
             ToolTipService.SetToolTip(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
 
-            // La foto e il nome sono due bersagli: il tooltip li distingue.
+            // The picture and the name are two targets: the tooltip tells them apart.
             ToolTipService.SetToolTip(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             ToolTipService.SetToolTip(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
         }
@@ -55,23 +54,23 @@ namespace WhatsappApp.Pages
             {
                 _contact = contact;
 
-                // L'avatar e le iniziali vengono dal contatto: la pagina non li
-                // ricostruisce.
+                // The avatar and the initials come from the contact: the page does
+                // not rebuild them.
                 DataContext = contact;
 
                 ContactNameText.Text = contact.Name;
 
-                // Nessuna presenza: WhatsApp non la espone tramite il server che
-                // usiamo, e dire "online" o "ultimo accesso alle HH:mm" era una
-                // bugia. Resta l'unica cosa vera in piu' che abbiamo: il numero
-                // della chat, quando il nome non e' gia' il numero.
+                // No presence: WhatsApp does not expose it through the server we
+                // use, and saying "online" or "last seen at HH:mm" was a lie. What
+                // is left is the only true extra thing we have: the chat number,
+                // when the name is not already the number.
                 string number = DisplayNumber(contact.Id);
                 bool hasNumber = !string.IsNullOrEmpty(number) && number != contact.Name;
                 OnlineStatusText.Text = hasNumber ? number : "";
                 OnlineStatusText.Visibility = hasNumber ? Visibility.Visible : Visibility.Collapsed;
 
-                // Load messages: prima quelli sul telefono, cosi' la
-                // conversazione si vede subito, poi la cronologia vera.
+                // Load messages: first the ones on the phone, so the conversation
+                // shows right away, then the real history.
                 _messages = DataService.Instance.GetMessages(contact.Id);
                 MarkRead();
                 MessagesListView.ItemsSource = _messages;
@@ -83,13 +82,13 @@ namespace WhatsappApp.Pages
                 if (_messages.Count > 0)
                     ScrollToMessage(_messages[_messages.Count - 1]);
 
-                // Da qui in poi i messaggi di questa chat sono gia' letti
+                // From here on the messages of this chat are already read
                 DataService.Instance.ActiveChatId = contact.Id;
 
-                // La cronologia della chat: l'adapter risponde con i messaggi
-                // vecchi, marcati IsHistory, e si chiede una volta per chat per
-                // sessione. Senza questa richiesta una conversazione appena
-                // aperta resta vuota finche' non arriva qualcosa di nuovo.
+                // The chat history: the adapter answers with the old messages,
+                // marked IsHistory, and it is requested once per chat per session.
+                // Without this request a chat that was just opened stays empty
+                // until something new arrives.
                 if (CommunicationService.Instance.IsConnected
                     && DataService.Instance.MarkHistoryRequested(contact.Id))
                 {
@@ -101,9 +100,9 @@ namespace WhatsappApp.Pages
                 // Listen for new messages
                 CommunicationService.Instance.MessageReceived += OnMessageReceived;
 
-                // Un'immagine arrivata da fuori puo' essere arrivata mentre
-                // questa pagina non c'era (processo riavviato): si ritira qui, e
-                // da qui in poi anche all'arrivo.
+                // An image shared from outside may have arrived while this page
+                // did not exist (process restarted): it is picked up here, and from
+                // here on also on arrival.
                 AttachmentInbox.Ready += OnAttachmentReady;
                 ShowPendingAttachment();
             }
@@ -115,8 +114,8 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
             AttachmentInbox.Ready -= OnAttachmentReady;
 
-            // La fotografia della conversazione: e' l'uscita che la scrive,
-            // non ogni messaggio, altrimenti scriverebbe un file a raffica.
+            // The snapshot of the conversation: leaving is what writes it, not
+            // every message, otherwise it would write a file in bursts.
             if (_contact != null && _messages != null)
             {
 #pragma warning disable 4014
@@ -131,8 +130,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Numero leggibile di un JID (es. +393401234567 per le persone). Vuoto
-        /// per i gruppi e per tutto cio' che non e' un numero.
+        /// Readable number of a JID (e.g. +393401234567 for people). Empty for
+        /// groups and for everything that is not a number.
         /// </summary>
         private static string DisplayNumber(string jid)
         {
@@ -147,9 +146,9 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Scorre sull'ultimo messaggio una volta per raffica: una raffica di
-        /// messaggi in arrivo prima faceva un UpdateLayout + ScrollIntoView
-        /// per ognuno, cioe' un giro di layout completo per messaggio.
+        /// Scrolls to the last message once per burst: a burst of incoming messages
+        /// used to do an UpdateLayout + ScrollIntoView for each one, that is a full
+        /// layout pass per message.
         /// </summary>
         private void ScrollToMessage(ChatMessage message)
         {
@@ -171,34 +170,33 @@ namespace WhatsappApp.Pages
 
         private void OnMessageReceived(object sender, ChatMessage message)
         {
-            // DataService ha già inserito il messaggio nella stessa collezione:
-            // qui si scorre soltanto, altrimenti la bolla comparirebbe due volte.
+            // DataService has already inserted the message into the same collection:
+            // here we only scroll, otherwise the bubble would show up twice.
             if (message.ChatId != _contact.Id) return;
 
             ScrollToMessage(message);
 
-            // Questo handler vive solo mentre questa pagina e' quella davanti
-            // (si aggancia in OnNavigatedTo e si stacca in OnNavigatedFrom),
-            // quindi un messaggio che arriva qui e' un messaggio che l'utente
-            // sta vedendo scorrere: e' letto adesso, come su WhatsApp. Il
-            // numero sulla riga si azzera per questo, non per un'esclusione nel
-            // contatore.
+            // This handler lives only while this page is the one in front (it is
+            // attached in OnNavigatedTo and detached in OnNavigatedFrom), so a
+            // message that arrives here is a message the user is watching scroll
+            // by: it is read now, as on WhatsApp. The number on the row is cleared
+            // for this reason, not because of an exclusion in the counter.
             MarkRead();
         }
 
         /// <summary>
-        /// Un media di questa conversazione che non ha ancora i byte: e' una
-        /// riga di cronologia (o un video di cui l'adapter non aveva il file),
-        /// e si puo' chiedere al server. Il tipo dice che era un'immagine, un
-        /// video, un audio o un documento; si possono chiedere tutti.
+        /// A media of this conversation that does not have the bytes yet: it is a
+        /// history row (or a video whose file the adapter did not have), and it can
+        /// be requested from the server. The type says whether it was an image, a
+        /// video, an audio or a document; they can all be requested.
         /// </summary>
         private static bool Downloadable(ChatMessage message)
         {
             if (message == null) return false;
 
-            // Solo cio' che e' arrivato da fuori ha un id che il server
-            // conosce: un messaggio scritto qui porta un id locale, e
-            // chiederlo al server sarebbe una richiesta senza risposta.
+            // Only what arrived from outside has an id the server knows: a message
+            // written here carries a local id, and asking the server for it would be
+            // a request without an answer.
             if (!message.IsIncoming) return false;
 
             if (IsFileBacked(message.MediaType))
@@ -210,7 +208,7 @@ namespace WhatsappApp.Pages
             return false;
         }
 
-        /// <summary>I tipi che arrivano su un file: un video, un audio, un documento.</summary>
+        /// <summary>The types that arrive as a file: a video, an audio, a document.</summary>
         private static bool IsFileBacked(string mediaType)
         {
             return string.Equals(mediaType, "video", StringComparison.OrdinalIgnoreCase)
@@ -219,8 +217,9 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Riempie la conversazione con la copia sul telefono e scorre in fondo.
-        /// Va atteso sul thread UI: la collezione e' quella legata alla lista.
+        /// Fills the conversation with the copy on the phone and scrolls to the
+        /// bottom. It must be awaited on the UI thread: the collection is the one
+        /// bound to the list.
         /// </summary>
         private async System.Threading.Tasks.Task LoadCachedMessagesAsync(string chatId)
         {
@@ -231,8 +230,8 @@ namespace WhatsappApp.Pages
         private void RequestMedia(ChatMessage message)
         {
             if (!CommunicationService.Instance.IsConnected) return;
-            // Il cerchio parte adesso: il primo pezzo puo' metterci, e senza
-            // questo il tocco sembra non aver fatto niente.
+            // The spinner starts now: the first piece can take a while, and without
+            // this the tap seems to have done nothing.
             message.IsMediaLoading = true;
 #pragma warning disable 4014
             CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id);
@@ -240,10 +239,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// La bolla decodifica a 320 px: ingrandirla a tutto schermo la lascia
-        /// sfocata. Qui si decodifica alla misura dello schermo, e si
-        /// restituisce chiudendo: sono i pixel piu' pesanti che questa pagina
-        /// tiene, e non devono sopravvivere alla vista.
+        /// The bubble decodes at 320 px: enlarging it full screen leaves it blurry.
+        /// Here it is decoded at the screen size, and it is released on close: these
+        /// are the heaviest pixels this page holds, and they must not outlive the
+        /// view.
         /// </summary>
         private const int ViewerDecodePixels = 720;
 
@@ -254,9 +253,9 @@ namespace WhatsappApp.Pages
             if (message == null) return;
             e.Handled = true;
 
-            // Un video ha i byte su disco e si apre nel lettore; un'immagine ha
-            // i byte in memoria e si apre a tutto schermo. Senza byte: si chiede
-            // al server, e si aprira' al tocco successivo.
+            // A video has the bytes on disk and opens in the player; an image has
+            // the bytes in memory and opens full screen. Without bytes: it is
+            // requested from the server, and it will open on the next tap.
             if (message.IsVideo)
             {
                 if (!string.IsNullOrEmpty(message.MediaFilePath))
@@ -327,10 +326,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// La foto del profilo a tutto schermo: si decodifica alla misura dello
-        /// schermo, come per una bolla, e si chiude toccandola (ImageViewer).
-        /// Senza byte non si apre niente: non c'e' una richiesta da fare qui,
-        /// l'elenco chat li ha gia' chiesti.
+        /// The profile photo full screen: it is decoded at the screen size, as for a
+        /// bubble, and it is closed by tapping it (ImageViewer). Without bytes
+        /// nothing opens: there is no request to make here, the chat list has
+        /// already requested them.
         /// </summary>
         private async void HeaderAvatar_Tapped(object sender, TappedRoutedEventArgs e)
         {
@@ -351,7 +350,7 @@ namespace WhatsappApp.Pages
             }
         }
 
-        /// <summary>Il nome apre le informazioni: la foto resta per la foto.</summary>
+        /// <summary>The name opens the info: the picture stays for the picture.</summary>
         private void ContactHeader_Tapped(object sender, TappedRoutedEventArgs e)
         {
             if (_contact == null) return;
@@ -365,16 +364,16 @@ namespace WhatsappApp.Pages
             ImageViewerImage.Source = null;
         }
 
-        // Vero quando cio' che suona e' un vocale: la scena e' la stessa, ma
-        // la frase di errore no.
+        // True when what is playing is a voice note: the view is the same, but the
+        // error sentence is not.
         private bool _playingAudio;
 
         /// <summary>
-        /// Apre il media ricevuto nel lettore a tutto schermo. La sorgente e' il
-        /// file locale (ms-appdata): il lettore lo apre per conto suo e non c'e'
-        /// nessun flusso da tenere aperto per la vita della pagina. Vale per un
-        /// video e per un vocale: per un audio la scena e' nera e restano i
-        /// controlli di trasporto, che sono quelli di sistema.
+        /// Opens the received media in the full-screen player. The source is the
+        /// local file (ms-appdata): the player opens it on its own and there is no
+        /// stream to keep open for the life of the page. It applies to a video and
+        /// to a voice note: for an audio the view is black and the transport
+        /// controls remain, which are the system ones.
         /// </summary>
         private void PlayMedia(ChatMessage message, bool audio)
         {
@@ -396,16 +395,16 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Apre un documento ricevuto con l'app che il telefono usa per quel
-        /// tipo di file. Se non ce n'e' una, o il file non e' piu' li', lo dice
-        /// invece di non fare niente.
+        /// Opens a received document with the app the phone uses for that type of
+        /// file. If there is none, or the file is no longer there, it says so
+        /// instead of doing nothing.
         /// </summary>
         private async System.Threading.Tasks.Task OpenDocumentAsync(ChatMessage message)
         {
             if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
 
-            // C# 5 non lascia attendere dentro un catch: si prende nota del
-            // guasto e si aspetta dopo, fuori dal blocco.
+            // C# 5 does not allow awaiting inside a catch: the failure is noted and
+            // awaited afterwards, outside the block.
             bool failed = false;
             try
             {
@@ -436,10 +435,9 @@ namespace WhatsappApp.Pages
 
         private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            // Un video che il telefono non sa decodificare. Prima si chiudeva lo
-            // schermo e basta, quindi un guasto e un tocco a vuoto si vedevano
-            // uguali; adesso resta la frase. In WP8.1 l'evento porta solo il
-            // messaggio, non l'eccezione.
+            // A video the phone cannot decode. It used to just close the screen, so
+            // a failure and an empty tap looked the same; now the sentence stays. On
+            // WP8.1 the event carries only the message, not the exception.
             string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
                 ? e.ErrorMessage
                 : "media failed";
@@ -463,7 +461,7 @@ namespace WhatsappApp.Pages
             VideoErrorText.Visibility = Visibility.Visible;
         }
 
-        /// <summary>Chiude il lettore. Sicura da chiamare anche a vuoto.</summary>
+        /// <summary>Closes the player. Safe to call even with nothing playing.</summary>
         private void StopVideo()
         {
             try
@@ -482,11 +480,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Questa conversazione e' stata mostrata: il numero si azzera qui e sul
-        /// server. Il secondo pezzo non e' un dettaglio: l'adapter conta ogni
-        /// messaggio in arrivo, anche quelli che l'utente sta guardando, quindi
-        /// senza dirglielo il numero tornerebbe a comparire al prossimo
-        /// aggiornamento dell'elenco.
+        /// This conversation has been shown: the number is cleared here and on the
+        /// server. The second part is not a detail: the adapter counts every incoming
+        /// message, even the ones the user is watching, so without telling it the
+        /// number would come back at the next list update.
         /// </summary>
         private void MarkRead()
         {
@@ -529,18 +526,18 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Quanti BYTE si leggono per pezzo. E' un multiplo di 3: la sua base64
-        /// e' quindi lunga esattamente (byte/3)*4 caratteri, senza padding, e i
-        /// pezzi si concatenano in base64 senza ricodificare niente. 525000 byte
-        /// fanno 700000 caratteri, come MediaChunkChars e come l'adapter.
+        /// How many BYTES are read per piece. It is a multiple of 3: its base64 is
+        /// therefore exactly (bytes/3)*4 characters long, with no padding, and the
+        /// pieces concatenate in base64 without re-encoding anything. 525000 bytes
+        /// make 700000 characters, like MediaChunkChars and like the adapter.
         /// </summary>
         private const int MediaChunkBytes = 525000;
 
         /// <summary>
-        /// Un allegato si manda a pezzi, letti dal file copiato nella cartella
-        /// dell'app (vedi AttachmentInbox). Un frame ha un tetto di 8 MiB e il
-        /// contenuto viaggia in base64, che aggiunge un terzo: un video non ci
-        /// sta in un frame solo, e non ci sta nemmeno nella memoria del telefono.
+        /// An attachment is sent in pieces, read from the file copied into the app
+        /// folder (see AttachmentInbox). A frame has an 8 MiB ceiling and the
+        /// content travels in base64, which adds a third: a video does not fit in a
+        /// single frame, and does not fit in the phone memory either.
         /// </summary>
         private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
@@ -562,14 +559,14 @@ namespace WhatsappApp.Pages
                 Type = kind == "video" ? MessageType.Video : MessageType.Image,
                 IsIncoming = false,
                 Status = MessageStatus.Sending,
-                // I byte stanno su disco: qui c'e' solo dove trovarli.
+                // The bytes are on disk: here there is only where to find them.
                 MediaFilePath = localFileName,
                 MediaMimeType = mimeType,
                 MediaFileName = fileName,
                 MediaType = kind
             };
 
-            // Decodifica locale: il mittente vede la propria immagine.
+            // Local decoding: the sender sees their own image.
             if (message.Type == MessageType.Image) await message.LoadMediaImageAsync();
 
             DataService.Instance.AddMessage(_contact.Id, message);
@@ -599,8 +596,8 @@ namespace WhatsappApp.Pages
                 {
                     using (var reader = new DataReader(stream))
                     {
-                        // ReadBytes legge byte crudi, quindi l'ordine dei byte
-                        // non conta qui: si legge a pezzi e si codifica.
+                        // ReadBytes reads raw bytes, so the byte order does not matter
+                        // here: it is read in pieces and encoded.
                         for (int i = 0; i < total; i++)
                         {
                             ulong offset = (ulong)i * (ulong)MediaChunkBytes;
@@ -635,18 +632,17 @@ namespace WhatsappApp.Pages
 
         private async void AddAndSendMessage(ChatMessage message)
         {
-            // DataService è l'unico punto di inserimento: _messages è la stessa
-            // ObservableCollection osservata dal ListView.
+            // DataService is the only insertion point: _messages is the same
+            // ObservableCollection observed by the ListView.
             DataService.Instance.AddMessage(_contact.Id, message);
             MessageTextBox.Text = "";
 
             // Auto-scroll
             ScrollToMessage(message);
 
-            // Lo stato si decide adesso, non quando la pagina e' stata aperta:
-            // un messaggio scritto a socket caduto restava "inviato" per sempre
-            // senza essere mai partito. Adesso si vede fallito e si puo'
-            // riscrivere.
+            // The status is decided now, not when the page was opened: a message
+            // written with the socket down stayed "sent" forever without ever
+            // leaving. Now it shows as failed and can be rewritten.
             if (!CommunicationService.Instance.IsConnected)
             {
                 message.Status = MessageStatus.Failed;
@@ -683,9 +679,9 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Pulsante allegato: chiede il selettore di sistema. La risposta non
-        /// arriva qui - arriva ad App.OnActivated dopo che l'app e' stata
-        /// riattivata - quindi non c'e' niente da attendere.
+        /// Attach button: it asks for the system picker. The answer does not arrive
+        /// here - it arrives at App.OnActivated after the app has been reactivated -
+        /// so there is nothing to await.
         /// </summary>
         private void AttachButton_Click(object sender, RoutedEventArgs e)
         {
@@ -702,8 +698,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Un allegato e' arrivato mentre questa chat era aperta: e' il caso
-        /// normale, perche' il selettore si apre da qui e l'app torna qui.
+        /// An attachment arrived while this chat was open: it is the normal case,
+        /// because the picker opens from here and the app comes back here.
         /// </summary>
         private void OnAttachmentReady()
         {
@@ -711,9 +707,9 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Mostra l'allegato in attesa, se c'e'. Chiamato sia navigando qui sia
-        /// all'arrivo: dopo il selettore la pagina e' ancora quella davanti e
-        /// OnNavigatedTo non viene richiamato.
+        /// Shows the pending attachment, if there is one. Called both when
+        /// navigating here and on arrival: after the picker the page is still the
+        /// one in front and OnNavigatedTo is not called again.
         /// </summary>
         private void ShowPendingAttachment()
         {
@@ -746,18 +742,18 @@ namespace WhatsappApp.Pages
             }
             else
             {
-                // Un video non si decodifica: non c'e' niente da disegnare.
+                // A video is not decoded: there is nothing to draw.
                 SelectedImagePreview.Source = null;
             }
         }
 
         /// <summary>
-        /// L'anteprima dell'immagine da spedire: la pagina e' larga 480 px, quindi
-        /// 720 la copre anche a 1,5x senza decodificare il file intero.
+        /// The preview of the image to send: the page is 480 px wide, so 720 covers
+        /// it even at 1.5x without decoding the whole file.
         /// </summary>
         private const int PreviewDecodePixels = 720;
 
-        /// <summary>Anteprima locale: il mittente vede la propria immagine.</summary>
+        /// <summary>Local preview: the sender sees their own image.</summary>
         private async System.Threading.Tasks.Task ShowLocalPreviewAsync(string localFileName)
         {
             try

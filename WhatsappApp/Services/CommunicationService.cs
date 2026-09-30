@@ -39,47 +39,45 @@ namespace WhatsappApp.Services
         private bool _isConnected = false;
 
         /// <summary>
-        /// Una scrittura alla volta su un socket. Il DataWriter ha un solo
-        /// buffer: due StoreAsync in volo insieme mettono il prefisso di
-        /// lunghezza di uno davanti al payload dell'altro, e l'altro capo legge
-        /// un frame che non esiste. Succedeva mandando un messaggio mentre un
-        /// allegato stava ancora salendo.
+        /// One write at a time on a socket. The DataWriter has a single buffer: two
+        /// StoreAsync in flight together put the length prefix of one in front of
+        /// the payload of the other, and the other end reads a frame that does not
+        /// exist. It happened when sending a message while an attachment was still
+        /// uploading.
         /// </summary>
         private readonly SerialQueue _writes = new SerialQueue();
 
         /// <summary>
-        /// Frame piu' grande che accettiamo. Il prefisso di 4 byte e' l'unica
-        /// cosa che l'altro capo controlla: se il lettore e' disallineato quella
-        /// lunghezza e' un pezzo di JSON, cioe' un numero enorme. Senza un
-        /// limite LoadAsync lo usava come dimensione e l'app finiva in
-        /// OutOfMemoryException (0x8007000E) invece di chiudere la connessione.
-        /// Otto mebibyte lasciano passare un'immagine in base64 e restano
-        /// lontani dalla memoria di un telefono WP8.1.
+        /// Largest frame we accept. The 4-byte prefix is the only thing the other
+        /// end checks: if the reader is misaligned that length is a piece of JSON,
+        /// that is a huge number. Without a limit LoadAsync used it as the size and
+        /// the app ended up in OutOfMemoryException (0x8007000E) instead of closing
+        /// the connection. Eight mebibytes let an image through in base64 and stay
+        /// far from the memory of a WP8.1 phone.
         /// </summary>
         private const uint MaxFrameLength = 8 * 1024 * 1024;
 
         /// <summary>
-        /// Numero del tentativo di connessione. Ogni tentativo lo incrementa e
-        /// pubblica i propri oggetti solo se e' ancora quello piu' recente; il
-        /// suo lettore continua solo finche' l'id resta quello. Senza questo,
-        /// l'avvio automatico e la pagina si contendevano `_reader`: un
-        /// tentativo fallito chiudeva il DataReader della connessione riuscita e
-        /// due lettori sullo stesso DataReader lo disallineavano, il che e' la
-        /// strada da cui e' arrivato OutOfMemoryException.
+        /// Connection attempt number. Every attempt increments it and publishes its
+        /// objects only if it is still the most recent one; its reader keeps going
+        /// only while the id stays that. Without this, the automatic startup and the
+        /// page contended for `_reader`: a failed attempt closed the DataReader of
+        /// the successful connection and two readers on the same DataReader
+        /// misaligned it, which is the path OutOfMemoryException came through.
         /// </summary>
         private int _connectionId;
 
         /// <summary>
-        /// Deadline della ConnectAsync, in millisecondi. StreamSocket non
-        /// accetta un timeout e non ha un CancellationToken: senza un limite il
-        /// telefono resta immobile su un indirizzo che non risponde piu' finche'
-        /// non si arrende lo stack TCP. Il socket si chiude alla scadenza, che e'
-        /// l'unico modo di annullare una connessione ancora in volo.
+        /// Deadline of ConnectAsync, in milliseconds. StreamSocket accepts no timeout
+        /// and has no CancellationToken: without a limit the phone freezes on an
+        /// address that no longer answers until the TCP stack gives up. The socket is
+        /// closed on expiry, which is the only way to cancel a connection still in
+        /// flight.
         /// </summary>
         private const int ConnectDeadlineMs = 6000;
 
-        // Gli errori WinSock arrivano come eccezioni WinRT con FACILITY_WIN32:
-        // 0x8007xxxx. WSAETIMEDOUT e' quello visto sul dispositivo.
+        // WinSock errors arrive as WinRT exceptions with FACILITY_WIN32: 0x8007xxxx.
+        // WSAETIMEDOUT is the one seen on the device.
         private const int WsaETimedOut = unchecked((int)0x8007274C);
         private const int WsaEConnRefused = unchecked((int)0x8007274D);
         private const int WsaENetUnreachable = unchecked((int)0x80072743);
@@ -88,9 +86,9 @@ namespace WhatsappApp.Services
         // Cached UI dispatcher for marshalling events to the UI thread
         private CoreDispatcher _uiDispatcher;
 
-        // Vero quando nessuna delle sorgenti ha dato un dispatcher: senza questo
-        // flag ogni messaggio ricevuto ripeteva le tre chiamate e le loro
-        // eccezioni, per tutta la durata della connessione.
+        // True when none of the sources gave a dispatcher: without this flag every
+        // received message repeated the three calls and their exceptions, for the
+        // whole life of the connection.
         private bool _uiDispatcherFailed;
 
         // Events
@@ -100,16 +98,16 @@ namespace WhatsappApp.Services
         public event EventHandler<string> ErrorOccurred;
 
         /// <summary>
-        /// Il server non ha risposto dopo i tentativi automatici. E' distinto
-        /// da ErrorOccurred perche' non e' un guasto di socket da spiegare: e'
-        /// uno stato che vale una frase sola, e le pagine non devono dedurlo dal
-        /// testo (che cambia con la lingua).
+        /// The server did not answer after the automatic attempts. It is distinct
+        /// from ErrorOccurred because it is not a socket failure to explain: it is a
+        /// state worth a single sentence, and pages must not infer it from the text
+        /// (which changes with the language).
         /// </summary>
         public event EventHandler ServerUnavailable;
 
         /// <summary>
-        /// Sollevato (sul thread UI) quando il socket e' pronto. Sostituisce il
-        /// controllo sul testo dello stato, che si rompeva cambiando lingua.
+        /// Raised (on the UI thread) when the socket is ready. It replaces the check
+        /// on the state text, which broke when the language changed.
         /// </summary>
         public event EventHandler ConnectionEstablished;
 
@@ -119,12 +117,11 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Quando e' stato letto l'ultimo frame (UTC). Non e' un dato del
-        /// protocollo: lo legge solo il watchdog, perche' su WP8.1 il socket
-        /// puo' morire senza che nessuno lo dica - la sospensione dell'app lo
-        /// chiude, e un cambio di rete lo lascia li' a non rispondere piu'. Il
-        /// flag _isConnected non se ne accorge: resta a true mentre l'app e'
-        /// muta, che era esattamente il caso da distinguere.
+        /// When the last frame was read (UTC). It is not protocol data: only the
+        /// watchdog reads it, because on WP8.1 the socket can die without anyone
+        /// saying so - suspending the app closes it, and a network change leaves it
+        /// there answering no more. The _isConnected flag does not notice: it stays
+        /// true while the app is mute, which was exactly the case to tell apart.
         /// </summary>
         public DateTime LastInboundUtc { get; private set; }
         public bool IsServerMode
@@ -144,10 +141,10 @@ namespace WhatsappApp.Services
             get { return _serverAddress; }
         }
 
-        /// <summary>Stato della connessione WhatsApp: "disconnected", "waiting" o "connected".</summary>
+        /// <summary>WhatsApp connection state: "disconnected", "waiting" or "connected".</summary>
         public string WhatsAppState { get; private set; }
 
-        /// <summary>JID dell'account WhatsApp collegato (vuoto se non connesso).</summary>
+        /// <summary>JID of the linked WhatsApp account (empty when not connected).</summary>
         public string AccountJid { get; private set; }
 
         private CommunicationService()
@@ -190,12 +187,11 @@ namespace WhatsappApp.Services
         {
             if (_uiDispatcher != null || _uiDispatcherFailed) return _uiDispatcher;
 
-            // Due sorgenti, dalla piu' diretta. Da un thread di background
-            // GetCurrentView fallisce; MainView e' quella che continua a
-            // rispondere. Ognuna registra il proprio fallimento una volta sola.
-            // (Window.Current non e' una sorgente: da un thread di background
-            // restituisce null, quindi "ripiegare" li' darebbe solo un
-            // NullReferenceException in piu'.)
+            // Two sources, from the most direct. From a background thread
+            // GetCurrentView fails; MainView is the one that keeps answering. Each
+            // logs its own failure once only. (Window.Current is not a source: from a
+            // background thread it returns null, so "falling back" there would only
+            // give one more NullReferenceException.)
             _uiDispatcher = TryGetDispatcher(
                 delegate { return CoreApplication.GetCurrentView().CoreWindow.Dispatcher; },
                 "GetUiDispatcher/GetCurrentView")
@@ -212,9 +208,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Lo dice il connettore automatico quando ha finito i tentativi senza
-        /// una connessione. Passa dal dispatcher perche' chi ascolta scrive
-        /// sulla pagina, e chi chiama e' un thread di background.
+        /// The automatic connector says it when it has run out of attempts without a
+        /// connection. It goes through the dispatcher because the listener writes on
+        /// the page, and the caller is a background thread.
         /// </summary>
         public void NotifyServerUnavailable()
         {
@@ -226,10 +222,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Va chiamato una volta all'avvio, sul thread UI: e' l'unico momento in
-        /// cui il dispatcher si trova di sicuro. Risolverlo la prima volta da un
-        /// thread di background e' il motivo per cui questo servizio restava
-        /// senza dispatcher e riprovava le due chiamate a ogni messaggio.
+        /// Must be called once at startup, on the UI thread: it is the only moment
+        /// the dispatcher is reliably available. Resolving it for the first time from
+        /// a background thread is why this service stayed without a dispatcher and
+        /// retried the two calls on every message.
         /// </summary>
         public void Prewarm()
         {
@@ -258,9 +254,9 @@ namespace WhatsappApp.Services
                 return;
             }
 
-            // Il flag distingue "il dispatcher non ha eseguito nulla" (si
-            // riprova in linea) da "l'azione è partita ma è esplosa" (non va
-            // rieseguita, altrimenti gli handler ricevono l'evento due volte).
+            // The flag tells apart "the dispatcher ran nothing" (retry inline) from
+            // "the action started but blew up" (do not run it again, otherwise the
+            // handlers receive the event twice).
             bool dispatched = false;
             try
             {
@@ -345,8 +341,8 @@ namespace WhatsappApp.Services
             _myUserId = Guid.NewGuid().ToString("N").Substring(0, 8);
             _myUsername = username;
 
-            // Oggetti del tentativo, non del servizio: finche' non e' pubblicata,
-            // questa connessione non esiste per nessun altro.
+            // Objects of the attempt, not of the service: until it is published, this
+            // connection does not exist for anyone else.
             StreamSocket socket = null;
             DataWriter writer = null;
             DataReader reader = null;
@@ -357,9 +353,8 @@ namespace WhatsappApp.Services
                     RaiseConnectionStatusChanged(Loc.Get("CommService_Connecting", "Connecting..."))
                 );
 
-                // Prima di aprire un socket: un indirizzo vuoto o una porta
-                // fuori intervallo non sono un guasto di rete da spiegare, sono
-                // un dato da correggere.
+                // Before opening a socket: an empty address or a port out of range is
+                // not a network failure to explain, it is a value to correct.
                 if (string.IsNullOrEmpty(address) || port < 1 || port > 65535)
                 {
                     Diag.Failed("ConnectToServerAsync/address",
@@ -394,10 +389,9 @@ namespace WhatsappApp.Services
                 writer = CreateFrameWriter(socket.OutputStream);
                 reader = CreateFrameReader(socket.InputStream);
 
-                // Un tentativo piu' nuovo ha gia' preso il posto di questo:
-                // si chiude quello che abbiamo aperto e non si tocca niente di
-                // condiviso (era il modo in cui un timeout cancellava la
-                // connessione riuscita dell'altro tentativo).
+                // A newer attempt has already taken this one place: what we opened is
+                // closed and nothing shared is touched (this was how a timeout
+                // cancelled the successful connection of the other attempt).
                 if (attempt != _connectionId)
                 {
                     DisposeSocket(socket, writer, reader);
@@ -416,8 +410,8 @@ namespace WhatsappApp.Services
                 {
                     Id = "handshake",
                     Text = username,
-                    // Il token del servizio condiviso, se ce n'e' uno: e' quello
-                    // che dice al server a chi appartiene questo telefono.
+                    // The token of the shared service, if there is one: it is what tells
+                    // the server who this phone belongs to.
                     Token = SettingsService.Token,
                     Command = "hello",
                     SenderId = _myUserId,
@@ -427,9 +421,9 @@ namespace WhatsappApp.Services
                     Type = MessageType.System,
                     IsIncoming = false
                 };
-                // Il primo frame e' anche il primo uso del cifrario: se il
-                // cifrario non c'e' l'errore va detto qui, invece di uscire
-                // come "operazione non implementata" senza dire quale passo.
+                // The first frame is also the first use of the cipher: if the cipher is
+                // not there, the error must be said here, instead of coming out as
+                // "operation not implemented" without saying which step.
                 try
                 {
                     await SendFrameAsync(writer, Encoding.UTF8.GetBytes(handshake.ToJson()));
@@ -459,9 +453,8 @@ namespace WhatsappApp.Services
                     RaiseConnectionEstablished();
                 });
 
-                // Il lettore porta con se' l'id del tentativo e il suo reader:
-                // niente campi condivisi, niente secondo lettore sullo stesso
-                // DataReader.
+                // The reader carries the attempt id and its own reader with it: no
+                // shared fields, no second reader on the same DataReader.
 #pragma warning disable 4014
                 Task.Run(() => ListenForMessagesAsync(attempt, reader));
 #pragma warning restore 4014
@@ -472,10 +465,9 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("ConnectToServerAsync", ex);
 
-                // Solo il tentativo ancora valido puo' dichiarare il guasto: se
-                // nel frattempo ne e' partito uno piu' nuovo, questo e' rumore e
-                // i suoi oggetti si chiudono senza toccare la connessione
-                // vincente.
+                // Only the still-valid attempt can declare the failure: if a newer one
+                // has started meanwhile, this is noise and its objects are closed
+                // without touching the winning connection.
                 DisposeSocket(socket, writer, reader);
                 if (attempt == _connectionId)
                 {
@@ -491,9 +483,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Chiude la connessione pubblicata, qualunque essa sia, senza toccare
-        /// l'id dei tentativi. Idempotente: la chiamano il ramo di fallimento
-        /// del handshake, il catch esterno e il lettore che finisce.
+        /// Closes the published connection, whatever it is, without touching the
+        /// attempt id. Idempotent: the handshake failure branch, the outer catch and
+        /// the reader that finishes call it.
         /// </summary>
         private void DisposePublishedSocket()
         {
@@ -509,14 +501,14 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Un DataReader per un flusso di rete, con il byte order detto per
-        /// esteso. Quello predefinito di WinRT non e' little-endian, e l'adapter
-        /// scrive la lunghezza del frame con writeUInt32LE: sul dispositivo un
-        /// frame da 289 byte (0x00000121) veniva letto 0x21010000 = 553713664,
-        /// cioe' un frame che non esiste, e la connessione si chiudeva prima di
-        /// ricevere lo stato e il codice QR. Lettura e scrittura passano da
-        /// CreateFrameReader/CreateFrameWriter: sono l'unico posto in cui si
-        /// sceglie il byte order, quindi non possono piu' divergere.
+        /// A DataReader for a network stream, with the byte order stated explicitly.
+        /// The WinRT default is not little-endian, and the adapter writes the frame
+        /// length with writeUInt32LE: on the device a 289-byte frame (0x00000121)
+        /// was read as 0x21010000 = 553713664, that is a frame that does not exist,
+        /// and the connection closed before receiving the state and the QR code.
+        /// Reading and writing go through CreateFrameReader/CreateFrameWriter: they
+        /// are the only place the byte order is chosen, so they can no longer
+        /// diverge.
         /// </summary>
         private static DataReader CreateFrameReader(IInputStream stream)
         {
@@ -526,7 +518,7 @@ namespace WhatsappApp.Services
             return reader;
         }
 
-        /// <summary>Lo stesso patto di CreateFrameReader, lato scrittura.</summary>
+        /// <summary>The same pact as CreateFrameReader, on the writing side.</summary>
         private static DataWriter CreateFrameWriter(IOutputStream stream)
         {
             var writer = new DataWriter(stream);
@@ -535,9 +527,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Chiude gli oggetti di un tentativo. Non tocca i campi: non sa se
-        /// quella connessione e' mai stata pubblicata, ed e' esattamente il
-        /// motivo per cui esiste.
+        /// Closes the objects of an attempt. It does not touch the fields: it does
+        /// not know whether that connection was ever published, and that is exactly
+        /// why it exists.
         /// </summary>
         private static void DisposeSocket(StreamSocket socket, DataWriter writer, DataReader reader)
         {
@@ -550,9 +542,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// ConnectAsync con una scadenza. Alla scadenza il socket viene chiuso,
-        /// che e' l'unico modo di annullare una connessione in volo, e si lancia
-        /// TimeoutException: la spiegazione all'utente la scrive
+        /// ConnectAsync with a deadline. On expiry the socket is closed, which is the
+        /// only way to cancel a connection in flight, and a TimeoutException is
+        /// thrown: the explanation to the user is written by
         /// ExplainConnectionFailure.
         /// </summary>
         private static async Task ConnectWithDeadlineAsync(StreamSocket socket, HostName hostName, int port)
@@ -565,10 +557,10 @@ namespace WhatsappApp.Services
                 try { socket.Dispose(); }
                 catch (Exception ex) { Diag.Failed("ConnectWithDeadlineAsync/cancel", ex); }
 
-                // La ConnectAsync abbandonata fallira' con "operazione
-                // annullata": si osserva, altrimenti resta un'eccezione senza
-                // lettore. Il risultato si assegna perche' una Continuation
-                // lasciata come istruzione in un metodo async e' un CS4014.
+                // The abandoned ConnectAsync will fail with "operation cancelled": it
+                // is observed, otherwise it stays an exception with no reader. The
+                // result is assigned because a Continuation left as a statement in an
+                // async method is a CS4014.
                 Task observed = connecting.ContinueWith(
                     delegate(Task t) { AggregateException ignored = t.Exception; },
                     TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
@@ -578,20 +570,20 @@ namespace WhatsappApp.Services
                     hostName.RawName, port, ConnectDeadlineMs));
             }
 
-            await connecting;   // propaga il guasto vero (rifiuto, host irraggiungibile, ...)
+            await connecting;   // propagates the real failure (refusal, unreachable host, ...)
         }
 
-        /// <summary>"indirizzo:porta", la forma in cui l'utente ha scritto il dato.</summary>
+        /// <summary>"address:port", the form in which the user wrote the value.</summary>
         private static string Endpoint(string address, int port)
         {
             return string.Format("{0}:{1}", address, port);
         }
 
         /// <summary>
-        /// Traduce il guasto in una riga comprensibile. "The method or operation
-        /// is not implemented" non dice all'utente che manca un pezzo di
-        /// piattaforma; il testo inglese di WinSock non dice ne' quale indirizzo
-        /// ne' cosa fare.
+        /// Turns the failure into an understandable line. "The method or operation is
+        /// not implemented" does not tell the user that a piece of platform is
+        /// missing; the WinSock English text says neither which address nor what to
+        /// do.
         /// </summary>
         private static string ExplainConnectionFailure(Exception ex, string stage, string endpoint)
         {
@@ -635,10 +627,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Legge i frame della connessione <paramref name="attempt"/> finche' e'
-        /// quella pubblicata. Il reader arriva come parametro: prenderlo da
-        /// `_reader` significava leggere il reader di un'altra connessione non
-        /// appena ne partiva una nuova.
+        /// Reads the frames of the <paramref name="attempt"/> connection while it is
+        /// the published one. The reader arrives as a parameter: taking it from
+        /// `_reader` meant reading the reader of another connection as soon as a new
+        /// one started.
         /// </summary>
         private async Task ListenForMessagesAsync(int attempt, DataReader reader)
         {
@@ -649,7 +641,7 @@ namespace WhatsappApp.Services
                     byte[] payload = await ReadFrameAsync(reader);
                     if (payload == null) break;
 
-                    // Prova di vita per il watchdog: un frame letto adesso.
+                    // Proof of life for the watchdog: a frame read just now.
                     LastInboundUtc = DateTime.UtcNow;
                     DispatchMessage(DecryptToMessage(payload));
                 }
@@ -667,8 +659,8 @@ namespace WhatsappApp.Services
             }
             finally
             {
-                // Un lettore superato non deve dichiarare disconnessa la
-                // connessione che l'ha sostituito.
+                // A superseded reader must not declare disconnected the connection
+                // that replaced it.
                 if (attempt == _connectionId)
                 {
                     _isConnected = false;
@@ -718,8 +710,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Invia un frame di controllo all'adapter (stato, login QR/numero,
-        /// contatti, logout). Il payload va in Text quando serve.
+        /// Sends a control frame to the adapter (state, QR/number login, contacts,
+        /// logout). The payload goes in Text when needed.
         /// </summary>
         public async Task SendControlAsync(string command, string payload = null)
         {
@@ -729,9 +721,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// L'ossatura di un frame di controllo. La costruiva SendControlAsync per
-        /// ogni comando: qui e' un posto solo, perche' anche i comandi di un
-        /// allegato (media.begin/chunk/end) sono frame di controllo.
+        /// The skeleton of a control frame. SendControlAsync used to build it for
+        /// every command: here it is one place only, because the commands of an
+        /// attachment (media.begin/chunk/end) are control frames too.
         /// </summary>
         private ChatMessage NewControlFrame(string command)
         {
@@ -749,9 +741,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Un allegato comincia. Il contenuto non sta qui: sta nei pezzi. La
-        /// chat viaggia in Text, il file e il suo tipo nei campi che portano
-        /// gia' quel nome.
+        /// An attachment begins. The content is not here: it is in the pieces. The
+        /// chat travels in Text, the file and its type in the fields that already
+        /// carry that name.
         /// </summary>
         public async Task SendMediaBeginAsync(string chatId, string transferId,
             string fileName, string mimeType, int totalChunks)
@@ -766,8 +758,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Un pezzo dell'allegato, gia' base64. La lunghezza e' un multiplo di 4
-        /// caratteri, quindi i pezzi si possono concatenare senza decodificarli.
+        /// One piece of the attachment, already base64. The length is a multiple of 4
+        /// characters, so the pieces can be concatenated without decoding them.
         /// </summary>
         public async Task SendMediaChunkAsync(string transferId, int index, string base64)
         {
@@ -778,7 +770,7 @@ namespace WhatsappApp.Services
             await SendMessageAsync(frame);
         }
 
-        /// <summary>L'ultimo pezzo e' passato: l'adapter puo' spedire il file.</summary>
+        /// <summary>The last piece is through: the adapter can send the file.</summary>
         public async Task SendMediaEndAsync(string transferId, string caption)
         {
             var frame = NewControlFrame("media.end");
@@ -788,8 +780,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Chiede i byte del media di un messaggio che l'app ha gia'. La chat
-        /// viaggia in Text, il messaggio in RelatedMessageId.
+        /// Requests the media bytes of a message the app already has. The chat
+        /// travels in Text, the message in RelatedMessageId.
         /// </summary>
         public async Task RequestMediaAsync(string chatId, string messageId)
         {
@@ -802,8 +794,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Instrada un messaggio decifrato: i frame di controllo (Type = System)
-        /// vanno all'evento ControlMessageReceived, gli altri a MessageReceived.
+        /// Routes a decrypted message: the control frames (Type = System) go to the
+        /// ControlMessageReceived event, the others to MessageReceived.
         /// </summary>
         private void DispatchMessage(ChatMessage message)
         {
@@ -846,9 +838,9 @@ namespace WhatsappApp.Services
                 StreamSocket target = client;
                 try
                 {
-                    // Una trasmissione intera e' un pezzo della coda: due
-                    // trasmissioni in volo sullo stesso OutputStream si
-                    // intreccerebbero come due StoreAsync sullo stesso buffer.
+                    // A whole transmission is one piece of the queue: two transmissions
+                    // in flight on the same OutputStream would interleave like two
+                    // StoreAsync on the same buffer.
                     await _writes.RunAsync(delegate
                     {
                         return WriteFrameAsync(CreateFrameWriter(target.OutputStream), payload);
@@ -875,11 +867,11 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Encrypts the JSON bytes and writes one frame on the given writer:
         /// [4-byte UInt32LE payload length][encrypted payload].
-        /// Il writer arriva da fuori perche' e' quello del socket, creato una
-        /// volta in ConnectToServerAsync: prima ne veniva creato — e mai
-        /// chiuso — uno nuovo per ogni frame inviato.
-        /// Il payload si cifra adesso, con il writer di adesso: quello che entra
-        /// in coda e' una scrittura gia' decisa, non una promessa di scrivere.
+        /// The writer arrives from outside because it is the socket one, created once
+        /// in ConnectToServerAsync: before, a new one was created - and never closed
+        /// - for every frame sent.
+        /// The payload is encrypted now, with the writer of now: what enters the
+        /// queue is an already-decided write, not a promise to write.
         /// </summary>
         private Task SendFrameAsync(DataWriter writer, byte[] jsonBytes)
         {
@@ -887,7 +879,7 @@ namespace WhatsappApp.Services
             return _writes.RunAsync(delegate { return WriteFrameAsync(writer, payload); });
         }
 
-        /// <summary>La scrittura, eseguita dalla coda.</summary>
+        /// <summary>The write, executed by the queue.</summary>
         private static async Task WriteFrameAsync(DataWriter writer, byte[] payload)
         {
             writer.WriteUInt32((uint)payload.Length);
@@ -923,18 +915,18 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Riempie il buffer del reader finche' non ha almeno <paramref name="count"/>
-        /// byte non consumati. Con InputStreamOptions.Partial una LoadAsync puo'
-        /// restituirne meno del richiesto: il prefisso di lunghezza letto con una
-        /// sola LoadAsync(4) veniva spezzato a meta' frame e la connessione
-        /// cadeva su un frame che era solo arrivato in due pezzi.
+        /// Fills the reader buffer until it has at least <paramref name="count"/>
+        /// unconsumed bytes. With InputStreamOptions.Partial a LoadAsync can return
+        /// fewer than requested: the length prefix read with a single LoadAsync(4)
+        /// was split in the middle of a frame and the connection dropped on a frame
+        /// that had only arrived in two pieces.
         /// </summary>
         private static async Task<bool> LoadAtLeastAsync(DataReader reader, uint count)
         {
             while (reader.UnconsumedBufferLength < count)
             {
                 uint loaded = await reader.LoadAsync(count - reader.UnconsumedBufferLength);
-                if (loaded == 0) return false;   // flusso chiuso dall'altro capo
+                if (loaded == 0) return false;   // stream closed by the other end
             }
             return true;
         }
@@ -967,9 +959,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public void Disconnect()
         {
-            // Ferma un lettore ancora in esecuzione prima di chiudere i suoi
-            // oggetti: e' quello che distingue una disconnessione voluta da un
-            // guasto di rete da segnalare.
+            // Stops a reader still running before closing its objects: it is what
+            // tells apart a deliberate disconnection from a network failure to report.
             _connectionId++;
             _isConnected = false;
             WhatsAppState = "disconnected";
@@ -997,9 +988,9 @@ namespace WhatsappApp.Services
             DisposePublishedSocket();
             _serverListener = null;
 
-            // _uiDispatcher non si azzera: non e' legato al socket, e azzerarlo
-            // costringeva GetUiDispatcher a rifare le tre chiamate (e a
-            // registrarne di nuovo i guasti) sulla riga successiva.
+            // _uiDispatcher is not cleared: it is not tied to the socket, and clearing
+            // it forced GetUiDispatcher to redo the three calls (and log their
+            // failures again) on the next line.
             DispatchOnUiThread(() =>
                 RaiseConnectionStatusChanged(Loc.Get("CommService_Disconnected", "Disconnected")));
         }

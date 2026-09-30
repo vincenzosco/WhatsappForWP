@@ -18,7 +18,7 @@ using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
 {
-    /// <summary>Sezione chat: elenco conversazioni e nuova chat.</summary>
+    /// <summary>Chats section: conversation list and new chat.</summary>
     public sealed partial class ChatsPage : Page
     {
         public ChatsPage()
@@ -28,15 +28,15 @@ namespace WhatsappApp.Pages
 
             ChatListView.ItemsSource = DataService.Instance.Contacts;
 
-            // I pulsanti con la sola icona non usano x:Uid (sovrascriverebbe il
-            // Path): il testo e' un tooltip impostato qui.
+            // Icon-only buttons do not use x:Uid (it would override the Path): the
+            // text is a tooltip set here.
             ToolTipService.SetToolTip(NewChatButton, Loc.Get("ChatsPage_NewChatTooltip", "New chat"));
             ToolTipService.SetToolTip(SettingsButton, Loc.Get("ChatsPage_SettingsTooltip", "Settings"));
 
-            // Il tooltip lo vede chi tiene premuto; il nome lo legge il lettore di
-            // schermo, e lo dice anche la voce. Stesso testo, quindi stessa chiave:
-            // se un'icona apre l'azione sbagliata, la si sente dire invece di
-            // doverla indovinare.
+            // The tooltip is seen by whoever holds the button; the name is read by
+            // the screen reader, and the voice says it too. Same text, so same key:
+            // if an icon opens the wrong action, you hear it instead of having to
+            // guess it.
             AutomationProperties.SetName(NewChatButton,
                 Loc.Get("ChatsPage_NewChatTooltip", "New chat"));
             AutomationProperties.SetName(SettingsButton,
@@ -47,9 +47,9 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Il menu dei tre puntini: quello che vale per l'elenco intero. Le
-        /// azioni di una singola chat non stanno qui, perche' qui non c'e' una
-        /// riga - stanno nella pressione prolungata (ChatRow_Holding).
+        /// The three-dot menu: what applies to the whole list. The actions of a
+        /// single chat are not here, because there is no row here - they are in the
+        /// long press (ChatRow_Holding).
         /// </summary>
         private void MoreButton_Click(object sender, RoutedEventArgs e)
         {
@@ -81,10 +81,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Le righe come sono adesso, in una lista nostra. Serve perche'
-        /// SetPinned sposta le righe (le fissate tornano in cima): un ciclo che
-        /// legge DataService.Contacts mentre quella stessa collezione si muove
-        /// salterebbe delle righe.
+        /// The rows as they are now, in a list of our own. It is needed because
+        /// SetPinned moves the rows (pinned ones go back to the top): a loop that
+        /// reads DataService.Contacts while that same collection moves would skip
+        /// rows.
         /// </summary>
         private static List<Contact> SnapshotContacts()
         {
@@ -99,8 +99,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Una o piu' chat da fissare, con le fissate gia' scelte: il menu dice
-        /// cosa cambiare, non fa ricominciare da zero.
+        /// One or more chats to pin, with the pinned ones already selected: the menu
+        /// says what to change, it does not make you start over.
         /// </summary>
         private async Task ShowPinPickerAsync()
         {
@@ -151,10 +151,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Tenere premuta una riga apre le azioni di quella chat.
+        /// Holding a row opens the actions of that chat.
         ///
-        /// Si guarda HoldingState: un tocco prolungato ne alza due, e senza
-        /// questo controllo il menu si aprirebbe anche quando il dito si alza.
+        /// HoldingState is checked: a long press raises two events, and without this
+        /// check the menu would also open when the finger lifts.
         /// </summary>
         private void ChatRow_Holding(object sender, HoldingRoutedEventArgs e)
         {
@@ -171,10 +171,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Pin, silenzio ed eliminazione di una riga. L'id e lo stato si
-        /// catturano adesso e non si rileggono nel gestore: quando si tocca la
-        /// voce, la riga puo' essere gia' stata rimossa (eliminazione) e il suo
-        /// DataContext non e' piu' quello che il menu mostra.
+        /// Pin, mute and delete of a row. The id and the state are captured now and
+        /// not re-read in the handler: when the item is tapped, the row may already
+        /// have been removed (delete) and its DataContext is no longer the one the
+        /// menu shows.
         /// </summary>
         private void ShowChatMenu(FrameworkElement row, Contact contact)
         {
@@ -203,9 +203,9 @@ namespace WhatsappApp.Pages
             flyout.Items.Add(mute);
 
             var remove = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_Delete", "Delete chat") };
-            // Il gestore aspetta la domanda invece di lanciarla e andare
-            // avanti: un Task che nessuno guarda e' un'eccezione che nessuno
-            // vede (CS4014), e questo e' il punto in cui l'utente decide.
+            // The handler awaits the question instead of launching it and moving on:
+            // an unobserved Task is an exception nobody sees (CS4014), and this is
+            // the point where the user decides.
             remove.Click += async (s, a) => { await ConfirmDeleteAsync(id); };
             flyout.Items.Add(remove);
 
@@ -213,15 +213,15 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Eliminare e' l'unica azione del menu che non si puo' disfare con un
-        /// altro tocco, e un dito appoggiato a lungo e' anche un dito che
-        /// scivolava: la domanda vale una dialog.
+        /// Deleting is the only menu action that cannot be undone with another tap,
+        /// and a finger resting for a long time is also a finger that was sliding:
+        /// the question is worth a dialog.
         /// </summary>
         private async Task ConfirmDeleteAsync(string chatId)
         {
-            // Una dialog che non si apre (un'altra gia' aperta, una pagina che
-            // se ne sta andando) non deve far cadere l'app: si registra e basta,
-            // e la chat resta.
+            // A dialog that does not open (another one already open, a page that is
+            // going away) must not bring down the app: it is logged and that is all,
+            // and the chat stays.
             bool confirmed;
             try
             {
@@ -237,7 +237,7 @@ namespace WhatsappApp.Pages
             DataService.Instance.DeleteChat(chatId);
         }
 
-        /// <summary>La domanda: vero se l'utente ha confermato.</summary>
+        /// <summary>The question: true if the user confirmed.</summary>
         private static async Task<bool> AskToDeleteAsync(string chatId)
         {
             var dialog = new ContentDialog
@@ -268,25 +268,25 @@ namespace WhatsappApp.Pages
             DataService.Instance.Contacts.CollectionChanged += Contacts_CollectionChanged;
             UpdateEmptyState();
 
-            // Le immagini che ci sono ancora in byte ma non piu' decodificate:
-            // MemoryWatcher le ha buttate via, e senza questo l'elenco resta con
-            // le iniziali finche' il server non rimanda le righe.
+            // The images that are still there as bytes but no longer decoded:
+            // MemoryWatcher threw them away, and without this the list stays with
+            // the initials until the server sends the rows again.
             DataService.Instance.RestoreAvatars();
 
-            // Un'allegato puo' arrivare mentre questa pagina e' davanti (l'app
-            // torna qui dopo il selettore) oppure prima che esista (processo
-            // avviato da una condivisione): si guarda in tutti e due i casi.
+            // An attachment can arrive while this page is in front (the app comes
+            // back here after the picker) or before it exists (a process started by
+            // a share): it is checked in both cases.
             AttachmentInbox.Ready += OnAttachmentReady;
             UpdatePendingAttachment();
 
-            // La richiesta si rifa' a ogni ingresso e a ogni passaggio a
-            // connected, invece di aspettare che qualcuno apra le impostazioni:
-            // all'avvio la connessione non c'e' ancora, e la lista arrivava solo
-            // se l'utente tornava qui dopo averla aperta.
+            // The request is made again on every entry and on every switch to
+            // connected, instead of waiting for someone to open the settings: at
+            // startup the connection is not there yet, and the list arrived only if
+            // the user came back here after opening them.
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
 
-            // Il server che non risponde e la connessione che torna: la
-            // striscia la governano questi due eventi.
+            // The server that does not answer and the connection that comes back:
+            // the bar is governed by these two events.
             CommunicationService.Instance.ServerUnavailable += OnServerUnavailable;
             CommunicationService.Instance.ConnectionEstablished += OnServerAvailable;
             RequestChats();
@@ -303,8 +303,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Il server principale non ha risposto dopo i tentativi automatici: la
-        /// striscia lo dice, e resta finche' una connessione non riesce.
+        /// The main server did not answer after the automatic attempts: the bar says
+        /// so, and it stays until a connection succeeds.
         /// </summary>
         private void OnServerUnavailable(object sender, EventArgs e)
         {
@@ -319,10 +319,10 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// WhatsApp e' passato a connected adesso. La richiesta fatta
-        /// all'ingresso non poteva avere risposta (l'adapter risponde "non
-        /// collegato" finche' il login non e' finito), e questa e' la sola cosa
-        /// che fa comparire l'elenco senza toccare niente.
+        /// WhatsApp has just switched to connected. The request made on entry could
+        /// not have an answer (the adapter answers "not connected" until the login
+        /// is done), and this is the only thing that makes the list show up without
+        /// touching anything.
         /// </summary>
         private void OnControlMessageReceived(object sender, ChatMessage message)
         {
@@ -331,9 +331,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Chiede l'elenco delle conversazioni. Solo se c'e' qualcuno che puo'
-        /// rispondere: con WhatsApp non collegato l'adapter risponde con un
-        /// errore e nessuna riga.
+        /// Requests the conversation list. Only if there is someone who can answer:
+        /// with WhatsApp not connected the adapter answers with an error and no row.
         /// </summary>
         private void RequestChats()
         {
@@ -350,7 +349,7 @@ namespace WhatsappApp.Pages
             UpdatePendingAttachment();
         }
 
-        /// <summary>La riga in cima dice che c'e' un'immagine da mandare.</summary>
+        /// <summary>The top row says there is an image to send.</summary>
         private void UpdatePendingAttachment()
         {
             PendingAttachmentBar.Visibility = AttachmentInbox.HasAttachment
@@ -393,8 +392,8 @@ namespace WhatsappApp.Pages
                     "Phone number with country code (e.g. 393401234567)")
             };
 
-            // L'errore di validazione vive dentro la dialog: cosi' l'utente
-            // ritrova il numero che aveva digitato invece di ripartire da zero.
+            // The validation error lives inside the dialog: this way the user finds
+            // the number they typed again instead of starting over.
             var error = new TextBlock
             {
                 Text = Loc.Get("NewChat_Invalid",
@@ -406,8 +405,8 @@ namespace WhatsappApp.Pages
                 Visibility = Visibility.Collapsed
             };
 
-            // Il selettore contatti del sistema riempie il campo: e' il consenso
-            // dell'utente, quindi l'app non legge la rubrica per conto suo.
+            // The system contact picker fills the field: it is the user consent, so
+            // the app does not read the address book on its own.
             var pickButton = new Button
             {
                 Content = Loc.Get("NewChat_PickContact", "Choose from contacts"),
@@ -439,8 +438,8 @@ namespace WhatsappApp.Pages
                 if (!string.IsNullOrEmpty(picked)) input.Text = picked;
             };
 
-            // Le conversazioni che il server conosce gia': sceglierne una evita
-            // di digitare un numero che l'utente probabilmente ha sott'occhio.
+            // The conversations the server already knows: choosing one avoids typing
+            // a number the user probably has in sight.
             var known = new ListView
             {
                 ItemsSource = DataService.Instance.Contacts,
@@ -476,8 +475,8 @@ namespace WhatsappApp.Pages
             {
                 var result = await dialog.ShowAsync();
 
-                // Una chat scelta dall'elenco chiude la dialog da sola: il
-                // risultato e' None, quindi si controlla la scelta per prima.
+                // A chat chosen from the list closes the dialog on its own: the
+                // result is None, so the choice is checked first.
                 if (chosen != null)
                 {
                     Frame.Navigate(typeof(ChatPage), chosen);
@@ -515,14 +514,14 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Apre il selettore contatti del sistema e restituisce il primo numero
-        /// trovato, ripulito. Vuoto se l'utente annulla o il contatto non ha
-        /// numeri: non e' un errore, e' una scelta.
+        /// Opens the system contact picker and returns the first number found,
+        /// cleaned up. Empty if the user cancels or the contact has no numbers: it
+        /// is not an error, it is a choice.
         /// </summary>
-        // CS0618: il compilatore propone Contact/PickContactAsync, che sono
-        // l'API di Windows 10. Su WP8.1 l'unica disponibile e' ContactInformation:
-        // l'avviso e' corretto e non c'e' niente da fare, quindi non si stampa
-        // ad ogni build (altrimenti un avviso nuovo non si nota piu').
+        // CS0618: the compiler suggests Contact/PickContactAsync, which are the
+        // Windows 10 API. On WP8.1 the only available one is ContactInformation:
+        // the warning is correct and there is nothing to do, so it is not printed on
+        // every build (otherwise a new warning would no longer be noticed).
 #pragma warning disable 618
         private static async Task<string> PickFromContactsAsync()
         {
@@ -541,14 +540,14 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
-                // Alcuni dispositivi rifiutano il selettore: non e' un crash.
+                // Some devices reject the picker: it is not a crash.
                 Diag.Failed("ChatsPage.PickFromContactsAsync", ex);
                 return "";
             }
         }
 #pragma warning restore 618
 
-        /// <summary>Solo le cifre: il numero deve restare quello che l'app si aspetta.</summary>
+        /// <summary>Digits only: the number must stay the one the app expects.</summary>
         private static string NormalizePhone(string value)
         {
             if (value == null) return "";

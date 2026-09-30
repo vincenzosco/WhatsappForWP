@@ -92,7 +92,7 @@ namespace WhatsappApp.Converters
         {
             string initials = value as string ?? "?";
             int hash = initials.GetHashCode();
-            // Maschera il bit di segno: Math.Abs(int.MinValue) va in overflow
+            // Mask off the sign bit: Math.Abs(int.MinValue) overflows
             int index = (hash & 0x7FFFFFFF) % Colors.Length;
             return new SolidColorBrush(ParseColor(Colors[index]));
         }
