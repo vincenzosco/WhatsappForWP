@@ -14,8 +14,8 @@
         <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
         <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
 
-        <!-- Containers senza padding/animazioni: meno lavoro per item durante
-             lo scorrimento (telefoni WP8.1 di fascia bassa). -->
+        <!-- Containers without padding/animations: less work per item while
+             scrolling (low-end WP8.1 phones). -->
         <Style x:Key="ChatItemContainerStyle" TargetType="ListViewItem">
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0"/>
@@ -42,12 +42,12 @@
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <!-- I tre puntini stanno a sinistra: le azioni che valgono per
-                 tutto l'elenco, e non per una riga. -->
-            <!-- Il minimo del tema (Button: 109 x 57.5) scavalca Width/Height:
-                 senza MinWidth/MinHeight a 0 ognuno di questi tre pulsanti
-                 occupa 109 px, la colonna del titolo si stringe e "WhatsApp"
-                 finisce tagliato a destra. tools/check-actions.js lo impedisce. -->
+            <!-- The three dots sit on the left: the actions that apply to the
+                 whole list, and not to a single row. -->
+            <!-- The theme minimum (Button: 109 x 57.5) overrides Width/Height:
+                 without MinWidth/MinHeight at 0 each of these three buttons
+                 takes 109 px, the title column is squeezed and "WhatsApp" ends
+                 up cut off on the right. tools/check-actions.js prevents it. -->
             <Button x:Name="MoreButton" Grid.Column="0"
                     Background="Transparent" BorderThickness="0" Padding="0"
                     MinWidth="0" MinHeight="0"
@@ -93,8 +93,8 @@
                        Foreground="White" FontSize="24" FontWeight="SemiBold"
                        VerticalAlignment="Center" Margin="4,0,0,4"/>
 
-            <!-- I due pulsanti non si toccano: con il margine a 8 un dito
-                 appoggiato sul bordo non cade sull'azione accanto. -->
+            <!-- The two buttons do not touch: with a margin of 8 a finger
+                 resting on the edge does not fall on the action next to it. -->
             <Button x:Name="NewChatButton" Grid.Column="2"
                     Background="Transparent" BorderThickness="0" Padding="0"
                     MinWidth="0" MinHeight="0"
@@ -184,9 +184,9 @@
             </Button>
         </Grid>
 
-        <!-- Un'immagine scelta col selettore o condivisa da un'altra app aspetta
-             una chat. Senza questa riga l'app si aprirebbe su un elenco e
-             sembrerebbe che non sia successo niente. -->
+        <!-- An image picked with the chooser or shared from another app is
+             waiting for a chat. Without this row the app would open on a list
+             and it would look like nothing had happened. -->
         <Border x:Name="PendingAttachmentBar" Grid.Row="1"
                 Background="#FFFFF3CD" Padding="12,8" Visibility="Collapsed">
             <TextBlock x:Uid="ChatsPage_PendingImage"
@@ -220,12 +220,11 @@
                                   Margin="10,10,0,10" VerticalAlignment="Center">
                                 <Ellipse Width="52" Height="52"
                                          Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                                <!-- L'immagine del profilo, quando GOWA ce l'ha.
-                                     Non e' un'Image: WP8.1 sa ritagliare solo
-                                     rettangoli con UIElement.Clip. Un Border
-                                     invece ritaglia il proprio sfondo alla
-                                     forma di CornerRadius, e 26 su un quadrato
-                                     da 52 e' un cerchio esatto. -->
+                                <!-- The profile picture, when GOWA has one. It is
+                                     not an Image: WP8.1 can clip only rectangles
+                                     with UIElement.Clip. A Border instead clips
+                                     its own background to the CornerRadius shape,
+                                     and 26 on a 52 square is an exact circle. -->
                                 <Border Width="52" Height="52" CornerRadius="26"
                                         Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
                                     <Border.Background>
@@ -236,9 +235,9 @@
                                            Foreground="White" FontSize="18" FontWeight="SemiBold"
                                            VerticalAlignment="Center" HorizontalAlignment="Center"
                                            Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-                                <!-- Niente pallino di presenza: WhatsApp non ci
-                                     dice chi e' online, e un pallino inventato e'
-                                     peggio di nessun pallino. -->
+                                <!-- No presence dot: WhatsApp does not tell us
+                                     who is online, and an invented dot is worse
+                                     than no dot at all. -->
                             </Grid>
 
                             <!-- Contact info -->
@@ -253,10 +252,9 @@
                             <!-- Time, the marks of this phone, and unread badge -->
                             <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,12,0">
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                    <!-- Il pin e il silenzio sono decisioni di
-                                         questo telefono: la riga lo dice, o il
-                                         menu sarebbe l'unico posto dove
-                                         scoprirlo. -->
+                                    <!-- The pin and the mute are decisions of
+                                         this phone: the row says so, or the menu
+                                         would be the only place to find out. -->
                                     <Path Width="12" Height="12" Margin="0,0,3,0"
                                           VerticalAlignment="Center"
                                           Stroke="#FF808080" StrokeThickness="1.5"
@@ -332,9 +330,9 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <!-- Il server non ha risposto: una striscia in cima, che resta
-                 finche' una connessione non riesce. Non e' il posto vuoto: una
-                 lista in cache puo' esserci comunque. -->
+            <!-- The server did not answer: a strip at the top, which stays
+                 until a connection succeeds. It is not the empty state: a
+                 cached list may exist anyway. -->
             <Border x:Name="ServerUnavailableBar" Grid.Row="2"
                     Background="#FFB26A00"
                     VerticalAlignment="Top"
