@@ -4,23 +4,23 @@ using Windows.UI.Xaml;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Tiene viva la connessione quando WP8.1 la uccide senza dirlo.
+    /// Keeps the connection alive when WP8.1 kills it without saying so.
     ///
-    /// Il caso vero: l'app viene sospesa, l'OS chiude il socket, e alla ripresa
-    /// `CommunicationService.IsConnected` e' ancora true perche' nessuno ha
-    /// letto niente. Da fuori l'app sembra collegata e invece e' muta: i
-    /// messaggi non arrivano piu' e l'elenco chat resta quello di prima. Lo
-    /// stesso capita senza sospensione, quando cambia la rete.
+    /// The real case: the app is suspended, the OS closes the socket, and on
+    /// resume `CommunicationService.IsConnected` is still true because nobody has
+    /// read anything. From outside the app looks connected and is mute instead:
+    /// messages no longer arrive and the chat list stays the previous one. The
+    /// same happens without suspension, when the network changes.
     ///
-    /// Come se ne accorge: ogni tick manda il comando `status`, che l'adapter
-    /// risponde con un frame di stato. Finche' le risposte tornano, il socket e'
-    /// vivo. Se non torna niente entro la scadenza, la connessione si chiude e
-    /// si riprova con AutoConnector, che e' gia' il posto dove vive la scelta
-    /// dell'indirizzo (quello salvato, o l'unico adapter annunciato).
+    /// How it notices: every tick it sends the `status` command, which the adapter
+    /// answers with a state frame. As long as the answers come back, the socket is
+    /// alive. If nothing comes back before the deadline, the connection is closed
+    /// and retried with AutoConnector, which is already the place where the
+    /// address choice lives (the saved one, or the single announced adapter).
     ///
-    /// Non mostra niente: la pagina delle impostazioni e' l'unica che parla, e
-    /// il suo stato si aggiorna da solo perche' la riconnessione solleva gli
-    /// stessi eventi di un collegamento normale.
+    /// It shows nothing: the settings page is the only one that speaks, and its
+    /// state updates by itself because the reconnection raises the same events as
+    /// a normal connection.
     /// </summary>
     public sealed class ConnectionWatchdog
     {
@@ -35,24 +35,23 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Ogni quanto si chiede lo stato quando la connessione tace.</summary>
+        /// <summary>How often the state is asked for when the connection is silent.</summary>
         private const int IntervalSeconds = 20;
 
         /// <summary>
-        /// Da quanto silenzio la connessione si considera morta. Tre volte
-        /// l'intervallo: una risposta lenta o un tick saltato non devono
-        /// chiudere una connessione che funziona.
+        /// After how much silence the connection is considered dead. Three times
+        /// the interval: a slow answer or a skipped tick must not close a working
+        /// connection.
         /// </summary>
         private const int StaleSeconds = 60;
 
-        /// <summary>Secondi di attesa dell'adapter annunciato, quando si riprova.</summary>
+        /// <summary>Seconds to wait for the announced adapter, when retrying.</summary>
         private const int DiscoverySeconds = 6;
 
         private DispatcherTimer _timer;
 
-        // Un tick alla volta: il controllo fa I/O, e due in parallelo
-        // chiederebbero due volte lo stato e potrebbero chiudere la stessa
-        // connessione a vicenda.
+        // One tick at a time: the check does I/O, and two in parallel would ask
+        // for the state twice and could close the same connection for each other.
         private bool _checking;
 
         private ConnectionWatchdog()
@@ -60,8 +59,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Avvia il controllo periodico. Va chiamato una volta sola, all'avvio,
-        /// sul thread UI: DispatcherTimer vive del thread che lo crea.
+        /// Starts the periodic check. Call it once only, at startup, on the UI
+        /// thread: DispatcherTimer lives on the thread that creates it.
         /// </summary>
         public void Start()
         {
@@ -74,9 +73,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Verifica subito, senza aspettare il tick: e' quello che serve alla
-        /// ripresa, dove il socket e' appena stato chiuso dall'OS e aspettare
-        /// venti secondi significa venti secondi di app muta.
+        /// Checks at once, without waiting for the tick: that is what resume
+        /// needs, where the socket has just been closed by the OS and waiting
+        /// twenty seconds means twenty seconds of a mute app.
         /// </summary>
         public void CheckNow()
         {
@@ -98,9 +97,9 @@ namespace WhatsappApp.Services
             {
                 var comm = CommunicationService.Instance;
 
-                // Non collegata: la prima connessione non e' compito di questo
-                // servizio, e inseguirla qui vorrebbe dire due tentativi in
-                // parallelo con AutoConnector.
+                // Not connected: the first connection is not this service's job,
+                // and chasing it here would mean two attempts in parallel with
+                // AutoConnector.
                 if (!comm.IsConnected) return;
 
                 if (IsStale(comm.LastInboundUtc))
@@ -109,9 +108,9 @@ namespace WhatsappApp.Services
                         new TimeoutException("no frame from the adapter within " +
                             StaleSeconds + " s: reconnecting"));
 
-                    // Chiudere prima di riprovare non e' una formalita':
-                    // AutoConnector restituisce true subito quando IsConnected
-                    // e' true, quindi senza questo non proverebbe nemmeno.
+                    // Closing before retrying is not a formality: AutoConnector
+                    // returns true at once when IsConnected is true, so without this
+                    // it would not even try.
                     comm.Disconnect();
 
                     await AutoConnector.Instance.TryConnectAsync(
@@ -119,8 +118,8 @@ namespace WhatsappApp.Services
                     return;
                 }
 
-                // La richiesta che genera la risposta: l'adapter risponde a
-                // `status` con un frame di stato, che rinfresca LastInboundUtc.
+                // The request that produces the answer: the adapter answers
+                // `status` with a state frame, which refreshes LastInboundUtc.
                 await comm.SendControlAsync("status");
             }
             catch (Exception ex)
@@ -135,9 +134,9 @@ namespace WhatsappApp.Services
 
         private static bool IsStale(DateTime lastInboundUtc)
         {
-            // Mai letto niente (default(DateTime)): e' il caso di una
-            // connessione appena aperta, che ha gia' impostato il campo. Se
-            // resta a zero, e' comunque piu' vecchio della scadenza.
+            // Never read anything (default(DateTime)): that is the case of a
+            // connection just opened, which has already set the field. If it stays
+            // at zero, it is older than the deadline anyway.
             return (DateTime.UtcNow - lastInboundUtc).TotalSeconds > StaleSeconds;
         }
     }

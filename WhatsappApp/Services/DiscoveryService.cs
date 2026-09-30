@@ -11,16 +11,16 @@ using WhatsappApp.Models;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Ascolta i beacon dell'adapter e tiene la lista di quelli visti negli
-    /// ultimi secondi. Non mostra niente e non lancia: chi la usa decide cosa
-    /// fare dei server trovati.
+    /// Listens to the adapter beacons and keeps the list of those seen in the
+    /// last seconds. It shows nothing and throws nothing: whoever uses it decides
+    /// what to do with the found servers.
     /// </summary>
     public sealed class DiscoveryService
     {
-        /// <summary>Porta UDP annunciata dall'adapter (DISCOVERY_PORT).</summary>
+        /// <summary>UDP port announced by the adapter (DISCOVERY_PORT).</summary>
         public const int Port = 8587;
 
-        /// <summary>Secondi dopo i quali un adapter che non si annuncia piu' sparisce.</summary>
+        /// <summary>Seconds after which an adapter that no longer announces itself disappears.</summary>
         private const int TtlSeconds = 6;
 
         private const int PollIntervalMs = 250;
@@ -41,7 +41,7 @@ namespace WhatsappApp.Services
         private DatagramSocket _socket;
         private bool _starting;
 
-        /// <summary>Sollevato su un thread di rete quando la lista cambia.</summary>
+        /// <summary>Raised on a network thread when the list changes.</summary>
         public event EventHandler ServersChanged;
 
         private DiscoveryService()
@@ -53,7 +53,7 @@ namespace WhatsappApp.Services
             get { return _socket != null; }
         }
 
-        /// <summary>Gli adapter noti adesso, dal piu' recente.</summary>
+        /// <summary>The adapters known now, most recent first.</summary>
         public List<DiscoveredServer> Snapshot()
         {
             lock (_gate)
@@ -69,8 +69,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Apre la porta UDP. Se la rete o la porta non lo permettono resta
-        /// spento: l'inserimento manuale dell'indirizzo continua a funzionare.
+        /// Opens the UDP port. If the network or the port does not allow it, it
+        /// stays off: manual entry of the address keeps working.
         /// </summary>
         public async Task StartAsync()
         {
@@ -85,9 +85,9 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Se la porta non si apre non c'e' niente da riprovare qui: si
-                // registra perche' e quale, e la pagina continua con
-                // l'inserimento manuale dell'indirizzo.
+                // If the port does not open there is nothing to retry here: the
+                // reason and the port are recorded, and the page carries on with
+                // manual entry of the address.
                 Diag.Failed("DiscoveryService.StartAsync", ex);
                 _socket = null;
             }
@@ -109,9 +109,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Aspetta fino a <paramref name="seconds"/> secondi che si veda un solo
-        /// adapter. Con zero o piu' di uno restituisce null: con piu' di uno la
-        /// scelta tocca all'utente.
+        /// Waits up to <paramref name="seconds"/> seconds for a single adapter to
+        /// be seen. With zero or more than one it returns null: with more than one
+        /// the choice is up to the user.
         /// </summary>
         public async Task<DiscoveredServer> WaitForSingleAsync(int seconds)
         {
@@ -136,12 +136,11 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Un datagramma di beacon. Il reader che arriva qui contiene gia' il
-        /// datagramma: chiamare LoadAsync su di lui risponde
-        /// "The operation identifier is not valid" (0x800710DD) a ogni pacchetto
-        /// ricevuto, ed e' quello che riempiva il log. Si legge direttamente, e
-        /// non e' piu' async: un handler async void che lancia non lo vede
-        /// nessuno.
+        /// A beacon datagram. The reader that arrives here already holds the
+        /// datagram: calling LoadAsync on it answers "The operation identifier is
+        /// not valid" (0x800710DD) on every received packet, and that is what
+        /// filled the log. It is read directly, and it is no longer async: an
+        /// async void handler that throws is seen by nobody.
         /// </summary>
         private void OnMessageReceived(DatagramSocket sender, DatagramSocketMessageReceivedEventArgs args)
         {
@@ -165,8 +164,8 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                // Un datagramma malformato non deve fermare l'ascolto, ma un
-                // guasto che si ripete a ogni beacon va visto una volta.
+                // A malformed datagram must not stop the listening, but a failure
+                // that repeats on every beacon must be seen once.
                 Diag.Failed("DiscoveryService.OnMessageReceived", ex);
             }
         }
