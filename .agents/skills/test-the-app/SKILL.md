@@ -7,8 +7,8 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 40 C# files, 141 keys in each `.resw`, 24 inline icon
-Paths (14 distinct icons), 21 buttons, 1 button style, 153 adapter tests, 58 tests
+Current expected counts: 41 C# files, 145 keys in each `.resw`, 24 inline icon
+Paths (14 distinct icons), 21 buttons, 1 button style, 173 adapter tests, 58 tests
 in `tools/test`.
 
 ```bash
@@ -72,12 +72,20 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 cd WhatsappBridge && npm test
 ```
 
-Expected `pass 133`, `fail 0`. It covers the config and its `.env` loader, the GOWA
-client, the chat list and the group pictures, the call scan, the `ffmpeg`
-transcode (with the executable injected, so the suite needs no `ffmpeg`), the
-message format (including the `\/Date(ms)\/` wire format the app requires), the TCP
-server, the webhook receiver and the discovery beacon (a real UDP round trip). Add
-a test with every adapter change.
+Expected `pass 173`, `fail 0`. It covers the config and its `.env` loader, the GOWA
+client (including the per-device `withDevice`/`createDevice`), the chat list and
+the group pictures, the call scan, the `ffmpeg` transcode (with the executable
+injected, so the suite needs no `ffmpeg`), the message format (including the
+`\/Date(ms)\/` wire format the app requires), the TCP server including the
+per-user session isolation, the webhook receiver, the user store and the token
+gate, and the discovery beacon (a real UDP round trip). Add a test with every
+adapter change.
+
+The Docker repository has its own small suite for the tools it ships:
+
+```bash
+cd /tmp/docker-whatsappforwp && node --test "tools/*.test.js"   # 6 tests, the backup tool
+```
 
 ## Cross-checking the app against the adapter
 

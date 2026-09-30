@@ -122,6 +122,24 @@ See `.env.example`. The main variables:
 | `CHATS_AVATARS` | `on` | fetch profile pictures, one request per chat, groups included (`off` disables). A picture that was downloaded is kept for five minutes, a JID with no picture for one, so a chat list that is read again does not go back to WhatsApp (see `avatar-cache.js`) |
 | `FFMPEG_ENABLED` | `on` | convert Ogg/Opus voice notes to MP3 for WP8.1 (`off` disables) |
 | `FFMPEG_PATH` | `ffmpeg` | the ffmpeg executable, when it is not on the PATH |
+| `AUTH_REQUIRED` | `off` | require a token in `hello` (`on` for a shared service, after creating the user) |
+| `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
+
+The token is the only thing that distinguishes a phone on a shared service. Create
+one user per phone and hand each phone its token:
+
+```bash
+node create-user.js vincenzo            # prints id, name and the token, once
+# inside the container:
+docker exec whatsapp-for-wp8 node /opt/adapter/create-user.js vincenzo
+```
+
+Every user gets a GOWA device of their own, created on the first handshake, and
+every command, cache and webhook is scoped to it: a message for one device never
+reaches another user's socket. With `AUTH_REQUIRED=off` the adapter behaves as
+before, with a single account and no token. The webhook routing uses the
+top-level `device_id` GOWA puts on every event. Tokens are kept only as scrypt
+hashes; a lost token is replaced, not recovered.
 
 ### Voice notes need ffmpeg
 

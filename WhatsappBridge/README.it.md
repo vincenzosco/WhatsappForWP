@@ -123,6 +123,24 @@ Vedi `.env.example`. Le variabili principali:
 | `CHATS_AVATARS` | `on` | scarica le immagini del profilo, una richiesta per chat, gruppi compresi (`off` le spegne). Un'immagine gia' scaricata si tiene per cinque minuti, un JID senza immagine per uno, cosi' un elenco chat riletto non torna da WhatsApp (vedi `avatar-cache.js`) |
 | `FFMPEG_ENABLED` | `on` | converte i vocali Ogg/Opus in MP3 per WP8.1 (`off` la spegne) |
 | `FFMPEG_PATH` | `ffmpeg` | l'eseguibile di ffmpeg, quando non e' nel PATH |
+| `AUTH_REQUIRED` | `off` | chiede un token in `hello` (`on` per un servizio condiviso, dopo aver creato l'utente) |
+| `USERS_FILE` | — | dove vivono gli utenti; vuoto li tiene in memoria, un percorso sopravvive a un riavvio |
+
+Il token e' l'unica cosa che distingue un telefono su un servizio condiviso. Crea
+un utente per telefono e consegna a ciascuno il suo token:
+
+```bash
+node create-user.js vincenzo            # stampa id, nome e token, una volta sola
+# dentro il container:
+docker exec whatsapp-for-wp8 node /opt/adapter/create-user.js vincenzo
+```
+
+Ogni utente ha un device GOWA suo, creato al primo handshake, e ogni comando,
+cache e webhook e' limitato a quello: un messaggio per un device non arriva mai
+al socket di un altro utente. Con `AUTH_REQUIRED=off` l'adapter si comporta come
+prima, con un account solo e nessun token. L'instradamento dei webhook usa il
+`device_id` di primo livello che GOWA mette su ogni evento. I token sono tenuti
+solo come hash scrypt; un token perso si sostituisce, non si recupera.
 
 ### I vocali hanno bisogno di ffmpeg
 

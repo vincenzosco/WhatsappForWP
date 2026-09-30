@@ -333,6 +333,21 @@ Landed in the following pushes:
   is routed by its top-level `device_id`, so one user's message never reaches another's
   socket. Four isolation tests in `test/server.test.js`. 165 -> 173 adapter tests.
 
+Landed in the next push of the Docker repository:
+
+- **Phase C2**: `docker-compose.secure.yaml` bind-mounts `/data` from a host
+  directory, with the exact `cryptsetup`/LUKS commands to put behind it. GOWA
+  cannot encrypt its own session, so the volume answer is the honest one.
+- **Phase C3**: `tools/backup.js export|restore` builds and unpacks a tar of
+  `/data/storages` and `/data/users.json` through the container itself, so the
+  host does not need to know where Docker keeps the volume. Covered by
+  `tools/backup.test.js` (6 tests). Deviation from the plan: the tool lives in the
+  Docker repository, next to the compose files it runs, not in the app's `tools/`,
+  which is only the CI guard scripts.
+- **Phase G**: both app READMEs gained a "Shared server and the public endpoint"
+  section and the adapter READMEs document `AUTH_REQUIRED`/`USERS_FILE` and the
+  per-user device, with the limits written down instead of left implied.
+
 Still open, with the reason:
 
 - **Phase A3** (TLS underneath the app cipher). WP8.1 `StreamSocket` has no certificate

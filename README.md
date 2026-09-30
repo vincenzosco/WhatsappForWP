@@ -519,6 +519,31 @@ the warning sign:
 node tools/check-docs.js
 ```
 
+## Shared server and the public endpoint
+
+The adapter can host more than one account. Every user gets a GOWA device of
+their own, created on the first handshake, and a token in `hello` decides which
+one is theirs; with `AUTH_REQUIRED=on`, a message routed by its `device_id`
+never reaches another user's socket. With the switch off nothing changes and the
+instance stays private, with no token.
+
+The public service is not an address compiled into the app: `EndpointService`
+reads `endpoint.json` from
+[whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
+because the bore.pub tunnel that exposes the server gets a new port every time
+it restarts. That file holds an address and nothing else. The switch on the
+connection page chooses between the public service and a server of your own.
+
+What remains true, and is worth saying plainly:
+
+- The transport is encrypted by the app-level cipher (AES-256-CBC + HMAC-SHA256)
+  with the passphrase compiled into the app. There is no TLS underneath: a WP8.1
+  `StreamSocket` cannot pin a certificate, so a self-signed one is not an option.
+- The operator of a shared server can technically reach the sessions on the
+  machine. The token separates users from each other, not from the operator.
+- Tokens are stored only as scrypt hashes, and the WhatsApp session is protected
+  by encrypting the volume on the host.
+
 ## Limitations
 
 - Status updates are not available: the GOWA server this app talks to has no endpoint for them, so the Status section is empty on purpose.

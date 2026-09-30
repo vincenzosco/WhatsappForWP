@@ -277,6 +277,16 @@ the adapter:
   `ChatPreferences`. Put the *decision* (the encrypted payload, the JSON
   snapshot) on the caller's thread and only the write in the queue, or the queue
   touches state that another thread is still changing.
+- **On the shared service the token is authentication, not isolation; the device is.**
+  `createBridge` in `WhatsappBridge/server.js` keeps one *session* per GOWA device
+  (the empty key is the private instance), and every cache, unread count, login
+  state and socket set lives in it. A command must take its session from
+  `handleCommand(session, msg, socket)`; reaching for the module-level `anonymous`
+  from a new command would answer the wrong account. A webhook is routed by the
+  top-level `device_id` GOWA puts on every event (`sessionForEvent`), so a new
+  event type must route the same way or it goes nowhere on a shared server. A
+  user's device is created on the first valid handshake and remembered in
+  `users.json`; `gowa.withDevice(id)` is the client bound to it.
 - **On WP8.1 a theme minimum overrides the size you declare.** The default
   `Button` style sets `MinWidth = PhoneButtonMinWidth = 109` and
   `MinHeight = PhoneButtonMinHeight = 57.5` (the phone kit's `generic.xaml` and
