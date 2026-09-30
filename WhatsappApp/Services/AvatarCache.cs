@@ -9,7 +9,7 @@ using Windows.Storage;
 
 namespace WhatsappApp.Services
 {
-    /// <summary>Il file su disco: un'immagine per chat.</summary>
+    /// <summary>The on-disk file: one picture per chat.</summary>
     [DataContract]
     internal class AvatarCacheEntry
     {
@@ -20,7 +20,7 @@ namespace WhatsappApp.Services
         public string Data { get; set; }
     }
 
-    /// <summary>Il file intero: l'elenco delle immagini.</summary>
+    /// <summary>The whole file: the list of pictures.</summary>
     [DataContract]
     internal class AvatarCacheFile
     {
@@ -29,82 +29,83 @@ namespace WhatsappApp.Services
     }
 
     /// <summary>
-    /// Le immagini del profilo che l'adapter ha mandato, tenute sul telefono.
+    /// The profile pictures the adapter sent, kept on the phone.
     ///
-    /// Perche' esiste: l'elenco chat arriva con l'immagine di ogni
-    /// conversazione, e l'app la decodifica e la disegna. Ma i byte non
-    /// sopravvivevano a niente - la copia dell'elenco (ChatCache) li lascia
-    /// fuori di proposito, perche' e' il file che si legge prima che la
-    /// connessione esista e deve restare piccolo, e la copia decodificata la
-    /// butta via MemoryWatcher sotto pressione. Risultato: dopo un riavvio, o
-    /// dopo un picco di memoria, la lista mostra le iniziali finche' l'adapter
-    /// non rimanda ogni riga, cioe' due richieste HTTP per chat (l'indirizzo
-    /// dell'immagine, e poi i byte dal CDN).
+    /// Why it exists: the chat list arrives with the picture of every
+    /// conversation, and the app decodes and draws it. But the bytes did not
+    /// survive anything - the list copy (ChatCache) leaves them out on purpose,
+    /// because it is the file read before the connection exists and must stay
+    /// small, and the decoded copy is dropped by MemoryWatcher under pressure.
+    /// Result: after a restart, or after a memory spike, the list shows the
+    /// initials until the adapter sends every row again, that is two HTTP requests
+    /// per chat (the picture address, then the bytes from the CDN).
     ///
-    /// Qui i byte si tengono. Non e' una verita': e' una cache, e la riga che
-    /// arriva dal server la sostituisce appena arriva (vedi ApplyChat).
+    /// Here the bytes are kept. It is not the truth: it is a cache, and the row
+    /// that arrives from the server replaces it as soon as it arrives (see
+    /// ApplyChat).
     ///
-    /// Tetti, perche' quello che non ha un tetto cresce: MaxChats chat (una in
-    /// piu' di CHATS_LIMIT non verrebbe mai disegnata), MaxEntryChars per una
-    /// singola immagine e MaxTotalChars per il file. Chi non entra non si
-    /// tiene, e la riga torna alle iniziali - che e' quello che faceva prima.
+    /// Ceilings, because what has no ceiling grows: MaxChats chats (one more than
+    /// CHATS_LIMIT would never be drawn), MaxEntryChars for a single picture and
+    /// MaxTotalChars for the file. What does not fit is not kept, and the row goes
+    /// back to the initials - which is what it did before.
     /// </summary>
     public static class AvatarCache
     {
         private const string FileName = "avatar-cache.json";
 
-        /// <summary>Quante chat si tengono.</summary>
+        /// <summary>How many chats are kept.</summary>
         public const int MaxChats = 40;
 
-        /// <summary>Il tetto di una singola immagine, in caratteri base64 (~110 KB).</summary>
+        /// <summary>The ceiling of a single picture, in base64 characters (~110 KB).</summary>
         public const int MaxEntryChars = 150000;
 
-        /// <summary>Il tetto di tutto il file, in caratteri base64 (~1,1 MB).</summary>
+        /// <summary>The ceiling of the whole file, in base64 characters (~1.1 MB).</summary>
         public const int MaxTotalChars = 1500000;
 
         private static readonly DataContractJsonSerializer Serializer =
             new DataContractJsonSerializer(typeof(AvatarCacheFile));
 
-        /// <summary>ChatId -> immagine in base64.</summary>
+        /// <summary>ChatId -> picture in base64.</summary>
         private static readonly Dictionary<string, string> Known =
             new Dictionary<string, string>();
 
-        /// <summary>L'ordine in cui le chat sono entrate: da qui esce chi e' di troppo.</summary>
+        /// <summary>The order the chats entered in: the excess goes out from here.</summary>
         private static readonly List<string> Order = new List<string>();
 
-        /// <summary>Le chat la cui immagine e' troppo grande: si dice una volta sola.</summary>
+        /// <summary>The chats whose picture is too large: said once only.</summary>
         private static readonly HashSet<string> TooBig = new HashSet<string>();
 
-        /// <summary>I caratteri che Known occupa adesso: sommarli a ogni controllo costerebbe.</summary>
+        /// <summary>The characters Known occupies now: adding them on every check would cost.</summary>
         private static long _chars;
 
         /// <summary>
-        /// Il lucchetto di Known, Order, TooBig e _chars. Serve perche' Remember
-        /// lo chiama il thread UI (ApplyChat) e la scrittura la esegue la coda.
+        /// The lock of Known, Order, TooBig and _chars. It is needed because
+        /// Remember is called by the UI thread (ApplyChat) and the write is run by
+        /// the queue.
         /// </summary>
         private static readonly object Gate = new object();
 
-        /// <summary>Le scritture del file, una alla volta e in ordine.</summary>
+        /// <summary>The file writes, one at a time and in order.</summary>
         private static readonly SerialQueue Writes = new SerialQueue();
 
-        /// <summary>Cresce a ogni cambiamento: dice se c'e' qualcosa da scrivere.</summary>
+        /// <summary>Grows on every change: it says whether there is something to write.</summary>
         private static int _version;
 
-        /// <summary>L'ultima versione arrivata sul disco.</summary>
+        /// <summary>The last version that reached the disk.</summary>
         private static int _written;
 
         private static bool _loaded;
 
-        /// <summary>Quante immagini si tengono adesso. Solo per la diagnosi.</summary>
+        /// <summary>How many pictures are kept right now. For diagnosis only.</summary>
         public static int Count
         {
             get { lock (Gate) { return Known.Count; } }
         }
 
         /// <summary>
-        /// Legge il file una volta sola, e va aspettata prima di applicare le
-        /// righe salvate: senza, quelle righe non trovano nessuna immagine.
-        /// Mai un'eccezione: al primo avvio il file non c'e'.
+        /// Reads the file once, and must be awaited before applying the saved
+        /// rows: without that, those rows find no picture.
+        /// Never an exception: on first run the file is not there.
         /// </summary>
         public static async Task LoadAsync()
         {
@@ -139,20 +140,20 @@ namespace WhatsappApp.Services
 
                         Evict();
 
-                        // Quello che si e' letto e' gia' sul disco: non c'e'
-                        // niente da riscrivere.
+                        // What was read is already on disk: there is nothing to
+                        // rewrite.
                         _written = _version;
                     }
                 }
             }
             catch (Exception ex)
             {
-                // Primo avvio, o file scritto da una versione diversa.
+                // First run, or a file written by a different version.
                 Diag.Failed("AvatarCache.Load", ex);
             }
         }
 
-        /// <summary>L'immagine tenuta per questa chat, o null. Dopo LoadAsync.</summary>
+        /// <summary>The picture kept for this chat, or null. After LoadAsync.</summary>
         public static string Get(string chatId)
         {
             if (string.IsNullOrEmpty(chatId)) return null;
@@ -165,10 +166,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Tiene l'immagine di una chat. La chiama ApplyChat a ogni riga che ne
-        /// porta una: se sono gli stessi byte di prima non si fa niente, e il
-        /// server le rimanda uguali a ogni elenco, quindi un aggiornamento non
-        /// riscrive il file.
+        /// Keeps the picture of one chat. ApplyChat calls it for every row that
+        /// carries one: if they are the same bytes as before nothing is done, and
+        /// the server sends them back identical on every list, so an update does
+        /// not rewrite the file.
         /// </summary>
         public static void Remember(string chatId, string base64)
         {
@@ -209,8 +210,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Tiene il file dentro i tetti: esce la chat entrata per prima. Va
-        /// chiamata sotto Gate, perche' tocca Known, Order e _chars insieme.
+        /// Keeps the file within the ceilings: the chat that entered first goes
+        /// out. It must be called under Gate, because it touches Known, Order and
+        /// _chars together.
         /// </summary>
         private static void Evict()
         {
@@ -228,11 +230,11 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Mette una scrittura in coda. Lo scatto si prende dentro la coda,
-        /// non qui: venti righe che arrivano insieme - un elenco chat - con
-        /// questa forma scrivono il file una volta sola, e serializzare sta
-        /// fuori dal lucchetto, perche' chi chiama Remember e' il thread UI e
-        /// un megabyte di JSON non e' roba da tenergli in mano.
+        /// Queues a write. The snapshot is taken inside the queue, not here:
+        /// twenty rows arriving together - one chat list - write the file once in
+        /// this shape, and serializing stays outside the lock, because the caller
+        /// of Remember is the UI thread and a megabyte of JSON is not something to
+        /// hold it with.
         /// </summary>
         private static void Save()
         {
@@ -241,7 +243,7 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
         }
 
-        /// <summary>Scrive se qualcosa e' cambiato da quando e' stato scritto l'ultima volta.</summary>
+        /// <summary>Writes if something changed since it was last written.</summary>
         private static async Task WriteIfChangedAsync()
         {
             int version;
@@ -271,7 +273,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Le voci in JSON.</summary>
+        /// <summary>The entries in JSON.</summary>
         private static string Serialize(List<AvatarCacheEntry> entries)
         {
             using (var stream = new MemoryStream())
@@ -282,10 +284,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Scrive il file. Non aspetta nessuno - chi guarda l'elenco chat non
-        /// ha niente a che fare con l'esito - quindi cattura da sola: un
-        /// deposito senza padrone non deve poter far cadere la pagina. Dice se
-        /// e' andata bene, perche' solo allora la versione e' sul disco.
+        /// Writes the file. Nobody awaits it - whoever looks at the chat list has
+        /// nothing to do with the outcome - so it catches on its own: an unowned
+        /// deposit must not be able to bring the page down. It says whether it went
+        /// well, because only then is the version on disk.
         /// </summary>
         private static async Task<bool> WriteFileAsync(string json)
         {

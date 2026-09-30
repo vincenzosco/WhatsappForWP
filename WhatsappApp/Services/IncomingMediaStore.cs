@@ -9,10 +9,10 @@ using WhatsappApp.Models;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Un media ricevuto, completo. O i byte in base64 (immagine, si disegna
-    /// subito) o il nome del file locale (video, audio, documento: i byte stanno
-    /// su disco, perche' un video o un documento interi in memoria su un telefono
-    /// da 512 MB non ci stanno, e un lettore vuole un file).
+    /// A received media, complete. Either the bytes in base64 (image, drawn at
+    /// once) or the local file name (video, audio, document: the bytes sit on
+    /// disk, because a whole video or document in memory on a 512 MB phone does
+    /// not fit, and a player wants a file).
     /// </summary>
     public sealed class IncomingMediaResult
     {
@@ -23,17 +23,17 @@ namespace WhatsappApp.Services
     }
 
     /// <summary>
-    /// I byte di un media in arrivo, pezzo per pezzo.
+    /// The bytes of an incoming media, piece by piece.
     ///
-    /// Perche' esiste: un frame ha un tetto di 8 MiB e il contenuto viaggia in
-    /// base64, che aggiunge un terzo; un video non ci sta in un frame solo.
-    /// L'adapter lo spezza (vedi server.js, sendMediaChunks) e qui si ricompone.
+    /// Why it exists: a frame has an 8 MiB ceiling and the content travels in
+    /// base64, which adds a third; a video does not fit in a single frame. The
+    /// adapter splits it (see server.js, sendMediaChunks) and it is reassembled
+    /// here.
     ///
-    /// Un video, un audio o un documento si scrivono su disco mentre arrivano,
-    /// un pezzo alla volta: tenere una base64 da decine di MB per poi
-    /// decodificarla tutta insieme e' il modo piu' veloce per farsi chiudere
-    /// l'app da un telefono da 512 MB. I pezzi sono multipli di 4 caratteri
-    /// base64, quindi si decodificano da soli.
+    /// A video, an audio or a document is written to disk as it arrives, one piece
+    /// at a time: holding a base64 of tens of MB and then decoding it all at once
+    /// is the fastest way to get the app closed by a 512 MB phone. The pieces are
+    /// multiples of 4 base64 characters, so they decode on their own.
     /// </summary>
     public static class IncomingMediaStore
     {
@@ -56,23 +56,22 @@ namespace WhatsappApp.Services
             new Dictionary<string, Pending>();
 
         /// <summary>
-        /// I pezzi di tutti i media in arrivo, uno alla volta.
+        /// The pieces of all incoming media, one at a time.
         ///
-        /// Perche' serve: il controllo d'ordine qui sotto confronta l'indice del
-        /// pezzo con Received, e Received si incrementa dopo la scrittura su
-        /// disco. Il percorso che porta qui non aspetta (DispatchOnUiThread e'
-        /// async void, ApplyMediaFrame e' async void), quindi il pezzo dopo
-        /// poteva arrivare mentre il primo era ancora in scrittura: il
-        /// confronto falliva, il media veniva buttato via, e ogni pezzo
-        /// successivo ne apriva un altro che falliva allo stesso modo. Un video
-        /// o un vocale non arrivavano mai.
+        /// Why it is needed: the order check below compares the piece index with
+        /// Received, and Received is incremented after the write to disk. The path
+        /// that leads here does not await (DispatchOnUiThread is async void,
+        /// ApplyMediaFrame is async void), so the next piece could arrive while the
+        /// first was still writing: the comparison failed, the media was dropped,
+        /// and every following piece opened another one that failed the same way. A
+        /// video or a voice note never arrived.
         /// </summary>
         private static readonly SerialQueue Chunks = new SerialQueue();
 
         /// <summary>
-        /// Aggiunge un pezzo. Restituisce null finche' il media non e' completo.
-        /// Il pezzo entra in coda: il controllo d'ordine e la scrittura devono
-        /// essere un'operazione sola.
+        /// Adds a piece. It returns null until the media is complete. The piece
+        /// enters the queue: the order check and the write must be a single
+        /// operation.
         /// </summary>
         public static Task<IncomingMediaResult> AddChunkAsync(ChatMessage frame)
         {
@@ -95,9 +94,8 @@ namespace WhatsappApp.Services
                 Transfers[frame.RelatedMessageId] = pending;
             }
 
-            // I pezzi arrivano in ordine sullo stesso socket: un salto e' un
-            // guasto, e comporre bytes sbagliati e' peggio che non mostrare
-            // niente.
+            // The pieces arrive in order on the same socket: a jump is a fault,
+            // and composing wrong bytes is worse than showing nothing.
             if (frame.MediaChunkIndex != pending.Received)
             {
                 Transfers.Remove(frame.RelatedMessageId);
@@ -154,9 +152,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// I tipi che non stanno in memoria e vanno su un file: un video, un
-        /// audio, un documento. Un'immagine si disegna subito da base64; uno
-        /// sticker e' un'immagine.
+        /// The types that do not fit in memory and go to a file: a video, an
+        /// audio, a document. An image is drawn at once from base64; a sticker is
+        /// an image.
         /// </summary>
         private static bool ToDisk(string mediaType)
         {
@@ -172,8 +170,8 @@ namespace WhatsappApp.Services
             var pending = new Pending
             {
                 Total = total,
-                // Il tipo dichiarato dal messaggio, quando c'e': un vecchio
-                // media di un frame solo non lo dichiara, ed era un'immagine.
+                // The type declared by the message, when there is one: an old
+                // single-frame media does not declare it, and was an image.
                 MediaType = string.IsNullOrEmpty(frame.MediaType)
                     ? "image"
                     : frame.MediaType.ToLower(),
@@ -205,7 +203,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Butta via un mezzo ricevuto: non si monta mai a meta'.</summary>
+        /// <summary>Drops a received media: it is never assembled halfway.</summary>
         private static void Abandon(Pending pending)
         {
             if (pending == null) return;
@@ -220,13 +218,13 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Un nome di file locale per un messaggio: id ripulito + estensione.</summary>
+        /// <summary>A local file name for a message: cleaned id + extension.</summary>
         private static string LocalNameFor(string messageId, string mimeType, string fileName)
         {
             return Prefix + SafeName(messageId) + ExtensionFor(mimeType, fileName);
         }
 
-        /// <summary>Un id ripulito dai caratteri che un nome di file non accetta.</summary>
+        /// <summary>An id cleaned of the characters a file name does not accept.</summary>
         private static string SafeName(string value)
         {
             var builder = new StringBuilder();
@@ -246,7 +244,7 @@ namespace WhatsappApp.Services
             return builder.ToString();
         }
 
-        /// <summary>L'estensione del file, dal nome o dal tipo MIME.</summary>
+        /// <summary>The file extension, from the name or the MIME type.</summary>
         private static string ExtensionFor(string mimeType, string fileName)
         {
             string name = fileName ?? "";
@@ -259,16 +257,16 @@ namespace WhatsappApp.Services
             if (mime.IndexOf("webm") >= 0) return ".webm";
             if (mime.IndexOf("matroska") >= 0) return ".mkv";
             if (mime.IndexOf("msvideo") >= 0) return ".avi";
-            // Audio: un vocale e' gia' un MP3 quando arriva qui (l'adapter lo
-            // converte), ma il tipo si guarda lo stesso per gli altri.
+            // Audio: a voice note is already an MP3 when it arrives here (the
+            // adapter converts it), but the type is checked anyway for the others.
             if (mime.IndexOf("mpeg") >= 0) return ".mp3";
             if (mime.IndexOf("audio/mp4") >= 0 || mime.IndexOf("mp4a") >= 0) return ".m4a";
             if (mime.IndexOf("amr") >= 0) return ".amr";
             if (mime.IndexOf("wav") >= 0) return ".wav";
             if (mime.IndexOf("ogg") >= 0 || mime.IndexOf("opus") >= 0) return ".ogg";
             if (mime.IndexOf("pdf") >= 0) return ".pdf";
-            // Un documento porta sempre il suo nome, quindi qui ci arriva solo
-            // un file senza nome: l'estensione la sceglie chi lo apre.
+            // A document always carries its name, so only a nameless file arrives
+            // here: whoever opens it chooses the extension.
             return ".bin";
         }
     }
