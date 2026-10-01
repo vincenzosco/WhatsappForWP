@@ -212,6 +212,17 @@ class GowaClient {
   }
 
   /**
+   * A voice note. GOWA turns it into a WhatsApp voice note (a playable waveform,
+   * not a document), and it is the only route that does: a file sent through
+   * /send/file with an audio MIME type arrives as an attachment. Field name
+   * `audio`, path /send/audio.
+   */
+  async sendAudio(phone, caption, buffer, mimeType, fileName) {
+    return this.postMedia('/send/audio', 'audio', phone, caption, buffer,
+      mimeType || 'audio/ogg', fileName || 'voice-note.ogg');
+  }
+
+  /**
    * Our own presence on WhatsApp: "available" while the app is connected,
    * "unavailable" when nobody is watching.
    *
