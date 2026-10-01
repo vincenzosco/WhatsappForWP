@@ -224,11 +224,20 @@ namespace WhatsappApp.Services
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
                 NotificationService.ShowMessage(contact.Name, message.Text);
 
-            // And the tile rotates to the sender: their picture and their name. Only
-            // for a person, not for a group, and only for a message that arrived
-            // while the chat was not open.
+            // And the tile shows who wrote and how many are waiting: their picture,
+            // their name, and the count. Only for a person, not for a group, and only
+            // for a message that arrived while the chat was not open.
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
-                NotificationService.RotateSenderTile(message.ChatId, contact.Name, contact.AvatarData);
+            {
+                // The picture of the sender: the one in the row, or the one kept from
+                // the last time it arrived. A row read from the local copy carries no
+                // bytes, and without this the tile of a message that arrives just
+                // after a restart would have no face at all.
+                string tileAvatar = contact.AvatarData;
+                if (string.IsNullOrEmpty(tileAvatar)) tileAvatar = AvatarCache.Get(message.ChatId);
+
+                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar);
+            }
 
             NotificationService.SetUnread(TotalUnread());
 
