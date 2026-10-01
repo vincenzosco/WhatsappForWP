@@ -497,3 +497,22 @@ test('groupInfo legge la descrizione, che GOWA non nomina sempre allo stesso mod
   assert.strictEqual(info.name, 'Famiglia');
   assert.strictEqual(info.topic, 'solo foto');
 });
+
+test('sendAudio posts the audio field on /send/audio', async () => {
+  const seen = [];
+  const client = new GowaClient({
+    baseUrl: 'http://g',
+    fetchImpl: async (url, options) => {
+      seen.push({ url, field: [...options.body.keys()].join(',') });
+      return jsonResponse({ status: 200, results: { message_id: 'A1' } });
+    }
+  });
+
+  assert.strictEqual(
+    await client.sendAudio('39@s.whatsapp.net', '', Buffer.from([3]), 'audio/mp4', 'voce.m4a'),
+    'A1');
+
+  assert.strictEqual(seen[0].url, 'http://g/send/audio');
+  assert.ok(seen[0].field.includes('audio'));
+  assert.ok(seen[0].field.includes('phone'));
+});
