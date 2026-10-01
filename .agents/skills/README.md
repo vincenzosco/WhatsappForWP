@@ -37,11 +37,20 @@ node tools/check-docs.js           # documenti: inglese e italiano allineati, di
   `docker-whatsappforwp` con il suo `tools/sync.js`, perche' l'immagine e' quello
   che gira sulla maggior parte delle installazioni (vedi *The Docker repository*
   in `maintain-the-app`, che spiega anche come farlo passare in CI).
-- **Pianificare**: un piano in `docs/superpowers/plans/` si scrive per eseguirlo
-  subito, in questa stessa sessione e task per task, fino all'ultimo commit
-  pushato. Il documento e' il resoconto del lavoro, non il risultato: fermarsi al
-  piano vuol dire lasciare il lavoro non fatto e spedire la descrizione di un
-  codice che non esiste.
+- **Pianificare**: un piano in `docs/superpowers/plans/` si scrive con la skill
+  **`writing-plans`** per eseguirlo subito, in questa stessa sessione e task per
+  task, fino all'ultimo commit pushato. Il documento e' il resoconto del lavoro,
+  non il risultato: fermarsi al piano vuol dire lasciare il lavoro non fatto e
+  spedire la descrizione di un codice che non esiste. La skill si installa con
+  `npx skills add obra/superpowers --skill writing-plans --skill executing-plans -g -y`
+  (finisce in `~/.agents/skills/`). Il suo *Execution Handoff* non e' un punto di
+  arresto: qui si esegue sempre **inline**, nella stessa sessione, e non si chiude
+  il turno sulla domanda "quale approccio?".
+- **Spingere e' la regola, non una domanda**: ogni lavoro finisce con
+  `git push origin master`, e un commit che tocca `WhatsappBridge/` finisce anche
+  con il mirror pushato (`docker-whatsappforwp`, `git push origin main`). Chi
+  esegue non si ferma a chiedere il permesso di pushare: e' stato chiesto
+  esplicitamente che si pushi tutto.
 - **Testare**: eseguire la matrice in `test-the-app`. Qui si ferma tutto cio' che
   si puo' verificare senza dispositivo; il gate autorevole e' `msbuild` sulla
   macchina Windows, e in fondo c'e' la checklist da fare sul telefono.
