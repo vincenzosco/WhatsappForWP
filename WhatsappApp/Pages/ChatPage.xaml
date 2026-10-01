@@ -620,6 +620,45 @@
                         </PathGeometry>
                     </Path.Data>
                 </Path>
+                <!-- A voice note: the microphone glyph, where an image shows
+                     its thumbnail. Nothing is decoded for it. -->
+                <Path x:Name="SelectedAudioPreview" Grid.Column="0"
+                      Width="30" Height="30" Margin="17,17,0,17"
+                      Fill="#FF606060"
+                      Visibility="Collapsed">
+                    <!-- IconMicrophone -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="10,7" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                    SweepDirection="Clockwise" Point="14,7"/>
+                                        <LineSegment Point="14,12"/>
+                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                    SweepDirection="Clockwise" Point="10,12"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="7,11">
+                                    <PathFigure.Segments>
+                                        <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
+                                                    SweepDirection="Counterclockwise" Point="17,11"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="12,16">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="12,19"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="9,19">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="15,19"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
                 <!-- A document: the badge and the name, drawn where an image
                      shows its thumbnail. -->
                 <Border x:Name="SelectedDocumentPreview" Grid.Column="0"
@@ -666,11 +705,35 @@
                 </Button>
             </Grid>
 
+            <!-- Recording: a red dot and the elapsed time. It shares row 0 with
+                 the preview bar and never shows together with it. -->
+            <Grid x:Name="RecordingBar" Grid.Row="0" Height="64"
+                  Background="#FFFCE4E4" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Ellipse Grid.Column="0" Width="12" Height="12"
+                         Margin="16,0,0,0" VerticalAlignment="Center"
+                         Fill="#FFE53935"/>
+                <TextBlock x:Uid="ChatPage_RecordingLabel" Grid.Column="1"
+                           Text="Recording"
+                           VerticalAlignment="Center" Margin="10,0,0,0"
+                           Foreground="#FF606060" FontSize="13"/>
+                <TextBlock x:Name="RecordTimerText" Grid.Column="2"
+                           Text=""
+                           VerticalAlignment="Center" Margin="8,0,0,0"
+                           Foreground="#FF606060" FontSize="13"/>
+            </Grid>
+
             <!-- Input row -->
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -723,7 +786,74 @@
                          TextChanged="MessageTextBox_TextChanged"
                          Margin="0,0,4,0"/>
 
-                <Button x:Name="SendButton" Grid.Column="2"
+                <Button x:Name="RecordButton" Grid.Column="2"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4"
+                        Click="RecordButton_Click">
+                    <Path Stroke="#FF808080" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="24" Height="24">
+                        <!-- IconMicrophone -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="10,7" IsClosed="True">
+                                        <PathFigure.Segments>
+                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                        SweepDirection="Clockwise" Point="14,7"/>
+                                            <LineSegment Point="14,12"/>
+                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                        SweepDirection="Clockwise" Point="10,12"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="7,11">
+                                        <PathFigure.Segments>
+                                            <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
+                                                        SweepDirection="Counterclockwise" Point="17,11"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="12,16">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="12,19"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="9,19">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="15,19"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
+
+                <Button x:Name="StopRecordButton" Grid.Column="3"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4"
+                        Visibility="Collapsed"
+                        Click="StopRecordButton_Click">
+                    <Path Fill="#FFE53935" Width="20" Height="20">
+                        <!-- IconStop -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="6,6" IsClosed="True">
+                                        <PathFigure.Segments>
+                                            <PolyLineSegment Points="18,6 18,18 6,18"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
+
+                <Button x:Name="SendButton" Grid.Column="4"
                         Background="{StaticResource WhatsAppAccentBrush}"
                         Foreground="White"
                         MinWidth="0" MinHeight="0"
