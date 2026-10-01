@@ -509,10 +509,15 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
    * would a stray connection: counting them would make our presence blink to
    * `available` and back for the contacts, which is a state nobody asked for -
    * the same reason the green "online" dot was taken off the screens.
+   *
+   * A phone that went to the background is not watching either. WP8.1 freezes
+   * the process without closing the socket, so a suspended app and a connected
+   * one look identical from here: the phone says `presence`/paused as it
+   * suspends, and this flag is what turns that sentence into "offline".
    */
   function watchingCount(session) {
     let count = 0;
-    for (const socket of session.sockets) if (socket.handshaken) count++;
+    for (const socket of session.sockets) if (socket.handshaken && !socket.paused) count++;
     return count;
   }
 
@@ -1144,6 +1149,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         // account: it is the only thing presence and the unread counter are
         // allowed to be based on.
         if (socket) socket.handshaken = true;
+        // A fresh handshake is also the end of any previous suspension: the
+        // reconnected phone is watching again.
+        if (socket) socket.paused = false;
         // With a valid token the socket moves to the user's session; without
         // auth it stays (or returns) to the anonymous one of the private
         // instance.
@@ -1246,6 +1254,14 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         break;
       case 'typing':
         await sendTypingPresence(session, (msg.Text || '').trim(), msg.State);
+        break;
+      case 'presence':
+        // The phone tells us whether it is still watching. It is the only way
+        // to tell a suspended app from an active one: the OS keeps the socket
+        // open while it freezes the process, so without this frame the count
+        // would stay at one and WhatsApp would keep showing the account online.
+        if (socket) socket.paused = msg.State === 'paused';
+        await updatePresence(session);
         break;
       case 'media.begin':
         mediaBegin(session, msg);

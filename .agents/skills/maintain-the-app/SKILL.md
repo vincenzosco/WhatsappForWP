@@ -261,6 +261,19 @@ the adapter:
 
 - The app cannot be built on macOS: there is no WP8.1 toolchain. The build gate
   runs on the Windows/Parallels machine.
+- **Build from a path that is not the Parallels share.** `C:\Mac\Home` is a
+  symbolic link to the shared folder, and the XAML compiler resolves paths
+  inconsistently through it: `MarkupCompilePass2` throws an internal
+  `KeyNotFoundException`, MSBuild logs `WMC9999: The given key was not present
+  in the dictionary`, and Visual Studio then reports every local type of that
+  page as missing - for `ChatsPage.xaml` this is the three converters, with
+  `The name "UnreadCountToVisibilityConverter" does not exist in the namespace
+  "using:WhatsappApp.Converters"` and its two siblings. It is noise: the build
+  still succeeds and the `.xbf` files come out byte-identical (verified
+  2026-10-01, ARM Debug, 20929 bytes for `ChatsPage.xbf` either way), but it
+  hides real errors. Deleting `obj`/`bin` does **not** help, because it is the
+  symlinked path and not stale state. The same source builds clean from
+  `C:\Temp\...`, and so does `subst X: <checkout>` opened as `X:\WhatsappApp.sln`.
 - `x:Uid` on a `Button` overwrites `Content`; do not combine it with a `Path`.
 - A key and the same key with a `.Property` suffix cannot coexist in a `.resw`
   (duplicate resource identifier) - the guard enforces this.
@@ -340,6 +353,13 @@ the adapter:
   things that notice. If you add a way to reconnect, remember that
   `AutoConnector.TryConnectAsync` returns immediately while `IsConnected` is true:
   a dead connection has to be `Disconnect()`ed before it will be retried.
+- **A suspended app keeps looking online.** WP8.1 freezes the process without
+  closing the socket, so a backgrounded phone is still counted as watching and
+  WhatsApp keeps showing the account online. The app sends a control frame
+  `presence`/`paused` in `App.OnSuspending` (inside the deferral) and
+  `presence`/`active` in `App.OnResuming`; the adapter keeps a per-socket
+  `paused` flag that `watchingCount` honours, and a fresh handshake clears it.
+  Any other path that puts the app in the background has to say the same thing.
 - `Frame.BackStack` is mutable and used on purpose in `SectionNav`.
 - `DataService.Contacts` is a public collection: if something adds a contact
   without `AddContact`, `FindContact` rebuilds its index, so keep inserts going
