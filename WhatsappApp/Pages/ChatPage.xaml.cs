@@ -53,6 +53,13 @@ namespace WhatsappApp.Pages
         private bool _markReadPending;
         private bool _viewChangedHooked;
 
+        // The recording of a voice note: whether the microphone is capturing,
+        // when it started, and the half-second timer that draws how long it has
+        // been going.
+        private bool _recording;
+        private DispatcherTimer _recordTimer;
+        private DateTime _recordStarted;
+
         /// <summary>
         /// How far from the bottom the conversation still counts as "at the
         /// bottom". A bubble is about sixty pixels tall: a smaller margin would
@@ -70,6 +77,8 @@ namespace WhatsappApp.Pages
             ToolTipService.SetToolTip(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
             ToolTipService.SetToolTip(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
             ToolTipService.SetToolTip(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
+            ToolTipService.SetToolTip(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
+            ToolTipService.SetToolTip(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
 
             // The picture and the name are two targets: the tooltip tells them apart.
             ToolTipService.SetToolTip(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
@@ -173,6 +182,9 @@ namespace WhatsappApp.Pages
             HideFullScreen();
             StopVideo();
             StopVoice();
+            // A recording left running would keep the microphone for a page that
+            // is gone, and the file it writes would be sent from another chat.
+            CancelRecording();
         }
 
         /// <summary>
@@ -1008,7 +1020,8 @@ namespace WhatsappApp.Pages
             // box of the bubble from being drawn on top of the card, and
             // MediaType "document" is what makes IsDocument true.
             MessageType type = kind == "video" ? MessageType.Video
-                : (kind == "image" ? MessageType.Image : MessageType.Text);
+                : (kind == "image" ? MessageType.Image
+                : (kind == "audio" ? MessageType.Audio : MessageType.Text));
 
             var message = new ChatMessage
             {
@@ -1162,6 +1175,115 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
+        /// The microphone button. It starts a recording; the stop button ends it.
+        /// Two buttons instead of one that changes glyph: the page has no
+        /// bindable property to hang a second Path on (its DataContext is the
+        /// message list), and toggling Visibility from code is what the rest of
+        /// this page already does.
+        /// </summary>
+        private void RecordButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_recording) return;
+#pragma warning disable 4014
+            StartRecordingAsync();
+#pragma warning restore 4014
+        }
+
+        private async System.Threading.Tasks.Task StartRecordingAsync()
+        {
+            bool started = await AudioRecorder.StartAsync();
+            if (!started)
+            {
+                await new MessageDialog(
+                    Loc.Get("ChatPage_RecordError", "Could not start the recording.")).ShowAsync();
+                return;
+            }
+
+            _recording = true;
+            _recordStarted = DateTime.Now;
+            RecordTimerText.Text = "0:00";
+            RecordingBar.Visibility = Visibility.Visible;
+            RecordButton.Visibility = Visibility.Collapsed;
+            StopRecordButton.Visibility = Visibility.Visible;
+            StartRecordTimer();
+        }
+
+        private void StopRecordButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!_recording) return;
+#pragma warning disable 4014
+            StopRecordingAsync();
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Ends the recording and puts the file in the waiting slot, the same one
+        /// the picker uses: the preview bar shows it, and Send streams it out
+        /// through SendAttachmentAsync like every other attachment.
+        /// </summary>
+        private async System.Threading.Tasks.Task StopRecordingAsync()
+        {
+            string fileName = await AudioRecorder.StopAsync();
+            EndRecordingState();
+
+            if (string.IsNullOrEmpty(fileName)) return;
+
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
+                await AttachmentInbox.PutAsync(file, null);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.StopRecordingAsync", ex);
+            }
+        }
+
+        /// <summary>
+        /// The recording is thrown away: the page is being left. No file is
+        /// deposited, so nothing can be sent by mistake from another chat.
+        /// </summary>
+        private void CancelRecording()
+        {
+            if (!_recording) return;
+            EndRecordingState();
+#pragma warning disable 4014
+            AudioRecorder.CancelAsync();
+#pragma warning restore 4014
+        }
+
+        /// <summary>The buttons and the bar go back to their resting state.</summary>
+        private void EndRecordingState()
+        {
+            _recording = false;
+            StopRecordTimer();
+            RecordingBar.Visibility = Visibility.Collapsed;
+            RecordButton.Visibility = Visibility.Visible;
+            StopRecordButton.Visibility = Visibility.Collapsed;
+        }
+
+        private void StartRecordTimer()
+        {
+            if (_recordTimer == null)
+            {
+                _recordTimer = new DispatcherTimer();
+                _recordTimer.Interval = TimeSpan.FromMilliseconds(500);
+                _recordTimer.Tick += RecordTimer_Tick;
+            }
+            _recordTimer.Start();
+        }
+
+        private void StopRecordTimer()
+        {
+            if (_recordTimer != null) _recordTimer.Stop();
+        }
+
+        private void RecordTimer_Tick(object sender, object e)
+        {
+            RecordTimerText.Text = FormatClock((DateTime.Now - _recordStarted).TotalSeconds);
+        }
+
+        /// <summary>
         /// Attach button: it asks for the system picker. The answer does not arrive
         /// here - it arrives at App.OnActivated after the app has been reactivated -
         /// so there is nothing to await.
@@ -1212,20 +1334,25 @@ namespace WhatsappApp.Pages
             string kind = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName);
             bool video = kind == "video";
             bool document = kind == "document";
+            bool audio = kind == "audio";
 
             PreviewLabel.Text = video
                 ? Loc.Get("ChatPage_VideoSelected", "Video selected")
                 : (document
                     ? Loc.Get("ChatPage_DocumentSelected", "Document selected")
-                    : Loc.Get("ChatPage_ImageSelected.Text", "Image selected"));
+                    : (audio
+                        ? Loc.Get("ChatPage_AudioSelected", "Voice note selected")
+                        : Loc.Get("ChatPage_ImageSelected.Text", "Image selected")));
 
             SelectedVideoPreview.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
-            SelectedImagePreview.Visibility = (!video && !document) ? Visibility.Visible : Visibility.Collapsed;
+            SelectedAudioPreview.Visibility = audio ? Visibility.Visible : Visibility.Collapsed;
+            SelectedImagePreview.Visibility = (!video && !document && !audio)
+                ? Visibility.Visible : Visibility.Collapsed;
             SelectedDocumentPreview.Visibility = document ? Visibility.Visible : Visibility.Collapsed;
             SelectedDocumentPreviewText.Text = document ? _selectedMediaFileName : "";
 
             ImagePreviewBar.Visibility = Visibility.Visible;
-            if (!video && !document)
+            if (!video && !document && !audio)
             {
 #pragma warning disable 4014
                 ShowLocalPreviewAsync(_selectedLocalFileName);
@@ -1233,8 +1360,9 @@ namespace WhatsappApp.Pages
             }
             else
             {
-                // A video is not decoded here, and a document has nothing to
-                // draw: the bar says what is being sent.
+                // A video is not decoded here, a document has nothing to draw,
+                // and a voice note is not a picture: the bar says what is being
+                // sent.
                 SelectedImagePreview.Source = null;
             }
         }
@@ -1273,6 +1401,7 @@ namespace WhatsappApp.Pages
             _selectedMediaFileName = null;
             _selectedMediaMimeType = null;
             SelectedImagePreview.Source = null;
+            SelectedAudioPreview.Visibility = Visibility.Collapsed;
             SelectedDocumentPreview.Visibility = Visibility.Collapsed;
             SelectedDocumentPreviewText.Text = "";
             ImagePreviewBar.Visibility = Visibility.Collapsed;
