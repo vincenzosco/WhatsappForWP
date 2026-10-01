@@ -499,4 +499,10 @@
   <data name="ConnectionPage_TokenLabel.Text" xml:space="preserve">
     <value>Token del server (creato automaticamente alla prima connessione)</value>
   </data>
+  <data name="TileUnreadOne" xml:space="preserve">
+    <value>1 messaggio non letto</value>
+  </data>
+  <data name="TileUnreadMany" xml:space="preserve">
+    <value>{0} messaggi non letti</value>
+  </data>
 </root>

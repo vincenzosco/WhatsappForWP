@@ -15,6 +15,7 @@ L'app principale, con un'interfaccia utente autentica di WhatsApp.
 **Funzioni:**
 - tema verde WhatsApp (intestazione #075E54, accento #25D366, fumetti dei messaggi)
 - elenco chat con avatar e contatori dei non letti
+- tile live con quanti messaggi aspettano, la foto di chi ha scritto per ultimo e il suo nome
 - fumetti con orario e stato inviato/consegnato/letto
 - messaggi di testo con Invio per inviare
 - allegati immagine: si sceglie una foto dalla galleria e si invia attraverso il ponte
@@ -447,9 +448,9 @@ sono intercambiabili: i logo del manifest hanno il padding che il sistema si
 aspetta, e il modello della tile iconica vuole l'opposto.
 
 `tools/check-tile.js` la custodisce, perche' il guasto che intercetta e' invisibile.
-Il modello `TileSquare150x150IconWithBadge` **non** prende l'icona dal manifest: la
-vuole nel payload, in un `<image src="..."/>`, e con `src` vuoto la tile si disegna
-senza icona e non solleva nessuna eccezione.
+Un modello di tile **non** prende l'icona dal manifest: la vuole nel payload, in un
+`<image src="..."/>`, e con `src` vuoto la tile si disegna senza icona e non solleva
+nessuna eccezione.
 
 ### Memoria su un telefono da 512 MB
 
@@ -593,7 +594,7 @@ Quello che resta vero, e vale la pena dire chiaramente:
 - Il numero dei non letti di una chat lo tiene l'adapter, in memoria, e si azzera quando la conversazione viene aperta nell'app. Riavviare l'adapter fa ripartire il conteggio da zero, e i messaggi arrivati mentre non gira ne' l'app ne' l'adapter non vengono contati.
 - Un file condiviso da un'altra app viene letto nel momento in cui la condivisione viene consegnata, perche' l'app puo' essere terminata mentre il selettore o l'app che condivide sono aperti. I file molto grandi vengono comunque tenuti in memoria per essere spediti, quindi un video di lunghezza intera puo' non starci su un telefono da 512 MB.
 - Aprendo una chat si vedono i messaggi recenti che il server ha gia'. I piu' vecchi non vengono richiesti al telefono. Una foto o un video di quella cronologia mostrano una parola (`[Image]`, `[Video]`) finche' non vengono toccati, e allora l'adapter li scarica dal server e l'app li riproduce o li disegna. I byte di un video ricevuto restano nella cartella locale dell'app finche' dura la sessione, e non vengono ripuliti alla chiusura. Gli ultimi 60 messaggi di una conversazione sono in una cache sul telefono, quindi la prima vista di una chat e' una fotografia che il server sostituisce.
-- Il numero sulla tile lo disegna il badge e l'icona arriva dalla notifica della tile: entrambi hanno bisogno che l'app sia girata dopo che il conteggio e' cambiato. Con il conteggio a zero la tile torna a quella del manifest.
+- La tile live dice quanti messaggi aspettano, chi ha scritto per ultimo e la sua foto. La scrive l'app, quindi ha bisogno che l'app sia girata dopo che il conteggio e' cambiato: un messaggio arrivato mentre l'app e' sospesa viene contato quando riprende. Con il conteggio a zero la tile torna a quella del manifest.
 - Sotto pressione di memoria l'app butta le bitmap degli avatar decodificate; i byte restano, e le immagini si ridisegnano quando l'elenco chat torna davanti. Finche' la pressione dura non si decodifica niente di nuovo, quindi su un telefono che resta sotto pressione l'elenco mostra le iniziali per un po'.
 
 ## Disclaimer
