@@ -40,6 +40,11 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   cosi' l'adapter concatena i byte decodificati senza ricodificare niente. La porta di
   GOWA la decide il tipo MIME (o l'estensione): `/send/image`, `/send/video` e
   `/send/file` sono tre rotte diverse, e prima di questo un video partiva come immagine.
+  Un documento e' il quarto caso e ha gia' la sua rotta: il picker sul telefono adesso
+  offre PDF e file di ufficio, l'app dichiara il nome del file e il tipo MIME vero, e
+  l'adapter lo manda con `/send/file`. I vocali si ascoltano dentro il loro fumetto: il
+  telefono chiede i byte all'adapter, l'adapter risponde con un MP3 (vedi sotto), e l'app
+  disegna play/pausa e una barra senza uscire dalla conversazione.
 - Un video viene rimpicciolito prima di viaggiare. Lo fa prima il telefono, mentre il
   fumetto dice "invio"; quando non ha potuto (nessun transcoder per quel file, niente
   spazio, la piattaforma che rifiuta) lo fa l'adapter con ffmpeg prima di passare il
