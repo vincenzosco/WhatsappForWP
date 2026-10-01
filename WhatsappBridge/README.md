@@ -39,6 +39,11 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   concatenates the decoded bytes without re-encoding anything. Which door GOWA gets is
   decided by the MIME type (or the extension): `/send/image`, `/send/video` and
   `/send/file` are three different routes, and before this a video went out as an image.
+  A document is the fourth case and it has its own route already: the picker on the
+  phone now offers PDFs and office files, the app declares the file name and the real
+  MIME type, and the adapter sends it with `/send/file`. Voice notes are played inside
+  their bubble: the phone asks the adapter for the bytes, the adapter hands back an MP3
+  (see below), and the app draws play/pause and a bar without leaving the conversation.
 - A video is shrunk before it travels. The phone does it first, while the bubble says
   "sending"; when it could not (no transcoder for that file, no space, the platform
   refusing) the adapter does it with ffmpeg before handing the video to GOWA, so what

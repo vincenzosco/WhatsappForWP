@@ -789,6 +789,27 @@ test('un allegato immagine va a sendImage e uno sconosciuto a sendFile', async (
   ]);
 });
 
+test('un pdf inviato va a sendFile con il suo nome', async () => {
+  const delivered = [];
+  const gowa = {
+    sendFile: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ door: 'file', mimeType, fileName });
+      return 'F1';
+    },
+    sendImage: async () => { throw new Error('un pdf non e un immagine'); },
+    sendVideo: async () => { throw new Error('un pdf non e un video'); }
+  };
+  const bridge = mediaBridge(gowa);
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'p1', MediaFileName: 'contratto.pdf', MediaMimeType: 'application/pdf', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'p1', MediaChunkIndex: 0, MediaData: Buffer.from('pdf-bytes').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'p1' });
+
+  assert.deepStrictEqual(delivered, [
+    { door: 'file', mimeType: 'application/pdf', fileName: 'contratto.pdf' }
+  ]);
+});
+
 test('un allegato a cui manca un pezzo non viene mandato, e lo dice', async () => {
   let sent = 0;
   const gowa = {
