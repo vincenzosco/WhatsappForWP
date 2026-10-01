@@ -404,9 +404,19 @@ test('l account e online mentre un telefono guarda, e offline quando se ne va', 
   const client = connectClient(port);
   try {
     await client.next();
+
+    // Un socket che apre la porta e basta non e' un telefono che guarda: la
+    // healthcheck del container fa esattamente questo ogni trenta secondi, e
+    // per lei l account non deve andare online e ritornare offline subito dopo.
     await bridge.refreshStatus();
+    assert.deepStrictEqual(presence, [],
+      'una connessione senza handshake non e un client che guarda');
+
+    // Il telefono si presenta: da qui in poi e' un client, e l account e online.
+    client.send({ Type: 3, Command: 'hello', SenderName: 'WP8', ChatId: 'system' });
+    await new Promise((r) => setTimeout(r, 50));
     assert.deepStrictEqual(presence, ['available'],
-      'un telefono collegato e collegato a un account connesso: si e online');
+      'un telefono che si e presentato, su un account connesso: si e online');
 
     // Lo stesso stato non si ripete a ogni giro di polling.
     await bridge.refreshStatus();
