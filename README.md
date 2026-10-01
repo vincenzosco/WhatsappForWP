@@ -75,6 +75,15 @@ Gallery, a browser): the manifest declares a `windows.shareTarget` extension for
 the same waiting slot the picker uses. The app opens on the chat list, because the
 next step is choosing who to send it to.
 
+A voice note is recorded in the app: the microphone button starts
+`Windows.Media.Capture.MediaCapture` (audio only, no camera) and writes AAC in
+an M4A file in the app folder, which is what this phone records and plays
+without a transcoder. The stop button ends the recording, and the file waits in
+the same slot a picked photo uses: the preview bar shows it and Send streams it
+out. On the adapter side a recorded voice note goes to `POST /send/audio`, which
+is what makes WhatsApp draw a voice note with a waveform instead of an audio
+file attachment.
+
 ### WhatsappServer (.NET Console App)
 
 A simple TCP relay server that broadcasts messages between connected clients.

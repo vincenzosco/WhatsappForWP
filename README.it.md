@@ -78,6 +78,15 @@ Condividi (Foto, Galleria, un browser): il manifest dichiara un'estensione
 mette l'immagine nello stesso posto in attesa che usa il selettore. L'app si apre
 sull'elenco chat, perche' il passo successivo e' scegliere a chi mandarla.
 
+Un vocale si registra nell'app: il pulsante del microfono avvia
+`Windows.Media.Capture.MediaCapture` (solo audio, niente fotocamera) e scrive
+AAC in un file M4A nella cartella dell'app, che e' quello che questo telefono
+registra e riproduce senza transcodifica. Il pulsante di stop chiude la
+registrazione, e il file aspetta nello stesso posto di una foto scelta: la barra
+di anteprima lo mostra e Invia lo spedisce. Sul lato adapter un vocale registrato
+va su `POST /send/audio`, che e' cio' che fa disegnare a WhatsApp un vocale con
+la forma d'onda invece di un allegato audio.
+
 ### WhatsappServer (app console .NET)
 
 Un semplice server TCP di inoltro, che distribuisce i messaggi tra i client

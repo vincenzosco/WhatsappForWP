@@ -192,6 +192,13 @@ dipendenza dell'adapter. Senza di esso l'adapter scrive un avviso all'avvio e in
 byte originali, che il telefono non sa leggere; il vocale arriva lo stesso e dice che
 non si puo' riprodurre.
 
+L'altra direzione non ha bisogno di ffmpeg. Un vocale registrato arriva dall'app
+come payload M4A/AAC; `sendMediaToGowa` passa un payload `audio` a
+`session.gowa.sendAudio`, che lo pubblica su `POST /send/audio` (campo del form
+`audio`). E' quella rotta a far spedire da GOWA un vocale WhatsApp invece di un
+file con un MIME audio. Un adapter costruito su un GOWA senza la rotta ripiega
+su `POST /send/file`.
+
 ## Avvio
 
 Da solo:

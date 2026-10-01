@@ -190,6 +190,13 @@ dependency of the adapter. Without it the adapter logs a warning at startup and 
 the original bytes, which the phone cannot play; the voice note still arrives and shows
 that it cannot be played.
 
+The other direction needs no ffmpeg. A recorded voice note arrives from the app
+as an M4A/AAC payload; `sendMediaToGowa` gives an `audio` payload to
+`session.gowa.sendAudio`, which posts it to `POST /send/audio` (form field
+`audio`). That route is what makes GOWA send a WhatsApp voice note rather than a
+file with an audio MIME type. An adapter built against a GOWA without the route
+falls back to `POST /send/file`.
+
 ## Starting it
 
 On its own:
