@@ -117,7 +117,12 @@ namespace WhatsappApp.Services
             _note = null;
         }
 
-        /// <summary>The MIME type of an extension, as WhatsApp sends it.</summary>
+        /// <summary>
+        /// The MIME type of an extension, as WhatsApp sends it. The last line is
+        /// application/octet-stream and not image/jpeg: a file the list does not
+        /// know is a file, and calling it an image is how a PDF used to be sent as
+        /// a picture.
+        /// </summary>
         private static string MimeFor(string extension)
         {
             string value = (extension ?? "").ToLower();
@@ -130,7 +135,20 @@ namespace WhatsappApp.Services
             if (value == ".avi") return "video/x-msvideo";
             if (value == ".mkv") return "video/x-matroska";
             if (value == ".webm") return "video/webm";
-            return "image/jpeg";
+            if (value == ".pdf") return "application/pdf";
+            if (value == ".doc") return "application/msword";
+            if (value == ".docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            if (value == ".xls") return "application/vnd.ms-excel";
+            if (value == ".xlsx") return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            if (value == ".ppt") return "application/vnd.ms-powerpoint";
+            if (value == ".pptx") return "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            if (value == ".txt") return "text/plain";
+            if (value == ".csv") return "text/csv";
+            if (value == ".rtf") return "application/rtf";
+            if (value == ".zip") return "application/zip";
+            if (value == ".7z") return "application/x-7z-compressed";
+            if (value == ".rar") return "application/vnd.rar";
+            return "application/octet-stream";
         }
 
         /// <summary>The extension of the copied file, from the name or the MIME type.</summary>
@@ -145,7 +163,10 @@ namespace WhatsappApp.Services
             if (mime == "image/png") return ".png";
             if (mime == "image/gif") return ".gif";
             if (mime == "image/bmp") return ".bmp";
-            return ".jpg";
+            if (mime.StartsWith("image/")) return ".jpg";
+            // Anything else is a file, and a file with no name has no extension
+            // worth inventing.
+            return ".bin";
         }
 
         /// <summary>
@@ -165,7 +186,12 @@ namespace WhatsappApp.Services
             {
                 return "video";
             }
-            return "image";
+            if (name.EndsWith(".jpg") || name.EndsWith(".jpeg") || name.EndsWith(".png")
+                || name.EndsWith(".gif") || name.EndsWith(".bmp"))
+            {
+                return "image";
+            }
+            return "document";
         }
     }
 }

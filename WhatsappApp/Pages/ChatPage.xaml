@@ -179,6 +179,13 @@
                                         Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
                                         Tapped="Media_Tapped">
                                     <Grid>
+                                        <!-- The cover frame, when the phone could
+                                             make one: with it the box says which
+                                             video it is. Without it the dark box
+                                             and the triangle stay. -->
+                                        <Image Source="{Binding VideoThumbnail}"
+                                               Stretch="UniformToFill"
+                                               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                                         <Path Fill="White" Width="54" Height="54"
                                               HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <!-- IconPlay -->
@@ -202,66 +209,131 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- A voice note or an audio file: a dark bar with the
-                                     triangle, tapped to play it. Before the bytes it is
-                                     the same tap that fetches them. -->
+                                <!-- A voice note or an audio file: play/pause, a
+                                     bar and the time. The transport is ours and
+                                     not the system one, so nothing opens full
+                                     screen and the conversation stays in view.
+                                     The tap is the button: the border has no
+                                     Tapped of its own, which is what kept the
+                                     button and the border from both firing. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
                                         Background="#FF263238"
-                                        Visibility="{Binding IsAudio, Converter={StaticResource BoolToVisibility}}"
-                                        Tapped="Media_Tapped">
-                                    <Grid>
-                                        <Path Fill="White" Width="30" Height="30"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <!-- IconPlay -->
-                                            <Path.Data>
-                                                <PathGeometry>
-                                                    <PathGeometry.Figures>
-                                                        <PathFigure StartPoint="6,3" IsClosed="True">
-                                                            <PathFigure.Segments>
-                                                                <PolyLineSegment Points="22,12 6,21"/>
-                                                            </PathFigure.Segments>
-                                                        </PathFigure>
-                                                    </PathGeometry.Figures>
-                                                </PathGeometry>
-                                            </Path.Data>
-                                        </Path>
+                                        Visibility="{Binding IsAudio, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid Margin="6,0,6,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button x:Name="PlayAudioButton" Grid.Column="0"
+                                                Background="Transparent"
+                                                MinWidth="0" MinHeight="0"
+                                                Width="36" Height="36"
+                                                BorderThickness="0" Padding="0"
+                                                VerticalAlignment="Center"
+                                                Click="PlayAudioButton_Click">
+                                            <Grid>
+                                                <Path Fill="White" Width="20" Height="20"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsAudioNotPlaying, Converter={StaticResource BoolToVisibility}}">
+                                                    <!-- IconPlay -->
+                                                    <Path.Data>
+                                                        <PathGeometry>
+                                                            <PathGeometry.Figures>
+                                                                <PathFigure StartPoint="6,3" IsClosed="True">
+                                                                    <PathFigure.Segments>
+                                                                        <PolyLineSegment Points="22,12 6,21"/>
+                                                                    </PathFigure.Segments>
+                                                                </PathFigure>
+                                                            </PathGeometry.Figures>
+                                                        </PathGeometry>
+                                                    </Path.Data>
+                                                </Path>
+                                                <Path Fill="White" Width="18" Height="18"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsPlaying, Converter={StaticResource BoolToVisibility}}">
+                                                    <!-- IconPause -->
+                                                    <Path.Data>
+                                                        <PathGeometry>
+                                                            <PathGeometry.Figures>
+                                                                <PathFigure StartPoint="5,3" IsClosed="True">
+                                                                    <PathFigure.Segments>
+                                                                        <PolyLineSegment Points="9,3 9,21 5,21"/>
+                                                                    </PathFigure.Segments>
+                                                                </PathFigure>
+                                                                <PathFigure StartPoint="15,3" IsClosed="True">
+                                                                    <PathFigure.Segments>
+                                                                        <PolyLineSegment Points="19,3 19,21 15,21"/>
+                                                                    </PathFigure.Segments>
+                                                                </PathFigure>
+                                                            </PathGeometry.Figures>
+                                                        </PathGeometry>
+                                                    </Path.Data>
+                                                </Path>
+                                            </Grid>
+                                        </Button>
+                                        <ProgressBar Grid.Column="1"
+                                                     Margin="8,0,8,0"
+                                                     VerticalAlignment="Center"
+                                                     Height="4"
+                                                     Minimum="0" Maximum="1"
+                                                     Value="{Binding PlaybackProgress}"
+                                                     Background="#55FFFFFF"
+                                                     Foreground="White"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding PlaybackTimeText}"
+                                                   Foreground="#B0FFFFFF" FontSize="11"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.ColumnSpan="3"
+                                                   Text="{Binding AudioErrorText}"
+                                                   Visibility="{Binding AudioFailed, Converter={StaticResource BoolToVisibility}}"
+                                                   Foreground="White" FontSize="12"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         <ProgressRing IsActive="True" Width="24" Height="24"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- A document: a dark bar with a sheet, tapped to open
-                                     it with the system app. Before the bytes it is the
-                                     same tap that fetches them. -->
+                                <!-- A document: a type badge, the name and the
+                                     size, tapped to open it with the app the
+                                     phone uses for that type. The name was
+                                     already on the wire and the size is known
+                                     once the bytes are all here; before that the
+                                     card shows the name alone. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
-                                        Width="220" Height="56"
+                                        Width="220"
                                         Background="#FF263238"
                                         Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisibility}}"
                                         Tapped="Media_Tapped">
-                                    <Grid>
-                                        <Path Fill="White" Width="30" Height="30"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <!-- IconDocument -->
-                                            <Path.Data>
-                                                <PathGeometry>
-                                                    <PathGeometry.Figures>
-                                                        <PathFigure StartPoint="5,2" IsClosed="True">
-                                                            <PathFigure.Segments>
-                                                                <LineSegment Point="13,2"/>
-                                                                <LineSegment Point="19,8"/>
-                                                                <LineSegment Point="19,22"/>
-                                                                <LineSegment Point="5,22"/>
-                                                            </PathFigure.Segments>
-                                                        </PathFigure>
-                                                    </PathGeometry.Figures>
-                                                </PathGeometry>
-                                            </Path.Data>
-                                        </Path>
+                                    <Grid Margin="10,8,10,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="40" Height="40" CornerRadius="4"
+                                                Background="#FF37474F"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DocumentBadge}"
+                                                       Foreground="White" FontSize="11" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="10,0,0,0"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DocumentTitle}"
+                                                       Foreground="White" FontSize="14"
+                                                       TextWrapping="Wrap" MaxLines="2"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding MediaSizeText}"
+                                                       Foreground="#B0FFFFFF" FontSize="11"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
                                         <ProgressRing IsActive="True" Width="24" Height="24"
+                                                      Grid.ColumnSpan="2"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -302,6 +374,13 @@
                                         Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
                                         Tapped="Media_Tapped">
                                     <Grid>
+                                        <!-- The cover frame, when the phone could
+                                             make one: with it the box says which
+                                             video it is. Without it the dark box
+                                             and the triangle stay. -->
+                                        <Image Source="{Binding VideoThumbnail}"
+                                               Stretch="UniformToFill"
+                                               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
                                         <Path Fill="White" Width="54" Height="54"
                                               HorizontalAlignment="Center" VerticalAlignment="Center">
                                             <!-- IconPlay -->
@@ -325,66 +404,131 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- A voice note or an audio file: a dark bar with the
-                                     triangle, tapped to play it. Before the bytes it is
-                                     the same tap that fetches them. -->
+                                <!-- A voice note or an audio file: play/pause, a
+                                     bar and the time. The transport is ours and
+                                     not the system one, so nothing opens full
+                                     screen and the conversation stays in view.
+                                     The tap is the button: the border has no
+                                     Tapped of its own, which is what kept the
+                                     button and the border from both firing. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
                                         Background="#FF263238"
-                                        Visibility="{Binding IsAudio, Converter={StaticResource BoolToVisibility}}"
-                                        Tapped="Media_Tapped">
-                                    <Grid>
-                                        <Path Fill="White" Width="30" Height="30"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <!-- IconPlay -->
-                                            <Path.Data>
-                                                <PathGeometry>
-                                                    <PathGeometry.Figures>
-                                                        <PathFigure StartPoint="6,3" IsClosed="True">
-                                                            <PathFigure.Segments>
-                                                                <PolyLineSegment Points="22,12 6,21"/>
-                                                            </PathFigure.Segments>
-                                                        </PathFigure>
-                                                    </PathGeometry.Figures>
-                                                </PathGeometry>
-                                            </Path.Data>
-                                        </Path>
+                                        Visibility="{Binding IsAudio, Converter={StaticResource BoolToVisibility}}">
+                                    <Grid Margin="6,0,6,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="Auto"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Button x:Name="PlayAudioButton" Grid.Column="0"
+                                                Background="Transparent"
+                                                MinWidth="0" MinHeight="0"
+                                                Width="36" Height="36"
+                                                BorderThickness="0" Padding="0"
+                                                VerticalAlignment="Center"
+                                                Click="PlayAudioButton_Click">
+                                            <Grid>
+                                                <Path Fill="White" Width="20" Height="20"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsAudioNotPlaying, Converter={StaticResource BoolToVisibility}}">
+                                                    <!-- IconPlay -->
+                                                    <Path.Data>
+                                                        <PathGeometry>
+                                                            <PathGeometry.Figures>
+                                                                <PathFigure StartPoint="6,3" IsClosed="True">
+                                                                    <PathFigure.Segments>
+                                                                        <PolyLineSegment Points="22,12 6,21"/>
+                                                                    </PathFigure.Segments>
+                                                                </PathFigure>
+                                                            </PathGeometry.Figures>
+                                                        </PathGeometry>
+                                                    </Path.Data>
+                                                </Path>
+                                                <Path Fill="White" Width="18" Height="18"
+                                                      HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                      Visibility="{Binding IsPlaying, Converter={StaticResource BoolToVisibility}}">
+                                                    <!-- IconPause -->
+                                                    <Path.Data>
+                                                        <PathGeometry>
+                                                            <PathGeometry.Figures>
+                                                                <PathFigure StartPoint="5,3" IsClosed="True">
+                                                                    <PathFigure.Segments>
+                                                                        <PolyLineSegment Points="9,3 9,21 5,21"/>
+                                                                    </PathFigure.Segments>
+                                                                </PathFigure>
+                                                                <PathFigure StartPoint="15,3" IsClosed="True">
+                                                                    <PathFigure.Segments>
+                                                                        <PolyLineSegment Points="19,3 19,21 15,21"/>
+                                                                    </PathFigure.Segments>
+                                                                </PathFigure>
+                                                            </PathGeometry.Figures>
+                                                        </PathGeometry>
+                                                    </Path.Data>
+                                                </Path>
+                                            </Grid>
+                                        </Button>
+                                        <ProgressBar Grid.Column="1"
+                                                     Margin="8,0,8,0"
+                                                     VerticalAlignment="Center"
+                                                     Height="4"
+                                                     Minimum="0" Maximum="1"
+                                                     Value="{Binding PlaybackProgress}"
+                                                     Background="#55FFFFFF"
+                                                     Foreground="White"/>
+                                        <TextBlock Grid.Column="2"
+                                                   Text="{Binding PlaybackTimeText}"
+                                                   Foreground="#B0FFFFFF" FontSize="11"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.ColumnSpan="3"
+                                                   Text="{Binding AudioErrorText}"
+                                                   Visibility="{Binding AudioFailed, Converter={StaticResource BoolToVisibility}}"
+                                                   Foreground="White" FontSize="12"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                         <ProgressRing IsActive="True" Width="24" Height="24"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <!-- A document: a dark bar with a sheet, tapped to open
-                                     it with the system app. Before the bytes it is the
-                                     same tap that fetches them. -->
+                                <!-- A document: a type badge, the name and the
+                                     size, tapped to open it with the app the
+                                     phone uses for that type. The name was
+                                     already on the wire and the size is known
+                                     once the bytes are all here; before that the
+                                     card shows the name alone. -->
                                 <Border CornerRadius="4"
                                         Margin="0,0,0,4"
-                                        Width="220" Height="56"
+                                        Width="220"
                                         Background="#FF263238"
                                         Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisibility}}"
                                         Tapped="Media_Tapped">
-                                    <Grid>
-                                        <Path Fill="White" Width="30" Height="30"
-                                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                                            <!-- IconDocument -->
-                                            <Path.Data>
-                                                <PathGeometry>
-                                                    <PathGeometry.Figures>
-                                                        <PathFigure StartPoint="5,2" IsClosed="True">
-                                                            <PathFigure.Segments>
-                                                                <LineSegment Point="13,2"/>
-                                                                <LineSegment Point="19,8"/>
-                                                                <LineSegment Point="19,22"/>
-                                                                <LineSegment Point="5,22"/>
-                                                            </PathFigure.Segments>
-                                                        </PathFigure>
-                                                    </PathGeometry.Figures>
-                                                </PathGeometry>
-                                            </Path.Data>
-                                        </Path>
+                                    <Grid Margin="10,8,10,8">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <Border Grid.Column="0"
+                                                Width="40" Height="40" CornerRadius="4"
+                                                Background="#FF37474F"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DocumentBadge}"
+                                                       Foreground="White" FontSize="11" FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="10,0,0,0"
+                                                    VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding DocumentTitle}"
+                                                       Foreground="White" FontSize="14"
+                                                       TextWrapping="Wrap" MaxLines="2"
+                                                       TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Text="{Binding MediaSizeText}"
+                                                       Foreground="#B0FFFFFF" FontSize="11"
+                                                       Margin="0,2,0,0"/>
+                                        </StackPanel>
                                         <ProgressRing IsActive="True" Width="24" Height="24"
+                                                      Grid.ColumnSpan="2"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -476,6 +620,18 @@
                         </PathGeometry>
                     </Path.Data>
                 </Path>
+                <!-- A document: the badge and the name, drawn where an image
+                     shows its thumbnail. -->
+                <Border x:Name="SelectedDocumentPreview" Grid.Column="0"
+                        Width="40" Height="40" Margin="12,12,0,12" CornerRadius="4"
+                        Background="#FF37474F"
+                        Visibility="Collapsed">
+                    <TextBlock x:Name="SelectedDocumentPreviewText"
+                               Text=""
+                               Foreground="White" FontSize="9" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis"/>
+                </Border>
                 <TextBlock x:Uid="ChatPage_ImageSelected" x:Name="PreviewLabel" Grid.Column="1"
                            Text="Image selected"
                            VerticalAlignment="Center"
@@ -592,6 +748,21 @@
                 </Button>
             </Grid>
         </Grid>
+
+        <!-- The voice-note player. One for the whole page, not one per bubble:
+             a MediaElement per row of a virtualizing list is a decoder per row.
+             It is 1x1 and transparent instead of Collapsed, because a collapsed
+             MediaElement is not laid out and on this platform it does not play.
+             Its transport is ours, in the bubble. -->
+        <MediaElement x:Name="VoicePlayer"
+                      Width="1" Height="1"
+                      Opacity="0"
+                      IsHitTestVisible="False"
+                      HorizontalAlignment="Left" VerticalAlignment="Top"
+                      AutoPlay="False"
+                      AreTransportControlsEnabled="False"
+                      MediaEnded="VoicePlayer_MediaEnded"
+                      MediaFailed="VoicePlayer_MediaFailed"/>
 
         <!-- Full-screen image. It sits above everything and closes on tap:
              no button, no new icon, no new string. -->

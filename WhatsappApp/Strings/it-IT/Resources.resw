@@ -154,6 +154,9 @@
   <data name="ChatPage_VideoSelected" xml:space="preserve">
     <value>Video selezionato</value>
   </data>
+  <data name="ChatPage_DocumentSelected" xml:space="preserve">
+    <value>Documento selezionato</value>
+  </data>
   <data name="ChatPage_VideoError" xml:space="preserve">
     <value>Questo video non puo' essere riprodotto.</value>
   </data>
