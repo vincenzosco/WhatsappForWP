@@ -732,6 +732,28 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Tells the adapter whether this phone is still watching the account.
+        ///
+        /// WP8.1 freezes the process on suspension without closing the socket, so
+        /// from the outside a backgrounded app looks exactly like a connected one:
+        /// the server would keep counting it and WhatsApp would keep showing the
+        /// account online. This frame is the only thing that turns away from the
+        /// foreground into "last seen" for the contacts. The state travels in
+        /// `State`, as for `typing`.
+        ///
+        /// Silent when there is no socket: its closure already says the same
+        /// thing, and an error line on suspend would only be noise.
+        /// </summary>
+        public async Task SendWatchingAsync(bool watching)
+        {
+            if (!_isConnected) return;
+
+            var frame = NewControlFrame("presence");
+            frame.State = watching ? "active" : "paused";
+            await SendMessageAsync(frame);
+        }
+
+        /// <summary>
         /// The skeleton of a control frame. SendControlAsync used to build it for
         /// every command: here it is one place only, because the commands of an
         /// attachment (media.begin/chunk/end) are control frames too.

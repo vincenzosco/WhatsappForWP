@@ -432,6 +432,50 @@ test('l account e online mentre un telefono guarda, e offline quando se ne va', 
   }
 });
 
+test('un telefono in background dice presence e l account va offline', async () => {
+  const presence = [];
+  const gowa = fakeGowa({
+    status: async () => ({ isConnected: true, isLoggedIn: true, jid: '39@s.whatsapp.net' }),
+    sendPresence: async (type) => { presence.push(type); return true; }
+  });
+  const config = { bridge: { port: 0 }, webhook: {}, pollIntervalMs: 60000 };
+  const bridge = createBridge({ config, gowa, log: noop, debug: noop });
+  await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+  const port = bridge.tcpServer.address().port;
+  const client = connectClient(port);
+  try {
+    await client.next();
+    client.send({ Type: 3, Command: 'hello', SenderName: 'WP8', ChatId: 'system' });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepStrictEqual(presence, ['available']);
+
+    // L app va in background: il telefono si congela ma il socket resta
+    // aperto. Il solo conteggio dei socket non se ne accorgerebbe, e WhatsApp
+    // continuerebbe a mostrare l account online.
+    client.send({ Type: 3, Command: 'presence', State: 'paused', ChatId: 'system' });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepStrictEqual(presence, ['available', 'unavailable'],
+      'un telefono sospeso non e piu un telefono che guarda');
+
+    // Lo stato non si ripete a ogni giro di polling.
+    await bridge.refreshStatus();
+    assert.deepStrictEqual(presence, ['available', 'unavailable']);
+
+    // Torna in primo piano: di nuovo online.
+    client.send({ Type: 3, Command: 'presence', State: 'active', ChatId: 'system' });
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepStrictEqual(presence, ['available', 'unavailable', 'available']);
+
+    // Chiudere l app finisce la storia per la via normale: il socket sparisce.
+    client.socket.destroy();
+    await new Promise((r) => setTimeout(r, 50));
+    assert.deepStrictEqual(presence, ['available', 'unavailable', 'available', 'unavailable']);
+  } finally {
+    bridge.tcpServer.close();
+    bridge.stop();
+  }
+});
+
 test('typing porta a GOWA start e stop, e niente quando non e collegato', async () => {
   const chatPresence = [];
   const gowa = fakeGowa({
