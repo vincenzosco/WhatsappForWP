@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Diagnostics;
 using System.IO;
 using Windows.Storage;
@@ -171,6 +172,7 @@ namespace WhatsappApp.Pages
             _pendingScroll = null;
             HideFullScreen();
             StopVideo();
+            StopVoice();
         }
 
         /// <summary>
@@ -528,7 +530,7 @@ namespace WhatsappApp.Pages
             {
                 if (!string.IsNullOrEmpty(message.MediaFilePath))
                 {
-                    PlayMedia(message, false);
+                    PlayVideo(message);
                     return;
                 }
 
@@ -536,17 +538,8 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            if (message.IsAudio)
-            {
-                if (!string.IsNullOrEmpty(message.MediaFilePath))
-                {
-                    PlayMedia(message, true);
-                    return;
-                }
-
-                if (Downloadable(message)) RequestMedia(message);
-                return;
-            }
+            // A voice note does not arrive here: its bubble has its own play
+            // button, and the border no longer raises this tap.
 
             if (message.IsDocument)
             {
@@ -632,34 +625,232 @@ namespace WhatsappApp.Pages
             ImageViewerImage.Source = null;
         }
 
-        // True when what is playing is a voice note: the view is the same, but the
-        // error sentence is not.
-        private bool _playingAudio;
-
         /// <summary>
-        /// Opens the received media in the full-screen player. The source is the
+        /// Opens the received video in the full-screen player. The source is the
         /// local file (ms-appdata): the player opens it on its own and there is no
-        /// stream to keep open for the life of the page. It applies to a video and
-        /// to a voice note: for an audio the view is black and the transport
-        /// controls remain, which are the system ones.
+        /// stream to keep open for the life of the page. A voice note does not
+        /// come here any more: it plays in its own bubble.
         /// </summary>
-        private void PlayMedia(ChatMessage message, bool audio)
+        private void PlayVideo(ChatMessage message)
         {
             if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
 
             try
             {
                 StopVideo();
-                _playingAudio = audio;
                 VideoPlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                 VideoViewer.Visibility = Visibility.Visible;
                 VideoPlayer.Play();
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage.PlayMedia", ex);
+                Diag.Failed("ChatPage.PlayVideo", ex);
                 ShowVideoError();
             }
+        }
+
+        // The voice note whose file is loaded in VoicePlayer, whether it is
+        // playing or paused, and the name of that file. One player for the page:
+        // starting another one rewinds the first.
+        private ChatMessage _voiceMessage;
+        private string _voiceLoadedFile;
+        private DispatcherTimer _playbackTimer;
+
+        /// <summary>
+        /// The play/pause glyph of one bubble. A second tap on the same voice note
+        /// pauses it and keeps the position; tapping another one rewinds the first.
+        /// With no bytes yet it is the same tap that asks for them, which is what
+        /// the old bar did before it could be played.
+        /// </summary>
+        private void PlayAudioButton_Click(object sender, RoutedEventArgs e)
+        {
+            var element = sender as FrameworkElement;
+            var message = element == null ? null : element.DataContext as ChatMessage;
+            if (message == null) return;
+
+            if (string.IsNullOrEmpty(message.MediaFilePath))
+            {
+                if (Downloadable(message)) RequestMedia(message);
+                return;
+            }
+
+            ToggleVoice(message);
+        }
+
+        private void ToggleVoice(ChatMessage message)
+        {
+            if (message == null) return;
+
+            // The same one, playing: this tap is a pause. The position stays, and
+            // the next tap resumes from there.
+            if (message.IsPlaying)
+            {
+                PauseVoice(message);
+                return;
+            }
+
+            // A different one was playing or paused: it goes back to its start, so
+            // that two bars cannot both look active.
+            if (_voiceMessage != null && _voiceMessage != message) ResetVoice(_voiceMessage);
+
+            try
+            {
+                if (_voiceLoadedFile != message.MediaFilePath)
+                {
+                    VoicePlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
+                    _voiceLoadedFile = message.MediaFilePath;
+                }
+                message.AudioFailed = false;
+                _voiceMessage = message;
+                VoicePlayer.Play();
+                message.IsPlaying = true;
+                StartPlaybackTimer();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.ToggleVoice", ex);
+                ResetVoice(message);
+                message.AudioFailed = true;
+            }
+        }
+
+        private void PauseVoice(ChatMessage message)
+        {
+            try
+            {
+                VoicePlayer.Pause();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.PauseVoice", ex);
+            }
+
+            message.IsPlaying = false;
+            StopPlaybackTimer();
+        }
+
+        /// <summary>Back to the start, with nothing to show.</summary>
+        private void ResetVoice(ChatMessage message)
+        {
+            if (message == null) return;
+            message.IsPlaying = false;
+            message.PlaybackProgress = 0;
+            message.PlaybackTimeText = "";
+        }
+
+        /// <summary>Closes the player: it is called when the page is left.</summary>
+        private void StopVoice()
+        {
+            try
+            {
+                VoicePlayer.Stop();
+                VoicePlayer.Source = null;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.StopVoice", ex);
+            }
+
+            ResetVoice(_voiceMessage);
+            _voiceMessage = null;
+            _voiceLoadedFile = null;
+            StopPlaybackTimer();
+        }
+
+        private void VoicePlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            var message = _voiceMessage;
+            if (message != null)
+            {
+                message.PlaybackProgress = 1;
+                message.IsPlaying = false;
+                message.PlaybackTimeText = "";
+            }
+            StopPlaybackTimer();
+        }
+
+        /// <summary>
+        /// The phone refused the file. On WP8.1 the event carries only the message,
+        /// not the exception, so it is logged as one: an unplayable voice note and
+        /// a silent one used to look the same.
+        /// </summary>
+        private void VoicePlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
+        {
+            string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
+                ? e.ErrorMessage
+                : "media failed";
+            Diag.Failed("ChatPage/VoicePlayer", new InvalidOperationException(reason));
+
+            var message = _voiceMessage;
+            if (message != null)
+            {
+                message.IsPlaying = false;
+                message.AudioFailed = true;
+            }
+            StopPlaybackTimer();
+        }
+
+        private void StartPlaybackTimer()
+        {
+            if (_playbackTimer == null)
+            {
+                _playbackTimer = new DispatcherTimer();
+                _playbackTimer.Interval = TimeSpan.FromMilliseconds(250);
+                _playbackTimer.Tick += PlaybackTimer_Tick;
+            }
+            _playbackTimer.Start();
+        }
+
+        private void StopPlaybackTimer()
+        {
+            if (_playbackTimer != null) _playbackTimer.Stop();
+        }
+
+        /// <summary>
+        /// Four times a second, the position of the one voice note that can be
+        /// playing. It is read here and not bound to the MediaElement because
+        /// MediaElement.Position is not a dependency property: there is no binding
+        /// to hang it on.
+        /// </summary>
+        private void PlaybackTimer_Tick(object sender, object e)
+        {
+            var message = _voiceMessage;
+            if (message == null)
+            {
+                StopPlaybackTimer();
+                return;
+            }
+
+            double total = 0;
+            try
+            {
+                if (VoicePlayer.NaturalDuration.HasTimeSpan)
+                    total = VoicePlayer.NaturalDuration.TimeSpan.TotalSeconds;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/NaturalDuration", ex);
+            }
+
+            double position = 0;
+            try
+            {
+                position = VoicePlayer.Position.TotalSeconds;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/Position", ex);
+            }
+
+            message.PlaybackProgress = total > 0 ? Math.Min(1.0, position / total) : 0;
+            message.PlaybackTimeText = total > 0 ? FormatClock(position) + " / " + FormatClock(total) : "";
+        }
+
+        private static string FormatClock(double seconds)
+        {
+            if (seconds < 0) seconds = 0;
+            int total = (int)Math.Round(seconds);
+            return (total / 60) + ":" + (total % 60).ToString("00", CultureInfo.InvariantCulture);
         }
 
         /// <summary>
@@ -723,9 +914,7 @@ namespace WhatsappApp.Pages
             {
                 Diag.Failed("ChatPage.ShowVideoError", ex);
             }
-            VideoErrorText.Text = _playingAudio
-                ? Loc.Get("ChatPage_AudioError", "This voice note cannot be played.")
-                : Loc.Get("ChatPage_VideoError", "This video cannot be played.");
+            VideoErrorText.Text = Loc.Get("ChatPage_VideoError", "This video cannot be played.");
             VideoErrorText.Visibility = Visibility.Visible;
         }
 
@@ -742,7 +931,6 @@ namespace WhatsappApp.Pages
                 Diag.Failed("ChatPage.StopVideo", ex);
             }
 
-            _playingAudio = false;
             VideoErrorText.Visibility = Visibility.Collapsed;
             VideoViewer.Visibility = Visibility.Collapsed;
         }
@@ -816,6 +1004,12 @@ namespace WhatsappApp.Pages
             string mimeType = _selectedMediaMimeType ?? "image/jpeg";
             string kind = AttachmentInbox.KindName(mimeType, fileName);
 
+            // A document is not an image: MessageType.Text keeps the empty image
+            // box of the bubble from being drawn on top of the card, and
+            // MediaType "document" is what makes IsDocument true.
+            MessageType type = kind == "video" ? MessageType.Video
+                : (kind == "image" ? MessageType.Image : MessageType.Text);
+
             var message = new ChatMessage
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -824,7 +1018,7 @@ namespace WhatsappApp.Pages
                 SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
                 Timestamp = DateTime.Now,
-                Type = kind == "video" ? MessageType.Video : MessageType.Image,
+                Type = type,
                 IsIncoming = false,
                 Status = MessageStatus.Sending,
                 // The bytes are on disk: here there is only where to find them.
@@ -836,6 +1030,8 @@ namespace WhatsappApp.Pages
 
             // Local decoding: the sender sees their own image.
             if (message.Type == MessageType.Image) await message.LoadMediaImageAsync();
+            // The sender sees their own video cover, when the phone can make one.
+            if (message.Type == MessageType.Video) await message.LoadVideoThumbnailAsync();
 
             DataService.Instance.AddMessage(_contact.Id, message);
             MessageTextBox.Text = "";
@@ -870,6 +1066,7 @@ namespace WhatsappApp.Pages
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
                 ulong length = (await file.GetBasicPropertiesAsync()).Size;
+                message.MediaSizeBytes = (long)length;
                 int total = length == 0
                     ? 0
                     : (int)((length + (ulong)MediaChunkBytes - 1) / (ulong)MediaChunkBytes);
@@ -973,11 +1170,11 @@ namespace WhatsappApp.Pages
         {
             try
             {
-                ImagePickerService.RequestImage();
+                ImagePickerService.RequestFile();
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage/image", ex);
+                Diag.Failed("ChatPage/pick", ex);
                 Debug.WriteLine(
                     string.Format(Loc.Get("ChatPage_ImageError", "Could not open the image: {0}"), ex.Message));
             }
@@ -1012,15 +1209,23 @@ namespace WhatsappApp.Pages
                 MessageTextBox.Text = note;
             }
 
-            bool video = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName) == "video";
+            string kind = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName);
+            bool video = kind == "video";
+            bool document = kind == "document";
+
             PreviewLabel.Text = video
                 ? Loc.Get("ChatPage_VideoSelected", "Video selected")
-                : Loc.Get("ChatPage_ImageSelected.Text", "Image selected");
+                : (document
+                    ? Loc.Get("ChatPage_DocumentSelected", "Document selected")
+                    : Loc.Get("ChatPage_ImageSelected.Text", "Image selected"));
+
             SelectedVideoPreview.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
-            SelectedImagePreview.Visibility = video ? Visibility.Collapsed : Visibility.Visible;
+            SelectedImagePreview.Visibility = (!video && !document) ? Visibility.Visible : Visibility.Collapsed;
+            SelectedDocumentPreview.Visibility = document ? Visibility.Visible : Visibility.Collapsed;
+            SelectedDocumentPreviewText.Text = document ? _selectedMediaFileName : "";
 
             ImagePreviewBar.Visibility = Visibility.Visible;
-            if (!video)
+            if (!video && !document)
             {
 #pragma warning disable 4014
                 ShowLocalPreviewAsync(_selectedLocalFileName);
@@ -1028,7 +1233,8 @@ namespace WhatsappApp.Pages
             }
             else
             {
-                // A video is not decoded: there is nothing to draw.
+                // A video is not decoded here, and a document has nothing to
+                // draw: the bar says what is being sent.
                 SelectedImagePreview.Source = null;
             }
         }
@@ -1067,6 +1273,8 @@ namespace WhatsappApp.Pages
             _selectedMediaFileName = null;
             _selectedMediaMimeType = null;
             SelectedImagePreview.Source = null;
+            SelectedDocumentPreview.Visibility = Visibility.Collapsed;
+            SelectedDocumentPreviewText.Text = "";
             ImagePreviewBar.Visibility = Visibility.Collapsed;
         }
     }
