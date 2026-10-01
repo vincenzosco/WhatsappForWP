@@ -550,8 +550,18 @@ namespace WhatsappApp.Services
                     // (or the system app) opens the file from there. They would not fit
                     // in memory.
                     target.MediaFilePath = result.LocalFileName;
+                    // What the card draws: the name the file had, and how big it
+                    // is. The name is written here and not earlier because a
+                    // history row arrives without one.
+                    if (!string.IsNullOrEmpty(result.FileName)) target.MediaFileName = result.FileName;
+                    target.MediaSizeBytes = result.SizeBytes;
                     if (string.Equals(result.MediaType, "video", StringComparison.OrdinalIgnoreCase))
+                    {
                         target.Type = MessageType.Video;
+                        // The cover frame, now that the file is on disk. A failure
+                        // leaves the plain box (see VideoThumbnail).
+                        await target.LoadVideoThumbnailAsync();
+                    }
                     else if (string.Equals(result.MediaType, "audio", StringComparison.OrdinalIgnoreCase))
                         target.Type = MessageType.Audio;
                     // A document stays text: its bubble is the file name.

@@ -20,6 +20,12 @@ namespace WhatsappApp.Services
         public string MimeType;
         public string Base64;
         public string LocalFileName;
+
+        /// <summary>The name the file had on the other end, when the frame carried one.</summary>
+        public string FileName;
+
+        /// <summary>How many bytes were written, 0 when the media stayed in memory.</summary>
+        public long SizeBytes;
     }
 
     /// <summary>
@@ -50,6 +56,8 @@ namespace WhatsappApp.Services
             public IRandomAccessStream Stream;
             public DataWriter Writer;
             public StringBuilder Base64;
+            public string FileName;
+            public long Bytes;
         }
 
         private static readonly Dictionary<string, Pending> Transfers =
@@ -107,8 +115,10 @@ namespace WhatsappApp.Services
             {
                 if (pending.ToDisk)
                 {
-                    pending.Writer.WriteBytes(Convert.FromBase64String(frame.MediaData));
+                    byte[] part = Convert.FromBase64String(frame.MediaData);
+                    pending.Writer.WriteBytes(part);
                     await pending.Writer.StoreAsync();
+                    pending.Bytes += part.Length;
                 }
                 else
                 {
@@ -131,7 +141,9 @@ namespace WhatsappApp.Services
             var result = new IncomingMediaResult
             {
                 MediaType = pending.MediaType,
-                MimeType = pending.MimeType
+                MimeType = pending.MimeType,
+                FileName = pending.FileName,
+                SizeBytes = pending.Bytes
             };
 
             if (pending.ToDisk)
@@ -176,6 +188,7 @@ namespace WhatsappApp.Services
                     ? "image"
                     : frame.MediaType.ToLower(),
                 MimeType = frame.MediaMimeType,
+                FileName = frame.MediaFileName,
                 ToDisk = toDisk
             };
 
