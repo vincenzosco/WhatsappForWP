@@ -62,10 +62,10 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
    runtime; microsoft-ui-xaml#1909 / #5780) and `Figures="M..."` (WP8.1's
    `PathFigureCollection` converter has no string form, 18 build errors).
    Gate: `node tools/check-icons.js` (add `--preview` for an ASCII render).
-   The live tile is the one place where the icon is **not** a `Path`: the
-   `TileSquare150x150IconWithBadge` model wants `<image src="..."/>` in the
-   payload and does **not** fall back to the manifest logo. The asset is
-   `Assets/TileIcon.png` (+ its `.scale-240`), a transparent PNG with no padding.
+   The live tile is the one place where the icon is **not** a `Path`: a tile
+   model wants its image in the payload, as `<image src="..."/>`, and does
+   **not** fall back to the manifest logo. The asset is `Assets/TileIcon.png`
+   (+ its `.scale-240`), a transparent PNG with no padding.
    Gate: `node tools/check-tile.js`.
 3. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
    that matches the element (`TextBlock`→`.Text`, `Button`→`.Content`,
@@ -267,16 +267,26 @@ the adapter:
 - WP8.1 caches the tile name and icons: after changing them, uninstall the app on
   the device before redeploying.
 - **The tile templates that exist on WP8.1 are not the Windows ones.**
-  `TileSquare150x150IconWithBadge` and `TileSquare71x71IconWithBadge` do exist and
-  are what `NotificationService` uses; `TileWide310x150IconWithBadge` does
-  **not**, and naming it is a compile error (CS0117), not a silent no-op. This is
-  a phone-only SDK: a template that compiles here may still be unsupported at run
-  time, so a new tile format is a device check, not a build check.
-- **On WP8.1 the number on the tile is drawn by the *badge*, not by the tile.**
-  A tile notification only replaces the tile's content, which is why the
-  `IconWithBadge` templates exist: they put the app icon back while the badge does
-  the counting. `Clear()` on both updaters is what returns the tile and the icon
-  to the manifest's defaults.
+  `TileSquare150x150IconWithBadge`, `TileSquare71x71IconWithBadge` and the
+  `TileSquare150x150PeekImageAndTextNN` family do exist and are what
+  `NotificationService` can use; `TileWide310x150IconWithBadge` does **not**, and
+  naming it is a compile error (CS0117), not a silent no-op. This is a phone-only
+  SDK: a template that compiles here may still be unsupported at run time, so a
+  new tile format is a device check, not a build check.
+- **On WP8.1 the badge is what draws a count on the tile, and it is set after
+  the tile.** Nothing else puts a number there, so a badge the shell does not
+  draw leaves a tile with no number at all - which is what the phone showed:
+  the app icon and nothing else. `SetUnread` therefore posts the tile first and
+  the badge second, because clearing the tile can take the badge with it.
+- **The tile has to say one true thing, so it is one notification.** The unread
+  total changes on its own - a chat is read, another message arrives - and a tile
+  only replaces the tile's content. With the notification queue on, every message
+  left a tile of its own and each of them counted the number of its own moment:
+  what the screen showed was a count that had already moved on. `RenderTile`
+  posts a single tile, replaced in place, with the count written inside it
+  (`TileUnreadOne` / `TileUnreadMany`), the last sender's picture as its image,
+  and their name under it. `Clear()` on both updaters is what returns the tile
+  and the icon to the manifest's defaults.
 - **A shared writer is written through a queue, never by two callers at once.**
   The receive path is fire-and-forget on purpose (`DispatchOnUiThread` and the
   frame handlers are `async void`, and the read loop does not await the
@@ -420,15 +430,14 @@ the adapter:
   tags and embeds `GroupName`, so `encoding/json` promotes the fields and the
   subject arrives as a top-level `Name`. GOWA's own chat list has no usable name
   for a group and answers `Group <number>`.
-- **The tile takes its icon from the payload, not from the manifest.** A
-  `TileSquare150x150IconWithBadge` update whose `image/@src` is empty renders an
-  iconless tile and raises nothing at all - no exception, no log, nothing in the
-  Output window. `SetTileBadge` writes `ms-appx:///Assets/TileIcon.png` on every
-  binding it sends, including the 71x71 one it imports, and creates the `image`
-  element when the template does not ship one (create it with the destination
-  document, or the insertion throws). `TileWide310x150IconWithBadge` does not exist
-  on WP8.1 (CS0117), so the wide tile keeps the manifest's. Gate:
-  `node tools/check-tile.js`.
+- **The tile takes its image from the payload, not from the manifest.** An
+  update whose `image/@src` is empty renders an iconless tile and raises nothing
+  at all - no exception, no log, nothing in the Output window. `SetImage` writes
+  the sender's picture when there is one and `ms-appx:///Assets/TileIcon.png`
+  when there is not, and creates the `image` element when the template does not
+  ship one (create it with the destination document, or the insertion throws).
+  `TileWide310x150IconWithBadge` does not exist on WP8.1 (CS0117), so the wide
+  tile keeps the manifest's. Gate: `node tools/check-tile.js`.
 - **A bitmap decodes at the size you ask for, and at no other size.**
   `BitmapImage.DecodePixelWidth` must be set before `SetSourceAsync` - after, it
   does nothing - and it is the difference between a 52 px circle costing a few tens

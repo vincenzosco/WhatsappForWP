@@ -4,11 +4,11 @@
  *
  * Guard for the live tile of the WP8.1 app.
  *
- * Perche' esiste: la tile non disegnava l'icona e non lo diceva a nessuno. Il
- * modello TileSquare150x150IconWithBadge NON prende l'icona dal manifest: vuole
- * un <image src="..."> nel payload, che punti a un'icona dedicata (Special tile
- * templates, passo 3). Con src vuoto la tile resta senza icona e non solleva
- * nessuna eccezione: un guasto che nessun log mostra.
+ * Perche' esiste: la tile non disegnava l'icona e non lo diceva a nessuno. Un
+ * modello di tile NON prende l'icona dal manifest: vuole un <image src="..."> nel
+ * payload, che punti a un'icona dedicata (Special tile templates, passo 3). Con
+ * src vuoto la tile resta senza icona e non solleva nessuna eccezione: un guasto
+ * che nessun log mostra.
  *
  * Regole:
  *  1. il codice della tile deve impostare src su ogni image che prende da un

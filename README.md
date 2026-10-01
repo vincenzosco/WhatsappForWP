@@ -13,6 +13,7 @@ The main client app with an authentic WhatsApp user interface.
 **Features:**
 - WhatsApp green theme (header #075E54, accent #25D366, chat bubbles)
 - Chat list with avatars and unread badges
+- Live tile with how many messages are waiting, the last sender's picture and their name
 - Message bubbles with timestamps and sent/delivered/read status
 - Text messaging with Enter-to-send
 - Image attachment: pick photos from the gallery and send them through the bridge
@@ -433,10 +434,10 @@ by the same `make-brand-assets.js`. It is not a duplicate of `Logo.png` and the 
 are not interchangeable: the manifest logos carry the padding the system expects,
 and the iconic tile template wants the opposite.
 
-`tools/check-tile.js` guards it, because the failure it catches is invisible. The
-`TileSquare150x150IconWithBadge` template does **not** take the icon from the
-manifest: it wants `<image src="..."/>` in the payload, and with an empty `src` the
-tile renders without an icon and raises no exception at all.
+`tools/check-tile.js` guards it, because the failure it catches is invisible. A tile
+template does **not** take the icon from the manifest: it wants `<image src="..."/>`
+in the payload, and with an empty `src` the tile renders without an icon and raises
+no exception at all.
 
 ### Memory on a 512 MB device
 
@@ -572,7 +573,7 @@ What remains true, and is worth saying plainly:
 - A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
 - Typing indicators depend on the account being online, which is what the contacts also see: WhatsApp sends those events only to a client marked online, the adapter marks the account available while an app client is connected, and offline when the last one leaves. With the app closed no presence is sent or received, so nothing is shown in the meantime.
 - Opening a chat shows the recent messages the server already has. Older ones are not requested from the phone. A photo or a video in that history shows a word (`[Image]`, `[Video]`) until it is tapped, when the adapter downloads it from the server and the app plays or draws it. A received video's bytes are written to the app's local folder for as long as the session lasts, and are not cleaned up when the app closes. The last 60 messages of a conversation are cached on the phone, so the first view of a chat is a photograph that the server replaces.
-- The number on the live tile is drawn by the badge and the icon comes from the tile notification, so both need the app to have run since the count changed. With the count at zero the tile goes back to the one in the manifest.
+- The live tile says how many messages are waiting, who wrote last and their picture. The app writes it, so it needs the app to have run since the count changed: a message that arrives while the app is suspended is counted when it resumes. With the count at zero the tile goes back to the one in the manifest.
 - Under memory pressure the app drops the decoded avatars; the bytes stay, and the pictures are redrawn when the chat list comes back. While the pressure lasts nothing new is decoded, so on a phone that stays under pressure the list shows initials for a while.
 
 ## Disclaimer

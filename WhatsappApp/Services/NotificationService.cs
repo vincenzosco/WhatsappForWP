@@ -8,11 +8,11 @@ using Windows.UI.Notifications;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The alerts this app can raise while it runs: a toast and the number on the
-    /// icon. There is no cloud service behind it, so a message that arrives with
-    /// the app suspended produces nothing: the TCP connection belongs to the app,
-    /// and WP8.1 closes it when it suspends it. Real push notifications would
-    /// require an external service this project does not have.
+    /// The alerts this app can raise while it runs: a toast, the number on the
+    /// icon and the live tile. There is no cloud service behind it, so a message
+    /// that arrives with the app suspended produces nothing: the TCP connection
+    /// belongs to the app, and WP8.1 closes it when it suspends it. Real push
+    /// notifications would require an external service this project does not have.
     ///
     /// Every call is guarded: a phone that rejects the toast must not bring down
     /// the message reception.
@@ -20,8 +20,8 @@ namespace WhatsappApp.Services
     public static class NotificationService
     {
         /// <summary>
-        /// A message arrived from a person, in a chat that is not the open one:
-        /// the tile rotates to it, with their picture and their name.
+        /// The last person who wrote in a chat that is not the open one: the tile
+        /// shows their picture and their name while something is waiting.
         ///
         /// People only: a group has no single face, and putting a group picture on
         /// the tile would say even less than nothing. The group name, without a
@@ -31,59 +31,36 @@ namespace WhatsappApp.Services
         /// just received the message), so the update starts and carries on by
         /// itself.
         /// </summary>
-        public static void RotateSenderTile(string chatId, string name, string avatarData)
+        public static void RememberSender(string chatId, string name, string avatarData)
         {
             if (!SettingsService.NotificationsEnabled) return;
             if (string.IsNullOrEmpty(chatId)) return;
             if (chatId.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase)) return;
 
 #pragma warning disable 4014
-            UpdateSenderTileAsync(chatId, name, avatarData);
+            RememberSenderAsync(chatId, name, avatarData);
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// The sender tile. The notification queue is what really makes the tile
-        /// rotate: without EnableNotificationQueue a tile holds a single alert, and
-        /// the second replaces the first instead of adding to it.
+        /// The picture of the sender is written to a file first, then the tile is
+        /// drawn: a tile wants a path, not the bytes.
         ///
-        /// The picture comes from the bytes the adapter already sent (base64): they
-        /// are written as they are to a local file, because a tile wants a path,
-        /// not an in-memory image. Over the system ceiling the picture is left
-        /// alone and the tile stays text-only: better a name than a tile the phone
-        /// rejects.
+        /// The bytes come from the adapter already in base64, and are written as
+        /// they are. Over the system ceiling the picture is left alone and the tile
+        /// falls back to the app icon: better an icon than a tile the phone rejects.
         /// </summary>
-        private static async Task UpdateSenderTileAsync(string chatId, string name, string avatarData)
+        private static async Task RememberSenderAsync(string chatId, string name, string avatarData)
         {
             try
             {
-                var updater = TileUpdateManager.CreateTileUpdaterForApplication();
-                if (!_queueEnabled)
-                {
-                    updater.EnableNotificationQueue(true);
-                    _queueEnabled = true;
-                }
-
-                string image = await StoreTileImageAsync(chatId, avatarData);
-
-                var xml = image == null
-                    ? TileUpdateManager.GetTemplateContent(TileTemplateType.TileSquare150x150Text02)
-                    : TileUpdateManager.GetTemplateContent(TileTemplateType.TileSquare150x150PeekImageAndText01);
-
-                var texts = xml.GetElementsByTagName("text");
-                if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(Cut(name, 30)));
-
-                if (image != null)
-                {
-                    var binding = xml.SelectSingleNode("/tile/visual/binding") as XmlElement;
-                    if (binding != null) SetImage(xml, binding, image);
-                }
-
-                updater.Update(new TileNotification(xml));
+                _senderName = name;
+                _senderImage = await StoreTileImageAsync(chatId, avatarData);
+                RenderTile();
             }
             catch (Exception ex)
             {
-                Diag.Failed("NotificationService.UpdateSenderTileAsync", ex);
+                Diag.Failed("NotificationService.RememberSenderAsync", ex);
             }
         }
 
@@ -131,16 +108,99 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// The ceiling the system accepts for a tile image. Above it the update is
-        /// rejected: the text tile is preferred.
+        /// rejected: the tile is drawn without it.
         /// </summary>
         private const int MaxTileImageBytes = 200 * 1024;
 
         /// <summary>
-        /// True after the notification queue has been enabled. It is enabled once
-        /// only: it is a property of the updater, not of the single update, and
-        /// calling it on every message changes nothing.
+        /// The tile, in one place and one notification: how many messages are
+        /// waiting, then who the last one was, over their picture.
+        ///
+        /// The number is written here, and not left to the badge alone. On WP8.1 the
+        /// badge is the only thing that draws a count on the tile, and a badge that
+        /// the shell does not draw leaves the tile with no number at all - which is
+        /// what happened on the phone this was fixed on: the tile showed the app
+        /// icon and nothing else.
+        ///
+        /// One notification, replaced in place, and **no notification queue**. The
+        /// queue kept one tile per message, and each of them counted the number of
+        /// its own moment: the tile on screen went on showing the count of a message
+        /// that had already been read. A queue of tiles can hold many faces, but not
+        /// one true total, and the total is the thing the tile is for.
         /// </summary>
-        private static bool _queueEnabled;
+        private static void RenderTile()
+        {
+            try
+            {
+                var updater = TileUpdateManager.CreateTileUpdaterForApplication();
+
+                // The queue belongs to the device, not to this run: a version of the
+                // app that used it leaves it on, and a tile posted now would be added
+                // to the old ones instead of replacing them. It is turned off once,
+                // and its own failure cannot take the tile away: the old tiles are
+                // cleared the first time everything has been read.
+                if (!_queueDisabled)
+                {
+                    try { updater.EnableNotificationQueue(false); }
+                    catch (Exception ex) { Diag.Failed("NotificationService.RenderTile/queue", ex); }
+                    _queueDisabled = true;
+                }
+
+                if (_unread <= 0)
+                {
+                    updater.Clear();
+                    return;
+                }
+
+                var xml = TileUpdateManager.GetTemplateContent(
+                    TileTemplateType.TileSquare150x150PeekImageAndText02);
+                var texts = xml.GetElementsByTagName("text");
+                if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(UnreadText(_unread)));
+                // Nobody wrote yet - a count read back from the local copy at
+                // startup, before any message: the line stays empty instead of
+                // holding an empty node.
+                string sender = Cut(_senderName, 30);
+                if (texts.Length > 1 && sender.Length > 0) texts[1].AppendChild(xml.CreateTextNode(sender));
+
+                var binding = xml.SelectSingleNode("/tile/visual/binding") as XmlElement;
+                if (binding != null) SetImage(xml, binding, _senderImage ?? TileIconUri);
+
+                updater.Update(new TileNotification(xml));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService.RenderTile", ex);
+            }
+        }
+
+        /// <summary>
+        /// How many are waiting, as the tile says it. One message is not "1
+        /// messages": the two forms are two keys, so whoever translates writes both
+        /// instead of guessing a plural rule.
+        /// </summary>
+        private static string UnreadText(int count)
+        {
+            if (count == 1) return Loc.Get("TileUnreadOne", "1 unread message");
+            return string.Format(Loc.Get("TileUnreadMany", "{0} unread messages"), count);
+        }
+
+        /// <summary>
+        /// The last sender's name and the file of their picture, kept because the
+        /// count changes on its own - a chat is read, another message arrives - and
+        /// the tile has to be drawn again with the same face on it.
+        /// </summary>
+        private static string _senderName;
+        private static string _senderImage;
+
+        /// <summary>The count the tile is showing, and the one the badge shows.</summary>
+        private static int _unread;
+
+        /// <summary>
+        /// True after the notification queue has been turned off. It is a property
+        /// of the updater, not of the single update, and the tile it belongs to is
+        /// read again on every message.
+        /// </summary>
+        private static bool _queueDisabled;
 
         /// <summary>An alert for a message that arrived in a closed chat.</summary>
         public static void ShowMessage(string title, string body)
@@ -162,15 +222,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The unread count, in the two places WP8.1 can show it: the icon badge
-        /// and the tile. They are two different notifications and one can fail
-        /// without the other, so each has its own guard. With 0 everything is
-        /// cleared: the tile goes back to the manifest one.
+        /// The unread count, in the two places WP8.1 can show it: the number on the
+        /// icon (the badge) and the tile. They are two different notifications and
+        /// one can fail without the other, so each has its own guard. With 0
+        /// everything is cleared: the tile goes back to the manifest one.
+        ///
+        /// The badge is set **after** the tile, because clearing the tile can take
+        /// the badge with it: the other order would leave the number off the icon
+        /// until the next message.
         /// </summary>
         public static void SetUnread(int count)
         {
-            SetBadge(count);
-            SetTileBadge(count);
+            _unread = count < 0 ? 0 : count;
+            RenderTile();
+            SetBadge(_unread);
         }
 
         /// <summary>The number on the icon: 0 removes it.</summary>
@@ -197,81 +262,7 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Puts the app icon on the tile, in the two sizes WP8.1 can update with an
-        /// icon: 150x150 and 71x71 (the IconWithBadge template).
-        ///
-        /// Worth noting, because it is the point: **the badge draws the number, not
-        /// the tile.** This update keeps the tile on the app icon while the badge is
-        /// active, and brings it back to the manifest one when there is nothing
-        /// left to read (Clear).
-        ///
-        /// The wide size is not touched: on WP8.1 the
-        /// `TileWide310x150IconWithBadge` template does not exist, and the badge is
-        /// drawn on the wide tile anyway, so the number is visible all the same.
-        ///
-        /// The icon, on the other hand, must be passed in: the IconWithBadge
-        /// template does NOT take it from the manifest, it wants it in the payload.
-        /// With an empty src the tile stays without an icon - and without raising
-        /// anything, so silently.
-        /// </summary>
-        private static void SetTileBadge(int count)
-        {
-            try
-            {
-                var updater = TileUpdateManager.CreateTileUpdaterForApplication();
-                if (count <= 0)
-                {
-                    updater.Clear();
-                    return;
-                }
-
-                var xml = TileUpdateManager.GetTemplateContent(
-                    TileTemplateType.TileSquare150x150IconWithBadge);
-                var visual = (XmlElement)xml.SelectSingleNode("/tile/visual");
-                if (visual == null) return;
-
-                SetTileIcon(xml, visual, TileIconUri);
-                AppendBinding(xml, visual, TileTemplateType.TileSquare71x71IconWithBadge);
-
-                updater.Update(new TileNotification(xml));
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("NotificationService.SetTileBadge", ex);
-            }
-        }
-
-        /// <summary>
-        /// Copies the binding of another template into the tile document. A node
-        /// belongs to its own document, so it must be imported: appending it as is
-        /// raises an exception.
-        ///
-        /// The imported binding is a fresh binding, so it wants its own icon like
-        /// the other one: without it, the size that receives it draws without one.
-        /// </summary>
-        private static void AppendBinding(XmlDocument xml, XmlElement visual, TileTemplateType template)
-        {
-            var other = TileUpdateManager.GetTemplateContent(template);
-            var binding = other.SelectSingleNode("/tile/visual/binding");
-            if (binding == null) return;
-
-            var imported = xml.ImportNode(binding, true) as XmlElement;
-            if (imported == null) return;
-
-            SetImage(xml, imported, TileIconUri);
-            visual.AppendChild(imported);
-        }
-
-        /// <summary>The icon on the binding inside the template visual.</summary>
-        private static void SetTileIcon(XmlDocument xml, XmlElement visual, string uri)
-        {
-            var binding = visual.SelectSingleNode("binding") as XmlElement;
-            if (binding == null) return;
-            SetImage(xml, binding, uri);
-        }
-
-        /// <summary>
-        /// Writes the icon on the binding image, creating it if the template has
+        /// Writes the picture on the binding image, creating it if the template has
         /// none: the element must be created with the destination document, not
         /// with the template one, otherwise insertion raises an exception.
         /// </summary>
@@ -288,9 +279,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The tile image, in one place only. It is a transparent PNG with no
-        /// padding: the manifest logos have the padding the system expects, and on
-        /// a 150 px tile that padding eats the drawing.
+        /// The app icon, in one place only. It is what the tile shows while there is
+        /// no picture of the sender: a transparent PNG with no padding, because the
+        /// manifest logos have the padding the system expects and on a 150 px tile
+        /// that padding eats the drawing.
         /// </summary>
         private const string TileIconUri = "ms-appx:///Assets/TileIcon.png";
 
