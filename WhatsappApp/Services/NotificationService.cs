@@ -154,22 +154,72 @@ namespace WhatsappApp.Services
 
                 var xml = TileUpdateManager.GetTemplateContent(
                     TileTemplateType.TileSquare150x150PeekImageAndText02);
-                var texts = xml.GetElementsByTagName("text");
-                if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(UnreadText(_unread)));
-                // Nobody wrote yet - a count read back from the local copy at
-                // startup, before any message: the line stays empty instead of
-                // holding an empty node.
-                string sender = Cut(_senderName, 30);
-                if (texts.Length > 1 && sender.Length > 0) texts[1].AppendChild(xml.CreateTextNode(sender));
+                var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
+                if (visual == null) return;
 
-                var binding = xml.SelectSingleNode("/tile/visual/binding") as XmlElement;
-                if (binding != null) SetImage(xml, binding, _senderImage ?? TileIconUri);
+                FillBinding(xml, visual.SelectSingleNode("binding") as XmlElement);
+                AddWideBinding(xml, visual);
 
                 updater.Update(new TileNotification(xml));
             }
             catch (Exception ex)
             {
                 Diag.Failed("NotificationService.RenderTile", ex);
+            }
+        }
+
+        /// <summary>
+        /// What one binding of the notification says: how many are waiting, then the
+        /// last sender over their picture.
+        ///
+        /// One helper for both sizes. The medium tile and the wide one say the same
+        /// thing, so a change here cannot arrive on one of them and not on the other.
+        /// </summary>
+        private static void FillBinding(XmlDocument xml, XmlElement binding)
+        {
+            if (binding == null) return;
+
+            var texts = binding.SelectNodes("text");
+            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(UnreadText(_unread)));
+            // Nobody wrote yet - a count read back from the local copy at startup,
+            // before any message: the line stays empty instead of holding an empty
+            // node.
+            string sender = Cut(_senderName, 30);
+            if (texts.Length > 1 && sender.Length > 0) texts[1].AppendChild(xml.CreateTextNode(sender));
+
+            SetImage(xml, binding, _senderImage ?? TileIconUri);
+        }
+
+        /// <summary>
+        /// The wide tile says what the medium one says.
+        ///
+        /// Without this the wide size keeps the logo of the manifest whatever the
+        /// app has to tell: `TileWide310x150IconWithBadge` does not exist on WP8.1
+        /// (CS0117), and there is no other wide badge template to fall back on.
+        ///
+        /// The binding comes from the wide template and is imported: a node belongs
+        /// to its own document, so appending it as it is raises. A wide template
+        /// that the phone refuses cannot take the medium tile away with it, so this
+        /// one is guarded on its own.
+        /// </summary>
+        private static void AddWideBinding(XmlDocument xml, XmlElement visual)
+        {
+            try
+            {
+                var wide = TileUpdateManager.GetTemplateContent(
+                    TileTemplateType.TileWide310x150PeekImageAndText02);
+                var binding = wide.SelectSingleNode("/tile/visual/binding");
+                if (binding == null) return;
+
+                var imported = xml.ImportNode(binding, true) as XmlElement;
+                if (imported == null) return;
+
+                FillBinding(xml, imported);
+                visual.AppendChild(imported);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService.AddWideBinding", ex);
             }
         }
 

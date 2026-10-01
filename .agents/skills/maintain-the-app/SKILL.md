@@ -267,8 +267,9 @@ the adapter:
 - WP8.1 caches the tile name and icons: after changing them, uninstall the app on
   the device before redeploying.
 - **The tile templates that exist on WP8.1 are not the Windows ones.**
-  `TileSquare150x150IconWithBadge`, `TileSquare71x71IconWithBadge` and the
-  `TileSquare150x150PeekImageAndTextNN` family do exist and are what
+  `TileSquare150x150IconWithBadge`, `TileSquare71x71IconWithBadge`, the
+  `TileSquare150x150PeekImageAndTextNN` family and the
+  `TileWide310x150PeekImageAndTextNN` family do exist and are what
   `NotificationService` can use; `TileWide310x150IconWithBadge` does **not**, and
   naming it is a compile error (CS0117), not a silent no-op. This is a phone-only
   SDK: a template that compiles here may still be unsupported at run time, so a
@@ -285,8 +286,10 @@ the adapter:
   what the screen showed was a count that had already moved on. `RenderTile`
   posts a single tile, replaced in place, with the count written inside it
   (`TileUnreadOne` / `TileUnreadMany`), the last sender's picture as its image,
-  and their name under it. `Clear()` on both updaters is what returns the tile
-  and the icon to the manifest's defaults.
+  and their name under it - in the medium binding and in the wide one, because
+  the two sizes say the same thing and a change cannot arrive on one of them
+  alone. `Clear()` on both updaters is what returns the tile and the icon to the
+  manifest's defaults.
 - **A shared writer is written through a queue, never by two callers at once.**
   The receive path is fire-and-forget on purpose (`DispatchOnUiThread` and the
   frame handlers are `async void`, and the read loop does not await the
@@ -437,7 +440,12 @@ the adapter:
   when there is not, and creates the `image` element when the template does not
   ship one (create it with the destination document, or the insertion throws).
   `TileWide310x150IconWithBadge` does not exist on WP8.1 (CS0117), so the wide
-  tile keeps the manifest's. Gate: `node tools/check-tile.js`.
+  tile takes its binding from `TileWide310x150PeekImageAndText02`:
+  `AddWideBinding` imports that binding into the notification and fills it with
+  the same helper as the medium one, and without it the wide size keeps the logo
+  of the manifest whatever the app has to say. The import is guarded on its own,
+  so a wide template the phone refuses cannot take the medium tile away with it.
+  Gate: `node tools/check-tile.js`.
 - **A bitmap decodes at the size you ask for, and at no other size.**
   `BitmapImage.DecodePixelWidth` must be set before `SetSourceAsync` - after, it
   does nothing - and it is the difference between a 52 px circle costing a few tens
