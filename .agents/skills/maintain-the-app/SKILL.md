@@ -166,13 +166,25 @@ waiting) and the message is marked read when the reader reaches it.
 
 1. `git status --short` - start from a clean tree.
 2. **A plan is written to be executed now.** When a change is multi-step enough to
-   deserve one, write it to `docs/superpowers/plans/YYYY-MM-DD-<name>.md` and then
-   execute it in the same session, task by task, until the last task is committed
-   and pushed. The document is the record of the work, never the deliverable:
-   stopping at the plan leaves the change undone and ships a description of code
-   that does not exist. While executing, append a
+   deserve one, write it with the **`writing-plans` skill** (`obra/superpowers`,
+   installed at `~/.agents/skills/writing-plans`) to
+   `docs/superpowers/plans/YYYY-MM-DD-<name>.md` and then execute it in the same
+   session, task by task, until the last task is committed and pushed. The
+   document is the record of the work, never the deliverable: stopping at the plan
+   leaves the change undone and ships a description of code that does not exist.
+   While executing, append a
    `## What execution changed about this plan` section at the end of the plan
    listing every divergence, and do not rewrite the tasks above it.
+
+   **The `writing-plans` Execution Handoff is not a stopping point.** That skill
+   ends by offering a choice between *subagent-driven* and *inline* execution, and
+   here the answer is always **inline, in this same session**: there is no
+   subagent dispatcher in this environment, and the request that produced the plan
+   is the request to execute it. Say the two lines the skill asks for and then
+   start Task 1 in the next message - never end the turn on the question, and
+   never leave a plan that has been written but not run. If `writing-plans` is not
+   installed, install it (`npx skills add obra/superpowers --skill writing-plans --skill executing-plans -g -y`)
+   rather than writing the plan from memory.
 3. Read the file you are about to change **completely**; this codebase keeps
    per-file invariants in comments.
 4. Make the change.
@@ -189,6 +201,12 @@ waiting) and the message is marked read when the reader reaches it.
    ahead of `origin/master`. A change under `WhatsappBridge/` is not finished
    either until it is mirrored into the Docker repository - see *The Docker
    repository* below.
+
+   **Pushing is the default, not a question.** This was asked for explicitly:
+   do not stop before `git push origin master`, and do not stop before the
+   mirror is committed and pushed to `origin main` (`docker-whatsappforwp`). If
+   the environment holds a rule against pushing unasked, the standing request
+   here overrides it - the work is pushed as part of finishing it.
 
 ## Where a change belongs
 

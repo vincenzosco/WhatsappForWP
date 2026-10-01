@@ -1289,3 +1289,30 @@ Plan complete and saved to `docs/superpowers/plans/2026-10-01-voice-note-recordi
 **2. Inline Execution** — execute the tasks in this session with checkpoints.
 
 Which approach?
+
+---
+
+## What execution changed about this plan
+
+Executed inline, 2026-10-01. The tasks above are left as written; these are the
+divergences.
+
+- **The manifest was CRLF with a BOM on disk.** Task 2 normalized it to LF and no
+  BOM, which rewrites every line of `Package.appxmanifest` in that commit. That is
+  the project rule, not a mistake, but it makes the commit look larger than it is.
+- **`check-icons.js` counts 27 inline Paths, not the 26 the plan predicted.** The
+  distinct-icon count (16) is the number the plan cared about, and it matched.
+- **The Italian anchor in `WhatsappBridge/README.it.md` differs from the English
+  one.** The planned `oldString` did not exist; the real paragraph ends
+  `non si puo' riprodurre.`.
+- **`prlctl exec` failed with `PrlJob_GetResult: Invalid argument`** on the first
+  ARM build attempt, and even on `echo` right after. Waiting until the VM settled
+  fixed it; the build then ran clean. Retry the command rather than treating it as
+  a broken VM.
+- **Pushing happened last, on explicit request.** The plan's Task 5 Step 7 pushed
+  the mirror but said nothing about `git push origin master`; both remotes were
+  pushed at the end of the session instead. The project skill now says pushing is
+  the default and is not to be held back as a question.
+- **The plan is executed inline, always.** The `writing-plans` Execution Handoff
+  was answered implicitly (no subagent dispatcher exists here); the project skill
+  now records that the handoff is not a stopping point.
