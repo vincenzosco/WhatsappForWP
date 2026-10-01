@@ -564,6 +564,22 @@ the adapter:
   derive from `MediaType` the way `IsVideo` does. A downloaded document is opened
   with `Launcher.LaunchFileAsync` on the file in `LocalFolder`, so the extension
   must be the real one (it comes from the file name in `MediaFileName`).
+- **A recorded voice note is M4A, and it leaves through `/send/audio`.**
+  `Services/AudioRecorder.cs` records AAC in an M4A container
+  (`MediaEncodingProfile.CreateM4a`) because it is the format this phone records
+  and decodes without help; WP8.1 has no Opus encoder, and the adapter converts
+  only in the receiving direction. The M4A file goes into `LocalFolder` and then
+  through the same `AttachmentInbox` slot as a picked photo, so
+  `ChatPage.SendAttachmentAsync` streams it with the existing frames.
+  `AttachmentInbox.KindName` must answer `audio` for an audio MIME type or
+  extension: without that branch a voice note is a document, and the adapter
+  cannot tell the two apart. On the adapter side an `audio` payload goes to
+  `GowaClient.sendAudio` (`POST /send/audio`, field `audio`); `sendFile` is only
+  the fallback, and a voice note sent through it arrives as a file.
+- **The microphone is a `DeviceCapability`.** `MediaCapture.InitializeAsync`
+  answers access denied without `<DeviceCapability Name="microphone" />` in
+  `Package.appxmanifest`. Visual Studio rewrites that file on every build: after
+  a build, `git checkout -- WhatsappApp/Package.appxmanifest`.
 - **A picked or shared file is copied, not read.** `AttachmentInbox.PutAsync` copies
   the chosen file into `LocalFolder` (`StorageFile.CopyAsync`) and keeps its name;
   `ChatPage.SendAttachmentAsync` streams it out in `MediaChunkBytes` (525000, a
