@@ -157,6 +157,21 @@
   <data name="ChatPage_DocumentSelected" xml:space="preserve">
     <value>Documento selezionato</value>
   </data>
+  <data name="ChatPage_AudioSelected" xml:space="preserve">
+    <value>Vocale selezionato</value>
+  </data>
+  <data name="ChatPage_RecordingLabel.Text" xml:space="preserve">
+    <value>Registrazione</value>
+  </data>
+  <data name="ChatPage_RecordTooltip" xml:space="preserve">
+    <value>Registra un vocale</value>
+  </data>
+  <data name="ChatPage_StopRecordTooltip" xml:space="preserve">
+    <value>Ferma la registrazione</value>
+  </data>
+  <data name="ChatPage_RecordError" xml:space="preserve">
+    <value>Non e' possibile avviare la registrazione. Controlla che l'app possa usare il microfono.</value>
+  </data>
   <data name="ChatPage_VideoError" xml:space="preserve">
     <value>Questo video non puo' essere riprodotto.</value>
   </data>
