@@ -501,6 +501,22 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   // ─── State and login ──────────────────────────────────────────────────────
 
   /**
+   * How many phones are really watching this account: the sockets that got as
+   * far as the handshake.
+   *
+   * A connection that only opens the port and goes away is not a client. The
+   * healthcheck of the container does exactly that every thirty seconds, and so
+   * would a stray connection: counting them would make our presence blink to
+   * `available` and back for the contacts, which is a state nobody asked for -
+   * the same reason the green "online" dot was taken off the screens.
+   */
+  function watchingCount(session) {
+    let count = 0;
+    for (const socket of session.sockets) if (socket.handshaken) count++;
+    return count;
+  }
+
+  /**
    * Our own presence on WhatsApp: online while a phone is watching the account,
    * unavailable when nobody is.
    *
@@ -515,7 +531,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   async function updatePresence(session) {
     if (!session || !session.gowa) return;
 
-    const watching = session.sockets.size > 0;
+    const watching = watchingCount(session) > 0;
     // Nobody is watching and nothing was ever said: there is nothing to correct,
     // because GOWA connects as "unavailable" by itself. It is what keeps the
     // anonymous session of a shared instance from talking to WhatsApp at all.
@@ -1124,6 +1140,10 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
           break;
         }
         if (socket) socket.user = verdict.user || null;
+        // The handshake is what turns a connection into a phone watching this
+        // account: it is the only thing presence and the unread counter are
+        // allowed to be based on.
+        if (socket) socket.handshaken = true;
         // With a valid token the socket moves to the user's session; without
         // auth it stays (or returns) to the anonymous one of the private
         // instance.
