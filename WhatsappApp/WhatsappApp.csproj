@@ -125,6 +125,7 @@
     <Compile Include="Services\MemoryWatcher.cs" />
     <Compile Include="Services\VideoCompressor.cs" />
     <Compile Include="Services\VideoThumbnail.cs" />
+    <Compile Include="Services\AudioRecorder.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>
