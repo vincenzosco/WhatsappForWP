@@ -159,6 +159,7 @@ namespace WhatsappApp.Services
 
                 FillBinding(xml, visual.SelectSingleNode("binding") as XmlElement);
                 AddWideBinding(xml, visual);
+                AddSmallBinding(xml, visual);
 
                 updater.Update(new TileNotification(xml));
             }
@@ -191,35 +192,76 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// One binding for another tile size, imported from the template of that
+        /// size and appended to this notification.
+        ///
+        /// A node belongs to its own document, so the binding is imported: appending
+        /// it as it is raises. Importing is also what lets the three sizes live in
+        /// one notification, which is what keeps the tile a single thing to reason
+        /// about instead of one per size.
+        /// </summary>
+        private static XmlElement ImportBinding(XmlDocument xml, XmlElement visual, TileTemplateType template)
+        {
+            var other = TileUpdateManager.GetTemplateContent(template);
+            var binding = other.SelectSingleNode("/tile/visual/binding");
+            if (binding == null) return null;
+
+            var imported = xml.ImportNode(binding, true) as XmlElement;
+            if (imported == null) return null;
+
+            visual.AppendChild(imported);
+            return imported;
+        }
+
+        /// <summary>
         /// The wide tile says what the medium one says.
         ///
         /// Without this the wide size keeps the logo of the manifest whatever the
         /// app has to tell: `TileWide310x150IconWithBadge` does not exist on WP8.1
         /// (CS0117), and there is no other wide badge template to fall back on.
         ///
-        /// The binding comes from the wide template and is imported: a node belongs
-        /// to its own document, so appending it as it is raises. A wide template
-        /// that the phone refuses cannot take the medium tile away with it, so this
-        /// one is guarded on its own.
+        /// A wide template that the phone refuses cannot take the medium tile away
+        /// with it, so this one is guarded on its own.
         /// </summary>
         private static void AddWideBinding(XmlDocument xml, XmlElement visual)
         {
             try
             {
-                var wide = TileUpdateManager.GetTemplateContent(
-                    TileTemplateType.TileWide310x150PeekImageAndText02);
-                var binding = wide.SelectSingleNode("/tile/visual/binding");
+                var binding = ImportBinding(xml, visual, TileTemplateType.TileWide310x150PeekImageAndText02);
                 if (binding == null) return;
 
-                var imported = xml.ImportNode(binding, true) as XmlElement;
-                if (imported == null) return;
-
-                FillBinding(xml, imported);
-                visual.AppendChild(imported);
+                FillBinding(xml, binding);
             }
             catch (Exception ex)
             {
                 Diag.Failed("NotificationService.AddWideBinding", ex);
+            }
+        }
+
+        /// <summary>
+        /// The small tile, pinned at 71x71: it carries the app mark, whatever the
+        /// other sizes are showing.
+        ///
+        /// The size has no line of text to write the count in, and no room for one
+        /// either, so the only thing it can be is the app itself. Its template is
+        /// the one that does not ship an `image` element: `SetImage` creates it.
+        ///
+        /// The picture of the sender is not used here on purpose. At 71 px a face
+        /// is a smear, and the size is meant to say "this app has something for
+        /// you", while the medium and the wide tile next to it say what and who.
+        /// </summary>
+        private static void AddSmallBinding(XmlDocument xml, XmlElement visual)
+        {
+            try
+            {
+                var binding = ImportBinding(xml, visual, TileTemplateType.TileSquare71x71IconWithBadge);
+                if (binding == null) return;
+
+                SetImage(xml, binding, TileIconUri);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService.AddSmallBinding", ex);
             }
         }
 

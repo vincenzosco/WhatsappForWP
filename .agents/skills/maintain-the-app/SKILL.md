@@ -288,7 +288,10 @@ the adapter:
   (`TileUnreadOne` / `TileUnreadMany`), the last sender's picture as its image,
   and their name under it - in the medium binding and in the wide one, because
   the two sizes say the same thing and a change cannot arrive on one of them
-  alone. `Clear()` on both updaters is what returns the tile and the icon to the
+  alone. The 71x71 binding is the exception, and it is there for a reason of its
+  own: the size has no text element and no room for one, so it carries the app
+  mark and says "this app has something for you", while the size next to it says
+  what and who. `Clear()` on both updaters is what returns the tile and the icon to the
   manifest's defaults.
 - **A shared writer is written through a queue, never by two callers at once.**
   The receive path is fire-and-forget on purpose (`DispatchOnUiThread` and the
@@ -438,7 +441,9 @@ the adapter:
   at all - no exception, no log, nothing in the Output window. `SetImage` writes
   the sender's picture when there is one and `ms-appx:///Assets/TileIcon.png`
   when there is not, and creates the `image` element when the template does not
-  ship one (create it with the destination document, or the insertion throws).
+  ship one (create it with the destination document, or the insertion throws):
+  the 71x71 iconic template is exactly the one that ships none, so without that
+  the small tile would render as a blank square and raise nothing.
   `TileWide310x150IconWithBadge` does not exist on WP8.1 (CS0117), so the wide
   tile takes its binding from `TileWide310x150PeekImageAndText02`:
   `AddWideBinding` imports that binding into the notification and fills it with
