@@ -71,5 +71,21 @@ namespace WhatsappApp.Services
                 return bitmap;
             }
         }
+
+        /// <summary>
+        /// bitmap from a stream that is already open: it serves the cover frame of
+        /// a video, which Windows.Media.Editing hands back as a stream and not as
+        /// bytes or a file. The stream is not disposed here; the caller owns it.
+        /// </summary>
+        public static async Task<BitmapImage> FromStreamAsync(IRandomAccessStream stream, int decodePixelWidth)
+        {
+            if (stream == null) return null;
+
+            var bitmap = new BitmapImage();
+            if (decodePixelWidth > 0) bitmap.DecodePixelWidth = decodePixelWidth;
+            stream.Seek(0);
+            await bitmap.SetSourceAsync(stream);
+            return bitmap;
+        }
     }
 }

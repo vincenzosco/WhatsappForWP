@@ -77,6 +77,17 @@ namespace WhatsappApp.Models
         private string _mediaFilePath;       // local file of the received video (client-side, not on the wire)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
+        // Presentation-only state of this bubble. None of it is wire data: the
+        // server never sends a size, a badge or a playback position, and the
+        // message cache serializes fields explicitly, so adding fields here does
+        // not change what is stored.
+        private long _mediaSizeBytes;
+        private bool _isPlaying;          // a voice note of this bubble is playing
+        private bool _audioFailed;        // the phone refused to decode it
+        private double _playbackProgress; // 0..1, what the bar draws
+        private string _playbackTimeText;
+        private BitmapImage _videoThumbnail;
+
         // One serializer per type, not one per message: DataContractJsonSerializer
         // builds the contract graph internally on every instance.
         private static readonly DataContractJsonSerializer JsonSerializer =
@@ -202,7 +213,13 @@ namespace WhatsappApp.Models
         public string MediaFileName
         {
             get { return _mediaFileName; }
-            set { _mediaFileName = value; OnPropertyChanged(); }
+            set
+            {
+                _mediaFileName = value;
+                OnPropertyChanged();
+                OnPropertyChanged("DocumentTitle");
+                OnPropertyChanged("DocumentBadge");
+            }
         }
 
         /// <summary>Identifier of an attachment that travels in pieces (media.begin/end).</summary>
@@ -246,6 +263,9 @@ namespace WhatsappApp.Models
                 OnPropertyChanged("IsAudio");
                 OnPropertyChanged("IsDocument");
                 OnPropertyChanged("ShowsText");
+                OnPropertyChanged("DocumentTitle");
+                OnPropertyChanged("DocumentBadge");
+                OnPropertyChanged("AudioErrorText");
             }
         }
 
@@ -538,6 +558,160 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
+        /// Size of the received file, in bytes. Zero when it is not known: a
+        /// history row that has not been downloaded yet, or a message built here
+        /// before the file was read. A zero is not shown.
+        /// </summary>
+        public long MediaSizeBytes
+        {
+            get { return _mediaSizeBytes; }
+            set
+            {
+                _mediaSizeBytes = value;
+                OnPropertyChanged();
+                OnPropertyChanged("MediaSizeText");
+            }
+        }
+
+        /// <summary>The size as a word for the bubble. Empty when it is unknown.</summary>
+        public string MediaSizeText
+        {
+            get
+            {
+                if (_mediaSizeBytes <= 0) return "";
+                if (_mediaSizeBytes < 1024) return _mediaSizeBytes.ToString(CultureInfo.InvariantCulture) + " B";
+                if (_mediaSizeBytes < 1024 * 1024)
+                    return (_mediaSizeBytes / 1024).ToString(CultureInfo.InvariantCulture) + " KB";
+                double mb = _mediaSizeBytes / (1024.0 * 1024.0);
+                return mb.ToString("0.#", CultureInfo.InvariantCulture) + " MB";
+            }
+        }
+
+        /// <summary>
+        /// The name drawn on a document card. The real file name when there is
+        /// one, otherwise the text the adapter wrote for the row (the file name
+        /// it carried, or the word [Document]).
+        /// </summary>
+        public string DocumentTitle
+        {
+            get
+            {
+                if (!IsDocument) return "";
+                if (!string.IsNullOrEmpty(_mediaFileName)) return _mediaFileName;
+                return string.IsNullOrEmpty(Text) ? Loc.Get("ChatMessage_File", "File") : Text;
+            }
+        }
+
+        /// <summary>
+        /// The short type badge of a document card: PDF, DOCX, XLSX, ZIP. It
+        /// comes from the extension of the name, which is the only thing we have:
+        /// the adapter sends no separate type word.
+        /// </summary>
+        public string DocumentBadge
+        {
+            get
+            {
+                string name = !string.IsNullOrEmpty(_mediaFileName) ? _mediaFileName : Text;
+                string fallback = Loc.Get("ChatMessage_File", "File").ToUpperInvariant();
+                if (string.IsNullOrEmpty(name)) return fallback;
+
+                int dot = name.LastIndexOf('.');
+                if (dot < 0 || dot == name.Length - 1) return fallback;
+
+                string extension = name.Substring(dot + 1).ToUpperInvariant();
+                return extension.Length > 4 ? extension.Substring(0, 4) : extension;
+            }
+        }
+
+        /// <summary>
+        /// This bubble's voice note is playing. A tap on play raises it, a tap on
+        /// pause lowers it, and the end of the file lowers it: the two glyphs of
+        /// the bar read this one flag.
+        /// </summary>
+        public bool IsPlaying
+        {
+            get { return _isPlaying; }
+            set
+            {
+                _isPlaying = value;
+                OnPropertyChanged();
+                OnPropertyChanged("IsAudioNotPlaying");
+            }
+        }
+
+        /// <summary>The play glyph shows exactly when nothing is playing.</summary>
+        public bool IsAudioNotPlaying
+        {
+            get { return !_isPlaying; }
+        }
+
+        /// <summary>How far the voice note got, from 0 to 1.</summary>
+        public double PlaybackProgress
+        {
+            get { return _playbackProgress; }
+            set
+            {
+                _playbackProgress = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>"0:03 / 0:07", or empty when nothing is playing.</summary>
+        public string PlaybackTimeText
+        {
+            get { return _playbackTimeText; }
+            set
+            {
+                _playbackTimeText = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// The phone refused to decode this voice note. It is not the network: it
+        /// is the platform, and the sentence takes the place of the play glyph
+        /// instead of leaving a tap that does nothing.
+        /// </summary>
+        public bool AudioFailed
+        {
+            get { return _audioFailed; }
+            set
+            {
+                _audioFailed = value;
+                OnPropertyChanged();
+            }
+        }
+
+        /// <summary>The sentence of a voice note the phone cannot play.</summary>
+        public string AudioErrorText
+        {
+            get { return Loc.Get("ChatPage_AudioError", "This voice note cannot be played."); }
+        }
+
+        /// <summary>
+        /// Frame of the video, drawn under the play triangle. It is not wire data
+        /// and it is not cached on disk: it is rebuilt from the local file, once
+        /// per message, and it is null when the phone could not make one.
+        /// </summary>
+        public BitmapImage VideoThumbnail
+        {
+            get { return _videoThumbnail; }
+        }
+
+        /// <summary>
+        /// Builds the cover frame, once, from the video already on disk. A failure
+        /// is not fatal: it is recorded and the bubble keeps its plain box.
+        /// </summary>
+        public async Task LoadVideoThumbnailAsync()
+        {
+            if (_videoThumbnail != null || !IsVideo || string.IsNullOrEmpty(_mediaFilePath)) return;
+            // Fully qualified: the property of the same name would be read as the
+            // type otherwise.
+            _videoThumbnail = await WhatsappApp.Services.VideoThumbnail.FromFileAsync(_mediaFilePath, 480);
+            OnPropertyChanged("VideoThumbnail");
+        }
+
+        /// <summary>
         /// There is something to write under the media. The type placeholder
         /// ("[Video]", "[Image not downloaded]") is not a caption: for a video the
         /// box with the triangle says it, and repeating the word underneath serves
@@ -550,6 +724,10 @@ namespace WhatsappApp.Models
             {
                 if (string.IsNullOrEmpty(Text)) return false;
                 if (IsVideo && IsMediaPlaceholder) return false;
+                // A document card already carries its name: repeating it under the
+                // card is the same word twice. When the text is a caption and not
+                // the name, it stays.
+                if (IsDocument && string.Equals(DocumentTitle, Text)) return false;
                 return true;
             }
         }

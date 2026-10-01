@@ -56,6 +56,19 @@ test('ImageHelper.FromFileAsync chiede anche lui la misura', () => {
   assert.match(problems[0], /two arguments/);
 });
 
+test('ImageHelper.FromStreamAsync chiede anche lui la misura', () => {
+  const problems = memory.decodeProblems(
+    'Cover = await ImageHelper.FromStreamAsync(stream);', FILE);
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /two arguments/);
+});
+
+test('FromStreamAsync con la sua misura passa', () => {
+  const problems = memory.decodeProblems(
+    'Cover = await ImageHelper.FromStreamAsync(thumb, 480);', FILE);
+  assert.deepStrictEqual(problems, []);
+});
+
 const CHAT_CACHE = 'WhatsappApp/Services/ChatCache.cs';
 const AVATAR_CACHE = 'WhatsappApp/Services/AvatarCache.cs';
 const DATA_SERVICE = 'WhatsappApp/Services/DataService.cs';

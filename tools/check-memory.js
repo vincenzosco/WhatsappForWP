@@ -35,7 +35,7 @@ const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'WhatsappApp');
 const HELPER = 'WhatsappApp/Services/ImageHelper.cs';
 
-const CALL = /ImageHelper\.From(Base64|Bytes|File)Async\(/;
+const CALL = /ImageHelper\.From(Base64|Bytes|File|Stream)Async\(/;
 const MAX_DECODE = 720;
 
 /** Il testo fra la parentesi aperta a `open` e la sua chiusa. */
@@ -84,8 +84,8 @@ function decodeProblems(source, file) {
     const parts = splitArguments(args);
     if (parts.length !== 2) {
       problems.push(`${file}: ImageHelper.From${match[1]}Async takes two arguments ` +
-        '(the encoded image and the width it is shown at): without the second one the ' +
-        'bitmap is decoded at the size of the file');
+        '(the encoded image or stream and the width it is shown at): without the ' +
+        'second one the bitmap is decoded at the size of the file');
       continue;
     }
     const width = parts[1];
