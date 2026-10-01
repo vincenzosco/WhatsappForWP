@@ -135,6 +135,14 @@ namespace WhatsappApp.Services
             if (value == ".avi") return "video/x-msvideo";
             if (value == ".mkv") return "video/x-matroska";
             if (value == ".webm") return "video/webm";
+            if (value == ".m4a") return "audio/mp4";
+            if (value == ".aac") return "audio/aac";
+            if (value == ".mp3") return "audio/mpeg";
+            if (value == ".wav") return "audio/wav";
+            if (value == ".amr") return "audio/amr";
+            if (value == ".ogg") return "audio/ogg";
+            if (value == ".oga") return "audio/ogg";
+            if (value == ".opus") return "audio/ogg";
             if (value == ".pdf") return "application/pdf";
             if (value == ".doc") return "application/msword";
             if (value == ".docx") return "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -164,27 +172,43 @@ namespace WhatsappApp.Services
             if (mime == "image/gif") return ".gif";
             if (mime == "image/bmp") return ".bmp";
             if (mime.StartsWith("image/")) return ".jpg";
+            // A recording with no name: the format the phone records is the one
+            // that comes back. Without this a voice note MIME type would land on
+            // ".bin", which is not a file the phone can play.
+            if (mime.StartsWith("audio/")) return ".m4a";
             // Anything else is a file, and a file with no name has no extension
             // worth inventing.
             return ".bin";
         }
 
         /// <summary>
-        /// "image" or "video": the word the adapter and the app use to decide how
-        /// to send and how to draw. The MIME type may be missing (a shared
-        /// bitmap), so the word is also derived from the extension.
+        /// "image", "video", "audio" or "document": the word the adapter and the
+        /// app use to decide how to send and how to draw. The MIME type may be
+        /// missing (a shared bitmap), so the word is also derived from the
+        /// extension.
+        ///
+        /// Audio and not document: a recorded voice note has no extension the
+        /// document list knows, and calling it a document is how it used to be
+        /// sent as a file instead of a voice note.
         /// </summary>
         public static string KindName(string mimeType, string fileName)
         {
             string mime = (mimeType ?? "").ToLower();
             if (mime.StartsWith("video/")) return "video";
             if (mime.StartsWith("image/")) return "image";
+            if (mime.StartsWith("audio/")) return "audio";
 
             string name = (fileName ?? "").ToLower();
             if (name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".3gp")
                 || name.EndsWith(".avi") || name.EndsWith(".mkv") || name.EndsWith(".webm"))
             {
                 return "video";
+            }
+            if (name.EndsWith(".m4a") || name.EndsWith(".aac") || name.EndsWith(".mp3")
+                || name.EndsWith(".wav") || name.EndsWith(".amr") || name.EndsWith(".ogg")
+                || name.EndsWith(".oga") || name.EndsWith(".opus"))
+            {
+                return "audio";
             }
             if (name.EndsWith(".jpg") || name.EndsWith(".jpeg") || name.EndsWith(".png")
                 || name.EndsWith(".gif") || name.EndsWith(".bmp"))
