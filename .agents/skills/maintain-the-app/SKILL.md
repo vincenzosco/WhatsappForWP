@@ -360,6 +360,20 @@ the adapter:
   `presence`/`active` in `App.OnResuming`; the adapter keeps a per-socket
   `paused` flag that `watchingCount` honours, and a fresh handshake clears it.
   Any other path that puts the app in the background has to say the same thing.
+- **A media bubble shows only what the server sent.** The size of a document and
+  the name of the file come out of `IncomingMediaStore` (`FileName`, `SizeBytes`)
+  and are written onto the message in `DataService.ApplyMedia`; the type badge is
+  the extension of the name, computed in `ChatMessage.DocumentBadge`. Nothing is
+  guessed for a row whose bytes have not arrived: an unknown size is an empty
+  string, not a zero. The cover frame of a video is best effort
+  (`Services/VideoThumbnail.cs`): a null frame leaves the plain play box, and that
+  is not an error to show.
+- **One voice player for the whole page.** `ChatPage.VoicePlayer` is a single
+  hidden `MediaElement` driven by the play button of the active bubble; the
+  position is pushed onto the message by a 250 ms `DispatcherTimer`, because
+  `MediaElement.Position` is not a dependency property and cannot be bound. Do
+  not give each bubble a `MediaElement`: the list virtualizes, and that is one
+  decoder per visible row.
 - `Frame.BackStack` is mutable and used on purpose in `SectionNav`.
 - `DataService.Contacts` is a public collection: if something adds a contact
   without `AddContact`, `FindContact` rebuilds its index, so keep inserts going
