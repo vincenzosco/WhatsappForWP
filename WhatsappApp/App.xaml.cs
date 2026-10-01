@@ -158,8 +158,41 @@ namespace WhatsappApp
             // the app is suspended, and closing it ourselves would leave the app
             // marked as disconnected with nobody retrying. OnResuming handles
             // that, finding a silent connection and redoing it.
+            //
+            // But the OS freezes the process, and while it is frozen the socket
+            // can stay open: the server would keep counting this phone as a
+            // watching client and WhatsApp would keep showing the account
+            // online. This frame is sent now, within the deferral, so the
+            // contacts see the last access time instead. OnResuming takes it
+            // back.
+#pragma warning disable 4014
+            LeaveWatchingAsync(deferral);
+#pragma warning restore 4014
+        }
 
-            deferral.Complete();
+        /// <summary>
+        /// Sends the "I am going away" frame and then completes the suspension.
+        ///
+        /// The wait is bounded on purpose: a suspended app is not given
+        /// unlimited time, and a server that does not answer must not hold the
+        /// app in the foreground. The deferral is completed in a finally, so a
+        /// failure releases the app too.
+        /// </summary>
+        private async void LeaveWatchingAsync(SuspendingDeferral deferral)
+        {
+            try
+            {
+                System.Threading.Tasks.Task sending = CommunicationService.Instance.SendWatchingAsync(false);
+                await System.Threading.Tasks.Task.WhenAny(sending, System.Threading.Tasks.Task.Delay(2000));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/suspend-presence", ex);
+            }
+            finally
+            {
+                deferral.Complete();
+            }
         }
 
         /// <summary>
@@ -175,6 +208,14 @@ namespace WhatsappApp
         private void OnResuming(object sender, object e)
         {
             ConnectionWatchdog.Instance.CheckNow();
+
+            // The other half of the suspension frame. If the watchdog found the
+            // socket dead it reconnects, and the handshake is what marks the
+            // phone as watching again; if the socket survived the freeze, this
+            // is the frame that puts the account back online.
+#pragma warning disable 4014
+            CommunicationService.Instance.SendWatchingAsync(true);
+#pragma warning restore 4014
         }
 
         /// <summary>

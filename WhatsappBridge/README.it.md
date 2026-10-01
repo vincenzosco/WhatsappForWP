@@ -59,7 +59,12 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   `unavailable` con un impulso di cinque minuti una volta al giorno: per questo l'adapter
   mette l'account `available` quando si collega il primo client dell'app e `unavailable`
   quando esce l'ultimo (`POST /send/presence`). E' anche quello che vedono i contatti:
-  online mentre usi l'app, offline quando non la usi.
+  online mentre usi l'app, offline quando non la usi. Andare in background conta come
+  uscire: WP8.1 congela il processo senza chiudere il socket, quindi l'app manda un frame
+  di controllo `presence` - `paused` quando si sospende, `active` quando torna - e
+  l'adapter smette di contare quel telefono finche' non ritorna. E' quello che trasforma
+  l'account in un orario di ultimo accesso invece di lasciarlo online per un telefono
+  congelato.
 - Una foto o un video nella cronologia di una chat e' arrivato col telefono spento: i suoi
   byte sono stati consegnati all'adapter e a nessun altro, quindi la riga e' una parola
   (`[Image]`). Toccarla lo chiede all'adapter (`media.get`), che legge

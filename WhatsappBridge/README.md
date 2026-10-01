@@ -58,7 +58,11 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   `unavailable` with a five-minute pulse once a day, so the adapter marks the account
   `available` when the first app client connects and `unavailable` when the last one
   leaves (`POST /send/presence`). That is also what the contacts see: online while the app
-  is in use, offline when it is not.
+  is in use, offline when it is not. Going to the background counts as leaving: WP8.1
+  freezes the process without closing the socket, so the app sends a `presence` control
+  frame - `paused` while it suspends, `active` when it comes back - and the adapter stops
+  counting that phone until it returns. That is what turns the account into a last access
+  time instead of leaving it online for a frozen phone.
 - A photo or a video in a chat's history arrived while the phone was off: its bytes were
   delivered to the adapter and nowhere else, so the row is a word (`[Image]`). Tapping it
   asks the adapter (`media.get`), which reads `GET /message/:id/download` from GOWA and
