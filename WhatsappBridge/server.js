@@ -797,6 +797,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
     if (kind === 'video') return session.gowa.sendVideo(chatId, caption || '', buffer, mimeType || 'video/mp4', fileName);
     if (kind === 'image') return session.gowa.sendImage(chatId, caption || '', buffer, mimeType || 'image/jpeg', fileName);
+    // An audio payload is a voice note, and only /send/audio makes it one: it
+    // is sent there when the client knows the route, and as a file otherwise
+    // (an adapter talking to an older GOWA must keep working).
+    if (kind === 'audio' && typeof session.gowa.sendAudio === 'function') {
+      return session.gowa.sendAudio(chatId, caption || '', buffer, mimeType || 'audio/ogg', fileName || 'voice-note.ogg');
+    }
     return session.gowa.sendFile(chatId, caption || '', buffer, mimeType || 'application/octet-stream', fileName);
   }
 

@@ -810,6 +810,49 @@ test('un pdf inviato va a sendFile con il suo nome', async () => {
   ]);
 });
 
+test('un vocale inviato va a sendAudio, non a sendFile', async () => {
+  const delivered = [];
+  const gowa = {
+    sendAudio: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ door: 'audio', mimeType, fileName });
+      return 'A1';
+    },
+    sendFile: async () => { throw new Error('un vocale non passa da sendFile'); },
+    sendImage: async () => { throw new Error('un vocale non e un immagine'); },
+    sendVideo: async () => { throw new Error('un vocale non e un video'); }
+  };
+  const bridge = mediaBridge(gowa);
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'v1', MediaFileName: 'voce.m4a', MediaMimeType: 'audio/mp4', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'v1', MediaChunkIndex: 0, MediaData: Buffer.from('voce').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'v1' });
+
+  assert.deepStrictEqual(delivered, [
+    { door: 'audio', mimeType: 'audio/mp4', fileName: 'voce.m4a' }
+  ]);
+});
+
+test('senza sendAudio nel client un vocale ripiega su sendFile', async () => {
+  const delivered = [];
+  const gowa = {
+    sendFile: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ door: 'file', mimeType, fileName });
+      return 'F1';
+    },
+    sendImage: async () => { throw new Error('un vocale non e un immagine'); },
+    sendVideo: async () => { throw new Error('un vocale non e un video'); }
+  };
+  const bridge = mediaBridge(gowa);
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'v2', MediaFileName: 'voce.m4a', MediaMimeType: 'audio/mp4', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'v2', MediaChunkIndex: 0, MediaData: Buffer.from('voce').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'v2' });
+
+  assert.deepStrictEqual(delivered, [
+    { door: 'file', mimeType: 'audio/mp4', fileName: 'voce.m4a' }
+  ]);
+});
+
 test('un allegato a cui manca un pezzo non viene mandato, e lo dice', async () => {
   let sent = 0;
   const gowa = {
