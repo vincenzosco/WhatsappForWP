@@ -191,7 +191,8 @@ waiting) and the message is marked read when the reader reaches it.
 5. Run the fast gate: `node tools/check-csharp5.js && node tools/check-icons.js &&
    node tools/check-resw.js --strict && node tools/check-docs.js &&
    node tools/check-framing.js && node tools/check-tile.js &&
-   node tools/check-memory.js && node tools/check-actions.js`, plus
+   node tools/check-memory.js && node tools/check-actions.js &&
+   node tools/check-fire-and-forget.js`, plus
    `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
 6. If the change is user-visible, say which page and which string key changed.
 7. Commit with a message that says *why* (the repo history is the changelog).
