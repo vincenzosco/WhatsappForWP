@@ -60,6 +60,13 @@ namespace WhatsappApp.Pages
         private DispatcherTimer _recordTimer;
         private DateTime _recordStarted;
 
+        // A start that has been asked for and has not answered yet. The
+        // microphone button is not disabled, so a second tap would otherwise
+        // create a second MediaCapture: two captures at once wedge the engine
+        // on this platform, and that is how a tap that did nothing freezes the
+        // phone.
+        private bool _startingRecording;
+
         /// <summary>
         /// How far from the bottom the conversation still counts as "at the
         /// bottom". A bubble is about sixty pixels tall: a smaller margin would
@@ -1191,11 +1198,32 @@ namespace WhatsappApp.Pages
 
         private async System.Threading.Tasks.Task StartRecordingAsync()
         {
-            bool started = await AudioRecorder.StartAsync();
+            if (_recording || _startingRecording) return;
+            _startingRecording = true;
+
+            bool started;
+            try
+            {
+                started = await AudioRecorder.StartAsync();
+            }
+            catch (Exception ex)
+            {
+                // An exception thrown before AudioRecorder's own try - a type
+                // the phone refuses to load, a method it does not have - is
+                // thrown at the call site, and it lands here instead of in an
+                // unobserved Task. This is the case where the old code did
+                // nothing at all, silently.
+                Diag.Failed("ChatPage.StartRecordingAsync", ex);
+                started = false;
+            }
+            finally
+            {
+                _startingRecording = false;
+            }
+
             if (!started)
             {
-                await new MessageDialog(
-                    Loc.Get("ChatPage_RecordError", "Could not start the recording.")).ShowAsync();
+                await ShowRecordErrorAsync();
                 return;
             }
 
@@ -1206,6 +1234,43 @@ namespace WhatsappApp.Pages
             RecordButton.Visibility = Visibility.Collapsed;
             StopRecordButton.Visibility = Visibility.Visible;
             StartRecordTimer();
+        }
+
+        /// <summary>
+        /// The sentence of a recording that did not start. It is guarded: a
+        /// dialog that cannot be shown is logged, not thrown into a Task
+        /// nobody observes.
+        /// </summary>
+        private async System.Threading.Tasks.Task ShowRecordErrorAsync()
+        {
+            try
+            {
+                await new MessageDialog(
+                    Loc.Get("ChatPage_RecordError", "Could not start the recording. " +
+                        "Check that this app may use the microphone.")).ShowAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/RecordError", ex);
+            }
+        }
+
+        /// <summary>
+        /// Awaits a task this page cannot wait for, and logs the fault it would
+        /// otherwise have dropped. C# 5 has no way to await inside a catch, so
+        /// the fault is caught here, in its own method.
+        /// </summary>
+        private static async System.Threading.Tasks.Task RunGuardedAsync(
+            string where, System.Threading.Tasks.Task work)
+        {
+            try
+            {
+                await work;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed(where, ex);
+            }
         }
 
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
@@ -1223,7 +1288,16 @@ namespace WhatsappApp.Pages
         /// </summary>
         private async System.Threading.Tasks.Task StopRecordingAsync()
         {
-            string fileName = await AudioRecorder.StopAsync();
+            string fileName = null;
+            try
+            {
+                fileName = await AudioRecorder.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.StopRecordingAsync", ex);
+            }
+
             EndRecordingState();
 
             if (string.IsNullOrEmpty(fileName)) return;
@@ -1235,7 +1309,7 @@ namespace WhatsappApp.Pages
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage.StopRecordingAsync", ex);
+                Diag.Failed("ChatPage.StopRecordingAsync/slot", ex);
             }
         }
 
@@ -1245,10 +1319,13 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void CancelRecording()
         {
+            // A start that never answered is asked to stop too: it would keep
+            // the microphone for a page that is gone.
+            _startingRecording = false;
             if (!_recording) return;
             EndRecordingState();
 #pragma warning disable 4014
-            AudioRecorder.CancelAsync();
+            RunGuardedAsync("ChatPage.CancelRecording", AudioRecorder.CancelAsync());
 #pragma warning restore 4014
         }
 
