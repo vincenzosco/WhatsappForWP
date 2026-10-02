@@ -175,7 +175,7 @@ and after the last existing assertion:
 
 ```js
   assert.strictEqual(frames[2].Command, 'history.done');
-  assert.strictEqual(frames[2].Text, 'a@s.whatsapp.net');
+  assert.strictEqual(frames[2].ChatId, 'a@s.whatsapp.net');
   assert.strictEqual(frames[2].IsHistory, undefined);
 ```
 
@@ -192,7 +192,7 @@ In `WhatsappBridge/server.js`, in `sendMessages`, after the `for` loop and befor
       // The burst has an end on the wire, so the app can bind the list once,
       // after it, instead of once per frame: a bound ListView re-lays out on
       // every insert, and fifty inserts inside one burst is what left the phone
-      // unresponsive. Text carries the chat, like the other control frames.
+      // unresponsive. ChatId carries the chat, like the other control frames.
       sendControl(session, { command: 'history.done', chatId });
 ```
 
@@ -207,7 +207,7 @@ In `DataService.OnControlMessageReceived`, add the case:
 
 ```csharp
                 case "history.done":
-                    RaiseHistoryCompleted(message.Text);
+                    RaiseHistoryCompleted(message.ChatId);
                     break;
 ```
 

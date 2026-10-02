@@ -112,19 +112,27 @@ namespace WhatsappApp.Pages
                 // answered E_UNEXPECTED and the conversation stayed empty.
                 _messages = DataService.Instance.GetMessages(contact.Id);
                 MarkRead();
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("ChatPage/cached messages", BindAfterCacheAsync(contact.Id));
-#pragma warning restore 4014
-
-                // From here on the messages of this chat are already read
+                // The chat is the active one before the list is bound: the bind
+                // waits for the history burst and asks this field whether the page
+                // is still the one in front, so the field must answer for this chat
+                // before that wait starts.
                 DataService.Instance.ActiveChatId = contact.Id;
+
+                // Whether the history goes out now decides how the list binds: at
+                // once when nothing was asked for, and only when the burst closes
+                // when there is one on the way.
+                bool historyRequested = CommunicationService.Instance.IsConnected
+                    && DataService.Instance.MarkHistoryRequested(contact.Id);
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("ChatPage/cached messages",
+                    BindAfterCacheAsync(contact.Id, historyRequested));
+#pragma warning restore 4014
 
                 // The chat history: the adapter answers with the old messages,
                 // marked IsHistory, and it is requested once per chat per session.
                 // Without this request a chat that was just opened stays empty
                 // until something new arrives.
-                if (CommunicationService.Instance.IsConnected
-                    && DataService.Instance.MarkHistoryRequested(contact.Id))
+                if (historyRequested)
                 {
 #pragma warning disable 4014
                     Guarded.RunGuardedAsync("ChatPage/messages",
@@ -411,13 +419,57 @@ namespace WhatsappApp.Pages
         /// Fills the conversation with the copy on the phone, then binds the list
         /// and scrolls to the newest bubble. It must be awaited on the UI thread:
         /// the collection is the one bound to the list.
+        ///
+        /// When a history burst is on its way, the list waits for it: binding now
+        /// would re-lay out the list on every one of its frames, and the burst is
+        /// one frame per message. The wait is bounded, so an adapter that does not
+        /// send the closing frame does not leave the chat empty.
         /// </summary>
-        private async System.Threading.Tasks.Task BindAfterCacheAsync(string chatId)
+        private async System.Threading.Tasks.Task BindAfterCacheAsync(string chatId, bool historyRequested)
         {
             await DataService.Instance.LoadCachedMessagesAsync(chatId);
 
+            if (historyRequested) await WaitForHistoryAsync(chatId);
+
+            // The reader may have left while the burst was coming: binding a list
+            // whose page is gone is the crash this wait could otherwise cause.
+            if (DataService.Instance.ActiveChatId != chatId) return;
+
             _view.Bind(_messages);
             if (_messages.Count > 0) _view.ScrollTo(_messages[_messages.Count - 1]);
+        }
+
+        /// <summary>
+        /// How long the list waits for the end of a history burst before binding
+        /// anyway. Long enough for a burst of fifty frames, short enough that a
+        /// server without the closing frame does not show an empty chat for long.
+        /// </summary>
+        private const int HistoryWaitMaxMilliseconds = 2000;
+
+        /// <summary>
+        /// Waits for this chat's burst to close, at most
+        /// HistoryWaitMaxMilliseconds. It returns on the frame or on the timeout,
+        /// whichever comes first, and it always takes its handler off again.
+        /// </summary>
+        private async System.Threading.Tasks.Task WaitForHistoryAsync(string chatId)
+        {
+            var completion = new System.Threading.Tasks.TaskCompletionSource<bool>();
+            EventHandler<string> onDone = (sender, id) =>
+            {
+                if (id == chatId) completion.TrySetResult(true);
+            };
+
+            DataService.Instance.HistoryCompleted += onDone;
+            try
+            {
+                await System.Threading.Tasks.Task.WhenAny(
+                    completion.Task,
+                    System.Threading.Tasks.Task.Delay(HistoryWaitMaxMilliseconds));
+            }
+            finally
+            {
+                DataService.Instance.HistoryCompleted -= onDone;
+            }
         }
 
         private void RequestMedia(ChatMessage message)
