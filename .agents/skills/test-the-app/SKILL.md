@@ -23,7 +23,8 @@ node tools/check-memory.js      # no bitmap decoded bigger than it is drawn, and
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
 node tools/check-fire-and-forget.js  # a call fired without await is observed, or it loses its fault
 node tools/check-project-files.js  # every .cs and .xaml is listed in the csproj, or MSBuild cannot see it
-node --test "tools/test/**/*.test.js"  # the tools' own tests (81)
+node tools/check-chat-list-source.js  # the conversation ListView has no ItemsSource in XAML, only ConversationView.Bind
+node --test "tools/test/**/*.test.js"  # the tools' own tests (85)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -50,6 +51,7 @@ Two lessons the gates taught:
 | `check-memory.js` | A decode call without its display width, a width wider than the screen, `DecodePixelWidth` set after `SetSourceAsync`, a whole picked or shared file read into a `byte[]`, the row cache carrying picture bytes, the avatar cache without its caps or without the serial queue, and the avatar cache read after the cached rows - a restart then shows initials until the adapter answers. |
 | `check-fire-and-forget.js` | A call inside `#pragma warning disable 4014` whose fault nobody observes: it does not go through `Guarded.RunGuardedAsync`, and the method it names catches nothing, so an exception thrown at the call site lands in a Task nobody awaits. That is the voice note whose tap did nothing and left no `DIAG` line. It also refuses two statements in one region, a call the app does not define, and a dispatcher lambda that catches nothing. |
 | `check-project-files.js` | A `.cs` or `.xaml` under `WhatsappApp` that `WhatsappApp.csproj` does not list. MSBuild never sees it, so the type it holds "does not exist" only on the VM build, and the guards all pass in the meantime - which is how `RecordingSession.cs` and `ConversationView.cs` were committed without their `Compile` entries. |
+| `check-chat-list-source.js` | A second writer for `MessagesListView.ItemsSource`. The list is bound in code by `ConversationView.Bind`; an `ItemsSource="{Binding}"` left in XAML is resolved against `DataContext`, which on this page is a `Contact` and not a collection, so it fights the code-set source and the conversation opens empty with a run of first chance `SYSTEM.NI.DLL` exceptions and no `DIAG` line. |
 
 Also worth running while the tree is open:
 
