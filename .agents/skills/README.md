@@ -13,6 +13,20 @@ cosa fa e quando usarla).
 | [`release-the-app`](release-the-app/SKILL.md) | Asset di marca, manifest, versione, deploy su dispositivo ed emulatore. |
 | [`run-the-login-server`](run-the-login-server/SKILL.md) | Avviare in locale GOWA + adattatore e collegare l'account WhatsApp dal terminale (QR, codice di abbinamento, stop, diagnosi). |
 
+La **squadra di agenti** e' quattro skill del progetto che si caricano insieme,
+una per ruolo: il coordinatore legge il prompt e decide i ruoli, l'investigatore
+porta i fatti, il coder scrive la modifica, il publisher la mette su GitHub e
+aggiorna i documenti. Il punto d'ingresso e' sempre `agent-coordinator`; le altre
+tre si caricano per nome. Sono skill del progetto, non di comunita', quindi non
+stanno in `skills-lock.json`.
+
+| Skill | Ruolo |
+| --- | --- |
+| [`agent-coordinator`](agent-coordinator/SKILL.md) | Il punto d'ingresso: carica i ruoli, decide cosa gira e in che ordine, non chiude finche' il publisher non ha pushato. |
+| [`agent-investigator`](agent-investigator/SKILL.md) | Prima di toccare il codice: trasforma prompt, log e bug report in fatti con `file:line`, senza modificare niente. |
+| [`agent-coder`](agent-coder/SKILL.md) | La modifica minima che rispetta `maintain-the-app`, con il guard o il test che la fissa; esegue il gate veloce. |
+| [`agent-publisher`](agent-publisher/SKILL.md) | Chiude: gate completo e build ARM, commit, push su `origin/master`, sync del mirror Docker, documenti bilingui, e push della squadra stessa. |
+
 Oltre a queste, due skill di **comunita'** installate con `npx skills add` servono
 per le revisioni. Non sono skill del progetto, non hanno un guard e non vanno
 modificate qui; la versione installata e' fissata in `skills-lock.json`:
