@@ -59,10 +59,13 @@ function isGroupJid(jid) {
   return typeof jid === 'string' && jid.endsWith('@g.us');
 }
 
-// A channel is not a conversation: it cannot be answered, and in the chat list
-// it takes the place of a person. GOWA lists them, so they are skipped here.
-function isChannelJid(jid) {
-  return typeof jid === 'string' && jid.endsWith('@newsletter');
+// A channel and the status broadcast are not conversations: neither can be
+// answered, and in the chat list each takes the place of a person. GOWA lists
+// both, so both are skipped here. The status is the same JID message-format.js
+// refuses as a message, and the app draws it in its own Status section.
+function isNotAConversation(jid) {
+  return typeof jid === 'string'
+    && (jid === 'status@broadcast' || jid.endsWith('@newsletter'));
 }
 
 /**
@@ -82,7 +85,7 @@ async function collectChats(options) {
 
   for (const chat of chats) {
     if (!chat || !chat.jid) continue;
-    if (isChannelJid(chat.jid)) continue;
+    if (isNotAConversation(chat.jid)) continue;
 
     let last = null;
     try {
@@ -126,4 +129,4 @@ async function collectChats(options) {
   return result;
 }
 
-module.exports = { previewForMessage, collectChats, isChannelJid };
+module.exports = { previewForMessage, collectChats, isNotAConversation };

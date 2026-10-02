@@ -633,7 +633,10 @@ the adapter:
   through `AddHistoryMessage`, so the dedupe and the date order are the same as the real
   history. Its entries are `IsHistory`, so they raise no toast and add no unread count.
   `MediaFilePath` is not a `[DataMember]`, so a cached video keeps its word and its play
-  box but asks for its bytes again.
+  box but asks for its bytes again. The chat page binds its list only **after** that
+  copy is in (`ChatPage.BindAfterCacheAsync`): inserting into a collection the ListView
+  is already watching, in the middle of a navigation, answers `E_UNEXPECTED` and the
+  whole load is lost, so the conversation opens empty with one `DIAG` line.
 - **A pin, a silence and a deletion are this phone's, and the file that holds them
   is not the chat cache.** `ChatCache` is a photograph the server replaces row by
   row, so a decision kept there would be gone at the next `chats` reply and a chat
@@ -644,6 +647,13 @@ the adapter:
   `ApplyContact`; a live incoming message calls `Reveal`, which is what makes a
   chat deleted by mistake come back - and is why nothing here is a one-way door.
   Muting suppresses the toast only: the unread count is still true.
+- **A channel and the status broadcast are not conversations.** Neither can be
+  answered, and each takes the place of a person in the list, so `chats.js`
+  (`isNotAConversation`) skips both before it spends a request on their last message.
+  `message-format.js` refuses a `status@broadcast` message for the same reason. The
+  phone answers the same JID too (`DataService.IsNotAConversation`, in `ApplyChat` and
+  `ApplyContact`), because the row can also arrive from the copy already on disk; the
+  statuses themselves live in the app's Status section.
 - **The pictures have a cache of their own, and it is read before the rows.** The row
   cache (`ChatCache`, `chats.json`) leaves `AvatarData` out on purpose: it is the file the
   app reads before the connection exists, and one picture per chat would multiply it.
