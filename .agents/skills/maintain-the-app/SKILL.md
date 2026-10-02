@@ -192,7 +192,8 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-resw.js --strict && node tools/check-docs.js &&
    node tools/check-framing.js && node tools/check-tile.js &&
    node tools/check-memory.js && node tools/check-actions.js &&
-   node tools/check-fire-and-forget.js && node tools/check-project-files.js`, plus
+   node tools/check-fire-and-forget.js && node tools/check-project-files.js &&
+   node tools/check-chat-list-source.js`, plus
    `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
 6. If the change is user-visible, say which page and which string key changed.
 7. Commit with a message that says *why* (the repo history is the changelog).
@@ -650,7 +651,10 @@ the adapter:
   copy is in (`ChatPage.BindAfterCacheAsync`, through `ConversationView.Bind`):
   inserting into a collection the ListView is already watching, in the middle of a
   navigation, answers `E_UNEXPECTED` and the whole load is lost, so the conversation
-  opens empty with one `DIAG` line.
+  opens empty with one `DIAG` line. The first open has no file at all, and that is
+  not a failure: `MessageCache.LoadAsync` catches `FileNotFoundException` without a
+  `Diag` line and logs only a copy it could not parse, so a missing file never hides
+  the real fault in the log again.
 - **The conversation's view state is one module.** `Services/ConversationView.cs`
   owns the bind, the scroll queue, the viewer lookup and the "at the bottom"
   question, because all four touch the same three things and the `E_UNEXPECTED`
@@ -659,7 +663,11 @@ the adapter:
   says which call threw instead of naming the method they share. `UpdateLayout` is
   kept out of the common scroll path: the viewer reaches the bottom without a
   layout pass, and a pass on a list bound during a navigation is what answered
-  `E_UNEXPECTED` once the insert was fixed.
+  `E_UNEXPECTED` once the insert was fixed. The conversation `ListView` declares
+  no `ItemsSource` in XAML either: a `{Binding}` there is resolved against
+  `DataContext`, which on this page is a `Contact` and not a collection, so it
+  fights the one writer and leaves the chat empty with a run of first chance
+  `SYSTEM.NI.DLL` exceptions and no `DIAG` line.
 - **A pin, a silence and a deletion are this phone's, and the file that holds them
   is not the chat cache.** `ChatCache` is a photograph the server replaces row by
   row, so a decision kept there would be gone at the next `chats` reply and a chat
