@@ -121,12 +121,16 @@ namespace WhatsappApp.Pages
                 // for the code. The login is done from the phone, so the code is
                 // requested on its own on every entry.
 #pragma warning disable 4014
-                CommunicationService.Instance.SendControlAsync("status");
+                Guarded.RunGuardedAsync("ConnectionPage/status",
+                    CommunicationService.Instance.SendControlAsync("status"));
+#pragma warning restore 4014
                 if (CommunicationService.Instance.WhatsAppState != "connected")
                 {
-                    CommunicationService.Instance.SendControlAsync("login.qr");
-                }
+#pragma warning disable 4014
+                    Guarded.RunGuardedAsync("ConnectionPage/login.qr",
+                        CommunicationService.Instance.SendControlAsync("login.qr"));
 #pragma warning restore 4014
+                }
             }
         }
 
@@ -152,7 +156,8 @@ namespace WhatsappApp.Pages
             if (CommunicationService.Instance.WhatsAppState != "connected")
             {
 #pragma warning disable 4014
-                CommunicationService.Instance.SendControlAsync("login.qr");
+                Guarded.RunGuardedAsync("ConnectionPage/login.qr",
+                    CommunicationService.Instance.SendControlAsync("login.qr"));
 #pragma warning restore 4014
             }
         }
@@ -322,7 +327,8 @@ namespace WhatsappApp.Pages
             {
                 _autoConnectTried = true;
 #pragma warning disable 4014
-                ConnectAsync(found[0].Address, found[0].Port);
+                Guarded.RunGuardedAsync("ConnectionPage/auto connect",
+                    ConnectAsync(found[0].Address, found[0].Port));
 #pragma warning restore 4014
             }
         }

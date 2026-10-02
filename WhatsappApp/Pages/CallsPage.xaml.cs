@@ -59,7 +59,8 @@ namespace WhatsappApp.Pages
             // OnNavigatedTo is not async: the request is sent and the
             // "calls.done" frame is awaited to know the adapter has finished.
 #pragma warning disable 4014
-            CommunicationService.Instance.SendControlAsync("calls");
+            Guarded.RunGuardedAsync("CallsPage/scan",
+                CommunicationService.Instance.SendControlAsync("calls"));
 #pragma warning restore 4014
         }
 
