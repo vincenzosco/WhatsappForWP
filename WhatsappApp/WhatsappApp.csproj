@@ -127,6 +127,8 @@
     <Compile Include="Services\VideoThumbnail.cs" />
     <Compile Include="Services\AudioRecorder.cs" />
     <Compile Include="Services\Guarded.cs" />
+    <Compile Include="Services\RecordingSession.cs" />
+    <Compile Include="Services\ConversationView.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>

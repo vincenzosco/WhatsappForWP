@@ -22,7 +22,8 @@ node tools/check-tile.js        # the tile payload carries its icon, asset withi
 node tools/check-memory.js      # no bitmap decoded bigger than it is drawn, and the picture caches stay bounded
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
 node tools/check-fire-and-forget.js  # a call fired without await is observed, or it loses its fault
-node --test "tools/test/**/*.test.js"  # the tools' own tests (77)
+node tools/check-project-files.js  # every .cs and .xaml is listed in the csproj, or MSBuild cannot see it
+node --test "tools/test/**/*.test.js"  # the tools' own tests (81)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -48,6 +49,7 @@ Two lessons the gates taught:
 | `check-actions.js` | A button whose `Click` handler does not carry its `x:Name` (an icon that opens its neighbour's action), the wrong icon on a title-bar button, a button that declares a `Width` without `MinWidth="0" MinHeight="0"`, and a `Style` with `TargetType="Button"` that declares a `Width` or a `Height` without them - the WP8.1 theme minimums (109 x 57.5) would override the declared size, the `Auto` column would grow and its neighbour would be squeezed, which is exactly how the chat list title was clipped. A style with `BasedOn` is left alone: its base holds the setters. |
 | `check-memory.js` | A decode call without its display width, a width wider than the screen, `DecodePixelWidth` set after `SetSourceAsync`, a whole picked or shared file read into a `byte[]`, the row cache carrying picture bytes, the avatar cache without its caps or without the serial queue, and the avatar cache read after the cached rows - a restart then shows initials until the adapter answers. |
 | `check-fire-and-forget.js` | A call inside `#pragma warning disable 4014` whose fault nobody observes: it does not go through `Guarded.RunGuardedAsync`, and the method it names catches nothing, so an exception thrown at the call site lands in a Task nobody awaits. That is the voice note whose tap did nothing and left no `DIAG` line. It also refuses two statements in one region, a call the app does not define, and a dispatcher lambda that catches nothing. |
+| `check-project-files.js` | A `.cs` or `.xaml` under `WhatsappApp` that `WhatsappApp.csproj` does not list. MSBuild never sees it, so the type it holds "does not exist" only on the VM build, and the guards all pass in the meantime - which is how `RecordingSession.cs` and `ConversationView.cs` were committed without their `Compile` entries. |
 
 Also worth running while the tree is open:
 

@@ -97,16 +97,18 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Throws the recording away: the user left the page, or started again.
         /// No file is deposited, so nothing can be sent by mistake from another
-        /// chat. A start that has not answered yet is forgotten here; a capture
-        /// it may still create is not cancelled, which is the behaviour the page
-        /// had before this module existed.
+        /// chat.
+        ///
+        /// The recorder is asked to cancel even when nothing is captured here: a
+        /// start that has not answered yet may still create a capture after this
+        /// returns, and this is the only call that reaches it. It is harmless
+        /// when there is nothing to cancel.
         /// </summary>
         public async Task CancelAsync()
         {
             _starting = false;
-            if (!_recording) return;
-
             _recording = false;
+
             try
             {
                 await AudioRecorder.CancelAsync();
