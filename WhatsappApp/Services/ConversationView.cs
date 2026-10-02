@@ -57,6 +57,7 @@ namespace WhatsappApp.Services
         {
             _items = messages;
             _list.ItemsSource = messages;
+            Diag.Ok("conversation bound " + (messages == null ? 0 : messages.Count) + " message(s)");
         }
 
         /// <summary>
