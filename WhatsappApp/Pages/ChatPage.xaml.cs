@@ -120,17 +120,15 @@ namespace WhatsappApp.Pages
                 OnlineStatusText.Visibility = hasNumber ? Visibility.Visible : Visibility.Collapsed;
 
                 // Load messages: first the ones on the phone, so the conversation
-                // shows right away, then the real history.
+                // shows right away, then the real history. The list is bound after
+                // that copy is in, and not here: inserting into a collection the
+                // ListView is already watching, in the middle of a navigation,
+                // answered E_UNEXPECTED and the conversation stayed empty.
                 _messages = DataService.Instance.GetMessages(contact.Id);
                 MarkRead();
-                MessagesListView.ItemsSource = _messages;
 #pragma warning disable 4014
-                Guarded.RunGuardedAsync("ChatPage/cached messages", LoadCachedMessagesAsync(contact.Id));
+                Guarded.RunGuardedAsync("ChatPage/cached messages", BindAfterCacheAsync(contact.Id));
 #pragma warning restore 4014
-
-                // Auto-scroll to bottom
-                if (_messages.Count > 0)
-                    ScrollToMessage(_messages[_messages.Count - 1]);
 
                 // From here on the messages of this chat are already read
                 DataService.Instance.ActiveChatId = contact.Id;
@@ -517,13 +515,15 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Fills the conversation with the copy on the phone and scrolls to the
-        /// bottom. It must be awaited on the UI thread: the collection is the one
-        /// bound to the list.
+        /// Fills the conversation with the copy on the phone, then binds the list
+        /// and scrolls to the newest bubble. It must be awaited on the UI thread:
+        /// the collection is the one bound to the list.
         /// </summary>
-        private async System.Threading.Tasks.Task LoadCachedMessagesAsync(string chatId)
+        private async System.Threading.Tasks.Task BindAfterCacheAsync(string chatId)
         {
             await DataService.Instance.LoadCachedMessagesAsync(chatId);
+
+            MessagesListView.ItemsSource = _messages;
             if (_messages.Count > 0) ScrollToMessage(_messages[_messages.Count - 1]);
         }
 
