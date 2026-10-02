@@ -52,6 +52,37 @@ namespace WhatsappApp
             this.InitializeComponent();
             this.Suspending += this.OnSuspending;
             this.Resuming += this.OnResuming;
+
+            // A fatal exception on the UI thread used to kill the process before
+            // any Diag line was written: the log stopped at the assembly list and
+            // the crash had no name. These two handlers put the type, the HRESULT
+            // and the message in the log before that happens.
+            this.UnhandledException += this.OnUnhandled;
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += this.OnUnobservedTask;
+        }
+
+        /// <summary>
+        /// An exception nobody caught. It is written down first; a debug build
+        /// then survives it, because the run that is being diagnosed is worth more
+        /// alive than dead. A release build still goes down: an app that lost its
+        /// UI is worse than an app that closes.
+        /// </summary>
+        private void OnUnhandled(object sender, UnhandledExceptionEventArgs e)
+        {
+            Diag.Failed("App/unhandled", e.Exception);
+#if DEBUG
+            e.Handled = true;
+#endif
+        }
+
+        /// <summary>
+        /// A Task whose fault nobody read. The phone used to die with no line at
+        /// all, which is the same blind spot one task lower.
+        /// </summary>
+        private void OnUnobservedTask(object sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
+        {
+            Diag.Failed("App/unobserved-task", e.Exception);
+            e.SetObserved();
         }
 
         /// <summary>
