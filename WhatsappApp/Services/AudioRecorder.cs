@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using Windows.Foundation;
 using Windows.Media.Capture;
 using Windows.Media.MediaProperties;
 using Windows.Storage;
@@ -30,6 +31,15 @@ namespace WhatsappApp.Services
 
         private static MediaCapture _capture;
 
+        /// <summary>
+        /// How long one MediaCapture call may take before it counts as failed.
+        /// Some phones leave InitializeAsync hanging after a failed or doubled
+        /// start; with no ceiling the tap does nothing forever, which is the
+        /// bug this answers. Ten seconds is far longer than a healthy start and
+        /// short enough that nobody waits on it twice.
+        /// </summary>
+        private const int CaptureTimeoutMs = 10000;
+
         /// <summary>A capture is running.</summary>
         public static bool IsRecording
         {
@@ -45,6 +55,7 @@ namespace WhatsappApp.Services
         {
             if (_capture != null) return false;
 
+            MediaCapture capture = null;
             try
             {
                 // Audio only. StreamingCaptureMode.Audio is what keeps the camera
@@ -53,14 +64,24 @@ namespace WhatsappApp.Services
                 var settings = new MediaCaptureInitializationSettings();
                 settings.StreamingCaptureMode = StreamingCaptureMode.Audio;
 
-                var capture = new MediaCapture();
-                await capture.InitializeAsync(settings);
+                capture = new MediaCapture();
+                if (!await InTimeAsync(capture.InitializeAsync(settings)))
+                {
+                    Fail("AudioRecorder.StartAsync/initialize", "MediaCapture.InitializeAsync");
+                    Release(capture);
+                    return false;
+                }
 
                 StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
                     FileName, CreationCollisionOption.ReplaceExisting);
 
-                await capture.StartRecordToStorageFileAsync(
-                    MediaEncodingProfile.CreateM4a(AudioEncodingQuality.Auto), file);
+                if (!await InTimeAsync(capture.StartRecordToStorageFileAsync(
+                        MediaEncodingProfile.CreateM4a(AudioEncodingQuality.Auto), file)))
+                {
+                    Fail("AudioRecorder.StartAsync/record", "StartRecordToStorageFileAsync");
+                    Release(capture);
+                    return false;
+                }
 
                 _capture = capture;
                 return true;
@@ -68,8 +89,43 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("AudioRecorder.StartAsync", ex);
+                Release(capture);
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Awaits one capture operation, or gives up. false means it did not
+        /// finish in time and has been cancelled. A fault is not swallowed:
+        /// awaiting the operation surfaces it to the caller, which logs it like
+        /// every other one.
+        /// </summary>
+        private static async Task<bool> InTimeAsync(IAsyncAction action)
+        {
+            Task task = action.AsTask();
+            Task finished = await Task.WhenAny(task, Task.Delay(CaptureTimeoutMs));
+            if (finished != task)
+            {
+                try
+                {
+                    action.Cancel();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("AudioRecorder/cancel", ex);
+                }
+                return false;
+            }
+
+            await task;
+            return true;
+        }
+
+        /// <summary>One sentence for a call that ran out of time.</summary>
+        private static void Fail(string where, string call)
+        {
+            Diag.Failed(where, new InvalidOperationException(
+                call + " did not finish in " + CaptureTimeoutMs + " ms"));
         }
 
         /// <summary>
@@ -139,6 +195,7 @@ namespace WhatsappApp.Services
         private static void Release(MediaCapture capture)
         {
             _capture = null;
+            if (capture == null) return;
             try
             {
                 capture.Dispose();
