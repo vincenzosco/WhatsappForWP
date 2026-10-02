@@ -13,6 +13,15 @@ cosa fa e quando usarla).
 | [`release-the-app`](release-the-app/SKILL.md) | Asset di marca, manifest, versione, deploy su dispositivo ed emulatore. |
 | [`run-the-login-server`](run-the-login-server/SKILL.md) | Avviare in locale GOWA + adattatore e collegare l'account WhatsApp dal terminale (QR, codice di abbinamento, stop, diagnosi). |
 
+Oltre a queste, due skill di **comunita'** installate con `npx skills add` servono
+per le revisioni. Non sono skill del progetto, non hanno un guard e non vanno
+modificate qui; la versione installata e' fissata in `skills-lock.json`:
+
+| Skill | Quando usarla |
+| --- | --- |
+| [`code-review`](code-review/SKILL.md) | Rivedere un diff rispetto a un punto fisso su due assi: conformita' agli standard del repo e aderenza alla specifica. |
+| [`improve-codebase-architecture`](improve-codebase-architecture/SKILL.md) | Cercare occasioni di *deepening* (moduli profondi dietro un'interfaccia stretta) e presentarle in un report HTML. |
+
 Regola numero uno, valida per tutte: **i guard di `tools/` sono il gate**. Il
 toolchain di Windows Phone 8.1 usa un compilatore vecchio e non e' su questa
 macchina, quindi un errore di sintassi o una risorsa mancante si scoprono con
