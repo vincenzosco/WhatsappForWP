@@ -328,6 +328,13 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         sent++;
       }
 
+      // The burst has an end on the wire, so the app can bind the list once,
+      // after it, instead of once per frame: a bound ListView re-lays out on
+      // every insert, and a whole burst of inserts inside one navigation is what
+      // left the phone unresponsive. ChatId carries the chat, like the other
+      // control frames; an empty history still sends it, so the list binds at once.
+      sendControl(session, { command: 'history.done', chatId });
+
       logger('INFO', `history: ${sent} message(s) for ${chatId}`);
     } catch (err) {
       logger('ERR', `history failed for ${chatId}: ${err.message}`);
