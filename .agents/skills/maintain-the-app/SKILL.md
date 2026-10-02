@@ -598,6 +598,17 @@ the adapter:
   answers access denied without `<DeviceCapability Name="microphone" />` in
   `Package.appxmanifest`. Visual Studio rewrites that file on every build: after
   a build, `git checkout -- WhatsappApp/Package.appxmanifest`.
+- **A recorder failure must be visible.** A fire-and-forget `async Task` that
+  throws loses the exception: the tap does nothing and no `DIAG` line appears.
+  Every recorder call on `ChatPage` is awaited inside a `try`, and the start is
+  single-flight through `_startingRecording`, because two `MediaCapture`
+  initializations at once wedge the engine on this platform. An exception thrown
+  at the call site - before `AudioRecorder`'s own `try` - reaches that catch, not
+  `Diag` inside the service.
+- **A capture call has a ceiling.** `MediaCapture.InitializeAsync` and
+  `StartRecordToStorageFileAsync` run through `AudioRecorder.InTimeAsync`
+  (ten seconds): a call that does not answer becomes a `false`, the same failure
+  every other path already produces, instead of a freeze.
 - **A picked or shared file is copied, not read.** `AttachmentInbox.PutAsync` copies
   the chosen file into `LocalFolder` (`StorageFile.CopyAsync`) and keeps its name;
   `ChatPage.SendAttachmentAsync` streams it out in `MediaChunkBytes` (525000, a
