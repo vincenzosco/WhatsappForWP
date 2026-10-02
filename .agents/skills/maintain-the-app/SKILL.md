@@ -408,7 +408,12 @@ the adapter:
   projection can refuse a call at run time that compiled fine, and "The operation
   identifier is not valid" in the debugger output does not say which call it was.
   `Diag` prints once per site with the HRESULT, and `Debug.WriteLine` is compiled
-  out of release builds, so shipping it costs nothing.
+  out of release builds, so shipping it costs nothing. The app also logs its own
+  unhandled exception (`App.OnUnhandled`, and `OnUnobservedTask` one level down):
+  a UI-thread exception with no handler kills the process before any `Diag` line,
+  so a log that stops at the assembly list names nothing at all. A debug build
+  then sets `e.Handled` and survives, because the run being diagnosed is worth
+  more alive; a release build still goes down.
 - **Do not retry a lookup that has already failed.** `Loc.Loader` and
   `GetUiDispatcher` each remember their failure; without that flag one failure
   becomes one exception per string, or per received message. What they need
