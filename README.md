@@ -228,6 +228,7 @@ always good to merge.
      && node tools/check-framing.js && node tools/check-tile.js \
      && node tools/check-memory.js && node tools/check-actions.js \
      && node tools/check-fire-and-forget.js \
+     && node tools/check-project-files.js \
      && node --test "tools/test/**/*.test.js"
    cd WhatsappBridge && npm test
    ```

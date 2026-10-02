@@ -351,15 +351,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The status broadcast is not a conversation: WhatsApp keeps its updates
-        /// in the Status section of the app, and GOWA lists the same JID among the
-        /// chats. Drawing it as a row put a conversation called "Status" next to
-        /// the people. The adapter skips it too; this is here because the row can
-        /// also come from the copy already on the phone.
+        /// The status broadcast and a channel are not conversations: WhatsApp keeps
+        /// status updates in the Status section, and neither can be answered, yet
+        /// GOWA lists both among the chats. Drawing one as a row put a conversation
+        /// called "Status" next to the people. The adapter skips the same two JIDs
+        /// (isNotAConversation); this is here because the row can also come from the
+        /// copy already on the phone. The predicate must stay the same two cases on
+        /// both ends, or a channel already on disk survives here.
         /// </summary>
         private static bool IsNotAConversation(string chatId)
         {
-            return string.Equals(chatId, "status@broadcast", StringComparison.OrdinalIgnoreCase);
+            if (string.IsNullOrEmpty(chatId)) return false;
+
+            return string.Equals(chatId, "status@broadcast", StringComparison.OrdinalIgnoreCase)
+                || chatId.EndsWith("@newsletter", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>
