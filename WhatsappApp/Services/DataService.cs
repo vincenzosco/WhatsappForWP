@@ -34,6 +34,11 @@ namespace WhatsappApp.Services
         // chat, not on every opening.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
 
+        // The chats whose history burst has already been seen in this session: the
+        // first row of a burst is logged once, so the log tells "the history never
+        // arrived" apart from "it arrived and the list did not show it".
+        private readonly HashSet<string> _historyArrived = new HashSet<string>();
+
         // The chat-list rows as the server last sent them (for the cache) and the
         // ones that are arriving now.
         private readonly List<ChatMessage> _chatRows = new List<ChatMessage>();
@@ -151,6 +156,10 @@ namespace WhatsappApp.Services
             // now - row preview, unread, alert.
             if (message.IsHistory)
             {
+                if (_historyArrived.Add(message.ChatId))
+                {
+                    Diag.Ok("history arrived for " + message.ChatId);
+                }
                 AddHistoryMessage(message);
                 return;
             }
@@ -783,6 +792,8 @@ namespace WhatsappApp.Services
                 message.ChatId = chatId;
                 AddHistoryMessage(message);
             }
+
+            Diag.Ok("cache restored " + cached.Count + " message(s)");
         }
 
         /// <summary>
