@@ -601,11 +601,14 @@ the adapter:
   a build, `git checkout -- WhatsappApp/Package.appxmanifest`.
 - **A recorder failure must be visible.** A fire-and-forget `async Task` that
   throws loses the exception: the tap does nothing and no `DIAG` line appears.
-  Every recorder call on `ChatPage` is awaited inside a `try`, and the start is
-  single-flight through `_startingRecording`, because two `MediaCapture`
-  initializations at once wedge the engine on this platform. An exception thrown
-  at the call site - before `AudioRecorder`'s own `try` - reaches that catch, not
-  `Diag` inside the service.
+  Every recorder call is awaited inside a `try`, and the start is single-flight,
+  because two `MediaCapture` initializations at once wedge the engine on this
+  platform. An exception thrown at the call site - before `AudioRecorder`'s own
+  `try` - is caught by `RecordingSession.StartAsync`, not by `Diag` inside the
+  service. The state machine (idle, starting, recording) lives in
+  `Services/RecordingSession.cs`, one instance per page; the page renders its
+  result, and the `DispatcherTimer` that draws the clock stays on the page,
+  reading `RecordingSession.StartedAt`.
 - **A capture call has a ceiling.** `MediaCapture.InitializeAsync` and
   `StartRecordToStorageFileAsync` run through `AudioRecorder.InTimeAsync`
   (ten seconds): a call that does not answer becomes a `false`, the same failure
@@ -634,9 +637,19 @@ the adapter:
   history. Its entries are `IsHistory`, so they raise no toast and add no unread count.
   `MediaFilePath` is not a `[DataMember]`, so a cached video keeps its word and its play
   box but asks for its bytes again. The chat page binds its list only **after** that
-  copy is in (`ChatPage.BindAfterCacheAsync`): inserting into a collection the ListView
-  is already watching, in the middle of a navigation, answers `E_UNEXPECTED` and the
-  whole load is lost, so the conversation opens empty with one `DIAG` line.
+  copy is in (`ChatPage.BindAfterCacheAsync`, through `ConversationView.Bind`):
+  inserting into a collection the ListView is already watching, in the middle of a
+  navigation, answers `E_UNEXPECTED` and the whole load is lost, so the conversation
+  opens empty with one `DIAG` line.
+- **The conversation's view state is one module.** `Services/ConversationView.cs`
+  owns the bind, the scroll queue, the viewer lookup and the "at the bottom"
+  question, because all four touch the same three things and the `E_UNEXPECTED`
+  that emptied a chat lived on that seam. Each step logs its own name
+  (`ConversationView/scrollIntoView`, `/findViewer`, `/changeView`), so a phone log
+  says which call threw instead of naming the method they share. `UpdateLayout` is
+  kept out of the common scroll path: the viewer reaches the bottom without a
+  layout pass, and a pass on a list bound during a navigation is what answered
+  `E_UNEXPECTED` once the insert was fixed.
 - **A pin, a silence and a deletion are this phone's, and the file that holds them
   is not the chat cache.** `ChatCache` is a photograph the server replaces row by
   row, so a decision kept there would be gone at the next `chats` reply and a chat

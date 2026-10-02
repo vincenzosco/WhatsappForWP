@@ -29,13 +29,10 @@ namespace WhatsappApp.Pages
         private string _selectedLocalFileName;
         private string _selectedMediaFileName;
         private string _selectedMediaMimeType;
-        private ChatMessage _pendingScroll;
-        private bool _scrollQueued;
-
-        // The conversation's own scroll viewer, looked up once: finding it means
-        // walking the visual tree, and the position is read on every arriving
-        // message and on every frame of a scroll.
-        private ScrollViewer _messagesViewer;
+        // The conversation's view state: the bind, the scroll and the viewer.
+        // It is a module because all three touch the same three things, and the
+        // E_UNEXPECTED that left a chat empty lived exactly there.
+        private readonly ConversationView _view;
 
         // What WhatsApp last said about the person in this chat (the three dots).
         private bool _contactTyping;
@@ -51,29 +48,13 @@ namespace WhatsappApp.Pages
         // A message left below because the conversation was being read somewhere
         // else: it is told to the server when the reader gets to it, not before.
         private bool _markReadPending;
-        private bool _viewChangedHooked;
 
-        // The recording of a voice note: whether the microphone is capturing,
-        // when it started, and the half-second timer that draws how long it has
-        // been going.
-        private bool _recording;
+        // The recording of a voice note: the state machine that owns idle,
+        // starting and recording, plus the half-second timer that draws how long
+        // it has been going. The timer is the page's because it only draws; the
+        // transitions are the module's.
+        private readonly RecordingSession _recording;
         private DispatcherTimer _recordTimer;
-        private DateTime _recordStarted;
-
-        // A start that has been asked for and has not answered yet. The
-        // microphone button is not disabled, so a second tap would otherwise
-        // create a second MediaCapture: two captures at once wedge the engine
-        // on this platform, and that is how a tap that did nothing freezes the
-        // phone.
-        private bool _startingRecording;
-
-        /// <summary>
-        /// How far from the bottom the conversation still counts as "at the
-        /// bottom". A bubble is about sixty pixels tall: a smaller margin would
-        /// answer "no" while the newest bubble is still fully on screen, and a
-        /// larger one would follow a reader who has scrolled away.
-        /// </summary>
-        private const int BottomFollowMargin = 80;
 
         public ChatPage()
         {
@@ -90,6 +71,11 @@ namespace WhatsappApp.Pages
             // The picture and the name are two targets: the tooltip tells them apart.
             ToolTipService.SetToolTip(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             ToolTipService.SetToolTip(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
+
+            // The list is handed to the view module now, before it has a source:
+            // binding happens later, once the saved copy is in.
+            _view = new ConversationView(MessagesListView, Dispatcher);
+            _recording = new RecordingSession();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -172,7 +158,7 @@ namespace WhatsappApp.Pages
             // and the timer that refreshes them has no reason to run any more.
             StopTyping();
             HideTyping();
-            UnwatchBottomReached();
+            _view.UnwatchBottom();
 
             // The snapshot of the conversation: leaving is what writes it, not
             // every message, otherwise it would write a file in bursts.
@@ -186,8 +172,7 @@ namespace WhatsappApp.Pages
             DataService.Instance.ActiveChatId = null;
             // The viewer belongs to the tree this page is leaving: a cached one
             // would be scrolled through after the next navigation.
-            _messagesViewer = null;
-            _pendingScroll = null;
+            _view.Reset();
             HideFullScreen();
             StopVideo();
             StopVoice();
@@ -213,129 +198,19 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Brings the newest message into view once per burst: a burst of incoming
-        /// messages used to do an UpdateLayout + ScrollIntoView for each one, that is
-        /// a full layout pass per message.
-        ///
-        /// ScrollIntoView alone was not enough. The container of a message that was
-        /// just added does not exist until the list has laid out again, and on this
-        /// platform the call is often a no-op for the last row of a virtualizing
-        /// list, so a message that arrived or was sent stayed below the fold. The
-        /// list is therefore asked to scroll to its bottom - which is where the
-        /// newest message is - and ScrollIntoView stays as the fallback for a list
-        /// whose scroll viewer cannot be found.
+        /// Brings the newest message into view. The queue, the viewer and the
+        /// fallback all live in ConversationView: here the page only says which
+        /// message, or that the bottom is what it wants.
         /// </summary>
         private void ScrollToMessage(ChatMessage message)
         {
-            _pendingScroll = message;
-            if (_scrollQueued) return;
-
-            _scrollQueued = true;
-#pragma warning disable 4014
-            Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () =>
-            {
-                // The dispatcher would swallow a fault raised here, so each step
-                // logs its own: a scroll that throws must not only be visible, it
-                // must say which call threw. UpdateLayout on a list that was just
-                // bound during a navigation is what answered E_UNEXPECTED here, so
-                // it is kept out of the common path - the viewer reaches the bottom
-                // without a layout pass, and only the ScrollIntoView fallback needs
-                // the container to exist.
-                _scrollQueued = false;
-                ChatMessage target = _pendingScroll;
-                if (target == null) return;
-                _pendingScroll = null;
-
-                ScrollViewer viewer = MessagesViewer();
-                if (viewer != null && viewer.ScrollableHeight > 0)
-                {
-                    ChangeViewToBottom(viewer);
-                    return;
-                }
-
-                try
-                {
-                    MessagesListView.UpdateLayout();
-                    MessagesListView.ScrollIntoView(target);
-                }
-                catch (Exception ex)
-                {
-                    Diag.Failed("ChatPage/ScrollToMessage/scrollIntoView", ex);
-                }
-            });
-#pragma warning restore 4014
+            _view.ScrollTo(message);
         }
 
-        /// <summary>
-        /// The scroll viewer of the conversation, looked up once and kept. A walk
-        /// of the visual tree during a navigation can answer E_UNEXPECTED too, so
-        /// that lookup is named as well.
-        /// </summary>
-        private ScrollViewer MessagesViewer()
-        {
-            if (_messagesViewer == null)
-            {
-                try
-                {
-                    _messagesViewer = FindScrollViewer(MessagesListView);
-                }
-                catch (Exception ex)
-                {
-                    Diag.Failed("ChatPage/ScrollToMessage/findViewer", ex);
-                }
-            }
-            return _messagesViewer;
-        }
-
-        /// <summary>
-        /// Moves the conversation to its bottom, naming the call if it throws.
-        /// </summary>
-        private static void ChangeViewToBottom(ScrollViewer viewer)
-        {
-            try
-            {
-                viewer.ChangeView(null, viewer.ScrollableHeight, null);
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("ChatPage/ScrollToMessage/changeView", ex);
-            }
-        }
-
-        /// <summary>
-        /// Whether the conversation is showing its newest row.
-        ///
-        /// Only the scroll viewer knows: the list does not expose where it is. A
-        /// list shorter than its viewport, and one without a viewer yet, are both
-        /// "at the bottom" - there is nothing below to be torn away from.
-        /// </summary>
+        /// <summary>Whether the conversation is showing its newest row.</summary>
         private bool AtBottom()
         {
-            ScrollViewer viewer = MessagesViewer();
-            if (viewer == null || viewer.ScrollableHeight <= 0) return true;
-            return viewer.ScrollableHeight - viewer.VerticalOffset <= BottomFollowMargin;
-        }
-
-        /// <summary>
-        /// The scroll viewer a ListView keeps its items in. The list does not expose
-        /// it, and it is the only handle that reaches the bottom exactly: its height
-        /// is the end of the list, whatever the rows happen to measure.
-        /// </summary>
-        private static ScrollViewer FindScrollViewer(DependencyObject root)
-        {
-            if (root == null) return null;
-
-            int count = VisualTreeHelper.GetChildrenCount(root);
-            for (int i = 0; i < count; i++)
-            {
-                DependencyObject child = VisualTreeHelper.GetChild(root, i);
-                ScrollViewer viewer = child as ScrollViewer;
-                if (viewer != null) return viewer;
-
-                viewer = FindScrollViewer(child);
-                if (viewer != null) return viewer;
-            }
-            return null;
+            return _view.AtBottom();
         }
 
         private void OnMessageReceived(object sender, ChatMessage message)
@@ -415,32 +290,17 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// Starts watching the position of the conversation, so that a message left
-        /// below is marked as read when the reader reaches the bottom. The handler
-        /// is put on once: ViewChanged fires on every frame of a scroll.
+        /// below is marked as read when the reader reaches the bottom.
         /// </summary>
         private void WatchBottomReached()
         {
-            if (_viewChangedHooked) return;
-
-            ScrollViewer viewer = MessagesViewer();
-            if (viewer == null) return;
-
-            viewer.ViewChanged += OnMessagesViewChanged;
-            _viewChangedHooked = true;
+            _view.WatchBottom(MarkReadWhenAtBottom);
         }
 
-        private void UnwatchBottomReached()
+        /// <summary>The reader has reached the bottom: the message left below is read.</summary>
+        private void MarkReadWhenAtBottom()
         {
-            if (!_viewChangedHooked) return;
-
-            ScrollViewer viewer = MessagesViewer();
-            if (viewer != null) viewer.ViewChanged -= OnMessagesViewChanged;
-            _viewChangedHooked = false;
-        }
-
-        private void OnMessagesViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
-        {
-            if (!_markReadPending || !AtBottom()) return;
+            if (!_markReadPending) return;
 
             _markReadPending = false;
             MarkRead();
@@ -556,8 +416,8 @@ namespace WhatsappApp.Pages
         {
             await DataService.Instance.LoadCachedMessagesAsync(chatId);
 
-            MessagesListView.ItemsSource = _messages;
-            if (_messages.Count > 0) ScrollToMessage(_messages[_messages.Count - 1]);
+            _view.Bind(_messages);
+            if (_messages.Count > 0) _view.ScrollTo(_messages[_messages.Count - 1]);
         }
 
         private void RequestMedia(ChatMessage message)
@@ -1236,45 +1096,25 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void RecordButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_recording) return;
+            if (_recording.IsRecording) return;
 #pragma warning disable 4014
-            StartRecordingAsync();
+            Guarded.RunGuardedAsync("ChatPage/StartRecording", StartRecordingAsync());
 #pragma warning restore 4014
         }
 
+        /// <summary>
+        /// The page's half of the start: it asks the session, and either shows the
+        /// sentence or the bar. The single-flight rule and the call-site catch
+        /// live in RecordingSession.
+        /// </summary>
         private async System.Threading.Tasks.Task StartRecordingAsync()
         {
-            if (_recording || _startingRecording) return;
-            _startingRecording = true;
-
-            bool started;
-            try
-            {
-                started = await AudioRecorder.StartAsync();
-            }
-            catch (Exception ex)
-            {
-                // An exception thrown before AudioRecorder's own try - a type
-                // the phone refuses to load, a method it does not have - is
-                // thrown at the call site, and it lands here instead of in an
-                // unobserved Task. This is the case where the old code did
-                // nothing at all, silently.
-                Diag.Failed("ChatPage.StartRecordingAsync", ex);
-                started = false;
-            }
-            finally
-            {
-                _startingRecording = false;
-            }
-
-            if (!started)
+            if (!await _recording.StartAsync())
             {
                 await ShowRecordErrorAsync();
                 return;
             }
 
-            _recording = true;
-            _recordStarted = DateTime.Now;
             RecordTimerText.Text = "0:00";
             RecordingBar.Visibility = Visibility.Visible;
             RecordButton.Visibility = Visibility.Collapsed;
@@ -1303,7 +1143,7 @@ namespace WhatsappApp.Pages
 
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
         {
-            if (!_recording) return;
+            if (!_recording.IsRecording) return;
 #pragma warning disable 4014
             StopRecordingAsync();
 #pragma warning restore 4014
@@ -1316,15 +1156,7 @@ namespace WhatsappApp.Pages
         /// </summary>
         private async System.Threading.Tasks.Task StopRecordingAsync()
         {
-            string fileName = null;
-            try
-            {
-                fileName = await AudioRecorder.StopAsync();
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("ChatPage.StopRecordingAsync", ex);
-            }
+            string fileName = await _recording.StopAsync();
 
             EndRecordingState();
 
@@ -1347,20 +1179,19 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void CancelRecording()
         {
-            // A start that never answered is asked to stop too: it would keep
-            // the microphone for a page that is gone.
-            _startingRecording = false;
-            if (!_recording) return;
-            EndRecordingState();
+            bool wasRecording = _recording.IsRecording;
+            if (wasRecording) EndRecordingState();
+
+            // Always asked: a start that has not answered yet is forgotten here
+            // too, and the capture it may create is cancelled if there is one.
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("ChatPage.CancelRecording", AudioRecorder.CancelAsync());
+            Guarded.RunGuardedAsync("ChatPage.CancelRecording", _recording.CancelAsync());
 #pragma warning restore 4014
         }
 
         /// <summary>The buttons and the bar go back to their resting state.</summary>
         private void EndRecordingState()
         {
-            _recording = false;
             StopRecordTimer();
             RecordingBar.Visibility = Visibility.Collapsed;
             RecordButton.Visibility = Visibility.Visible;
@@ -1385,7 +1216,7 @@ namespace WhatsappApp.Pages
 
         private void RecordTimer_Tick(object sender, object e)
         {
-            RecordTimerText.Text = FormatClock((DateTime.Now - _recordStarted).TotalSeconds);
+            RecordTimerText.Text = FormatClock((DateTime.Now - _recording.StartedAt).TotalSeconds);
         }
 
         /// <summary>

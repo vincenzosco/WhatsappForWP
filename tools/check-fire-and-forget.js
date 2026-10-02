@@ -170,7 +170,9 @@ function regionProblems(region, file, known) {
   // Dispatcher.RunAsync prende un delegato scritto li': il corpo e' cio' che si
   // vede, e deve avere un catch. `Writes.RunAsync` non entra qui: quel metodo
   // e' definito nell'app e risponde di se' come ogni altro.
-  if (/Dispatcher\.RunAsync\s*\(/.test(text)) {
+  // The dispatcher is reached through a field as often as through the page's own
+  // property (`_dispatcher.RunAsync`), so the name is matched without case.
+  if (/Dispatcher\.RunAsync\s*\(/i.test(text)) {
     if (!handlesItsOwnFault(text)) {
       problems.push(`${file}:${region.line}: the dispatcher lambda fires without await and ` +
         'catches nothing: an exception it throws disappears');
