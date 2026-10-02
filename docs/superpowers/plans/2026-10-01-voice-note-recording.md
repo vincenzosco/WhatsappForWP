@@ -1316,3 +1316,16 @@ divergences.
 - **The plan is executed inline, always.** The `writing-plans` Execution Handoff
   was answered implicitly (no subagent dispatcher exists here); the project skill
   now records that the handoff is not a stopping point.
+
+### Follow-up: the tap did nothing on a real phone
+
+On a real phone the microphone button did nothing at all and left no `DIAG`
+line. Two causes, both invisible from the build: the failure was thrown at the
+call site, before `AudioRecorder`'s own `try`, into an `async Task` that nobody
+observed; and `_recording` only became true after a successful start, so the
+natural second tap began a second `MediaCapture` and wedged the capture engine.
+The follow-up plan is
+`docs/superpowers/plans/2026-10-02-voice-recording-failure-is-visible.md`:
+every recorder call is now awaited inside a `try`, the start is single-flight
+through `_startingRecording`, and both `MediaCapture` calls run with a ten
+second ceiling.
