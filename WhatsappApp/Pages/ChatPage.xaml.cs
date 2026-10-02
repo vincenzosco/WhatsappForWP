@@ -184,6 +184,9 @@ namespace WhatsappApp.Pages
             }
 
             DataService.Instance.ActiveChatId = null;
+            // The viewer belongs to the tree this page is leaving: a cached one
+            // would be scrolled through after the next navigation.
+            _messagesViewer = null;
             _pendingScroll = null;
             HideFullScreen();
             StopVideo();
@@ -231,42 +234,72 @@ namespace WhatsappApp.Pages
 #pragma warning disable 4014
             Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () =>
             {
-                // The dispatcher would swallow a fault raised here, so it is
-                // caught and logged: a scroll that throws must not be invisible.
+                // The dispatcher would swallow a fault raised here, so each step
+                // logs its own: a scroll that throws must not only be visible, it
+                // must say which call threw. UpdateLayout on a list that was just
+                // bound during a navigation is what answered E_UNEXPECTED here, so
+                // it is kept out of the common path - the viewer reaches the bottom
+                // without a layout pass, and only the ScrollIntoView fallback needs
+                // the container to exist.
+                _scrollQueued = false;
+                ChatMessage target = _pendingScroll;
+                if (target == null) return;
+                _pendingScroll = null;
+
+                ScrollViewer viewer = MessagesViewer();
+                if (viewer != null && viewer.ScrollableHeight > 0)
+                {
+                    ChangeViewToBottom(viewer);
+                    return;
+                }
+
                 try
                 {
-                    _scrollQueued = false;
-                    ChatMessage target = _pendingScroll;
-                    if (target == null) return;
-                    _pendingScroll = null;
-
-                    // The new row has to exist before it can be revealed.
                     MessagesListView.UpdateLayout();
-
-                    ScrollViewer viewer = MessagesViewer();
-                    if (viewer != null && viewer.ScrollableHeight > 0)
-                    {
-                        viewer.ChangeView(null, viewer.ScrollableHeight, null);
-                        return;
-                    }
-
                     MessagesListView.ScrollIntoView(target);
                 }
                 catch (Exception ex)
                 {
-                    Diag.Failed("ChatPage/ScrollToMessage", ex);
+                    Diag.Failed("ChatPage/ScrollToMessage/scrollIntoView", ex);
                 }
             });
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// The scroll viewer of the conversation, looked up once and kept.
+        /// The scroll viewer of the conversation, looked up once and kept. A walk
+        /// of the visual tree during a navigation can answer E_UNEXPECTED too, so
+        /// that lookup is named as well.
         /// </summary>
         private ScrollViewer MessagesViewer()
         {
-            if (_messagesViewer == null) _messagesViewer = FindScrollViewer(MessagesListView);
+            if (_messagesViewer == null)
+            {
+                try
+                {
+                    _messagesViewer = FindScrollViewer(MessagesListView);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("ChatPage/ScrollToMessage/findViewer", ex);
+                }
+            }
             return _messagesViewer;
+        }
+
+        /// <summary>
+        /// Moves the conversation to its bottom, naming the call if it throws.
+        /// </summary>
+        private static void ChangeViewToBottom(ScrollViewer viewer)
+        {
+            try
+            {
+                viewer.ChangeView(null, viewer.ScrollableHeight, null);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/ScrollToMessage/changeView", ex);
+            }
         }
 
         /// <summary>
