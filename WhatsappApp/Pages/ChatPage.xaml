@@ -140,8 +140,12 @@
         </Grid>
 
         <!-- Messages -->
+        <!-- The item source is bound in code, by ConversationView.Bind, and
+             nowhere else: an ItemsSource="{Binding}" here is resolved against
+             DataContext (a Contact, not a collection) and fights that writer,
+             which left the conversation empty with a run of first chance
+             SYSTEM.NI.DLL exceptions and no DIAG line. -->
         <ListView x:Name="MessagesListView" Grid.Row="1"
-                  ItemsSource="{Binding}"
                   ItemContainerStyle="{StaticResource MessageItemContainerStyle}"
                   Background="Transparent"
                   SelectionMode="None">

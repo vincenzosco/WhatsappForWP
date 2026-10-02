@@ -57,9 +57,15 @@ namespace WhatsappApp.Services
                     if (cache != null && cache.Messages != null) return cache.Messages;
                 }
             }
+            catch (FileNotFoundException)
+            {
+                // First open: there is no copy of this chat on the phone. That is
+                // the normal state and not a failure, so it is not logged: a
+                // FileNotFoundException line in the log hid the real fault.
+            }
             catch (Exception ex)
             {
-                // First open, or a cache written by a different version.
+                // A cache written by a different version.
                 Diag.Failed("MessageCache.Load", ex);
             }
             return empty;
