@@ -536,7 +536,7 @@ test('the messages command sends one frame per stored message, marked as history
   await bridge.handleControl({ Type: 3, Command: 'messages', Text: 'a@s.whatsapp.net', SenderName: 'test' });
 
   const frames = sent.map((packet) => decodeFrame(packet));
-  assert.strictEqual(frames.length, 2);
+  assert.strictEqual(frames.length, 3);
   assert.strictEqual(frames[0].ChatId, 'a@s.whatsapp.net');
   assert.strictEqual(frames[0].Text, 'ciao');
   assert.strictEqual(frames[0].SenderName, 'Anna');
@@ -549,6 +549,9 @@ test('the messages command sends one frame per stored message, marked as history
   assert.strictEqual(frames[1].Text, '[Image]');
   assert.strictEqual(frames[1].IsIncoming, false);
   assert.strictEqual(frames[1].ChatId, 'a@s.whatsapp.net');
+  // Il burst ha una fine dichiarata: l'app lega la lista una volta sola, dopo.
+  assert.strictEqual(frames[2].Command, 'history.done');
+  assert.strictEqual(frames[2].ChatId, 'a@s.whatsapp.net');
 });
 
 test('the messages command drops a message GOWA has no id for, and reports a failure once', async () => {
@@ -569,8 +572,9 @@ test('the messages command drops a message GOWA has no id for, and reports a fai
 
   // Senza l'id di WhatsApp non si puo' riconoscere un doppione: si perde quel
   // messaggio, non si duplica tutta la chat.
-  assert.strictEqual(sent.length, 1);
+  assert.strictEqual(sent.length, 2);
   assert.strictEqual(sent[0].Text, 'con id');
+  assert.strictEqual(sent[1].Command, 'history.done');
 
   sent.length = 0;
   const failing = createBridge({

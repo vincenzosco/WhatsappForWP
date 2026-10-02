@@ -297,6 +297,9 @@ namespace WhatsappApp.Services
                 case "typing":
                     RaiseTypingChanged(message);
                     break;
+                case "history.done":
+                    RaiseHistoryCompleted(message.ChatId);
+                    break;
             }
         }
 
@@ -315,6 +318,21 @@ namespace WhatsappApp.Services
         {
             var handler = TypingChanged;
             if (handler != null) handler(this, message);
+        }
+
+        /// <summary>
+        /// The history burst of one chat has ended: the adapter sends a
+        /// `history.done` frame after the last of its messages. The chat page waits
+        /// for it before binding its list, because a bind while the burst is still
+        /// inserting re-lays out the list on every frame. The argument is the chat
+        /// id, carried in the frame's ChatId.
+        /// </summary>
+        public event EventHandler<string> HistoryCompleted;
+
+        private void RaiseHistoryCompleted(string chatId)
+        {
+            var handler = HistoryCompleted;
+            if (handler != null) handler(this, chatId);
         }
 
         /// <summary>A new contact (or the updated name) from the adapter.</summary>

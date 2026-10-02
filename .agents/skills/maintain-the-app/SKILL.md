@@ -659,7 +659,10 @@ the adapter:
   opens empty with one `DIAG` line. The first open has no file at all, and that is
   not a failure: `MessageCache.LoadAsync` catches `FileNotFoundException` without a
   `Diag` line and logs only a copy it could not parse, so a missing file never hides
-  the real fault in the log again.
+  the real fault in the log again. When a history burst is on its way, the bind also
+  waits for the adapter's `history.done` (or two seconds, so a server without the
+  frame does not leave the chat empty): the burst is one frame per message, and a
+  bind while it is still inserting re-lays out the list on every frame.
 - **The conversation's view state is one module.** `Services/ConversationView.cs`
   owns the bind, the scroll queue, the viewer lookup and the "at the bottom"
   question, because all four touch the same three things and the `E_UNEXPECTED`
