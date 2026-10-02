@@ -312,6 +312,7 @@ namespace WhatsappApp.Services
         private void ApplyContact(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
+            if (IsNotAConversation(message.ChatId)) return;
 
             // It counts as for the chat list: a chat deleted from this phone does not
             // come back because the server sends its name again.
@@ -350,12 +351,25 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The status broadcast is not a conversation: WhatsApp keeps its updates
+        /// in the Status section of the app, and GOWA lists the same JID among the
+        /// chats. Drawing it as a row put a conversation called "Status" next to
+        /// the people. The adapter skips it too; this is here because the row can
+        /// also come from the copy already on the phone.
+        /// </summary>
+        private static bool IsNotAConversation(string chatId)
+        {
+            return string.Equals(chatId, "status@broadcast", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
         /// A chat-list row: the conversation exists in WhatsApp even if in this
         /// session we never received a message from it.
         /// </summary>
         private void ApplyChat(ChatMessage message)
         {
             if (string.IsNullOrEmpty(message.ChatId)) return;
+            if (IsNotAConversation(message.ChatId)) return;
 
             // A chat deleted from this phone does not come back with the server list:
             // the decision lives on the phone (ChatPreferences) and only a new
