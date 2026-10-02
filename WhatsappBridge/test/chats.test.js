@@ -3,13 +3,31 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { previewForMessage, collectChats, isChannelJid } = require('../chats');
+const { previewForMessage, collectChats, isNotAConversation } = require('../chats');
 
 test('un canale si riconosce dal suo jid', () => {
-  assert.strictEqual(isChannelJid('123456@newsletter'), true);
-  assert.strictEqual(isChannelJid('393401234567@s.whatsapp.net'), false);
-  assert.strictEqual(isChannelJid('123@g.us'), false);
-  assert.strictEqual(isChannelJid(null), false);
+  assert.strictEqual(isNotAConversation('123456@newsletter'), true);
+  assert.strictEqual(isNotAConversation('393401234567@s.whatsapp.net'), false);
+  assert.strictEqual(isNotAConversation('123@g.us'), false);
+  assert.strictEqual(isNotAConversation(null), false);
+});
+
+test('il broadcast degli stati si riconosce dal suo jid', () => {
+  assert.strictEqual(isNotAConversation('status@broadcast'), true);
+  assert.strictEqual(isNotAConversation('123456@newsletter'), true);
+  assert.strictEqual(isNotAConversation('393401234567@s.whatsapp.net'), false);
+});
+
+test('il broadcast degli stati non compare fra le conversazioni', async () => {
+  const gowa = {
+    chats: async () => [
+      { jid: 'a@s.whatsapp.net', name: 'Mario' },
+      { jid: 'status@broadcast', name: 'Status' }
+    ],
+    chatMessages: async () => []
+  };
+  const rows = await collectChats({ gowa, limit: 25, log: () => {} });
+  assert.deepStrictEqual(rows.map((r) => r.chatId), ['a@s.whatsapp.net']);
 });
 
 test('un canale non compare fra le conversazioni', async () => {
