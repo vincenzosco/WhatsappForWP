@@ -201,7 +201,8 @@ namespace WhatsappApp.Services
         {
             string json = Serialize();
 #pragma warning disable 4014
-            Writes.RunAsync(delegate { return WriteFileAsync(json); });
+            Guarded.RunGuardedAsync("ChatPreferences/Save",
+                Writes.RunAsync(delegate { return WriteFileAsync(json); }));
 #pragma warning restore 4014
         }
 

@@ -214,7 +214,8 @@ namespace WhatsappApp
             // phone as watching again; if the socket survived the freeze, this
             // is the frame that puts the account back online.
 #pragma warning disable 4014
-            CommunicationService.Instance.SendWatchingAsync(true);
+            Guarded.RunGuardedAsync("App/OnResuming",
+                CommunicationService.Instance.SendWatchingAsync(true));
 #pragma warning restore 4014
         }
 

@@ -298,7 +298,8 @@ namespace WhatsappApp.Pages
             if (CommunicationService.Instance.IsConnected)
             {
 #pragma warning disable 4014
-                CommunicationService.Instance.SendControlAsync("status");
+                Guarded.RunGuardedAsync("ChatsPage/status",
+                    CommunicationService.Instance.SendControlAsync("status"));
 #pragma warning restore 4014
             }
 
@@ -334,7 +335,8 @@ namespace WhatsappApp.Pages
             // and the list is asked for only once it is connected: this is the
             // request that produces it.
 #pragma warning disable 4014
-            CommunicationService.Instance.SendControlAsync("status");
+            Guarded.RunGuardedAsync("ChatsPage/status",
+                CommunicationService.Instance.SendControlAsync("status"));
 #pragma warning restore 4014
         }
 
@@ -364,7 +366,8 @@ namespace WhatsappApp.Pages
             DataService.Instance.BeginChatList();
 
 #pragma warning disable 4014
-            CommunicationService.Instance.SendControlAsync("chats");
+            Guarded.RunGuardedAsync("ChatsPage/chats",
+                CommunicationService.Instance.SendControlAsync("chats"));
 #pragma warning restore 4014
         }
 

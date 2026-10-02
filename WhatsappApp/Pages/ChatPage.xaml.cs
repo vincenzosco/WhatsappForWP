@@ -125,7 +125,7 @@ namespace WhatsappApp.Pages
                 MarkRead();
                 MessagesListView.ItemsSource = _messages;
 #pragma warning disable 4014
-                LoadCachedMessagesAsync(contact.Id);
+                Guarded.RunGuardedAsync("ChatPage/cached messages", LoadCachedMessagesAsync(contact.Id));
 #pragma warning restore 4014
 
                 // Auto-scroll to bottom
@@ -143,7 +143,8 @@ namespace WhatsappApp.Pages
                     && DataService.Instance.MarkHistoryRequested(contact.Id))
                 {
 #pragma warning disable 4014
-                    CommunicationService.Instance.SendControlAsync("messages", contact.Id);
+                    Guarded.RunGuardedAsync("ChatPage/messages",
+                        CommunicationService.Instance.SendControlAsync("messages", contact.Id));
 #pragma warning restore 4014
                 }
 
@@ -232,22 +233,31 @@ namespace WhatsappApp.Pages
 #pragma warning disable 4014
             Dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Low, () =>
             {
-                _scrollQueued = false;
-                ChatMessage target = _pendingScroll;
-                if (target == null) return;
-                _pendingScroll = null;
-
-                // The new row has to exist before it can be revealed.
-                MessagesListView.UpdateLayout();
-
-                ScrollViewer viewer = MessagesViewer();
-                if (viewer != null && viewer.ScrollableHeight > 0)
+                // The dispatcher would swallow a fault raised here, so it is
+                // caught and logged: a scroll that throws must not be invisible.
+                try
                 {
-                    viewer.ChangeView(null, viewer.ScrollableHeight, null);
-                    return;
-                }
+                    _scrollQueued = false;
+                    ChatMessage target = _pendingScroll;
+                    if (target == null) return;
+                    _pendingScroll = null;
 
-                MessagesListView.ScrollIntoView(target);
+                    // The new row has to exist before it can be revealed.
+                    MessagesListView.UpdateLayout();
+
+                    ScrollViewer viewer = MessagesViewer();
+                    if (viewer != null && viewer.ScrollableHeight > 0)
+                    {
+                        viewer.ChangeView(null, viewer.ScrollableHeight, null);
+                        return;
+                    }
+
+                    MessagesListView.ScrollIntoView(target);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("ChatPage/ScrollToMessage", ex);
+                }
             });
 #pragma warning restore 4014
         }
@@ -469,7 +479,8 @@ namespace WhatsappApp.Pages
         {
             if (_contact == null || !CommunicationService.Instance.IsConnected) return;
 #pragma warning disable 4014
-            CommunicationService.Instance.SendControlAsync("typing", _contact.Id, state);
+            Guarded.RunGuardedAsync("ChatPage/typing",
+                CommunicationService.Instance.SendControlAsync("typing", _contact.Id, state));
 #pragma warning restore 4014
         }
 
@@ -523,7 +534,8 @@ namespace WhatsappApp.Pages
             // this the tap seems to have done nothing.
             message.IsMediaLoading = true;
 #pragma warning disable 4014
-            CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id);
+            Guarded.RunGuardedAsync("ChatPage/request media",
+                CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id));
 #pragma warning restore 4014
         }
 
@@ -966,7 +978,8 @@ namespace WhatsappApp.Pages
 
             if (!CommunicationService.Instance.IsConnected) return;
 #pragma warning disable 4014
-            CommunicationService.Instance.SendControlAsync("read", _contact.Id);
+            Guarded.RunGuardedAsync("ChatPage/read",
+                CommunicationService.Instance.SendControlAsync("read", _contact.Id));
 #pragma warning restore 4014
         }
 
@@ -1255,24 +1268,6 @@ namespace WhatsappApp.Pages
             }
         }
 
-        /// <summary>
-        /// Awaits a task this page cannot wait for, and logs the fault it would
-        /// otherwise have dropped. C# 5 has no way to await inside a catch, so
-        /// the fault is caught here, in its own method.
-        /// </summary>
-        private static async System.Threading.Tasks.Task RunGuardedAsync(
-            string where, System.Threading.Tasks.Task work)
-        {
-            try
-            {
-                await work;
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed(where, ex);
-            }
-        }
-
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_recording) return;
@@ -1325,7 +1320,7 @@ namespace WhatsappApp.Pages
             if (!_recording) return;
             EndRecordingState();
 #pragma warning disable 4014
-            RunGuardedAsync("ChatPage.CancelRecording", AudioRecorder.CancelAsync());
+            Guarded.RunGuardedAsync("ChatPage.CancelRecording", AudioRecorder.CancelAsync());
 #pragma warning restore 4014
         }
 
