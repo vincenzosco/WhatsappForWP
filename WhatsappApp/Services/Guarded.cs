@@ -35,5 +35,38 @@ namespace WhatsappApp.Services
                 Diag.Failed(where, ex);
             }
         }
+
+        /// <summary>
+        /// The same, for work that has not been started yet.
+        ///
+        /// The Task overload observes the task it is given, not the call that
+        /// produced it: passing `FooAsync()` has already run FooAsync, and a
+        /// method that is not async - one that returns a Task without the async
+        /// modifier, or a factory like SerialQueue.RunAsync - can throw while
+        /// that argument is evaluated, before RunGuardedAsync is entered. This
+        /// overload takes the call as a delegate, so even that throw is caught.
+        /// An async method already captures its own faults in the returned Task,
+        /// so the English way (pass the task) is right for it.
+        /// </summary>
+        public static Task RunGuardedAsync(string where, Func<Task> work)
+        {
+            return RunGuardedAsync(where, StartGuarded(where, work));
+        }
+
+        private static async Task StartGuarded(string where, Func<Task> work)
+        {
+            Task task;
+            try
+            {
+                task = work();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed(where, ex);
+                return;
+            }
+
+            await RunGuardedAsync(where, task);
+        }
     }
 }

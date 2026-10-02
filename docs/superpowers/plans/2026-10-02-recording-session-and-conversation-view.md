@@ -23,9 +23,9 @@ Moved into `ConversationView`: `_pendingScroll`, `_scrollQueued`, `_messagesView
 
 Stayed on the page: the `DispatcherTimer`, the bar and button visibility, `_markReadPending` (a decision about telling the server, not about the view), and every string.
 
-## Deliberately not fixed here
+## What was fixed after the first pass
 
-`RecordingSession.CancelAsync` forgets a start that has not answered but does not cancel a capture that start may yet create. That is exactly what the page did before, kept so the extraction is behaviour-preserving; the gap is real and is recorded rather than silently closed.
+`RecordingSession.CancelAsync` first forgot a start that had not answered without cancelling a capture it might still create - the page's old behaviour, kept to make the extraction behaviour-preserving. It now always asks `AudioRecorder.CancelAsync`, because that is the only call that reaches a capture created after the leave, and it is harmless when there is nothing to cancel. A start already past its own `try` can still win the race; the window is noted, not closed, and closing it needs a cancellation the platform does not offer here.
 
 ## What the phone run should now show
 

@@ -114,6 +114,13 @@ namespace WhatsappApp.Services
                 {
                     Diag.Failed("AudioRecorder/cancel", ex);
                 }
+
+                // The abandoned operation can still fault after Cancel(), and
+                // nobody awaits it any more: observed here, so it cannot become
+                // the unobserved task this whole area is about.
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("AudioRecorder.InTimeAsync/abandoned", task);
+#pragma warning restore 4014
                 return false;
             }
 

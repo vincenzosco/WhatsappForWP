@@ -192,7 +192,7 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-resw.js --strict && node tools/check-docs.js &&
    node tools/check-framing.js && node tools/check-tile.js &&
    node tools/check-memory.js && node tools/check-actions.js &&
-   node tools/check-fire-and-forget.js`, plus
+   node tools/check-fire-and-forget.js && node tools/check-project-files.js`, plus
    `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
 6. If the change is user-visible, say which page and which string key changed.
 7. Commit with a message that says *why* (the repo history is the changelog).
@@ -599,6 +599,16 @@ the adapter:
   answers access denied without `<DeviceCapability Name="microphone" />` in
   `Package.appxmanifest`. Visual Studio rewrites that file on every build: after
   a build, `git checkout -- WhatsappApp/Package.appxmanifest`.
+- **A new source file is a project file too.** Every `.cs` added under
+  `WhatsappApp` needs its `<Compile Include>` in `WhatsappApp.csproj`, and every
+  `.xaml` its `<Page>`, or MSBuild never sees it and the type it holds "does not
+  exist" - but only on the VM build, because no other guard reads the project
+  file. `tools/check-project-files.js` is that guard. After a build, check out
+  `Package.appxmanifest` **only, never the `.csproj`**: the build runs on a copy
+  at `C:\Temp`, so the manifest is the only file Visual Studio can rewrite, and a
+  `.csproj` checkout silently discards the `Compile` entries just added - which
+  is how `Services/RecordingSession.cs` and `Services/ConversationView.cs` were
+  committed without them.
 - **A recorder failure must be visible.** A fire-and-forget `async Task` that
   throws loses the exception: the tap does nothing and no `DIAG` line appears.
   Every recorder call is awaited inside a `try`, and the start is single-flight,
