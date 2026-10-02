@@ -98,7 +98,7 @@ namespace WhatsappApp.Services
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
 #pragma warning disable 4014
-            LoadCachedChatsAsync();
+            Guarded.RunGuardedAsync("DataService/cached chats", LoadCachedChatsAsync());
 #pragma warning restore 4014
         }
 

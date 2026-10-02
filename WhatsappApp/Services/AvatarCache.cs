@@ -239,7 +239,8 @@ namespace WhatsappApp.Services
         private static void Save()
         {
 #pragma warning disable 4014
-            Writes.RunAsync(delegate { return WriteIfChangedAsync(); });
+            Guarded.RunGuardedAsync("AvatarCache/Save",
+                Writes.RunAsync(delegate { return WriteIfChangedAsync(); }));
 #pragma warning restore 4014
         }
 

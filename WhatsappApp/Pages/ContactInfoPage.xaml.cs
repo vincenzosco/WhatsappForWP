@@ -76,7 +76,8 @@ namespace WhatsappApp.Pages
         {
             if (!CommunicationService.Instance.IsConnected) return;
 #pragma warning disable 4014
-            CommunicationService.Instance.SendControlAsync("contact.info", _contact.Id);
+            Guarded.RunGuardedAsync("ContactInfoPage/info",
+                CommunicationService.Instance.SendControlAsync("contact.info", _contact.Id));
 #pragma warning restore 4014
         }
 
