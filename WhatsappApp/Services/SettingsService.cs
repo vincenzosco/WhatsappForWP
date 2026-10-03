@@ -1,5 +1,8 @@
 using System;
+using System.Text;
 using Windows.Storage;
+using Windows.Storage.Streams;
+using Windows.System.Profile;
 
 namespace WhatsappApp.Services
 {
@@ -99,10 +102,17 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// The id this phone presents to the shared service, in the `SenderId` of
-        /// every handshake. It is generated once and kept, because the service
-        /// derives the token from it: a new id on every connection was a new user
-        /// of the same phone on every connection, and the token that came back was
-        /// a different one each time.
+        /// every handshake. The service derives the token from it, so a new id is
+        /// a new user: a fresh one on every connection was a different token each
+        /// time, and a fresh one on every reinstall was a new device, which is why
+        /// the WhatsApp login had to be done again.
+        ///
+        /// The id therefore has to outlive the install. LocalSettings does not:
+        /// WP8.1 deletes them on uninstall. The package-specific hardware token
+        /// does, and it is the same for the same package on the same phone, so it
+        /// is the id - the stored value is only a cache of it. A platform that
+        /// refuses the call (it is not on every device) falls back to the random
+        /// id, which is stable for the life of the install and no further.
         /// </summary>
         public static string DeviceId
         {
@@ -111,10 +121,49 @@ namespace WhatsappApp.Services
                 EnsureLoaded();
                 if (string.IsNullOrEmpty(_deviceId))
                 {
-                    _deviceId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                    _deviceId = HardwareDeviceId();
+                    if (string.IsNullOrEmpty(_deviceId))
+                    {
+                        _deviceId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                        Diag.Ok("device id: random (the hardware token is not available)");
+                    }
+                    else
+                    {
+                        Diag.Ok("device id: hardware (survives a reinstall)");
+                    }
                     Settings.Values[KeyDeviceId] = _deviceId;
                 }
                 return _deviceId;
+            }
+        }
+
+        /// <summary>
+        /// The package-specific hardware token as hexadecimal, or null when the
+        /// phone does not answer. It is deliberately not truncated: it is what the
+        /// service keys the user on, and two phones must not collide on it.
+        /// </summary>
+        private static string HardwareDeviceId()
+        {
+            try
+            {
+                var token = HardwareIdentification.GetPackageSpecificToken(null);
+                if (token == null || token.Id == null) return null;
+
+                var buffer = token.Id;
+                var bytes = new byte[(int)buffer.Length];
+                DataReader.FromBuffer(buffer).ReadBytes(bytes);
+
+                var text = new StringBuilder(bytes.Length * 2);
+                for (int i = 0; i < bytes.Length; i++)
+                {
+                    text.Append(bytes[i].ToString("x2"));
+                }
+                return text.ToString();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("SettingsService/DeviceId", ex);
+                return null;
             }
         }
 

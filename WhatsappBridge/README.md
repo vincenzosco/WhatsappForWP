@@ -180,12 +180,17 @@ with `AUTH_REGISTER=off`:
 
 The token is **derived from the device**, not drawn at random: it is
 `HMAC-SHA256(secret, deviceId)` with a secret the store generates once and keeps
-in `USERS_FILE`. The app presents one device id for the life of the install
-(`SenderId` in `hello`), so a phone that reconnects - or that reinstalls the app
-and types its token again - is the same user with the same token, and the users
-file no longer grows one row per connection. A device the service has never seen
-is still given a new one; a device it knows is handed its own token back and told
-nothing, because it already has it. `AUTH_MAX_USERS` counts devices, and
+in `USERS_FILE`. The app presents one device id (`SenderId` in `hello`) and it
+outlives the install: it is the package-specific hardware token
+(`HardwareIdentification.GetPackageSpecificToken`), the same on the same phone for
+the same package, with the stored value as a cache and a random id only as the
+fallback of a phone that will not answer. A phone that reconnects - or that
+reinstalls the app - is therefore the same user with the same token, and the users
+file does not grow one row per connection or per reinstall. (An earlier version
+used a random id kept in `LocalSettings`, which WP8.1 deletes on uninstall: a
+reinstall became a new device, which is why the WhatsApp login had to be redone.)
+A device the service has never seen is still given a new one; a device it knows is
+handed its own token back and told nothing, because it already has it. `AUTH_MAX_USERS` counts devices, and
 re-registering a known device never consumes a slot. The secret is a credential:
 a copy of the file can derive every device's token, which is the trade-off this
 store makes for a token that stays the same.
