@@ -417,6 +417,16 @@ namespace WhatsappApp.Pages
                 + DataService.Instance.Contacts.Count);
         }
 
+        /// <summary>
+        /// The empty state has its own way to the diagnostics: an empty list is
+        /// the one moment the answer is wanted, and walking back to the settings
+        /// to find it is a step too many.
+        /// </summary>
+        private void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(DiagnosticsPage));
+        }
+
         private void ChatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (e.AddedItems.Count == 0) return;

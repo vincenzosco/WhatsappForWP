@@ -526,6 +526,9 @@
   <data name="ConnectionPage_Diagnostics.Content" xml:space="preserve">
     <value>Show diagnostics</value>
   </data>
+  <data name="ChatsPage_Diagnostics.Content" xml:space="preserve">
+    <value>Why is it empty?</value>
+  </data>
   <data name="DiagnosticsPage_Title.Text" xml:space="preserve">
     <value>Diagnostics</value>
   </data>
