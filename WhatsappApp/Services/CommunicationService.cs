@@ -649,6 +649,15 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            // The other half of the frame log: what this phone asked for, in the
+            // order it asked. It sits here, on the single send path, so a control
+            // frame cannot be added without being seen; `media.chunk` is filtered
+            // inside Diag.Frame.
+            if (message.Type == MessageType.System)
+            {
+                Diag.Frame("out", message.Command, message.Text);
+            }
+
             try
             {
                 string json = message.ToJson();
@@ -802,6 +811,10 @@ namespace WhatsappApp.Services
 
             if (message.Type == MessageType.System)
             {
+                // Every control frame the adapter sends, in order, so the
+                // diagnostics page can show whether the answer ever arrived.
+                Diag.Frame("in ", message.Command, message.Text);
+
                 if (message.Command == "state")
                 {
                     WhatsAppState = string.IsNullOrEmpty(message.State) ? "disconnected" : message.State;
