@@ -95,7 +95,14 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>The copy of a row with only the fields the list draws.</summary>
+        /// <summary>
+        /// The copy of a row with only the fields the list draws.
+        ///
+        /// The unread count is not here on purpose. It is a live number the
+        /// adapter owns and clears with the `read` frame; a copy of it on disk is
+        /// a number nobody has verified since, and re-applying it brought back a
+        /// count the reader had already cleared.
+        /// </summary>
         private static ChatMessage Slim(ChatMessage row)
         {
             return new ChatMessage
@@ -104,7 +111,6 @@ namespace WhatsappApp.Services
                 SenderName = row.SenderName,
                 Text = row.Text,
                 IsGroup = row.IsGroup,
-                UnreadCount = row.UnreadCount,
                 Timestamp = row.Timestamp
             };
         }

@@ -39,6 +39,13 @@ namespace WhatsappApp.Services
         // arrived" apart from "it arrived and the list did not show it".
         private readonly HashSet<string> _historyArrived = new HashSet<string>();
 
+        // The chats the reader has cleared while the socket was not usable. The
+        // `read` frame is re-sent for each of them as soon as a connection is
+        // established: a frame written into a socket the OS already closed is
+        // lost, and without this the adapter kept counting a chat that had been
+        // read and put the number back at the next list.
+        private readonly HashSet<string> _pendingReads = new HashSet<string>();
+
         // The chat-list rows as the server last sent them (for the cache) and the
         // ones that are arriving now.
         private readonly List<ChatMessage> _chatRows = new List<ChatMessage>();
@@ -99,6 +106,7 @@ namespace WhatsappApp.Services
 
             CommunicationService.Instance.MessageReceived += OnNetworkMessageReceived;
             CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+            CommunicationService.Instance.ConnectionEstablished += OnConnectionEstablished;
 
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
@@ -467,8 +475,10 @@ namespace WhatsappApp.Services
 
             // The unread count is a property of the row, not of the message: it comes
             // from the server, which is the only one awake while the phone is off (see
-            // server.js, unreadByChat).
-            contact.UnreadCount = message.UnreadCount;
+            // server.js, unreadByChat). The open chat is the exception: a server row
+            // that still counts it (the `read` frame has not been processed yet) must
+            // not put a number on a row the reader is looking at.
+            contact.UnreadCount = message.ChatId == _activeChatId ? 0 : message.UnreadCount;
             contact.IsPinned = ChatPreferences.IsPinned(message.ChatId);
             contact.IsMuted = ChatPreferences.IsMuted(message.ChatId);
             ResortContacts();
@@ -898,11 +908,47 @@ namespace WhatsappApp.Services
         public void ClearUnread(string chatId)
         {
             var contact = FindContact(chatId);
-            if (contact == null) return;
-            if (contact.UnreadCount == 0) return;
+            if (contact != null) contact.UnreadCount = 0;
 
-            contact.UnreadCount = 0;
+            SendRead(chatId);
             NotificationService.SetUnread(TotalUnread());
+        }
+
+        /// <summary>
+        /// Tells the adapter that a conversation has been read, or remembers to
+        /// tell it. The check is on the connection, not on the count alone: a
+        /// socket the OS already closed still looks connected, and the frame
+        /// written into it is lost. A read that cannot go out now is queued and
+        /// retried when a connection is established, so it is never lost.
+        /// </summary>
+        private void SendRead(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            if (!CommunicationService.Instance.IsConnected)
+            {
+                _pendingReads.Add(chatId);
+                return;
+            }
+
+            _pendingReads.Remove(chatId);
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/read",
+                CommunicationService.Instance.SendControlAsync("read", chatId));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// A live connection exists: every read that could not be sent goes out
+        /// now, in the order it was made.
+        /// </summary>
+        private void OnConnectionEstablished(object sender, EventArgs e)
+        {
+            if (_pendingReads.Count == 0) return;
+
+            var chats = new List<string>(_pendingReads);
+            _pendingReads.Clear();
+            for (int i = 0; i < chats.Count; i++) SendRead(chats[i]);
         }
 
         /// <summary>
