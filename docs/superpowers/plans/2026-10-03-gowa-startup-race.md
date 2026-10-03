@@ -157,4 +157,34 @@ Same steps as the NAS plan's Task 3: mirror with `node tools/sync.js --from ...`
 
 - [ ] **Step 7: Verify on the NAS**
 
-The startup log must show `GOWA device ready: 4b26ef82-abbc-40ea-930e-882224b17ddb` (the `logged_in` device) and **no** `GOWA not reachable` line, and `WhatsApp connected as 393892672185@s.whatsapp.net` must follow.
+The startup log must show `GOWA device ready: <the logged_in device>` and **no** `GOWA not reachable` line, and `WhatsApp connected as 393892672185@s.whatsapp.net` must follow.
+
+## What execution changed about this plan
+
+- **Both waits landed as written.** `waitUntilReady(timeoutMs = 60000)` and the
+  bounded re-read in `ensureDevice` are exactly the shape the plan asked for, and
+  `server.js` calls `waitUntilReady()` before `ensureDevice()`.
+- **The device the adapter binds to is not a fixed id.** The plan named
+  `4b26ef82-…` from the previous deployment, but GOWA **recreates its device list
+  on every container start**: the ids in `/devices` after the redeploy were all
+  new (`created_at` inside the same minute), and the `logged_in` one was
+  `24f43937-159c-4bcb-a957-4c98cde91d56`. That is exactly why `ensureDevice` must
+  *find* the linked device rather than remember one, and the verification below
+  checks the binding against `/devices` live instead of against a literal id.
+- **`whatsapp-for-wp8` had to be recreated, not just restarted**: `docker compose
+  up -d` recreated both `whatsapp-for-wp8` and `whatsapp-bore`, so the tunnel
+  reconnected. It asked for the same port and kept it: `bore.pub:41417`, already
+  published, so the app's endpoint did not change.
+- **The old image proved the bug in its own log.** Before the redeploy, the
+  running container had `[ERR] GOWA not reachable at http://127.0.0.1:3000: fetch
+  failed` in its startup - the race this plan fixes - followed by a device-ready
+  line for an unlinked device. After the redeploy there is **no** `GOWA not
+  reachable` line at all, and `WhatsApp connected as
+  393892672185@s.whatsapp.net` follows within the same second.
+- **On the NAS `docker` is not on root's PATH**, so every command is
+  `/usr/local/bin/docker` under `sudo -S` (the login user is not in the `docker`
+  group); `sudo -S docker …` answers `sudo: docker: command not found`.
+- **A test needed its wait shortened**: `ensureDevice riusa il primo device
+  esistente` asserts the fallback, so it now passes `linkedWaitMs: 0` and asserts
+  `calls.length >= 1` instead of `=== 1` - one reading still happens, but the test
+  no longer pays for the wait it is not testing.
