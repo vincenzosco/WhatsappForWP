@@ -1474,6 +1474,11 @@ async function main() {
   });
 
   try {
+    // GOWA starts with the adapter in the same container and answers only a few
+    // seconds later: asking for a device before that logged "GOWA not reachable"
+    // and left the adapter with no device at all, so every session it opened
+    // said "disconnected" until somebody restarted it.
+    if (typeof gowa.waitUntilReady === 'function') await gowa.waitUntilReady();
     const deviceId = await gowa.ensureDevice();
     log('OK', `GOWA device ready: ${deviceId || '(default)'}`);
     const registered = await gowa.setDeviceWebhook(config.webhook.publicUrl);

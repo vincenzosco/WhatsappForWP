@@ -103,9 +103,11 @@ test('ensureDevice crea un device quando la lista è vuota', async () => {
 
 test('ensureDevice riusa il primo device esistente', async () => {
   const fetchImpl = makeFetch(async () => jsonResponse({ status: 200, results: [{ id: 'org_9' }] }));
-  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  // Nessun device dichiara lo stato, quindi non c e' un collegato da aspettare:
+  // l attesa e' accorciata per non pagare i 15 secondi in un test.
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl, linkedWaitMs: 0 });
   assert.strictEqual(await client.ensureDevice(), 'org_9');
-  assert.strictEqual(fetchImpl.calls.length, 1);
+  assert.ok(fetchImpl.calls.length >= 1);
 });
 
 test('ensureDevice sceglie il device collegato, non il primo', async () => {
@@ -127,12 +129,56 @@ test('ensureDevice sceglie il device collegato, non il primo', async () => {
   assert.strictEqual(fetchImpl.calls.length, 1, 'non deve creare un device');
 });
 
+test('ensureDevice aspetta che GOWA rilegga il login dal disco', async () => {
+  // Le prime letture vedono tutti i device disconnessi: lo stato del login viene
+  // ripristinato un momento dopo. Fermarsi alla prima lettura legava l'adapter
+  // al device piu vecchio, e ogni sessione rispondeva 'disconnected'.
+  let reads = 0;
+  const fetchImpl = makeFetch(async () => {
+    reads++;
+    const linked = reads >= 3;
+    return jsonResponse({
+      status: 200,
+      results: [
+        { id: 'old-1', state: 'disconnected' },
+        { id: 'linked', state: linked ? 'logged_in' : 'disconnected' }
+      ]
+    });
+  });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+
+  assert.strictEqual(await client.ensureDevice(), 'linked');
+  assert.ok(reads >= 3, 'deve rileggere finche il login non compare');
+});
+
+test('waitUntilReady aspetta che la API di GOWA risponda', async () => {
+  let calls = 0;
+  const fetchImpl = makeFetch(async () => {
+    calls++;
+    if (calls < 3) throw new Error('fetch failed');
+    return jsonResponse({ status: 200, results: [] });
+  });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+
+  assert.strictEqual(await client.waitUntilReady(10000), true);
+  assert.strictEqual(calls, 3);
+});
+
+/* eslint-disable-next-line max-len */
+test('waitUntilReady rinuncia quando GOWA non risponde mai', async () => {
+  const fetchImpl = makeFetch(async () => { throw new Error('fetch failed'); });
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+
+  await assert.rejects(() => client.waitUntilReady(1500), /fetch failed/);
+});
+
 test('senza nessun device collegato ensureDevice ripiega sul primo', async () => {
   const fetchImpl = makeFetch(async () => jsonResponse({
     status: 200,
     results: [{ id: 'old-1', state: 'disconnected' }, { id: 'old-2', state: 'disconnected' }]
   }));
-  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+  // Il tempo di attesa e' accorciato: qui interessa il ripiego, non i 15 secondi.
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl, linkedWaitMs: 1200 });
 
   assert.strictEqual(await client.ensureDevice(), 'old-1');
 });
