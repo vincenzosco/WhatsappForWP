@@ -426,16 +426,19 @@ the adapter:
   never let a failing attempt call cleanup on the published fields: two readers on
   one `DataReader` desync it, and the next length read is a slice of JSON.
 - **A frame length is not trusted, and its byte order is never left to a
-  default.** `ReadFrameAsync` fills the 4-byte prefix fully
-  (`InputStreamOptions.Partial` can split it) and rejects anything outside
-  `1..MaxFrameLength` (8 MiB). The length is little-endian on the wire
+  default.** The whole frame contract - the 4-byte prefix, its byte order, the
+  ceiling and the whole-frame read - lives in one file,
+  `WhatsappApp/Services/FrameCodec.cs`. `FrameCodec.ReadFrameAsync` fills the
+  prefix fully (`InputStreamOptions.Partial` can split it) and rejects anything
+  outside `1..MaxFrameLength` (8 MiB). The length is little-endian on the wire
   (`writeUInt32LE`/`readUInt32LE`), but WinRT's `DataReader`/`DataWriter` do not
-  default to that: build them only through `CreateFrameReader`/`CreateFrameWriter`
-  in `CommunicationService.cs`. A byte-swapped length does not throw - it reads a
-  number that looks like a corrupt frame (`0x00000121` came back as `0x21010000`,
-  553713664) and closes the connection right after a successful connect. The
-  adapter's `MAX_FRAME_LENGTH` is the same 8 MiB: change one and you must change the
-  other. Gate: `node tools/check-framing.js`.
+  default to that: build them only through `FrameCodec.CreateFrameReader`/
+  `FrameCodec.CreateFrameWriter`, so a new frame site has nowhere else to choose
+  them and `check-framing.js` can see every one. A byte-swapped length does not
+  throw - it reads a number that looks like a corrupt frame (`0x00000121` came
+  back as `0x21010000`, 553713664) and closes the connection right after a
+  successful connect. The adapter's `MAX_FRAME_LENGTH` is the same 8 MiB: change
+  one and you must change the other. Gate: `node tools/check-framing.js`.
 - **`0x8007274C` is `WSAETIMEDOUT`, not a crypto or login failure.** It means
   `ConnectAsync` never got an answer; the handshake and the QR never ran. Check the
   address first: `AutoConnector` tries `SettingsService.ServerAddress` before
