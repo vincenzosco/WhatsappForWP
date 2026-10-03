@@ -367,6 +367,15 @@
                 <TextBlock x:Uid="ChatsPage_EmptyHint" Text="Tap new chat to start"
                            Foreground="#FFBDBDBD" FontSize="13"
                            HorizontalAlignment="Center" Margin="0,2,0,0"/>
+
+                <!-- An empty list is exactly when the diagnostics are wanted, so
+                     they are one tap away from the empty state itself. -->
+                <Button x:Name="DiagnosticsButton" x:Uid="ChatsPage_Diagnostics"
+                        Content="Why is it empty?"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="14"
+                        Height="40" BorderThickness="0" Margin="0,14,0,0"
+                        HorizontalAlignment="Center"
+                        Click="DiagnosticsButton_Click"/>
             </StackPanel>
         </Grid>
 

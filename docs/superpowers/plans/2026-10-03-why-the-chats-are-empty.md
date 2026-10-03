@@ -346,3 +346,11 @@ git push origin master
 - **A `TextBlock` title with `Text=""` is invisible to `check-resw.js --strict`.** The guard only counts an `x:Uid` as used when the element also carries a non-empty literal for the same property, so the page title was first reported as a never-used key. The title now carries the English literal like `CallsPage_Title` does, and the guard resolves it.
 - **The `DiagnosticsButton` sits outside the `StatusPanel`.** The plan said "under the `StatusPanel`"; the panel is `Collapsed` until something goes wrong, and the point of the button is to be reachable in exactly that state, so it is a sibling of the panel, not a child.
 - **Everything else matched the plan.** The gate passed with 50 C# files, 159 resource keys in both languages and 27 buttons; the ARM build ended with `Your package has been successfully created.` and `Package.appxmanifest` was restored afterwards.
+
+## What the follow-ups added
+
+Three follow-ups were requested after the page shipped, and two of them are code:
+
+- **The empty state opens the diagnostics itself.** `ChatsPage` now carries a `DiagnosticsButton` (`ChatsPage_Diagnostics.Content`) inside `EmptyStatePanel`, wired to `DiagnosticsButton_Click`. The plan had put the only entrance on the settings page, which is one screen away from the exact moment the answer is wanted.
+- **Every control frame is logged, both directions.** `Diag.Frame(direction, command, detail)` writes `in`/`out` lines in arrival order and **does not dedupe** - the point of a frame log is the repetition the `Seen` set exists to hide, so `Frame` appends to `History` directly. The cap still holds, and `media.chunk` is dropped because one transfer is a hundred identical lines. The payload is clipped at 48 characters, because a login QR and a media blob both travel in `Text` and neither belongs in the buffer whole. `DispatchMessage` logs the inbound system frames, and the single `SendMessageAsync` path logs the outbound ones, so a new control frame cannot be added without being seen.
+- **The third follow-up - read the diagnostics the user pastes and name the fault - cannot run until the text arrives.** The build is on the phone, so the next message with the copied text is the one that turns the buffer into a diagnosis.

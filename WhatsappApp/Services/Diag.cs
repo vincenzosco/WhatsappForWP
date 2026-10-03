@@ -91,6 +91,50 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>
+        /// One control frame, in the order it was sent or received.
+        ///
+        /// Why it does not go through Write: Write deduplicates, and a frame log
+        /// is read for its order and its repetition - the second `chats` request
+        /// is exactly what the second line has to show. The same cap holds, so a
+        /// burst cannot hide what came before it.
+        /// </summary>
+        public static void Frame(string direction, string command, string detail)
+        {
+            // A media transfer is one `media.chunk` per 700000 characters: the
+            // same frame a hundred times, and nothing in it that the begin and
+            // the end do not already say.
+            if (command == "media.chunk") return;
+
+            var line = new StringBuilder();
+            line.Append(direction).Append(' ').Append(command);
+            if (!string.IsNullOrEmpty(detail))
+            {
+                line.Append("  ").Append(Clip(detail));
+            }
+
+            lock (Gate)
+            {
+                if (History.Count >= HistoryLimit) History.RemoveAt(0);
+                History.Add(line.ToString());
+            }
+            Debug.WriteLine("DIAG " + line);
+        }
+
+        /// <summary>
+        /// A payload is not a log line.
+        ///
+        /// A login QR and a media blob both call SetText, so the payload can be
+        /// thousands of characters of base64 that say nothing the first forty do
+        /// not. The truncation keeps the buffer readable.
+        /// </summary>
+        private static string Clip(string value)
+        {
+            const int MaxDetail = 48;
+            if (value.Length <= MaxDetail) return value;
+            return value.Substring(0, MaxDetail) + "...";
+        }
+
         /// <summary>Forgets everything written so far: the screen has a Clear.</summary>
         public static void Clear()
         {
