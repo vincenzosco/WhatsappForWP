@@ -3,7 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 
-const { previewForMessage, collectChats, isNotAConversation } = require('../chats');
+const { previewForMessage, collectChats, isNotAConversation, createDurationCache } = require('../chats');
 
 test('un canale si riconosce dal suo jid', () => {
   assert.strictEqual(isNotAConversation('123456@newsletter'), true);
@@ -49,7 +49,11 @@ test('previewForMessage uses the body when there is one', () => {
 test('previewForMessage names the media when the body is empty', () => {
   assert.strictEqual(previewForMessage({ media_type: 'image' }), '[Image]');
   assert.strictEqual(previewForMessage({ media_type: 'video' }), '[Video]');
-  assert.strictEqual(previewForMessage({ media_type: 'audio' }), '[Audio]');
+  assert.strictEqual(previewForMessage({ media_type: 'audio' }), 'Audio');
+  assert.strictEqual(previewForMessage({ media_type: 'audio' }, 10), 'Audio 0:10');
+  assert.strictEqual(previewForMessage({ media_type: 'audio' }, 65), 'Audio 1:05');
+  assert.strictEqual(previewForMessage({ media_type: 'audio' }, -1), 'Audio');
+  assert.strictEqual(previewForMessage({ content: 'ciao', media_type: 'audio' }, 10), 'ciao');
   assert.strictEqual(previewForMessage({ media_type: 'document' }), '[Document]');
   assert.strictEqual(previewForMessage({ media_type: 'sticker' }), '[Sticker]');
   assert.strictEqual(previewForMessage({}), '');
@@ -64,9 +68,101 @@ function fakeGowa(options) {
     avatar: async (jid) => {
       if ((opts.failAvatarFor || []).indexOf(jid) !== -1) throw new Error('no picture');
       return (opts.avatarsByJid || {})[jid] || null;
+    },
+    downloadMedia: async (jid, id) => {
+      if (opts.downloads) opts.downloads.push({ jid, id });
+      if ((opts.failDownloadFor || []).indexOf(id) !== -1) return null;
+      return (opts.mediaById || {})[id] || null;
     }
   };
 }
+
+/** Un Ogg/Opus di `seconds` secondi, per i test della durata. */
+function oggOpus(seconds) {
+  const head = Buffer.alloc(19);
+  head.write('OpusHead', 0, 'ascii');
+  head.writeUInt8(1, 8);
+  head.writeUInt8(2, 9);
+  head.writeUInt16LE(312, 10);
+  head.writeUInt32LE(48000, 12);
+
+  const page = (granule, payload) => {
+    const header = Buffer.alloc(28);
+    header.write('OggS', 0, 'ascii');
+    header.writeUInt8(4, 5);
+    header.writeBigUInt64LE(BigInt(granule), 6);
+    header.writeUInt32LE(1, 14);
+    header.writeUInt32LE(0, 18);
+    header.writeUInt8(1, 26);
+    header.writeUInt8(payload.length, 27);
+    return Buffer.concat([header, payload]);
+  };
+
+  const bytes = Buffer.concat([page(0, head), page(seconds * 48000, Buffer.from('audio'))]);
+  return { base64: bytes.toString('base64'), mimeType: 'audio/ogg', fileName: 'voce.ogg' };
+}
+
+test('collectChats mette la durata del vocale nella preview', async () => {
+  const downloads = [];
+  const gowa = fakeGowa({
+    chats: [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    messagesByJid: {
+      'a@s.whatsapp.net': [{ id: 'AUD1', media_type: 'audio', timestamp: '2026-10-03T09:00:00Z' }]
+    },
+    mediaById: { AUD1: oggOpus(10) },
+    downloads
+  });
+
+  const rows = await collectChats({ gowa, limit: 10, avatars: false, log: () => {} });
+  assert.strictEqual(rows[0].preview, 'Audio 0:10');
+  assert.strictEqual(downloads.length, 1);
+});
+
+test('collectChats non scarica due volte lo stesso vocale', async () => {
+  const downloads = [];
+  const gowa = fakeGowa({
+    chats: [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    messagesByJid: {
+      'a@s.whatsapp.net': [{ id: 'AUD1', media_type: 'audio', timestamp: '2026-10-03T09:00:00Z' }]
+    },
+    mediaById: { AUD1: oggOpus(10) },
+    downloads
+  });
+  const durations = createDurationCache();
+
+  await collectChats({ gowa, limit: 10, avatars: false, log: () => {}, durations });
+  const again = await collectChats({ gowa, limit: 10, avatars: false, log: () => {}, durations });
+  assert.strictEqual(again[0].preview, 'Audio 0:10');
+  assert.strictEqual(downloads.length, 1);
+});
+
+test('collectChats lascia Audio quando i byte non arrivano', async () => {
+  const gowa = fakeGowa({
+    chats: [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    messagesByJid: {
+      'a@s.whatsapp.net': [{ id: 'AUD1', media_type: 'audio', timestamp: '2026-10-03T09:00:00Z' }]
+    },
+    failDownloadFor: ['AUD1']
+  });
+
+  const rows = await collectChats({ gowa, limit: 10, avatars: false, log: () => {} });
+  assert.strictEqual(rows[0].preview, 'Audio');
+});
+
+test('collectChats non scarica niente per un messaggio che non e audio', async () => {
+  const downloads = [];
+  const gowa = fakeGowa({
+    chats: [{ jid: 'a@s.whatsapp.net', name: 'Anna' }],
+    messagesByJid: {
+      'a@s.whatsapp.net': [{ id: 'IMG1', media_type: 'image', timestamp: '2026-10-03T09:00:00Z' }]
+    },
+    downloads
+  });
+
+  const rows = await collectChats({ gowa, limit: 10, avatars: false, log: () => {} });
+  assert.strictEqual(rows[0].preview, '[Image]');
+  assert.strictEqual(downloads.length, 0);
+});
 
 test('collectChats keeps the newest message as the preview and sorts by it', async () => {
   const gowa = fakeGowa({

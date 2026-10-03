@@ -1,6 +1,7 @@
 'use strict';
 
 const { displayNameForJid } = require('./message-format');
+const { durationSecondsOf, formatDuration } = require('./audio-duration');
 
 /**
  * List of the conversations present in the linked account.
@@ -22,17 +23,31 @@ const { displayNameForJid } = require('./message-format');
 const MEDIA_LABEL = {
   image: '[Image]',
   video: '[Video]',
-  audio: '[Audio]',
+  // An audio is not bracketed like the others: it is the one whose length is
+  // known, and the row reads "Audio 0:10".
+  audio: 'Audio',
   document: '[Document]',
   sticker: '[Sticker]'
 };
 
-/** The preview of a row: the text, or the media name when there is no text. */
-function previewForMessage(message) {
+/**
+ * The preview of a row: the text, or the media name when there is no text.
+ *
+ * `durationSeconds` is the measured length of an audio, when there is one (see
+ * collectChats): the row then reads "Audio 0:10" instead of a bare word. It is
+ * a parameter and not read off the message, because GOWA does not send it.
+ */
+function previewForMessage(message, durationSeconds) {
   if (!message) return '';
   const text = typeof message.content === 'string' ? message.content.trim() : '';
   if (text) return text;
-  return MEDIA_LABEL[message.media_type] || '';
+
+  const label = MEDIA_LABEL[message.media_type] || '';
+  if (message.media_type === 'audio' && typeof durationSeconds === 'number'
+      && isFinite(durationSeconds) && durationSeconds >= 0) {
+    return `${label} ${formatDuration(durationSeconds)}`;
+  }
+  return label;
 }
 
 function timeOf(value) {
@@ -59,6 +74,89 @@ function isGroupJid(jid) {
   return typeof jid === 'string' && jid.endsWith('@g.us');
 }
 
+// How long the measured durations are kept, and how many. The chat list is
+// rebuilt on every reconnection and on the cache's minute, and each entry is
+// one downloaded voice note: without this the same note would be downloaded
+// again every time. A null answer - the bytes could not be fetched - is kept
+// for less, because the next list may succeed.
+const DURATION_TTL_MS = 30 * 60 * 1000;
+const DURATION_MISSING_TTL_MS = 2 * 60 * 1000;
+const DURATION_MAX_ENTRIES = 120;
+
+/** The durations already measured, by message id. Shaped like avatar-cache.js. */
+function createDurationCache(options) {
+  const opts = options || {};
+  const ttlMs = typeof opts.ttlMs === 'number' ? opts.ttlMs : DURATION_TTL_MS;
+  const missingTtlMs = typeof opts.missingTtlMs === 'number'
+    ? opts.missingTtlMs
+    : DURATION_MISSING_TTL_MS;
+  const maxEntries = typeof opts.maxEntries === 'number' ? opts.maxEntries : DURATION_MAX_ENTRIES;
+  const now = typeof opts.now === 'function' ? opts.now : () => Date.now();
+
+  const entries = new Map();
+
+  return {
+    /** The kept duration, null if it could not be measured, undefined if unknown. */
+    get(key) {
+      const entry = entries.get(key);
+      if (!entry) return undefined;
+      if (now() - entry.at > entry.ttl) {
+        entries.delete(key);
+        return undefined;
+      }
+      return entry.value;
+    },
+
+    /** Keeps a measurement. null is a measurement too: "it could not be read". */
+    put(key, value) {
+      if (typeof key !== 'string' || key === '') return;
+
+      entries.delete(key);
+      entries.set(key, {
+        value,
+        at: now(),
+        ttl: value === null || value === undefined ? missingTtlMs : ttlMs
+      });
+
+      while (entries.size > maxEntries) {
+        entries.delete(entries.keys().next().value);
+      }
+    },
+
+    size() {
+      return entries.size;
+    }
+  };
+}
+
+/**
+ * How long the voice note of this message is, or null.
+ *
+ * The bytes come from the same route the app uses for a media it wants
+ * (`/message/:id/download`), so nothing new is asked of GOWA. Every failure is
+ * the same answer - no duration - and the row keeps the word.
+ */
+async function measureAudio(gowa, chatId, message, durations, log) {
+  if (!message || !message.id) return null;
+
+  const remembered = durations.get(message.id);
+  if (remembered !== undefined) return remembered;
+
+  let seconds = null;
+  try {
+    const media = await gowa.downloadMedia(chatId, message.id);
+    if (media && media.base64) {
+      const bytes = Buffer.from(media.base64, 'base64');
+      seconds = durationSecondsOf(bytes, media.mimeType, media.fileName);
+    }
+  } catch (err) {
+    log('DEBUG', `Chats: audio of ${chatId} not readable (${err.message})`);
+  }
+
+  durations.put(message.id, seconds);
+  return seconds;
+}
+
 // A channel and the status broadcast are not conversations: neither can be
 // answered, and in the chat list each takes the place of a person. GOWA lists
 // both, so both are skipped here. The status is the same JID message-format.js
@@ -79,6 +177,7 @@ async function collectChats(options) {
   const limit = opts.limit || 25;
   const withAvatars = opts.avatars === true;
   const groupNames = opts.groupNames instanceof Map ? opts.groupNames : new Map();
+  const durations = opts.durations || createDurationCache();
 
   const chats = await gowa.chats(limit);
   const rows = [];
@@ -92,6 +191,13 @@ async function collectChats(options) {
       last = newestMessage(await gowa.chatMessages(chat.jid, 10));
     } catch (err) {
       log('DEBUG', `Chats: messages of ${chat.jid} not readable (${err.message})`);
+    }
+
+    // The length of a voice note, which GOWA does not send: it is measured from
+    // the bytes, once per message id (see measureAudio).
+    let durationSeconds = null;
+    if (last && last.media_type === 'audio') {
+      durationSeconds = await measureAudio(gowa, chat.jid, last, durations, log);
     }
 
     const isGroup = isGroupJid(chat.jid);
@@ -115,7 +221,7 @@ async function collectChats(options) {
     rows.push({
       chatId: chat.jid,
       name,
-      preview: previewForMessage(last),
+      preview: previewForMessage(last, durationSeconds),
       timestamp: (last && last.timestamp) || '',
       isGroup,
       avatar: avatar || null
@@ -129,4 +235,4 @@ async function collectChats(options) {
   return result;
 }
 
-module.exports = { previewForMessage, collectChats, isNotAConversation };
+module.exports = { previewForMessage, collectChats, isNotAConversation, createDurationCache };
