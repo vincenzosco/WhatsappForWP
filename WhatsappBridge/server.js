@@ -543,6 +543,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   async function updatePresence(session) {
     if (!session || !session.gowa) return;
 
+    // GOWA cannot set a presence without a PushName, which only exists once the
+    // account is linked: asking anyway makes it panic in its middleware every
+    // poll and fills the log with a failure that means nothing. The account is
+    // not online yet, so there is nothing to say either way.
+    if (session.state.status !== 'connected') return;
+
     const watching = watchingCount(session) > 0;
     // Nobody is watching and nothing was ever said: there is nothing to correct,
     // because GOWA connects as "unavailable" by itself. It is what keeps the
@@ -1140,16 +1146,29 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         let verdict = authenticate({ frame: msg, users, authRequired });
         let created = null;
 
+        // The phone's own id, stable for the life of the install. It is what the
+        // token is derived from, so the same device always gets the same token
+        // back instead of being registered again on every connection.
+        const clientId = typeof msg.SenderId === 'string' ? msg.SenderId.trim() : '';
+
         // A phone with no token on a service that hands them out: the token is
         // created here, and the socket is authenticated in the same step. Waiting
         // for a second handshake would let the commands already in flight (the app
         // asks for the QR code right after connecting) arrive while the socket has
         // no user yet, and those are refused by closing the connection.
-        if (!verdict.ok && authRegister && users && users.count() < authMaxUsers
+        if (!verdict.ok && authRegister && users
             && (verdict.reason === 'missing token' || verdict.reason === 'unknown token')) {
-          created = users.register(msg.SenderName || 'device');
-          verdict = { ok: true, user: created.user };
-          logger('OK', `device registered: ${created.user.id} (${created.user.name})`);
+          // Room is only needed for a device the service has never seen: a device
+          // it already knows is handed its own token again and never counts
+          // against the ceiling.
+          const known = clientId ? users.findByClientId(clientId) : null;
+          if (known || users.count() < authMaxUsers) {
+            created = users.register(clientId, msg.SenderName || 'device');
+            verdict = { ok: true, user: created.user };
+            logger('OK', created.existing
+              ? `device returned: ${created.user.id} (${created.user.name})`
+              : `device registered: ${created.user.id} (${created.user.name})`);
+          }
         }
 
         if (!verdict.ok) {
@@ -1171,10 +1190,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         const session = verdict.user ? await sessionForUser(verdict.user) : anonymous;
         if (socket) moveSocket(socket, anonymous, session);
 
-        // The token leaves exactly once: it is not stored, so this frame is the
-        // only copy the phone will ever have. It is sent after the session exists,
-        // so the app holds a token that already works.
-        if (created && socket) {
+        // The token leaves exactly once per device: it is not stored, so this
+        // frame is the only copy the phone will ever have. It is sent after the
+        // session exists, so the app holds a token that already works. A device
+        // that was already known is told nothing: it still holds its own token,
+        // and re-sending it would only invite the app to overwrite what it has.
+        if (created && !created.existing && socket) {
           sendToClient(socket, buildChatMessage({
             command: 'registered',
             token: created.token,
