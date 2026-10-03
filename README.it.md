@@ -454,10 +454,16 @@ node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
 ```
 
 La tile live ha un asset suo, `Assets/TileIcon.png` piu' la sua versione al 240%,
-`TileIcon.scale-240.png` (480×480): un PNG trasparente e **senza padding**, scritto
-dallo stesso `make-brand-assets.js`. Non e' un doppione di `Logo.png`, e i due non
-sono intercambiabili: i logo del manifest hanno il padding che il sistema si
-aspetta, e il modello della tile iconica vuole l'opposto.
+`TileIcon.scale-240.png` (480×480): un PNG trasparente scritto dallo stesso
+`make-brand-assets.js`, con il marchio disegnato dentro la tile nella stessa
+proporzione interna dei logo del manifest. Non e' un doppione di `Logo.png`: il
+modello della tile iconica disegna l'immagine cosi' com'e', quindi un marchio che
+riempie tutto l'asset su una tile da 150 px sembra ingrandito e tagliato.
+
+Il manifest imposta `BackgroundColor="transparent"`. E' cosi' che WP8.1 sa di
+dovere lasciar vedere lo sfondo di Start scelto dall'utente dietro la tile; con un
+colore opaco lo sfondo resta nascosto. Se nessuno sfondo di Start e' impostato, il
+sistema mostra il colore del tema, come per ogni tile trasparente.
 
 `tools/check-tile.js` la custodisce, perche' il guasto che intercetta e' invisibile.
 Un modello di tile **non** prende l'icona dal manifest: la vuole nel payload, in un
