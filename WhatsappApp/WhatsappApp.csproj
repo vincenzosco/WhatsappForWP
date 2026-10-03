@@ -104,6 +104,7 @@
     <Compile Include="Services\CommunicationService.cs" />
     <Compile Include="Services\CryptoHelper.cs" />
     <Compile Include="Services\DiscoveryService.cs" />
+    <Compile Include="Services\FrameCodec.cs" />
     <Compile Include="Services\EndpointService.cs" />
     <Compile Include="Services\DataService.cs" />
     <Compile Include="Services\Diag.cs" />

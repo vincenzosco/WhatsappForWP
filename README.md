@@ -293,8 +293,8 @@ answers with `qr` / `paircode` / `state` / `contact` / `error` frames. See
 
 A frame length is never trusted: the app fills the 4-byte prefix completely
 (`InputStreamOptions.Partial` can split it) and rejects anything outside
-`1..8 MiB` (`MaxFrameLength`), and the adapter drops a client that announces more
-than `MAX_FRAME_LENGTH` (the same 8 MiB) instead of buffering it.
+`1..8 MiB` (`FrameCodec.MaxFrameLength`), and the adapter drops a client that
+announces more than `MAX_FRAME_LENGTH` (the same 8 MiB) instead of buffering it.
 
 `Timestamp` is the one field whose *type* on the wire is worth spelling out: it carries
 `/Date(<milliseconds since 1970, UTC>)/`, and no backslashes - the `\/` seen in JSON text is the
@@ -305,9 +305,9 @@ reads that field as a string and interprets it leniently, so a timestamp it cann
 the timestamp, not the message.
 
 Both sides pin the byte order explicitly: the adapter writes the length with
-`writeUInt32LE` and the app creates its readers and writers through
-`CreateFrameReader`/`CreateFrameWriter`, which set
-`ByteOrder = ByteOrder.LittleEndian`. WinRT's default is not little-endian, and a
+`writeUInt32LE` and the app creates its readers and writers through the
+`CreateFrameReader`/`CreateFrameWriter` of `WhatsappApp/Services/FrameCodec.cs`,
+which set `ByteOrder = ByteOrder.LittleEndian`. WinRT's default is not little-endian, and a
 reader that disagrees does not fail loudly: it reads a byte-swapped length
 (`0x00000121` came back as `0x21010000`, 553713664) and drops a frame that was
 perfectly fine. `tools/check-framing.js` fails the fast gate if a

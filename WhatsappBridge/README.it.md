@@ -120,7 +120,7 @@ Frame `Type = System`, `ChatId = "system"`.
 
 Un frame e' `[lunghezza 4 byte little-endian][payload]`. Una lunghezza uguale a
 `0`, o sopra `MAX_FRAME_LENGTH` (8 MiB, esportato da `server.js` e uguale a
-`CommunicationService.MaxFrameLength` nell'app), viene trattata come un guasto:
+`FrameCodec.MaxFrameLength` nell'app), viene trattata come un guasto:
 l'adapter la scrive nel log e chiude il socket, invece di accumulare.
 
 Un allegato va a WhatsApp solo quando sono arrivati tutti i pezzi che aveva

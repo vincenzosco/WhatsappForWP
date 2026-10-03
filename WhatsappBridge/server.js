@@ -52,7 +52,7 @@ const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG
 /**
  * Past this length the 4-byte prefix is not a payload, it is a fault (a
  * misaligned or hostile client). It must stay equal to
- * CommunicationService.MaxFrameLength in the WP8.1 app: the two sides speak
+ * FrameCodec.MaxFrameLength in the WP8.1 app: the two sides speak
  * of the same frame, so they share the same ceiling.
  */
 const MAX_FRAME_LENGTH = 8 * 1024 * 1024;

@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
@@ -46,16 +45,6 @@ namespace WhatsappApp.Services
         /// uploading.
         /// </summary>
         private readonly SerialQueue _writes = new SerialQueue();
-
-        /// <summary>
-        /// Largest frame we accept. The 4-byte prefix is the only thing the other
-        /// end checks: if the reader is misaligned that length is a piece of JSON,
-        /// that is a huge number. Without a limit LoadAsync used it as the size and
-        /// the app ended up in OutOfMemoryException (0x8007000E) instead of closing
-        /// the connection. Eight mebibytes let an image through in base64 and stay
-        /// far from the memory of a WP8.1 phone.
-        /// </summary>
-        private const uint MaxFrameLength = 8 * 1024 * 1024;
 
         /// <summary>
         /// Connection attempt number. Every attempt increments it and publishes its
@@ -289,12 +278,12 @@ namespace WhatsappApp.Services
 
             try
             {
-                var reader = CreateFrameReader(socket.InputStream);
+                var reader = FrameCodec.CreateFrameReader(socket.InputStream);
 
                 while (_isConnected)
                 {
                     // Read one encrypted frame
-                    byte[] payload = await ReadFrameAsync(reader);
+                    byte[] payload = await FrameCodec.ReadFrameAsync(reader);
                     if (payload == null) break;
 
                     // Forward the encrypted frame to the other clients
@@ -386,8 +375,8 @@ namespace WhatsappApp.Services
                 socket = new StreamSocket();
                 await ConnectWithDeadlineAsync(socket, hostName, port);
 
-                writer = CreateFrameWriter(socket.OutputStream);
-                reader = CreateFrameReader(socket.InputStream);
+                writer = FrameCodec.CreateFrameWriter(socket.OutputStream);
+                reader = FrameCodec.CreateFrameReader(socket.InputStream);
 
                 // A newer attempt has already taken this one place: what we opened is
                 // closed and nothing shared is touched (this was how a timeout
@@ -498,32 +487,6 @@ namespace WhatsappApp.Services
             _clientSocket = null;
 
             DisposeSocket(socket, writer, reader);
-        }
-
-        /// <summary>
-        /// A DataReader for a network stream, with the byte order stated explicitly.
-        /// The WinRT default is not little-endian, and the adapter writes the frame
-        /// length with writeUInt32LE: on the device a 289-byte frame (0x00000121)
-        /// was read as 0x21010000 = 553713664, that is a frame that does not exist,
-        /// and the connection closed before receiving the state and the QR code.
-        /// Reading and writing go through CreateFrameReader/CreateFrameWriter: they
-        /// are the only place the byte order is chosen, so they can no longer
-        /// diverge.
-        /// </summary>
-        private static DataReader CreateFrameReader(IInputStream stream)
-        {
-            var reader = new DataReader(stream);
-            reader.InputStreamOptions = InputStreamOptions.Partial;
-            reader.ByteOrder = ByteOrder.LittleEndian;
-            return reader;
-        }
-
-        /// <summary>The same pact as CreateFrameReader, on the writing side.</summary>
-        private static DataWriter CreateFrameWriter(IOutputStream stream)
-        {
-            var writer = new DataWriter(stream);
-            writer.ByteOrder = ByteOrder.LittleEndian;
-            return writer;
         }
 
         /// <summary>
@@ -638,7 +601,7 @@ namespace WhatsappApp.Services
             {
                 while (_isConnected && attempt == _connectionId)
                 {
-                    byte[] payload = await ReadFrameAsync(reader);
+                    byte[] payload = await FrameCodec.ReadFrameAsync(reader);
                     if (payload == null) break;
 
                     // Proof of life for the watchdog: a frame read just now.
@@ -899,7 +862,8 @@ namespace WhatsappApp.Services
                     // StoreAsync on the same buffer.
                     await _writes.RunAsync(delegate
                     {
-                        return WriteFrameAsync(CreateFrameWriter(target.OutputStream), payload);
+                        return FrameCodec.WriteFrameAsync(
+                            FrameCodec.CreateFrameWriter(target.OutputStream), payload);
                     });
                 }
                 catch (Exception ex)
@@ -932,59 +896,7 @@ namespace WhatsappApp.Services
         private Task SendFrameAsync(DataWriter writer, byte[] jsonBytes)
         {
             byte[] payload = CryptoHelper.Encrypt(jsonBytes);
-            return _writes.RunAsync(delegate { return WriteFrameAsync(writer, payload); });
-        }
-
-        /// <summary>The write, executed by the queue.</summary>
-        private static async Task WriteFrameAsync(DataWriter writer, byte[] payload)
-        {
-            writer.WriteUInt32((uint)payload.Length);
-            writer.WriteBytes(payload);
-            await writer.StoreAsync();
-            await writer.FlushAsync();
-        }
-
-        /// <summary>
-        /// Reads one complete frame: [4-byte length][payload].
-        /// Returns null when the connection is closed or the frame is not
-        /// acceptable (a length outside 1..MaxFrameLength is a fault, not a
-        /// payload: it is recorded and the connection is dropped).
-        /// </summary>
-        private async Task<byte[]> ReadFrameAsync(DataReader reader)
-        {
-            if (!await LoadAtLeastAsync(reader, 4)) return null;
-
-            uint payloadLength = reader.ReadUInt32();
-
-            if (payloadLength == 0 || payloadLength > MaxFrameLength)
-            {
-                Diag.Failed("ReadFrameAsync/length",
-                    new InvalidDataException("frame length out of range: " + payloadLength));
-                return null;
-            }
-
-            if (!await LoadAtLeastAsync(reader, payloadLength)) return null;
-
-            byte[] payload = new byte[payloadLength];
-            reader.ReadBytes(payload);
-            return payload;
-        }
-
-        /// <summary>
-        /// Fills the reader buffer until it has at least <paramref name="count"/>
-        /// unconsumed bytes. With InputStreamOptions.Partial a LoadAsync can return
-        /// fewer than requested: the length prefix read with a single LoadAsync(4)
-        /// was split in the middle of a frame and the connection dropped on a frame
-        /// that had only arrived in two pieces.
-        /// </summary>
-        private static async Task<bool> LoadAtLeastAsync(DataReader reader, uint count)
-        {
-            while (reader.UnconsumedBufferLength < count)
-            {
-                uint loaded = await reader.LoadAsync(count - reader.UnconsumedBufferLength);
-                if (loaded == 0) return false;   // stream closed by the other end
-            }
-            return true;
+            return _writes.RunAsync(delegate { return FrameCodec.WriteFrameAsync(writer, payload); });
         }
 
         /// <summary>
