@@ -349,9 +349,17 @@ the adapter:
   `handleCommand(session, msg, socket)`; reaching for the module-level `anonymous`
   from a new command would answer the wrong account. A webhook is routed by the
   top-level `device_id` GOWA puts on every event (`sessionForEvent`), so a new
-  event type must route the same way or it goes nowhere on a shared server. A
-  user's device is created on the first valid handshake and remembered in
-  `users.json`; `gowa.withDevice(id)` is the client bound to it.
+  event type must route the same way or it goes nowhere on a shared server.  A user's device is created on the first valid handshake and remembered in
+  `users.json`; `gowa.withDevice(id)` is the client bound to it. **The token is
+  derived, not random**: `HMAC-SHA256(secret, deviceId)` with a secret the store
+  keeps in `users.json`, and the device id is the phone's persisted
+  `SettingsService.DeviceId`, sent as `SenderId` in `hello`. A phone that
+  reconnects is therefore the same user with the same token, and a device the
+  service knows is never registered twice; only a device it has never seen gets a
+  `registered` frame. The secret is a credential - a copy of the file can derive
+  every device's token. `gowa.ensureDevice()` binds to the device that is
+  `logged_in`, not `devices[0]`: the list is in creation order, and picking the
+  oldest is how a linked account came to be reported `disconnected`.
 - **On WP8.1 a theme minimum overrides the size you declare.** The default
   `Button` style sets `MinWidth = PhoneButtonMinWidth = 109` and
   `MinHeight = PhoneButtonMinHeight = 57.5` (the phone kit's `generic.xaml` and

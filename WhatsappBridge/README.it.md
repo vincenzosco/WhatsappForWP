@@ -17,6 +17,12 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
 - I messaggi in arrivo da WhatsApp arrivano via webhook e vengono inoltrati all'app sul
   canale TCP.
 - I messaggi in uscita sono inviati alle API REST di GOWA.
+- L'adapter si lega al device GOWA che e' **collegato**, non al primo di `/devices`:
+  la lista e' in ordine di creazione, quindi un server con piu' device finirebbe per
+  dichiarare `disconnected` un account che invece e' collegato. La sessione WhatsApp
+  vive nel volume `/data`, quindi sopravvive a un riavvio e a una ricostruzione del
+  container. Quando non c'e' piu', l'app chiede da sola `login.qr` e il QR si scansiona
+  di nuovo dal telefono.
 - L'adapter si annuncia sulla rete locale con un beacon di scoperta, cosi' l'app lo trova
   senza che le venga configurato un indirizzo.
 - `message.revoked` e `message.edited` vengono inoltrati all'app come frame di controllo
@@ -173,6 +179,19 @@ predefinito) l'adapter crea l'utente al primo handshake e risponde con un frame
 di connessione e' tutta la configurazione - il token identifica il dispositivo,
 non e' una password da digitare. Creare l'utente a mano resta per un servizio che
 deve restare chiuso, con `AUTH_REGISTER=off`:
+
+Il token e' **derivato dal dispositivo**, non estratto a caso: e'
+`HMAC-SHA256(segreto, deviceId)` con un segreto che il deposito genera una volta e
+conserva in `USERS_FILE`. L'app presenta un solo id di dispositivo per tutta la
+vita dell'installazione (`SenderId` in `hello`), quindi un telefono che si
+ricollega - o che reinstalla l'app e ridigita il suo token - e' lo stesso utente
+con lo stesso token, e il file degli utenti non cresce piu' di una riga per
+collegamento. Un dispositivo mai visto ne riceve uno nuovo; a uno che il servizio
+conosce si restituisce il suo token, senza dirgli niente, perche' ce l'ha gia'.
+`AUTH_MAX_USERS` conta i dispositivi, e riregistrare un dispositivo noto non
+consuma un posto. Il segreto e' una credenziale: una copia del file puo' derivare
+il token di ogni dispositivo, ed e' il compromesso che questo deposito accetta per
+un token che resta lo stesso.
 
 ```bash
 node create-user.js vincenzo            # stampa id, nome e token, una volta sola

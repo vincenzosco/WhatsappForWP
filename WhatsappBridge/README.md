@@ -16,6 +16,12 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
 - Messages arriving from WhatsApp come in through a webhook and are forwarded to the app on
   the TCP channel.
 - Outgoing messages are sent to GOWA's REST API.
+- The adapter binds to the GOWA device that is **logged in**, not to the first one in
+  `/devices`: the list is in creation order, so a server that has accumulated devices
+  would otherwise report `disconnected` for an account that is in fact linked. The
+  WhatsApp session itself lives in the `/data` volume, so it survives a restart and a
+  container rebuild. When it is gone, the app asks for `login.qr` by itself and the
+  QR is scanned again from the phone.
 - The adapter broadcasts a discovery beacon on the LAN, so the app finds it without being
   configured with an address.
 - `message.revoked` and `message.edited` are forwarded to the app as `revoked` and
@@ -171,6 +177,18 @@ carrying the token, which the app keeps. The switch on the connection page is th
 whole configuration - the token identifies the device, it is not a password to be
 typed. Creating a user by hand is still there for a service that must stay closed,
 with `AUTH_REGISTER=off`:
+
+The token is **derived from the device**, not drawn at random: it is
+`HMAC-SHA256(secret, deviceId)` with a secret the store generates once and keeps
+in `USERS_FILE`. The app presents one device id for the life of the install
+(`SenderId` in `hello`), so a phone that reconnects - or that reinstalls the app
+and types its token again - is the same user with the same token, and the users
+file no longer grows one row per connection. A device the service has never seen
+is still given a new one; a device it knows is handed its own token back and told
+nothing, because it already has it. `AUTH_MAX_USERS` counts devices, and
+re-registering a known device never consumes a slot. The secret is a credential:
+a copy of the file can derive every device's token, which is the trade-off this
+store makes for a token that stays the same.
 
 ```bash
 node create-user.js vincenzo            # prints id, name and the token, once
