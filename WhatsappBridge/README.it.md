@@ -27,7 +27,13 @@ Ponte tra l'app WhatsApp per Windows Phone 8.1 e un server GOWA self-hosted
   inserisce in ordine di data e li tiene fuori dal conteggio dei non letti e dagli
   avvisi: non stanno arrivando adesso. Un messaggio il cui media non e' fra i byte che
   il webhook ha consegnato viene mandato come testo - `[Image]`, `[Video]`, ... -
-  perche' un fumetto vuoto e' peggio di una parola.
+  perche' un fumetto vuoto e' peggio di una parola. Un vocale fa eccezione: la sua
+  parola e' `Audio`, senza parentesi, perche' l'adapter ne sa misurare la durata.
+  GOWA non manda la durata da nessuna parte, quindi l'anteprima della riga scarica i
+  byte dell'ultimo messaggio (la stessa rotta `/message/:id/download` che usa l'app) e
+  legge la lunghezza dal contenitore - Ogg/Opus, MP4/M4A, MP3 - senza nuove dipendenze,
+  poi la tiene per id di messaggio. La riga legge `Audio 0:10`; quando i byte non
+  arrivano resta `Audio`.
 - Ogni riga dell'elenco porta quanti messaggi non ha ancora letto (`UnreadCount`).
   Quel conteggio lo tiene l'adapter, perche' l'elenco chat di GOWA non ha questo campo e
   perche' un messaggio che arriva col telefono spento raggiunge il webhook dell'adapter e
