@@ -523,4 +523,16 @@
   <data name="TileUnreadMany" xml:space="preserve">
     <value>{0} unread messages</value>
   </data>
+  <data name="ConnectionPage_Diagnostics.Content" xml:space="preserve">
+    <value>Show diagnostics</value>
+  </data>
+  <data name="DiagnosticsPage_Title.Text" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="DiagnosticsPage_Clear.Content" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
+    <value>What the app did, and where it tried to connect. Long press the text to select and copy it.</value>
+  </data>
 </root>

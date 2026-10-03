@@ -669,6 +669,11 @@ namespace WhatsappApp.Pages
             ActionButton.IsEnabled = true;
         }
 
+        private void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
+        {
+            Frame.Navigate(typeof(DiagnosticsPage));
+        }
+
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
             if (Frame.CanGoBack)

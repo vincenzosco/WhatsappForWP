@@ -290,6 +290,11 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ServerUnavailable += OnServerUnavailable;
             CommunicationService.Instance.ConnectionEstablished += OnServerAvailable;
 
+            // The list finished arriving: the count of rows the server answered
+            // is the difference between an empty list and a refused one.
+            DataService.Instance.ChatListCompleted -= OnChatListCompleted;
+            DataService.Instance.ChatListCompleted += OnChatListCompleted;
+
             // The adapter says nothing on its own until something asks: if the
             // socket came up before this page existed, the state frame has already
             // gone by and the list would wait for another one forever. Asking here
@@ -314,6 +319,7 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
             CommunicationService.Instance.ServerUnavailable -= OnServerUnavailable;
             CommunicationService.Instance.ConnectionEstablished -= OnServerAvailable;
+            DataService.Instance.ChatListCompleted -= OnChatListCompleted;
         }
 
         /// <summary>
@@ -398,6 +404,17 @@ namespace WhatsappApp.Pages
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
             Frame.Navigate(typeof(ConnectionPage));
+        }
+
+        /// <summary>
+        /// The server answered the list, with this many rows in it. Written to
+        /// the diagnostics: a row count of zero with a healthy adapter on the
+        /// list of what the phone can see is a finding, not a failure to show.
+        /// </summary>
+        private void OnChatListCompleted(object sender, int rows)
+        {
+            Diag.Ok("chat list: " + rows + " row(s), showing "
+                + DataService.Instance.Contacts.Count);
         }
 
         private void ChatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
