@@ -582,7 +582,10 @@ Un telefono che arriva senza token ne riceve uno alla prima connessione
 con un frame `registered` e l'app conserva il token, quindi il servizio condiviso
 non chiede altro che l'interruttore. Il token identifica il dispositivo, non e'
 una password da digitare; con `AUTH_REGISTER=off` si torna a consegnare i token a
-mano.
+mano. Il token e' derivato dall'id di dispositivo che l'app presenta, e quell'id e'
+il token hardware specifico del pacchetto, quindi reinstallare l'app non crea un
+dispositivo nuovo: lo stesso telefono conserva lo stesso account, e l'accesso a
+WhatsApp non viene richiesto di nuovo.
 
 Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da
