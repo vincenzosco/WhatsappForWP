@@ -15,6 +15,7 @@ namespace WhatsappApp.Services
         private const string KeyUsername = "Username";
         private const string KeyNotifications = "NotificationsEnabled";
         private const string KeyToken = "ServiceToken";
+        private const string KeyDeviceId = "DeviceId";
         private const string KeyUsePublicServer = "UsePublicServer";
         private const string KeyEndpointUrl = "EndpointUrl";
         private const string DefaultServerAddress = "192.168.1.100";
@@ -33,6 +34,7 @@ namespace WhatsappApp.Services
         private static int _serverPort;
         private static string _username;
         private static string _token;
+        private static string _deviceId;
         private static bool _usePublicServer;
         private static string _endpointUrl;
         private static bool _notificationsEnabled;
@@ -48,6 +50,7 @@ namespace WhatsappApp.Services
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
             _token = ReadString(KeyToken, "");
+            _deviceId = ReadString(KeyDeviceId, "");
             // The service this app is built around is the shared one: it needs no
             // address, so a phone that has never been configured can go straight to
             // the chats and find it. A private server is one switch away, in the
@@ -92,6 +95,27 @@ namespace WhatsappApp.Services
         {
             get { EnsureLoaded(); return _token; }
             set { EnsureLoaded(); _token = value; Settings.Values[KeyToken] = value; }
+        }
+
+        /// <summary>
+        /// The id this phone presents to the shared service, in the `SenderId` of
+        /// every handshake. It is generated once and kept, because the service
+        /// derives the token from it: a new id on every connection was a new user
+        /// of the same phone on every connection, and the token that came back was
+        /// a different one each time.
+        /// </summary>
+        public static string DeviceId
+        {
+            get
+            {
+                EnsureLoaded();
+                if (string.IsNullOrEmpty(_deviceId))
+                {
+                    _deviceId = Guid.NewGuid().ToString("N").Substring(0, 8);
+                    Settings.Values[KeyDeviceId] = _deviceId;
+                }
+                return _deviceId;
+            }
         }
 
         /// <summary>
