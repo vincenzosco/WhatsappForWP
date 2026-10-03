@@ -151,6 +151,15 @@ namespace WhatsappApp.Services
                 ChatMessage target = _pendingScroll;
                 _pendingScroll = null;
 
+                // A list that is not in the tree yet has no viewer to walk to and
+                // no layout to force: the walk during a navigation is the
+                // E_UNEXPECTED this class exists to avoid. WP8.1 has no
+                // FrameworkElement.IsLoaded (that one is Windows 10), so the test
+                // is the list having a visual child at all - its ScrollViewer.
+                // The next scroll - the one the history burst produces - runs when
+                // the list is up.
+                if (VisualTreeHelper.GetChildrenCount(_list) == 0) return;
+
                 ScrollViewer viewer = Viewer();
                 if (viewer != null && viewer.ScrollableHeight > 0)
                 {
