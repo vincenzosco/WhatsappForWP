@@ -137,13 +137,19 @@ function main() {
   const glyph = buildGlyph();
 
   // L'icona della tile (modello IconWithBadge): il marchio bianco su sfondo
-  // trasparente e SENZA padding, alla misura che il modello chiede (almeno
-  // 200x200) e alla sua versione a 240% per il telefono. Non e' un logo da
-  // manifest: quelli hanno il padding intorno che il sistema si aspetta, e su
-  // una tile da 150 px quel padding si mangia il disegno.
+  // trasparente, alla misura che il modello chiede (almeno 200x200) e alla sua
+  // versione a 240% per il telefono. Non e' un logo da manifest, ma il marchio
+  // NON va disegnato a tutta tile: il glifo ha gia' un margine suo di circa il
+  // 5%, e a tutta tile quel margine e' tutto quello che resta - su una tile da
+  // 150 px il disegno sembra tagliato e ingrandito. La misura interna e' la
+  // stessa proporzione dei logo del manifest (vedi `square` sotto).
+  const TILE_MARK = 0.82;
   const tileIcons = [['TileIcon.png', 200], ['TileIcon.scale-240.png', 480]];
   for (const [name, size] of tileIcons) {
-    magick([glyph, '-resize', `${size}x${size}`, '-depth', '8',
+    const inner = Math.round(size * TILE_MARK);
+    magick(['-size', `${size}x${size}`, 'xc:none',
+      '(', glyph, '-resize', `${inner}x${inner}`, ')',
+      '-gravity', 'center', '-composite', '-depth', '8',
       path.join(OUT_DIR, name)]);
   }
 
