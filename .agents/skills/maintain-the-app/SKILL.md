@@ -357,9 +357,20 @@ the adapter:
   reconnects is therefore the same user with the same token, and a device the
   service knows is never registered twice; only a device it has never seen gets a
   `registered` frame. The secret is a credential - a copy of the file can derive
-  every device's token. `gowa.ensureDevice()` binds to the device that is
+  every device's token.  `gowa.ensureDevice()` binds to the device that is
   `logged_in`, not `devices[0]`: the list is in creation order, and picking the
-  oldest is how a linked account came to be reported `disconnected`.
+  oldest is how a linked account came to be reported `disconnected`. **But one
+  reading is not enough on a cold start.** GOWA runs in the same container as the
+  adapter and answers a few seconds later, and it restores its login state from
+  `/data/storages` a few seconds after that, so the first
+  reading sees every device `disconnected` (or nothing at all, with a
+  `GOWA not reachable` line). `main()` therefore awaits
+  `gowa.waitUntilReady()` (polls `GET /devices` until the API answers, throws
+  after 60s) before `ensureDevice()`, and `ensureDevice` re-reads once a second
+  until a `logged_in` device appears or its `linkedWaitMs` (constructor option,
+  default 15s) expires, falling back to `devices[0]`. A zero wait still reads
+  once. The fallback has to stay: a server with no session must still start so
+  it can serve the QR login.
 - **On WP8.1 a theme minimum overrides the size you declare.** The default
   `Button` style sets `MinWidth = PhoneButtonMinWidth = 109` and
   `MinHeight = PhoneButtonMinHeight = 57.5` (the phone kit's `generic.xaml` and

@@ -46,7 +46,7 @@ function normalizeJid(jid) {
 }
 
 class GowaClient {
-  constructor({ baseUrl, deviceId, user, pass, authHeader, fetchImpl, avatarCache } = {}) {
+  constructor({ baseUrl, deviceId, user, pass, authHeader, fetchImpl, avatarCache, linkedWaitMs } = {}) {
     this.baseUrl = String(baseUrl || '').replace(/\/+$/, '');
     this.deviceId = deviceId || '';
     // A ready `authHeader` serves `withDevice`: a derived client does not start
@@ -55,6 +55,10 @@ class GowaClient {
     this.fetch = fetchImpl || (typeof fetch !== 'undefined' ? fetch : null);
     if (!this.fetch) throw new Error('fetch is not available: Node 18.13+ is required');
     this.resolvedDeviceId = null;
+    // How long ensureDevice waits for a device to report `logged_in` before it
+    // settles for the first one. A test shortens it; the default is a little
+    // longer than GOWA needs to restore a session from disk.
+    this.linkedWaitMs = linkedWaitMs;
     // The pictures already downloaded: the chat list is requested on every
     // reconnection, and without this one picture per chat came back from
     // WhatsApp every time.
@@ -83,18 +87,55 @@ class GowaClient {
     return { ok: res.ok, status: res.status, data };
   }
 
+  /**
+   * Waits until GOWA's REST API answers, and gives up after `timeoutMs`.
+   *
+   * In the container GOWA and the adapter start together, and GOWA is the
+   * slower one: the adapter reached `/devices` while the API was still coming
+   * up, logged "GOWA not reachable", and then never bound a device at all -
+   * every session it opened answered "disconnected" until somebody restarted
+   * it. That is what "the server is not active" was.
+   */
+  async waitUntilReady(timeoutMs = 60000) {
+    const deadline = Date.now() + timeoutMs;
+    let lastError = null;
+    while (Date.now() < deadline) {
+      try {
+        await this.request('GET', '/devices');
+        return true;
+      } catch (err) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+    if (lastError) throw lastError;
+    return false;
+  }
+
   async ensureDevice() {
-    const list = await this.request('GET', '/devices');
-    const devices = (list.data && list.data.results) || [];
-    if (Array.isArray(devices) && devices.length > 0) {
-      // The device that is logged in is the one with a WhatsApp session; the
-      // list is in creation order, so devices[0] is the oldest. On a server that
-      // has accumulated devices, picking the first one bound the adapter to a
-      // device nobody had ever logged into, and every state it reported was
-      // "disconnected" while another device was in fact linked - which is what
-      // "the server is not active" looked like from the phone.
-      const linked = devices.find((d) => d && d.state === 'logged_in');
-      const chosen = linked || devices[0];
+    // The login state is restored from disk a moment after the API answers, so
+    // one reading taken too early sees every device as disconnected. Read until
+    // a device reports `logged_in`, and fall back to the first one only when
+    // nothing is linked, so a server with no session still starts.
+    const deadline = Date.now() + (Number.isFinite(this.linkedWaitMs) ? this.linkedWaitMs : 15000);
+    let devices = [];
+    let chose = null;
+    // At least one reading, always: a wait of zero means "do not wait", not
+    // "do not look".
+    for (;;) {
+      const list = await this.request('GET', '/devices');
+      devices = (list.data && list.data.results) || [];
+      if (!Array.isArray(devices) || devices.length === 0) break;
+      // The linked device is the one with a WhatsApp session; the list is in
+      // creation order, so devices[0] is the oldest. Picking the oldest bound
+      // the adapter to a device nobody had ever logged into, and every state it
+      // reported was "disconnected" while another device was in fact linked.
+      chose = devices.find((d) => d && d.state === 'logged_in') || null;
+      if (chose || Date.now() >= deadline) break;
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+    const chosen = chose || (Array.isArray(devices) && devices.length > 0 ? devices[0] : null);
+    if (chosen) {
       this.resolvedDeviceId = chosen.id || null;
       return this.resolvedDeviceId;
     }
