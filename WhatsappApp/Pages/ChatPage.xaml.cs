@@ -118,6 +118,11 @@ namespace WhatsappApp.Pages
                 // before that wait starts.
                 DataService.Instance.ActiveChatId = contact.Id;
 
+                // The next phone log then reads this line and, if the process still
+                // dies after a chat opens, the site it reached is the last thing
+                // before App/unhandled: the crash report has to name itself.
+                Diag.Ok("opened chat " + contact.Id);
+
                 // Whether the history goes out now decides how the list binds: at
                 // once when nothing was asked for, and only when the burst closes
                 // when there is one on the way.
@@ -575,7 +580,11 @@ namespace WhatsappApp.Pages
 
             try
             {
-                var bitmap = await ImageHelper.FromBase64Async(_contact.AvatarData, ViewerDecodePixels);
+                // The header is a 40 px circle and the full-screen view is the same
+                // picture enlarged: decoding it at the viewer size (720) is a copy
+                // held while the conversation behind it is still being laid out, and
+                // the 52 px one is indistinguishable on a phone screen.
+                var bitmap = await ImageHelper.FromBase64Async(_contact.AvatarData, Contact.AvatarDecodePixels);
                 if (bitmap == null) return;
                 ImageViewerImage.Source = bitmap;
                 ImageViewer.Visibility = Visibility.Visible;
