@@ -913,19 +913,15 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// This conversation has been shown: the number is cleared here and on the
-        /// server. The second part is not a detail: the adapter counts every incoming
-        /// message, even the ones the user is watching, so without telling it the
-        /// number would come back at the next list update.
+        /// server. DataService owns both halves now: it clears the row and sends the
+        /// `read` frame, or queues it when the socket is not usable. The adapter
+        /// counts every incoming message, even the ones the user is watching, so
+        /// without telling it the number would come back at the next list update -
+        /// and on a socket the OS already closed the frame was lost silently.
         /// </summary>
         private void MarkRead()
         {
             DataService.Instance.ClearUnread(_contact.Id);
-
-            if (!CommunicationService.Instance.IsConnected) return;
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("ChatPage/read",
-                CommunicationService.Instance.SendControlAsync("read", _contact.Id));
-#pragma warning restore 4014
         }
 
         private async void SendMessage()
