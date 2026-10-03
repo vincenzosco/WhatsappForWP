@@ -157,6 +157,19 @@ function createUserStore(options) {
     return null;
   }
 
+  /**
+   * Records which client a user belongs to. It is what a phone that authenticates
+   * with a token adds to its own record, so the derivation has a device id to key
+   * on the next time it arrives without one.
+   */
+  function bindClientId(user, deviceId) {
+    const id = String(deviceId || '');
+    if (!user || !id) return null;
+    user.clientId = id;
+    save();
+    return user;
+  }
+
   function setDevice(token, deviceId) {
     const user = verify(token);
     if (!user) return null;
@@ -175,6 +188,7 @@ function createUserStore(options) {
     register,
     verify,
     setDevice,
+    bindClientId,
     findByClientId,
     all,
     load,
