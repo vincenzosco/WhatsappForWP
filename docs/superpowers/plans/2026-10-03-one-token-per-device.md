@@ -355,3 +355,18 @@ Expected: `OK` from each guard, tool tests green, adapter suite green (one more 
 git push origin master
 cd /tmp/docker-whatsappforwp && git push origin main
 ```
+
+## What execution changed about this plan
+
+- **Task 1 landed as written.** `register(deviceId, name)` keeps the existing
+  `register(name)` call sites working (the name lands in `deviceId`, which is
+  what an app build with no device id does anyway), so `users.test.js` needed no
+  edits beyond the new tests.
+- **Task 2's helper call sites moved.** `sharedBridge()` and two other tests in
+  `server.test.js` called `users.register('anna')`; they now pass a device id
+  and a name, because the adapter keys on the device.
+- **The presence guard (a task of the NAS plan) landed in the same commit as
+  Task 2**, because `server.js` was already staged for it. No behaviour was
+  dropped; only the commit boundary moved.
+- **No `.resw` change**: the token was never a user-visible string, so the app
+  side is `SettingsService.DeviceId` and one line of `CommunicationService`.
