@@ -108,6 +108,35 @@ test('ensureDevice riusa il primo device esistente', async () => {
   assert.strictEqual(fetchImpl.calls.length, 1);
 });
 
+test('ensureDevice sceglie il device collegato, non il primo', async () => {
+  // La lista e' in ordine di creazione: il primo e' il piu vecchio, e su un
+  // server con piu device puo essere uno su cui nessuno ha mai fatto il login.
+  const fetchImpl = makeFetch(async () => jsonResponse({
+    status: 200,
+    results: [
+      { id: 'old-1', state: 'disconnected' },
+      { id: 'old-2', state: 'disconnected' },
+      { id: 'linked', state: 'logged_in' },
+      { id: 'later', state: 'disconnected' }
+    ]
+  }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+
+  assert.strictEqual(await client.ensureDevice(), 'linked');
+  assert.strictEqual(client.resolvedDeviceId, 'linked');
+  assert.strictEqual(fetchImpl.calls.length, 1, 'non deve creare un device');
+});
+
+test('senza nessun device collegato ensureDevice ripiega sul primo', async () => {
+  const fetchImpl = makeFetch(async () => jsonResponse({
+    status: 200,
+    results: [{ id: 'old-1', state: 'disconnected' }, { id: 'old-2', state: 'disconnected' }]
+  }));
+  const client = new GowaClient({ baseUrl: 'http://g', fetchImpl });
+
+  assert.strictEqual(await client.ensureDevice(), 'old-1');
+});
+
 test('listDevices legge i device presenti sul server GOWA', async () => {
   const fetchImpl = makeFetch(async (url) => {
     assert.strictEqual(url, 'http://g/devices');

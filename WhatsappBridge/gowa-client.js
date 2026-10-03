@@ -87,7 +87,15 @@ class GowaClient {
     const list = await this.request('GET', '/devices');
     const devices = (list.data && list.data.results) || [];
     if (Array.isArray(devices) && devices.length > 0) {
-      this.resolvedDeviceId = devices[0].id || null;
+      // The device that is logged in is the one with a WhatsApp session; the
+      // list is in creation order, so devices[0] is the oldest. On a server that
+      // has accumulated devices, picking the first one bound the adapter to a
+      // device nobody had ever logged into, and every state it reported was
+      // "disconnected" while another device was in fact linked - which is what
+      // "the server is not active" looked like from the phone.
+      const linked = devices.find((d) => d && d.state === 'logged_in');
+      const chosen = linked || devices[0];
+      this.resolvedDeviceId = chosen.id || null;
       return this.resolvedDeviceId;
     }
     const created = await this.request('POST', '/devices', { json: {} });
