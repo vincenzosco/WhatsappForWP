@@ -643,19 +643,21 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task SendMessageAsync(ChatMessage message)
         {
+            // The other half of the frame log: what this phone asked for, in the
+            // order it asked. It sits on the single send path and **before** the
+            // connection test, so a request made with no socket is in the log
+            // too - an app that tried and could not is not the same finding as an
+            // app that never tried, and the diagnostics page has to tell them
+            // apart. `media.chunk` is filtered inside Diag.LogFrame.
+            if (message != null && message.Type == MessageType.System)
+            {
+                Diag.LogFrame("out", message.Command, message.Text);
+            }
+
             if (!_isConnected)
             {
                 DispatchOnUiThread(() => RaiseErrorOccurred(Loc.Get("CommService_NotConnected", "Not connected")));
                 return;
-            }
-
-            // The other half of the frame log: what this phone asked for, in the
-            // order it asked. It sits here, on the single send path, so a control
-            // frame cannot be added without being seen; `media.chunk` is filtered
-            // inside Diag.Frame.
-            if (message.Type == MessageType.System)
-            {
-                Diag.Frame("out", message.Command, message.Text);
             }
 
             try
@@ -813,7 +815,7 @@ namespace WhatsappApp.Services
             {
                 // Every control frame the adapter sends, in order, so the
                 // diagnostics page can show whether the answer ever arrived.
-                Diag.Frame("in ", message.Command, message.Text);
+                Diag.LogFrame("in ", message.Command, message.Text);
 
                 if (message.Command == "state")
                 {

@@ -352,7 +352,17 @@ git push origin master
 Three follow-ups were requested after the page shipped, and two of them are code:
 
 - **The empty state opens the diagnostics itself.** `ChatsPage` now carries a `DiagnosticsButton` (`ChatsPage_Diagnostics.Content`) inside `EmptyStatePanel`, wired to `DiagnosticsButton_Click`. The plan had put the only entrance on the settings page, which is one screen away from the exact moment the answer is wanted.
-- **Every control frame is logged, both directions.** `Diag.Frame(direction, command, detail)` writes `in`/`out` lines in arrival order and **does not dedupe** - the point of a frame log is the repetition the `Seen` set exists to hide, so `Frame` appends to `History` directly. The cap still holds, and `media.chunk` is dropped because one transfer is a hundred identical lines. The payload is clipped at 48 characters, because a login QR and a media blob both travel in `Text` and neither belongs in the buffer whole. `DispatchMessage` logs the inbound system frames, and the single `SendMessageAsync` path logs the outbound ones, so a new control frame cannot be added without being seen.
+- **Every control frame is logged, both directions.** `Diag.LogFrame(direction, command, detail)` writes `in`/`out` lines in arrival order. It keeps the repetition a frame log exists for **without one copy per repeat**: `FrameRepeats` counts a line and the buffer rewrites that one entry as `text (xN)`, so a frame that repeats forever cannot push the failures out of the 200-line buffer. `media.chunk` is dropped because one transfer is a hundred identical lines, and the payload is clipped at 48 characters because a login QR and a media blob both travel in `Text`. `DispatchMessage` logs the inbound system frames; the outbound line sits on `SendMessageAsync` **before** the `IsConnected` test, so a request made with no socket is in the log too - an app that tried and could not is not the same finding as an app that never tried.
+
+## Review fixes
+
+A two-axis review of `7901ddf..8699f73` was run after the follow-ups, and everything it found is fixed in this range:
+
+- **The outbound frame was logged after the connection test.** The comment claimed a control frame could not be sent unseen; a frame sent while disconnected was silently absent. The log now runs before the `IsConnected` early return, so "tried and could not" is in the buffer.
+- **A repeating frame could evict the buffer.** The plan's own Review Focus says a line that repeats every two seconds must not hide everything else; bypassing `Seen` met that only halfway. `FrameRepeats` counts instead of copying, the line is rewritten in place as `(xN)`, and the cap is untouched.
+- **`Diag.HistoryLines()` was dead.** The plan's Task 1 named it, nothing ever called it, and `HistoryText()` is what the page uses. It is deleted; the plan's interface list is left as written, with this note as the record.
+- **The two navigation handlers were byte-identical.** `DiagnosticsPage.Open(Frame)` is the one opener, called by both the settings button and the empty-state button.
+- **`Diag.Frame` was renamed `Diag.LogFrame`.** The old name read as a noun, and the method appends a line.
 - **The third follow-up - read the diagnostics the user pastes and name the fault - cannot run until the text arrives.** The build is on the phone, so the next message with the copied text is the one that turns the buffer into a diagnosis.
 
 ## The adapter side of the same window

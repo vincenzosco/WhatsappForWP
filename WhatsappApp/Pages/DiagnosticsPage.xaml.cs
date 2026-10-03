@@ -23,6 +23,16 @@ namespace WhatsappApp.Pages
             ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
         }
 
+        /// <summary>
+        /// Opens this page from wherever the user asked for it. The settings page
+        /// and the empty chat list both carry a button for it, and the navigation
+        /// is the same line in both: it lives here so the two cannot drift apart.
+        /// </summary>
+        public static void Open(Frame frame)
+        {
+            if (frame != null) frame.Navigate(typeof(DiagnosticsPage));
+        }
+
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);

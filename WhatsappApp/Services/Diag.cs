@@ -38,6 +38,13 @@ namespace WhatsappApp.Services
 
         private static readonly List<string> History = new List<string>();
 
+        // How many times each frame line has been written. A frame log keeps the
+        // order and the repetition, but a line that repeats forever must not
+        // push the failures out of a 200-line buffer: the count is kept beside
+        // the line instead of one copy per repeat.
+        private static readonly Dictionary<string, int> FrameRepeats =
+            new Dictionary<string, int>();
+
         /// <summary>To call inside a catch, for a failure we carry on from.</summary>
         public static void Failed(string where, Exception ex)
         {
@@ -63,19 +70,6 @@ namespace WhatsappApp.Services
             return ex.GetType().Name + " 0x" + ex.HResult.ToString("X8") + " " + (ex.Message ?? "");
         }
 
-        /// <summary>
-        /// The lines written so far, oldest first. A copy: the caller may keep it.
-        /// This is what the diagnostics page shows, because Debug.WriteLine needs
-        /// a PC with a debugger and the run being diagnosed is on the phone.
-        /// </summary>
-        public static IList<string> HistoryLines()
-        {
-            lock (Gate)
-            {
-                return new List<string>(History);
-            }
-        }
-
         /// <summary>The whole history as one string, for a TextBlock.</summary>
         public static string HistoryText()
         {
@@ -94,12 +88,13 @@ namespace WhatsappApp.Services
         /// <summary>
         /// One control frame, in the order it was sent or received.
         ///
-        /// Why it does not go through Write: Write deduplicates, and a frame log
-        /// is read for its order and its repetition - the second `chats` request
-        /// is exactly what the second line has to show. The same cap holds, so a
-        /// burst cannot hide what came before it.
+        /// Why it does not go through Write: Write keeps only the first copy of a
+        /// line, and a frame log is read for its repetition - the second `chats`
+        /// request is a fact the log has to show. The repetition is counted on the
+        /// line instead of copied, so the buffer cannot fill with one frame and
+        /// hide the failures it exists to keep.
         /// </summary>
-        public static void Frame(string direction, string command, string detail)
+        public static void LogFrame(string direction, string command, string detail)
         {
             // A media transfer is one `media.chunk` per 700000 characters: the
             // same frame a hundred times, and nothing in it that the begin and
@@ -112,13 +107,51 @@ namespace WhatsappApp.Services
             {
                 line.Append("  ").Append(Clip(detail));
             }
+            string text = line.ToString();
 
             lock (Gate)
             {
-                if (History.Count >= HistoryLimit) History.RemoveAt(0);
-                History.Add(line.ToString());
+                int count;
+                if (FrameRepeats.TryGetValue(text, out count))
+                {
+                    count++;
+                    FrameRepeats[text] = count;
+
+                    // The line already in the buffer is rewritten in place, so
+                    // the count is visible and the buffer does not grow; if other
+                    // lines have since evicted it, it is added back once.
+                    string updated = text + " (x" + count + ")";
+                    int at = FindFrame(text);
+                    if (at >= 0) History[at] = updated;
+                    else AppendLine(updated);
+                }
+                else
+                {
+                    FrameRepeats[text] = 1;
+                    AppendLine(text);
+                }
             }
-            Debug.WriteLine("DIAG " + line);
+            Debug.WriteLine("DIAG " + text);
+        }
+
+        /// <summary>Where a frame line sits in the buffer, or -1 if it was evicted.</summary>
+        private static int FindFrame(string text)
+        {
+            for (int i = 0; i < History.Count; i++)
+            {
+                if (History[i] == text || History[i].StartsWith(text + " (x", StringComparison.Ordinal))
+                {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /// <summary>Adds a line, dropping the oldest if the buffer is full.</summary>
+        private static void AppendLine(string line)
+        {
+            if (History.Count >= HistoryLimit) History.RemoveAt(0);
+            History.Add(line);
         }
 
         /// <summary>
@@ -142,6 +175,7 @@ namespace WhatsappApp.Services
             {
                 History.Clear();
                 Seen.Clear();
+                FrameRepeats.Clear();
             }
         }
 
@@ -155,8 +189,7 @@ namespace WhatsappApp.Services
                 // The cap keeps the history the most recent lines: the buffer is
                 // what a report carries, and a run that fails every two seconds
                 // must not push everything else out of it.
-                if (History.Count >= HistoryLimit) History.RemoveAt(0);
-                History.Add(line);
+                AppendLine(line);
             }
             Debug.WriteLine("DIAG " + line);
         }
