@@ -76,9 +76,13 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 4. **Never create a `ResourceLoader` off the UI thread.** Strings arrive from the
    socket on a background thread; `Loc.Prewarm()` runs on the UI thread at
    startup and `Loc.Get` falls back to its literal instead of throwing.
-5. **Back navigation.** Do not subscribe to `HardwareButtons.BackPressed` to
-   reimplement Back; the system pops the frame back stack and exits at the root.
-   `SectionNav` trims the section page it leaves, so Back exits from any section.
+5. **Back navigation.** A Windows Phone 8.1 Runtime app is **not** given the
+   Back button: the platform leaves the app from the first page, unlike
+   Silverlight. `Services/BackNavigator.cs` subscribes
+   `HardwareButtons.BackPressed` once at startup, sets `Handled` and pops the
+   root `Frame` while it can; at a section root it leaves the event alone, so
+   the system suspends the app. `SectionNav` trims the section page it leaves,
+   so Back from any section root still exits.
 6. **The adapter is a separate, dependency-free Node.js program** (`package.json`
    has zero runtime dependencies). Its tests must keep passing.
 7. **One page per section.** A new screen means a new file under `Pages/`, not
@@ -678,7 +682,13 @@ the adapter:
   no `ItemsSource` in XAML either: a `{Binding}` there is resolved against
   `DataContext`, which on this page is a `Contact` and not a collection, so it
   fights the one writer and leaves the chat empty with a run of first chance
-  `SYSTEM.NI.DLL` exceptions and no `DIAG` line.
+  `SYSTEM.NI.DLL` exceptions and no `DIAG` line. The viewer is resolved only once
+  the list has a visual child (WP8.1 has no `FrameworkElement.IsLoaded`), because
+  the tree walk on the first frame after a navigation is the same
+  `E_UNEXPECTED`. And a picture opened full
+  screen is decoded at the size the page draws it, not at the viewer size
+  (`ChatPage.HeaderAvatar_Tapped` uses `Contact.AvatarDecodePixels`): the viewer
+  copy is held while the conversation behind it is still laying out.
 - **A pin, a silence and a deletion are this phone's, and the file that holds them
   is not the chat cache.** `ChatCache` is a photograph the server replaces row by
   row, so a decision kept there would be gone at the next `chats` reply and a chat
