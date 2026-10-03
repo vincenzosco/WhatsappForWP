@@ -25,7 +25,13 @@ server ([go-whatsapp-web-multidevice](https://github.com/vincenzosco/go-whatsapp
   with ordinary message frames marked `IsHistory`. The app inserts them in date order
   and keeps them out of the unread count and the toasts: they are not arriving now. A
   message whose media is not among the bytes the webhook delivered is sent as text -
-  `[Image]`, `[Video]`, ... - because an empty bubble is worse than a word.
+  `[Image]`, `[Video]`, ... - because an empty bubble is worse than a word. A voice
+  note is the exception: its word is `Audio`, unbracketed, because the adapter can
+  measure its length. GOWA sends no duration anywhere, so the chat-list preview
+  downloads the last message's bytes (the same `/message/:id/download` route the app
+  uses) and reads the length out of the container - Ogg/Opus, MP4/M4A, MP3 - with no
+  new dependency, then keeps it per message id. The row reads `Audio 0:10`; when the
+  bytes cannot be fetched it stays `Audio`.
 - Each conversation row carries how many messages it has not read
   (`UnreadCount`). That count is kept by the adapter, because GOWA's chat list has no such
   field and because a message that arrives while the phone is off reaches the adapter's

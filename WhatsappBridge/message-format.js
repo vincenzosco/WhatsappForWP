@@ -67,7 +67,9 @@ function displayNameForJid(jid) {
 const HISTORY_MEDIA_LABEL = {
   image: '[Image]',
   video: '[Video]',
-  audio: '[Audio]',
+  // An audio is the one media whose word is not bracketed: the chat-list row
+  // says the same word, with the length it measured (see chats.js).
+  audio: 'Audio',
   document: '[Document]',
   sticker: '[Sticker]'
 };
@@ -174,7 +176,7 @@ function mediaFromPayload(p) {
     // The word is always there: with the bytes or without, an empty bubble says
     // nothing, and an audio is not drawn.
     result.type = 2;
-    result.fallbackText = '[Audio]';
+    result.fallbackText = 'Audio';
     if (typeof p.audio === 'string') {
       result.path = p.audio; result.mimeType = 'audio/ogg'; result.fileName = 'audio.ogg';
     } else if (p.audio && typeof p.audio.path === 'string') {
