@@ -28,7 +28,7 @@ gradient ends on the same colour, so it blends into the first page.
 | `Identity / Version` | bump on every release (`1.0.1.0` → `1.0.2.0`) |
 | `Properties / DisplayName` | `WhatsApp` |
 | `m3:VisualElements / DisplayName` | `WhatsApp` |
-| `m3:VisualElements / BackgroundColor` | `#075E54` |
+| `m3:VisualElements / BackgroundColor` | `transparent` - e' cosi' che WP8.1 lascia vedere lo sfondo di Start dietro la tile |
 | `Resources` | `<Resource Language="x-generate"/>` - the languages come from `Strings\*\Resources.resw` |
 
 The manifest is intentionally **not** localized: the only translatable value is
