@@ -300,7 +300,7 @@ completa dei comandi e' in `WhatsappBridge/README.it.md`.
 
 Una lunghezza di frame non viene mai creduta sulla parola: l'app riempie per
 intero il prefisso di 4 byte (`InputStreamOptions.Partial` puo' spezzarlo) e
-rifiuta qualunque valore fuori da `1..8 MiB` (`MaxFrameLength`), e l'adapter
+rifiuta qualunque valore fuori da `1..8 MiB` (`FrameCodec.MaxFrameLength`), e l'adapter
 chiude il client che annuncia piu' di `MAX_FRAME_LENGTH` (gli stessi 8 MiB)
 invece di accumularlo.
 
@@ -313,9 +313,9 @@ quel campo come stringa e lo interpreta con tolleranza, quindi un timestamp che 
 leggere costa il timestamp, non il messaggio.
 
 Il byte order e' detto per esteso da entrambe le parti: l'adapter scrive la
-lunghezza con `writeUInt32LE` e l'app costruisce lettori e scrittori con
-`CreateFrameReader`/`CreateFrameWriter`, che impostano
-`ByteOrder = ByteOrder.LittleEndian`. Il valore predefinito di WinRT non e'
+lunghezza con `writeUInt32LE` e l'app costruisce lettori e scrittori con i
+`CreateFrameReader`/`CreateFrameWriter` di `WhatsappApp/Services/FrameCodec.cs`,
+che impostano `ByteOrder = ByteOrder.LittleEndian`. Il valore predefinito di WinRT non e'
 little-endian, e un lettore che non concorda non fallisce in modo evidente:
 legge una lunghezza invertita (`0x00000121` tornava come `0x21010000`, 553713664)
 e scarta un frame che era perfettamente valido. `tools/check-framing.js` fa
