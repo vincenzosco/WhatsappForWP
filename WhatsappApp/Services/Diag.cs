@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Text;
 
 namespace WhatsappApp.Services
 {
@@ -28,6 +29,15 @@ namespace WhatsappApp.Services
         private static readonly List<string> Seen = new List<string>();
         private static readonly object Gate = new object();
 
+        /// <summary>
+        /// How many lines the history keeps. A phone run has no debugger: this
+        /// list is the only copy of what the app did, so it holds the most recent
+        /// lines - and the last line before a crash survives.
+        /// </summary>
+        private const int HistoryLimit = 200;
+
+        private static readonly List<string> History = new List<string>();
+
         /// <summary>To call inside a catch, for a failure we carry on from.</summary>
         public static void Failed(string where, Exception ex)
         {
@@ -53,12 +63,56 @@ namespace WhatsappApp.Services
             return ex.GetType().Name + " 0x" + ex.HResult.ToString("X8") + " " + (ex.Message ?? "");
         }
 
+        /// <summary>
+        /// The lines written so far, oldest first. A copy: the caller may keep it.
+        /// This is what the diagnostics page shows, because Debug.WriteLine needs
+        /// a PC with a debugger and the run being diagnosed is on the phone.
+        /// </summary>
+        public static IList<string> HistoryLines()
+        {
+            lock (Gate)
+            {
+                return new List<string>(History);
+            }
+        }
+
+        /// <summary>The whole history as one string, for a TextBlock.</summary>
+        public static string HistoryText()
+        {
+            lock (Gate)
+            {
+                var text = new StringBuilder();
+                for (int i = 0; i < History.Count; i++)
+                {
+                    text.Append(History[i]);
+                    text.Append('\n');
+                }
+                return text.ToString();
+            }
+        }
+
+        /// <summary>Forgets everything written so far: the screen has a Clear.</summary>
+        public static void Clear()
+        {
+            lock (Gate)
+            {
+                History.Clear();
+                Seen.Clear();
+            }
+        }
+
         private static void Write(string line)
         {
             lock (Gate)
             {
                 if (Seen.Contains(line)) return;
                 Seen.Add(line);
+
+                // The cap keeps the history the most recent lines: the buffer is
+                // what a report carries, and a run that fails every two seconds
+                // must not push everything else out of it.
+                if (History.Count >= HistoryLimit) History.RemoveAt(0);
+                History.Add(line);
             }
             Debug.WriteLine("DIAG " + line);
         }

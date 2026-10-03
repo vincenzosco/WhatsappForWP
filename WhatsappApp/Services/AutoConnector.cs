@@ -47,6 +47,12 @@ namespace WhatsappApp.Services
             _running = true;
             try
             {
+                // Which address is about to be dialled, written down before the
+                // attempt: an empty list with a healthy adapter is nearly always
+                // the address, and nothing else in the app says which one it was.
+                Diag.Ok("connecting: public=" + SettingsService.UsePublicServer
+                    + " saved=" + SettingsService.ServerAddress + ":" + SettingsService.ServerPort);
+
                 // The public service: the address is read from a file, not typed,
                 // because the tunnel that exposes it changes port. Network
                 // discovery has nothing to find here.
