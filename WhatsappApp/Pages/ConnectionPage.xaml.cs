@@ -671,7 +671,7 @@ namespace WhatsappApp.Pages
 
         private void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
         {
-            Frame.Navigate(typeof(DiagnosticsPage));
+            DiagnosticsPage.Open(Frame);
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)

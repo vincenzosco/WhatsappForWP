@@ -424,7 +424,7 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void DiagnosticsButton_Click(object sender, RoutedEventArgs e)
         {
-            Frame.Navigate(typeof(DiagnosticsPage));
+            DiagnosticsPage.Open(Frame);
         }
 
         private void ChatListView_SelectionChanged(object sender, SelectionChangedEventArgs e)
