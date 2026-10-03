@@ -327,7 +327,10 @@ namespace WhatsappApp.Services
             _isServerMode = false;
             _serverAddress = address;
             _serverPort = port;
-            _myUserId = Guid.NewGuid().ToString("N").Substring(0, 8);
+            // Stable for the life of the install, not per connection: the server
+            // derives this device's token from it, so a fresh id every time was a
+            // new user of the same phone every time, with a new token each.
+            _myUserId = SettingsService.DeviceId;
             _myUsername = username;
 
             // Objects of the attempt, not of the service: until it is published, this
