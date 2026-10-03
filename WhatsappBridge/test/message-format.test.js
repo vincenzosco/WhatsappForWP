@@ -97,7 +97,7 @@ test('mapWebhookMessage ignora status broadcast', () => {
 test('un audio scaricato resta una parola', () => {
   const f = mapWebhookMessage({ id: 'A1', chat_id: 'a@s.whatsapp.net', audio: 'statics/media/a.ogg' });
   assert.strictEqual(f.mediaType, 'audio');
-  assert.strictEqual(f.text, '[Audio]');
+  assert.strictEqual(f.text, 'Audio');
 });
 
 test('un documento scaricato mostra il suo nome', () => {
@@ -219,7 +219,7 @@ test('mapHistoryMessage names the media it cannot download', () => {
   // parola, perche' un fumetto vuoto sarebbe peggio.
   assert.strictEqual(mapHistoryMessage({ id: 'A3', media_type: 'image' }).text, '[Image]');
   assert.strictEqual(mapHistoryMessage({ id: 'A4', media_type: 'video' }).text, '[Video]');
-  assert.strictEqual(mapHistoryMessage({ id: 'A5', media_type: 'audio' }).text, '[Audio]');
+  assert.strictEqual(mapHistoryMessage({ id: 'A5', media_type: 'audio' }).text, 'Audio');
   assert.strictEqual(mapHistoryMessage({ id: 'A6', media_type: 'document' }).text, '[Document]');
   assert.strictEqual(mapHistoryMessage({ id: 'A7', media_type: 'sticker' }).text, '[Sticker]');
 
