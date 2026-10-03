@@ -1227,7 +1227,7 @@ test('un handshake senza token viene rifiutato se il servizio non registra', asy
     scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
     randomBytes: crypto.randomBytes
   });
-  const { token } = users.register('vincenzo');
+  const { token } = users.register('client-vincenzo', 'vincenzo');
 
   // Registration off: this is the closed service, where the tokens are handed
   // out by hand and a phone without one has nothing to do here.
@@ -1285,8 +1285,8 @@ function sharedBridge() {
     scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
     randomBytes: crypto.randomBytes
   });
-  const a = users.register('anna');
-  const b = users.register('bruno');
+  const a = users.register('client-anna', 'anna');
+  const b = users.register('client-bruno', 'bruno');
 
   const created = [];
   // What GOWA answers about the login. It is a variable because the tests that
@@ -1340,6 +1340,33 @@ function collectingSocket() {
     destroy: () => {}
   };
 }
+
+test('un dispositivo che si riconnette non crea un secondo utente', async () => {
+  const { bridge, users } = sharedBridge();
+  const first = collectingSocket();
+  bridge.addClientForTest(first);
+
+  // Un telefono nuovo: nessun token, e il suo id di dispositivo.
+  await bridge.handleControl(
+    { Type: 3, Command: 'hello', SenderId: 'phone-1', SenderName: 'vincenzo' }, first);
+  const created = first.frames.filter((f) => f.Command === 'registered');
+  assert.strictEqual(created.length, 1, 'il primo collegamento deve dire il token');
+  const token = created[0].Token;
+  assert.strictEqual(users.count(), 3, 'anna, bruno e il telefono');
+
+  // Lo stesso telefono si riconnette, senza token (e' il caso che creava un
+  // utente nuovo a ogni collegamento).
+  const again = collectingSocket();
+  bridge.addClientForTest(again);
+  await bridge.handleControl(
+    { Type: 3, Command: 'hello', SenderId: 'phone-1', SenderName: 'vincenzo' }, again);
+
+  assert.strictEqual(users.count(), 3, 'un dispositivo conosciuto non e un utente nuovo');
+  assert.strictEqual(again.frames.filter((f) => f.Command === 'registered').length, 0,
+    'a un dispositivo che ha gia il token non lo si rimanda');
+  // E il token che aveva continua a valere.
+  assert.ok(users.verify(token));
+});
 
 test('ogni utente ha un device GOWA suo, creato al primo handshake', async () => {
   const { bridge, a, b, created } = sharedBridge();
@@ -1500,6 +1527,50 @@ test('un webhook arriva al suo utente anche senza nessun telefono collegato', as
     'nessun webhook deve finire fra i device sconosciuti');
 });
 
+test('non manda la presence se l account non e collegato', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  const anna = users.register('client-anna', 'anna');
+
+  // GOWA non e collegato: nessun PushName, e una presence chiesta lo stesso lo
+  // fa andare in panico nel middleware a ogni giro di polling. Il telefono e
+  // collegato e guarda, quindi la presence sarebbe partita.
+  const sent = [];
+  const status = async () => ({ isConnected: true, isLoggedIn: false, jid: '' });
+  const gowa = {
+    status: status,
+    createDevice: async () => 'dev-presence',
+    sendPresence: async (type) => { sent.push(type); return true; },
+    withDevice: () => ({
+      deviceId: 'dev-presence',
+      status: status,
+      setDeviceWebhook: async () => true,
+      sendPresence: async (type) => { sent.push(type); return true; }
+    })
+  };
+
+  const bridge = createBridge({
+    config: { auth: { required: true } },
+    gowa,
+    users,
+    log: noop,
+    debug: noop
+  });
+  const socket = collectingSocket();
+  bridge.addClientForTest(socket);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: anna.token, SenderName: 'anna' }, socket);
+
+  assert.ok(socket.frames.some((f) => f.Command === 'state'), 'la sessione parte subito');
+  await bridge.refreshStatus();
+
+  assert.deepStrictEqual(sent, [], 'senza login non si parla di presence');
+});
+
 test('un comando prima del token viene rifiutato sul servizio condiviso', async () => {
   const { bridge } = sharedBridge();
   const socket = collectingSocket();
@@ -1571,7 +1642,7 @@ test('i frame di un socket vengono gestiti nell ordine in cui arrivano', async (
     scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
     randomBytes: crypto.randomBytes
   });
-  const anna = users.register('anna');
+  const anna = users.register('client-anna', 'anna');
 
   const created = [];
   const gowa = {
