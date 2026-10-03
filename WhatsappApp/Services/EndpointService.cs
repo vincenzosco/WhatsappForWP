@@ -98,7 +98,13 @@ namespace WhatsappApp.Services
                 }
             }
 
-            if (fetched != null) return fetched;
+            if (fetched != null)
+            {
+                // What the endpoint file answered. Diag dedupes, so a retry loop
+                // adds one line, not one per attempt.
+                Diag.Ok("endpoint " + fetched.Address + ":" + fetched.Port);
+                return fetched;
+            }
 
             DiscoveredServer cached = Cached();
             if (cached != null)
