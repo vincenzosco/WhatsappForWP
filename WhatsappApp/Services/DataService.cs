@@ -287,8 +287,13 @@ namespace WhatsappApp.Services
                     ApplyChat(message);
                     break;
                 case "chats.done":
+                    // The count before the batch is consumed: RememberChatList
+                    // clears it, and the number of rows the server answered is
+                    // what tells an empty list from a refused one.
+                    int chatRows = _freshChatRows.Count;
                     RememberChatList();
-                    RaiseChatListCompleted();
+                    Diag.Ok("chats.done: " + chatRows + " row(s)");
+                    RaiseChatListCompleted(chatRows);
                     break;
                 case "media":
                     ApplyMediaFrame(message);
@@ -637,13 +642,18 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>The conversation list has finished arriving.</summary>
-        public event EventHandler ChatListCompleted;
+        /// <summary>
+        /// The conversation list has finished arriving, with how many rows it
+        /// carried. The adapter sends `chats.done` after the last `chat` frame,
+        /// so this is the only place that can say the list was answered and was
+        /// empty - which is what tells an empty list from an unreachable server.
+        /// </summary>
+        public event EventHandler<int> ChatListCompleted;
 
-        private void RaiseChatListCompleted()
+        private void RaiseChatListCompleted(int rows)
         {
             var handler = ChatListCompleted;
-            if (handler != null) handler(this, EventArgs.Empty);
+            if (handler != null) handler(this, rows);
         }
 
         /// <summary>A call-log entry.</summary>

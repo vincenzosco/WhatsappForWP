@@ -523,4 +523,16 @@
   <data name="TileUnreadMany" xml:space="preserve">
     <value>{0} messaggi non letti</value>
   </data>
+  <data name="ConnectionPage_Diagnostics.Content" xml:space="preserve">
+    <value>Mostra diagnostica</value>
+  </data>
+  <data name="DiagnosticsPage_Title.Text" xml:space="preserve">
+    <value>Diagnostica</value>
+  </data>
+  <data name="DiagnosticsPage_Clear.Content" xml:space="preserve">
+    <value>Pulisci</value>
+  </data>
+  <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
+    <value>Cosa ha fatto l app, e dove ha provato a collegarsi. Tieni premuto sul testo per selezionarlo e copiarlo.</value>
+  </data>
 </root>

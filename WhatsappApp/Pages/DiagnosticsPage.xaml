@@ -1,0 +1,86 @@
+<Page
+    x:Class="WhatsappApp.Pages.DiagnosticsPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="#FFECE5DD">
+
+    <Page.Resources>
+        <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
+        <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF128C7E"/>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Header -->
+        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="BackButton" Grid.Column="0"
+                    Background="Transparent"
+                    MinWidth="0" MinHeight="0"
+                    Width="48" Height="48" Margin="0,4,0,0" Padding="0"
+                    Click="BackButton_Click"
+                    BorderThickness="0">
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24">
+                    <!-- IconBack -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="15.5,4">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="7.5,12 15.5,20"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
+
+            <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="Diagnostics"
+                       x:Uid="DiagnosticsPage_Title"
+                       Foreground="White" FontSize="20" FontWeight="SemiBold"
+                       VerticalAlignment="Center" Margin="8,0,0,4"/>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <TextBlock x:Uid="DiagnosticsPage_Hint" Grid.Row="0"
+                       Text="What the app did, and where it tried to connect. Long press the text to select and copy it."
+                       Foreground="#FF808080" FontSize="12" TextWrapping="Wrap"
+                       Margin="0,0,0,8"/>
+
+            <!-- A read-only TextBox, not a TextBlock: the WinRT Clipboard API is
+                 not part of the Windows Phone 8.1 surface, so the built-in
+                 select-and-copy menu of the text box is the only way to get the
+                 text off the phone. -->
+            <TextBox x:Name="DiagnosticsText" Grid.Row="1"
+                     IsReadOnly="True" AcceptsReturn="True"
+                     TextWrapping="Wrap" FontFamily="Consolas" FontSize="12"
+                     Foreground="#FF202020" Background="White" BorderThickness="0"
+                     Padding="12"/>
+
+            <Button x:Name="ClearButton" x:Uid="DiagnosticsPage_Clear"
+                    Grid.Row="2"
+                    Content="Clear"
+                    HorizontalAlignment="Left"
+                    Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
+                    Height="44" MinWidth="120" BorderThickness="0" Margin="0,8,0,0"
+                    Click="ClearButton_Click"/>
+        </Grid>
+    </Grid>
+</Page>
