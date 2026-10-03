@@ -101,6 +101,7 @@
     <Compile Include="Models\DiscoveredServer.cs" />
     <Compile Include="Converters\Converters.cs" />
     <Compile Include="Services\AutoConnector.cs" />
+    <Compile Include="Services\BackNavigator.cs" />
     <Compile Include="Services\CommunicationService.cs" />
     <Compile Include="Services\CryptoHelper.cs" />
     <Compile Include="Services\DiscoveryService.cs" />
