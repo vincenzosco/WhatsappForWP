@@ -247,3 +247,25 @@ Expected: all green.
 git push origin master
 cd /tmp/docker-whatsappforwp && git push origin main
 ```
+
+## What execution changed about this plan
+
+- **Task 1 and Task 2 landed**, the second inside the token plan's Task 2 commit
+  (same file, already staged). The adapter now logs
+  `GOWA device ready: 4b26ef82-abbc-40ea-930e-882224b17ddb` - the device that is
+  `logged_in` - and reports `WhatsApp connected as 393892672185@s.whatsapp.net`.
+- **Task 3 was performed over SSH** with `plink`/`pscp` rather than an
+  interactive session, and `docker` needed `sudo` on the NAS (the login user is
+  not in the `docker` group). The image was pulled and the stack recreated;
+  both `whatsapp-for-wp8` (healthy) and `whatsapp-bore` came back up.
+- **The tunnel kept its port**: `bore.pub:41417`, already published, so the
+  endpoint the app reads is unchanged.
+- **The session was not lost**, so the re-link step (Task 3, Step 5) was not
+  needed: `/data/storages` still held the linked account.
+- **The presence panics are gone**: `can't send presence without PushName set`
+  went from one every five seconds to zero in the three minutes after the
+  restart.
+- **`/data/users.json` was left alone on purpose.** It still holds the 12
+  accumulated users, including the junk `device`/`probe` rows from the bug. The
+  derived-token change stops it growing; removing the old rows is a separate
+  decision, because the app may still be holding one of their tokens.
