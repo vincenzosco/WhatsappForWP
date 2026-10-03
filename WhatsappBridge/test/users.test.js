@@ -161,6 +161,20 @@ test('findByClientId trova il dispositivo, e non un altro', () => {
   assert.strictEqual(users.findByClientId(''), null);
 });
 
+test('un utente senza client id ne riceve uno al primo token valido', () => {
+  // E' il record scritto prima che il token fosse derivato: il telefono si
+  // autentica con il token che ha, e da quel momento la derivazione sa a chi
+  // appartiene quel dispositivo.
+  const users = store(tempFile());
+  const { user } = users.register('', 'vincenzo');
+  assert.strictEqual(user.clientId, '');
+
+  users.bindClientId(user, 'phone-1');
+
+  assert.strictEqual(users.findByClientId('phone-1').id, user.id);
+  assert.strictEqual(users.count(), 1, 'non deve nascere un secondo utente');
+});
+
 test('senza un device id il token resta casuale, come prima', () => {
   const users = createUserStore({
     file: tempFile(),

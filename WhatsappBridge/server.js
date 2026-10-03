@@ -1177,6 +1177,15 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
           break;
         }
         if (socket) socket.user = verdict.user || null;
+        // A device that authenticated with its token is remembered as the
+        // client of this user, so the derivation has something to key on if the
+        // phone ever comes back without a token. Records written before the
+        // token was derived have no client id, and this is what gives them one
+        // on the next connect instead of letting that phone become a new user.
+        if (verdict.user && clientId && users && typeof users.bindClientId === 'function'
+            && !verdict.user.clientId) {
+          users.bindClientId(verdict.user, clientId);
+        }
         // The handshake is what turns a connection into a phone watching this
         // account: it is the only thing presence and the unread counter are
         // allowed to be based on.
