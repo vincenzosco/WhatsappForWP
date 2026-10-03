@@ -296,4 +296,15 @@ git commit -m "feat: let the Start background show through the tile"
 
 ## What execution changed about this plan
 
-(Filled in while executing; the tasks above are not rewritten.)
+- **Task 1** also guards `ApplyChat`: a server row that still counts the open
+  chat now writes `0` for it. Without this, the adapter's reply (which is sent
+  before it processes the `read` frame) put the number back on the row the
+  reader was looking at.
+- **Task 2** was executed without ImageMagick, which is not installed on this
+  machine: the two PNGs were regenerated with a one-off Node resample of the
+  committed asset (`/tmp/inset-tile.js`), and `make-brand-assets.js` was changed
+  to the same `0.82` factor so a later `magick` run reproduces them byte for
+  byte in spirit. The generator change is therefore unverified by an actual
+  `magick` run.
+- **Task 3** also updated `.agents/skills/release-the-app/SKILL.md`, whose
+  manifest table still said `#075E54`.
