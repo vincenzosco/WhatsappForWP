@@ -284,6 +284,11 @@ namespace WhatsappApp
             // it is created here, once, on the UI thread.
             Loc.Prewarm();
 
+            // The hardware Back button is not wired to the frame by the platform
+            // on a Runtime app: without this the press leaves the app from the
+            // first page (see BackNavigator).
+            BackNavigator.Start();
+
             // Same reason as the loader: the dispatcher is reliably available
             // only here, on the UI thread. Resolving it later, from a network
             // thread, left the service without a dispatcher for the whole session.
