@@ -7,7 +7,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const { createUserStore, hashToken, newToken } = require('../users');
+const { createUserStore, hashToken, newToken, deviceToken } = require('../users');
 const { parseToken, authenticate } = require('../auth');
 
 // scrypt e' lento di proposito, e in un test questo si paga a ogni token. Si
@@ -119,6 +119,68 @@ test('authenticate rifiuta un token assente o sbagliato', () => {
   const good = authenticate({ frame: { Token: token }, users, authRequired: true });
   assert.strictEqual(good.ok, true);
   assert.strictEqual(good.user.id, users.verify(token).id);
+});
+
+test('lo stesso dispositivo ottiene sempre lo stesso token', () => {
+  const users = store(tempFile());
+  const first = users.register('dev-1', 'vincenzo');
+  const again = users.register('dev-1', 'vincenzo');
+
+  assert.strictEqual(again.token, first.token, 'il token deve restare lo stesso');
+  assert.strictEqual(users.count(), 1, 'un dispositivo non deve creare due utenti');
+  assert.strictEqual(again.existing, true, 'il secondo giro deve dire che il dispositivo c era gia');
+});
+
+test('due dispositivi diversi non condividono il token', () => {
+  const users = store(tempFile());
+  const a = users.register('dev-1', 'a');
+  const b = users.register('dev-2', 'b');
+
+  assert.notStrictEqual(a.token, b.token);
+  assert.strictEqual(users.count(), 2);
+  assert.strictEqual(users.verify(a.token).id, a.user.id);
+  assert.strictEqual(users.verify(b.token).id, b.user.id);
+});
+
+test('il token derivato sopravvive a un riavvio del processo', () => {
+  const file = tempFile();
+  const first = store(file);
+  const { token } = first.register('dev-1', 'vincenzo');
+
+  const second = store(file);
+  assert.strictEqual(second.register('dev-1', 'vincenzo').token, token);
+  assert.ok(second.verify(token), 'il token derivato deve verificare');
+});
+
+test('findByClientId trova il dispositivo, e non un altro', () => {
+  const users = store(tempFile());
+  users.register('dev-1', 'vincenzo');
+
+  assert.strictEqual(users.findByClientId('dev-1').name, 'vincenzo');
+  assert.strictEqual(users.findByClientId('dev-2'), null);
+  assert.strictEqual(users.findByClientId(''), null);
+});
+
+test('senza un device id il token resta casuale, come prima', () => {
+  const users = createUserStore({
+    file: tempFile(),
+    scryptSync: fastHash(),
+    randomBytes: crypto.randomBytes
+  });
+  const a = users.register('', 'device');
+  const b = users.register('', 'device');
+
+  assert.notStrictEqual(a.token, b.token);
+  assert.strictEqual(users.count(), 2);
+});
+
+test('il segreto non finisce nel token, ma il token dipende da lui', () => {
+  const one = deviceToken('secret-1', 'dev-1', crypto.createHmac);
+  const two = deviceToken('secret-2', 'dev-1', crypto.createHmac);
+
+  assert.notStrictEqual(one, two);
+  assert.strictEqual(one, deviceToken('secret-1', 'dev-1', crypto.createHmac));
+  assert.match(one, /^[A-Za-z0-9_-]{40,}$/);
 });
 
 test('parseToken legge solo una stringa, e la ripulisce', () => {
