@@ -148,6 +148,14 @@
                     </StackPanel>
                 </Border>
 
+                <!-- Diagnostics: the one screen a stuck user can always reach.
+                     It stays visible even when the status panel is hidden. -->
+                <Button x:Name="DiagnosticsButton" x:Uid="ConnectionPage_Diagnostics"
+                        Content="Show diagnostics"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="14"
+                        Height="40" BorderThickness="0" Margin="0,8,0,0"
+                        Click="DiagnosticsButton_Click"/>
+
                 <!-- WhatsApp login -->
                 <StackPanel x:Name="WhatsAppPanel" Visibility="Collapsed" Margin="0,16,0,0">
                     <TextBlock x:Uid="ConnectionPage_WhatsAppTitle" Text="WhatsApp connection"
