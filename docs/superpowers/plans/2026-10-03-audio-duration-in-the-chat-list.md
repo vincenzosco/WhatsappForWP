@@ -306,8 +306,39 @@ Then the mirror from Global Constraints: clone `vincenzosco/docker-whatsappforwp
 
 **5. Proportion.** The plan is shorter than the code it changes; the only body it fixes is the shape of the cache and the labels.
 
+## What execution changed about this plan
+
+- **Tasks 2 and 3 were written in one pass.** The label change and the measurement
+  live in the same file and the same test, so they were committed as two commits
+  (`chats.js`/`chats.test.js` once, then the bubble and the READMEs) rather than
+  the four the plan describes. Nothing about the interface changed.
+- **The MPEG version field was mapped backwards.** The first implementation read
+  `1` as MPEG1, but the field is `3` = MPEG1, `2` = MPEG2, `0` = MPEG2.5, `1` =
+  reserved. The failing test caught it before the commit.
+- **The test helper writes the "no granule" page as all bits set.** `-1` is the
+  granule of a page no packet ends on, and it is not a valid signed value:
+  `BigInt(-1)` raised `ERR_OUT_OF_RANGE`, so the helper writes
+  `0xffffffffffffffffn` instead.
+- **The cache keeps a failure for two minutes, not thirty.** A download that did
+  not work is worth retrying on the next list; a measured duration is not worth
+  measuring again. `createDurationCache` has the two TTLs for that reason, and it
+  is exported so the test can reuse one cache across two `collectChats` calls.
+- **The mirror took 30 files**, one more than the 29 the previous sync recorded:
+  `audio-duration.js` entered the list on its own, because `tools/sync.js` reads
+  the adapter's `.js` files from the source instead of keeping a hand-written one.
+
 ## What the phone run should now show
 
 1. A conversation whose last message is a voice note reads `Audio 0:10` in the list, and the number is the real length of the note.
 2. A conversation whose last message is text, an image or a document is unchanged.
 3. When the bytes cannot be fetched, the row reads `Audio` - never empty, and the list still arrives.
+
+## What this needs to be seen
+
+The change is on the wire and not in the app: the row already shows the `Text` of
+its `chat` frame. Two things must be true before the phone shows it:
+
+1. The NAS must run the new adapter - the Docker image rebuilt from
+   `vincenzosco/docker-whatsappforwp` (`d6e31e7`) - or the row keeps `[Audio]`.
+2. The bytes of the last voice note must still be under GOWA's `statics`. A note
+   whose file is gone reads `Audio`, which is the designed answer.
