@@ -182,11 +182,17 @@ deve restare chiuso, con `AUTH_REGISTER=off`:
 
 Il token e' **derivato dal dispositivo**, non estratto a caso: e'
 `HMAC-SHA256(segreto, deviceId)` con un segreto che il deposito genera una volta e
-conserva in `USERS_FILE`. L'app presenta un solo id di dispositivo per tutta la
-vita dell'installazione (`SenderId` in `hello`), quindi un telefono che si
-ricollega - o che reinstalla l'app e ridigita il suo token - e' lo stesso utente
-con lo stesso token, e il file degli utenti non cresce piu' di una riga per
-collegamento. Un dispositivo mai visto ne riceve uno nuovo; a uno che il servizio
+conserva in `USERS_FILE`. L'app presenta un solo id di dispositivo (`SenderId` in
+`hello`) e questo sopravvive all'installazione: e' il token hardware specifico del
+pacchetto (`HardwareIdentification.GetPackageSpecificToken`), lo stesso sullo
+stesso telefono per lo stesso pacchetto, con il valore salvato come cache e un id
+casuale solo come ripiego di un telefono che non risponde. Un telefono che si
+ricollega - o che reinstalla l'app - e' quindi lo stesso utente con lo stesso
+token, e il file degli utenti non cresce piu' di una riga per collegamento ne' per
+reinstallazione. (Una versione precedente usava un id casuale tenuto in
+`LocalSettings`, che WP8.1 cancella alla disinstallazione: una reinstallazione
+diventava un dispositivo nuovo, ed e' per questo che l'accesso a WhatsApp andava
+rifatto.) Un dispositivo mai visto ne riceve uno nuovo; a uno che il servizio
 conosce si restituisce il suo token, senza dirgli niente, perche' ce l'ha gia'.
 `AUTH_MAX_USERS` conta i dispositivi, e riregistrare un dispositivo noto non
 consuma un posto. Il segreto e' una credenziale: una copia del file puo' derivare

@@ -561,7 +561,11 @@ A phone that arrives without a token is given one on its first connection
 (`AUTH_REGISTER=on`, the default): the adapter creates the device, answers with a
 `registered` frame and the app keeps the token, so the shared service asks for
 nothing but the switch. The token identifies the device, it is not a password to
-be typed; `AUTH_REGISTER=off` goes back to handing the tokens out by hand.
+be typed; `AUTH_REGISTER=off` goes back to handing the tokens out by hand. The
+token is derived from the device id the app presents, and that id is the
+package-specific hardware token, so reinstalling the app does not make a new
+device: the same phone keeps the same account, and the WhatsApp login is not
+asked for again.
 
 The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from
