@@ -114,6 +114,7 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.get` | `Text` = chat JID, `RelatedMessageId` = message id (downloads that message media and answers with one `media` frame per piece) |
 | app -> adapter | `contact.info` | `Text` = chat JID (the adapter composes name, about, picture, business profile and, for a group, the description and the members into one JSON `Text`) |
 | app -> adapter | `typing` | `Text` = chat JID, `State` = `composing` or `paused` (what the contact sees while you write) |
+| app -> adapter | `diag` | `Text` = the phone's own report, one line per newline (the adapter writes every line to its log as `[DIAG] ...`, so the app's side of a run is readable from the container) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |

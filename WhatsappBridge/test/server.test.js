@@ -1685,3 +1685,23 @@ test('i frame di un socket vengono gestiti nell ordine in cui arrivano', async (
     bridge.stop();
   }
 });
+
+test('the diag command writes every line of the phone report to the log', async () => {
+  const lines = [];
+  const bridge = createBridge({
+    config: { bridge: { port: 8585 }, chats: {}, calls: {}, messages: {} },
+    gowa: fakeGowa(),
+    log: (level, message) => lines.push(level + ' ' + message),
+    debug: () => {}
+  });
+
+  await bridge.handleControl({
+    Type: 3,
+    Command: 'diag',
+    Text: 'connected: true\nok: opened chat a@s.whatsapp.net\nok: history arrived for a@s.whatsapp.net'
+  });
+
+  assert.ok(lines.some((line) => line.includes('[DIAG] connected: true')), 'the header line');
+  assert.ok(lines.some((line) => line.includes('[DIAG] ok: opened chat a@s.whatsapp.net')), 'a middle line');
+  assert.ok(lines.some((line) => line.includes('[DIAG] ok: history arrived for a@s.whatsapp.net')), 'the last line');
+});

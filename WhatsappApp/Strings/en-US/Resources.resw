@@ -535,7 +535,16 @@
   <data name="DiagnosticsPage_Clear.Content" xml:space="preserve">
     <value>Clear</value>
   </data>
+  <data name="DiagnosticsPage_Send.Content" xml:space="preserve">
+    <value>Send to server</value>
+  </data>
+  <data name="DiagnosticsPage_Sent" xml:space="preserve">
+    <value>Report sent to the server.</value>
+  </data>
+  <data name="DiagnosticsPage_SendOffline" xml:space="preserve">
+    <value>Not connected: the report could not be sent.</value>
+  </data>
   <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
-    <value>What the app did, and where it tried to connect. Long press the text to select and copy it.</value>
+    <value>What the app did, and where it tried to connect. Long press the text to select and copy it, or send the report to the server to read it in the container log.</value>
   </data>
 </root>
