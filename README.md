@@ -386,10 +386,12 @@ npm start
 
 ### Icons, tiles and splash screen
 
-The WhatsApp logo (a white bubble with the handset cut out) is drawn as vector
-geometry by `tools/make-brand-assets.js`, which needs ImageMagick 7 (`magick`) and
-rewrites the PNGs in `WhatsappApp/Assets/` — already committed, so the script is
-only needed when the artwork changes:
+The WhatsApp logo (a green bubble with the handset cut out) comes from the raster
+reference `tools/brand/logo-source.png` (the mark on a white background).
+`tools/make-brand-assets.js` keys that white background out and rewrites the PNGs
+in `WhatsappApp/Assets/` — already committed, so the script is only needed when
+the artwork changes. It is plain Node (no ImageMagick): the PNG is decoded and
+encoded with `zlib`.
 
 ```bash
 node tools/make-brand-assets.js            # rewrites the PNGs

@@ -7,17 +7,20 @@ description: How to produce the icons, tiles and splash screen, check the packag
 
 ## Brand assets
 
-The logo (white bubble with the handset cut out) is generated vectorially, so it
-stays sharp at every size:
+The logo (green bubble with the handset cut out) comes from the raster reference
+`tools/brand/logo-source.png` (the green WhatsApp mark on a white background):
 
 ```bash
 node tools/make-brand-assets.js             # rewrites the PNGs in WhatsappApp/Assets
 node tools/make-brand-assets.js --preview   # + ASCII preview, check before committing
 ```
 
-Requires ImageMagick 7 (`magick`). Sizes and colours are constants at the top of
-that script; the tile background is the WhatsApp teal `#075E54` and the splash
-gradient ends on the same colour, so it blends into the first page.
+The script keys the white background out of that image and needs no external
+tool: the PNG is decoded and encoded with Node's `zlib`. Sizes and colours are
+constants at the top of the script; the tile background is the WhatsApp teal
+`#075E54` and the splash gradient ends on the same colour, so it blends into the
+first page. To change the mark, replace `tools/brand/logo-source.png` with the
+new artwork on a white background and rerun the script.
 
 ## Manifest
 
