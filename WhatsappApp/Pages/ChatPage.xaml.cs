@@ -462,19 +462,17 @@ namespace WhatsappApp.Pages
 
             if (historyRequested) await WaitForHistoryAsync(chatId);
 
-            // The reader may have left while the burst was coming: binding a list
-            // whose page is gone is the crash this wait could otherwise cause, but
-            // leaving it unbound is an empty conversation the next time this
-            // instance is shown - the list is this page's, so it is bound anyway.
-            if (DataService.Instance.ActiveChatId != chatId)
-            {
-                Diag.Ok("conversation bind skipped for " + chatId);
-                _view.Bind(_messages);
-                return;
-            }
+            // The reader may have left while the burst was coming, and the list
+            // must be bound even then: leaving it unbound is an empty conversation
+            // the next time this instance is shown. Only the scroll is skipped when
+            // the page is no longer the one in front, because a list that is not in
+            // the tree has no position to move to.
+            bool isActiveChat = DataService.Instance.ActiveChatId == chatId;
+            if (!isActiveChat) Diag.Ok("conversation bind skipped for " + chatId);
 
             _view.Bind(_messages);
-            if (_messages.Count > 0) _view.ScrollTo(_messages[_messages.Count - 1]);
+            if (isActiveChat && _messages.Count > 0)
+                _view.ScrollTo(_messages[_messages.Count - 1]);
 
             // The burst closed and the conversation is still empty: the request
             // went out and the adapter answered, so it was the wrong moment - the
