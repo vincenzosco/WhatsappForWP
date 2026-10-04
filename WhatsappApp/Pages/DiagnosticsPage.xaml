@@ -58,10 +58,11 @@
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <TextBlock x:Uid="DiagnosticsPage_Hint" Grid.Row="0"
-                       Text="What the app did, and where it tried to connect. Long press the text to select and copy it, or send the report to the server to read it in the container log."
+                       Text="What the app did, and where it tried to connect. Long press the text to select and copy it, select it all, share it with another app, or send it to the server to read it in the container log."
                        Foreground="#FF808080" FontSize="12" TextWrapping="Wrap"
                        Margin="0,0,0,8"/>
 
@@ -88,7 +89,20 @@
                         Click="SendButton_Click"/>
             </StackPanel>
 
-            <TextBlock x:Name="SendStatusText" Grid.Row="3"
+            <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button x:Name="SelectAllButton" x:Uid="DiagnosticsPage_SelectAll"
+                        Content="Select all"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
+                        Height="44" MinWidth="120" BorderThickness="0"
+                        Click="SelectAllButton_Click"/>
+                <Button x:Name="ShareButton" x:Uid="DiagnosticsPage_Share"
+                        Content="Share"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
+                        Height="44" MinWidth="120" BorderThickness="0" Margin="8,0,0,0"
+                        Click="ShareButton_Click"/>
+            </StackPanel>
+
+            <TextBlock x:Name="ActionStatusText" Grid.Row="4"
                        Foreground="#FF808080" FontSize="12" TextWrapping="Wrap"
                        Margin="0,8,0,0"/>
         </Grid>
