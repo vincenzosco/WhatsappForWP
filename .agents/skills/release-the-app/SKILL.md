@@ -17,8 +17,9 @@ node tools/make-brand-assets.js --preview   # + ASCII preview, check before comm
 
 The script keys the white background out of that image and needs no external
 tool: the PNG is decoded and encoded with Node's `zlib`. Sizes and colours are
-constants at the top of the script; the tile background is the WhatsApp teal
-`#075E54` and the splash gradient ends on the same colour, so it blends into the
+constants at the top of the script; the square icons and the wide tile are white
+(`#FFFFFF`, so the green mark can be told apart) and the splash keeps the green
+gradient ending on `#075E54`, the colour of the app header, so it blends into the
 first page. To change the mark, replace `tools/brand/logo-source.png` with the
 new artwork on a white background and rerun the script.
 
@@ -31,7 +32,7 @@ new artwork on a white background and rerun the script.
 | `Identity / Version` | bump on every release (`1.0.1.0` → `1.0.2.0`) |
 | `Properties / DisplayName` | `WhatsApp` |
 | `m3:VisualElements / DisplayName` | `WhatsApp` |
-| `m3:VisualElements / BackgroundColor` | `transparent` - e' cosi' che WP8.1 lascia vedere lo sfondo di Start dietro la tile |
+| `m3:VisualElements / BackgroundColor` | `#FFFFFF` - le icone e la tile sono bianche, il marchio e' verde e cosi' si distingue; con `ForegroundText="dark"`, perche' testo chiaro su bianco non si vede |
 | `Resources` | `<Resource Language="x-generate"/>` - the languages come from `Strings\*\Resources.resw` |
 
 The manifest is intentionally **not** localized: the only translatable value is
