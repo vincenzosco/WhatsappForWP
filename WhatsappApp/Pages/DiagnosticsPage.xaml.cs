@@ -66,5 +66,31 @@ namespace WhatsappApp.Pages
             Diag.Clear();
             Refresh();
         }
+
+        /// <summary>
+        /// Sends exactly what the screen shows to the adapter, which writes it to
+        /// the container log.
+        ///
+        /// Why it exists: the phone has no clipboard worth the name on WP8.1, so
+        /// getting this text onto a PC meant a screenshot and a cable. The report
+        /// is the same string either way, so the log and a pasted copy cannot
+        /// disagree.
+        /// </summary>
+        private void SendButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (!CommunicationService.Instance.IsConnected)
+            {
+                SendStatusText.Text = Loc.Get("DiagnosticsPage_SendOffline",
+                    "Not connected: the report could not be sent.");
+                return;
+            }
+
+            string report = DiagnosticsText.Text ?? "";
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DiagnosticsPage/send",
+                CommunicationService.Instance.SendControlAsync("diag", report));
+#pragma warning restore 4014
+            SendStatusText.Text = Loc.Get("DiagnosticsPage_Sent", "Report sent to the server.");
+        }
     }
 }

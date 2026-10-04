@@ -57,10 +57,11 @@
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <TextBlock x:Uid="DiagnosticsPage_Hint" Grid.Row="0"
-                       Text="What the app did, and where it tried to connect. Long press the text to select and copy it."
+                       Text="What the app did, and where it tried to connect. Long press the text to select and copy it, or send the report to the server to read it in the container log."
                        Foreground="#FF808080" FontSize="12" TextWrapping="Wrap"
                        Margin="0,0,0,8"/>
 
@@ -74,13 +75,22 @@
                      Foreground="#FF202020" Background="White" BorderThickness="0"
                      Padding="12"/>
 
-            <Button x:Name="ClearButton" x:Uid="DiagnosticsPage_Clear"
-                    Grid.Row="2"
-                    Content="Clear"
-                    HorizontalAlignment="Left"
-                    Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
-                    Height="44" MinWidth="120" BorderThickness="0" Margin="0,8,0,0"
-                    Click="ClearButton_Click"/>
+            <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
+                <Button x:Name="ClearButton" x:Uid="DiagnosticsPage_Clear"
+                        Content="Clear"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
+                        Height="44" MinWidth="120" BorderThickness="0"
+                        Click="ClearButton_Click"/>
+                <Button x:Name="SendButton" x:Uid="DiagnosticsPage_Send"
+                        Content="Send to server"
+                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
+                        Height="44" MinWidth="120" BorderThickness="0" Margin="8,0,0,0"
+                        Click="SendButton_Click"/>
+            </StackPanel>
+
+            <TextBlock x:Name="SendStatusText" Grid.Row="3"
+                       Foreground="#FF808080" FontSize="12" TextWrapping="Wrap"
+                       Margin="0,8,0,0"/>
         </Grid>
     </Grid>
 </Page>

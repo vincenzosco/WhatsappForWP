@@ -116,6 +116,7 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `media.get` | `Text` = JID della chat, `RelatedMessageId` = id del messaggio (scarica il media di quel messaggio e risponde con un frame `media` per pezzo) |
 | app -> adapter | `contact.info` | `Text` = JID della chat (l'adapter mette insieme nome, about, immagine, profilo aziendale e, per un gruppo, descrizione e membri in un solo `Text` JSON) |
 | app -> adapter | `typing` | `Text` = JID della chat, `State` = `composing` o `paused` (quello che vede il contatto mentre scrivi) |
+| app -> adapter | `diag` | `Text` = il report del telefono, una riga per a-capo (l'adapter scrive ogni riga nel suo log come `[DIAG] ...`, cosi' il lato app di una esecuzione si legge dal container) |
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |

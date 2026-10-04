@@ -1320,6 +1320,15 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         // RelatedMessageId: that is the field that says what a frame refers to.
         await sendMedia(session, (msg.Text || '').trim(), msg.RelatedMessageId);
         break;
+      case 'diag':
+        // The phone's own history, on its way to the machine that can read it.
+        // The app's copy is the only one there is - Debug.WriteLine needs a
+        // debugger, and WP8.1 has no clipboard worth the name - so it is sent
+        // here and written to the container log, one line per line.
+        for (const line of String(msg.Text || '').split('\n').slice(0, 300)) {
+          if (line.trim()) logger('INFO', `[DIAG] ${line}`);
+        }
+        break;
       case 'logout':
         try { await session.gowa.logout(); } catch (e) { /* ignora */ }
         session.state = { status: 'disconnected', jid: '' };
