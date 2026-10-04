@@ -33,6 +33,8 @@ namespace WhatsappApp.Services
         // The chats whose history this session has already requested: once per
         // chat, not on every opening.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
+        // The chats that already spent their one extra history request.
+        private readonly HashSet<string> _historyRetried = new HashSet<string>();
 
         // The chats whose history burst has already been seen in this session: the
         // first row of a burst is logged once, so the log tells "the history never
@@ -851,6 +853,19 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Whether this chat may ask for its history one more time. It is the
+        /// second and last answer for a chat whose burst came back empty: the
+        /// request was made, the adapter answered, and the conversation is still
+        /// empty - so the first request was too early, and exactly one more is
+        /// allowed per chat per session.
+        /// </summary>
+        public bool MarkHistoryRetried(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return false;
+            return _historyRetried.Add(chatId);
+        }
+
+        /// <summary>
         /// Inserts a history message in the right place.
         ///
         /// In the right place and not at the bottom: the adapter does not promise the
@@ -1002,6 +1017,7 @@ namespace WhatsappApp.Services
             foreach (var chatId in emptied)
             {
                 _historyRequested.Remove(chatId);
+                _historyRetried.Remove(chatId);
             }
         }
 
@@ -1082,6 +1098,7 @@ namespace WhatsappApp.Services
 
             _chatMessages.Remove(chatId);
             _historyRequested.Remove(chatId);
+            _historyRetried.Remove(chatId);
 
             ChatPreferences.Hide(chatId);
             NotificationService.SetUnread(TotalUnread());
