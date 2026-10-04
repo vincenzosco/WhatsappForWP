@@ -139,10 +139,19 @@ namespace WhatsappApp.Pages
                 // until something new arrives.
                 if (historyRequested)
                 {
+                    Diag.Ok("history requested for " + contact.Id);
 #pragma warning disable 4014
                     Guarded.RunGuardedAsync("ChatPage/messages",
                         CommunicationService.Instance.SendControlAsync("messages", contact.Id));
 #pragma warning restore 4014
+                }
+                else
+                {
+                    // Asked for by nobody: this line tells apart a chat that was
+                    // already served this session from one opened with no socket,
+                    // which is the only case that asks for nothing at all.
+                    Diag.Ok("history not requested for " + contact.Id
+                        + (CommunicationService.Instance.IsConnected ? " (already asked)" : " (offline)"));
                 }
 
                 // Listen for new messages
@@ -438,7 +447,11 @@ namespace WhatsappApp.Pages
 
             // The reader may have left while the burst was coming: binding a list
             // whose page is gone is the crash this wait could otherwise cause.
-            if (DataService.Instance.ActiveChatId != chatId) return;
+            if (DataService.Instance.ActiveChatId != chatId)
+            {
+                Diag.Ok("conversation bind skipped for " + chatId);
+                return;
+            }
 
             _view.Bind(_messages);
             if (_messages.Count > 0) _view.ScrollTo(_messages[_messages.Count - 1]);

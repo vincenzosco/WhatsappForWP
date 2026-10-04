@@ -311,6 +311,11 @@ namespace WhatsappApp.Services
                     RaiseTypingChanged(message);
                     break;
                 case "history.done":
+                    // The count is what tells a burst that arrived from a chat whose
+                    // history never came: the frame itself carries no number, and
+                    // "history arrived" on its own cannot tell one message from none.
+                    Diag.Ok("history done for " + message.ChatId + ": "
+                        + GetMessages(message.ChatId).Count + " message(s)");
                     RaiseHistoryCompleted(message.ChatId);
                     break;
             }
