@@ -544,7 +544,25 @@
   <data name="DiagnosticsPage_SendOffline" xml:space="preserve">
     <value>Non connesso: il report non e' stato inviato.</value>
   </data>
+  <data name="DiagnosticsPage_SelectAll.Content" xml:space="preserve">
+    <value>Seleziona tutto</value>
+  </data>
+  <data name="DiagnosticsPage_Share.Content" xml:space="preserve">
+    <value>Condividi</value>
+  </data>
+  <data name="DiagnosticsPage_Selected" xml:space="preserve">
+    <value>Tutto il report e' selezionato: usa Copia dal menu del testo.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareOpened" xml:space="preserve">
+    <value>Scegli un'app a cui inviare il report.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareFailed" xml:space="preserve">
+    <value>Non e' stato possibile condividere il report.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareTitle" xml:space="preserve">
+    <value>Diagnostica WhatsApp</value>
+  </data>
   <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
-    <value>Cosa ha fatto l app, e dove ha provato a collegarsi. Tieni premuto sul testo per selezionarlo e copiarlo, oppure invia il report al server per leggerlo nel log del container.</value>
+    <value>Cosa ha fatto l app, e dove ha provato a collegarsi. Tieni premuto sul testo per selezionarlo e copiarlo, selezionalo tutto, condividilo con un'altra app, oppure invia il report al server per leggerlo nel log del container.</value>
   </data>
 </root>

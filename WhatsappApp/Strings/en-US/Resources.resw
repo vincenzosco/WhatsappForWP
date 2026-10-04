@@ -544,7 +544,25 @@
   <data name="DiagnosticsPage_SendOffline" xml:space="preserve">
     <value>Not connected: the report could not be sent.</value>
   </data>
+  <data name="DiagnosticsPage_SelectAll.Content" xml:space="preserve">
+    <value>Select all</value>
+  </data>
+  <data name="DiagnosticsPage_Share.Content" xml:space="preserve">
+    <value>Share</value>
+  </data>
+  <data name="DiagnosticsPage_Selected" xml:space="preserve">
+    <value>The whole report is selected: use Copy in the text menu.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareOpened" xml:space="preserve">
+    <value>Choose an app to send the report to.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareFailed" xml:space="preserve">
+    <value>The report could not be shared.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareTitle" xml:space="preserve">
+    <value>WhatsApp diagnostics</value>
+  </data>
   <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
-    <value>What the app did, and where it tried to connect. Long press the text to select and copy it, or send the report to the server to read it in the container log.</value>
+    <value>What the app did, and where it tried to connect. Long press the text to select and copy it, select it all, share it with another app, or send it to the server to read it in the container log.</value>
   </data>
 </root>
