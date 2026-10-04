@@ -22,6 +22,10 @@ namespace WhatsappApp.Pages
     {
         private Contact _contact;
         private ObservableCollection<ChatMessage> _messages;
+        // The handler put on ConnectionEstablished while this chat is open: a
+        // chat opened before the socket is up asks for nothing, and this is what
+        // gives it its history when the connection arrives.
+        private EventHandler _connectionEstablished;
         // The chosen attachment: the name of the file copied into the app folder,
         // plus what is needed to send it. Not the bytes: a whole video in memory
         // is the heaviest thing this page could hold, and it is what used to close
@@ -154,6 +158,14 @@ namespace WhatsappApp.Pages
                         + (CommunicationService.Instance.IsConnected ? " (already asked)" : " (offline)"));
                 }
 
+                // A chat opened before the socket is up asked for nothing above,
+                // and this is what gives it its history when the connection
+                // arrives instead of an empty conversation for as long as it is
+                // open. MarkHistoryRequested is the gate, so a chat that was
+                // already served asks for nothing here.
+                _connectionEstablished = OnConnectionEstablished;
+                CommunicationService.Instance.ConnectionEstablished += _connectionEstablished;
+
                 // Listen for new messages
                 CommunicationService.Instance.MessageReceived += OnMessageReceived;
 
@@ -173,6 +185,11 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedFrom(e);
             CommunicationService.Instance.MessageReceived -= OnMessageReceived;
+            if (_connectionEstablished != null)
+            {
+                CommunicationService.Instance.ConnectionEstablished -= _connectionEstablished;
+                _connectionEstablished = null;
+            }
             DataService.Instance.TypingChanged -= OnTypingChanged;
             AttachmentInbox.Ready -= OnAttachmentReady;
 
@@ -446,15 +463,33 @@ namespace WhatsappApp.Pages
             if (historyRequested) await WaitForHistoryAsync(chatId);
 
             // The reader may have left while the burst was coming: binding a list
-            // whose page is gone is the crash this wait could otherwise cause.
+            // whose page is gone is the crash this wait could otherwise cause, but
+            // leaving it unbound is an empty conversation the next time this
+            // instance is shown - the list is this page's, so it is bound anyway.
             if (DataService.Instance.ActiveChatId != chatId)
             {
                 Diag.Ok("conversation bind skipped for " + chatId);
+                _view.Bind(_messages);
                 return;
             }
 
             _view.Bind(_messages);
             if (_messages.Count > 0) _view.ScrollTo(_messages[_messages.Count - 1]);
+
+            // The burst closed and the conversation is still empty: the request
+            // went out and the adapter answered, so it was the wrong moment - the
+            // account was not connected yet on the server side, or the frame
+            // arrived before the request. One more ask, once per chat per session.
+            if (historyRequested && _messages.Count == 0
+                && CommunicationService.Instance.IsConnected
+                && DataService.Instance.MarkHistoryRetried(chatId))
+            {
+                Diag.Ok("history retried for " + chatId);
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("ChatPage/messages retry",
+                    CommunicationService.Instance.SendControlAsync("messages", chatId));
+#pragma warning restore 4014
+            }
         }
 
         /// <summary>
@@ -488,6 +523,25 @@ namespace WhatsappApp.Pages
             {
                 DataService.Instance.HistoryCompleted -= onDone;
             }
+        }
+
+        /// <summary>
+        /// The socket became ready while this conversation is the one in front.
+        /// A chat opened before the connection asked for nothing, and this is
+        /// what gives it its history instead of an empty list for as long as it
+        /// stays open.
+        /// </summary>
+        private void OnConnectionEstablished(object sender, EventArgs e)
+        {
+            if (_contact == null) return;
+            if (DataService.Instance.ActiveChatId != _contact.Id) return;
+            if (!DataService.Instance.MarkHistoryRequested(_contact.Id)) return;
+
+            Diag.Ok("history requested on connect for " + _contact.Id);
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("ChatPage/messages on connect",
+                CommunicationService.Instance.SendControlAsync("messages", _contact.Id));
+#pragma warning restore 4014
         }
 
         private void RequestMedia(ChatMessage message)
