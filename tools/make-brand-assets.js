@@ -7,8 +7,8 @@
  *
  * Il marchio non e' piu' disegnato a vettori: si parte dall'immagine di
  * riferimento committata in tools/brand/logo-source.png (il logo verde su fondo
- * bianco), si toglie il fondo e lo si compone su trasparente (tile) o sul
- * gradiente verde (icone quadrate e splash).
+ * bianco), si toglie il fondo e lo si compone su trasparente (tile), su bianco
+ * (icone quadrate e tile larga) o sul gradiente verde (splash).
  *
  * Non serve nessuno strumento esterno: il PNG viene letto e scritto con lo
  * zlib di Node. I PNG generati sono committati, quindi lo script gira solo
@@ -29,9 +29,10 @@ const OUT_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
 const SOURCE = path.join(__dirname, 'brand', 'logo-source.png');
 const PREVIEW = process.argv.includes('--preview');
 
-// Palette WhatsApp
-const GREEN_LIGHT = '#25D366'; // icona, in alto
-const GREEN_MID = '#128C7E';   // icona, in basso / splash, in alto
+// Palette WhatsApp. Le icone quadrate e la tile larga sono bianche: il marchio
+// e' verde, e su un fondo verde non si distingueva.
+const WHITE = '#FFFFFF';       // sfondo di icone e tile
+const GREEN_MID = '#128C7E';   // splash, in alto
 const GREEN_DARK = '#075E54';  // splash, in basso (come l'header dell'app)
 
 // PNG -----------------------------------------------------------------------
@@ -185,6 +186,17 @@ function gradient(w, h, topHex, bottomHex) {
       const o = (y * w + x) * 4;
       img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = 255;
     }
+  }
+  return img;
+}
+
+/** Un riempimento pieno: lo sfondo delle icone, che non e' piu' un gradiente. */
+function solid(w, h, hex) {
+  const c = hexToRgb(hex);
+  const img = blank(w, h);
+  for (let p = 0; p < w * h; p++) {
+    const o = p * 4;
+    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
   }
   return img;
 }
@@ -414,12 +426,12 @@ function main() {
     ['StoreLogo.scale-240.png', 120, 0.84],
   ];
   for (const [name, size, frac] of square) {
-    write(name, placeMark(mark, size, size, size * frac, gradient(size, size, GREEN_LIGHT, GREEN_MID)));
+    write(name, placeMark(mark, size, size, size * frac, solid(size, size, WHITE)));
   }
 
   // tile larga
   write('WideLogo.scale-240.png',
-    placeMark(mark, 744, 360, 360 * 0.84, gradient(744, 360, GREEN_LIGHT, GREEN_MID)));
+    placeMark(mark, 744, 360, 360 * 0.84, solid(744, 360, WHITE)));
 
   // splash: gradiente verde profondo, marchio poco sopra il centro verticale,
   // che finisce sullo stesso #075E54 dell'header dell'app.
@@ -439,7 +451,7 @@ function main() {
     preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIcon.scale-240.png'))),
       'TileIcon.scale-240.png (marchio su trasparente)', 46);
     preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'Logo.scale-240.png'))),
-      'Logo.scale-240.png (marchio sul gradiente)', 46);
+      'Logo.scale-240.png (marchio su bianco)', 46);
     preview(splash, 'SplashScreen.scale-240.png', 46);
   }
 }

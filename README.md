@@ -449,10 +449,10 @@ proportion as the manifest logos. It is not a duplicate of `Logo.png`: the iconi
 tile template draws the image itself, so a mark that fills the whole asset looks
 zoomed and cut on a 150 px tile.
 
-The manifest sets `BackgroundColor="transparent"`. That is how WP8.1 is told to
-show the user's Start background through the tile; with an opaque colour the
-background stays hidden behind it. With no Start background set, the shell shows
-the theme colour, as it does for any transparent tile.
+The manifest sets `BackgroundColor="#FFFFFF"` together with
+`ForegroundText="dark"`. The icons and the tile are white and the mark is green,
+so the two can be told apart; `dark` is the other half of the pair, because
+light text on a white tile is invisible.
 
 `tools/check-tile.js` guards it, because the failure it catches is invisible. A tile
 template does **not** take the icon from the manifest: it wants `<image src="..."/>`
