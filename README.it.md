@@ -461,10 +461,10 @@ proporzione interna dei logo del manifest. Non e' un doppione di `Logo.png`: il
 modello della tile iconica disegna l'immagine cosi' com'e', quindi un marchio che
 riempie tutto l'asset su una tile da 150 px sembra ingrandito e tagliato.
 
-Il manifest imposta `BackgroundColor="transparent"`. E' cosi' che WP8.1 sa di
-dovere lasciar vedere lo sfondo di Start scelto dall'utente dietro la tile; con un
-colore opaco lo sfondo resta nascosto. Se nessuno sfondo di Start e' impostato, il
-sistema mostra il colore del tema, come per ogni tile trasparente.
+Il manifest imposta `BackgroundColor="#FFFFFF"` insieme a
+`ForegroundText="dark"`. Le icone e la tile sono bianche e il marchio e' verde,
+quindi si distinguono; `dark` e' l'altra meta' della coppia, perche' testo chiaro
+su una tile bianca non si vede.
 
 `tools/check-tile.js` la custodisce, perche' il guasto che intercetta e' invisibile.
 Un modello di tile **non** prende l'icona dal manifest: la vuole nel payload, in un

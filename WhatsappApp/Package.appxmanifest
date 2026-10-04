@@ -16,10 +16,11 @@
   </Resources>
   <Applications>
     <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="WhatsappApp.App">
-      <!-- BackgroundColor transparent: e' cosi' che WP8.1 sa che la tile deve
-           lasciar vedere lo sfondo di Start scelto dall'utente. Con un colore
-           opaco lo sfondo resta nascosto dietro la tile. -->
-      <m3:VisualElements DisplayName="WhatsApp" Square150x150Logo="Assets\Logo.png" Square44x44Logo="Assets\SmallLogo.png" Description="WhatsApp per Windows Phone 8.1" ForegroundText="light" BackgroundColor="transparent">
+      <!-- BackgroundColor #FFFFFF: le icone e la tile sono bianche, cosi' il
+           marchio verde si distingue. ForegroundText dark e' la meta' che serve
+           insieme al bianco: senza di esso il testo della tile e' bianco su
+           bianco su un telefono con tema scuro. -->
+      <m3:VisualElements DisplayName="WhatsApp" Square150x150Logo="Assets\Logo.png" Square44x44Logo="Assets\SmallLogo.png" Description="WhatsApp per Windows Phone 8.1" ForegroundText="dark" BackgroundColor="#FFFFFF">
         <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71x71Logo.png">
         </m3:DefaultTile>
         <m3:SplashScreen Image="Assets\SplashScreen.png" />
