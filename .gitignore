@@ -70,3 +70,8 @@ WhatsappApp/BundleArtifacts/
 # .agents/skills/, which is where the skills themselves live.
 .claude/
 .bug-hunter/
+
+# Skills installed for this project (security-audit and friends). They sit here
+# so they are found from the repository root, but they are third-party
+# instructions, not part of the app: they are not vendored into the repo.
+skills/
