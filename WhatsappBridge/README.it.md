@@ -227,15 +227,17 @@ cache e webhook e' limitato a quello: un messaggio per un device non arriva mai
 al socket di un altro utente. Con `AUTH_REQUIRED=off` l'adapter si comporta come
 prima, con un account solo e nessun token. L'instradamento dei webhook usa il
 `device_id` di primo livello che GOWA mette su ogni evento. I token sono tenuti
-solo come hash scrypt; un token perso si sostituisce, non si recupera, e un
-telefono che lo perde e torna viene semplicemente registrato come device nuovo.
+solo come hash scrypt; un token perso non si recupera, ma un telefono che torna con
+lo stesso device id riceve di nuovo lo stesso token, perche' e' derivato da quell'id.
 
 ### Accoppiamento
 
-La chiave dei frame e il token di questo telefono possono essere generati dal
-telefono stesso e inviati al server una volta sola: sul server non c'e' niente da
-inventare e niente di segreto da digitare. Con `PAIRING=on` e nessuna chiave sua,
-l'adapter stampa all'avvio un codice monouso:
+La chiave dei frame di questo telefono puo' essere generata dal telefono stesso e
+inviata al server una volta sola: sul server non c'e' niente di segreto da
+digitare. Il token non lo disegna il telefono: lo deriva il server dal device id,
+esattamente come per ogni altro dispositivo, quindi ogni telefono tiene un solo
+token legato al proprio device id. Con `PAIRING=on` e nessuna chiave sua, l'adapter
+stampa all'avvio un codice monouso:
 
 ```
 [WARN] PAIRING CODE: ABCD-EFGH-JKLM-NPQR
@@ -243,23 +245,25 @@ l'adapter stampa all'avvio un codice monouso:
 
 Nella pagina di connessione dell'app, *Codice di accoppiamento* prende quel
 valore e *Invia la chiave al server* fa il resto. Il telefono estrae 32 byte
-casuali per la chiave e 32 per il suo token, sigilla entrambi con il codice in un
-unico blocco e lo spedisce dentro il normale frame `pair`. Il frame esterno e' il
-default pubblico - non c'e' ancora altro con cui scriverlo - ma il blocco dentro
-e' cifrato con il codice, quindi la chiave non viaggia mai in chiaro e un telefono
-che non ha letto il codice non puo' accoppiarsi. Il server adotta la chiave
-(scrivedola in `BRIDGE_KEY_FILE`, quando e' impostato), conserva solo l'hash del
-token e chiude la finestra; un riavvio rilegge la chiave e non chiede altro.
+casuali per la chiave, la sigilla con il codice in un unico blocco e lo spedisce
+dentro il normale frame `pair`, insieme al suo device id in `SenderId`. Il frame
+esterno e' il default pubblico - non c'e' ancora altro con cui scriverlo - ma il
+blocco dentro e' cifrato con il codice, quindi la chiave non viaggia mai in chiaro
+e un telefono che non ha letto il codice non puo' accoppiarsi. Il server adotta la
+chiave (scrivedola in `BRIDGE_KEY_FILE`, quando e' impostato), deriva il token del
+dispositivo da quell'id, lo restituisce nel frame `paired` e chiude la finestra;
+un riavvio rilegge la chiave e non chiede altro.
 
 Il codice ha 80 bit casuali e la finestra si chiude dopo cinque tentativi
 sbagliati o `PAIRING_TTL_MIN` minuti, quello che arriva prima. Un server che ha
 gia' una chiave non la apre mai: per accoppiare di nuovo, ferma il container,
 cancella `BRIDGE_KEY_FILE` e riavvialo con `PAIRING=on`.
 
-E' questo che rende `AUTH_STRICT_DEVICE` inutile per un telefono accoppiato: il
-token non si deriva da nulla che il server conservi, quindi una copia di
-`users.json` non e' una copia di una credenziale, e conoscere un device id non da'
-nessun account.
+L'accoppiamento registra il dispositivo nello stesso passo, ed e' questo che ammette
+un telefono appena accoppiato su un servizio con `AUTH_REGISTER=off`. Il token resta
+derivato dal device id e dal segreto del deposito, quindi l'accoppiamento non
+cambia il modello di fiducia di `users.json`: serve a stabilire la chiave dei
+frame, non a consegnare una credenziale casuale.
 
 ### I vocali hanno bisogno di ffmpeg
 

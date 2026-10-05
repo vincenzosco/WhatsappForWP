@@ -109,7 +109,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Login via **QR code** or via **phone number pairing code**, both shown in the app
 - Announces itself on the LAN over UDP, so the app finds it without being configured
 - Keeps the encrypted (AES-256-GCM) TCP channel between app and adapter
-- The phone can generate the channel key and its own token and hand them to the server once, proved by a code the server prints at startup, so a reachable server needs no secret typed on it (see the adapter README, *Pairing*)
+- The phone can generate the channel key and hand it to the server once, proved by a code the server prints at startup, so a reachable server needs no secret typed on it; the device token is derived from the device id (see the adapter README, *Pairing*)
 - Sends text, photos, videos and files (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); an attachment larger than one frame travels in pieces (`media.begin` / `media.chunk` / `media.end`), and media that arrives from WhatsApp comes back the same way in `media` frames that carry their piece index
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
@@ -575,9 +575,10 @@ is not enough to reach an account.
 The frame cipher key does not have to be chosen by hand. With `PAIRING=on` and no
 key of its own, a server prints a one-time code at startup; the connection page
 of the app takes that code and sends a key the phone generated, sealed with it,
-and the server adopts it (`BRIDGE_KEY_FILE` keeps it across restarts). A phone
-can also generate its own token the same way, so the credential does not exist on
-the server at all - only its hash. The settings page still has a *Server key*
+and the server adopts it (`BRIDGE_KEY_FILE` keeps it across restarts). The device
+token is not drawn by the phone: the server derives it from the device id, so
+every device keeps one token keyed on its own id. The settings page still has a
+*Server key*
 field: a server started with its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
 (which refuses the public default) is reached by typing the same value there.
 

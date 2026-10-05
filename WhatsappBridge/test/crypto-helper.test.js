@@ -60,7 +60,7 @@ test('cipherTagOf riconosce i due tag e ignora tutto il resto', () => {
 });
 
 test('sealWith e openWith si annullano a vicenda con la stessa passphrase', () => {
-  const blocco = JSON.stringify({ BridgeKey: 'chiave-generata-dal-telefono', DeviceToken: 'token' });
+  const blocco = JSON.stringify({ BridgeKey: 'chiave-generata-dal-telefono', SenderName: 'vincenzo' });
   const sealed = cryptoHelper.sealWith('ABCD-EFGH-JKLM-NPQR', blocco);
   assert.match(sealed, /^[A-Za-z0-9+/]+=*$/);
   assert.strictEqual(cryptoHelper.openWith('ABCD-EFGH-JKLM-NPQR', sealed), blocco);

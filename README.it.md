@@ -114,7 +114,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - login con **QR code** o con **codice di abbinamento** del numero, entrambi mostrati nell'app
 - si annuncia sulla rete locale in UDP, quindi l'app lo trova senza essere configurata
 - mantiene il canale TCP cifrato (AES-256-GCM) tra app e adapter
-- il telefono puo' generare da se' la chiave del canale e il proprio token e consegnarli al server una volta sola, provati da un codice che il server stampa all'avvio, quindi un server raggiungibile non ha bisogno di nessun segreto digitato sopra (vedi il README dell'adapter, *Accoppiamento*)
+- il telefono puo' generare da se' la chiave del canale e consegnarla al server una volta sola, provata da un codice che il server stampa all'avvio, quindi un server raggiungibile non ha bisogno di nessun segreto digitato sopra; il token del dispositivo e' derivato dal device id (vedi il README dell'adapter, *Accoppiamento*)
 - invia testi, foto, video e file (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); un allegato piu' grande di un frame viaggia a pezzi (`media.begin` / `media.chunk` / `media.end`), e un media che arriva da WhatsApp torna allo stesso modo in frame `media` che portano l'indice del pezzo
 - riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
 - tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
@@ -595,9 +595,9 @@ La chiave del cifrario dei frame non deve essere scelta a mano. Con `PAIRING=on`
 e nessuna chiave sua, un server stampa all'avvio un codice monouso; la pagina di
 connessione dell'app prende quel codice e invia una chiave che il telefono ha
 generato, sigillata con esso, e il server la adotta (`BRIDGE_KEY_FILE` la
-conserva tra i riavvii). Il telefono puo' generare allo stesso modo anche il
-proprio token, quindi la credenziale non esiste sul server: ne resta solo l'hash.
-La pagina delle impostazioni ha ancora un campo *Chiave del server*: un server
+conserva tra i riavvii). Il token del dispositivo non lo disegna il telefono: lo
+deriva il server dal device id, quindi ogni dispositivo tiene un solo token legato
+al proprio id. La pagina delle impostazioni ha ancora un campo *Chiave del server*: un server
 avviato con un `BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default
 pubblico) si raggiunge digitando lo stesso valore li'.
 

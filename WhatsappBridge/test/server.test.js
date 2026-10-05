@@ -1745,10 +1745,11 @@ test('the diag command writes every line of the phone report to the log', async 
 
 /**
  * Il pairing: un server senza chiave accetta la chiave che il telefono ha
- * generato, e il token che il telefono ha generato con essa. Il codice del
- * pairing sigilla il payload, cosi' la chiave non viaggia in chiaro.
+ * generato, e registra il dispositivo. Il codice del pairing sigilla il
+ * payload, cosi' la chiave non viaggia in chiaro. Il token non e' casuale: e'
+ * derivato dal device id, come per ogni altro dispositivo.
  */
-test('il pairing adotta la chiave e il token generati dal telefono', async () => {
+test('il pairing adotta la chiave del telefono e deriva il token dal device id', async () => {
   const crypto = require('crypto');
   const fs = require('node:fs');
   const os = require('node:os');
@@ -1783,18 +1784,22 @@ test('il pairing adotta la chiave e il token generati dal telefono', async () =>
     bridge.addClientForTest(socket);
 
     const phoneKey = keyStore.newBridgeKey();
-    const phoneToken = keyStore.newBridgeKey();
     const payload = cryptoHelper.sealWith(code, JSON.stringify({
-      BridgeKey: phoneKey, DeviceToken: phoneToken, SenderName: 'vincenzo'
+      BridgeKey: phoneKey, SenderName: 'vincenzo'
     }));
 
     await bridge.handleControl(
       { Type: 3, Command: 'pair', SenderId: 'phone-1', PairingPayload: payload }, socket);
 
-    assert.ok(socket.frames.some((f) => f.Command === 'paired'), 'la conferma arriva al telefono');
+    const paired = socket.frames.find((f) => f.Command === 'paired');
+    assert.ok(paired, 'la conferma arriva al telefono');
+    assert.ok(paired.Token, 'il frame paired porta il token');
+    assert.ok(users.verify(paired.Token), 'il token e gia valido');
+    // Lo stesso device id da' sempre lo stesso token: non e' disegnato a caso.
+    assert.strictEqual(users.register('phone-1', 'vincenzo').token, paired.Token,
+      'il token e derivato dal device id, non casuale');
     assert.strictEqual(fs.readFileSync(keyFile, 'utf8'), phoneKey, 'la chiave del telefono e su disco');
     assert.strictEqual(process.env.BRIDGE_KEY, phoneKey, 'la chiave e nell ambiente');
-    assert.ok(users.verify(phoneToken), 'il token del telefono e registrato');
     assert.strictEqual(users.findByClientId('phone-1').name, 'vincenzo');
     assert.strictEqual(bridge.getPairingCode(), null, 'la finestra si chiude dopo il pairing');
 
@@ -1840,7 +1845,7 @@ test('un codice di pairing sbagliato non adotta nulla e chiude dopo i tentativi'
     assert.ok(bridge.getPairingCode());
 
     const wrong = cryptoHelper.sealWith('AAAA-BBBB-CCCC-DDDD', JSON.stringify({
-      BridgeKey: keyStore.newBridgeKey(), DeviceToken: keyStore.newBridgeKey()
+      BridgeKey: keyStore.newBridgeKey()
     }));
 
     for (let i = 0; i < 5; i++) {
