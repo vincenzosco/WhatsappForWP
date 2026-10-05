@@ -36,7 +36,18 @@ const DEFAULTS = {
   AUTH_STRICT_DEVICE: 'off',
   AUTH_MAX_USERS: '50',
   USERS_FILE: '',
-  BRIDGE_REQUIRE_KEY: 'off'
+  BRIDGE_REQUIRE_KEY: 'off',
+  // The passphrase compiled into the public app. It is also the default of
+  // crypto-helper.js, and pairing exists to replace it with a key only the
+  // phone knows.
+  BRIDGE_KEY: 'WhatsAppCommunityWP8-2026',
+  // Where the phone-generated key is kept: when set and BRIDGE_KEY is empty,
+  // the key is read from this file at startup and written here after pairing.
+  BRIDGE_KEY_FILE: '',
+  // When on, a server with no key accepts one `pair` frame: the phone sends a
+  // key it generated itself, proved by the one-time code printed at startup.
+  PAIRING: 'off',
+  PAIRING_TTL_MIN: '15'
 };
 
 function pick(env, key) {
@@ -63,7 +74,17 @@ function loadConfig(env = process.env) {
       // When on, the adapter refuses to start while the frame cipher still uses
       // the passphrase compiled into the public app, so a deployment cannot keep
       // the public key by accident.
-      requireKey: pick(env, 'BRIDGE_REQUIRE_KEY').toLowerCase() === 'on'
+      requireKey: pick(env, 'BRIDGE_REQUIRE_KEY').toLowerCase() === 'on',
+      // The file a phone-generated key is read from and written to. Empty
+      // keeps the key in the environment only, as before.
+      keyFile: pick(env, 'BRIDGE_KEY_FILE')
+    },
+    pairing: {
+      // On a server with no key, an open pairing window accepts exactly one key
+      // from a phone that proves it read the code printed at startup. A server
+      // that already has a key ignores this: there is nothing to replace.
+      enabled: pick(env, 'PAIRING').toLowerCase() === 'on',
+      ttlMs: Math.max(1, parseInt(pick(env, 'PAIRING_TTL_MIN'), 10)) * 60000
     },
     webhook: {
       port: webhookPort,

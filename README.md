@@ -109,6 +109,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Login via **QR code** or via **phone number pairing code**, both shown in the app
 - Announces itself on the LAN over UDP, so the app finds it without being configured
 - Keeps the encrypted (AES-256-GCM) TCP channel between app and adapter
+- The phone can generate the channel key and its own token and hand them to the server once, proved by a code the server prints at startup, so a reachable server needs no secret typed on it (see the adapter README, *Pairing*)
 - Sends text, photos, videos and files (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); an attachment larger than one frame travels in pieces (`media.begin` / `media.chunk` / `media.end`), and media that arrives from WhatsApp comes back the same way in `media` frames that carry their piece index
 - Receives incoming messages through a GOWA webhook (HMAC-verified)
 - Syncs contacts from `GET /user/my/contacts`
@@ -571,10 +572,14 @@ asked for again. With `AUTH_STRICT_DEVICE=on` that convenience is turned off: a
 device the service already knows must present its token, so knowing a device id
 is not enough to reach an account.
 
-The frame cipher key can be changed too. The app's settings page has a *Server
-key* field, and a server started with its own `BRIDGE_KEY` and
-`BRIDGE_REQUIRE_KEY=on` (which refuses the public default) is reached by typing
-the same value there.
+The frame cipher key does not have to be chosen by hand. With `PAIRING=on` and no
+key of its own, a server prints a one-time code at startup; the connection page
+of the app takes that code and sends a key the phone generated, sealed with it,
+and the server adopts it (`BRIDGE_KEY_FILE` keeps it across restarts). A phone
+can also generate its own token the same way, so the credential does not exist on
+the server at all - only its hash. The settings page still has a *Server key*
+field: a server started with its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
+(which refuses the public default) is reached by typing the same value there.
 
 The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from
@@ -586,8 +591,10 @@ connection page chooses between the public service and a server of your own.
 What remains true, and is worth saying plainly:
 
 - The transport is encrypted by the app-level cipher (AES-256-CBC + HMAC-SHA256)
-  with the passphrase compiled into the app. There is no TLS underneath: a WP8.1
-  `StreamSocket` cannot pin a certificate, so a self-signed one is not an option.
+  with the passphrase the phone has (the compiled default, one typed in the
+  settings, or one the phone generated and paired). There is no TLS underneath: a
+  WP8.1 `StreamSocket` cannot pin a certificate, so a self-signed one is not an
+  option.
 - The operator of a shared server can technically reach the sessions on the
   machine. The token separates users from each other, not from the operator.
 - Tokens are stored only as scrypt hashes, and the WhatsApp session is protected

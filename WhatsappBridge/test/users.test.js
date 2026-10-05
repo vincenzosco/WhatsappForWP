@@ -244,3 +244,62 @@ test('parseToken legge solo una stringa, e la ripulisce', () => {
   assert.strictEqual(parseToken({ Token: 42 }), '');
   assert.strictEqual(parseToken(null), '');
 });
+
+test('un token generato dal telefono verifica, e uno diverso no', () => {
+  const users = store(tempFile());
+  const phone = 'token-generato-dal-telefono-abcdefghijklmnop';
+
+  const created = users.registerWithToken(phone, 'phone-1', 'vincenzo');
+  assert.ok(created);
+  assert.strictEqual(created.existing, false);
+  assert.strictEqual(created.user.name, 'vincenzo');
+
+  assert.ok(users.verify(phone), 'il token del telefono deve entrare');
+  assert.strictEqual(users.verify('un-altro-token-qualunque'), null);
+  assert.strictEqual(users.verify(''), null);
+});
+
+test('registerWithToken senza token non crea nulla', () => {
+  const users = store(tempFile());
+  assert.strictEqual(users.registerWithToken('', 'phone-1', 'x'), null);
+  assert.strictEqual(users.count(), 0);
+});
+
+test('il token del telefono non si ricava dal segreto del deposito', () => {
+  const file = tempFile();
+  const users = store(file);
+  const phone = 'token-generato-dal-telefono-abcdefghijklmnop';
+  users.registerWithToken(phone, 'phone-1', 'vincenzo');
+
+  const secret = JSON.parse(fs.readFileSync(file, 'utf8')).secret;
+  // La derivazione che il server usava prima: se il token del telefono fosse
+  // ancora ricavabile da questo segreto, una copia del file sarebbe una copia
+  // della credenziale.
+  assert.notStrictEqual(deviceToken(secret, 'phone-1'), phone);
+  assert.strictEqual(users.verify(deviceToken(secret, 'phone-1')), null);
+});
+
+test('un dispositivo noto che si riaccoppia occupa la sua riga, non una nuova', () => {
+  const users = store(tempFile());
+  const primo = 'token-generato-dal-telefono-aaaaaaaaaaaaaaaa';
+  const secondo = 'token-generato-dal-telefono-bbbbbbbbbbbbbbbb';
+
+  users.registerWithToken(primo, 'phone-1', 'vincenzo');
+  const again = users.registerWithToken(secondo, 'phone-1', 'vincenzo');
+
+  assert.strictEqual(users.count(), 1, 'non nasce una seconda riga');
+  assert.strictEqual(again.existing, true);
+  assert.strictEqual(users.verify(primo), null, 'il token vecchio non vale piu');
+  assert.ok(users.verify(secondo), 'quello nuovo entra');
+  assert.strictEqual(users.findByClientId('phone-1').id, again.user.id);
+});
+
+test('un token generato dal telefono sopravvive a un riavvio del processo', () => {
+  const file = tempFile();
+  const phone = 'token-generato-dal-telefono-abcdefghijklmnop';
+  store(file).registerWithToken(phone, 'phone-1', 'vincenzo');
+
+  const reloaded = store(file);
+  assert.ok(reloaded.verify(phone));
+  assert.strictEqual(reloaded.findByClientId('phone-1').name, 'vincenzo');
+});

@@ -158,6 +158,9 @@ Vedi `.env.example`. Le variabili principali:
 | `WEBHOOK_SECRET` | `secret` | Deve combaciare con `--webhook-secret` di GOWA; senza un segreto il webhook rifiuta ogni richiesta invece di fidarsi |
 | `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | La chiave del cifrario dei frame. Deve combaciare con `CryptoHelper.cs`, o con la chiave digitata nell'app (vedi sotto). Il default e' compilato nell'app pubblica, quindi non e' un segreto |
 | `BRIDGE_REQUIRE_KEY` | `off` | rifiuta di partire finche' il cifrario usa ancora il default compilato (`on` per un deployment raggiungibile) |
+| `PAIRING` | `off` | accetta una chiave generata dal telefono finche' non ne esiste ancora una (vedi *Accoppiamento* sotto) |
+| `PAIRING_TTL_MIN` | `15` | quanto resta aperta la finestra di accoppiamento |
+| `BRIDGE_KEY_FILE` | — | dove si conserva la chiave ricevuta, cosi' un riavvio non chiede un nuovo accoppiamento; vuoto la tiene solo nell'ambiente |
 | `POLL_INTERVAL_MS` | `5000` | Ogni quanto viene interrogato lo stato WhatsApp |
 | `DISCOVERY_ENABLED` | `on` | Annuncia l'adapter sulla rete locale (`off` lo spegne) |
 | `DISCOVERY_PORT` | `8587` | Porta UDP del beacon di scoperta |
@@ -226,6 +229,37 @@ prima, con un account solo e nessun token. L'instradamento dei webhook usa il
 `device_id` di primo livello che GOWA mette su ogni evento. I token sono tenuti
 solo come hash scrypt; un token perso si sostituisce, non si recupera, e un
 telefono che lo perde e torna viene semplicemente registrato come device nuovo.
+
+### Accoppiamento
+
+La chiave dei frame e il token di questo telefono possono essere generati dal
+telefono stesso e inviati al server una volta sola: sul server non c'e' niente da
+inventare e niente di segreto da digitare. Con `PAIRING=on` e nessuna chiave sua,
+l'adapter stampa all'avvio un codice monouso:
+
+```
+[WARN] PAIRING CODE: ABCD-EFGH-JKLM-NPQR
+```
+
+Nella pagina di connessione dell'app, *Codice di accoppiamento* prende quel
+valore e *Invia la chiave al server* fa il resto. Il telefono estrae 32 byte
+casuali per la chiave e 32 per il suo token, sigilla entrambi con il codice in un
+unico blocco e lo spedisce dentro il normale frame `pair`. Il frame esterno e' il
+default pubblico - non c'e' ancora altro con cui scriverlo - ma il blocco dentro
+e' cifrato con il codice, quindi la chiave non viaggia mai in chiaro e un telefono
+che non ha letto il codice non puo' accoppiarsi. Il server adotta la chiave
+(scrivedola in `BRIDGE_KEY_FILE`, quando e' impostato), conserva solo l'hash del
+token e chiude la finestra; un riavvio rilegge la chiave e non chiede altro.
+
+Il codice ha 80 bit casuali e la finestra si chiude dopo cinque tentativi
+sbagliati o `PAIRING_TTL_MIN` minuti, quello che arriva prima. Un server che ha
+gia' una chiave non la apre mai: per accoppiare di nuovo, ferma il container,
+cancella `BRIDGE_KEY_FILE` e riavvialo con `PAIRING=on`.
+
+E' questo che rende `AUTH_STRICT_DEVICE` inutile per un telefono accoppiato: il
+token non si deriva da nulla che il server conservi, quindi una copia di
+`users.json` non e' una copia di una credenziale, e conoscere un device id non da'
+nessun account.
 
 ### I vocali hanno bisogno di ffmpeg
 

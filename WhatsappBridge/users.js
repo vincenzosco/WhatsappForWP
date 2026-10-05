@@ -192,6 +192,64 @@ function createUserStore(options) {
   }
 
   /**
+   * Replaces a user's token. Both the hash and the lookup index are rewritten,
+   * with a fresh salt, so an old copy of the row cannot be matched against the
+   * new token.
+   */
+  function setToken(user, token) {
+    if (!user) return null;
+    const salt = randomBytes(16).toString('hex');
+    user.salt = salt;
+    user.tokenHash = hashToken(token, salt, scryptSync);
+    user.tokenIndex = tokenIndex(token);
+    return user;
+  }
+
+  /**
+   * A token the PHONE generated, not one derived here. This is what pairing
+   * uses: the phone draws 32 random bytes, keeps them, and the store keeps only
+   * the hash. Nothing on the server can derive this token - there is no secret
+   * that reproduces it - so a copy of users.json is not a copy of every
+   * credential, and knowing a device id no longer yields the account.
+   *
+   * A device the store already knows has its row taken over instead of a second
+   * row being appended: a phone that pairs again replaces its old token.
+   */
+  function registerWithToken(token, deviceId, name) {
+    const value = String(token || '');
+    if (!value) return null;
+    const id = String(deviceId || '');
+
+    const existing = verify(value);
+    if (existing) {
+      if (name) existing.name = String(name);
+      if (id) existing.clientId = id;
+      existing.lastSeenAt = now();
+      save();
+      return { token: value, user: existing, existing: true };
+    }
+
+    const known = id ? findByClientId(id) : null;
+    const user = known || {
+      id: randomBytes(8).toString('hex'),
+      name: '',
+      clientId: id,
+      salt: '',
+      tokenHash: '',
+      tokenIndex: '',
+      deviceId: '',
+      createdAt: now()
+    };
+    if (name) user.name = String(name);
+    if (id) user.clientId = id;
+    user.lastSeenAt = now();
+    setToken(user, value);
+    if (!known) users.push(user);
+    save();
+    return { token: value, user, existing: !!known };
+  }
+
+  /**
    * Records which client a user belongs to. It is what a phone that authenticates
    * with a token adds to its own record, so the derivation has a device id to key
    * on the next time it arrives without one.
@@ -220,6 +278,8 @@ function createUserStore(options) {
 
   return {
     register,
+    registerWithToken,
+    setToken,
     verify,
     setDevice,
     bindClientId,
