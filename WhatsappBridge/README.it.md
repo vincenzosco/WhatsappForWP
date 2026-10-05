@@ -104,6 +104,8 @@ Frame `Type = System`, `ChatId = "system"`.
 | app -> adapter | `status` | — |
 | app -> adapter | `login.qr` | — |
 | app -> adapter | `login.code` | `Text` = numero con prefisso |
+| app -> adapter | `pair.code` | — (l'app chiede il codice di accoppiamento; risponde `pair.info`) |
+| app -> adapter | `pair` | `PairingPayload` = la chiave sigillata con il codice, `SenderId` = device id |
 | app -> adapter | `contacts` | — |
 | app -> adapter | `logout` | — |
 | app -> adapter | `calls` | — (solo in entrata, dalle `CALLS_CHAT_LIMIT` chat più recenti) |
@@ -120,6 +122,8 @@ Frame `Type = System`, `ChatId = "system"`.
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
+| adapter -> app | `pair.info` | `PairingCode`, `PairingSeconds` (il codice di accoppiamento del bridge e per quanto resta valido) |
+| adapter -> app | `paired` | `Token` (derivato dal device id) |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = nome |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (la scansione è finita, anche senza chiamate) |
@@ -237,27 +241,36 @@ inviata al server una volta sola: sul server non c'e' niente di segreto da
 digitare. Il token non lo disegna il telefono: lo deriva il server dal device id,
 esattamente come per ogni altro dispositivo, quindi ogni telefono tiene un solo
 token legato al proprio device id. Con `PAIRING=on` e nessuna chiave sua, l'adapter
-stampa all'avvio un codice monouso:
+apre una finestra monouso e ne stampa il codice per l'operatore:
 
 ```
 [WARN] PAIRING CODE: ABCD-EFGH-JKLM-NPQR
 ```
 
-Nella pagina di connessione dell'app, *Codice di accoppiamento* prende quel
-valore e *Invia la chiave al server* fa il resto. Il telefono estrae 32 byte
-casuali per la chiave, la sigilla con il codice in un unico blocco e lo spedisce
-dentro il normale frame `pair`, insieme al suo device id in `SenderId`. Il frame
-esterno e' il default pubblico - non c'e' ancora altro con cui scriverlo - ma il
-blocco dentro e' cifrato con il codice, quindi la chiave non viaggia mai in chiaro
-e un telefono che non ha letto il codice non puo' accoppiarsi. Il server adotta la
-chiave (scrivedola in `BRIDGE_KEY_FILE`, quando e' impostato), deriva il token del
-dispositivo da quell'id, lo restituisce nel frame `paired` e chiude la finestra;
-un riavvio rilegge la chiave e non chiede altro.
+L'app non ha bisogno di quella riga. Chiede il codice con il comando `pair.code`
+e il server risponde con un frame `pair.info` che porta il codice e per quanto
+resta valido, quindi *Invia la chiave al server* funziona da solo. Il telefono
+estrae 32 byte casuali per la chiave, la sigilla con il codice in un unico blocco
+e lo spedisce dentro il normale frame `pair`, insieme al suo device id in
+`SenderId`. Il frame esterno e' il default pubblico - non c'e' ancora altro con
+cui scriverlo - ma il blocco dentro e' cifrato con il codice. Se la finestra e'
+scaduta tra la risposta e l'accoppiamento, l'app chiede di nuovo: la richiesta
+apre una finestra nuova, quindi un codice scaduto viene rimpiazzato invece di far
+fallire tutto. Il server adotta la chiave (scrivedola in `BRIDGE_KEY_FILE`, quando
+e' impostato), deriva il token del dispositivo da quell'id, lo restituisce nel
+frame `paired` e chiude la finestra; un riavvio rilegge la chiave e non chiede
+altro.
 
 Il codice ha 80 bit casuali e la finestra si chiude dopo cinque tentativi
 sbagliati o `PAIRING_TTL_MIN` minuti, quello che arriva prima. Un server che ha
 gia' una chiave non la apre mai: per accoppiare di nuovo, ferma il container,
 cancella `BRIDGE_KEY_FILE` e riavvialo con `PAIRING=on`.
+
+Siccome ora il codice arriva al telefono sullo stesso canale che protegge, non
+separa piu' l'operatore da uno sconosciuto che raggiunge la porta: finche' il
+server non ha una chiave sua, il primo telefono che chiede di accoppiarsi e'
+quello che lo fa. La finestra dura solo fino al primo accoppiamento, quindi su un
+host raggiungibile da internet conviene accoppiare subito dopo il primo avvio.
 
 L'accoppiamento registra il dispositivo nello stesso passo, ed e' questo che ammette
 un telefono appena accoppiato su un servizio con `AUTH_REGISTER=off`. Il token resta

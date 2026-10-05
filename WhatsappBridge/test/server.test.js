@@ -1883,3 +1883,74 @@ test('un server che ha gia una chiave non apre la finestra di pairing', () => {
     cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
   }
 });
+
+/**
+ * Il codice di accoppiamento non deve essere copiato dal log: il telefono lo
+ * chiede con `pair.code` e riceve un `pair.info` con il codice e la sua durata.
+ * Quando la finestra e' scaduta, la richiesta ne apre una nuova: e' il
+ * "ricaricalo se scade" visto dal lato del server.
+ */
+test('il telefono puo chiedere il codice di accoppiamento invece di leggerlo dal log', async () => {
+  const keyStore = require('../key-store');
+
+  const originalKey = process.env.BRIDGE_KEY;
+  delete process.env.BRIDGE_KEY;
+  cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000 } },
+      gowa: {},
+      log: noop,
+      debug: noop
+    });
+
+    const socket = collectingSocket();
+    bridge.addClientForTest(socket);
+    await bridge.handleControl({ Type: 3, Command: 'pair.code' }, socket);
+
+    const info = socket.frames.find((f) => f.Command === 'pair.info');
+    assert.ok(info, 'la risposta arriva come pair.info');
+    assert.strictEqual(keyStore.normalizeCode(info.PairingCode), bridge.getPairingCode(),
+      'il codice inviato e quello della finestra aperta');
+    assert.ok(info.PairingSeconds > 0 && info.PairingSeconds <= 60,
+      'la durata accompagna il codice');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+test('una finestra scaduta viene riaperta quando il codice viene chiesto', async () => {
+  const keyStore = require('../key-store');
+
+  const originalKey = process.env.BRIDGE_KEY;
+  delete process.env.BRIDGE_KEY;
+  cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 1 } },
+      gowa: {},
+      log: noop,
+      debug: noop
+    });
+    const first = bridge.getPairingCode();
+
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    const socket = collectingSocket();
+    bridge.addClientForTest(socket);
+    await bridge.handleControl({ Type: 3, Command: 'pair.code' }, socket);
+
+    const info = socket.frames.find((f) => f.Command === 'pair.info');
+    assert.ok(info, 'la risposta arriva come pair.info');
+    const code = keyStore.normalizeCode(info.PairingCode);
+    assert.ok(code, 'la finestra scaduta riapre con un codice nuovo');
+    assert.notStrictEqual(code, first, 'il codice e nuovo, non quello scaduto');
+    assert.strictEqual(code, bridge.getPairingCode(), 'il nuovo codice e quello aperto');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
