@@ -296,7 +296,14 @@ namespace WhatsappApp.Pages
                 }
 
                 socket = new StreamSocket();
-                await socket.ConnectAsync(new HostName(address), port.ToString());
+                // The same deadline as every other connection of the app: a bare
+                // ConnectAsync leaves this screen on "Pairing..." with the button
+                // disabled until the TCP stack gives up on an address that drops
+                // packets instead of refusing them. The expiry closes the socket and
+                // throws, and the catch below writes the failure and re-enables the
+                // button.
+                await CommunicationService.ConnectWithDeadlineAsync(
+                    socket, new HostName(address), port);
                 writer = FrameCodec.CreateFrameWriter(socket.OutputStream);
                 reader = FrameCodec.CreateFrameReader(socket.InputStream);
 
