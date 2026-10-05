@@ -48,7 +48,9 @@ const DISCLOSURE = 'Disclosure';
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu;
 // L'unica eccezione ammessa: il segno di pericolo, per un rischio reale.
 const WARNING_SIGN = /\u26A0\uFE0F?/g;
-const SKIP_DIRS = ['.git', '.tools', 'node_modules', 'obj', 'bin'];
+// `skills` holds third-party skill instructions, not the project's docs: they
+// follow their own rules, so the emoji rule does not apply to them.
+const SKIP_DIRS = ['.git', '.tools', 'node_modules', 'obj', 'bin', 'skills'];
 
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
