@@ -36,6 +36,23 @@ function groupName(group) {
   return '';
 }
 
+/**
+ * Resolves a webhook media location to an absolute URL on the GOWA server, or
+ * throws. A relative path is joined to the base URL; an absolute URL (GOWA may
+ * hand out its own statics) is kept only if it points at the same host.
+ */
+function resolveGowaMediaUrl(baseUrl, value) {
+  const raw = String(value || '');
+  if (!raw) return '';
+  const base = new URL(baseUrl);
+  if (/^https?:\/\//i.test(raw) || raw.indexOf('//') === 0) {
+    const target = new URL(raw, base);
+    if (target.host !== base.host) throw new Error('media URL outside GOWA refused');
+    return target.toString();
+  }
+  return baseUrl.replace(/\/+$/, '') + '/' + raw.replace(/^\/+/, '');
+}
+
 // A JID without the device suffix (user:12@server -> user@server).
 // The suffix is not a JID WhatsApp recognizes in a profile request.
 function normalizeJid(jid) {
@@ -302,6 +319,17 @@ class GowaClient {
     return true;
   }
 
+  /**
+   * The bytes of a media path that came in a webhook. Unlike fetchBinary this
+   * one accepts only a location on the GOWA server: a path is resolved against
+   * the base URL, and an absolute URL is allowed only when its host is GOWA's.
+   * Anything else is refused, so a forged event cannot send the adapter - and
+   * the GOWA credentials in `headers()` - to another host.
+   */
+  async fetchGowaMedia(pathOrUrl) {
+    return this.fetchBinary(resolveGowaMediaUrl(this.baseUrl, pathOrUrl));
+  }
+
   async fetchBinary(urlOrPath) {
     const value = String(urlOrPath || '');
     const absolute = /^https?:\/\//i.test(value) ? value : `${this.baseUrl}/${value.replace(/^\/+/, '')}`;
@@ -547,4 +575,4 @@ class GowaClient {
   }
 }
 
-module.exports = { GowaClient, errorMessage, buildAuthHeader };
+module.exports = { GowaClient, errorMessage, buildAuthHeader, resolveGowaMediaUrl };

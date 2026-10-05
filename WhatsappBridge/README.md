@@ -153,8 +153,9 @@ See `.env.example`. The main variables:
 | `BRIDGE_PORT` | `8585` | TCP port for the WP8 app |
 | `WEBHOOK_PORT` | `8586` | HTTP port of the webhook |
 | `WEBHOOK_PUBLIC_URL` | `http://127.0.0.1:8586/webhook` | URL GOWA uses to reach the adapter |
-| `WEBHOOK_SECRET` | — | Must match GOWA's `--webhook-secret` |
-| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | Must match `CryptoHelper.cs` |
+| `WEBHOOK_SECRET` | `secret` | Must match GOWA's `--webhook-secret`; with no secret the webhook refuses every request instead of trusting it |
+| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | The frame cipher key. It must match `CryptoHelper.cs`, or the key typed in the app (see below). The default is compiled into the public app, so it is not a secret |
+| `BRIDGE_REQUIRE_KEY` | `off` | refuse to start while the cipher still uses the compiled default (`on` for any reachable deployment) |
 | `POLL_INTERVAL_MS` | `5000` | How often the WhatsApp state is polled |
 | `DISCOVERY_ENABLED` | `on` | Announce the adapter on the LAN (`off` disables it) |
 | `DISCOVERY_PORT` | `8587` | UDP port of the discovery beacon |
@@ -168,6 +169,7 @@ See `.env.example`. The main variables:
 | `FFMPEG_PATH` | `ffmpeg` | the ffmpeg executable, when it is not on the PATH |
 | `AUTH_REQUIRED` | `off` | require a token in `hello` (`on` for a shared service) |
 | `AUTH_REGISTER` | `on` | a phone that arrives without a token is given one on its first connection (`off` closes the service: the tokens are handed out by hand) |
+| `AUTH_STRICT_DEVICE` | `off` | a device the store already knows must present a verifying token; the device id alone is not enough (`on` closes the device-id impersonation path, at the cost of the reinstall-keeps-your-account behaviour) |
 | `AUTH_MAX_USERS` | `50` | ceiling on the devices that can register themselves |
 | `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
 
@@ -194,7 +196,18 @@ A device the service has never seen is still given a new one; a device it knows 
 handed its own token back and told nothing, because it already has it. `AUTH_MAX_USERS` counts devices, and
 re-registering a known device never consumes a slot. The secret is a credential:
 a copy of the file can derive every device's token, which is the trade-off this
-store makes for a token that stays the same.
+store makes for a token that stays the same. `AUTH_STRICT_DEVICE=on` removes the
+trade-off for the device id: a device the store already knows must bring its
+token, so a phone that reinstalls and lost it is refused and needs a new token
+from `create-user.js`, instead of being handed the account back by whoever knows
+the device id.
+
+The frame cipher key can also be set in the app: the settings page has a *Server
+key* field, and a phone that fills it uses that value instead of the compiled
+default. A deployment that sets its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
+is reached by typing the same value there; with the field empty the compiled
+default is used, which is what a private server that never set `BRIDGE_KEY`
+expects.
 
 ```bash
 node create-user.js vincenzo            # prints id, name and the token, once

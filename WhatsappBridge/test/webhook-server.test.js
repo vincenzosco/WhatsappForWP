@@ -10,8 +10,11 @@ function listen(server) {
   return new Promise((resolve) => server.listen(0, '127.0.0.1', () => resolve(server.address().port)));
 }
 
-test('verifySignature accetta quando non c\'è secret', () => {
-  assert.strictEqual(verifySignature(Buffer.from('x'), undefined, ''), true);
+test('verifySignature fallisce chiuso quando non c\'è secret', () => {
+  // Senza un secret non c'è niente con cui verificare: la richiesta va rifiutata,
+  // non creduta. E' il default vecchio che rendeva il webhook aperto a chiunque.
+  assert.strictEqual(verifySignature(Buffer.from('x'), undefined, ''), false);
+  assert.strictEqual(verifySignature(Buffer.from('x'), 'sha256=00', ''), false);
 });
 
 test('verifySignature convalida l\'HMAC sha256', () => {
@@ -38,6 +41,32 @@ test('il webhook consegna gli eventi firmati e risponde 200', async () => {
     await new Promise((r) => setTimeout(r, 20));
     assert.strictEqual(received.length, 1);
     assert.strictEqual(received[0].payload.body, 'hi');
+  } finally {
+    server.close();
+  }
+});
+
+test('il webhook rifiuta un corpo oltre il tetto', async () => {
+  const { MAX_BODY_BYTES } = require('../webhook-server');
+  const received = [];
+  const server = createWebhookServer({
+    path: '/webhook', secret: 'k', onEvent: async (e) => received.push(e), log: noopLog
+  });
+  const port = await listen(server);
+  try {
+    const body = 'x'.repeat(MAX_BODY_BYTES + 1);
+    const sig = 'sha256=' + crypto.createHmac('sha256', 'k').update(body).digest('hex');
+    let status = 0;
+    try {
+      const res = await fetch(`http://127.0.0.1:${port}/webhook`, {
+        method: 'POST', headers: { 'X-Hub-Signature-256': sig }, body
+      });
+      status = res.status;
+    } catch (e) {
+      status = 413;
+    }
+    assert.strictEqual(status, 413);
+    assert.strictEqual(received.length, 0);
   } finally {
     server.close();
   }

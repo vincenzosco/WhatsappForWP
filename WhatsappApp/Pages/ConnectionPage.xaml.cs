@@ -95,6 +95,10 @@ namespace WhatsappApp.Pages
             if (!string.IsNullOrEmpty(savedToken))
                 TokenBox.Text = savedToken;
 
+            string savedBridgeKey = SettingsService.BridgeKey;
+            if (!string.IsNullOrEmpty(savedBridgeKey))
+                BridgeKeyBox.Text = savedBridgeKey;
+
             ServersList.ItemsSource = _servers;
             _discoveryStartedAt = DateTime.Now;
             DiscoveryService.Instance.ServersChanged += OnServersChanged;
@@ -242,6 +246,11 @@ namespace WhatsappApp.Pages
         {
             string typed = (TokenBox.Text ?? "").Trim();
             if (!string.IsNullOrEmpty(typed)) SettingsService.Token = typed;
+
+            // Same rule for the cipher key: an empty box is not an order to forget
+            // it, it means "the server uses the compiled default".
+            string typedKey = (BridgeKeyBox.Text ?? "").Trim();
+            if (!string.IsNullOrEmpty(typedKey)) SettingsService.BridgeKey = typedKey;
         }
 
         /// <summary>

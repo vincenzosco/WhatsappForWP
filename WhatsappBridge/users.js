@@ -94,6 +94,15 @@ function createUserStore(options) {
   }
 
   /** The user this device id belongs to, if the service has seen it before. */
+  /**
+   * A non-reversible key for a token, so a lookup does not have to run scrypt
+   * over every user. It is keyed with the store secret, so the file does not
+   * carry a plain hash of the token either.
+   */
+  function tokenIndex(token) {
+    return createHmac('sha256', String(secret)).update('index:' + String(token)).digest('hex');
+  }
+
   function findByClientId(deviceId) {
     const id = String(deviceId || '');
     if (!id) return null;
@@ -130,6 +139,7 @@ function createUserStore(options) {
       clientId: id,
       salt,
       tokenHash: hashToken(token, salt, scryptSync),
+      tokenIndex: tokenIndex(token),
       deviceId: '',
       createdAt: now(),
       lastSeenAt: now()
@@ -143,14 +153,38 @@ function createUserStore(options) {
    * Does the token match a user? The comparison is constant-time, because a
    * comparison that exits at the first differing byte can be measured.
    */
+  /** Does this token hash to the user's stored scrypt hash? Constant-time. */
+  function matches(token, user) {
+    const expected = Buffer.from(hashToken(token, user.salt, scryptSync), 'hex');
+    const stored = Buffer.from(user.tokenHash, 'hex');
+    return expected.length === stored.length && timingSafeEqual(expected, stored);
+  }
+
   function verify(token) {
     if (!token || !users.length) return null;
 
+    const index = tokenIndex(token);
+
+    // The candidate is found by index, so a wrong token costs one comparison and
+    // no scrypt at all: the loop over every user is what made a bad handshake
+    // block the whole process.
     for (const user of users) {
-      const expected = Buffer.from(hashToken(token, user.salt, scryptSync), 'hex');
-      const stored = Buffer.from(user.tokenHash, 'hex');
-      if (expected.length === stored.length && timingSafeEqual(expected, stored)) {
+      if (user.tokenIndex === index) {
+        if (!matches(token, user)) return null;
         user.lastSeenAt = now();
+        return user;
+      }
+    }
+
+    // Records written before the index existed carry none: they are still found
+    // by scanning, and the first successful match gives one to the record so the
+    // next time is indexed too.
+    for (const user of users) {
+      if (user.tokenIndex) continue;
+      if (matches(token, user)) {
+        user.tokenIndex = index;
+        user.lastSeenAt = now();
+        save();
         return user;
       }
     }
