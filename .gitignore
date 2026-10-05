@@ -69,3 +69,4 @@ WhatsappApp/BundleArtifacts/
 # Symlink farm created by `npx skills add` for Claude Code: it points into
 # .agents/skills/, which is where the skills themselves live.
 .claude/
+.bug-hunter/

@@ -9,6 +9,10 @@ test('un percorso media del webhook resta sul server GOWA', () => {
   // Un URL assoluto sullo stesso host di GOWA va bene (GOWA manda cosi' i suoi statics).
   assert.strictEqual(
     resolveGowaMediaUrl('http://g:3000', 'http://g:3000/statics/a.jpg'), 'http://g:3000/statics/a.jpg');
+  // The same host on another port is still GOWA: the port can differ between
+  // the configured URL and the file URL GOWA hands out.
+  assert.strictEqual(
+    resolveGowaMediaUrl('http://g:3000', 'http://g:8586/statics/a.jpg'), 'http://g:8586/statics/a.jpg');
 });
 
 test('un percorso media verso un altro host viene rifiutato', () => {
