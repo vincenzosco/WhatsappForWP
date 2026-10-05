@@ -1634,6 +1634,43 @@ test('il tetto degli utenti ferma la registrazione automatica', async () => {
   assert.strictEqual(second.frames[0].Command, 'unauthorized', 'il secondo viene rifiutato');
 });
 
+test('AUTH_STRICT_DEVICE rifiuta un device noto senza token', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  // Un telefono gia registrato: il suo device id e' noto al deposito.
+  const victim = users.register('dev-vittima', 'vittima');
+
+  const bridge = createBridge({
+    config: { auth: { required: true, register: true, strictDevice: true } },
+    gowa: { status: async () => ({ isConnected: true, isLoggedIn: false, jid: '' }) },
+    users,
+    log: () => {},
+    debug: () => {}
+  });
+
+  const attacker = collectingSocket();
+  bridge.addClientForTest(attacker);
+
+  // Presenta il device id della vittima, senza token: prima questo bastava per
+  // entrare nella sua sessione.
+  await bridge.handleControl({ Type: 3, Command: 'hello', SenderId: 'dev-vittima', SenderName: 'attaccante' }, attacker);
+
+  assert.strictEqual(attacker.frames[0].Command, 'unauthorized', 'il device noto senza token viene rifiutato');
+  assert.strictEqual(users.count(), 1, 'non nasce un secondo utente');
+  assert.strictEqual(users.findByClientId('dev-vittima').name, 'vittima', 'il nome della vittima non cambia');
+
+  // Il proprietario, con il suo token, entra ancora.
+  const owner = collectingSocket();
+  bridge.addClientForTest(owner);
+  await bridge.handleControl({ Type: 3, Command: 'hello', Token: victim.token, SenderId: 'dev-vittima' }, owner);
+  assert.ok(!owner.frames.some((f) => f.Command === 'unauthorized'), 'il token valido entra');
+});
+
 test('i frame di un socket vengono gestiti nell ordine in cui arrivano', async () => {
   const crypto = require('crypto');
   const { createUserStore } = require('../users');

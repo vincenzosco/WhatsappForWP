@@ -586,7 +586,14 @@ una password da digitare; con `AUTH_REGISTER=off` si torna a consegnare i token 
 mano. Il token e' derivato dall'id di dispositivo che l'app presenta, e quell'id e'
 il token hardware specifico del pacchetto, quindi reinstallare l'app non crea un
 dispositivo nuovo: lo stesso telefono conserva lo stesso account, e l'accesso a
-WhatsApp non viene richiesto di nuovo.
+WhatsApp non viene richiesto di nuovo. Con `AUTH_STRICT_DEVICE=on` questa
+comodita' si spegne: un dispositivo che il servizio conosce gia' deve presentare
+il suo token, quindi conoscere un device id non basta per raggiungere un account.
+
+Anche la chiave del cifrario dei frame si puo' cambiare. La pagina delle
+impostazioni dell'app ha un campo *Chiave del server*, e un server avviato con un
+`BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default pubblico) si
+raggiunge digitando lo stesso valore li'.
 
 Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da

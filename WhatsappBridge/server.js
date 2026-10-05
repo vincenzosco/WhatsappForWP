@@ -97,6 +97,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   // who has no way to run `create-user.js` on the machine that hosts it. The
   // ceiling keeps an open service from growing a user per connection forever.
   const authRegister = !(config && config.auth && config.auth.register === false);
+  // When set, a device the store already knows must present a verifying token;
+  // the device id alone is no longer enough to reach an account.
+  const authStrictDevice = !!(config && config.auth && config.auth.strictDevice);
   const authMaxUsers = config && config.auth && Number.isFinite(config.auth.maxUsers)
     ? config.auth.maxUsers
     : 50;
@@ -1059,7 +1062,12 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     let mediaMimeType = fields.mediaMimeType;
     if (fields.mediaPath) {
       try {
-        const media = await session.gowa.fetchBinary(fields.mediaPath);
+        // The path comes from an event, so it is confined to the GOWA server: a
+        // forged event cannot point the credentialed fetch at another host. The
+        // fallback keeps an injected client (the tests, an older one) working.
+        const media = await (typeof session.gowa.fetchGowaMedia === 'function'
+          ? session.gowa.fetchGowaMedia(fields.mediaPath)
+          : session.gowa.fetchBinary(fields.mediaPath));
         mediaBuffer = media.buffer;
         if (!mediaMimeType) mediaMimeType = media.contentType;
       } catch (err) {
@@ -1162,12 +1170,17 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
           // it already knows is handed its own token again and never counts
           // against the ceiling.
           const known = clientId ? users.findByClientId(clientId) : null;
-          if (known || users.count() < authMaxUsers) {
+          // With AUTH_STRICT_DEVICE on, a device the store already has cannot be
+          // re-entered by presenting its id: it has to bring its token.
+          const mayRegister = authStrictDevice ? !known : true;
+          if (mayRegister && (known || users.count() < authMaxUsers)) {
             created = users.register(clientId, msg.SenderName || 'device');
             verdict = { ok: true, user: created.user };
             logger('OK', created.existing
               ? `device returned: ${created.user.id} (${created.user.name})`
               : `device registered: ${created.user.id} (${created.user.name})`);
+          } else if (known) {
+            logger('WARN', 'known device without a token, refused (AUTH_STRICT_DEVICE)');
           }
         }
 
@@ -1454,6 +1467,18 @@ async function main() {
   log('INFO', `TCP app:     ${config.bridge.port}`);
   log('INFO', `Webhook:     ${config.webhook.publicUrl}`);
   log('INFO', `Encryption:  ${cryptoHelper.ModeDescription} ${cryptoHelper.ENCRYPTION_ENABLED ? 'ON' : 'OFF'}`);
+
+  // The app compiles its passphrase in, so a BRIDGE_KEY that is absent or equal
+  // to it means the frames are readable and forgeable by anyone who has read
+  // this public repository. Say it loudly; refuse when asked to.
+  if (cryptoHelper.ENCRYPTION_ENABLED && cryptoHelper.USING_DEFAULT_KEY) {
+    log('ERR', 'BRIDGE_KEY is the passphrase compiled into the public app: the frames are not secret');
+    if (config.bridge.requireKey) {
+      log('ERR', 'BRIDGE_REQUIRE_KEY is on: set the same secret BRIDGE_KEY on the server and in the app');
+      process.exit(1);
+    }
+    log('WARN', 'set BRIDGE_KEY to a secret and BRIDGE_REQUIRE_KEY=on to refuse this default');
+  }
 
   const gowa = new GowaClient({
     baseUrl: config.gowa.url,

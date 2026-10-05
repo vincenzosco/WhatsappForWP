@@ -155,8 +155,9 @@ Vedi `.env.example`. Le variabili principali:
 | `BRIDGE_PORT` | `8585` | Porta TCP per l'app WP8 |
 | `WEBHOOK_PORT` | `8586` | Porta HTTP del webhook |
 | `WEBHOOK_PUBLIC_URL` | `http://127.0.0.1:8586/webhook` | URL con cui GOWA raggiunge l'adapter |
-| `WEBHOOK_SECRET` | — | Deve combaciare con `--webhook-secret` di GOWA |
-| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | Deve combaciare con `CryptoHelper.cs` |
+| `WEBHOOK_SECRET` | `secret` | Deve combaciare con `--webhook-secret` di GOWA; senza un segreto il webhook rifiuta ogni richiesta invece di fidarsi |
+| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | La chiave del cifrario dei frame. Deve combaciare con `CryptoHelper.cs`, o con la chiave digitata nell'app (vedi sotto). Il default e' compilato nell'app pubblica, quindi non e' un segreto |
+| `BRIDGE_REQUIRE_KEY` | `off` | rifiuta di partire finche' il cifrario usa ancora il default compilato (`on` per un deployment raggiungibile) |
 | `POLL_INTERVAL_MS` | `5000` | Ogni quanto viene interrogato lo stato WhatsApp |
 | `DISCOVERY_ENABLED` | `on` | Annuncia l'adapter sulla rete locale (`off` lo spegne) |
 | `DISCOVERY_PORT` | `8587` | Porta UDP del beacon di scoperta |
@@ -170,6 +171,7 @@ Vedi `.env.example`. Le variabili principali:
 | `FFMPEG_PATH` | `ffmpeg` | l'eseguibile di ffmpeg, quando non e' nel PATH |
 | `AUTH_REQUIRED` | `off` | chiede un token in `hello` (`on` per un servizio condiviso) |
 | `AUTH_REGISTER` | `on` | un telefono che arriva senza token ne riceve uno alla prima connessione (`off` chiude il servizio: i token si consegnano a mano) |
+| `AUTH_STRICT_DEVICE` | `off` | un dispositivo che il deposito conosce gia' deve presentare un token valido; il solo device id non basta (`on` chiude la strada dell'impersonificazione via device id, al costo del comportamento "reinstalla e tieni l'account") |
 | `AUTH_MAX_USERS` | `50` | tetto ai device che possono registrarsi da soli |
 | `USERS_FILE` | — | dove vivono gli utenti; vuoto li tiene in memoria, un percorso sopravvive a un riavvio |
 
@@ -198,7 +200,18 @@ conosce si restituisce il suo token, senza dirgli niente, perche' ce l'ha gia'.
 `AUTH_MAX_USERS` conta i dispositivi, e riregistrare un dispositivo noto non
 consuma un posto. Il segreto e' una credenziale: una copia del file puo' derivare
 il token di ogni dispositivo, ed e' il compromesso che questo deposito accetta per
-un token che resta lo stesso.
+un token che resta lo stesso. Con `AUTH_STRICT_DEVICE=on` il solo device id non
+basta piu' per un dispositivo che il deposito conosce: un telefono che reinstalla
+e ha perso il token viene rifiutato e deve riceverne uno nuovo con
+`create-user.js`, invece di ricevere l'account indietro da chiunque conosca il
+device id.
+
+La chiave del cifrario dei frame si puo' impostare anche nell'app: la pagina
+delle impostazioni ha un campo *Chiave del server*, e un telefono che lo compila
+usa quel valore invece del default compilato. Un deployment che imposta un
+`BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` si raggiunge digitando lo stesso
+valore li'; con il campo vuoto si usa il default compilato, che e' quello che si
+aspetta un server privato che non ha mai impostato `BRIDGE_KEY`.
 
 ```bash
 node create-user.js vincenzo            # stampa id, nome e token, una volta sola

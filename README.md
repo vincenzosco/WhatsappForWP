@@ -567,7 +567,14 @@ be typed; `AUTH_REGISTER=off` goes back to handing the tokens out by hand. The
 token is derived from the device id the app presents, and that id is the
 package-specific hardware token, so reinstalling the app does not make a new
 device: the same phone keeps the same account, and the WhatsApp login is not
-asked for again.
+asked for again. With `AUTH_STRICT_DEVICE=on` that convenience is turned off: a
+device the service already knows must present its token, so knowing a device id
+is not enough to reach an account.
+
+The frame cipher key can be changed too. The app's settings page has a *Server
+key* field, and a server started with its own `BRIDGE_KEY` and
+`BRIDGE_REQUIRE_KEY=on` (which refuses the public default) is reached by typing
+the same value there.
 
 The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from

@@ -332,6 +332,9 @@ namespace WhatsappApp.Services
             // new user of the same phone every time, with a new token each.
             _myUserId = SettingsService.DeviceId;
             _myUsername = username;
+            // The frame cipher is keyed before the socket is opened: a server that
+            // asked for its own BRIDGE_KEY is unreadable until the same key is set.
+            CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
 
             // Objects of the attempt, not of the service: until it is published, this
             // connection does not exist for anyone else.

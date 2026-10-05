@@ -26,7 +26,9 @@ test('loadConfig fornisce i valori di default', () => {
   assert.strictEqual(c.webhook.port, 8586);
   assert.strictEqual(c.webhook.path, '/webhook');
   assert.strictEqual(c.webhook.publicUrl, 'http://127.0.0.1:8586/webhook');
-  assert.strictEqual(c.webhook.secret, '');
+  // GOWA firma con "secret" di default: l'adapter lo eredita cosi' la verifica
+  // della firma resta accesa invece di essere saltata.
+  assert.strictEqual(c.webhook.secret, 'secret');
   assert.strictEqual(c.pollIntervalMs, 5000);
 });
 
@@ -91,6 +93,16 @@ test('applyDotEnv legge il file .env e non scavalca l\'ambiente', () => {
   assert.strictEqual(config.gowa.url, 'http://10.0.0.9:3000');
   assert.strictEqual(config.bridge.port, 8585);
   fs.rmSync(dir, { recursive: true, force: true });
+});
+
+test('loadConfig espone gli interruttori di sicurezza del bridge', () => {
+  const defaults = loadConfig({});
+  assert.strictEqual(defaults.bridge.requireKey, false);
+  assert.strictEqual(defaults.auth.strictDevice, false);
+
+  const on = loadConfig({ BRIDGE_REQUIRE_KEY: 'on', AUTH_STRICT_DEVICE: 'on' });
+  assert.strictEqual(on.bridge.requireKey, true);
+  assert.strictEqual(on.auth.strictDevice, true);
 });
 
 test('loadConfig espone la configurazione di discovery', () => {
