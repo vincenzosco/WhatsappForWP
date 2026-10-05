@@ -47,7 +47,10 @@ function resolveGowaMediaUrl(baseUrl, value) {
   const base = new URL(baseUrl);
   if (/^https?:\/\//i.test(raw) || raw.indexOf('//') === 0) {
     const target = new URL(raw, base);
-    if (target.host !== base.host) throw new Error('media URL outside GOWA refused');
+    // The host name is what must match; the port a GOWA file URL carries can
+    // differ from the one the adapter was configured with, and refusing it
+    // would break the media download it is meant to protect.
+    if (target.hostname !== base.hostname) throw new Error('media URL outside GOWA refused');
     return target.toString();
   }
   return baseUrl.replace(/\/+$/, '') + '/' + raw.replace(/^\/+/, '');

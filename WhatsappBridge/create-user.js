@@ -31,7 +31,10 @@ function main() {
   }
 
   const users = createUserStore({ file: args.file || undefined });
-  const { token, user } = users.register(args.name);
+  // No device id: the token is drawn at random and the name is the one asked
+  // for. Passing the name as the device id left the user anonymous and keyed the
+  // token on a value the phone never sends.
+  const { token, user } = users.register('', args.name);
 
   console.log('user id:  ' + user.id);
   console.log('name:     ' + user.name);
