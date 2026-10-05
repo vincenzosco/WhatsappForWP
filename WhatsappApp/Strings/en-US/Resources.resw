@@ -421,6 +421,9 @@
   <data name="ChatsPage_UnpinAll" xml:space="preserve">
     <value>Unpin all</value>
   </data>
+  <data name="ChatsPage_ReadAll" xml:space="preserve">
+    <value>Read all chats</value>
+  </data>
   <data name="ChatsPage_PinTitle" xml:space="preserve">
     <value>Pin chats</value>
   </data>

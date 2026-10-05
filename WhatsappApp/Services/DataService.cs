@@ -945,6 +945,33 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Every conversation at once: the reader cleared the whole list, not one
+        /// chat. The frame is the same "read" the chat page sends - the adapter has
+        /// no separate command - so a chat with nothing unread is left alone instead
+        /// of paying for a frame of its own.
+        /// </summary>
+        public void ClearAllUnread()
+        {
+            var rows = new List<Contact>();
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                var contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+                if (contact.UnreadCount > 0) rows.Add(contact);
+            }
+
+            if (rows.Count == 0) return;
+
+            // The counts go to zero together and the badge is rewritten once:
+            // ClearUnread on its own would recompute the total for every row.
+            for (int i = 0; i < rows.Count; i++) rows[i].UnreadCount = 0;
+            NotificationService.SetUnread(TotalUnread());
+            for (int i = 0; i < rows.Count; i++) SendRead(rows[i].Id);
+
+            Diag.Ok("read all: " + rows.Count + " chat(s)");
+        }
+
+        /// <summary>
         /// Tells the adapter that a conversation has been read, or remembers to
         /// tell it. The check is on the connection, not on the count alone: a
         /// socket the OS already closed still looks connected, and the frame
