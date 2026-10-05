@@ -1742,3 +1742,139 @@ test('the diag command writes every line of the phone report to the log', async 
   assert.ok(lines.some((line) => line.includes('[DIAG] ok: opened chat a@s.whatsapp.net')), 'a middle line');
   assert.ok(lines.some((line) => line.includes('[DIAG] ok: history arrived for a@s.whatsapp.net')), 'the last line');
 });
+
+/**
+ * Il pairing: un server senza chiave accetta la chiave che il telefono ha
+ * generato, e il token che il telefono ha generato con essa. Il codice del
+ * pairing sigilla il payload, cosi' la chiave non viaggia in chiaro.
+ */
+test('il pairing adotta la chiave e il token generati dal telefono', async () => {
+  const crypto = require('crypto');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const keyStore = require('../key-store');
+  const { createUserStore } = require('../users');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wp8-pair-'));
+  const keyFile = path.join(dir, 'bridge-key');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+
+  const originalKey = process.env.BRIDGE_KEY;
+  delete process.env.BRIDGE_KEY;
+  cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000 }, bridge: { keyFile } },
+      gowa: { status: async () => ({ isConnected: false, isLoggedIn: false, jid: '' }) },
+      users,
+      log: noop,
+      debug: noop
+    });
+
+    const code = bridge.getPairingCode();
+    assert.ok(code, 'con PAIRING on e nessuna chiave la finestra e aperta');
+
+    const socket = collectingSocket();
+    bridge.addClientForTest(socket);
+
+    const phoneKey = keyStore.newBridgeKey();
+    const phoneToken = keyStore.newBridgeKey();
+    const payload = cryptoHelper.sealWith(code, JSON.stringify({
+      BridgeKey: phoneKey, DeviceToken: phoneToken, SenderName: 'vincenzo'
+    }));
+
+    await bridge.handleControl(
+      { Type: 3, Command: 'pair', SenderId: 'phone-1', PairingPayload: payload }, socket);
+
+    assert.ok(socket.frames.some((f) => f.Command === 'paired'), 'la conferma arriva al telefono');
+    assert.strictEqual(fs.readFileSync(keyFile, 'utf8'), phoneKey, 'la chiave del telefono e su disco');
+    assert.strictEqual(process.env.BRIDGE_KEY, phoneKey, 'la chiave e nell ambiente');
+    assert.ok(users.verify(phoneToken), 'il token del telefono e registrato');
+    assert.strictEqual(users.findByClientId('phone-1').name, 'vincenzo');
+    assert.strictEqual(bridge.getPairingCode(), null, 'la finestra si chiude dopo il pairing');
+
+    // Una seconda volta non c'e' piu' niente da accettare.
+    const after = collectingSocket();
+    bridge.addClientForTest(after);
+    await bridge.handleControl(
+      { Type: 3, Command: 'pair', PairingPayload: payload }, after);
+    assert.strictEqual(after.frames[0].Command, 'pair.failed');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+test('un codice di pairing sbagliato non adotta nulla e chiude dopo i tentativi', async () => {
+  const crypto = require('crypto');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const keyStore = require('../key-store');
+  const { createUserStore } = require('../users');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wp8-pair-bad-'));
+  const keyFile = path.join(dir, 'bridge-key');
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+
+  const originalKey = process.env.BRIDGE_KEY;
+  delete process.env.BRIDGE_KEY;
+  cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000 }, bridge: { keyFile } },
+      gowa: {},
+      users,
+      log: noop,
+      debug: noop
+    });
+    assert.ok(bridge.getPairingCode());
+
+    const wrong = cryptoHelper.sealWith('AAAA-BBBB-CCCC-DDDD', JSON.stringify({
+      BridgeKey: keyStore.newBridgeKey(), DeviceToken: keyStore.newBridgeKey()
+    }));
+
+    for (let i = 0; i < 5; i++) {
+      const socket = collectingSocket();
+      bridge.addClientForTest(socket);
+      await bridge.handleControl(
+        { Type: 3, Command: 'pair', SenderId: 'phone-1', PairingPayload: wrong }, socket);
+      assert.strictEqual(socket.frames[0].Command, 'pair.failed');
+    }
+
+    assert.strictEqual(fs.existsSync(keyFile), false, 'nessuna chiave e stata scritta');
+    assert.strictEqual(users.count(), 0, 'nessun token e stato registrato');
+    assert.strictEqual(bridge.getPairingCode(), null, 'dopo cinque tentativi la finestra si chiude');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+test('un server che ha gia una chiave non apre la finestra di pairing', () => {
+  const originalKey = process.env.BRIDGE_KEY;
+  process.env.BRIDGE_KEY = 'chiave-gia-configurata-0123456789abcdef';
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000 } },
+      gowa: {},
+      log: noop,
+      debug: noop
+    });
+    assert.strictEqual(bridge.getPairingCode(), null);
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});

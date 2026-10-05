@@ -114,6 +114,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - login con **QR code** o con **codice di abbinamento** del numero, entrambi mostrati nell'app
 - si annuncia sulla rete locale in UDP, quindi l'app lo trova senza essere configurata
 - mantiene il canale TCP cifrato (AES-256-GCM) tra app e adapter
+- il telefono puo' generare da se' la chiave del canale e il proprio token e consegnarli al server una volta sola, provati da un codice che il server stampa all'avvio, quindi un server raggiungibile non ha bisogno di nessun segreto digitato sopra (vedi il README dell'adapter, *Accoppiamento*)
 - invia testi, foto, video e file (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); un allegato piu' grande di un frame viaggia a pezzi (`media.begin` / `media.chunk` / `media.end`), e un media che arriva da WhatsApp torna allo stesso modo in frame `media` che portano l'indice del pezzo
 - riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
 - tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
@@ -590,10 +591,15 @@ WhatsApp non viene richiesto di nuovo. Con `AUTH_STRICT_DEVICE=on` questa
 comodita' si spegne: un dispositivo che il servizio conosce gia' deve presentare
 il suo token, quindi conoscere un device id non basta per raggiungere un account.
 
-Anche la chiave del cifrario dei frame si puo' cambiare. La pagina delle
-impostazioni dell'app ha un campo *Chiave del server*, e un server avviato con un
-`BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default pubblico) si
-raggiunge digitando lo stesso valore li'.
+La chiave del cifrario dei frame non deve essere scelta a mano. Con `PAIRING=on`
+e nessuna chiave sua, un server stampa all'avvio un codice monouso; la pagina di
+connessione dell'app prende quel codice e invia una chiave che il telefono ha
+generato, sigillata con esso, e il server la adotta (`BRIDGE_KEY_FILE` la
+conserva tra i riavvii). Il telefono puo' generare allo stesso modo anche il
+proprio token, quindi la credenziale non esiste sul server: ne resta solo l'hash.
+La pagina delle impostazioni ha ancora un campo *Chiave del server*: un server
+avviato con un `BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default
+pubblico) si raggiunge digitando lo stesso valore li'.
 
 Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da
@@ -605,8 +611,10 @@ pagina di connessione sceglie tra il servizio pubblico e un server proprio.
 Quello che resta vero, e vale la pena dire chiaramente:
 
 - Il trasporto e' cifrato dal cifrario dell'app (AES-256-CBC + HMAC-SHA256) con
-  la passphrase compilata dentro. Sotto non c'e' TLS: uno `StreamSocket` di
-  WP8.1 non sa fissare un certificato, quindi uno autofirmato non e' una strada.
+  la passphrase che il telefono ha (quella compilata, una digitata nelle
+  impostazioni, o una che il telefono ha generato e accoppiato). Sotto non c'e'
+  TLS: uno `StreamSocket` di WP8.1 non sa fissare un certificato, quindi uno
+  autofirmato non e' una strada.
 - Chi gestisce un server condiviso puo' tecnicamente arrivare alle sessioni
   sulla macchina. Il token separa gli utenti tra loro, non dall'operatore.
 - I token sono salvati solo come hash scrypt, e la sessione WhatsApp e'
