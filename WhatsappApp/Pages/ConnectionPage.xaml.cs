@@ -241,10 +241,11 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Pairing: this phone draws a key and a token of its own, seals them with
-        /// the one-time code the server printed, and the server adopts them. The
-        /// server never invents a credential, nothing secret is typed on it, and
-        /// the blob that carries the key is opaque to anyone who did not read the
+        /// Pairing: this phone draws its own frame key, seals it with the one-time
+        /// code the server printed, and the server adopts it. The token is not
+        /// drawn here: the server derives it from this device id, so it stays one
+        /// token keyed on the device, and hands it back in the `paired` frame. The
+        /// blob that carries the key is opaque to anyone who did not read the
         /// code - the outer frame is the public default, the inside is not.
         /// </summary>
         private async void PairButton_Click(object sender, RoutedEventArgs e)
@@ -297,13 +298,14 @@ namespace WhatsappApp.Pages
                     }
                 }
 
-                // Both are generated here, on the phone: the server stores the hash
-                // of the token and the key as its own cipher, and has nothing with
-                // which to reproduce either of them.
+                // The frame key is generated here, on the phone: it becomes the
+                // server's cipher, and nothing on the server can reproduce it.
+                // The token is not drawn here - the server derives it from this
+                // device id and returns it in the `paired` frame below, so every
+                // device keeps one token keyed on its own id.
                 string newKey = CryptoHelper.NewSecret();
-                string newToken = CryptoHelper.NewSecret();
                 string sealedPayload = CryptoHelper.SealWith(code,
-                    "{\"BridgeKey\":\"" + newKey + "\",\"DeviceToken\":\"" + newToken
+                    "{\"BridgeKey\":\"" + newKey
                     + "\",\"SenderName\":\"" + JsonEscape(EnsureUsername()) + "\"}");
 
                 socket = new StreamSocket();
@@ -345,13 +347,14 @@ namespace WhatsappApp.Pages
 
                 if (reply != null && reply.Command == "paired")
                 {
-                    // Adopted only now, on the server's word: both values were
-                    // generated above, so this is writing down what we already own.
+                    // Adopted only now, on the server's word: the key is the one
+                    // generated above, and the token is the one the server
+                    // derived from this device id.
                     SettingsService.BridgeKey = newKey;
-                    SettingsService.Token = newToken;
+                    if (!string.IsNullOrEmpty(reply.Token)) SettingsService.Token = reply.Token;
                     SettingsService.Save(address, port, EnsureUsername());
                     BridgeKeyBox.Text = newKey;
-                    TokenBox.Text = newToken;
+                    TokenBox.Text = SettingsService.Token;
                     PairingCodeBox.Text = "";
                     PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
                         "Paired. The server now uses the key this phone generated.");
