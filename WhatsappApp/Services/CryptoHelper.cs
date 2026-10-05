@@ -1,4 +1,5 @@
 using System;
+using System.Text;
 using Windows.Security.Cryptography;
 using Windows.Security.Cryptography.Core;
 
@@ -23,6 +24,10 @@ namespace WhatsappApp.Services
     ///   master = SHA-256(passphrase)
     ///   encKey = HMAC-SHA256(master, "wp8-adapter enc")
     ///   macKey = HMAC-SHA256(master, "wp8-adapter mac")
+    ///
+    /// The same derivation, on a different passphrase, is what seals the pairing
+    /// payload: the key this phone generates travels inside a blob only the
+    /// server's one-time code can open (SealWith / OpenWith).
     /// </summary>
     public static class CryptoHelper
     {
@@ -42,6 +47,9 @@ namespace WhatsappApp.Services
         private const int IvLength = 16;
         private const int MacLength = 32;
 
+        /// <summary>Bytes of a generated secret: the size of the server's.</summary>
+        private const int SecretLength = 32;
+
         // tag + IV + at least one block + HMAC
         private const int MinPayloadLength = 1 + IvLength + 16 + MacLength;
 
@@ -59,6 +67,56 @@ namespace WhatsappApp.Services
             string value = string.IsNullOrEmpty(passphrase) ? Passphrase : passphrase;
             EncKey = DeriveKey(value, "wp8-adapter enc");
             MacKey = DeriveKey(value, "wp8-adapter mac");
+        }
+
+        /// <summary>
+        /// A secret the phone generates itself: 32 random bytes, base64url. The
+        /// pairing uses it for both the server key and this device's token, so the
+        /// server never invents either one and nothing on the server can derive
+        /// them afterwards.
+        /// </summary>
+        public static string NewSecret()
+        {
+            byte[] bytes;
+            CryptographicBuffer.CopyToByteArray(
+                CryptographicBuffer.GenerateRandom((uint)SecretLength), out bytes);
+
+            // base64url: the same alphabet as Node's randomBytes(...).toString('base64url'),
+            // without the padding, so the value is safe to type and to store in JSON.
+            return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
+        }
+
+        /// <summary>
+        /// Seals a string with a passphrase that is not the frame key, in
+        /// base64([16-byte IV][ciphertext][32-byte HMAC]). It is what carries the
+        /// phone's new key to the server during pairing: the blob is opaque to
+        /// anyone who has not read the one-time code printed at startup, even
+        /// though the outer frame is written with the public default.
+        /// </summary>
+        public static string SealWith(string passphrase, string plaintext)
+        {
+            var sealedBytes = SealCbc(
+                DeriveKey(passphrase, "wp8-adapter enc"),
+                DeriveKey(passphrase, "wp8-adapter mac"),
+                Encoding.UTF8.GetBytes(plaintext));
+            return Convert.ToBase64String(sealedBytes);
+        }
+
+        /// <summary>
+        /// The inverse of <see cref="SealWith"/>. Throws ArgumentException when the
+        /// passphrase is wrong or the blob was damaged: the signature is verified
+        /// before anything is decrypted.
+        /// </summary>
+        public static string OpenWith(string passphrase, string base64)
+        {
+            if (string.IsNullOrEmpty(base64)) throw new ArgumentException("Empty sealed payload");
+
+            byte[] bytes = Convert.FromBase64String(base64);
+            byte[] plain = OpenCbc(
+                DeriveKey(passphrase, "wp8-adapter enc"),
+                DeriveKey(passphrase, "wp8-adapter mac"),
+                bytes);
+            return Encoding.UTF8.GetString(plain, 0, plain.Length);
         }
 
         /// <summary>
@@ -88,33 +146,11 @@ namespace WhatsappApp.Services
         /// </summary>
         public static byte[] Encrypt(byte[] plaintext)
         {
-            var iv = CryptographicBuffer.GenerateRandom((uint)IvLength);
+            byte[] sealedBytes = SealCbc(EncKey, MacKey, plaintext);
 
-            var algorithm = SymmetricKeyAlgorithmProvider.OpenAlgorithm(SymmetricAlgorithmNames.AesCbcPkcs7);
-            var key = algorithm.CreateSymmetricKey(CryptographicBuffer.CreateFromByteArray(EncKey));
-
-            var encrypted = CryptographicEngine.Encrypt(
-                key,
-                CryptographicBuffer.CreateFromByteArray(plaintext),
-                iv);
-
-            byte[] ivBytes;
-            byte[] cipherBytes;
-            CryptographicBuffer.CopyToByteArray(iv, out ivBytes);
-            CryptographicBuffer.CopyToByteArray(encrypted, out cipherBytes);
-
-            // The HMAC covers the IV and the ciphertext, in that order: that is
-            // what crypto-helper.js computes with update(iv).update(body).
-            var signed = new byte[ivBytes.Length + cipherBytes.Length];
-            Buffer.BlockCopy(ivBytes, 0, signed, 0, ivBytes.Length);
-            Buffer.BlockCopy(cipherBytes, 0, signed, ivBytes.Length, cipherBytes.Length);
-
-            byte[] mac = Hmac(signed);
-
-            var result = new byte[1 + signed.Length + mac.Length];
+            var result = new byte[1 + sealedBytes.Length];
             result[0] = CipherCbcHmac;
-            Buffer.BlockCopy(signed, 0, result, 1, signed.Length);
-            Buffer.BlockCopy(mac, 0, result, 1 + signed.Length, mac.Length);
+            Buffer.BlockCopy(sealedBytes, 0, result, 1, sealedBytes.Length);
             return result;
         }
 
@@ -137,27 +173,75 @@ namespace WhatsappApp.Services
                 throw new ArgumentException("Unsupported cipher tag: " + data[0]);
             }
 
-            int signedLength = data.Length - 1 - MacLength;
+            var sealedBytes = new byte[data.Length - 1];
+            Buffer.BlockCopy(data, 1, sealedBytes, 0, sealedBytes.Length);
+            return OpenCbc(EncKey, MacKey, sealedBytes);
+        }
+
+        /// <summary>
+        /// [16-byte IV][ciphertext][32-byte HMAC(IV || ciphertext)]. No cipher tag:
+        /// this is the body shared by a frame and by the pairing blob.
+        /// </summary>
+        private static byte[] SealCbc(byte[] encKey, byte[] macKey, byte[] plaintext)
+        {
+            var iv = CryptographicBuffer.GenerateRandom((uint)IvLength);
+
+            var algorithm = SymmetricKeyAlgorithmProvider.OpenAlgorithm(SymmetricAlgorithmNames.AesCbcPkcs7);
+            var key = algorithm.CreateSymmetricKey(CryptographicBuffer.CreateFromByteArray(encKey));
+
+            var encrypted = CryptographicEngine.Encrypt(
+                key,
+                CryptographicBuffer.CreateFromByteArray(plaintext),
+                iv);
+
+            byte[] ivBytes;
+            byte[] cipherBytes;
+            CryptographicBuffer.CopyToByteArray(iv, out ivBytes);
+            CryptographicBuffer.CopyToByteArray(encrypted, out cipherBytes);
+
+            // The HMAC covers the IV and the ciphertext, in that order: that is
+            // what crypto-helper.js computes with update(iv).update(body).
+            var signed = new byte[ivBytes.Length + cipherBytes.Length];
+            Buffer.BlockCopy(ivBytes, 0, signed, 0, ivBytes.Length);
+            Buffer.BlockCopy(cipherBytes, 0, signed, ivBytes.Length, cipherBytes.Length);
+
+            byte[] mac = Hmac(macKey, signed);
+
+            var result = new byte[signed.Length + mac.Length];
+            Buffer.BlockCopy(signed, 0, result, 0, signed.Length);
+            Buffer.BlockCopy(mac, 0, result, signed.Length, mac.Length);
+            return result;
+        }
+
+        /// <summary>Verifies the HMAC of a sealed body and only then decrypts it.</summary>
+        private static byte[] OpenCbc(byte[] encKey, byte[] macKey, byte[] data)
+        {
+            if (data == null || data.Length < IvLength + 16 + MacLength)
+            {
+                throw new ArgumentException("Invalid sealed payload (too short)");
+            }
+
+            int signedLength = data.Length - MacLength;
             var signed = new byte[signedLength];
-            Buffer.BlockCopy(data, 1, signed, 0, signedLength);
+            Buffer.BlockCopy(data, 0, signed, 0, signedLength);
 
             var mac = new byte[MacLength];
-            Buffer.BlockCopy(data, 1 + signedLength, mac, 0, MacLength);
+            Buffer.BlockCopy(data, signedLength, mac, 0, MacLength);
 
-            if (!FixedTimeEquals(Hmac(signed), mac))
+            if (!FixedTimeEquals(Hmac(macKey, signed), mac))
             {
                 throw new ArgumentException("Invalid HMAC signature");
             }
 
             byte[] ivBytes = new byte[IvLength];
-            Buffer.BlockCopy(data, 1, ivBytes, 0, IvLength);
+            Buffer.BlockCopy(data, 0, ivBytes, 0, IvLength);
 
             int cipherLength = signedLength - IvLength;
             byte[] cipherBytes = new byte[cipherLength];
-            Buffer.BlockCopy(data, 1 + IvLength, cipherBytes, 0, cipherLength);
+            Buffer.BlockCopy(data, IvLength, cipherBytes, 0, cipherLength);
 
             var algorithm = SymmetricKeyAlgorithmProvider.OpenAlgorithm(SymmetricAlgorithmNames.AesCbcPkcs7);
-            var key = algorithm.CreateSymmetricKey(CryptographicBuffer.CreateFromByteArray(EncKey));
+            var key = algorithm.CreateSymmetricKey(CryptographicBuffer.CreateFromByteArray(encKey));
 
             var decrypted = CryptographicEngine.Decrypt(
                 key,
@@ -169,10 +253,10 @@ namespace WhatsappApp.Services
             return plain;
         }
 
-        private static byte[] Hmac(byte[] data)
+        private static byte[] Hmac(byte[] macKey, byte[] data)
         {
             var provider = MacAlgorithmProvider.OpenAlgorithm(MacAlgorithmNames.HmacSha256);
-            var key = provider.CreateKey(CryptographicBuffer.CreateFromByteArray(MacKey));
+            var key = provider.CreateKey(CryptographicBuffer.CreateFromByteArray(macKey));
             var signed = CryptographicEngine.Sign(key, CryptographicBuffer.CreateFromByteArray(data));
 
             byte[] bytes;

@@ -520,6 +520,27 @@
   <data name="ConnectionPage_BridgeKeyLabel.Text" xml:space="preserve">
     <value>Chiave del server (solo se il tuo server ne usa una)</value>
   </data>
+  <data name="ConnectionPage_PairCodeLabel.Text" xml:space="preserve">
+    <value>Codice di accoppiamento (il server lo stampa una volta)</value>
+  </data>
+  <data name="ConnectionPage_PairCodePlaceholder.PlaceholderText" xml:space="preserve">
+    <value>ABCD-EFGH-JKLM-NPQR</value>
+  </data>
+  <data name="ConnectionPage_Pair.Content" xml:space="preserve">
+    <value>Invia la chiave al server</value>
+  </data>
+  <data name="ConnectionPage_Pairing" xml:space="preserve">
+    <value>Invio della chiave generata dal telefono...</value>
+  </data>
+  <data name="ConnectionPage_Paired" xml:space="preserve">
+    <value>Accoppiato. Il server ora usa la chiave generata da questo telefono.</value>
+  </data>
+  <data name="ConnectionPage_PairNoCode" xml:space="preserve">
+    <value>Digita il codice di accoppiamento stampato dal server nel suo log.</value>
+  </data>
+  <data name="ConnectionPage_PairFailed" xml:space="preserve">
+    <value>Accoppiamento non riuscito.</value>
+  </data>
   <data name="TileUnreadOne" xml:space="preserve">
     <value>1 messaggio non letto</value>
   </data>

@@ -1,6 +1,9 @@
 using System;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
+using Windows.Networking;
+using Windows.Networking.Sockets;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -235,6 +238,169 @@ namespace WhatsappApp.Pages
                 UsernameBox.Text = username;
             }
             return username;
+        }
+
+        /// <summary>
+        /// Pairing: this phone draws a key and a token of its own, seals them with
+        /// the one-time code the server printed, and the server adopts them. The
+        /// server never invents a credential, nothing secret is typed on it, and
+        /// the blob that carries the key is opaque to anyone who did not read the
+        /// code - the outer frame is the public default, the inside is not.
+        /// </summary>
+        private async void PairButton_Click(object sender, RoutedEventArgs e)
+        {
+            await PairWithServerAsync();
+        }
+
+        private async Task PairWithServerAsync()
+        {
+            string code = (PairingCodeBox.Text ?? "").Trim();
+            if (string.IsNullOrEmpty(code))
+            {
+                PairingStatusText.Text = Loc.Get("ConnectionPage_PairNoCode",
+                    "Type the pairing code the server printed in its log.");
+                return;
+            }
+
+            PairingStatusText.Text = Loc.Get("ConnectionPage_Pairing", "Pairing...");
+            PairButton.IsEnabled = false;
+
+            StreamSocket socket = null;
+            DataWriter writer = null;
+            DataReader reader = null;
+            try
+            {
+                string address;
+                int port;
+                if (PublicServerToggle.IsOn)
+                {
+                    DiscoveredServer remote = await EndpointService.Instance.ResolveAsync();
+                    if (remote == null)
+                    {
+                        PairingStatusText.Text = Loc.Get("ConnectionPage_PairFailed",
+                            "The pairing did not succeed.");
+                        return;
+                    }
+                    address = remote.Address;
+                    port = remote.Port;
+                }
+                else
+                {
+                    address = (ServerAddressBox.Text ?? "").Trim();
+                    if (string.IsNullOrEmpty(address)) address = SettingsService.DefaultAddress;
+                    port = 8585;
+                    int boxPort;
+                    if (!string.IsNullOrEmpty(ServerPortBox.Text) &&
+                        int.TryParse(ServerPortBox.Text.Trim(), out boxPort))
+                    {
+                        port = boxPort;
+                    }
+                }
+
+                // Both are generated here, on the phone: the server stores the hash
+                // of the token and the key as its own cipher, and has nothing with
+                // which to reproduce either of them.
+                string newKey = CryptoHelper.NewSecret();
+                string newToken = CryptoHelper.NewSecret();
+                string sealedPayload = CryptoHelper.SealWith(code,
+                    "{\"BridgeKey\":\"" + newKey + "\",\"DeviceToken\":\"" + newToken
+                    + "\",\"SenderName\":\"" + JsonEscape(EnsureUsername()) + "\"}");
+
+                socket = new StreamSocket();
+                await socket.ConnectAsync(new HostName(address), port.ToString());
+                writer = FrameCodec.CreateFrameWriter(socket.OutputStream);
+                reader = FrameCodec.CreateFrameReader(socket.InputStream);
+
+                // The outer frame is keyed the way this phone is configured now:
+                // before pairing that is the server's default, which is exactly
+                // what makes a key of our own reachable at this step.
+                CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
+
+                var pair = new ChatMessage
+                {
+                    Id = "pair",
+                    Command = "pair",
+                    PairingPayload = sealedPayload,
+                    SenderId = SettingsService.DeviceId,
+                    SenderName = EnsureUsername(),
+                    ChatId = "system",
+                    Type = MessageType.System,
+                    IsIncoming = false
+                };
+
+                await FrameCodec.WriteFrameAsync(writer,
+                    CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(pair.ToJson())));
+
+                var readTask = FrameCodec.ReadFrameAsync(reader);
+                if (await Task.WhenAny(readTask, Task.Delay(8000)) != readTask)
+                {
+                    throw new TimeoutException("the server did not answer the pairing");
+                }
+
+                byte[] payload = await readTask;
+                if (payload == null) throw new InvalidOperationException("the server closed the connection");
+
+                byte[] jsonBytes = CryptoHelper.Decrypt(payload);
+                ChatMessage reply = ChatMessage.FromJson(Encoding.UTF8.GetString(jsonBytes, 0, jsonBytes.Length));
+
+                if (reply != null && reply.Command == "paired")
+                {
+                    // Adopted only now, on the server's word: both values were
+                    // generated above, so this is writing down what we already own.
+                    SettingsService.BridgeKey = newKey;
+                    SettingsService.Token = newToken;
+                    SettingsService.Save(address, port, EnsureUsername());
+                    BridgeKeyBox.Text = newKey;
+                    TokenBox.Text = newToken;
+                    PairingCodeBox.Text = "";
+                    PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
+                        "Paired. The server now uses the key this phone generated.");
+                }
+                else
+                {
+                    string why = reply == null || string.IsNullOrEmpty(reply.Text)
+                        ? Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.")
+                        : reply.Text;
+                    PairingStatusText.Text = why;
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ConnectionPage/pair", ex);
+                PairingStatusText.Text = string.Format(
+                    Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.") + " ({0})",
+                    ex.Message);
+            }
+            finally
+            {
+                DisposePairingSocket(socket, writer, reader);
+                PairButton.IsEnabled = true;
+            }
+        }
+
+        /// <summary>
+        /// The three objects of the one-shot pairing connection, closed in the
+        /// right order. A failure here is not worth reporting: the socket is going
+        /// away anyway.
+        /// </summary>
+        private static void DisposePairingSocket(StreamSocket socket, DataWriter writer, DataReader reader)
+        {
+            try { if (writer != null) { writer.DetachStream(); writer.Dispose(); } }
+            catch (Exception) { }
+            try { if (reader != null) { reader.DetachStream(); reader.Dispose(); } }
+            catch (Exception) { }
+            try { if (socket != null) socket.Dispose(); }
+            catch (Exception) { }
+        }
+
+        /// <summary>
+        /// A string inside a JSON string. The name is the only value here that a
+        /// person types, so the two characters that would end it early are the only
+        /// ones escaped.
+        /// </summary>
+        private static string JsonEscape(string value)
+        {
+            return (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         /// <summary>
