@@ -1,7 +1,32 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { GowaClient, errorMessage } = require('../gowa-client');
+const { GowaClient, errorMessage, resolveGowaMediaUrl } = require('../gowa-client');
+
+test('un percorso media del webhook resta sul server GOWA', () => {
+  assert.strictEqual(resolveGowaMediaUrl('http://g:3000', '/statics/a.jpg'), 'http://g:3000/statics/a.jpg');
+  assert.strictEqual(resolveGowaMediaUrl('http://g:3000', 'statics/a.jpg'), 'http://g:3000/statics/a.jpg');
+  // Un URL assoluto sullo stesso host di GOWA va bene (GOWA manda cosi' i suoi statics).
+  assert.strictEqual(
+    resolveGowaMediaUrl('http://g:3000', 'http://g:3000/statics/a.jpg'), 'http://g:3000/statics/a.jpg');
+});
+
+test('un percorso media verso un altro host viene rifiutato', () => {
+  assert.throws(() => resolveGowaMediaUrl('http://g:3000', 'http://attacker.example/x'),
+    /outside GOWA/);
+  assert.throws(() => resolveGowaMediaUrl('http://g:3000', '//attacker.example/x'),
+    /outside GOWA/);
+});
+
+test('fetchGowaMedia non manda le credenziali a un altro host', async () => {
+  let called = false;
+  const client = new GowaClient({
+    baseUrl: 'http://g:3000', user: 'admin', pass: 'secret',
+    fetchImpl: async () => { called = true; return jsonResponse({ status: 200 }); }
+  });
+  await assert.rejects(() => client.fetchGowaMedia('http://attacker.example/x'), /outside GOWA/);
+  assert.strictEqual(called, false, 'nessuna richiesta deve partire verso un altro host');
+});
 
 test('chats() asks for a bounded list and reads results.data', async () => {
   const seen = [];

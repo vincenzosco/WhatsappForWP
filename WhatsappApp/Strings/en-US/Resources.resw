@@ -517,6 +517,9 @@
   <data name="ConnectionPage_TokenLabel.Text" xml:space="preserve">
     <value>Server token (created automatically on the first connection)</value>
   </data>
+  <data name="ConnectionPage_BridgeKeyLabel.Text" xml:space="preserve">
+    <value>Server key (only if your server uses one)</value>
+  </data>
   <data name="TileUnreadOne" xml:space="preserve">
     <value>1 unread message</value>
   </data>

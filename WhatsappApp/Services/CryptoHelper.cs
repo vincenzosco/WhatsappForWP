@@ -45,18 +45,31 @@ namespace WhatsappApp.Services
         // tag + IV + at least one block + HMAC
         private const int MinPayloadLength = 1 + IvLength + 16 + MacLength;
 
-        private static readonly byte[] EncKey = DeriveKey("wp8-adapter enc");
-        private static readonly byte[] MacKey = DeriveKey("wp8-adapter mac");
+        private static byte[] EncKey = DeriveKey(Passphrase, "wp8-adapter enc");
+        private static byte[] MacKey = DeriveKey(Passphrase, "wp8-adapter mac");
+
+        /// <summary>
+        /// Sets the shared key from the settings, so a server that does not use the
+        /// compiled default can still be reached. An empty value keeps the default,
+        /// which is what a private server with no BRIDGE_KEY uses. It is called
+        /// before a connection is opened, never while one is running.
+        /// </summary>
+        public static void SetPassphrase(string passphrase)
+        {
+            string value = string.IsNullOrEmpty(passphrase) ? Passphrase : passphrase;
+            EncKey = DeriveKey(value, "wp8-adapter enc");
+            MacKey = DeriveKey(value, "wp8-adapter mac");
+        }
 
         /// <summary>
         /// Derives one of the two keys from the master the way the server does:
         /// HMAC-SHA256(SHA-256(passphrase), label).
         /// </summary>
-        private static byte[] DeriveKey(string label)
+        private static byte[] DeriveKey(string passphrase, string label)
         {
             var hash = HashAlgorithmProvider.OpenAlgorithm(HashAlgorithmNames.Sha256);
             var master = hash.HashData(
-                CryptographicBuffer.ConvertStringToBinary(Passphrase, BinaryStringEncoding.Utf8));
+                CryptographicBuffer.ConvertStringToBinary(passphrase, BinaryStringEncoding.Utf8));
 
             var provider = MacAlgorithmProvider.OpenAlgorithm(MacAlgorithmNames.HmacSha256);
             var key = provider.CreateKey(master);

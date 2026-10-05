@@ -113,6 +113,11 @@
                 <TextBox x:Name="TokenBox" Text=""
                          Background="White" FontSize="16" Margin="0,4,0,0"/>
 
+                <TextBlock x:Uid="ConnectionPage_BridgeKeyLabel" Text="Server key (only if your server has one)"
+                           Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
+                <TextBox x:Name="BridgeKeyBox" Text=""
+                         Background="White" FontSize="16" Margin="0,4,0,0"/>
+
                 <ToggleSwitch x:Name="PublicServerToggle" x:Uid="ConnectionPage_PublicServer"
                               Header="Use the public server"
                               Margin="0,12,0,0"

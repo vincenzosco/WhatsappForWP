@@ -197,6 +197,48 @@ test('il segreto non finisce nel token, ma il token dipende da lui', () => {
   assert.match(one, /^[A-Za-z0-9_-]{40,}$/);
 });
 
+test('un token sbagliato non esegue scrypt su tutti gli utenti', () => {
+  // L'indice invalida l'amplificazione: con l'archivio indicizzato il costo di
+  // un handshake sbagliato non cresce col numero di utenti.
+  let calls = 0;
+  const counting = (token, salt) => {
+    calls++;
+    return fastHash()(token, salt);
+  };
+  const users = createUserStore({
+    file: tempFile(),
+    scryptSync: counting,
+    randomBytes: crypto.randomBytes
+  });
+  const tokens = [];
+  for (let i = 0; i < 50; i++) tokens.push(users.register('dev-' + i, 'u' + i).token);
+
+  calls = 0;
+  assert.strictEqual(users.verify('token-che-non-esiste'), null);
+  assert.strictEqual(calls, 0, 'un token sbagliato non deve calcolare scrypt');
+
+  // Un token buono costa un solo confronto.
+  calls = 0;
+  assert.ok(users.verify(tokens[49]));
+  assert.strictEqual(calls, 1);
+});
+
+test('un record scritto prima dell indice viene trovato e indicizzato', () => {
+  const file = tempFile();
+  const users = store(file);
+  const { token, user } = users.register('vincenzo');
+
+  // Simula un file vecchio: senza tokenIndex.
+  delete user.tokenIndex;
+  users.save();
+
+  const reloaded = store(file);
+  const found = reloaded.verify(token);
+  assert.ok(found, 'il token del record vecchio deve ancora verificare');
+  assert.ok(found.tokenIndex, 'il primo accesso deve aggiungere l indice');
+  assert.ok(found.tokenIndex === reloaded.verify(token).tokenIndex);
+});
+
 test('parseToken legge solo una stringa, e la ripulisce', () => {
   assert.strictEqual(parseToken({ Token: '  abc  ' }), 'abc');
   assert.strictEqual(parseToken({ Token: 42 }), '');

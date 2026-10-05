@@ -57,6 +57,13 @@ const MASTER_KEY = crypto
 const ENC_KEY = crypto.createHmac('sha256', MASTER_KEY).update('wp8-adapter enc').digest();
 const MAC_KEY = crypto.createHmac('sha256', MASTER_KEY).update('wp8-adapter mac').digest();
 
+/**
+ * True while the keys come from the passphrase compiled into the public app.
+ * The app cannot be reconfigured here, so this stays visible to the operator:
+ * server.js logs it at startup and BRIDGE_REQUIRE_KEY turns it into a refusal.
+ */
+const USING_DEFAULT_KEY = !process.env.BRIDGE_KEY || process.env.BRIDGE_KEY === DEFAULT_PASSPHRASE;
+
 /** [tag][IV][CBC ciphertext][HMAC(IV || ciphertext)] */
 function encryptCbc(plaintext) {
   const iv = crypto.randomBytes(CBC_IV_LENGTH);
@@ -167,6 +174,8 @@ module.exports = {
   buildFrame,
   cipherTagOf,
   ENCRYPTION_ENABLED,
+  USING_DEFAULT_KEY,
+  DEFAULT_PASSPHRASE,
   CIPHER_GCM,
   CIPHER_CBC_HMAC,
   DEFAULT_CIPHER_TAG,

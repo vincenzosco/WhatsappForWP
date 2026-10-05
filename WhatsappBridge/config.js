@@ -16,7 +16,9 @@ const DEFAULTS = {
   WEBHOOK_PORT: '8586',
   WEBHOOK_PATH: '/webhook',
   WEBHOOK_PUBLIC_URL: '',
-  WEBHOOK_SECRET: '',
+  // GOWA signs every webhook with this and its own default is "secret"; matching
+  // it here keeps the signature check on instead of leaving it open.
+  WEBHOOK_SECRET: 'secret',
   POLL_INTERVAL_MS: '5000',
   DISCOVERY_PORT: '8587',
   DISCOVERY_ENABLED: 'on',
@@ -31,8 +33,10 @@ const DEFAULTS = {
   FFMPEG_PATH: '',
   AUTH_REQUIRED: 'off',
   AUTH_REGISTER: 'on',
+  AUTH_STRICT_DEVICE: 'off',
   AUTH_MAX_USERS: '50',
-  USERS_FILE: ''
+  USERS_FILE: '',
+  BRIDGE_REQUIRE_KEY: 'off'
 };
 
 function pick(env, key) {
@@ -55,7 +59,11 @@ function loadConfig(env = process.env) {
       pass: pick(env, 'GOWA_PASS')
     },
     bridge: {
-      port: parseInt(pick(env, 'BRIDGE_PORT'), 10)
+      port: parseInt(pick(env, 'BRIDGE_PORT'), 10),
+      // When on, the adapter refuses to start while the frame cipher still uses
+      // the passphrase compiled into the public app, so a deployment cannot keep
+      // the public key by accident.
+      requireKey: pick(env, 'BRIDGE_REQUIRE_KEY').toLowerCase() === 'on'
     },
     webhook: {
       port: webhookPort,
@@ -75,6 +83,10 @@ function loadConfig(env = process.env) {
       // service that must stay closed turns this off and hands the tokens out
       // itself.
       register: pick(env, 'AUTH_REGISTER').toLowerCase() !== 'off',
+      // When on, a device the store already knows must present a verifying
+      // token; the derived-token re-issue that lets a reinstalled phone keep its
+      // account is turned off, closing the device-id impersonation path.
+      strictDevice: pick(env, 'AUTH_STRICT_DEVICE').toLowerCase() === 'on',
       // Ceiling on the devices that can register themselves, so an open service
       // cannot fill its disk one handshake at a time.
       maxUsers: parseInt(pick(env, 'AUTH_MAX_USERS'), 10)
