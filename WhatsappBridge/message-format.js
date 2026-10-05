@@ -122,6 +122,11 @@ function buildChatMessage(fields) {
   if (f.command) msg.Command = f.command;
   if (f.state) msg.State = f.state;
   if (f.pairCode) msg.PairCode = f.pairCode;
+  // The one-time code of the bridge pairing, and how long it stays valid: the
+  // app asks for it with `pair.code` and shows it without reading the server
+  // log (see server.js).
+  if (f.pairingCode) msg.PairingCode = f.pairingCode;
+  if (typeof f.pairingSeconds === 'number') msg.PairingSeconds = f.pairingSeconds;
   if (f.qrImageData) msg.QrImageData = f.qrImageData;
   if (typeof f.qrDuration === 'number') msg.QrDuration = f.qrDuration;
   if (f.accountJid) msg.AccountJid = f.accountJid;
