@@ -515,8 +515,12 @@ namespace WhatsappApp.Services
         /// only way to cancel a connection in flight, and a TimeoutException is
         /// thrown: the explanation to the user is written by
         /// ExplainConnectionFailure.
+        ///
+        /// Internal and not private: the pairing screen opens a socket of its own
+        /// (ConnectionPage.PairWithServerAsync) and must not be the one connection
+        /// in the app that waits on the TCP stack instead of on a deadline.
         /// </summary>
-        private static async Task ConnectWithDeadlineAsync(StreamSocket socket, HostName hostName, int port)
+        internal static async Task ConnectWithDeadlineAsync(StreamSocket socket, HostName hostName, int port)
         {
             Task connecting = socket.ConnectAsync(hostName, port.ToString()).AsTask();
             Task deadline = Task.Delay(ConnectDeadlineMs);
