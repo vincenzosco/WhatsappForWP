@@ -255,13 +255,10 @@ namespace WhatsappApp.Pages
 
         private async Task PairWithServerAsync()
         {
-            string code = (PairingCodeBox.Text ?? "").Trim();
-            if (string.IsNullOrEmpty(code))
-            {
-                PairingStatusText.Text = Loc.Get("ConnectionPage_PairNoCode",
-                    "Type the pairing code the server printed in its log.");
-                return;
-            }
+            // A code typed by hand wins; otherwise it is asked of the server. The
+            // server sends it, and a fresh one when the old has run out, so the code
+            // in its log is a convenience and not a step anybody has to carry out.
+            string code = NormalizePairingCode(PairingCodeBox.Text);
 
             PairingStatusText.Text = Loc.Get("ConnectionPage_Pairing", "Pairing...");
             PairButton.IsEnabled = false;
@@ -298,16 +295,6 @@ namespace WhatsappApp.Pages
                     }
                 }
 
-                // The frame key is generated here, on the phone: it becomes the
-                // server's cipher, and nothing on the server can reproduce it.
-                // The token is not drawn here - the server derives it from this
-                // device id and returns it in the `paired` frame below, so every
-                // device keeps one token keyed on its own id.
-                string newKey = CryptoHelper.NewSecret();
-                string sealedPayload = CryptoHelper.SealWith(code,
-                    "{\"BridgeKey\":\"" + newKey
-                    + "\",\"SenderName\":\"" + JsonEscape(EnsureUsername()) + "\"}");
-
                 socket = new StreamSocket();
                 await socket.ConnectAsync(new HostName(address), port.ToString());
                 writer = FrameCodec.CreateFrameWriter(socket.OutputStream);
@@ -318,53 +305,81 @@ namespace WhatsappApp.Pages
                 // what makes a key of our own reachable at this step.
                 CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
 
-                var pair = new ChatMessage
+                // Two turns: if the code expired between the server sending it and
+                // the pairing arriving, a fresh one is asked for and the pairing is
+                // tried again, instead of showing the user a failure.
+                bool paired = false;
+                for (int attempt = 0; attempt < 2 && !paired; attempt++)
                 {
-                    Id = "pair",
-                    Command = "pair",
-                    PairingPayload = sealedPayload,
-                    SenderId = SettingsService.DeviceId,
-                    SenderName = EnsureUsername(),
-                    ChatId = "system",
-                    Type = MessageType.System,
-                    IsIncoming = false
-                };
+                    if (string.IsNullOrEmpty(code))
+                    {
+                        code = await AskPairingCodeAsync(writer, reader);
+                        if (string.IsNullOrEmpty(code))
+                        {
+                            PairingStatusText.Text = Loc.Get("ConnectionPage_PairNoCode",
+                                "The server did not send a pairing code: either pairing is off, or it already has a key.");
+                            return;
+                        }
+                        // Shown as the server sent it, so the user sees the code
+                        // doing the pairing even though nobody typed it.
+                        PairingCodeBox.Text = code;
+                    }
 
-                await FrameCodec.WriteFrameAsync(writer,
-                    CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(pair.ToJson())));
+                    // The frame key is generated here, on the phone: it becomes the
+                    // server's cipher, and nothing on the server can reproduce it.
+                    // The token is not drawn here - the server derives it from this
+                    // device id and returns it in the `paired` frame below, so every
+                    // device keeps one token keyed on its own id.
+                    string newKey = CryptoHelper.NewSecret();
+                    string sealedPayload = CryptoHelper.SealWith(NormalizePairingCode(code),
+                        "{\"BridgeKey\":\"" + newKey
+                        + "\",\"SenderName\":\"" + JsonEscape(EnsureUsername()) + "\"}");
 
-                var readTask = FrameCodec.ReadFrameAsync(reader);
-                if (await Task.WhenAny(readTask, Task.Delay(8000)) != readTask)
-                {
-                    throw new TimeoutException("the server did not answer the pairing");
-                }
+                    var pair = new ChatMessage
+                    {
+                        Id = "pair",
+                        Command = "pair",
+                        PairingPayload = sealedPayload,
+                        SenderId = SettingsService.DeviceId,
+                        SenderName = EnsureUsername(),
+                        ChatId = "system",
+                        Type = MessageType.System,
+                        IsIncoming = false
+                    };
 
-                byte[] payload = await readTask;
-                if (payload == null) throw new InvalidOperationException("the server closed the connection");
+                    await FrameCodec.WriteFrameAsync(writer,
+                        CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(pair.ToJson())));
 
-                byte[] jsonBytes = CryptoHelper.Decrypt(payload);
-                ChatMessage reply = ChatMessage.FromJson(Encoding.UTF8.GetString(jsonBytes, 0, jsonBytes.Length));
+                    ChatMessage reply = await ReadPairingReplyAsync(reader);
 
-                if (reply != null && reply.Command == "paired")
-                {
-                    // Adopted only now, on the server's word: the key is the one
-                    // generated above, and the token is the one the server
-                    // derived from this device id.
-                    SettingsService.BridgeKey = newKey;
-                    if (!string.IsNullOrEmpty(reply.Token)) SettingsService.Token = reply.Token;
-                    SettingsService.Save(address, port, EnsureUsername());
-                    BridgeKeyBox.Text = newKey;
-                    TokenBox.Text = SettingsService.Token;
-                    PairingCodeBox.Text = "";
-                    PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
-                        "Paired. The server now uses the key this phone generated.");
-                }
-                else
-                {
-                    string why = reply == null || string.IsNullOrEmpty(reply.Text)
-                        ? Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.")
-                        : reply.Text;
-                    PairingStatusText.Text = why;
+                    if (reply != null && reply.Command == "paired")
+                    {
+                        // Adopted only now, on the server's word: the key is the one
+                        // generated above, and the token is the one the server
+                        // derived from this device id.
+                        SettingsService.BridgeKey = newKey;
+                        if (!string.IsNullOrEmpty(reply.Token)) SettingsService.Token = reply.Token;
+                        SettingsService.Save(address, port, EnsureUsername());
+                        BridgeKeyBox.Text = newKey;
+                        TokenBox.Text = SettingsService.Token;
+                        PairingCodeBox.Text = "";
+                        PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
+                            "Paired. The server now uses the key this phone generated.");
+                        paired = true;
+                    }
+                    else
+                    {
+                        // The code may have run out: forget it and ask for another
+                        // one on the next turn. On the last turn the server's own
+                        // words are shown.
+                        code = "";
+                        if (attempt == 1)
+                        {
+                            PairingStatusText.Text = reply != null && !string.IsNullOrEmpty(reply.Text)
+                                ? reply.Text
+                                : Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.");
+                        }
+                    }
                 }
             }
             catch (Exception ex)
@@ -379,6 +394,67 @@ namespace WhatsappApp.Pages
                 DisposePairingSocket(socket, writer, reader);
                 PairButton.IsEnabled = true;
             }
+        }
+
+        /// <summary>
+        /// Asks the server for the current pairing code: `pair.code` out, a
+        /// `pair.info` frame back carrying the code and how long it stays valid. It
+        /// is the automatic path - the code the server prints in its log no longer
+        /// has to be copied by hand, and an expired one is replaced by this call.
+        /// </summary>
+        private async Task<string> AskPairingCodeAsync(DataWriter writer, DataReader reader)
+        {
+            var ask = new ChatMessage
+            {
+                Id = "pair.code",
+                Command = "pair.code",
+                SenderId = SettingsService.DeviceId,
+                SenderName = EnsureUsername(),
+                ChatId = "system",
+                Type = MessageType.System,
+                IsIncoming = false
+            };
+
+            await FrameCodec.WriteFrameAsync(writer,
+                CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(ask.ToJson())));
+
+            ChatMessage reply = await ReadPairingReplyAsync(reader);
+            if (reply != null && reply.Command == "pair.info")
+                return (reply.PairingCode ?? "").Trim();
+            return "";
+        }
+
+        /// <summary>
+        /// One control frame awaited with a timeout. Null never comes back: a closed
+        /// connection and a silent server are both raised as exceptions.
+        /// </summary>
+        private static async Task<ChatMessage> ReadPairingReplyAsync(DataReader reader)
+        {
+            var readTask = FrameCodec.ReadFrameAsync(reader);
+            if (await Task.WhenAny(readTask, Task.Delay(8000)) != readTask)
+                throw new TimeoutException("the server did not answer the pairing");
+
+            byte[] payload = await readTask;
+            if (payload == null) throw new InvalidOperationException("the server closed the connection");
+
+            byte[] jsonBytes = CryptoHelper.Decrypt(payload);
+            return ChatMessage.FromJson(Encoding.UTF8.GetString(jsonBytes, 0, jsonBytes.Length));
+        }
+
+        /// <summary>
+        /// The code as both sides compare it: uppercase, with the dashes and spaces
+        /// of the printed form removed. The server normalizes the same way, so a
+        /// code typed with or without its dashes is the same code.
+        /// </summary>
+        private static string NormalizePairingCode(string code)
+        {
+            if (string.IsNullOrEmpty(code)) return "";
+            var clean = new StringBuilder(code.Length);
+            foreach (char c in code.ToUpperInvariant())
+            {
+                if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) clean.Append(c);
+            }
+            return clean.ToString();
         }
 
         /// <summary>
