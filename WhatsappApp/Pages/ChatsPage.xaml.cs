@@ -63,6 +63,10 @@ namespace WhatsappApp.Pages
             unpinItem.Click += UnpinAllMenuItem_Click;
             flyout.Items.Add(unpinItem);
 
+            var readItem = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_ReadAll", "Read all chats") };
+            readItem.Click += ReadAllMenuItem_Click;
+            flyout.Items.Add(readItem);
+
             flyout.ShowAt(MoreButton);
         }
 
@@ -78,6 +82,17 @@ namespace WhatsappApp.Pages
             {
                 if (rows[i].IsPinned) DataService.Instance.SetPinned(rows[i].Id, false);
             }
+        }
+
+        /// <summary>
+        /// The whole list stops being new. It is the same "read" the chat page
+        /// sends, decided for every chat at once instead of one at a time: the
+        /// adapter has no separate "read all" command, so the two sides cannot
+        /// disagree about what has been read.
+        /// </summary>
+        private void ReadAllMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            DataService.Instance.ClearAllUnread();
         }
 
         /// <summary>

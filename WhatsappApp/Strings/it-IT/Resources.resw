@@ -421,6 +421,9 @@
   <data name="ChatsPage_UnpinAll" xml:space="preserve">
     <value>Togli tutte le chat fissate</value>
   </data>
+  <data name="ChatsPage_ReadAll" xml:space="preserve">
+    <value>Segna tutte le chat come lette</value>
+  </data>
   <data name="ChatsPage_PinTitle" xml:space="preserve">
     <value>Chat fissate</value>
   </data>
