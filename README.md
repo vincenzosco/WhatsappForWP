@@ -593,13 +593,17 @@ built before the list. The switch on the connection page chooses between the
 public list and a server of your own.
 
 The app uses that list to keep working when a server goes down. `AutoConnector`
-builds an ordered list of candidates - the registry addresses, then the last one
-that answered - and dials them one after the other, each with the same six-second
-deadline, connecting to the first that answers. The watchdog that already notices
-a silent connection calls it again after closing the dead one, so a server that
-stops answering is replaced by the next one with nothing for the user to do;
-only when nothing answers, not even an adapter found on the LAN, does the app say
-the server is unavailable.
+builds the candidates - the registry addresses, then the last one that answered -
+and then **pings all of them at the same time**: each is a TCP connection measured
+against the same six-second deadline the rest of the app uses. It dials the
+fastest one first and the others in order, so the phone lands on the server that
+answers quickest instead of the one that happens to be listed first. With a
+single server there is nothing to rank and nothing changes. The watchdog that
+already notices a silent connection calls it again after closing the dead one, so
+a server that stops answering is replaced by the next one with nothing for the
+user to do; only when nothing answers, not even an adapter found on the LAN, does
+the app say the server is unavailable. The measured times are written on the
+Diagnostics page.
 
 To make a server's address appear in the repository - and so be reachable from
 the phone - every server writes its own row of `endpoint.json`; nobody edits the
@@ -611,9 +615,12 @@ file by hand:
    to the real address (in a bridged container the detected one is Docker's).
    The adapter writes its row at startup and refreshes it every
    `ENDPOINT_PUBLISH_MINUTES`, so a DHCP change is picked up on its own.
-2. Give it a token that may write to the endpoint repository (`ENDPOINT_TOKEN`,
-   or `GH_TOKEN`). Without one the server still works, it is simply not
-   published, and the log says so.
+2. Give it a credential that may write to the endpoint repository: a token
+   (`ENDPOINT_TOKEN`, or `GH_TOKEN`), or nothing at all if the machine has run
+   `gh auth login` - with no token the adapter publishes through the GitHub CLI.
+   Without either, the server still works, it is simply not published, and the
+   log says so. `ENDPOINT_REPO` picks the repository, so it can be another one or
+   a fork.
 3. On the public deployment the tunnel container writes the public row by
    itself, because it is the only component that knows the bore.pub address: put
    a `GH_TOKEN` in the Docker `.env` and it republishes whenever the port changes.
