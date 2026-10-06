@@ -195,38 +195,49 @@ function createRegistryService(options) {
       return false;
     }
 
-    try {
-      const remote = await readRemote(FILE_JSON);
-      let remoteParsed = null;
-      try { remoteParsed = JSON.parse(remote.text); } catch (e) { remoteParsed = null; }
+    // Two attempts. GitHub refuses a write whose `sha` is stale, and while a
+    // deployment is still moving to this service the file has another writer;
+    // reading it again is the whole fix, and a retry is cheaper than the
+    // quarter of an hour the heartbeat would otherwise make the list wait.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const remote = await readRemote(FILE_JSON);
+        let remoteParsed = null;
+        try { remoteParsed = JSON.parse(remote.text); } catch (e) { remoteParsed = null; }
 
-      const merged = mergeRegistry(remoteParsed, rows, dropped);
-      const json = serializeRegistry(merged);
+        const merged = mergeRegistry(remoteParsed, rows, dropped);
+        const json = serializeRegistry(merged);
 
-      if (json === remote.text) {
+        if (json === remote.text) {
+          lastPublish = { at: now(), ok: true, error: '' };
+          return false;
+        }
+
+        const message = `Publish ${merged.servers.length} server(s)`;
+        await writeRemote(FILE_JSON, json, remote.sha, message);
+
+        const remoteMd = await readRemote(FILE_MD);
+        const md = renderMarkdown(merged);
+        if (md !== remoteMd.text) await writeRemote(FILE_MD, md, remoteMd.sha, message);
+
+        // The rows taken out of the file are gone from it now: forgetting them
+        // here is what keeps the next publish from touching the file again.
+        if (dropped.length) { dropped = []; save(); }
+
         lastPublish = { at: now(), ok: true, error: '' };
+        log('OK', `registry: published ${merged.servers.length} server(s) to ${repo}`);
+        return true;
+      } catch (err) {
+        if (attempt === 0) {
+          log('WARN', `registry: publish failed (${err.message}), reading the file again`);
+          continue;
+        }
+        lastPublish = { at: now(), ok: false, error: err.message };
+        log('WARN', `registry: could not publish (${err.message})`);
         return false;
       }
-
-      const message = `Publish ${merged.servers.length} server(s)`;
-      await writeRemote(FILE_JSON, json, remote.sha, message);
-
-      const remoteMd = await readRemote(FILE_MD);
-      const md = renderMarkdown(merged);
-      if (md !== remoteMd.text) await writeRemote(FILE_MD, md, remoteMd.sha, message);
-
-      // The rows taken out of the file are gone from it now: forgetting them
-      // here is what keeps the next publish from touching the file again.
-      if (dropped.length) { dropped = []; save(); }
-
-      lastPublish = { at: now(), ok: true, error: '' };
-      log('OK', `registry: published ${merged.servers.length} server(s) to ${repo}`);
-      return true;
-    } catch (err) {
-      lastPublish = { at: now(), ok: false, error: err.message };
-      log('WARN', `registry: could not publish (${err.message})`);
-      return false;
     }
+    return false;
   }
 
   function schedulePublish() {
