@@ -239,8 +239,39 @@ git commit -m "feat: install the registry as a systemd service"
   records the newest row - so a byte comparison fails a correct run. It is now
   compared row by row, with the top-level pair.
 
-### Still to do
+### The deployment
 
-Tasks 7 and 8 need `gcloud auth login`, which is interactive and belongs to the
-requester. Everything the VM needs - the service, the systemd unit, the installer
-and the docs - is committed and pushed.
+- Project `whatsapp-server-forwp`, instance `whatsapp-main-server-wp`, zone
+  `us-central1-a`, e2-micro, static external address `34.9.230.208`.
+- Firewall rule `whatsappforwp-registry` for `tcp:8787` from `0.0.0.0/0`,
+  targeting the tag `whatsappforwp-registry`, which was added to the instance.
+- `gcloud compute scp` then `setup.sh` as root: Node 22.23.3 into `/opt/node`
+  with `/usr/local/bin/node` pointing at it, `/etc/whatsappforwp-registry.env`
+  at mode 600, the unit enabled and active.
+- Verified from outside the VM: `GET /health` answers `{"ok":true,...}`, a
+  report without the secret is `401`, a malformed row is `400`.
+- Both containers report to it: the adapter logs `[endpoint] reported
+  192.168.0.108:8585 as nas to http://34.9.230.208:8787`, the tunnel logs
+  `[publish] bore.pub:41417 is live as public in http://34.9.230.208:8787`.
+- The VM published with its own token: the live `endpoint.json` keeps `public`
+  first with the top-level pair mirroring it and `tls`/`fingerprint` carried
+  over, `endpoint.md` was regenerated, and the file still parses with the
+  adapter's `parseRegistry` (two rows, `public` first).
+- A restart re-read both rows from `/var/lib/whatsappforwp-registry/registry.json`
+  and published nothing: the heartbeat is not a commit.
+- The NAS `.env` gained `ENDPOINT_REGISTRY_URL` and `ENDPOINT_REGISTRY_SECRET`
+  (backup `.env.bak-20261006-registry`). `GH_TOKEN` stays for a rollback but is
+  no longer used by either container.
+
+### Left open
+
+- `gcloud` needed the requester for the browser sign-in. That was the only step
+  that did; everything after it ran from this machine.
+- `gcloud compute scp`/`ssh` fell back to PuTTY's `pscp`/`plink`, which cannot
+  accept a host key without a prompt: the key was seeded with `ssh-keyscan`, the
+  PuTTY directory dropped from `PATH`, and the Windows `scp`/`ssh` used directly.
+- A publish that changes the file is two commits, because the Contents API
+  writes `endpoint.json` and `endpoint.md` one at a time. Writes only happen on a
+  real change, so that is the cost of a change and not of a heartbeat.
+- The token was pasted into the chat and now lives in the VM's environment file;
+  it should be rotated.
