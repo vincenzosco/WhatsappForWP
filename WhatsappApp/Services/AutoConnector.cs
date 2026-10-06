@@ -85,6 +85,13 @@ namespace WhatsappApp.Services
                     AddCandidate(candidates, savedAddress, SettingsService.ServerPort);
                 }
 
+                // One candidate needs no ranking: measuring it would add one
+                // connection to the common private-server case for nothing.
+                if (candidates.Count > 1)
+                {
+                    await RankByLatencyAsync(candidates);
+                }
+
                 // Written down before the attempts: an empty list with a healthy
                 // adapter is nearly always the address, and nothing else in the
                 // app says which ones were tried.
@@ -155,6 +162,57 @@ namespace WhatsappApp.Services
             candidate.Port = port;
             candidate.Name = "";
             candidates.Add(candidate);
+        }
+
+        /// <summary>
+        /// Orders the candidates by how fast they answer, fastest first. A server
+        /// that did not answer keeps a place at the end of the list instead of
+        /// being dropped: the ping is a hint, the connection is the judge, and a
+        /// lost probe must not lose a server.
+        /// </summary>
+        private static async Task RankByLatencyAsync(List<DiscoveredServer> candidates)
+        {
+            var probes = new Task<int>[candidates.Count];
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                probes[i] = ServerPinger.MeasureAsync(candidates[i].Address, candidates[i].Port);
+            }
+            int[] latencies = await Task.WhenAll(probes);
+
+            var text = new System.Text.StringBuilder("ping: ");
+            for (int i = 0; i < latencies.Length; i++)
+            {
+                if (i > 0) text.Append(", ");
+                text.Append(candidates[i].Endpoint).Append("=");
+                text.Append(latencies[i] == ServerPinger.NoAnswer
+                    ? "no answer" : latencies[i] + " ms");
+            }
+            Diag.Ok(text.ToString());
+
+            var ranked = new List<DiscoveredServer>();
+            var taken = new bool[candidates.Count];
+            while (ranked.Count < candidates.Count)
+            {
+                int best = -1;
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    if (taken[i]) continue;
+                    if (best == -1)
+                    {
+                        best = i;
+                        continue;
+                    }
+                    int left = latencies[i] == ServerPinger.NoAnswer ? int.MaxValue : latencies[i];
+                    int right = latencies[best] == ServerPinger.NoAnswer ? int.MaxValue : latencies[best];
+                    // Strictly smaller, so equal scores keep the registry order.
+                    if (left < right) best = i;
+                }
+                taken[best] = true;
+                ranked.Add(candidates[best]);
+            }
+
+            candidates.Clear();
+            candidates.AddRange(ranked);
         }
     }
 }
