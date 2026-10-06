@@ -51,6 +51,7 @@ const { collectChats } = require('./chats');
 const { createTranscoder } = require('./ffmpeg');
 const { authenticate } = require('./auth');
 const { createUserStore } = require('./users');
+const { createEndpointPublisher } = require('./endpoint-publisher');
 
 const LOG_TAGS = { INFO: '[INFO]', OK: '[OK]', WARN: '[WARN]', ERR: '[ERR]', MSG: '[MSG]', QR: '[QR]', NET: '[NET]' };
 
@@ -1737,6 +1738,21 @@ async function main() {
     log('OK', `discovery beacon on UDP port ${config.discovery.port} (name: ${config.discovery.name})`);
   }
 
+  // The address this server announces to the app. It is published once and then
+  // kept fresh, so a machine whose address moves with DHCP stays reachable
+  // without anybody editing the registry by hand. Off unless ENDPOINT_PUBLISH
+  // is on: a private instance has nobody to announce itself to.
+  let endpointTimer = null;
+  if (config.endpoint.publish) {
+    const publisher = createEndpointPublisher({
+      endpoint: config.endpoint,
+      bridgePort: config.bridge.port,
+      log
+    });
+    endpointTimer = publisher.start();
+    log('INFO', `Registry:    publishing to ${config.endpoint.repo || 'vincenzosco/whatsappforwp-endpoint'}`);
+  }
+
   bridge.tcpServer.on('error', (err) => {
     log('ERR', `TCP server error: ${err.message}`);
     if (err.code === 'EADDRINUSE') log('ERR', `port ${config.bridge.port} is already in use (set BRIDGE_PORT=...).`);
@@ -1751,6 +1767,7 @@ async function main() {
 
   const shutdown = () => {
     clearInterval(timer);
+    if (endpointTimer) clearInterval(endpointTimer);
     if (beacon) beacon.stop();
     bridge.stop();
     try { webhookServer.close(); } catch (e) { /* ignora */ }

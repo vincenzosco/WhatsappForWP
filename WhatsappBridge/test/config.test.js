@@ -105,6 +105,37 @@ test('loadConfig espone gli interruttori di sicurezza del bridge', () => {
   assert.strictEqual(on.auth.strictDevice, true);
 });
 
+test('loadConfig espone la pubblicazione del registro dei server', () => {
+  const defaults = loadConfig({});
+  assert.strictEqual(defaults.endpoint.publish, false);
+  assert.strictEqual(defaults.endpoint.repo, '');
+  assert.strictEqual(defaults.endpoint.intervalMinutes, 30);
+
+  const on = loadConfig({
+    ENDPOINT_PUBLISH: 'on',
+    ENDPOINT_REPO: 'me/repo',
+    ENDPOINT_TOKEN: 'tok',
+    ENDPOINT_SERVER_ID: 'nas',
+    ENDPOINT_SERVER_NAME: 'NAS',
+    ENDPOINT_HOST: '192.168.0.108',
+    ENDPOINT_PORT: '8585',
+    ENDPOINT_PUBLISH_MINUTES: '5',
+  });
+  assert.strictEqual(on.endpoint.publish, true);
+  assert.strictEqual(on.endpoint.repo, 'me/repo');
+  assert.strictEqual(on.endpoint.token, 'tok');
+  assert.strictEqual(on.endpoint.serverId, 'nas');
+  assert.strictEqual(on.endpoint.serverName, 'NAS');
+  assert.strictEqual(on.endpoint.host, '192.168.0.108');
+  assert.strictEqual(on.endpoint.port, 8585);
+  assert.strictEqual(on.endpoint.intervalMinutes, 5);
+});
+
+test('ENDPOINT_TOKEN vuoto eredita GH_TOKEN', () => {
+  const c = loadConfig({ GH_TOKEN: 'gh-token' });
+  assert.strictEqual(c.endpoint.token, 'gh-token');
+});
+
 test('loadConfig espone la configurazione di discovery', () => {
   const defaults = loadConfig({});
   assert.strictEqual(defaults.discovery.enabled, true);

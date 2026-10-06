@@ -1,0 +1,128 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { detectLocalAddress, createEndpointPublisher } = require('../endpoint-publisher');
+
+function jsonResponse(status, payload) {
+  return {
+    ok: status >= 200 && status < 300,
+    status,
+    json: async () => payload,
+    text: async () => JSON.stringify(payload),
+  };
+}
+
+function encode(text) {
+  return Buffer.from(text, 'utf8').toString('base64');
+}
+
+test('detectLocalAddress tiene il primo IPv4 reale e salta i virtuali', () => {
+  const address = detectLocalAddress({
+    lo: [{ family: 'IPv4', internal: true, address: '127.0.0.1' }],
+    docker0: [{ family: 'IPv4', internal: false, address: '172.17.0.1' }],
+    en0: [{ family: 'IPv4', internal: false, address: '192.168.0.50' }],
+  });
+  assert.strictEqual(address, '192.168.0.50');
+});
+
+test('detectLocalAddress senza indirizzi utili torna vuoto', () => {
+  assert.strictEqual(detectLocalAddress({ lo: [{ family: 'IPv4', internal: true, address: '127.0.0.1' }] }), '');
+});
+
+test('publish senza token avvisa e non pubblica', async () => {
+  const seen = [];
+  const publisher = createEndpointPublisher({
+    endpoint: { publish: true, repo: 'me/repo', token: '', host: '10.0.0.5', port: 8585 },
+    log: (level, message) => seen.push(level + ' ' + message),
+    fetchImpl: async () => { throw new Error('must not be called'); },
+  });
+
+  assert.strictEqual(await publisher.publish(), false);
+  assert.ok(seen.some((line) => line.indexOf('not published') !== -1));
+});
+
+test('publish sostituisce la riga del server e lascia il resto intatto', async () => {
+  const existing = JSON.stringify({
+    host: 'bore.pub',
+    port: 41417,
+    servers: [{ id: 'public', name: 'Public server', host: 'bore.pub', port: 41417 }],
+  });
+
+  const calls = [];
+  const publisher = createEndpointPublisher({
+    endpoint: {
+      publish: true, repo: 'me/repo', token: 'tok',
+      serverId: 'pc', serverName: 'Study PC', host: '10.0.0.5', port: 8585,
+    },
+    log: () => {},
+    now: () => '2026-10-06T12:00:00.000Z',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (options && options.method === 'PUT') return jsonResponse(200, {});
+      return jsonResponse(200, { sha: 'abc', content: encode(existing) });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), true);
+
+  const put = calls.find((c) => c.options && c.options.method === 'PUT');
+  assert.ok(put, 'una PUT e\' stata fatta');
+  const body = JSON.parse(put.options.body);
+  assert.strictEqual(body.sha, 'abc');
+
+  const written = JSON.parse(Buffer.from(body.content, 'base64').toString('utf8'));
+  assert.strictEqual(written.host, 'bore.pub', 'il pubblico resta il preferito');
+  assert.strictEqual(written.port, 41417);
+  assert.strictEqual(written.servers.length, 2);
+  assert.deepStrictEqual(written.servers[0].id, 'public');
+  assert.deepStrictEqual(written.servers[1], {
+    id: 'pc', name: 'Study PC', host: '10.0.0.5', port: 8585, updatedAt: '2026-10-06T12:00:00.000Z',
+  });
+});
+
+test('publish crea il file quando non esiste ancora', async () => {
+  const calls = [];
+  const publisher = createEndpointPublisher({
+    endpoint: {
+      publish: true, repo: 'me/repo', token: 'tok',
+      serverId: 'first', host: '192.168.0.50', port: 8585,
+    },
+    log: () => {},
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (options && options.method === 'PUT') return jsonResponse(201, {});
+      return jsonResponse(404, { message: 'Not Found' });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), true);
+
+  const put = calls.find((c) => c.options && c.options.method === 'PUT');
+  const body = JSON.parse(put.options.body);
+  assert.strictEqual(body.sha, undefined, 'un file nuovo non ha sha da passare');
+  const written = JSON.parse(Buffer.from(body.content, 'base64').toString('utf8'));
+  assert.strictEqual(written.servers.length, 1);
+  assert.strictEqual(written.servers[0].host, '192.168.0.50');
+  assert.strictEqual(written.host, '192.168.0.50');
+});
+
+test('publish senza indirizzo avvisa e non pubblica', async () => {
+  const seen = [];
+  const publisher = createEndpointPublisher({
+    endpoint: { publish: true, repo: 'me/repo', token: 'tok', serverId: 'pc', port: 8585 },
+    interfaces: { lo: [{ family: 'IPv4', internal: true, address: '127.0.0.1' }] },
+    log: (level, message) => seen.push(level + ' ' + message),
+    fetchImpl: async () => { throw new Error('must not be called'); },
+  });
+
+  assert.strictEqual(await publisher.publish(), false);
+  assert.ok(seen.some((line) => line.indexOf('set ENDPOINT_HOST') !== -1));
+});
+
+test('publish con ENDPOINT_PUBLISH spento non fa nulla', async () => {
+  const publisher = createEndpointPublisher({
+    endpoint: { publish: false, repo: 'me/repo', token: 'tok', host: '10.0.0.5', port: 8585 },
+    fetchImpl: async () => { throw new Error('must not be called'); },
+  });
+  assert.strictEqual(await publisher.publish(), false);
+});
