@@ -574,10 +574,15 @@ device the service already knows must present its token, so knowing a device id
 is not enough to reach an account.
 
 The frame cipher key does not have to be chosen by hand. With `PAIRING=on` and no
-key of its own, a server prints a one-time code at startup; the connection page
-of the app takes that code and sends a key the phone generated, sealed with it,
-and the server adopts it (`BRIDGE_KEY_FILE` keeps it across restarts). The device
-token is not drawn by the phone: the server derives it from the device id, so
+key of its own, a server prints a one-time code at startup; the app takes that
+code and sends a key the phone generated, sealed with it, and the server adopts it
+(`BRIDGE_KEY_FILE` keeps it across restarts). A phone that has no key of its own
+does this by itself the first time it opens - it asks the server for the code with
+`pair.code` and offers its key before the connection is opened - so nothing is
+typed and the button is not needed. *Send my key to the server* on the connection
+page is the same exchange by hand, for a later server or one whose window had
+already closed. The device token is not drawn by the
+phone: the server derives it from the device id, so
 every device keeps one token keyed on its own id. The settings page still has a
 *Server key*
 field: a server started with its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
