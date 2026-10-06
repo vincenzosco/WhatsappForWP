@@ -242,11 +242,12 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// Pairing: this phone draws its own frame key, seals it with the one-time
-        /// code the server printed, and the server adopts it. The token is not
-        /// drawn here: the server derives it from this device id, so it stays one
-        /// token keyed on the device, and hands it back in the `paired` frame. The
-        /// blob that carries the key is opaque to anyone who did not read the
-        /// code - the outer frame is the public default, the inside is not.
+        /// code the server printed, and the server adopts it. The exchange itself
+        /// lives in PairingService, because the app now runs the same one by itself
+        /// on the first open (see PairingService.TryAutoPairAsync); what is left
+        /// here is choosing the server and showing the result. The token is not
+        /// drawn by the phone either: the server derives it from this device id, so
+        /// it stays one token keyed on the device, and hands it back in `paired`.
         /// </summary>
         private async void PairButton_Click(object sender, RoutedEventArgs e)
         {
@@ -255,17 +256,12 @@ namespace WhatsappApp.Pages
 
         private async Task PairWithServerAsync()
         {
-            // A code typed by hand wins; otherwise it is asked of the server. The
-            // server sends it, and a fresh one when the old has run out, so the code
-            // in its log is a convenience and not a step anybody has to carry out.
-            string code = NormalizePairingCode(PairingCodeBox.Text);
-
+            // The code is not typed: the service asks the server for the current
+            // one, and a fresh one when the old has run out, so the code in the
+            // server log is a convenience and not a step anybody has to carry out.
             PairingStatusText.Text = Loc.Get("ConnectionPage_Pairing", "Pairing...");
             PairButton.IsEnabled = false;
 
-            StreamSocket socket = null;
-            DataWriter writer = null;
-            DataReader reader = null;
             try
             {
                 string address = "";
@@ -280,26 +276,35 @@ namespace WhatsappApp.Pages
                         await EndpointService.Instance.ResolveAllAsync();
                     if (remotes != null)
                     {
-                        for (int i = 0; i < remotes.Count; i++)
+                        // The probe is closed again: PairingService opens its own
+                        // socket, keyed with the passphrase this phone has now.
+                        DiscoveredServer chosen = null;
+                        for (int i = 0; i < remotes.Count && chosen == null; i++)
                         {
                             StreamSocket probe = new StreamSocket();
                             try
                             {
                                 await CommunicationService.ConnectWithDeadlineAsync(
                                     probe, new HostName(remotes[i].Address), remotes[i].Port);
-                                socket = probe;
-                                address = remotes[i].Address;
-                                port = remotes[i].Port;
-                                break;
+                                chosen = remotes[i];
                             }
                             catch (Exception ex)
                             {
                                 Diag.Failed("ConnectionPage/pair-probe", ex);
-                                DisposePairingSocket(probe, null, null);
+                            }
+                            finally
+                            {
+                                DisposeProbe(probe);
                             }
                         }
+
+                        if (chosen != null)
+                        {
+                            address = chosen.Address;
+                            port = chosen.Port;
+                        }
                     }
-                    if (socket == null)
+                    if (string.IsNullOrEmpty(address))
                     {
                         PairingStatusText.Text = Loc.Get("ConnectionPage_PairFailed",
                             "The pairing did not succeed.");
@@ -318,104 +323,46 @@ namespace WhatsappApp.Pages
                         port = boxPort;
                     }
 
-                    socket = new StreamSocket();
-                    // The same deadline as every other connection of the app: a bare
-                    // ConnectAsync leaves this screen on "Pairing..." with the button
-                    // disabled until the TCP stack gives up on an address that drops
-                    // packets instead of refusing them. The expiry closes the socket and
-                    // throws, and the catch below writes the failure and re-enables the
-                    // button.
-                    await CommunicationService.ConnectWithDeadlineAsync(
-                        socket, new HostName(address), port);
                 }
 
-                writer = FrameCodec.CreateFrameWriter(socket.OutputStream);
-                reader = FrameCodec.CreateFrameReader(socket.InputStream);
+                PairingResult result = await PairingService.PairAsync(
+                    address, port, EnsureUsername(), PairingCodeBox.Text);
 
-                // The outer frame is keyed the way this phone is configured now:
-                // before pairing that is the server's default, which is exactly
-                // what makes a key of our own reachable at this step.
-                CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
-
-                // Two turns: if the code expired between the server sending it and
-                // the pairing arriving, a fresh one is asked for and the pairing is
-                // tried again, instead of showing the user a failure.
-                bool paired = false;
-                for (int attempt = 0; attempt < 2 && !paired; attempt++)
+                if (result.Paired)
                 {
-                    if (string.IsNullOrEmpty(code))
-                    {
-                        code = await AskPairingCodeAsync(writer, reader);
-                        if (string.IsNullOrEmpty(code))
-                        {
-                            PairingStatusText.Text = Loc.Get("ConnectionPage_PairNoCode",
-                                "The server did not send a pairing code: either pairing is off, or it already has a key.");
-                            return;
-                        }
-                        // Shown as the server sent it, so the user sees the code
-                        // doing the pairing even though nobody typed it.
-                        PairingCodeBox.Text = code;
-                    }
-
-                    // The frame key is generated here, on the phone: it becomes the
-                    // server's cipher, and nothing on the server can reproduce it.
-                    // The token is not drawn here - the server derives it from this
-                    // device id and returns it in the `paired` frame below, so every
-                    // device keeps one token keyed on its own id.
-                    string newKey = CryptoHelper.NewSecret();
-                    string sealedPayload = CryptoHelper.SealWith(NormalizePairingCode(code),
-                        "{\"BridgeKey\":\"" + newKey
-                        + "\",\"SenderName\":\"" + JsonEscape(EnsureUsername()) + "\"}");
-
-                    var pair = new ChatMessage
-                    {
-                        Id = "pair",
-                        Command = "pair",
-                        PairingPayload = sealedPayload,
-                        SenderId = SettingsService.DeviceId,
-                        SenderName = EnsureUsername(),
-                        ChatId = "system",
-                        Type = MessageType.System,
-                        IsIncoming = false
-                    };
-
-                    await FrameCodec.WriteFrameAsync(writer,
-                        CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(pair.ToJson())));
-
-                    ChatMessage reply = await ReadPairingReplyAsync(reader);
-
-                    if (reply != null && reply.Command == "paired")
-                    {
-                        // Adopted only now, on the server's word: the key is the one
-                        // generated above, and the token is the one the server
-                        // derived from this device id.
-                        SettingsService.BridgeKey = newKey;
-                        if (!string.IsNullOrEmpty(reply.Token)) SettingsService.Token = reply.Token;
-                        SettingsService.Save(address, port, EnsureUsername());
-                        BridgeKeyBox.Text = newKey;
-                        TokenBox.Text = SettingsService.Token;
-                        PairingCodeBox.Text = "";
-                        PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
-                            "Paired. The server now uses the key this phone generated.");
-                        paired = true;
-                    }
-                    else
-                    {
-                        // The code may have run out: forget it and ask for another
-                        // one on the next turn. On the last turn the server's own
-                        // words are shown.
-                        code = "";
-                        if (attempt == 1)
-                        {
-                            PairingStatusText.Text = reply != null && !string.IsNullOrEmpty(reply.Text)
-                                ? reply.Text
-                                : Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.");
-                        }
-                    }
+                    SettingsService.Save(address, port, EnsureUsername());
+                    BridgeKeyBox.Text = SettingsService.BridgeKey;
+                    TokenBox.Text = SettingsService.Token;
+                    PairingCodeBox.Text = "";
+                    PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
+                        "Paired. The server now uses the key this phone generated.");
+                }
+                else if (result.NoCode)
+                {
+                    PairingCodeBox.Text = "";
+                    PairingStatusText.Text = Loc.Get("ConnectionPage_PairNoCode",
+                        "The server did not send a pairing code: either pairing is off, or it already has a key.");
+                }
+                else if (result.Error)
+                {
+                    PairingStatusText.Text = string.Format(
+                        Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.") + " ({0})",
+                        result.Message);
+                }
+                else
+                {
+                    // The code the server sent stays in the box, so a run that did
+                    // not go through still shows what it was working with.
+                    if (!string.IsNullOrEmpty(result.Code)) PairingCodeBox.Text = result.Code;
+                    PairingStatusText.Text = !string.IsNullOrEmpty(result.Message)
+                        ? result.Message
+                        : Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.");
                 }
             }
             catch (Exception ex)
             {
+                // PairingService answers for the exchange itself; this is the page's
+                // own work - the registry rows, the boxes - failing.
                 Diag.Failed("ConnectionPage/pair", ex);
                 PairingStatusText.Text = string.Format(
                     Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.") + " ({0})",
@@ -423,95 +370,18 @@ namespace WhatsappApp.Pages
             }
             finally
             {
-                DisposePairingSocket(socket, writer, reader);
                 PairButton.IsEnabled = true;
             }
         }
 
         /// <summary>
-        /// Asks the server for the current pairing code: `pair.code` out, a
-        /// `pair.info` frame back carrying the code and how long it stays valid. It
-        /// is the automatic path - the code the server prints in its log no longer
-        /// has to be copied by hand, and an expired one is replaced by this call.
+        /// Closes one probe socket. A failure here is not worth reporting: the
+        /// socket is going away anyway.
         /// </summary>
-        private async Task<string> AskPairingCodeAsync(DataWriter writer, DataReader reader)
+        private static void DisposeProbe(StreamSocket socket)
         {
-            var ask = new ChatMessage
-            {
-                Id = "pair.code",
-                Command = "pair.code",
-                SenderId = SettingsService.DeviceId,
-                SenderName = EnsureUsername(),
-                ChatId = "system",
-                Type = MessageType.System,
-                IsIncoming = false
-            };
-
-            await FrameCodec.WriteFrameAsync(writer,
-                CryptoHelper.Encrypt(Encoding.UTF8.GetBytes(ask.ToJson())));
-
-            ChatMessage reply = await ReadPairingReplyAsync(reader);
-            if (reply != null && reply.Command == "pair.info")
-                return (reply.PairingCode ?? "").Trim();
-            return "";
-        }
-
-        /// <summary>
-        /// One control frame awaited with a timeout. Null never comes back: a closed
-        /// connection and a silent server are both raised as exceptions.
-        /// </summary>
-        private static async Task<ChatMessage> ReadPairingReplyAsync(DataReader reader)
-        {
-            var readTask = FrameCodec.ReadFrameAsync(reader);
-            if (await Task.WhenAny(readTask, Task.Delay(8000)) != readTask)
-                throw new TimeoutException("the server did not answer the pairing");
-
-            byte[] payload = await readTask;
-            if (payload == null) throw new InvalidOperationException("the server closed the connection");
-
-            byte[] jsonBytes = CryptoHelper.Decrypt(payload);
-            return ChatMessage.FromJson(Encoding.UTF8.GetString(jsonBytes, 0, jsonBytes.Length));
-        }
-
-        /// <summary>
-        /// The code as both sides compare it: uppercase, with the dashes and spaces
-        /// of the printed form removed. The server normalizes the same way, so a
-        /// code typed with or without its dashes is the same code.
-        /// </summary>
-        private static string NormalizePairingCode(string code)
-        {
-            if (string.IsNullOrEmpty(code)) return "";
-            var clean = new StringBuilder(code.Length);
-            foreach (char c in code.ToUpperInvariant())
-            {
-                if ((c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')) clean.Append(c);
-            }
-            return clean.ToString();
-        }
-
-        /// <summary>
-        /// The three objects of the one-shot pairing connection, closed in the
-        /// right order. A failure here is not worth reporting: the socket is going
-        /// away anyway.
-        /// </summary>
-        private static void DisposePairingSocket(StreamSocket socket, DataWriter writer, DataReader reader)
-        {
-            try { if (writer != null) { writer.DetachStream(); writer.Dispose(); } }
-            catch (Exception) { }
-            try { if (reader != null) { reader.DetachStream(); reader.Dispose(); } }
-            catch (Exception) { }
             try { if (socket != null) socket.Dispose(); }
             catch (Exception) { }
-        }
-
-        /// <summary>
-        /// A string inside a JSON string. The name is the only value here that a
-        /// person types, so the two characters that would end it early are the only
-        /// ones escaped.
-        /// </summary>
-        private static string JsonEscape(string value)
-        {
-            return (value ?? "").Replace("\\", "\\\\").Replace("\"", "\\\"");
         }
 
         /// <summary>
