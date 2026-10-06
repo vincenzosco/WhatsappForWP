@@ -47,7 +47,20 @@ const DEFAULTS = {
   // When on, a server with no key accepts one `pair` frame: the phone sends a
   // key it generated itself, proved by the one-time code printed at startup.
   PAIRING: 'off',
-  PAIRING_TTL_MIN: '15'
+  PAIRING_TTL_MIN: '15',
+  // The server registry: this server publishes its own address into
+  // whatsappforwp-endpoint/endpoint.json so the app can find it, and so the app
+  // has more than one server to try when one goes down. Off by default: a
+  // private instance needs no registry, and publishing needs a token.
+  ENDPOINT_PUBLISH: 'off',
+  ENDPOINT_REPO: '',
+  ENDPOINT_TOKEN: '',
+  GH_TOKEN: '',
+  ENDPOINT_SERVER_ID: '',
+  ENDPOINT_SERVER_NAME: '',
+  ENDPOINT_HOST: '',
+  ENDPOINT_PORT: '',
+  ENDPOINT_PUBLISH_MINUTES: '30'
 };
 
 function pick(env, key) {
@@ -85,6 +98,23 @@ function loadConfig(env = process.env) {
       // that already has a key ignores this: there is nothing to replace.
       enabled: pick(env, 'PAIRING').toLowerCase() === 'on',
       ttlMs: Math.max(1, parseInt(pick(env, 'PAIRING_TTL_MIN'), 10)) * 60000
+    },
+    endpoint: {
+      // On when this server should advertise itself in the shared registry. The
+      // host is the one the phone has to dial: left empty, the first local IPv4
+      // is used (a machine running the adapter directly, not a bridged
+      // container, whose IP is the host's). The id is what makes the server
+      // replace its own row instead of adding another one.
+      publish: pick(env, 'ENDPOINT_PUBLISH').toLowerCase() === 'on',
+      repo: pick(env, 'ENDPOINT_REPO'),
+      // ENDPOINT_TOKEN wins; GH_TOKEN is the one the tunnel container already
+      // uses, so a deployment sets it once.
+      token: pick(env, 'ENDPOINT_TOKEN') || pick(env, 'GH_TOKEN'),
+      serverId: pick(env, 'ENDPOINT_SERVER_ID'),
+      serverName: pick(env, 'ENDPOINT_SERVER_NAME'),
+      host: pick(env, 'ENDPOINT_HOST'),
+      port: parseInt(pick(env, 'ENDPOINT_PORT'), 10),
+      intervalMinutes: Math.max(1, parseInt(pick(env, 'ENDPOINT_PUBLISH_MINUTES'), 10) || 30)
     },
     webhook: {
       port: webhookPort,
