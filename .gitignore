@@ -75,3 +75,6 @@ WhatsappApp/BundleArtifacts/
 # so they are found from the repository root, but they are third-party
 # instructions, not part of the app: they are not vendored into the repo.
 skills/
+
+# Piano in esecuzione (executing-plans): scratch, mai committato.
+.superpowers/
