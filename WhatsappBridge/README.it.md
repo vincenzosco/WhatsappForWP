@@ -183,7 +183,7 @@ Vedi `.env.example`. Le variabili principali:
 | `USERS_FILE` | — | dove vivono gli utenti; vuoto li tiene in memoria, un percorso sopravvive a un riavvio |
 | `ENDPOINT_PUBLISH` | `off` | aggiunge la riga di questo server al registro condiviso, cosi' l'app lo trova e puo' ripiegare su di lui (vedi *Il registro dei server*) |
 | `ENDPOINT_REPO` | `vincenzosco/whatsappforwp-endpoint` | il repository dove vive il registro |
-| `ENDPOINT_TOKEN` | — | un token GitHub che puo' scrivere su `ENDPOINT_REPO`; vuoto riprende `GH_TOKEN` |
+| `ENDPOINT_TOKEN` | — | un token GitHub che puo' scrivere su `ENDPOINT_REPO`; vuoto riprende `GH_TOKEN` e, se non c'e' nessuno dei due, si usa il `gh` della macchina |
 | `ENDPOINT_SERVER_ID` | nome host | la riga che questo server possiede; due server non devono condividerla |
 | `ENDPOINT_SERVER_NAME` | = id | il nome che il registro mostra |
 | `ENDPOINT_HOST` | primo IPv4 locale | l'indirizzo da annunciare; mettilo quando l'IP della macchina non e' quello che il telefono chiama |
@@ -347,8 +347,16 @@ che legge un'app costruita prima della lista.
 Un adapter aggiunge la sua riga con `ENDPOINT_PUBLISH=on`: all'avvio, e ogni
 `ENDPOINT_PUBLISH_MINUTES`, legge il file, sostituisce la propria riga (individuata
 da `ENDPOINT_SERVER_ID`) e lo riscrive, lasciando intatte le righe degli altri
-server. Non lancia mai e non blocca il server: un deployment senza token si limita
-a scrivere nel log che non ha potuto pubblicare.
+server.
+
+Il file lo scrive in due modi. Con un token chiama la Contents API di GitHub, che
+funziona anche in un container dove `gh` non c'e'. Senza token usa il GitHub CLI
+della macchina (`gh api`), cosi' un server su cui e' stato fatto `gh auth login`
+pubblica senza salvare nessun segreto. `ENDPOINT_REPO` e' il repository su cui
+scrive, quindi puo' puntare a un altro repository o a un fork; due server non
+devono condividere lo stesso `ENDPOINT_SERVER_ID`. Non lancia mai e non blocca il
+server: senza nessuna delle due credenziali si limita a scrivere nel log che non
+ha potuto pubblicare.
 
 L'IP di un container bridged e' quello di Docker, non quello che il telefono
 chiama, quindi li' `ENDPOINT_HOST` deve portare l'indirizzo reale. Il container
