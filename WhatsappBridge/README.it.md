@@ -257,8 +257,11 @@ apre una finestra monouso e ne stampa il codice per l'operatore:
 
 L'app non ha bisogno di quella riga. Chiede il codice con il comando `pair.code`
 e il server risponde con un frame `pair.info` che porta il codice e per quanto
-resta valido, quindi *Invia la chiave al server* funziona da solo. Il telefono
-estrae 32 byte casuali per la chiave, la sigilla con il codice in un unico blocco
+resta valido, quindi *Invia la chiave al server* funziona da solo. Se non ha una
+chiave sua, l'app fa quella richiesta da sola la prima volta che si apre, prima
+che la connessione venga aperta, quindi al primo avvio il pulsante non serve a
+niente; resta il percorso manuale. Il telefono estrae 32 byte casuali per la
+chiave, la sigilla con il codice in un unico blocco
 e lo spedisce dentro il normale frame `pair`, insieme al suo device id in
 `SenderId`. Il frame esterno e' il default pubblico - non c'e' ancora altro con
 cui scriverlo - ma il blocco dentro e' cifrato con il codice. Se la finestra e'
