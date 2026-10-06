@@ -179,6 +179,14 @@ See `.env.example`. The main variables:
 | `AUTH_STRICT_DEVICE` | `off` | a device the store already knows must present a verifying token; the device id alone is not enough (`on` closes the device-id impersonation path, at the cost of the reinstall-keeps-your-account behaviour) |
 | `AUTH_MAX_USERS` | `50` | ceiling on the devices that can register themselves |
 | `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
+| `ENDPOINT_PUBLISH` | `off` | add this server's own row to the shared registry, so the app finds it and can fail over to it (see *The server registry*) |
+| `ENDPOINT_REPO` | `vincenzosco/whatsappforwp-endpoint` | the repository the registry lives in |
+| `ENDPOINT_TOKEN` | — | a GitHub token that may write to `ENDPOINT_REPO`; empty falls back to `GH_TOKEN` |
+| `ENDPOINT_SERVER_ID` | host name | the row this server owns; two servers must not share one |
+| `ENDPOINT_SERVER_NAME` | = id | the name the registry shows |
+| `ENDPOINT_HOST` | first local IPv4 | the address to announce; set it when the machine's own IP is not the one the phone dials |
+| `ENDPOINT_PORT` | `BRIDGE_PORT` | the port to announce |
+| `ENDPOINT_PUBLISH_MINUTES` | `30` | how often the row is rewritten, so a moved address is picked up |
 
 The token is the only thing that distinguishes a phone on a shared service, and a
 phone that has none is given one: with `AUTH_REGISTER=on` (the default) the adapter
@@ -320,6 +328,27 @@ The webhook is registered on GOWA automatically. As an alternative, start GOWA w
 ```bash
 ./whatsapp rest --webhook=http://<adapter-address>:8586/webhook
 ```
+
+## The server registry
+
+The app does not have a single address: it reads a list and tries the servers in
+order until one answers, so one server going down does not take the app with it.
+The list is `endpoint.json` in
+[whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
+whose `servers` array holds one row per server (`id`, `name`, `host`, `port`,
+`updatedAt`). The top-level `host`/`port` mirror the first row, which is what an
+app built before the list reads.
+
+An adapter adds its own row to that list with `ENDPOINT_PUBLISH=on`: at startup,
+and every `ENDPOINT_PUBLISH_MINUTES`, it reads the file, replaces its row
+(matched by `ENDPOINT_SERVER_ID`) and writes it back, leaving the other servers'
+rows alone. It never throws and never blocks the server: a deployment with no
+token simply logs that it could not publish.
+
+A bridged container's own IP is Docker's, not the one the phone dials, so
+`ENDPOINT_HOST` has to carry the real address there. The Docker deployment's
+tunnel container publishes the public address by itself; the two write different
+rows of the same file.
 
 ## Automatic discovery
 

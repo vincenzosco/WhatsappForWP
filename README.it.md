@@ -606,8 +606,30 @@ Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da
 [whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
 perche' il tunnel bore.pub che espone il server prende una porta nuova a ogni
-riavvio. Quel file contiene un indirizzo e nient'altro. L'interruttore nella
-pagina di connessione sceglie tra il servizio pubblico e un server proprio.
+riavvio. Quel file ora contiene una lista: ogni server annuncia il proprio
+indirizzo nell'array `servers`, e il primo e' anche in cima al file, per un'app
+costruita prima della lista. L'interruttore nella pagina di connessione sceglie
+tra la lista pubblica e un server proprio.
+
+L'app usa quella lista per continuare a funzionare quando un server va giu'.
+`AutoConnector` costruisce una lista ordinata di candidati - gli indirizzi del
+registro, poi l'ultimo che ha risposto - e li chiama uno dopo l'altro, ognuno con
+la stessa scadenza di sei secondi, e si ferma al primo che risponde. Il watchdog
+che gia' si accorge di una connessione muta lo richiama dopo aver chiuso quella
+morta, quindi un server che smette di rispondere viene sostituito dal prossimo
+senza che l'utente faccia nulla; solo quando non risponde nessuno, nemmeno un
+adapter trovato in LAN, l'app dice che il server non e' disponibile.
+
+Le conversazioni restano sul telefono, non su un server: `chats.json`, le copie
+dei messaggi per chat e `chat-preferences.json` vivono nella cartella dell'app e
+non vengono mai svuotate quando cambia il server. Ogni server della lista e'
+collegato allo stesso account WhatsApp, quindi le conversazioni sono le stesse, e
+l'app chiede la sua lista chat al server che raggiunge. Perche' un telefono sia
+accettato da piu' di un server, i server condividono lo stesso `BRIDGE_KEY` (o
+sono stati accoppiati con la stessa chiave generata dal telefono) e accettano lo
+stesso token del dispositivo: un `users.json` condiviso da' entrambe le cose,
+mentre `AUTH_REGISTER=on` lascia che ogni server rilasci il proprio token alla
+prima connessione del telefono.
 
 Quello che resta vero, e vale la pena dire chiaramente:
 

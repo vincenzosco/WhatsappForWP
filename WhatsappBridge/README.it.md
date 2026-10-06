@@ -181,6 +181,14 @@ Vedi `.env.example`. Le variabili principali:
 | `AUTH_STRICT_DEVICE` | `off` | un dispositivo che il deposito conosce gia' deve presentare un token valido; il solo device id non basta (`on` chiude la strada dell'impersonificazione via device id, al costo del comportamento "reinstalla e tieni l'account") |
 | `AUTH_MAX_USERS` | `50` | tetto ai device che possono registrarsi da soli |
 | `USERS_FILE` | — | dove vivono gli utenti; vuoto li tiene in memoria, un percorso sopravvive a un riavvio |
+| `ENDPOINT_PUBLISH` | `off` | aggiunge la riga di questo server al registro condiviso, cosi' l'app lo trova e puo' ripiegare su di lui (vedi *Il registro dei server*) |
+| `ENDPOINT_REPO` | `vincenzosco/whatsappforwp-endpoint` | il repository dove vive il registro |
+| `ENDPOINT_TOKEN` | — | un token GitHub che puo' scrivere su `ENDPOINT_REPO`; vuoto riprende `GH_TOKEN` |
+| `ENDPOINT_SERVER_ID` | nome host | la riga che questo server possiede; due server non devono condividerla |
+| `ENDPOINT_SERVER_NAME` | = id | il nome che il registro mostra |
+| `ENDPOINT_HOST` | primo IPv4 locale | l'indirizzo da annunciare; mettilo quando l'IP della macchina non e' quello che il telefono chiama |
+| `ENDPOINT_PORT` | `BRIDGE_PORT` | la porta da annunciare |
+| `ENDPOINT_PUBLISH_MINUTES` | `30` | ogni quanto la riga viene riscritta, cosi' un indirizzo che si sposta viene ripreso |
 
 Il token e' l'unica cosa che distingue un telefono su un servizio condiviso, e un
 telefono che non ne ha uno lo riceve: con `AUTH_REGISTER=on` (il valore
@@ -325,6 +333,27 @@ Il webhook viene registrato automaticamente su GOWA. In alternativa avvia GOWA c
 ```bash
 ./whatsapp rest --webhook=http://<indirizzo-adapter>:8586/webhook
 ```
+
+## Il registro dei server
+
+L'app non ha un indirizzo solo: legge una lista e prova i server in ordine
+finche' uno risponde, cosi' un server che va giu' non porta giu' l'app. La lista
+e' `endpoint.json` in
+[whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
+il cui array `servers` contiene una riga per server (`id`, `name`, `host`, `port`,
+`updatedAt`). I campi in cima `host`/`port` rispecchiano la prima riga, ed e' quello
+che legge un'app costruita prima della lista.
+
+Un adapter aggiunge la sua riga con `ENDPOINT_PUBLISH=on`: all'avvio, e ogni
+`ENDPOINT_PUBLISH_MINUTES`, legge il file, sostituisce la propria riga (individuata
+da `ENDPOINT_SERVER_ID`) e lo riscrive, lasciando intatte le righe degli altri
+server. Non lancia mai e non blocca il server: un deployment senza token si limita
+a scrivere nel log che non ha potuto pubblicare.
+
+L'IP di un container bridged e' quello di Docker, non quello che il telefono
+chiama, quindi li' `ENDPOINT_HOST` deve portare l'indirizzo reale. Il container
+tunnel del deployment Docker pubblica da solo l'indirizzo pubblico; i due
+scrivono righe diverse dello stesso file.
 
 ## Scoperta automatica
 

@@ -9,6 +9,12 @@ namespace WhatsappApp.Models
     /// </summary>
     public class DiscoveredServer
     {
+        /// <summary>
+        /// The id of this server in the registry. It is what makes a server
+        /// replace its own row instead of adding another, and it is empty for a
+        /// server found on the LAN, which has no registry at all.
+        /// </summary>
+        public string Id { get; set; }
         public string Address { get; set; }
         public int Port { get; set; }
         public string Name { get; set; }
@@ -18,6 +24,7 @@ namespace WhatsappApp.Models
 
         public DiscoveredServer()
         {
+            Id = "";
             Address = "";
             Port = 0;
             Name = "";
