@@ -181,7 +181,7 @@ See `.env.example`. The main variables:
 | `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
 | `ENDPOINT_PUBLISH` | `off` | add this server's own row to the shared registry, so the app finds it and can fail over to it (see *The server registry*) |
 | `ENDPOINT_REPO` | `vincenzosco/whatsappforwp-endpoint` | the repository the registry lives in |
-| `ENDPOINT_TOKEN` | — | a GitHub token that may write to `ENDPOINT_REPO`; empty falls back to `GH_TOKEN` |
+| `ENDPOINT_TOKEN` | — | a GitHub token that may write to `ENDPOINT_REPO`; empty falls back to `GH_TOKEN`, and with neither the machine's own `gh` CLI is used |
 | `ENDPOINT_SERVER_ID` | host name | the row this server owns; two servers must not share one |
 | `ENDPOINT_SERVER_NAME` | = id | the name the registry shows |
 | `ENDPOINT_HOST` | first local IPv4 | the address to announce; set it when the machine's own IP is not the one the phone dials |
@@ -342,8 +342,16 @@ app built before the list reads.
 An adapter adds its own row to that list with `ENDPOINT_PUBLISH=on`: at startup,
 and every `ENDPOINT_PUBLISH_MINUTES`, it reads the file, replaces its row
 (matched by `ENDPOINT_SERVER_ID`) and writes it back, leaving the other servers'
-rows alone. It never throws and never blocks the server: a deployment with no
-token simply logs that it could not publish.
+rows alone.
+
+It writes the file one of two ways. With a token it calls the GitHub Contents
+API, which is what a container without `gh` can do. With no token it shells out
+to the machine's own GitHub CLI (`gh api`), so a server that has run
+`gh auth login` publishes without storing a secret anywhere. `ENDPOINT_REPO` is
+the repository it writes, so it may point at another repository or at a fork;
+two servers must not share an `ENDPOINT_SERVER_ID`. It never throws and never
+blocks the server: with neither credential it simply logs that it could not
+publish.
 
 A bridged container's own IP is Docker's, not the one the phone dials, so
 `ENDPOINT_HOST` has to carry the real address there. The Docker deployment's
