@@ -253,8 +253,11 @@ and prints its code for the operator to see:
 
 The app does not need that line. It asks for the code with the `pair.code`
 command and the server answers with a `pair.info` frame carrying the code and how
-long it stays valid, so *Send my key to the server* works on its own. The phone
-draws 32 random bytes for the key, seals it with the code into one blob, and
+long it stays valid, so *Send my key to the server* works on its own. With no key
+of its own, the app makes that ask by itself the first time it opens, before the
+connection is opened, so a first run needs the button for nothing and the button
+stays the manual path. The phone draws 32
+random bytes for the key, seals it with the code into one blob, and
 sends it inside the ordinary `pair` frame, together with its device id in
 `SenderId`. The outer frame is the public default - there is nothing else to
 write it with yet - but the blob inside is keyed by the code. If the window ran

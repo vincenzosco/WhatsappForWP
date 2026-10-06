@@ -593,11 +593,16 @@ comodita' si spegne: un dispositivo che il servizio conosce gia' deve presentare
 il suo token, quindi conoscere un device id non basta per raggiungere un account.
 
 La chiave del cifrario dei frame non deve essere scelta a mano. Con `PAIRING=on`
-e nessuna chiave sua, un server stampa all'avvio un codice monouso; la pagina di
-connessione dell'app prende quel codice e invia una chiave che il telefono ha
-generato, sigillata con esso, e il server la adotta (`BRIDGE_KEY_FILE` la
-conserva tra i riavvii). Il token del dispositivo non lo disegna il telefono: lo
-deriva il server dal device id, quindi ogni dispositivo tiene un solo token legato
+e nessuna chiave sua, un server stampa all'avvio un codice monouso; l'app prende
+quel codice e invia una chiave che il telefono ha generato, sigillata con esso, e
+il server la adotta (`BRIDGE_KEY_FILE` la conserva tra i riavvii). Un telefono che
+non ha ancora una chiave sua lo fa da solo la prima volta che si apre - chiede il
+codice al server con `pair.code` e offre la sua chiave prima che la connessione
+venga aperta - quindi non c'e' niente da digitare e il pulsante non serve. *Invia
+la chiave al server*, nella pagina di connessione, e' lo stesso scambio a mano,
+per un server successivo o per uno la cui finestra si era gia' chiusa. Il token del
+dispositivo non lo disegna il telefono: lo deriva il server dal device id, quindi
+ogni dispositivo tiene un solo token legato
 al proprio id. La pagina delle impostazioni ha ancora un campo *Chiave del server*: un server
 avviato con un `BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default
 pubblico) si raggiunge digitando lo stesso valore li'.
