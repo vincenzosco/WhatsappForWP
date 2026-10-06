@@ -60,7 +60,12 @@ const DEFAULTS = {
   ENDPOINT_SERVER_NAME: '',
   ENDPOINT_HOST: '',
   ENDPOINT_PORT: '',
-  ENDPOINT_PUBLISH_MINUTES: '30'
+  ENDPOINT_PUBLISH_MINUTES: '30',
+  // The shared registry on the VM, for a deployment that uses one: with a URL
+  // set the adapter reports its address there and writes nothing to GitHub, so
+  // the container needs no token of its own. Empty keeps the old behaviour.
+  ENDPOINT_REGISTRY_URL: '',
+  ENDPOINT_REGISTRY_SECRET: ''
 };
 
 function pick(env, key) {
@@ -114,7 +119,13 @@ function loadConfig(env = process.env) {
       serverName: pick(env, 'ENDPOINT_SERVER_NAME'),
       host: pick(env, 'ENDPOINT_HOST'),
       port: parseInt(pick(env, 'ENDPOINT_PORT'), 10),
-      intervalMinutes: Math.max(1, parseInt(pick(env, 'ENDPOINT_PUBLISH_MINUTES'), 10) || 30)
+      intervalMinutes: Math.max(1, parseInt(pick(env, 'ENDPOINT_PUBLISH_MINUTES'), 10) || 30),
+      // The registry on the VM. With a URL set this server reports its address
+      // there and the credential that writes `endpoint.json` stays on the VM:
+      // that is what lets somebody else's container announce itself without
+      // being handed write access to the repository.
+      registryUrl: pick(env, 'ENDPOINT_REGISTRY_URL'),
+      registrySecret: pick(env, 'ENDPOINT_REGISTRY_SECRET')
     },
     webhook: {
       port: webhookPort,

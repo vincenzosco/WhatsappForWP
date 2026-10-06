@@ -193,6 +193,73 @@ test('publish senza token aspetta un execImpl asincrono', async () => {
   assert.strictEqual(calls.length, 2);
 });
 
+test('publish con un registro manda la riga alla VM e non tocca GitHub', async () => {
+  const calls = [];
+  const seen = [];
+  const publisher = createEndpointPublisher({
+    endpoint: {
+      publish: true,
+      repo: 'me/repo',
+      // The trailing slash is what an operator types: the report must not
+      // become http://host//register.
+      registryUrl: 'http://34.12.0.9:8787/',
+      registrySecret: 's3cret',
+      serverId: 'nas',
+      serverName: 'NAS',
+      host: '192.168.0.108',
+      port: 8585,
+      // A token is set and must still not be used: with a registry the file is
+      // written by the service, not by this container.
+      token: 'gh-token',
+    },
+    log: (level, message) => seen.push(level + ' ' + message),
+    execImpl: async () => { throw new Error('gh must not be called'); },
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse(200, { ok: true });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), true);
+  assert.strictEqual(calls.length, 1, 'una sola chiamata: al registro');
+  assert.strictEqual(calls[0].url, 'http://34.12.0.9:8787/register');
+  assert.strictEqual(calls[0].init.method, 'POST');
+  assert.deepStrictEqual(JSON.parse(calls[0].init.body), {
+    id: 'nas', name: 'NAS', host: '192.168.0.108', port: 8585, secret: 's3cret',
+  });
+  assert.ok(seen.some((line) => line.indexOf('reported 192.168.0.108:8585 as nas') !== -1),
+    seen.join(' | '));
+});
+
+test('un registro che rifiuta non fa ripiegare su GitHub', async () => {
+  const calls = [];
+  const seen = [];
+  const publisher = createEndpointPublisher({
+    endpoint: {
+      publish: true,
+      repo: 'me/repo',
+      registryUrl: 'http://34.12.0.9:8787',
+      registrySecret: 'sbagliato',
+      serverId: 'nas',
+      host: '192.168.0.108',
+      port: 8585,
+      token: 'gh-token',
+    },
+    log: (level, message) => seen.push(level + ' ' + message),
+    execImpl: async () => { throw new Error('gh must not be called'); },
+    fetchImpl: async (url, init) => {
+      calls.push({ url, init });
+      return jsonResponse(401, { ok: false, error: 'unauthorized' });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), false);
+  assert.strictEqual(calls.length, 1);
+  assert.strictEqual(calls.filter((c) => c.url.indexOf('/contents/') !== -1).length, 0,
+    'un registro che rifiuta non deve far scrivere il file da qui: due scrittori, una riga persa');
+  assert.ok(seen.some((line) => line.indexOf('could not report') !== -1), seen.join(' | '));
+});
+
 test('publish con token usa l API e non gh', async () => {
   const calls = [];
   const publisher = createEndpointPublisher({

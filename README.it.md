@@ -648,13 +648,25 @@ raggiungibile dal telefono - ogni server scrive la propria riga di
    essere un altro o un fork.
 3. Nel deployment pubblico la riga pubblica la scrive da se' il container tunnel,
    perche' e' l'unico componente che conosce l'indirizzo bore.pub: metti un
-   `GH_TOKEN` nel `.env` di Docker e ripubblica ogni volta che la porta cambia.
+   `GH_TOKEN` nel `.env` di Docker, oppure puntalo al registro condiviso qui
+   sotto, e ripubblica ogni volta che la porta cambia.
 4. Due server non devono condividere lo stesso `ENDPOINT_SERVER_ID`, o si
    sovrascrivono la riga a vicenda.
 5. Nell'app accendi *Usa il server pubblico* cosi' legge la lista. Gli indirizzi
    trovati sono nella pagina Diagnostica (`endpoint N server(s), first
    host:port`), e quello che ha risposto e' l'indirizzo che l'app tiene per la
    connessione successiva.
+
+I container del deployment pubblico non tengono nessun token: il tunnel e
+l'adapter riportano i loro indirizzi a un piccolo servizio di registro che gira
+su una VM gratuita e2-micro di Google Cloud con IP statico, ed e' quel servizio
+l'unica cosa che scrive `endpoint.json`, con l'unica credenziale. Metti
+`ENDPOINT_REGISTRY_URL` (per esempio `http://<ip-vm>:8787`) e
+`ENDPOINT_REGISTRY_SECRET` nel `.env` di Docker al posto di `GH_TOKEN`, e il
+tunnel - o il server di chiunque altro - si annuncia senza ricevere mai il
+permesso di scrivere sul repository. Il servizio, la sua unit systemd e
+l'installer sono in `registry/`; l'esecuzione e' nel README del repository
+Docker.
 
 La tabella completa delle variabili `ENDPOINT_*` e la forma del file sono in
 [WhatsappBridge/README.it.md](WhatsappBridge/README.it.md#il-registro-dei-server).
