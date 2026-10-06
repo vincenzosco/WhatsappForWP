@@ -268,19 +268,43 @@ namespace WhatsappApp.Pages
             DataReader reader = null;
             try
             {
-                string address;
-                int port;
+                string address = "";
+                int port = 0;
                 if (PublicServerToggle.IsOn)
                 {
-                    DiscoveredServer remote = await EndpointService.Instance.ResolveAsync();
-                    if (remote == null)
+                    // Every address the registry lists, in order: the first that
+                    // answers is the one this phone pairs with. The runtime failover
+                    // walks the same list, so a first row that is down must not make
+                    // the one-time setup impossible while a later row would answer.
+                    System.Collections.Generic.List<DiscoveredServer> remotes =
+                        await EndpointService.Instance.ResolveAllAsync();
+                    if (remotes != null)
+                    {
+                        for (int i = 0; i < remotes.Count; i++)
+                        {
+                            StreamSocket probe = new StreamSocket();
+                            try
+                            {
+                                await CommunicationService.ConnectWithDeadlineAsync(
+                                    probe, new HostName(remotes[i].Address), remotes[i].Port);
+                                socket = probe;
+                                address = remotes[i].Address;
+                                port = remotes[i].Port;
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                Diag.Failed("ConnectionPage/pair-probe", ex);
+                                DisposePairingSocket(probe, null, null);
+                            }
+                        }
+                    }
+                    if (socket == null)
                     {
                         PairingStatusText.Text = Loc.Get("ConnectionPage_PairFailed",
                             "The pairing did not succeed.");
                         return;
                     }
-                    address = remote.Address;
-                    port = remote.Port;
                 }
                 else
                 {
@@ -293,17 +317,18 @@ namespace WhatsappApp.Pages
                     {
                         port = boxPort;
                     }
+
+                    socket = new StreamSocket();
+                    // The same deadline as every other connection of the app: a bare
+                    // ConnectAsync leaves this screen on "Pairing..." with the button
+                    // disabled until the TCP stack gives up on an address that drops
+                    // packets instead of refusing them. The expiry closes the socket and
+                    // throws, and the catch below writes the failure and re-enables the
+                    // button.
+                    await CommunicationService.ConnectWithDeadlineAsync(
+                        socket, new HostName(address), port);
                 }
 
-                socket = new StreamSocket();
-                // The same deadline as every other connection of the app: a bare
-                // ConnectAsync leaves this screen on "Pairing..." with the button
-                // disabled until the TCP stack gives up on an address that drops
-                // packets instead of refusing them. The expiry closes the socket and
-                // throws, and the catch below writes the failure and re-enables the
-                // button.
-                await CommunicationService.ConnectWithDeadlineAsync(
-                    socket, new HostName(address), port);
                 writer = FrameCodec.CreateFrameWriter(socket.OutputStream);
                 reader = FrameCodec.CreateFrameReader(socket.InputStream);
 
