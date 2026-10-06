@@ -187,6 +187,8 @@ See `.env.example`. The main variables:
 | `ENDPOINT_HOST` | first local IPv4 | the address to announce; set it when the machine's own IP is not the one the phone dials |
 | `ENDPOINT_PORT` | `BRIDGE_PORT` | the port to announce |
 | `ENDPOINT_PUBLISH_MINUTES` | `30` | how often the row is rewritten, so a moved address is picked up |
+| `ENDPOINT_REGISTRY_URL` | — | report this row to the shared registry on the VM instead of writing the repository from here; empty keeps the direct route (see *The server registry*) |
+| `ENDPOINT_REGISTRY_SECRET` | — | the shared secret that registry requires (`REGISTRY_TOKEN` on the VM) |
 
 The token is the only thing that distinguishes a phone on a shared service, and a
 phone that has none is given one: with `AUTH_REGISTER=on` (the default) the adapter
@@ -347,7 +349,7 @@ and every `ENDPOINT_PUBLISH_MINUTES`, it reads the file, replaces its row
 (matched by `ENDPOINT_SERVER_ID`) and writes it back, leaving the other servers'
 rows alone.
 
-It writes the file one of two ways. With a token it calls the GitHub Contents
+It writes the file one of three ways. With a token it calls the GitHub Contents
 API, which is what a container without `gh` can do. With no token it shells out
 to the machine's own GitHub CLI (`gh api`), so a server that has run
 `gh auth login` publishes without storing a secret anywhere. `ENDPOINT_REPO` is
@@ -355,6 +357,18 @@ the repository it writes, so it may point at another repository or at a fork;
 two servers must not share an `ENDPOINT_SERVER_ID`. It never throws and never
 blocks the server: with neither credential it simply logs that it could not
 publish.
+
+The third way, and the one the public deployment uses, is a registry: set
+`ENDPOINT_REGISTRY_URL` and the adapter stops writing the file altogether. It
+POSTs `{id, name, host, port, secret}` to `<url>/register` with
+`ENDPOINT_REGISTRY_SECRET`, and a small service on a VM - the `registry/`
+directory of this repository - does the writing with a credential of its own.
+That is what lets somebody else's container announce itself without being handed
+write access to the repository: no container holds a GitHub token at all. A
+registry that cannot be reached is a row that does not appear; it is deliberately
+not a fallback to GitHub, because two writers on one file lose rows. The service,
+its variables and its TTL are in *The registry on the VM* in the Docker
+repository's README.
 
 A bridged container's own IP is Docker's, not the one the phone dials, so
 `ENDPOINT_HOST` has to carry the real address there. The Docker deployment's

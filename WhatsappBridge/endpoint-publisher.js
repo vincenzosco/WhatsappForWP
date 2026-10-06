@@ -153,8 +153,68 @@ function createEndpointPublisher(options) {
     await execImpl(GH, args);
   }
 
+  /** The registry's door for a report. */
+  function registryEndpoint() {
+    return String(endpoint.registryUrl).replace(/\/+$/, '') + '/register';
+  }
+
+  /**
+   * Tells the registry service on the VM where this server is. With a registry
+   * configured this replaces writing the file: the credential that writes
+   * `endpoint.json` belongs to the service, not to every container that reports
+   * to it, so a deployment that uses one needs no GitHub token at all.
+   *
+   * It never throws: a registry that cannot be reached is a row that does not
+   * appear, not a server that stops working, and it is deliberately not a
+   * fallback to the GitHub path - two writers on one file is how rows disappear.
+   */
+  async function reportToRegistry() {
+    if (!fetchImpl) {
+      log('WARN', '[endpoint] no fetch available on this Node (18+ needed): not reported');
+      return false;
+    }
+
+    const host = endpoint.host || detectLocalAddress(opts.interfaces);
+    const port = isValidPort(endpoint.port) ? endpoint.port : bridgePort;
+    if (!host) {
+      log('WARN', '[endpoint] no address to report: set ENDPOINT_HOST');
+      return false;
+    }
+    if (!isValidPort(port)) {
+      log('WARN', '[endpoint] no port to report: set ENDPOINT_PORT (or BRIDGE_PORT)');
+      return false;
+    }
+
+    const id = endpoint.serverId || os.hostname();
+    const name = endpoint.serverName || id;
+
+    try {
+      const response = await fetchImpl(registryEndpoint(), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'User-Agent': 'whatsappforwp-adapter',
+        },
+        body: JSON.stringify({ id, name, host, port, secret: endpoint.registrySecret }),
+      });
+      if (!response || !response.ok) {
+        throw new Error(`the registry answered ${response ? response.status : 'nothing'}`);
+      }
+      log('OK', `[endpoint] reported ${host}:${port} as ${id} to ${endpoint.registryUrl}`);
+      return true;
+    } catch (err) {
+      log('WARN', `[endpoint] could not report ${host}:${port} to the registry ` +
+        `(not reported): ${err.message}`);
+      return false;
+    }
+  }
+
   async function publish() {
     if (!endpoint.publish) return false;
+
+    // The registry on the VM, when this deployment has one: this server reports
+    // its address and nothing else. There is no repository and no token here.
+    if (endpoint.registryUrl) return reportToRegistry();
 
     // Two ways to write the file. A token means the API, which works inside a
     // container where gh is not installed; with no token the machine's own
@@ -213,7 +273,7 @@ function createEndpointPublisher(options) {
     return timer;
   }
 
-  return { publish, start };
+  return { publish, start, reportToRegistry };
 }
 
 module.exports = {
