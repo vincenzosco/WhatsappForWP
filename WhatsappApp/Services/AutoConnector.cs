@@ -64,7 +64,16 @@ namespace WhatsappApp.Services
                 if (SettingsService.UsePublicServer)
                 {
                     List<DiscoveredServer> remote = await EndpointService.Instance.ResolveAllAsync();
-                    if (remote != null) candidates.AddRange(remote);
+                    if (remote != null)
+                    {
+                        // One candidate per address, not per row: two registry rows
+                        // that carry the same host and port are the same server, and
+                        // dialling it twice doubles the wait on the one that is down.
+                        for (int i = 0; i < remote.Count; i++)
+                        {
+                            AddCandidate(candidates, remote[i].Address, remote[i].Port);
+                        }
+                    }
                 }
 
                 // The saved address: the last server that answered, private or
