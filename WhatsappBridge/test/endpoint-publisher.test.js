@@ -29,11 +29,18 @@ test('detectLocalAddress senza indirizzi utili torna vuoto', () => {
   assert.strictEqual(detectLocalAddress({ lo: [{ family: 'IPv4', internal: true, address: '127.0.0.1' }] }), '');
 });
 
-test('publish senza token avvisa e non pubblica', async () => {
+test('publish senza token e senza gh avvisa e non pubblica', async () => {
   const seen = [];
   const publisher = createEndpointPublisher({
     endpoint: { publish: true, repo: 'me/repo', token: '', host: '10.0.0.5', port: 8585 },
     log: (level, message) => seen.push(level + ' ' + message),
+    // No token means the gh transport is tried: this is the machine that has
+    // neither, and it must be a warning, never a crash.
+    execImpl: () => {
+      const err = new Error('spawn gh ENOENT');
+      err.code = 'ENOENT';
+      throw err;
+    },
     fetchImpl: async () => { throw new Error('must not be called'); },
   });
 
@@ -125,4 +132,57 @@ test('publish con ENDPOINT_PUBLISH spento non fa nulla', async () => {
     fetchImpl: async () => { throw new Error('must not be called'); },
   });
   assert.strictEqual(await publisher.publish(), false);
+});
+
+test('publish senza token usa gh e fonde la lista', async () => {
+  const existing = JSON.stringify({
+    host: 'bore.pub',
+    port: 41417,
+    servers: [{ id: 'public', name: 'Public server', host: 'bore.pub', port: 41417 }],
+  });
+
+  const calls = [];
+  const publisher = createEndpointPublisher({
+    endpoint: {
+      publish: true, repo: 'me/repo', token: '',
+      serverId: 'nas', serverName: 'NAS', host: '192.168.0.108', port: 8585,
+    },
+    log: () => {},
+    now: () => '2026-10-06T12:00:00.000Z',
+    execImpl: (command, args) => {
+      calls.push({ command, args });
+      if (args.indexOf('--method') !== -1) return '';
+      return JSON.stringify({ sha: 'abc', content: encode(existing) });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), true);
+
+  const put = calls.find((c) => c.args.indexOf('--method') !== -1);
+  assert.ok(put, 'una scrittura e stata fatta');
+  assert.strictEqual(put.command, 'gh');
+  const contentArg = put.args.find((a) => a.indexOf('content=') === 0);
+  const written = JSON.parse(Buffer.from(contentArg.slice('content='.length), 'base64').toString('utf8'));
+  assert.strictEqual(written.host, 'bore.pub', 'il pubblico resta il preferito');
+  assert.strictEqual(written.servers.length, 2);
+  assert.strictEqual(written.servers[1].id, 'nas');
+  assert.strictEqual(written.servers[1].host, '192.168.0.108');
+  assert.ok(put.args.indexOf('sha=abc') !== -1, 'lo sha letto viene rimandato');
+});
+
+test('publish con token usa l API e non gh', async () => {
+  const calls = [];
+  const publisher = createEndpointPublisher({
+    endpoint: { publish: true, repo: 'me/repo', token: 'tok', serverId: 'pc', host: '10.0.0.5', port: 8585 },
+    log: () => {},
+    execImpl: () => { throw new Error('must not be called'); },
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      if (options && options.method === 'PUT') return jsonResponse(200, {});
+      return jsonResponse(404, { message: 'Not Found' });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), true);
+  assert.strictEqual(calls.length, 2);
 });

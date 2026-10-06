@@ -17,11 +17,18 @@
  * still a working server, and the address it failed to announce is one the
  * tunnel or the operator can publish by hand.
  *
- * A `fetchImpl` can be passed in for the tests; on a real run the global
- * `fetch` of Node 18 is used.
+ * How it writes: a token in the configuration means the GitHub Contents API,
+ * which is what a container without gh can use. With no token, the machine's
+ * own GitHub CLI (`gh api`) is used instead, so a server that has run
+ * `gh auth login` publishes without storing a secret anywhere. Nothing here is
+ * a dependency: gh is an OS binary.
+ *
+ * A `fetchImpl` and an `execImpl` can be passed in for the tests; on a real run
+ * the global `fetch` of Node 18 and `child_process.execFileSync` are used.
  */
 
 const os = require('os');
+const { execFileSync } = require('child_process');
 
 const { VIRTUAL } = require('./discovery');
 const { parseRegistry, upsertServer, serializeRegistry } = require('./endpoint-registry');
@@ -29,6 +36,10 @@ const { parseRegistry, upsertServer, serializeRegistry } = require('./endpoint-r
 const DEFAULT_REPO = 'vincenzosco/whatsappforwp-endpoint';
 const FILE = 'endpoint.json';
 const API = 'https://api.github.com';
+// The second way to write the file: the GitHub CLI, already logged in on the
+// machine. `gh` is an OS binary, not a package: the adapter keeps zero
+// dependencies.
+const GH = 'gh';
 
 /**
  * The address another machine on the same network can dial: the first
@@ -65,12 +76,18 @@ function createEndpointPublisher(options) {
   const endpoint = opts.endpoint || {};
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const fetchImpl = opts.fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  const execImpl = typeof opts.execImpl === 'function'
+    ? opts.execImpl
+    : (command, args) => execFileSync(command, args, { encoding: 'utf8' });
   const now = typeof opts.now === 'function' ? opts.now : () => new Date().toISOString();
   const bridgePort = opts.bridgePort;
 
+  function repo() {
+    return endpoint.repo || DEFAULT_REPO;
+  }
+
   function contentsUrl() {
-    const repo = endpoint.repo || DEFAULT_REPO;
-    return `${API}/repos/${repo}/contents/${FILE}`;
+    return `${API}/repos/${repo()}/contents/${FILE}`;
   }
 
   function headers() {
@@ -82,9 +99,9 @@ function createEndpointPublisher(options) {
     };
   }
 
-  /** Reads the current file: `{ text, sha }`, with an empty text when it is not there. */
-  async function readCurrent(url) {
-    const response = await fetchImpl(url, { headers: headers() });
+  /** Reads the current file through the API: `{ text, sha }`, empty when it is not there. */
+  async function readViaApi() {
+    const response = await fetchImpl(contentsUrl(), { headers: headers() });
     if (!response) return { text: '', sha: '' };
     if (response.status === 404) return { text: '', sha: '' };
     if (!response.ok) throw new Error(`GitHub answered ${response.status}`);
@@ -96,15 +113,45 @@ function createEndpointPublisher(options) {
     };
   }
 
+  /** The same read through the CLI, for a machine that has run `gh auth login`. */
+  function readViaGh() {
+    const payload = JSON.parse(execImpl(GH, ['api', `repos/${repo()}/contents/${FILE}`]));
+    return {
+      text: payload && payload.content ? Buffer.from(payload.content, 'base64').toString('utf8') : '',
+      sha: payload && payload.sha ? payload.sha : '',
+    };
+  }
+
+  async function writeViaApi(body) {
+    const response = await fetchImpl(contentsUrl(), {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(body),
+    });
+    if (!response || !response.ok) {
+      throw new Error(`GitHub answered ${response ? response.status : 'nothing'}`);
+    }
+  }
+
+  function writeViaGh(body) {
+    const args = [
+      'api', '--method', 'PUT', `repos/${repo()}/contents/${FILE}`,
+      '-f', `message=${body.message}`,
+      '-f', `content=${body.content}`,
+    ];
+    if (body.sha) args.push('-f', `sha=${body.sha}`);
+    execImpl(GH, args);
+  }
+
   async function publish() {
     if (!endpoint.publish) return false;
-    // Only the token is required: the repo falls back to DEFAULT_REPO in
-    // contentsUrl(), which is the repository the startup banner already names.
-    if (!endpoint.token) {
-      log('WARN', '[endpoint] ENDPOINT_PUBLISH is on but no token is set: not published');
-      return false;
-    }
-    if (!fetchImpl) {
+
+    // Two ways to write the file. A token means the API, which works inside a
+    // container where gh is not installed; with no token the machine's own
+    // `gh auth login` is used, so the server stores no secret at all. The repo
+    // falls back to DEFAULT_REPO, the repository the startup banner names.
+    const viaApi = Boolean(endpoint.token);
+    if (viaApi && !fetchImpl) {
       log('WARN', '[endpoint] no fetch available on this Node (18+ needed): not published');
       return false;
     }
@@ -122,10 +169,9 @@ function createEndpointPublisher(options) {
 
     const id = endpoint.serverId || os.hostname();
     const name = endpoint.serverName || id;
-    const url = contentsUrl();
 
     try {
-      const current = await readCurrent(url);
+      const current = viaApi ? await readViaApi() : readViaGh();
       const updated = upsertServer(current.text, { id, name, host, port }, { now: now() });
 
       const body = {
@@ -134,20 +180,13 @@ function createEndpointPublisher(options) {
       };
       if (current.sha) body.sha = current.sha;
 
-      const response = await fetchImpl(url, {
-        method: 'PUT',
-        headers: headers(),
-        body: JSON.stringify(body),
-      });
+      if (viaApi) await writeViaApi(body);
+      else writeViaGh(body);
 
-      if (response && response.ok) {
-        log('OK', `[endpoint] published ${host}:${port} as ${id}`);
-        return true;
-      }
-      log('WARN', `[endpoint] could not publish ${host}:${port} (GitHub answered ${response ? response.status : 'nothing'})`);
-      return false;
+      log('OK', `[endpoint] published ${host}:${port} as ${id}`);
+      return true;
     } catch (err) {
-      log('WARN', `[endpoint] could not publish ${host}:${port}: ${err.message}`);
+      log('WARN', `[endpoint] could not publish ${host}:${port} (not published): ${err.message}`);
       return false;
     }
   }
