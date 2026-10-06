@@ -612,13 +612,17 @@ costruita prima della lista. L'interruttore nella pagina di connessione sceglie
 tra la lista pubblica e un server proprio.
 
 L'app usa quella lista per continuare a funzionare quando un server va giu'.
-`AutoConnector` costruisce una lista ordinata di candidati - gli indirizzi del
-registro, poi l'ultimo che ha risposto - e li chiama uno dopo l'altro, ognuno con
-la stessa scadenza di sei secondi, e si ferma al primo che risponde. Il watchdog
-che gia' si accorge di una connessione muta lo richiama dopo aver chiuso quella
-morta, quindi un server che smette di rispondere viene sostituito dal prossimo
-senza che l'utente faccia nulla; solo quando non risponde nessuno, nemmeno un
-adapter trovato in LAN, l'app dice che il server non e' disponibile.
+`AutoConnector` costruisce i candidati - gli indirizzi del registro, poi l'ultimo
+che ha risposto - e poi ne **misura il ping tutti insieme**: ognuno e' una
+connessione TCP misurata con la stessa scadenza di sei secondi che usa il resto
+dell'app. Chiama per primo il piu' veloce e poi gli altri in ordine, cosi' il
+telefono si attacca al server che risponde prima e non a quello che capita prima
+nella lista. Con un server solo non c'e' niente da ordinare e nulla cambia. Il
+watchdog che gia' si accorge di una connessione muta lo richiama dopo aver chiuso
+quella morta, quindi un server che smette di rispondere viene sostituito dal
+prossimo senza che l'utente faccia nulla; solo quando non risponde nessuno,
+nemmeno un adapter trovato in LAN, l'app dice che il server non e' disponibile.
+I tempi misurati sono scritti nella pagina Diagnostica.
 
 Perche' l'indirizzo di un server compaia nel repository - e quindi sia
 raggiungibile dal telefono - ogni server scrive la propria riga di
@@ -631,9 +635,12 @@ raggiungibile dal telefono - ogni server scrive la propria riga di
    bridged quello rilevato e' di Docker). L'adapter scrive la riga all'avvio e la
    rinfresca ogni `ENDPOINT_PUBLISH_MINUTES`, cosi' un cambio di DHCP viene
    ripreso da solo.
-2. Da' al server un token che possa scrivere sul repository dell'endpoint
-   (`ENDPOINT_TOKEN`, oppure `GH_TOKEN`). Senza, il server funziona lo stesso: non
-   viene pubblicato, e il log lo dice.
+2. Da' al server una credenziale che possa scrivere sul repository dell'endpoint:
+   un token (`ENDPOINT_TOKEN`, oppure `GH_TOKEN`), oppure niente se sulla macchina
+   e' stato fatto `gh auth login` - senza token l'adapter pubblica attraverso il
+   GitHub CLI. Senza nessuna delle due il server funziona lo stesso: non viene
+   pubblicato, e il log lo dice. `ENDPOINT_REPO` sceglie il repository, quindi puo'
+   essere un altro o un fork.
 3. Nel deployment pubblico la riga pubblica la scrive da se' il container tunnel,
    perche' e' l'unico componente che conosce l'indirizzo bore.pub: metti un
    `GH_TOKEN` nel `.env` di Docker e ripubblica ogni volta che la porta cambia.
