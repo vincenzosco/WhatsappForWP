@@ -628,13 +628,24 @@ file by hand:
    a fork.
 3. On the public deployment the tunnel container writes the public row by
    itself, because it is the only component that knows the bore.pub address: put
-   a `GH_TOKEN` in the Docker `.env` and it republishes whenever the port changes.
+   a `GH_TOKEN` in the Docker `.env`, or point it at the shared registry below,
+   and it republishes whenever the port changes.
 4. Two servers must not share an `ENDPOINT_SERVER_ID`, or they overwrite each
    other's row.
 5. In the app, turn on *Use the public server* so it reads the list. The
    addresses it found are shown on the Diagnostics page (`endpoint N server(s),
    first host:port`), and the one that answered is the address it keeps for the
    next connection.
+
+The containers of the public deployment keep no token at all: the tunnel and the
+adapter report their addresses to a small registry service that runs on a free
+Google Cloud e2-micro VM with a static IP, and that service is the only thing
+that writes `endpoint.json`, with the one credential. Set
+`ENDPOINT_REGISTRY_URL` (for example `http://<vm-ip>:8787`) and
+`ENDPOINT_REGISTRY_SECRET` in the Docker `.env` instead of `GH_TOKEN`, and the
+tunnel - or anybody else's server - announces itself without ever being given
+write access to the repository. The service, its systemd unit and the installer
+are in `registry/`; the run is in the Docker repository's README.
 
 The whole `ENDPOINT_*` table and the shape of the file are in
 [WhatsappBridge/README.md](WhatsappBridge/README.md#the-server-registry).

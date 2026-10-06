@@ -189,6 +189,8 @@ Vedi `.env.example`. Le variabili principali:
 | `ENDPOINT_HOST` | primo IPv4 locale | l'indirizzo da annunciare; mettilo quando l'IP della macchina non e' quello che il telefono chiama |
 | `ENDPOINT_PORT` | `BRIDGE_PORT` | la porta da annunciare |
 | `ENDPOINT_PUBLISH_MINUTES` | `30` | ogni quanto la riga viene riscritta, cosi' un indirizzo che si sposta viene ripreso |
+| `ENDPOINT_REGISTRY_URL` | — | riporta questa riga al registro condiviso sulla VM invece di scrivere qui il repository; vuoto tiene la via diretta (vedi *Il registro dei server*) |
+| `ENDPOINT_REGISTRY_SECRET` | — | il segreto condiviso che quel registro richiede (`REGISTRY_TOKEN` sulla VM) |
 
 Il token e' l'unica cosa che distingue un telefono su un servizio condiviso, e un
 telefono che non ne ha uno lo riceve: con `AUTH_REGISTER=on` (il valore
@@ -352,7 +354,7 @@ Un adapter aggiunge la sua riga con `ENDPOINT_PUBLISH=on`: all'avvio, e ogni
 da `ENDPOINT_SERVER_ID`) e lo riscrive, lasciando intatte le righe degli altri
 server.
 
-Il file lo scrive in due modi. Con un token chiama la Contents API di GitHub, che
+Il file lo scrive in tre modi. Con un token chiama la Contents API di GitHub, che
 funziona anche in un container dove `gh` non c'e'. Senza token usa il GitHub CLI
 della macchina (`gh api`), cosi' un server su cui e' stato fatto `gh auth login`
 pubblica senza salvare nessun segreto. `ENDPOINT_REPO` e' il repository su cui
@@ -360,6 +362,17 @@ scrive, quindi puo' puntare a un altro repository o a un fork; due server non
 devono condividere lo stesso `ENDPOINT_SERVER_ID`. Non lancia mai e non blocca il
 server: senza nessuna delle due credenziali si limita a scrivere nel log che non
 ha potuto pubblicare.
+
+Il terzo modo, quello che usa il deployment pubblico, e' un registro: metti
+`ENDPOINT_REGISTRY_URL` e l'adapter smette del tutto di scrivere il file. Manda in
+POST `{id, name, host, port, secret}` a `<url>/register` con
+`ENDPOINT_REGISTRY_SECRET`, e a scrivere e' un piccolo servizio su una VM - la
+cartella `registry/` di questo repository - con una credenziale sua. E' cosi' che
+il container di un altro si annuncia senza ricevere il permesso di scrivere sul
+repository: nessun container tiene un token GitHub. Un registro irraggiungibile
+e' una riga che non compare; non e' di proposito un ripiego su GitHub, perche' due
+scrittori sullo stesso file perdono righe. Il servizio, le sue variabili e il suo
+TTL sono in *Il registro sulla VM* nel README del repository Docker.
 
 L'IP di un container bridged e' quello di Docker, non quello che il telefono
 chiama, quindi li' `ENDPOINT_HOST` deve portare l'indirizzo reale. Il container
