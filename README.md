@@ -587,8 +587,29 @@ The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from
 [whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
 because the bore.pub tunnel that exposes the server gets a new port every time
-it restarts. That file holds an address and nothing else. The switch on the
-connection page chooses between the public service and a server of your own.
+it restarts. The file holds a list now: every server announces its own address in
+the `servers` array, and the first one is also at the top of the file, for an app
+built before the list. The switch on the connection page chooses between the
+public list and a server of your own.
+
+The app uses that list to keep working when a server goes down. `AutoConnector`
+builds an ordered list of candidates - the registry addresses, then the last one
+that answered - and dials them one after the other, each with the same six-second
+deadline, connecting to the first that answers. The watchdog that already notices
+a silent connection calls it again after closing the dead one, so a server that
+stops answering is replaced by the next one with nothing for the user to do;
+only when nothing answers, not even an adapter found on the LAN, does the app say
+the server is unavailable.
+
+The conversations stay on the phone, not on a server: `chats.json`, the per-chat
+message copies and `chat-preferences.json` live in the app's folder and are never
+cleared when the server changes. Every server in the list is linked to the same
+WhatsApp account, so the conversations are the same, and the app asks its chat
+list of whichever server it reaches. For a phone to be accepted by more than one
+server, the servers share the same `BRIDGE_KEY` (or were paired with the same
+phone-generated key) and accept the same device token: a shared `users.json`
+gives both, or `AUTH_REGISTER=on` lets every server issue its own token on the
+phone's first connection.
 
 What remains true, and is worth saying plainly:
 
