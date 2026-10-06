@@ -318,9 +318,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Connect to a PC server as a client
+        /// Connect to a PC server as a client. With <paramref name="silent"/> a
+        /// failure is reported only through the return value: the caller is walking
+        /// a list of addresses and an ErrorOccurred for each one that does not
+        /// answer would announce failures the caller is going to recover from.
         /// </summary>
-        public async Task<bool> ConnectToServerAsync(string address, int port, string username)
+        public async Task<bool> ConnectToServerAsync(string address, int port, string username, bool silent = false)
         {
             int attempt = ++_connectionId;
 
@@ -354,11 +357,14 @@ namespace WhatsappApp.Services
                 {
                     Diag.Failed("ConnectToServerAsync/address",
                         new ArgumentException("invalid address or port: " + Endpoint(address, port)));
-                    DispatchOnUiThread(() =>
-                        RaiseErrorOccurred(string.Format(
-                            Loc.Get("CommService_InvalidAddress",
-                                "Enter a valid address (host name or IP, port 1-65535): {0}"),
-                            Endpoint(address, port))));
+                    if (!silent)
+                    {
+                        DispatchOnUiThread(() =>
+                            RaiseErrorOccurred(string.Format(
+                                Loc.Get("CommService_InvalidAddress",
+                                    "Enter a valid address (host name or IP, port 1-65535): {0}"),
+                                Endpoint(address, port))));
+                    }
                     return false;
                 }
 
@@ -370,11 +376,14 @@ namespace WhatsappApp.Services
                 catch (Exception ex)
                 {
                     Diag.Failed("ConnectToServerAsync/hostname", ex);
-                    DispatchOnUiThread(() =>
-                        RaiseErrorOccurred(string.Format(
-                            Loc.Get("CommService_InvalidAddress",
-                                "Enter a valid address (host name or IP, port 1-65535): {0}"),
-                            Endpoint(address, port))));
+                    if (!silent)
+                    {
+                        DispatchOnUiThread(() =>
+                            RaiseErrorOccurred(string.Format(
+                                Loc.Get("CommService_InvalidAddress",
+                                    "Enter a valid address (host name or IP, port 1-65535): {0}"),
+                                Endpoint(address, port))));
+                    }
                     return false;
                 }
 
@@ -430,10 +439,13 @@ namespace WhatsappApp.Services
                     {
                         _isConnected = false;
                         DisposePublishedSocket();
-                        DispatchOnUiThread(() =>
-                            RaiseErrorOccurred(string.Format(
-                                Loc.Get("CommService_ConnectError", "Connection error: {0}"),
-                                ExplainConnectionFailure(ex, "handshake", Endpoint(address, port)))));
+                        if (!silent)
+                        {
+                            DispatchOnUiThread(() =>
+                                RaiseErrorOccurred(string.Format(
+                                    Loc.Get("CommService_ConnectError", "Connection error: {0}"),
+                                    ExplainConnectionFailure(ex, "handshake", Endpoint(address, port)))));
+                        }
                     }
                     else
                     {
@@ -468,10 +480,13 @@ namespace WhatsappApp.Services
                 {
                     _isConnected = false;
                     DisposePublishedSocket();
-                    DispatchOnUiThread(() =>
-                        RaiseErrorOccurred(string.Format(
-                            Loc.Get("CommService_ConnectError", "Connection error: {0}"),
-                            ExplainConnectionFailure(ex, "socket", Endpoint(address, port)))));
+                    if (!silent)
+                    {
+                        DispatchOnUiThread(() =>
+                            RaiseErrorOccurred(string.Format(
+                                Loc.Get("CommService_ConnectError", "Connection error: {0}"),
+                                ExplainConnectionFailure(ex, "socket", Endpoint(address, port)))));
+                    }
                 }
                 return false;
             }
