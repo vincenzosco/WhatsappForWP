@@ -193,6 +193,27 @@ test('senza cambiamenti il file non viene riscritto', async () => {
   });
 });
 
+test('riportare lo stesso indirizzo non riscrive il file', async () => {
+  // This is what a reporter's periodic refresh looks like, and it is what keeps
+  // a row from expiring: the tunnel says its address again every few hours, the
+  // adapter every ENDPOINT_PUBLISH_MINUTES. If a repeat wrote the file, the
+  // registry would commit on every heartbeat.
+  await withService({}, async ({ service, base, github }) => {
+    const report = { id: 'public', name: 'Public server', host: 'bore.pub', port: 41417, secret: 's3cret' };
+    await post(base, report);
+    assert.equal(await service.publishNow(), true);
+    const published = JSON.parse(github.files.get('endpoint.json'));
+
+    await post(base, report);
+    assert.equal(await service.publishNow(), false, 'la seconda segnalazione non e una novita');
+
+    assert.deepEqual(JSON.parse(github.files.get('endpoint.json')), published,
+      'il file resta identico, updatedAt compreso');
+    const writes = github.calls.filter((c) => c.method === 'PUT');
+    assert.equal(writes.length, 2, 'endpoint.json e endpoint.md, una volta sola: ' + JSON.stringify(writes));
+  });
+});
+
 test('una riga che questo servizio aveva e non sente piu sparisce dal file', async () => {
   const remote = {
     // A row nobody ever reported here stays where it is: the file can hold a row

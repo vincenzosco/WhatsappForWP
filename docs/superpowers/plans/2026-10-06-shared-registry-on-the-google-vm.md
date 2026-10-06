@@ -263,6 +263,22 @@ git commit -m "feat: install the registry as a systemd service"
   (backup `.env.bak-20261006-registry`). `GH_TOKEN` stays for a rollback but is
   no longer used by either container.
 
+### A gap found after the deployment, and fixed
+
+The tunnel published its address once, when bore gave it one, and the registry
+drops a row nobody has confirmed within `REGISTRY_TTL_MINUTES` - a day. A tunnel
+that stays up for a day is the normal case, so the `public` row would have
+vanished by tomorrow and taken the app's only public address with it. The
+adapter was never at risk: it re-reports every `ENDPOINT_PUBLISH_MINUTES`.
+
+`tunnel-entrypoint.sh` now runs a small loop that says the same address again
+every `ENDPOINT_REFRESH_MINUTES` (6 hours), killed and restarted with the tunnel
+it belongs to. A repeat costs nothing: the registry writes the file only when
+something really changed, so a refresh is not a commit. Pinned in two places -
+`registry/service.test.js` for "a second identical report does not write", and
+`tools/tunnel-refresh-check.sh` in the Docker repository for the loop itself (it
+repeats, it stops at `0`, it survives a value that is not a number).
+
 ### Left open
 
 - `gcloud` needed the requester for the browser sign-in. That was the only step
