@@ -95,8 +95,11 @@ namespace WhatsappApp.Services
                 for (int i = 0; i < candidates.Count; i++)
                 {
                     DiscoveredServer candidate = candidates[i];
+                    // The probe reports itself through the return value: the failure
+                    // of one candidate is not a connection error to raise, it is a
+                    // candidate out of the way.
                     if (await CommunicationService.Instance.ConnectToServerAsync(
-                        candidate.Address, candidate.Port, username))
+                        candidate.Address, candidate.Port, username, true))
                     {
                         SettingsService.Save(candidate.Address, candidate.Port, username);
                         Diag.Ok("connected to " + candidate.Endpoint);
@@ -124,7 +127,7 @@ namespace WhatsappApp.Services
                 }
 
                 bool connected = await CommunicationService.Instance.ConnectToServerAsync(
-                    server.Address, server.Port, username);
+                    server.Address, server.Port, username, true);
                 if (connected) SettingsService.Save(server.Address, server.Port, username);
                 else CommunicationService.Instance.NotifyServerUnavailable();
                 return connected;
