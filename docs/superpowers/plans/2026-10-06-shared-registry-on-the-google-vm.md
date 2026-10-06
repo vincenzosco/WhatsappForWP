@@ -279,6 +279,11 @@ something really changed, so a refresh is not a commit. Pinned in two places -
 `tools/tunnel-refresh-check.sh` in the Docker repository for the loop itself (it
 repeats, it stops at `0`, it survives a value that is not a number).
 
+The NAS was then moved onto the tunnel image that carries the loop: inside the
+container `sleep 21600` is the six-hour repeat next to bore, and the re-report
+that came with the new image added no commit - the repository's newest commit is
+still the one from when the addresses first arrived.
+
 ### Left open
 
 - `gcloud` needed the requester for the browser sign-in. That was the only step
