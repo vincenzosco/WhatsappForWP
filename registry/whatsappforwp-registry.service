@@ -1,0 +1,36 @@
+[Unit]
+Description=Shared registry for the WhatsApp for WP8.1 servers
+Documentation=https://github.com/vincenzosco/docker-whatsappforwp#the-registry-on-the-vm
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# The service holds two secrets and nothing else, so it gets a user that exists
+# only while it runs and no home of its own to leak them into.
+DynamicUser=yes
+StateDirectory=whatsappforwp-registry
+EnvironmentFile=/etc/whatsappforwp-registry.env
+ExecStart=/usr/local/bin/node /opt/whatsappforwp-registry/service.js
+Restart=always
+RestartSec=5
+
+# It opens one port, reads one file and calls GitHub over HTTPS. Everything else
+# is refused, so a bug in it stays a bug in it.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+# AF_NETLINK is in the list on purpose: glibc resolves `api.github.com` through
+# it, and a name that does not resolve is a list that never reaches the app.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target
