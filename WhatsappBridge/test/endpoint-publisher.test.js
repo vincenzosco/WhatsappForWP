@@ -170,6 +170,29 @@ test('publish senza token usa gh e fonde la lista', async () => {
   assert.ok(put.args.indexOf('sha=abc') !== -1, 'lo sha letto viene rimandato');
 });
 
+test('publish senza token aspetta un execImpl asincrono', async () => {
+  // Il publish reale usa child_process.execFile: l'adapter non deve bloccare il
+  // suo ciclo di eventi mentre gh parla con GitHub. Un execImpl che promette,
+  // come quello vero, deve funzionare esattamente come uno che ritorna subito.
+  const calls = [];
+  const publisher = createEndpointPublisher({
+    endpoint: {
+      publish: true, repo: 'me/repo', token: '',
+      serverId: 'nas', serverName: 'NAS', host: '192.168.0.108', port: 8585,
+    },
+    log: () => {},
+    execImpl: async (command, args) => {
+      calls.push({ command, args });
+      await Promise.resolve();
+      if (args.indexOf('--method') !== -1) return '';
+      return JSON.stringify({ sha: '', content: '' });
+    },
+  });
+
+  assert.strictEqual(await publisher.publish(), true);
+  assert.strictEqual(calls.length, 2);
+});
+
 test('publish con token usa l API e non gh', async () => {
   const calls = [];
   const publisher = createEndpointPublisher({

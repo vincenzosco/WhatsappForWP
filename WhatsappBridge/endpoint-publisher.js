@@ -24,11 +24,13 @@
  * a dependency: gh is an OS binary.
  *
  * A `fetchImpl` and an `execImpl` can be passed in for the tests; on a real run
- * the global `fetch` of Node 18 and `child_process.execFileSync` are used.
+ * the global `fetch` of Node 18 and `child_process.execFile` are used. The gh
+ * call is asynchronous for a reason: a synchronous child process would block
+ * the adapter's event loop, and with it every WhatsApp frame.
  */
 
 const os = require('os');
-const { execFileSync } = require('child_process');
+const { execFile } = require('child_process');
 
 const { VIRTUAL } = require('./discovery');
 const { parseRegistry, upsertServer, serializeRegistry } = require('./endpoint-registry');
@@ -76,9 +78,17 @@ function createEndpointPublisher(options) {
   const endpoint = opts.endpoint || {};
   const log = typeof opts.log === 'function' ? opts.log : () => {};
   const fetchImpl = opts.fetchImpl || (typeof fetch === 'function' ? fetch : null);
+  // Asynchronous on purpose: this is the adapter's own event loop. A
+  // synchronous child process would freeze every WhatsApp frame for the whole
+  // round trip to GitHub, at startup and at every refresh.
   const execImpl = typeof opts.execImpl === 'function'
     ? opts.execImpl
-    : (command, args) => execFileSync(command, args, { encoding: 'utf8' });
+    : (command, args) => new Promise((resolve, reject) => {
+      execFile(command, args, { encoding: 'utf8' }, (err, stdout) => {
+        if (err) reject(err);
+        else resolve(stdout);
+      });
+    });
   const now = typeof opts.now === 'function' ? opts.now : () => new Date().toISOString();
   const bridgePort = opts.bridgePort;
 
@@ -114,8 +124,8 @@ function createEndpointPublisher(options) {
   }
 
   /** The same read through the CLI, for a machine that has run `gh auth login`. */
-  function readViaGh() {
-    const payload = JSON.parse(execImpl(GH, ['api', `repos/${repo()}/contents/${FILE}`]));
+  async function readViaGh() {
+    const payload = JSON.parse(await execImpl(GH, ['api', `repos/${repo()}/contents/${FILE}`]));
     return {
       text: payload && payload.content ? Buffer.from(payload.content, 'base64').toString('utf8') : '',
       sha: payload && payload.sha ? payload.sha : '',
@@ -133,14 +143,14 @@ function createEndpointPublisher(options) {
     }
   }
 
-  function writeViaGh(body) {
+  async function writeViaGh(body) {
     const args = [
       'api', '--method', 'PUT', `repos/${repo()}/contents/${FILE}`,
       '-f', `message=${body.message}`,
       '-f', `content=${body.content}`,
     ];
     if (body.sha) args.push('-f', `sha=${body.sha}`);
-    execImpl(GH, args);
+    await execImpl(GH, args);
   }
 
   async function publish() {
@@ -171,7 +181,7 @@ function createEndpointPublisher(options) {
     const name = endpoint.serverName || id;
 
     try {
-      const current = viaApi ? await readViaApi() : readViaGh();
+      const current = viaApi ? await readViaApi() : await readViaGh();
       const updated = upsertServer(current.text, { id, name, host, port }, { now: now() });
 
       const body = {
@@ -181,7 +191,7 @@ function createEndpointPublisher(options) {
       if (current.sha) body.sha = current.sha;
 
       if (viaApi) await writeViaApi(body);
-      else writeViaGh(body);
+      else await writeViaGh(body);
 
       log('OK', `[endpoint] published ${host}:${port} as ${id}`);
       return true;
