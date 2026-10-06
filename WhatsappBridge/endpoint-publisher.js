@@ -98,8 +98,10 @@ function createEndpointPublisher(options) {
 
   async function publish() {
     if (!endpoint.publish) return false;
-    if (!endpoint.repo || !endpoint.token) {
-      log('WARN', '[endpoint] ENDPOINT_PUBLISH is on but ENDPOINT_REPO or the token is missing: not published');
+    // Only the token is required: the repo falls back to DEFAULT_REPO in
+    // contentsUrl(), which is the repository the startup banner already names.
+    if (!endpoint.token) {
+      log('WARN', '[endpoint] ENDPOINT_PUBLISH is on but no token is set: not published');
       return false;
     }
     if (!fetchImpl) {
