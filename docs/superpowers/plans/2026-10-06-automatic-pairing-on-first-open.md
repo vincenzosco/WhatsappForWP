@@ -265,4 +265,23 @@ Expected: `origin/master` = the new `HEAD`. No adapter file changed, so the Dock
 
 ## What execution changed about this plan
 
-(Left empty until execution; every divergence from the tasks above is listed here.)
+- **Task 3: the automatic step moved inside the `try`.** It was written at the
+  top of `ConnectToServerAsync`, before the "Connecting..." status was raised;
+  that left a first run against a server that drops packets on a screen that
+  looked stuck for up to fourteen seconds. It now runs after the address and
+  hostname validation and after the status is up, and the passphrase is set a
+  second time only when the pairing really replaced the key.
+- **Task 2 owns one more difference than the plan said.** The manual path used to
+  reuse the registry probe socket for the pairing exchange; `PairingService`
+  opens its own, so the probe is disposed and the manual pairing costs one extra
+  TCP connect. Nothing else about the manual flow changed: same frames, same
+  order, same two turns, same sentences on screen.
+- **`PairingResult.Error` and `PairingResult.NoCode` are both used by the page.**
+  The plan named the fields but not the three-way branch; the page renders
+  `NoCode` (the server sent nothing), `Error` (the exchange failed) and the
+  server's own refusal message as three different lines, which is what the
+  original code did.
+- **No adapter change, so no mirror commit.** `pair.code`, `pair` and `paired`
+  were already there, the adapter test suite already covers both directions
+  (`test/server.test.js`, `il pairing adotta la chiave del telefono...`), and the
+  Docker repository therefore stays where it is.
