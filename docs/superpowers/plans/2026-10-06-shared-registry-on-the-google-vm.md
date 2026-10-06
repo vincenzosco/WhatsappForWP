@@ -212,4 +212,35 @@ git commit -m "feat: install the registry as a systemd service"
 
 ## What execution changed about this plan
 
-(Left empty until execution; every divergence from the tasks above is listed here.)
+- **Where `registry/` lives.** The plan put it in the mirror repository
+  (`docker-whatsappforwp`); it lives in the app repository instead. The service is
+  deployed by `gcloud compute scp` and systemd, never built as an image, so no
+  image build needs it, and one copy is easier to keep honest than a source plus
+  a mirror. The mirror's README carries the deployment prose, and its
+  half-written `registry/registry.js` was removed.
+- **`registry/service.js` retries.** GitHub refuses a write whose `sha` is stale,
+  and while a deployment is still moving to this service the file has another
+  writer: `publishNow()` reads the file again and retries once instead of making
+  the list wait for the quarter-hour heartbeat.
+- **`setup.sh` copies `registry.js` too**, not just `service.js`: the service
+  `require`s it, and installing one without the other is a service that cannot
+  start. It takes the directory `service.js` sits in as its source, which keeps
+  the plan's two positional arguments.
+- **The tunnel test runs the script after `tr -d '\r'`.** The checkout on Windows
+  is CRLF and the image CI builds is LF; a CRLF script fails in a way that looks
+  like a registry bug.
+- **A refused report exits non-zero.** The plan's Task 5 step 2 asked for a
+  non-zero exit and that is what it is; the tunnel entrypoint calls the script in
+  the background, so a failure is a log line rather than a stopped tunnel.
+- **Task 6 grew a third place**: `WhatsappBridge/.env.example`, which the plan
+  did not name.
+- **The live-publish check compares rows, not bytes.** The first publish
+  legitimately moves the top-level `updatedAt` forward - the top of the file
+  records the newest row - so a byte comparison fails a correct run. It is now
+  compared row by row, with the top-level pair.
+
+### Still to do
+
+Tasks 7 and 8 need `gcloud auth login`, which is interactive and belongs to the
+requester. Everything the VM needs - the service, the systemd unit, the installer
+and the docs - is committed and pushed.
