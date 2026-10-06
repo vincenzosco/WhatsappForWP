@@ -387,6 +387,27 @@ namespace WhatsappApp.Services
                     return false;
                 }
 
+                // "The app just opened": a phone that has no key of its own offers
+                // the one it generates to the server it is about to talk to, once
+                // per run. This method is the one place every connection is opened
+                // - the settings button, the discovered-server row, the single
+                // announced adapter and AutoConnector all end here - so the offer
+                // belongs here and not in one of them. The server replaces its key
+                // with this one and answers `paired`; it never throws, it is
+                // skipped when this phone already has a key, and a server that is
+                // not waiting to be paired answers at once and leaves the
+                // connection exactly as it was. The status above is already up, so
+                // the wait the pairing adds is not a screen that looks stuck.
+                if (await PairingService.TryAutoPairAsync(address, port, username))
+                {
+                    // The server adopted a key this phone generated after the one
+                    // set at the top of this method: both this socket and the
+                    // handshake on it have to be written with the new key. The
+                    // token, if the pairing carried one, is in the settings now and
+                    // the handshake reads it from there on its own.
+                    CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
+                }
+
                 socket = new StreamSocket();
                 await ConnectWithDeadlineAsync(socket, hostName, port);
 
