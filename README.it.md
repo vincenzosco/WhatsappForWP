@@ -620,6 +620,33 @@ morta, quindi un server che smette di rispondere viene sostituito dal prossimo
 senza che l'utente faccia nulla; solo quando non risponde nessuno, nemmeno un
 adapter trovato in LAN, l'app dice che il server non e' disponibile.
 
+Perche' l'indirizzo di un server compaia nel repository - e quindi sia
+raggiungibile dal telefono - ogni server scrive la propria riga di
+`endpoint.json`; nessuno modifica il file a mano:
+
+1. Su una macchina che il telefono puo' chiamare direttamente (una macchina in
+   LAN che esegue l'adapter) metti `ENDPOINT_PUBLISH=on` e da' al server un
+   `ENDPOINT_SERVER_ID` suo. Quando l'IP del container non e' quello che il
+   telefono chiama, metti in `ENDPOINT_HOST` l'indirizzo reale (in un container
+   bridged quello rilevato e' di Docker). L'adapter scrive la riga all'avvio e la
+   rinfresca ogni `ENDPOINT_PUBLISH_MINUTES`, cosi' un cambio di DHCP viene
+   ripreso da solo.
+2. Da' al server un token che possa scrivere sul repository dell'endpoint
+   (`ENDPOINT_TOKEN`, oppure `GH_TOKEN`). Senza, il server funziona lo stesso: non
+   viene pubblicato, e il log lo dice.
+3. Nel deployment pubblico la riga pubblica la scrive da se' il container tunnel,
+   perche' e' l'unico componente che conosce l'indirizzo bore.pub: metti un
+   `GH_TOKEN` nel `.env` di Docker e ripubblica ogni volta che la porta cambia.
+4. Due server non devono condividere lo stesso `ENDPOINT_SERVER_ID`, o si
+   sovrascrivono la riga a vicenda.
+5. Nell'app accendi *Usa il server pubblico* cosi' legge la lista. Gli indirizzi
+   trovati sono nella pagina Diagnostica (`endpoint N server(s), first
+   host:port`), e quello che ha risposto e' l'indirizzo che l'app tiene per la
+   connessione successiva.
+
+La tabella completa delle variabili `ENDPOINT_*` e la forma del file sono in
+[WhatsappBridge/README.it.md](WhatsappBridge/README.it.md#il-registro-dei-server).
+
 Le conversazioni restano sul telefono, non su un server: `chats.json`, le copie
 dei messaggi per chat e `chat-preferences.json` vivono nella cartella dell'app e
 non vengono mai svuotate quando cambia il server. Ogni server della lista e'

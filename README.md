@@ -601,6 +601,32 @@ stops answering is replaced by the next one with nothing for the user to do;
 only when nothing answers, not even an adapter found on the LAN, does the app say
 the server is unavailable.
 
+To make a server's address appear in the repository - and so be reachable from
+the phone - every server writes its own row of `endpoint.json`; nobody edits the
+file by hand:
+
+1. On a machine the phone can dial directly (a LAN machine running the adapter),
+   set `ENDPOINT_PUBLISH=on` and give the server its own `ENDPOINT_SERVER_ID`.
+   When the container's own IP is not the one the phone dials, set `ENDPOINT_HOST`
+   to the real address (in a bridged container the detected one is Docker's).
+   The adapter writes its row at startup and refreshes it every
+   `ENDPOINT_PUBLISH_MINUTES`, so a DHCP change is picked up on its own.
+2. Give it a token that may write to the endpoint repository (`ENDPOINT_TOKEN`,
+   or `GH_TOKEN`). Without one the server still works, it is simply not
+   published, and the log says so.
+3. On the public deployment the tunnel container writes the public row by
+   itself, because it is the only component that knows the bore.pub address: put
+   a `GH_TOKEN` in the Docker `.env` and it republishes whenever the port changes.
+4. Two servers must not share an `ENDPOINT_SERVER_ID`, or they overwrite each
+   other's row.
+5. In the app, turn on *Use the public server* so it reads the list. The
+   addresses it found are shown on the Diagnostics page (`endpoint N server(s),
+   first host:port`), and the one that answered is the address it keeps for the
+   next connection.
+
+The whole `ENDPOINT_*` table and the shape of the file are in
+[WhatsappBridge/README.md](WhatsappBridge/README.md#the-server-registry).
+
 The conversations stay on the phone, not on a server: `chats.json`, the per-chat
 message copies and `chat-preferences.json` live in the app's folder and are never
 cleared when the server changes. Every server in the list is linked to the same
