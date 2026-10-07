@@ -1,4 +1,6 @@
-// Estratto di Diag.cs: il file sink, i marcatori di corsa e il marcatore di vita.
+// Estratto di Diag.cs senza il sink del debugger: i due sink scrivono con
+// Debug.WriteLine direttamente, e non esiste un EmitToDebugger. Il guard deve
+// dire che quella riga non arriva piu' nella finestra Output di Visual Studio.
 // Il guard legge del testo, non compila: questo fixture dice cosa deve esserci.
 
         private const string FileName = "diag.log";
@@ -33,24 +35,16 @@
             }
         }
 
-        // One place pushes a line to the debugger, so the app's own log is
-        // readable in the Visual Studio 2013 Output window while the app runs on
-        // the device. The two sinks call it: the frame sink and the line sink.
-        private static void EmitToDebugger(string text)
-        {
-            Debug.WriteLine("DIAG " + text);
-        }
-
         private static void FrameSink(string text)
         {
             AppendLine(text);
-            EmitToDebugger(text);
+            Debug.WriteLine("DIAG " + text);
             Flush();
         }
 
         private static void LineSink(string line)
         {
             AppendLine(line);
-            EmitToDebugger(line);
+            Debug.WriteLine("DIAG " + line);
             Flush();
         }
