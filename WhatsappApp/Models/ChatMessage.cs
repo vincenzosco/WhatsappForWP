@@ -462,6 +462,16 @@ namespace WhatsappApp.Models
         /// opened. It is a normal message and must be drawn as such, but it did not
         /// arrive now: it does not count as unread and raises no notification.
         /// </summary>
+        /// <summary>
+        /// How many bytes the frame that carried this message had on the wire. It is
+        /// deliberately not a DataMember: it is not part of the protocol and never
+        /// travels between the two ends. The reader sets it as the frame arrives, and
+        /// it belongs on the message rather than on the service because the handler
+        /// runs later, on the dispatcher, by which time the reader has read the next
+        /// frame and a field would be describing that one.
+        /// </summary>
+        public int WireBytes { get; set; }
+
         [DataMember]
         public bool IsHistory
         {

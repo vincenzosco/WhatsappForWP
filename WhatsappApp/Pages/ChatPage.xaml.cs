@@ -471,6 +471,14 @@ namespace WhatsappApp.Pages
             if (!isActiveChat) Diag.Ok("conversation bind skipped for " + chatId);
 
             _view.Bind(_messages);
+
+            // What the bind cost, next to how many rows it took. The row count on
+            // its own cannot tell a burst that never arrived from a list that was
+            // laid out to death: this line is the one that names memory when the
+            // count is high and the budget of the phone is close.
+            Diag.Ok("bound " + _messages.Count + " rows, memory "
+                + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
+
             if (isActiveChat && _messages.Count > 0)
                 _view.ScrollTo(_messages[_messages.Count - 1]);
 

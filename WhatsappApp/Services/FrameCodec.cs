@@ -32,6 +32,15 @@ namespace WhatsappApp.Services
         public const uint MaxFrameLength = 8 * 1024 * 1024;
 
         /// <summary>
+        /// A frame at or above this size is worth a line of its own. The history of
+        /// a chat is one frame per message and a media piece travels as base64 inside
+        /// one frame, so this is where the memory of a 512 MB phone goes. The size is
+        /// known before the cipher is touched, which is the point: a frame that could
+        /// not be decrypted at all still says how big it was.
+        /// </summary>
+        public const int LargeFrameBytes = 64 * 1024;
+
+        /// <summary>
         /// A DataReader for a network stream, with the byte order stated explicitly.
         /// The WinRT default is not little-endian, and the adapter writes the frame
         /// length with writeUInt32LE: on the device a 289-byte frame (0x00000121)
