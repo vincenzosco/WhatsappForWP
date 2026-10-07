@@ -520,6 +520,13 @@ documented standard was broken. Two findings on the Spec axis, both fixed in com
 3. Judgement call: five Italian names in `WhatsappBridge/crypto-helper.js` (four comments and
    `const scelto`) in a module whose identifiers and comments are English; rewritten. The two
    pre-existing Italian slips in `server.js` are outside this diff and are left alone.
+4. Dead code left by the removal, found in the final pass over the tree for the pair names:
+   `ChatMessage` still carried `PairingPayload`, `PairingCode` and `PairingSeconds` - the model
+   half of the protocol Task 6 deleted, with a doc comment naming the `pair.info` and `pair.code`
+   frames - and nothing read or wrote any of them. Task 6 removed the service, the page, the
+   strings and the adapter side, but not these three. Removed; `PairCode` is left alone: it is
+   the code the phone enters for the WhatsApp phone-number login, a different thing that is still
+   used.
 
 ### The final run: the device's own key, with the log to prove it
 
