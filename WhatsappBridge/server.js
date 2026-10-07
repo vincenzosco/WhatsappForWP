@@ -146,19 +146,66 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   function openPairing() {
     if (!pairingEnabled) return false;
     if (!cryptoHelper.usingDefaultKey()) return false;
-    pairing = { code: keyStore.newPairingCode(), expiresAt: Date.now() + pairingTtlMs, attempts: 0 };
+    pairing = {
+      code: keyStore.newPairingCode(),
+      expiresAt: Date.now() + pairingTtlMs,
+      attempts: 0,
+      clientId: ''
+    };
     return true;
   }
 
-  function pairingIsOpen() {
+  /**
+   * A window one device opens for itself, on a server that already has a key
+   * of its own. The case it exists for: a reinstall empties the app's isolated
+   * storage on WP8.1, so the phone loses the frame key and its token, writes
+   * with the passphrase compiled into the public app, and the server - which
+   * would refuse the handshake of a known device without a token - is the only
+   * one that can give both back. Only a device this store already knows may do
+   * it, and the window belongs to that device alone.
+   *
+   * The cost is deliberate and belongs to the operator: while PAIRING_RECOVER
+   * is on, the device id is the credential for that window, and the id sits in
+   * `users.json` in plain text (the READMEs say so beside the flag).
+   */
+  function openRecovery(clientId) {
+    if (!pairingEnabled) return false;
+    if (!config || !config.pairing || !config.pairing.recover) return false;
+    if (cryptoHelper.usingDefaultKey()) return false;
+
+    const id = String(clientId || '').trim();
+    if (!id) return false;
+    if (!users || typeof users.findByClientId !== 'function' || !users.findByClientId(id)) {
+      logger('WARN', `refused a recovery: the device ${id || '(none)'} is not in the store`);
+      return false;
+    }
+
+    pairing = {
+      code: keyStore.newPairingCode(),
+      expiresAt: Date.now() + pairingTtlMs,
+      attempts: 0,
+      clientId: id
+    };
+    logger('WARN', `RECOVERY PAIRING: the device ${id} lost its key: the window is open for it alone`);
+    return true;
+  }
+
+  /**
+   * `clientId` is the device the caller is: a window opened for one device is
+   * not a window for the next one that asks, because in the recovery the device
+   * id is the credential. An empty id (the window of a server with no key yet)
+   * stays open to anyone.
+   */
+  function pairingIsOpen(clientId) {
     if (!pairing) return false;
     if (Date.now() > pairing.expiresAt) { pairing = null; return false; }
+    if (pairing.clientId && pairing.clientId !== String(clientId || '').trim()) return false;
     return true;
   }
 
   /** The code and its remaining life in seconds, or null when no window is open. */
-  function pairingInfo() {
-    if (!pairingIsOpen()) return null;
+  function pairingInfo(clientId) {
+    if (!pairingIsOpen(clientId)) return null;
     return {
       code: pairing.code,
       seconds: Math.max(0, Math.round((pairing.expiresAt - Date.now()) / 1000))
@@ -542,7 +589,40 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
   function frameFor(socket, jsonObject) {
     const tag = socket.wp8Cipher || cryptoHelper.DEFAULT_CIPHER_TAG;
-    return cryptoHelper.buildFrame(JSON.stringify(jsonObject), tag);
+    const json = JSON.stringify(jsonObject);
+    // A socket that wrote with the passphrase compiled into the public app must
+    // be answered with that same one: it is the recovery (see openRecovery),
+    // and the phone can read nothing else.
+    if (socket.wp8Passphrase) {
+      const payload = cryptoHelper.encryptPayloadWith(socket.wp8Passphrase, json, tag);
+      const lenBuf = Buffer.alloc(4);
+      lenBuf.writeUInt32LE(payload.length, 0);
+      return Buffer.concat([lenBuf, payload]);
+    }
+    return cryptoHelper.buildFrame(json, tag);
+  }
+
+  /**
+   * The message inside a frame the server's own key cannot open, or null when
+   * the frame is not a pairing request. Only the passphrase compiled into the
+   * public app is tried: it is the only key a phone that lost its own can
+   * write with, and it is public, so the command itself is what must be
+   * narrow - and the pairing handler is what decides who may pass.
+   */
+  function decodeRecovery(payload) {
+    let text = null;
+    try { text = cryptoHelper.decodePayloadWith(cryptoHelper.DEFAULT_PASSPHRASE, payload); }
+    catch (e) { return null; }
+
+    let msg = null;
+    try { msg = JSON.parse(text); } catch (e) { return null; }
+
+    if (!msg || (msg.Command !== 'pair.code' && msg.Command !== 'pair')) {
+      logger('WARN', 'a frame written with the public default key is not a pairing request: refused'
+        + (msg && msg.Command ? ` (${msg.Command})` : ''));
+      return null;
+    }
+    return msg;
   }
 
   function sendToClient(socket, msg) {
@@ -1225,10 +1305,16 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         // The answer carries the code and how long it stays valid. A window that
         // has run out is opened again here, so the app is never handed a code
         // that has already expired.
-        let info = pairingInfo();
+        const askedBy = typeof msg.SenderId === 'string' ? msg.SenderId.trim() : '';
+        let info = pairingInfo(askedBy);
         if (!info && openPairing()) {
           info = pairingInfo();
           if (info) logger('WARN', `PAIRING CODE: ${keyStore.formatCode(info.code)} (window reopened)`);
+        }
+        // The device that lost its key cannot open a window by asking: it opens
+        // one by being a device this store already knows.
+        if (!info && openRecovery(askedBy)) {
+          info = pairingInfo(askedBy);
         }
 
         sendToClient(socket, buildChatMessage({
@@ -1241,7 +1327,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         break;
       }
       case 'pair': {
-        if (!pairingIsOpen()) {
+        if (!pairingIsOpen(msg.SenderId)) {
           sendToClient(socket, buildChatMessage({
             command: 'pair.failed', chatId: 'system', isIncoming: true,
             text: 'This server is not waiting to be paired.'
@@ -1309,6 +1395,10 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         keyStore.save(newKey, config && config.bridge ? config.bridge.keyFile : '');
         process.env.BRIDGE_KEY = newKey;
         cryptoHelper.setPassphrase(newKey);
+        // A socket that got here by writing with the public passphrase must not
+        // keep being answered with it: the next reply on it goes out under the
+        // key that was just adopted, which is the one the phone now reads.
+        delete socket.wp8Passphrase;
         closePairing('the phone sent its key');
         logger('OK', 'BRIDGE_KEY replaced with the key generated by this phone');
         break;
@@ -1583,6 +1673,21 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
             msg.Type === 3 ? handleControl(msg, socket) : handleUserMessage(msg, socket)
           )).catch((e) => logger('ERR', e.message));
         } catch (err) {
+          // A frame this server cannot open may still be a frame for it: the
+          // recovery, where the phone writes with the passphrase compiled into
+          // the public app because a reinstall took its key away. Only that one
+          // passphrase is tried, only a pairing request is accepted, and the
+          // pairing handler still decides who may pass.
+          const recupero = err && /Invalid HMAC signature/.test(err.message)
+            ? decodeRecovery(payload)
+            : null;
+          if (recupero) {
+            socket.wp8Passphrase = cryptoHelper.DEFAULT_PASSPHRASE;
+            socket.chain = socket.chain.then(() => (
+              recupero.Type === 3 ? handleControl(recupero, socket) : handleUserMessage(recupero, socket)
+            )).catch((e) => logger('ERR', e.message));
+            continue;
+          }
           logger('ERR', `invalid frame from the app: ${err.message}`);
         }
       }

@@ -164,6 +164,7 @@ Vedi `.env.example`. Le variabili principali:
 | `BRIDGE_REQUIRE_KEY` | `off` | rifiuta di partire finche' il cifrario usa ancora il default compilato (`on` per un deployment raggiungibile) |
 | `PAIRING` | `off` | accetta una chiave generata dal telefono finche' non ne esiste ancora una (vedi *Accoppiamento* sotto) |
 | `PAIRING_TTL_MIN` | `15` | quanto resta aperta la finestra di accoppiamento |
+| `PAIRING_RECOVER` | `on` | lascia che un dispositivo gia' conosciuto riapra per se' la finestra di accoppiamento, dopo che una reinstallazione gli ha portato via la chiave (vedi *Il telefono che ha perso la chiave*) |
 | `BRIDGE_KEY_FILE` | — | dove si conserva la chiave ricevuta, cosi' un riavvio non chiede un nuovo accoppiamento; vuoto la tiene solo nell'ambiente |
 | `POLL_INTERVAL_MS` | `5000` | Ogni quanto viene interrogato lo stato WhatsApp |
 | `DISCOVERY_ENABLED` | `on` | Annuncia l'adapter sulla rete locale (`off` lo spegne) |
@@ -276,8 +277,29 @@ altro.
 
 Il codice ha 80 bit casuali e la finestra si chiude dopo cinque tentativi
 sbagliati o `PAIRING_TTL_MIN` minuti, quello che arriva prima. Un server che ha
-gia' una chiave non la apre mai: per accoppiare di nuovo, ferma il container,
-cancella `BRIDGE_KEY_FILE` e riavvialo con `PAIRING=on`.
+gia' una chiave non ne apre nessuna da solo: la via manuale e' fermare il
+container, cancellare `BRIDGE_KEY_FILE` e riavviarlo con `PAIRING=on`. Il
+telefono che ha perso la sua chiave, pero', se ne apre una da solo - vedi sotto.
+
+### Il telefono che ha perso la chiave
+
+Reinstallare l'app svuota la sua memoria, e con essa la chiave dei frame e il
+token; `AUTH_STRICT_DEVICE=on` rifiuta poi l'handshake di quel dispositivo che
+conosce, quindi prima di questo un telefono in quello stato non rientrava senza
+che l'operatore azzerasse la chiave del server. Con `PAIRING_RECOVER` acceso (il
+default) il dispositivo che questo store conosce gia' chiede di nuovo con la
+passphrase compilata nell'app pubblico - l'adapter prova quella chiave come
+secondo tentativo su un frame che non riesce ad aprire - e la finestra che
+ottiene e' solo sua: un altro dispositivo, anche con il codice in mano, viene
+rifiutato (`pair.failed`). Lo stesso frame `paired` riporta indietro sia la
+chiave nuova sia il token derivato da quel device id.
+
+Il costo, detto chiaramente: finche' e' acceso, un device id e' la credenziale
+della sua finestra, e i device id stanno in `users.json` in chiaro, quindi una
+copia di quel file puo' accoppiarsi come qualsiasi dispositivo che contiene.
+Una installazione che tratta gia' `users.json` come una credenziale non cambia
+nulla; una che non lo fa metta `PAIRING_RECOVER=off` e azzeri la chiave del
+server a mano.
 
 Siccome ora il codice arriva al telefono sullo stesso canale che protegge, non
 separa piu' l'operatore da uno sconosciuto che raggiunge la porta: finche' il

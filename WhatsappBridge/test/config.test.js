@@ -18,6 +18,13 @@ test('call scan limits have defaults and can be overridden', () => {
   assert.strictEqual(custom.calls.limit, 10);
 });
 
+test('il recupero del pairing e acceso se non lo si spegne', () => {
+  assert.strictEqual(loadConfig({}).pairing.recover, true,
+    'un telefono che ha perso la chiave non ha nessun altro a cui chiedere');
+  assert.strictEqual(loadConfig({ PAIRING_RECOVER: 'on' }).pairing.recover, true);
+  assert.strictEqual(loadConfig({ PAIRING_RECOVER: 'off' }).pairing.recover, false);
+});
+
 test('loadConfig fornisce i valori di default', () => {
   const c = loadConfig({});
   assert.strictEqual(c.gowa.url, 'http://127.0.0.1:3000');

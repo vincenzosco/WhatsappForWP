@@ -105,3 +105,29 @@ test('setPassphrase cambia le chiavi e usingDefaultKey segue la passphrase', () 
     cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
   }
 });
+
+/**
+ * Il recupero: il telefono ha perso la sua chiave - una reinstallazione svuota
+ * la memoria isolata dell'app - e scrive con la passphrase compilata nell'app
+ * pubblico. Queste due funzioni sono meta' dello scambio che lo rimette in
+ * pari: scrivere, e rileggere, un frame con una passphrase che non e' quella
+ * corrente del server. Il tag e' quello CBC perche' il telefono non sa
+ * scrivere in GCM su WP8.1.
+ */
+test('encryptPayloadWith scrive un frame che la stessa passphrase rilegge', () => {
+  const payload = cryptoHelper.encryptPayloadWith('una-passphrase', PLAIN);
+  assert.strictEqual(payload[0], cryptoHelper.CIPHER_CBC_HMAC, 'il tag e scritto nel payload');
+  assert.strictEqual(cryptoHelper.decodePayloadWith('una-passphrase', payload), PLAIN);
+});
+
+test('decodePayloadWith rifiuta unaltra passphrase e un tag che non conosce', () => {
+  const payload = cryptoHelper.encryptPayloadWith('una-passphrase', PLAIN);
+  assert.throws(() => cryptoHelper.decodePayloadWith('unaltra-passphrase', payload),
+    /Invalid HMAC signature/);
+
+  // Il tag GCM non e' un payload valido per questa funzione: si ferma sul tag
+  // prima di provare a decifrare, come decodePayload.
+  const altroTag = Buffer.concat([Buffer.from([cryptoHelper.CIPHER_GCM]), payload.slice(1)]);
+  assert.throws(() => cryptoHelper.decodePayloadWith('una-passphrase', altroTag),
+    /Unknown cipher tag/);
+});
