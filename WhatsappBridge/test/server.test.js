@@ -1705,6 +1705,54 @@ test('AUTH_STRICT_DEVICE lascia rientrare un device noto e rifiuta uno sconosciu
   assert.strictEqual(users.count(), 1, 'e non nasce un utente nuovo');
 });
 
+/**
+ * AUTH_REGISTER=off dice che il servizio non crea account: non dice che un
+ * telefono che ne ha gia' uno non possa tornare. Prima il recupero era legato a
+ * quel flag, e il telefono reinstallato restava fuori per sempre proprio
+ * sull'istanza chiusa (AUTH_REGISTER=off + AUTH_STRICT_DEVICE=on), che e' quella
+ * dell'operatore.
+ */
+test('un device noto rientra anche con AUTH_REGISTER spento, uno sconosciuto no', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  const known = users.register('dev-noto', 'vincenzo');
+
+  const logs = [];
+  const bridge = createBridge({
+    config: { auth: { required: true, register: false, strictDevice: true } },
+    gowa: { status: async () => ({ isConnected: true, isLoggedIn: false, jid: '' }) },
+    users,
+    log: (level, message) => { logs.push(level + ' ' + message); },
+    debug: noop
+  });
+
+  const returning = collectingSocket();
+  bridge.addClientForTest(returning);
+  await bridge.handleControl(
+    { Type: 3, Command: 'hello', SenderId: 'dev-noto', SenderName: 'vincenzo' }, returning);
+
+  const back = returning.frames.find((f) => f.Command === 'registered');
+  assert.ok(back, 'il device noto rientra: la reinstallazione non dipende da AUTH_REGISTER');
+  assert.strictEqual(back.Token, known.token, 'gli torna lo stesso token derivato');
+  assert.strictEqual(users.count(), 1, 'non nasce un secondo utente');
+  assert.ok(logs.some((l) => l.includes('device returned')),
+    'e il log dice che e\' tornato, cosi\' l\'operatore lo vede');
+
+  const stranger = collectingSocket();
+  bridge.addClientForTest(stranger);
+  await bridge.handleControl(
+    { Type: 3, Command: 'hello', SenderId: 'dev-mai-visto', SenderName: 'altro' }, stranger);
+  assert.strictEqual(stranger.frames[0].Command, 'unauthorized',
+    'uno sconosciuto resta fuori quando il servizio non registra');
+  assert.ok(logs.some((l) => l.includes('AUTH_REGISTER is off')),
+    'il rifiuto dice quale regola lo ha fermato: non piu\' un generico strict device');
+});
+
 test('i frame di un socket vengono gestiti nell ordine in cui arrivano', async () => {
   const crypto = require('crypto');
   const { createUserStore } = require('../users');

@@ -169,7 +169,7 @@ Vedi `.env.example`. Le variabili principali:
 | `FFMPEG_ENABLED` | `on` | converte i vocali Ogg/Opus in MP3 per WP8.1 (`off` la spegne) |
 | `FFMPEG_PATH` | `ffmpeg` | l'eseguibile di ffmpeg, quando non e' nel PATH |
 | `AUTH_REQUIRED` | `off` | chiede un token in `hello` (`on` per un servizio condiviso) |
-| `AUTH_REGISTER` | `on` | un telefono che arriva senza token ne riceve uno alla prima connessione (`off` chiude il servizio: i token si consegnano a mano) |
+| `AUTH_REGISTER` | `on` | un telefono che il deposito non ha mai visto e che arriva senza token ne riceve uno alla prima connessione (`off` lascia entrare solo un device che il deposito conosce gia', e i token dei device nuovi si consegnano a mano) |
 | `AUTH_STRICT_DEVICE` | `off` | solo un dispositivo che il deposito conosce gia' puo' registrarsi; a un dispositivo noto il token derivato viene comunque restituito, quindi una reinstallazione funziona ancora (`on` chiude il servizio ai dispositivi nuovi) |
 | `AUTH_MAX_USERS` | `50` | tetto ai device che possono registrarsi da soli |
 | `USERS_FILE` | — | dove vivono gli utenti; vuoto li tiene in memoria, un percorso sopravvive a un riavvio |
@@ -185,12 +185,15 @@ Vedi `.env.example`. Le variabili principali:
 | `ENDPOINT_REGISTRY_SECRET` | — | il segreto condiviso che quel registro richiede (`REGISTRY_TOKEN` sulla VM) |
 
 Il token e' l'unica cosa che distingue un telefono su un servizio condiviso, e un
-telefono che non ne ha uno lo riceve: con `AUTH_REGISTER=on` (il valore
-predefinito) l'adapter crea l'utente al primo handshake e risponde con un frame
-`registered` che porta il token, che l'app conserva. L'interruttore nella pagina
-di connessione e' tutta la configurazione - il token identifica il dispositivo,
-non e' una password da digitare. Creare l'utente a mano resta per un servizio che
-deve restare chiuso, con `AUTH_REGISTER=off`:
+telefono che il deposito non ha mai visto lo riceve: con `AUTH_REGISTER=on` (il
+valore predefinito) l'adapter crea l'utente al primo handshake e risponde con un
+frame `registered` che porta il token, che l'app conserva. L'interruttore nella
+pagina di connessione e' tutta la configurazione - il token identifica il
+dispositivo, non e' una password da digitare. `AUTH_REGISTER=off` chiude il
+servizio a un device che non ha mai visto e lascia la creazione dell'utente a mano;
+non chiude la porta a un device che il deposito conosce gia', il cui token e'
+derivato dal suo id e viene restituito a ogni ritorno - ed e' quello che serve a
+una reinstallazione su un'istanza chiusa:
 
 Il token e' **derivato dal dispositivo**, non estratto a caso: e'
 `HMAC-SHA256(segreto, deviceId)` con un segreto che il deposito genera una volta e
