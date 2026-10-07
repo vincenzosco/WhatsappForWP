@@ -308,6 +308,11 @@ namespace WhatsappApp
             Guarded.RunGuardedAsync("Diag/StartRun", Diag.StartRunAsync());
 #pragma warning restore 4014
 
+            // The crash of the previous run leaves the phone here: on the first
+            // connection it goes to the adapter as a `diag` frame, which is what
+            // puts it in the container log (see CrashReport).
+            CrashReport.Start();
+
             // The hardware Back button is not wired to the frame by the platform
             // on a Runtime app: without this the press leaves the app from the
             // first page (see BackNavigator).
