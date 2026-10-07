@@ -18,11 +18,13 @@ test('call scan limits have defaults and can be overridden', () => {
   assert.strictEqual(custom.calls.limit, 10);
 });
 
-test('il recupero del pairing e acceso se non lo si spegne', () => {
-  assert.strictEqual(loadConfig({}).pairing.recover, true,
-    'un telefono che ha perso la chiave non ha nessun altro a cui chiedere');
-  assert.strictEqual(loadConfig({ PAIRING_RECOVER: 'on' }).pairing.recover, true);
-  assert.strictEqual(loadConfig({ PAIRING_RECOVER: 'off' }).pairing.recover, false);
+test('loadConfig non ha piu chiave globale ne finestra di pairing', () => {
+  const c = loadConfig({});
+  assert.strictEqual(c.bridge.requireKey, undefined,
+    'la chiave dei frame e derivata dal device id: non c e un interruttore che la richieda');
+  assert.strictEqual(c.bridge.keyFile, undefined);
+  assert.strictEqual(c.pairing, undefined,
+    'senza chiave globale non c e nulla da accoppiare');
 });
 
 test('loadConfig fornisce i valori di default', () => {
@@ -104,11 +106,9 @@ test('applyDotEnv legge il file .env e non scavalca l\'ambiente', () => {
 
 test('loadConfig espone gli interruttori di sicurezza del bridge', () => {
   const defaults = loadConfig({});
-  assert.strictEqual(defaults.bridge.requireKey, false);
   assert.strictEqual(defaults.auth.strictDevice, false);
 
-  const on = loadConfig({ BRIDGE_REQUIRE_KEY: 'on', AUTH_STRICT_DEVICE: 'on' });
-  assert.strictEqual(on.bridge.requireKey, true);
+  const on = loadConfig({ AUTH_STRICT_DEVICE: 'on' });
   assert.strictEqual(on.auth.strictDevice, true);
 });
 

@@ -98,9 +98,6 @@ namespace WhatsappApp.Pages
             if (!string.IsNullOrEmpty(savedToken))
                 TokenBox.Text = savedToken;
 
-            string savedBridgeKey = SettingsService.BridgeKey;
-            if (!string.IsNullOrEmpty(savedBridgeKey))
-                BridgeKeyBox.Text = savedBridgeKey;
 
             ServersList.ItemsSource = _servers;
             _discoveryStartedAt = DateTime.Now;
@@ -241,150 +238,6 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Pairing: this phone draws its own frame key, seals it with the one-time
-        /// code the server printed, and the server adopts it. The exchange itself
-        /// lives in PairingService, because the app now runs the same one by itself
-        /// on the first open (see PairingService.TryAutoPairAsync); what is left
-        /// here is choosing the server and showing the result. The token is not
-        /// drawn by the phone either: the server derives it from this device id, so
-        /// it stays one token keyed on the device, and hands it back in `paired`.
-        /// </summary>
-        private async void PairButton_Click(object sender, RoutedEventArgs e)
-        {
-            await PairWithServerAsync();
-        }
-
-        private async Task PairWithServerAsync()
-        {
-            // The code is not typed: the service asks the server for the current
-            // one, and a fresh one when the old has run out, so the code in the
-            // server log is a convenience and not a step anybody has to carry out.
-            PairingStatusText.Text = Loc.Get("ConnectionPage_Pairing", "Pairing...");
-            PairButton.IsEnabled = false;
-
-            try
-            {
-                string address = "";
-                int port = 0;
-                if (PublicServerToggle.IsOn)
-                {
-                    // Every address the registry lists, in order: the first that
-                    // answers is the one this phone pairs with. The runtime failover
-                    // walks the same list, so a first row that is down must not make
-                    // the one-time setup impossible while a later row would answer.
-                    System.Collections.Generic.List<DiscoveredServer> remotes =
-                        await EndpointService.Instance.ResolveAllAsync();
-                    if (remotes != null)
-                    {
-                        // The probe is closed again: PairingService opens its own
-                        // socket, keyed with the passphrase this phone has now.
-                        DiscoveredServer chosen = null;
-                        for (int i = 0; i < remotes.Count && chosen == null; i++)
-                        {
-                            StreamSocket probe = new StreamSocket();
-                            try
-                            {
-                                await CommunicationService.ConnectWithDeadlineAsync(
-                                    probe, new HostName(remotes[i].Address), remotes[i].Port);
-                                chosen = remotes[i];
-                            }
-                            catch (Exception ex)
-                            {
-                                Diag.Failed("ConnectionPage/pair-probe", ex);
-                            }
-                            finally
-                            {
-                                DisposeProbe(probe);
-                            }
-                        }
-
-                        if (chosen != null)
-                        {
-                            address = chosen.Address;
-                            port = chosen.Port;
-                        }
-                    }
-                    if (string.IsNullOrEmpty(address))
-                    {
-                        PairingStatusText.Text = Loc.Get("ConnectionPage_PairFailed",
-                            "The pairing did not succeed.");
-                        return;
-                    }
-                }
-                else
-                {
-                    address = (ServerAddressBox.Text ?? "").Trim();
-                    if (string.IsNullOrEmpty(address)) address = SettingsService.DefaultAddress;
-                    port = 8585;
-                    int boxPort;
-                    if (!string.IsNullOrEmpty(ServerPortBox.Text) &&
-                        int.TryParse(ServerPortBox.Text.Trim(), out boxPort))
-                    {
-                        port = boxPort;
-                    }
-
-                }
-
-                PairingResult result = await PairingService.PairAsync(
-                    address, port, EnsureUsername(), PairingCodeBox.Text);
-
-                if (result.Paired)
-                {
-                    SettingsService.Save(address, port, EnsureUsername());
-                    BridgeKeyBox.Text = SettingsService.BridgeKey;
-                    TokenBox.Text = SettingsService.Token;
-                    PairingCodeBox.Text = "";
-                    PairingStatusText.Text = Loc.Get("ConnectionPage_Paired",
-                        "Paired. The server now uses the key this phone generated.");
-                }
-                else if (result.NoCode)
-                {
-                    PairingCodeBox.Text = "";
-                    PairingStatusText.Text = Loc.Get("ConnectionPage_PairNoCode",
-                        "The server did not send a pairing code: either pairing is off, or it already has a key.");
-                }
-                else if (result.Error)
-                {
-                    PairingStatusText.Text = string.Format(
-                        Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.") + " ({0})",
-                        result.Message);
-                }
-                else
-                {
-                    // The code the server sent stays in the box, so a run that did
-                    // not go through still shows what it was working with.
-                    if (!string.IsNullOrEmpty(result.Code)) PairingCodeBox.Text = result.Code;
-                    PairingStatusText.Text = !string.IsNullOrEmpty(result.Message)
-                        ? result.Message
-                        : Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.");
-                }
-            }
-            catch (Exception ex)
-            {
-                // PairingService answers for the exchange itself; this is the page's
-                // own work - the registry rows, the boxes - failing.
-                Diag.Failed("ConnectionPage/pair", ex);
-                PairingStatusText.Text = string.Format(
-                    Loc.Get("ConnectionPage_PairFailed", "The pairing did not succeed.") + " ({0})",
-                    ex.Message);
-            }
-            finally
-            {
-                PairButton.IsEnabled = true;
-            }
-        }
-
-        /// <summary>
-        /// Closes one probe socket. A failure here is not worth reporting: the
-        /// socket is going away anyway.
-        /// </summary>
-        private static void DisposeProbe(StreamSocket socket)
-        {
-            try { if (socket != null) socket.Dispose(); }
-            catch (Exception) { }
-        }
-
-        /// <summary>
         /// Writes down the token typed by hand, if there is one. An empty box is not
         /// an order to forget the token: the server may have handed this phone one,
         /// and that copy is the only one that exists.
@@ -394,10 +247,6 @@ namespace WhatsappApp.Pages
             string typed = (TokenBox.Text ?? "").Trim();
             if (!string.IsNullOrEmpty(typed)) SettingsService.Token = typed;
 
-            // Same rule for the cipher key: an empty box is not an order to forget
-            // it, it means "the server uses the compiled default".
-            string typedKey = (BridgeKeyBox.Text ?? "").Trim();
-            if (!string.IsNullOrEmpty(typedKey)) SettingsService.BridgeKey = typedKey;
         }
 
         /// <summary>

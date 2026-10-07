@@ -36,23 +36,11 @@ const DEFAULTS = {
   AUTH_STRICT_DEVICE: 'off',
   AUTH_MAX_USERS: '50',
   USERS_FILE: '',
-  BRIDGE_REQUIRE_KEY: 'off',
-  // The passphrase compiled into the public app. It is also the default of
-  // crypto-helper.js, and pairing exists to replace it with a key only the
-  // phone knows.
+  // The passphrase compiled into the public app. It is the prefix every device's
+  // frame key is derived from (crypto-helper.framePassphraseFor): there is no
+  // global BRIDGE_KEY to set and no pairing window. Kept as a name because it is
+  // the shared half of the derivation, and it must equal the app's constant.
   BRIDGE_KEY: 'WhatsAppCommunityWP8-2026',
-  // Where the phone-generated key is kept: when set and BRIDGE_KEY is empty,
-  // the key is read from this file at startup and written here after pairing.
-  BRIDGE_KEY_FILE: '',
-  // When on, a server with no key accepts one `pair` frame: the phone sends a
-  // key it generated itself, proved by the one-time code printed at startup.
-  PAIRING: 'off',
-  PAIRING_TTL_MIN: '15',
-  // When on, a device this server already knows may re-open the pairing window
-  // for itself, with the passphrase compiled into the public app: the phone
-  // that lost its key to a reinstall gets it, and its token, back without an
-  // operator. See openRecovery in server.js for what that makes the device id.
-  PAIRING_RECOVER: 'on',
   // The server registry: this server publishes its own address into
   // whatsappforwp-endpoint/endpoint.json so the app can find it, and so the app
   // has more than one server to try when one goes down. Off by default: a
@@ -93,24 +81,7 @@ function loadConfig(env = process.env) {
       pass: pick(env, 'GOWA_PASS')
     },
     bridge: {
-      port: parseInt(pick(env, 'BRIDGE_PORT'), 10),
-      // When on, the adapter refuses to start while the frame cipher still uses
-      // the passphrase compiled into the public app, so a deployment cannot keep
-      // the public key by accident.
-      requireKey: pick(env, 'BRIDGE_REQUIRE_KEY').toLowerCase() === 'on',
-      // The file a phone-generated key is read from and written to. Empty
-      // keeps the key in the environment only, as before.
-      keyFile: pick(env, 'BRIDGE_KEY_FILE')
-    },
-    pairing: {
-      // On a server with no key, an open pairing window accepts exactly one key
-      // from a phone that proves it read the code printed at startup. A server
-      // that already has a key ignores this: there is nothing to replace.
-      enabled: pick(env, 'PAIRING').toLowerCase() === 'on',
-      ttlMs: Math.max(1, parseInt(pick(env, 'PAIRING_TTL_MIN'), 10)) * 60000,
-      // On unless it is turned off: a phone that lost its key has nobody else
-      // to ask, and only a device the store already knows can use this.
-      recover: pick(env, 'PAIRING_RECOVER').toLowerCase() !== 'off'
+      port: parseInt(pick(env, 'BRIDGE_PORT'), 10)
     },
     endpoint: {
       // On when this server should advertise itself in the shared registry. The
@@ -153,9 +124,11 @@ function loadConfig(env = process.env) {
       // service that must stay closed turns this off and hands the tokens out
       // itself.
       register: pick(env, 'AUTH_REGISTER').toLowerCase() !== 'off',
-      // When on, a device the store already knows must present a verifying
-      // token; the derived-token re-issue that lets a reinstalled phone keep its
-      // account is turned off, closing the device-id impersonation path.
+      // When on, only a device the store already knows may register itself: a
+      // stranger cannot join. A known device is always let back in and handed
+      // its derived token again, which is what a reinstall needs, so this flag
+      // no longer closes the door on the phone that lost its storage - only on
+      // devices the store has never seen.
       strictDevice: pick(env, 'AUTH_STRICT_DEVICE').toLowerCase() === 'on',
       // Ceiling on the devices that can register themselves, so an open service
       // cannot fill its disk one handshake at a time.

@@ -89,7 +89,7 @@ function createUserStore(options) {
     // Atomic write: a file written halfway because the process fell over must
     // not be able to replace a valid list.
     //
-    // Owner-readable only, like the key file (key-store.js): this file holds
+    // Owner-readable only: this file holds
     // `secret`, and from that secret every device's token is derived. A copy of
     // it is a copy of every credential of this instance, so it must not land in
     // the world-readable part of the volume, which is what the default mode

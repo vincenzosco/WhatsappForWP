@@ -22,7 +22,10 @@
  *    master = SHA-256(passphrase)
  *    encKey = HMAC-SHA256(master, "wp8-adapter enc")
  *    macKey = HMAC-SHA256(master, "wp8-adapter mac")
- *  The passphrase is BRIDGE_KEY, otherwise the default one below.
+ *  The passphrase of a frame is the one derived from the device id it carries
+ *  (framePassphraseFor): the default below plus the id. There is no global
+ *  BRIDGE_KEY to keep in step any more, and no pairing: the id is a hardware
+ *  token that survives an uninstall, so both sides recompute the same key.
  *
  *  Set BRIDGE_ENCRYPTION=off to disable encryption (plaintext payloads,
  *  no cipher tag), matching the old unencrypted protocol.
@@ -33,9 +36,22 @@ const crypto = require('crypto');
 const { DEFAULTS } = require('./config');
 
 // It must stay identical to the passphrase compiled into the app
-// (WhatsappApp/Services/CryptoHelper.cs): it is the key a server with no
-// BRIDGE_KEY is reachable with, and the one pairing replaces.
+// (WhatsappApp/Services/CryptoHelper.cs): it is the prefix every device key is
+// derived from, and the key a frame written before any device key is known is
+// reachable with.
 const DEFAULT_PASSPHRASE = DEFAULTS.BRIDGE_KEY;
+
+/**
+ * The passphrase of one device's frames: the one compiled into the app, plus
+ * the device id. The id is a hardware token that survives an uninstall, so a
+ * phone whose storage a reinstall emptied recomputes the same key with nothing
+ * stored and no operator action; the server derives the same one from the id it
+ * already knows. This is what replaced the global BRIDGE_KEY and the pairing
+ * that used to install it.
+ */
+function framePassphraseFor(deviceId) {
+  return DEFAULT_PASSPHRASE + ':' + String(deviceId || '');
+}
 
 /** Cipher tag, the first byte of the payload. */
 const CIPHER_GCM = 1;
@@ -58,8 +74,8 @@ const MODE_DESCRIPTION = 'AES-256-CBC + HMAC-SHA256 (AES-256-GCM accepted)';
  *   master = SHA-256(passphrase)
  *   encKey = HMAC-SHA256(master, "wp8-adapter enc")
  *   macKey = HMAC-SHA256(master, "wp8-adapter mac")
- * `keysFor` is what pairing uses: a nested payload sealed with the one-time
- * code is opened with a key derived here, without touching the frame keys.
+ * The server uses this per device: a frame written with a device's derived
+ * passphrase is opened without touching the frame keys of any other device.
  */
 function keysFor(passphrase) {
   const master = crypto.createHash('sha256').update(String(passphrase)).digest();
@@ -70,28 +86,8 @@ function keysFor(passphrase) {
 }
 
 const initial = keysFor(process.env.BRIDGE_KEY || DEFAULT_PASSPHRASE);
-let ENC_KEY = initial.encKey;
-let MAC_KEY = initial.macKey;
-
-/**
- * Adopts a new passphrase without a restart. Pairing is what calls it: the
- * phone has just proved it read the code, and the server starts writing frames
- * with the key the phone generated.
- */
-function setPassphrase(passphrase) {
-  const next = keysFor(passphrase || DEFAULT_PASSPHRASE);
-  ENC_KEY = next.encKey;
-  MAC_KEY = next.macKey;
-}
-
-/**
- * True while the keys come from the passphrase compiled into the public app.
- * The app cannot be reconfigured here, so this stays visible to the operator:
- * server.js logs it at startup and BRIDGE_REQUIRE_KEY turns it into a refusal.
- */
-function usingDefaultKey() {
-  return !process.env.BRIDGE_KEY || process.env.BRIDGE_KEY === DEFAULT_PASSPHRASE;
-}
+const ENC_KEY = initial.encKey;
+const MAC_KEY = initial.macKey;
 
 /** [tag][IV][CBC ciphertext][HMAC(IV || ciphertext)], scritto con le chiavi date. */
 function encryptCbcWith(keys, plaintext, tag) {
@@ -218,42 +214,6 @@ function buildFrame(jsonStr, tag) {
 }
 
 /**
- * Encrypts and signs a string with a passphrase that is not the frame key:
- * base64([16-byte IV][ciphertext][32-byte HMAC-SHA256(IV || ciphertext)]).
- * Pairing uses it: the phone's proposed key travels inside the pairing payload,
- * sealed with the one-time code, which is the only secret in that exchange.
- * The 1-byte cipher tag is not written: this is not a frame.
- */
-function sealWith(passphrase, jsonString) {
-  const keys = keysFor(passphrase);
-  const iv = crypto.randomBytes(CBC_IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', keys.encKey, iv);
-  const body = Buffer.concat([cipher.update(Buffer.from(jsonString, 'utf8')), cipher.final()]);
-  const mac = crypto.createHmac('sha256', keys.macKey).update(iv).update(body).digest();
-  return Buffer.concat([iv, body, mac]).toString('base64');
-}
-
-/** The inverse of sealWith. Throws when the code is wrong or the blob is damaged. */
-function openWith(passphrase, base64) {
-  const keys = keysFor(passphrase);
-  const payload = Buffer.from(String(base64 || ''), 'base64');
-  if (payload.length < CBC_IV_LENGTH + 16 + MAC_LENGTH) {
-    throw new Error('Invalid sealed payload (too short)');
-  }
-
-  const iv = payload.slice(0, CBC_IV_LENGTH);
-  const body = payload.slice(CBC_IV_LENGTH, payload.length - MAC_LENGTH);
-  const mac = payload.slice(payload.length - MAC_LENGTH);
-  const expected = crypto.createHmac('sha256', keys.macKey).update(iv).update(body).digest();
-  if (!crypto.timingSafeEqual(mac, expected)) {
-    throw new Error('Invalid sealed signature');
-  }
-
-  const decipher = crypto.createDecipheriv('aes-256-cbc', keys.encKey, iv);
-  return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
-}
-
-/**
  * A payload written with a passphrase that is not the current one: what the
  * recovery needs, because the phone that lost its key writes with the
  * passphrase compiled into the public app. Same shape as encryptPayload (the
@@ -286,10 +246,7 @@ module.exports = {
   buildFrame,
   cipherTagOf,
   keysFor,
-  setPassphrase,
-  usingDefaultKey,
-  sealWith,
-  openWith,
+  framePassphraseFor,
   ENCRYPTION_ENABLED,
   DEFAULT_PASSPHRASE,
   CIPHER_GCM,

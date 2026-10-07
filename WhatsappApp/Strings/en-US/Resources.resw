@@ -523,30 +523,6 @@
   <data name="ConnectionPage_TokenLabel.Text" xml:space="preserve">
     <value>Server token (created automatically on the first connection)</value>
   </data>
-  <data name="ConnectionPage_BridgeKeyLabel.Text" xml:space="preserve">
-    <value>Server key (only if your server uses one)</value>
-  </data>
-  <data name="ConnectionPage_PairCodeLabel.Text" xml:space="preserve">
-    <value>Pairing code (asked of the server automatically)</value>
-  </data>
-  <data name="ConnectionPage_PairCodePlaceholder.PlaceholderText" xml:space="preserve">
-    <value>ABCD-EFGH-JKLM-NPQR</value>
-  </data>
-  <data name="ConnectionPage_Pair.Content" xml:space="preserve">
-    <value>Send my key to the server</value>
-  </data>
-  <data name="ConnectionPage_Pairing" xml:space="preserve">
-    <value>Sending the key this phone generated...</value>
-  </data>
-  <data name="ConnectionPage_Paired" xml:space="preserve">
-    <value>Paired. The server now uses the key this phone generated.</value>
-  </data>
-  <data name="ConnectionPage_PairNoCode" xml:space="preserve">
-    <value>The server did not send a pairing code: either pairing is off, or it already has a key.</value>
-  </data>
-  <data name="ConnectionPage_PairFailed" xml:space="preserve">
-    <value>The pairing did not succeed.</value>
-  </data>
   <data name="TileUnreadOne" xml:space="preserve">
     <value>1 unread message</value>
   </data>

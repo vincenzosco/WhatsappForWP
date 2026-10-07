@@ -163,7 +163,8 @@ black/white colours — never the terminal's theme.
   holds the live WhatsApp credentials of the linked account.
 - **GOWA binds to `127.0.0.1` on purpose.** Its REST API sends messages as the
   linked account and has no authentication unless `--basic-auth` is given; only
-  the adapter (port 8585, AES-256-CBC + HMAC-SHA256 with `BRIDGE_KEY`) may face the LAN.
+  the adapter (port 8585, AES-256-CBC + HMAC-SHA256 with a per-device key derived
+  from the device id) may face the LAN.
 - **Run the tool tests too**: `node --test "tools/test/**/*.test.js"` covers the
   downloader (platform mapping, ZIP reader, digest table) and the service list.
   It is the fifth gate, next to the four `tools/check-*.js` guards. A bare

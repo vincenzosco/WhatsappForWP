@@ -59,51 +59,23 @@ test('cipherTagOf riconosce i due tag e ignora tutto il resto', () => {
   assert.strictEqual(cryptoHelper.cipherTagOf(Buffer.alloc(0)), 0);
 });
 
-test('sealWith e openWith si annullano a vicenda con la stessa passphrase', () => {
-  const blocco = JSON.stringify({ BridgeKey: 'chiave-generata-dal-telefono', SenderName: 'vincenzo' });
-  const sealed = cryptoHelper.sealWith('ABCD-EFGH-JKLM-NPQR', blocco);
-  assert.match(sealed, /^[A-Za-z0-9+/]+=*$/);
-  assert.strictEqual(cryptoHelper.openWith('ABCD-EFGH-JKLM-NPQR', sealed), blocco);
-});
+test('framePassphraseFor deriva una chiave stabile da un device id', () => {
+  const id = '01009f100200899703000fdf0400cd1705004cb40700609608007bd10900712b';
+  assert.strictEqual(cryptoHelper.framePassphraseFor(id), cryptoHelper.framePassphraseFor(id),
+    'lo stesso device id da la stessa chiave: e cio che rende innocua una reinstallazione');
+  assert.notStrictEqual(cryptoHelper.framePassphraseFor(id),
+    cryptoHelper.framePassphraseFor('un-altro-device-id'));
+  assert.strictEqual(cryptoHelper.framePassphraseFor(id).indexOf(cryptoHelper.DEFAULT_PASSPHRASE), 0,
+    'la passphrase compilata e il prefisso della derivazione');
+  assert.strictEqual(cryptoHelper.framePassphraseFor(''), cryptoHelper.DEFAULT_PASSPHRASE + ':');
 
-test('openWith rifiuta una passphrase diversa da quella che ha sigillato', () => {
-  const sealed = cryptoHelper.sealWith('ABCDEFGHJKLMNPQR', '{"BridgeKey":"x"}');
-  assert.throws(() => cryptoHelper.openWith('ABCDEFGHJKLMNPQS', sealed), /Invalid sealed signature/);
-});
-
-test('un byte cambiato nel payload sigillato ne invalida la firma', () => {
-  const sealed = cryptoHelper.sealWith('ABCDEFGHJKLMNPQR', '{"BridgeKey":"x"}');
-  const bytes = Buffer.from(sealed, 'base64');
-  bytes[20] ^= 0x01;
-  assert.throws(() => cryptoHelper.openWith('ABCDEFGHJKLMNPQR', bytes.toString('base64')),
-    /Invalid sealed signature/);
-});
-
-test('openWith rifiuta un payload troppo corto invece di leggere oltre', () => {
-  assert.throws(() => cryptoHelper.openWith('ABCDEFGHJKLMNPQR', 'AAAA'), /too short/);
-});
-
-test('setPassphrase cambia le chiavi e usingDefaultKey segue la passphrase', () => {
-  const originale = process.env.BRIDGE_KEY;
-  try {
-    delete process.env.BRIDGE_KEY;
-    assert.strictEqual(cryptoHelper.usingDefaultKey(), true);
-
-    cryptoHelper.setPassphrase('chiave-nuova-dal-telefono-0123456789ab');
-    // Un frame scritto con la chiave nuova non si rilegge con la vecchia: e' la
-    // prova che le chiavi sono davvero cambiate.
-    const payload = cryptoHelper.encryptPayload(PLAIN);
-
-    cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
-    assert.throws(() => cryptoHelper.decodePayload(payload), /Invalid HMAC signature/);
-
-    process.env.BRIDGE_KEY = 'chiave-nuova-dal-telefono-0123456789ab';
-    assert.strictEqual(cryptoHelper.usingDefaultKey(), false);
-  } finally {
-    if (originale === undefined) delete process.env.BRIDGE_KEY;
-    else process.env.BRIDGE_KEY = originale;
-    cryptoHelper.setPassphrase(cryptoHelper.DEFAULT_PASSPHRASE);
-  }
+  // Un frame scritto con la chiave di un device non si rilegge con quella di un
+  // altro: e la prova che le due chiavi sono davvero distinte.
+  const payload = cryptoHelper.encryptPayloadWith(cryptoHelper.framePassphraseFor(id), PLAIN);
+  assert.strictEqual(
+    cryptoHelper.decodePayloadWith(cryptoHelper.framePassphraseFor(id), payload), PLAIN);
+  assert.throws(() => cryptoHelper.decodePayloadWith(
+    cryptoHelper.framePassphraseFor('un-altro-device-id'), payload), /Invalid HMAC signature/);
 });
 
 /**
