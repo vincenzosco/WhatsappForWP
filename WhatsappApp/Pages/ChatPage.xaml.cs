@@ -492,10 +492,15 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// How long the list waits for the end of a history burst before binding
-        /// anyway. Long enough for a burst of fifty frames, short enough that a
-        /// server without the closing frame does not show an empty chat for long.
+        /// anyway. The adapter's first read of the account is an HTTP round trip
+        /// through GOWA and was measured at about 15 s on 2026-10-07, so a shorter
+        /// wait binds the list first and lets the whole burst insert into a list
+        /// that is already watching the collection - which is the failure
+        /// ConversationView.Bind exists to prevent. Twenty seconds covers that
+        /// read with room to spare, and the wait is still bounded, so an adapter
+        /// without the closing frame does not leave the chat empty.
         /// </summary>
-        private const int HistoryWaitMaxMilliseconds = 2000;
+        private const int HistoryWaitMaxMilliseconds = 20000;
 
         /// <summary>
         /// Waits for this chat's burst to close, at most
