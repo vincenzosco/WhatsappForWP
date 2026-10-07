@@ -693,6 +693,18 @@ the adapter:
   measured at about 15 s on 2026-10-07 - because the wait that expires first is the
   one that binds the list before its burst and hands it fifty inserts it never asked
   for. `check-diagnostics.js` pins the floor, so the value cannot drift back.
+- **The diagnostics outlive the run.** `Diag` appends every line to `diag.log` through
+  a `SerialQueue`, cuts the file to its last 64 KB, writes a run-start and a run-end
+  marker, and keeps a `diag-run.marker` file while the run is alive. A marker still
+  there at the next startup is what a crash is; the tail it left becomes
+  `Diag.PendingCrashTail` and the next connection sends it to the adapter as a `diag`
+  frame, so the crash is read in the container log. The marker is a file and not a
+  line in the log because `OnSuspending` is the normal end of a run here: a log with
+  no end marker is normal too, and a crash after a resume would slip past anything
+  that only read the log. `OnResuming` puts the marker back, and `Diag.Flush(true)`
+  runs inside the unhandled-exception handler, before the process may die. The
+  in-memory history is only a screen: it dies with the process, which is why every
+  earlier crash in this repo arrived as a log that stopped at the assembly list.
 - **The conversation's view state is one module.** `Services/ConversationView.cs`
   owns the bind, the scroll queue, the viewer lookup and the "at the bottom"
   question, because all four touch the same three things and the `E_UNEXPECTED`
