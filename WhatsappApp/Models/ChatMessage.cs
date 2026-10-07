@@ -74,9 +74,6 @@ namespace WhatsappApp.Models
         private bool _callIsVideo;          // video call
         private string _relatedMessageId;   // message touched by a revocation or an edit
         private string _token;              // token of the shared service (see handshake)
-        private string _pairingPayload;     // sealed key+token sent while pairing
-        private string _pairingCode;        // one-time code of the bridge pairing
-        private int _pairingSeconds;        // how long the pairing code stays valid
         private string _mediaFilePath;       // local file of the received video (client-side, not on the wire)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
@@ -398,39 +395,6 @@ namespace WhatsappApp.Models
         {
             get { return _token; }
             set { _token = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>
-        /// The pairing blob of the `pair` frame: the key and the token this phone
-        /// generated, sealed with the one-time code the server printed. It is
-        /// opaque to anyone who has not read that code; the server opens it with
-        /// the same code and adopts what it finds.
-        /// </summary>
-        [DataMember]
-        public string PairingPayload
-        {
-            get { return _pairingPayload; }
-            set { _pairingPayload = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>
-        /// The one-time code of the bridge pairing, as the server sent it in a
-        /// `pair.info` frame. The app asks for it with `pair.code`, so nobody has
-        /// to copy it out of the server log.
-        /// </summary>
-        [DataMember]
-        public string PairingCode
-        {
-            get { return _pairingCode; }
-            set { _pairingCode = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>How long the pairing code stays valid, in seconds. 0 when there is no window.</summary>
-        [DataMember]
-        public int PairingSeconds
-        {
-            get { return _pairingSeconds; }
-            set { _pairingSeconds = value; OnPropertyChanged(); }
         }
 
         /// <summary>Id of the message a revocation or edit frame refers to.</summary>
