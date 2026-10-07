@@ -343,6 +343,9 @@
   <data name="CommService_ConnectError" xml:space="preserve">
     <value>Connection error: {0}</value>
   </data>
+  <data name="CommService_NoAnswer" xml:space="preserve">
+    <value>The server did not answer: this phone and the server are not using the same key.</value>
+  </data>
   <data name="CommService_ConnectionLost" xml:space="preserve">
     <value>Connection lost: {0}</value>
   </data>

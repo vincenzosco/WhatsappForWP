@@ -25,7 +25,8 @@ node tools/check-fire-and-forget.js  # a call fired without await is observed, o
 node tools/check-project-files.js  # every .cs and .xaml is listed in the csproj, or MSBuild cannot see it
 node tools/check-chat-list-source.js  # the conversation ListView has no ItemsSource in XAML, only ConversationView.Bind
 node tools/check-diagnostics.js   # the run is on disk, and the history wait is not shorter than the read
-node --test "tools/test/**/*.test.js"  # the tools' own tests (96)
+node tools/check-handshake-answer.js  # the connection is announced only after the server answered the handshake
+node --test "tools/test/**/*.test.js"  # the tools' own tests (104)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -54,6 +55,7 @@ Two lessons the gates taught:
 | `check-project-files.js` | A `.cs` or `.xaml` under `WhatsappApp` that `WhatsappApp.csproj` does not list. MSBuild never sees it, so the type it holds "does not exist" only on the VM build, and the guards all pass in the meantime - which is how `RecordingSession.cs` and `ConversationView.cs` were committed without their `Compile` entries. |
 | `check-chat-list-source.js` | A second writer for `MessagesListView.ItemsSource`. The list is bound in code by `ConversationView.Bind`; an `ItemsSource="{Binding}"` left in XAML is resolved against `DataContext`, which on this page is a `Contact` and not a collection, so it fights the code-set source and the conversation opens empty with a run of first chance `SYSTEM.NI.DLL` exceptions and no `DIAG` line. |
 | `check-diagnostics.js` | The diagnostics that never reach the disk: a log written without a `SerialQueue`, a file with no byte ceiling or no name, no marker file to tell a crash from a suspension, the unhandled-exception handler leaving the line in memory, and a history wait shorter than the adapter's cold read of the account (a 2 s wait against a measured 15 s binds the list before its burst and hands fifty inserts to a list already watching the collection). |
+| `check-handshake-answer.js` | A connection announced before the server answered it: `RaiseConnectionEstablished()` reached before `WaitForServerAnswerAsync` returned, the reader started after the wait, or a wait shorter than 20000 ms. The phone then shows a connected chat list that is really the adapter refusing every frame of the wrong key - which is how "errore pairing key" hid behind an apparently live connection. |
 
 Also worth running while the tree is open:
 
