@@ -1873,3 +1873,57 @@ test('un frame scritto con la chiave di un device noto viene letto e risposto', 
     bridge.tcpServer.close();
   }
 });
+
+/**
+ * Un telefono che ha ancora il suo token scrive con la chiave derivata dal suo
+ * device id, e il server la adotta sul socket (`wp8Passphrase`). Da quel momento
+ * tutto cio' che il server spedisce a quel socket deve usare quella chiave, non
+ * quella del server: un broadcast scritto con la chiave sbagliata non e'
+ * leggibile, e il telefono non vede piu' ne' lo stato ne' i messaggi in arrivo.
+ * E' lo stato normale dopo il primo handshake riuscito, non un caso di confine.
+ */
+test('un telefono con la chiave del suo device legge anche i broadcast', async () => {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  const known = users.register('phone-dkey', 'vincenzo');
+
+  const bridge = createBridge({
+    config: { auth: { required: true, register: true } },
+    gowa: fakeGowa(),
+    users,
+    log: noop,
+    debug: noop
+  });
+  await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+  const port = bridge.tcpServer.address().port;
+
+  const client = connectClient(port, { passphrase: cryptoHelper.framePassphraseFor('phone-dkey') });
+  try {
+    client.send({
+      Type: 3, Command: 'hello', SenderId: 'phone-dkey', Token: known.token, SenderName: 'vincenzo'
+    });
+
+    // Un telefono che presenta un token valido non riceve un `registered` - non
+    // gli si dice niente, per non fargli riscrivere quello che ha gia' - ma lo
+    // stato che segue l'handshake si', ed e' un broadcast.
+    //
+    // `messages` tiene solo i frame che questa chiave apre: uno scritto con la
+    // chiave del server lo scarta connectClient, quindi la sua assenza qui e'
+    // esattamente il difetto.
+    for (let i = 0; i < 20 && !client.messages.some((m) => m.Command === 'state'); i++) {
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    assert.ok(client.messages.some((m) => m.Command === 'state'),
+      'lo stato che segue l handshake arriva con la chiave del device: senza, il telefono non vede la connessione e non chiede mai le chat');
+  } finally {
+    client.socket.destroy();
+    bridge.tcpServer.close();
+    bridge.stop();
+  }
+});

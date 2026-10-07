@@ -54,3 +54,35 @@
             EmitToDebugger(line);
             Flush();
         }
+
+        // The file is fetched when it is there and created only when it is not:
+        // a create truncates there and then and the write is a second call.
+        private static async Task WriteLinesAsync(string added)
+        {
+            try
+            {
+                string text = await ReadAsync() + added;
+                if (text.Length > MaxBytes) text = text.Substring(text.Length - MaxBytes);
+
+                StorageFile file = null;
+                try
+                {
+                    file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
+                }
+                catch (Exception)
+                {
+                    file = null;
+                }
+
+                if (file == null)
+                {
+                    file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                        FileName, CreationCollisionOption.ReplaceExisting);
+                }
+
+                await FileIO.WriteTextAsync(file, text);
+            }
+            catch (Exception)
+            {
+            }
+        }

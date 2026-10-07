@@ -42,7 +42,12 @@
  *   F. every diag line reaches the debugger too, through the single
  *      `EmitToDebugger` sink that both the frame sink and the line sink call -
  *      that is what puts the app's log in the Visual Studio 2013 Output window;
- *      a sink that calls `Debug.WriteLine` directly skips it.
+ *      a sink that calls `Debug.WriteLine` directly skips it;
+ *   G. the log writer fetches the file before it writes and creates it only when
+ *      it is missing - a create truncates there and then and the write is a
+ *      second call, so a suspension between the two left a `diag.log` of 0 bytes
+ *      with the run marker still in place (seen on the phone on 2026-10-07), and
+ *      the run that had to be explained was the one whose log was gone.
  *
  * Usage: node tools/check-diagnostics.js
  */
@@ -63,6 +68,19 @@ const CRASH_REPORT_REL = 'WhatsappApp/Services/CrashReport.cs';
  * is waiting for, and a shorter wait is what binds it.
  */
 const HISTORY_WAIT_FLOOR = 20000;
+
+/**
+ * The body of a method: from its signature to the next member of the class. The
+ * members sit at eight spaces, and nothing inside a body does, so the first such
+ * line after the signature is where it ends.
+ */
+function methodBody(text, signature) {
+  const start = text.indexOf(signature);
+  if (start < 0) return '';
+  const rest = text.slice(start);
+  const end = rest.search(/\r?\n {8}(private|public|internal|protected|static) /);
+  return end < 0 ? rest : rest.slice(0, end);
+}
 
 /**
  * The problems of a set of sources: empty when the app can still be diagnosed.
@@ -162,6 +180,28 @@ function problemsFor(input) {
   }
 
   // -------------------------------------------------------------------------
+  // G. the log writer does not truncate the file before it writes
+  // -------------------------------------------------------------------------
+  const writer = methodBody(diag, 'WriteLinesAsync(string');
+  if (!writer) {
+    problems.push(DIAG_REL + ': WriteLinesAsync is gone (did the log writer move?' +
+      ' then this guard must move too)');
+  } else {
+    const fetched = writer.indexOf('GetFileAsync');
+    const created = writer.indexOf('CreateFileAsync');
+    if (writer.indexOf('FileIO.WriteTextAsync') < 0) {
+      problems.push(DIAG_REL + ': WriteLinesAsync does not write the log through' +
+        ' FileIO.WriteTextAsync');
+    }
+    if (created >= 0 && (fetched < 0 || fetched > created)) {
+      problems.push(DIAG_REL + ': WriteLinesAsync creates the log with' +
+        ' CreateFileAsync before fetching it - a create truncates there and then,' +
+        ' and the write is a second call, so a suspension in between leaves an' +
+        ' empty diag.log and loses the run, marker file and all');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // E. the crash goes to the adapter by itself
   // -------------------------------------------------------------------------
   const crashReport = input.crashReport;
@@ -206,7 +246,8 @@ function main() {
     process.exit(1);
   }
   console.log('OK: the diagnostics reach the disk through one writer with a ' +
-    'ceiling, every line also reaches the debugger through EmitToDebugger, the ' +
+    'ceiling, the file is fetched before it is written so a suspension cannot ' +
+    'empty it, every line also reaches the debugger through EmitToDebugger, the ' +
     'unhandled handler flushes them, the run keeps its marker until it ends on ' +
     'purpose, and the history wait is at least ' + HISTORY_WAIT_FLOOR + ' ms.');
 }
