@@ -652,7 +652,21 @@ namespace WhatsappApp.Services
 
                     // Proof of life for the watchdog: a frame read just now.
                     LastInboundUtc = DateTime.UtcNow;
-                    DispatchMessage(DecryptToMessage(payload));
+
+                    // The size goes on the message, where it belongs to this frame
+                    // and survives the trip to the dispatcher (see ChatMessage.
+                    // WireBytes). It is read before the cipher on purpose: a frame
+                    // that cannot be decrypted still has a size.
+                    ChatMessage received = DecryptToMessage(payload);
+                    if (received != null)
+                    {
+                        received.WireBytes = payload.Length;
+                        if (payload.Length >= FrameCodec.LargeFrameBytes)
+                        {
+                            Diag.Ok("large frame " + payload.Length + " bytes");
+                        }
+                    }
+                    DispatchMessage(received);
                 }
             }
             catch (Exception ex)

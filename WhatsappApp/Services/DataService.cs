@@ -64,6 +64,14 @@ namespace WhatsappApp.Services
         private bool _listening;
 
         /// <summary>
+        /// How many bytes of history frames have arrived for each chat, for the
+        /// `history.done` line: the message count alone cannot tell a burst of fifty
+        /// small frames from one carrying a few megabytes of media.
+        /// </summary>
+        private readonly Dictionary<string, int> _historyBytes =
+            new Dictionary<string, int>();
+
+        /// <summary>
         /// Currently open chat. It serves one purpose only: not to raise an alert
         /// for a message the user is already watching. It no longer decides the
         /// unread count: that is decided by whoever shows the messages (see
@@ -170,6 +178,12 @@ namespace WhatsappApp.Services
                 {
                     Diag.Ok("history arrived for " + message.ChatId);
                 }
+
+                // The cost of the burst, for the line history.done writes.
+                int seen;
+                _historyBytes.TryGetValue(message.ChatId, out seen);
+                _historyBytes[message.ChatId] = seen + message.WireBytes;
+
                 AddHistoryMessage(message);
                 return;
             }
@@ -316,8 +330,11 @@ namespace WhatsappApp.Services
                     // The count is what tells a burst that arrived from a chat whose
                     // history never came: the frame itself carries no number, and
                     // "history arrived" on its own cannot tell one message from none.
+                    int bytes;
+                    _historyBytes.TryGetValue(message.ChatId, out bytes);
                     Diag.Ok("history done for " + message.ChatId + ": "
-                        + GetMessages(message.ChatId).Count + " message(s)");
+                        + GetMessages(message.ChatId).Count + " message(s), "
+                        + bytes + " bytes");
                     RaiseHistoryCompleted(message.ChatId);
                     break;
             }
