@@ -21,7 +21,18 @@ function fakeGowa(overrides = {}) {
   }, overrides);
 }
 
-function connectClient(port) {
+/**
+ * Un frame scritto con una passphrase scelta: serve al recupero, dove il
+ * telefono scrive con la passphrase pubblica mentre il server usa la sua.
+ */
+function frameWith(passphrase, json, tag) {
+  const payload = cryptoHelper.encryptPayloadWith(passphrase, json, tag);
+  const lenBuf = Buffer.alloc(4);
+  lenBuf.writeUInt32LE(payload.length, 0);
+  return Buffer.concat([lenBuf, payload]);
+}
+
+function connectClient(port, options = {}) {
   const socket = net.connect(port, '127.0.0.1');
   let buffer = Buffer.alloc(0);
   const messages = [];
@@ -37,7 +48,18 @@ function connectClient(port) {
       const payload = buffer.slice(4, 4 + len);
       buffer = buffer.slice(4 + len);
       tags.push(payload[0]);
-      const json = JSON.parse(cryptoHelper.decodePayload(payload));
+      let json = null;
+      try {
+        json = JSON.parse(options.passphrase
+          ? cryptoHelper.decodePayloadWith(options.passphrase, payload)
+          : cryptoHelper.decodePayload(payload));
+      } catch (e) {
+        // Un frame scritto con un'altra chiave non e' la risposta a questa
+        // richiesta - l'istanza privata ne manda uno `state` appena il socket
+        // si apre, con la chiave del server - e questo client non ha modo di
+        // leggerlo: si scarta invece di far cadere il test.
+        continue;
+      }
       messages.push(json);
       while (waiters.length) waiters.shift()(json);
     }
@@ -47,7 +69,9 @@ function connectClient(port) {
     messages,
     tags,
     send(msg, tag) {
-      socket.write(cryptoHelper.buildFrame(JSON.stringify(msg), tag));
+      socket.write(options.passphrase
+        ? frameWith(options.passphrase, JSON.stringify(msg), tag)
+        : cryptoHelper.buildFrame(JSON.stringify(msg), tag));
     },
     next(timeoutMs = 2000) {
       return new Promise((resolve, reject) => {
@@ -262,10 +286,12 @@ test('the chats command answers with an error and chats.done when WhatsApp is no
   assert.deepStrictEqual(frames.map((f) => f.Command), ['error', 'chats.done']);
 });
 
-function decodeFrame(packet) {
+function decodeFrame(packet, passphrase) {
   const length = packet.readUInt32LE(0);
   const payload = packet.slice(4, 4 + length);
-  return JSON.parse(cryptoHelper.decodePayload(payload));
+  return JSON.parse(passphrase
+    ? cryptoHelper.decodePayloadWith(passphrase, payload)
+    : cryptoHelper.decodePayload(payload));
 }
 
 test('a revoked message becomes a revoked control frame', async () => {
@@ -1332,11 +1358,11 @@ function sharedBridge() {
   };
 }
 
-function collectingSocket() {
+function collectingSocket(passphrase) {
   const frames = [];
   return {
     frames,
-    write: (packet) => frames.push(decodeFrame(packet)),
+    write: (packet) => frames.push(decodeFrame(packet, passphrase)),
     destroy: () => {}
   };
 }
@@ -1948,6 +1974,210 @@ test('una finestra scaduta viene riaperta quando il codice viene chiesto', async
     assert.ok(code, 'la finestra scaduta riapre con un codice nuovo');
     assert.notStrictEqual(code, first, 'il codice e nuovo, non quello scaduto');
     assert.strictEqual(code, bridge.getPairingCode(), 'il nuovo codice e quello aperto');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+/**
+ * Il recupero. Una reinstallazione svuota la memoria isolata dell'app, quindi
+ * il telefono perde la chiave e il token e scrive con la passphrase compilata
+ * nell'app pubblico; il server ha una chiave propria e non aprirebbe nessuna
+ * finestra. Se il device id che il frame dichiara e' gia' nello store la
+ * finestra si apre per quel solo dispositivo, e la risposta esce con la
+ * passphrase che il telefono sa leggere. Chiave e token tornano nel frame
+ * `paired`, che esiste gia': il protocollo non cambia, cambia chi puo' aprire
+ * la finestra.
+ */
+function recoveryUsers(ids) {
+  const crypto = require('crypto');
+  const { createUserStore } = require('../users');
+  const users = createUserStore({
+    scryptSync: (token, salt) => crypto.createHash('sha256').update(String(token) + salt).digest(),
+    randomBytes: crypto.randomBytes
+  });
+  for (const id of ids) users.register(id, 'vincenzo');
+  return users;
+}
+
+const RECOVERY_SERVER_KEY = 'chiave-del-server-0123456789abcdef';
+
+test('un dispositivo conosciuto rifa il pairing da solo anche se il server ha una chiave', async () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+  const keyStore = require('../key-store');
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'wp8-recover-'));
+  const keyFile = path.join(dir, 'bridge-key');
+  const users = recoveryUsers(['phone-1']);
+
+  const originalKey = process.env.BRIDGE_KEY;
+  process.env.BRIDGE_KEY = RECOVERY_SERVER_KEY;
+  cryptoHelper.setPassphrase(RECOVERY_SERVER_KEY);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000, recover: true }, bridge: { keyFile } },
+      gowa: { status: async () => ({ isConnected: false, isLoggedIn: false, jid: '' }) },
+      users,
+      log: noop,
+      debug: noop
+    });
+    assert.strictEqual(bridge.getPairingCode(), null,
+      'un server con una chiave propria non apre la finestra da solo');
+
+    // Il socket di un telefono che scrive con la passphrase pubblica: e' il
+    // lettore del server a metterlo, qui lo si mette a mano.
+    const socket = collectingSocket(cryptoHelper.DEFAULT_PASSPHRASE);
+    socket.wp8Passphrase = cryptoHelper.DEFAULT_PASSPHRASE;
+    bridge.addClientForTest(socket);
+
+    await bridge.handleControl({ Type: 3, Command: 'pair.code', SenderId: 'phone-1' }, socket);
+
+    const info = socket.frames.find((f) => f.Command === 'pair.info');
+    assert.ok(info, 'la risposta arriva sotto la passphrase che il telefono sa leggere');
+    const code = keyStore.normalizeCode(info.PairingCode);
+    assert.ok(code, 'la finestra si e aperta per questo dispositivo');
+    assert.strictEqual(code, bridge.getPairingCode());
+
+    const phoneKey = keyStore.newBridgeKey();
+    const payload = cryptoHelper.sealWith(code, JSON.stringify({
+      BridgeKey: phoneKey, SenderName: 'vincenzo'
+    }));
+    await bridge.handleControl(
+      { Type: 3, Command: 'pair', SenderId: 'phone-1', PairingPayload: payload }, socket);
+
+    const paired = socket.frames.find((f) => f.Command === 'paired');
+    assert.ok(paired, 'il telefono riceve la conferma');
+    assert.ok(users.verify(paired.Token), 'il token torna al telefono ed e gia valido');
+    assert.strictEqual(fs.readFileSync(keyFile, 'utf8'), phoneKey,
+      'la chiave generata dal telefono e su disco');
+    assert.strictEqual(process.env.BRIDGE_KEY, phoneKey, 'la chiave nuova e nell ambiente');
+    assert.strictEqual(bridge.getPairingCode(), null, 'la finestra si chiude dopo il pairing');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+test('un device id sconosciuto non apre nessuna finestra di recupero', async () => {
+  const users = recoveryUsers(['phone-1']);
+  const logged = [];
+
+  const originalKey = process.env.BRIDGE_KEY;
+  process.env.BRIDGE_KEY = RECOVERY_SERVER_KEY;
+  cryptoHelper.setPassphrase(RECOVERY_SERVER_KEY);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000, recover: true } },
+      gowa: {},
+      users,
+      log: (level, text) => logged.push(level + ' ' + text),
+      debug: noop
+    });
+
+    const socket = collectingSocket(cryptoHelper.DEFAULT_PASSPHRASE);
+    socket.wp8Passphrase = cryptoHelper.DEFAULT_PASSPHRASE;
+    bridge.addClientForTest(socket);
+
+    await bridge.handleControl({ Type: 3, Command: 'pair.code', SenderId: 'mai-visto' }, socket);
+
+    // La risposta e' un `pair.info` senza codice: e' cosi' che il telefono
+    // impara che non c'e' nessuna finestra aperta per lui.
+    const info = socket.frames.find((f) => f.Command === 'pair.info');
+    assert.ok(info, 'la risposta dice sempre se una finestra c e o no');
+    assert.ok(!info.PairingCode, 'nessun codice: la finestra non si e aperta');
+    assert.strictEqual(bridge.getPairingCode(), null, 'la finestra resta chiusa');
+    assert.ok(logged.some((l) => /refused a recovery/i.test(l)),
+      'il rifiuto si vede nel log, non e un silenzio');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+test('una finestra di recupero appartiene a un solo dispositivo', async () => {
+  const keyStore = require('../key-store');
+  const users = recoveryUsers(['phone-1', 'phone-2']);
+
+  const originalKey = process.env.BRIDGE_KEY;
+  process.env.BRIDGE_KEY = RECOVERY_SERVER_KEY;
+  cryptoHelper.setPassphrase(RECOVERY_SERVER_KEY);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000, recover: true } },
+      gowa: {},
+      users,
+      log: noop,
+      debug: noop
+    });
+
+    const primo = collectingSocket(cryptoHelper.DEFAULT_PASSPHRASE);
+    primo.wp8Passphrase = cryptoHelper.DEFAULT_PASSPHRASE;
+    bridge.addClientForTest(primo);
+    await bridge.handleControl({ Type: 3, Command: 'pair.code', SenderId: 'phone-1' }, primo);
+
+    const code = bridge.getPairingCode();
+    assert.ok(code, 'la finestra e aperta per phone-1');
+
+    // Un secondo dispositivo conosciuto, con il codice giusto in mano, non deve
+    // poter entrare in una finestra aperta per un altro.
+    const secondo = collectingSocket(cryptoHelper.DEFAULT_PASSPHRASE);
+    secondo.wp8Passphrase = cryptoHelper.DEFAULT_PASSPHRASE;
+    bridge.addClientForTest(secondo);
+    const payload = cryptoHelper.sealWith(keyStore.normalizeCode(code), JSON.stringify({
+      BridgeKey: keyStore.newBridgeKey(), SenderName: 'phone-2'
+    }));
+    await bridge.handleControl(
+      { Type: 3, Command: 'pair', SenderId: 'phone-2', PairingPayload: payload }, secondo);
+
+    assert.strictEqual(secondo.frames[0].Command, 'pair.failed',
+      'la finestra di un altro dispositivo e chiusa per phone-2');
+    assert.strictEqual(bridge.getPairingCode(), code,
+      'la finestra di phone-1 e ancora la sua');
+  } finally {
+    if (originalKey === undefined) delete process.env.BRIDGE_KEY;
+    else process.env.BRIDGE_KEY = originalKey;
+    cryptoHelper.setPassphrase(originalKey || cryptoHelper.DEFAULT_PASSPHRASE);
+  }
+});
+
+test('il server legge un frame scritto con la passphrase pubblica e risponde con la stessa', async () => {
+  const keyStore = require('../key-store');
+  const users = recoveryUsers(['phone-1']);
+
+  const originalKey = process.env.BRIDGE_KEY;
+  process.env.BRIDGE_KEY = RECOVERY_SERVER_KEY;
+  cryptoHelper.setPassphrase(RECOVERY_SERVER_KEY);
+  try {
+    const bridge = createBridge({
+      config: { pairing: { enabled: true, ttlMs: 60000, recover: true } },
+      gowa: {},
+      users,
+      log: noop,
+      debug: noop
+    });
+
+    await new Promise((r) => bridge.tcpServer.listen(0, '127.0.0.1', r));
+    const port = bridge.tcpServer.address().port;
+    // Il socket del client va chiuso: un socket aperto tiene in vita il
+    // processo e la suite non finisce mai.
+    const client = connectClient(port, { passphrase: cryptoHelper.DEFAULT_PASSPHRASE });
+    try {
+      client.send({ Type: 3, Command: 'pair.code', SenderId: 'phone-1' });
+
+      const answer = await client.next(3000);
+      assert.strictEqual(answer.Command, 'pair.info',
+        'il frame illeggibile con la chiave del server viene letto con quella pubblica');
+      assert.ok(keyStore.normalizeCode(answer.PairingCode), 'il codice arriva al telefono');
+    } finally {
+      client.socket.destroy();
+      bridge.tcpServer.close();
+    }
   } finally {
     if (originalKey === undefined) delete process.env.BRIDGE_KEY;
     else process.env.BRIDGE_KEY = originalKey;

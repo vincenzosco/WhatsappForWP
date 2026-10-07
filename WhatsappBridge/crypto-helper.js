@@ -93,17 +93,32 @@ function usingDefaultKey() {
   return !process.env.BRIDGE_KEY || process.env.BRIDGE_KEY === DEFAULT_PASSPHRASE;
 }
 
-/** [tag][IV][CBC ciphertext][HMAC(IV || ciphertext)] */
-function encryptCbc(plaintext) {
+/** [tag][IV][CBC ciphertext][HMAC(IV || ciphertext)], scritto con le chiavi date. */
+function encryptCbcWith(keys, plaintext, tag) {
+  const scelto = tag || CIPHER_CBC_HMAC;
+  if (scelto !== CIPHER_CBC_HMAC) {
+    throw new Error('Unknown cipher tag to write: ' + scelto);
+  }
+
   const iv = crypto.randomBytes(CBC_IV_LENGTH);
-  const cipher = crypto.createCipheriv('aes-256-cbc', ENC_KEY, iv);
+  const cipher = crypto.createCipheriv('aes-256-cbc', keys.encKey, iv);
   const body = Buffer.concat([cipher.update(plaintext), cipher.final()]);
-  const mac = crypto.createHmac('sha256', MAC_KEY).update(iv).update(body).digest();
+  const mac = crypto.createHmac('sha256', keys.macKey).update(iv).update(body).digest();
   return Buffer.concat([Buffer.from([CIPHER_CBC_HMAC]), iv, body, mac]);
 }
 
-/** Verifies the signature and only then decrypts (encrypt-then-MAC). */
-function decryptCbc(payload) {
+/** Lo stesso, con le chiavi correnti del server. */
+function encryptCbc(plaintext) {
+  return encryptCbcWith({ encKey: ENC_KEY, macKey: MAC_KEY }, plaintext);
+}
+
+/**
+ * Verifies the signature and only then decrypts (encrypt-then-MAC). The keys
+ * arrive from outside because the same code serves the recovery: there the
+ * frame was written with the passphrase compiled into the public app, while
+ * this server uses one of its own.
+ */
+function decryptCbcWith(keys, payload) {
   if (payload.length < CBC_IV_LENGTH + 16 + MAC_LENGTH) {
     throw new Error('Invalid CBC payload (too short)');
   }
@@ -111,14 +126,19 @@ function decryptCbc(payload) {
   const iv = payload.slice(0, CBC_IV_LENGTH);
   const body = payload.slice(CBC_IV_LENGTH, payload.length - MAC_LENGTH);
   const mac = payload.slice(payload.length - MAC_LENGTH);
-  const expected = crypto.createHmac('sha256', MAC_KEY).update(iv).update(body).digest();
+  const expected = crypto.createHmac('sha256', keys.macKey).update(iv).update(body).digest();
 
   if (!crypto.timingSafeEqual(mac, expected)) {
     throw new Error('Invalid HMAC signature');
   }
 
-  const decipher = crypto.createDecipheriv('aes-256-cbc', ENC_KEY, iv);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', keys.encKey, iv);
   return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
+}
+
+/** Lo stesso, con le chiavi correnti del server. */
+function decryptCbc(payload) {
+  return decryptCbcWith({ encKey: ENC_KEY, macKey: MAC_KEY }, payload);
 }
 
 /** [tag][12 byte IV][GCM ciphertext || tag di autenticazione] */
@@ -233,8 +253,35 @@ function openWith(passphrase, base64) {
   return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
 }
 
+/**
+ * A payload written with a passphrase that is not the current one: what the
+ * recovery needs, because the phone that lost its key writes with the
+ * passphrase compiled into the public app. Same shape as encryptPayload (the
+ * cipher tag leads the payload) and CBC only: the header above says why the
+ * app on WP8.1 cannot read or write AES-GCM.
+ */
+function encryptPayloadWith(passphrase, jsonStr, tag) {
+  return encryptCbcWith(keysFor(passphrase), Buffer.from(String(jsonStr), 'utf8'), tag);
+}
+
+/** The inverse of encryptPayloadWith. Refuses any tag but the one it writes. */
+function decodePayloadWith(passphrase, payload) {
+  if (!payload || payload.length < 1) {
+    throw new Error('Empty encrypted payload');
+  }
+
+  const tag = payload[0];
+  if (tag !== CIPHER_CBC_HMAC) {
+    throw new Error('Unknown cipher tag: ' + tag);
+  }
+
+  return decryptCbcWith(keysFor(passphrase), payload.slice(1));
+}
+
 module.exports = {
   encryptPayload,
+  encryptPayloadWith,
+  decodePayloadWith,
   decodePayload,
   buildFrame,
   cipherTagOf,

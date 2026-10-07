@@ -283,6 +283,14 @@ the adapter:
 
 ## Known gotchas
 
+- **A reinstall empties the app's storage on WP8.1**, so the phone loses its
+  frame key and its token at once. The server has to put them back by itself:
+  with `PAIRING_RECOVER` on (the default) a device the store already knows
+  re-opens the pairing window for itself under the public passphrase, and the
+  `paired` frame returns both. Never "fix" a phone that cannot connect by asking
+  the operator to reset the server key: removing that manual step is the whole
+  point of the recovery in `server.js` (`openRecovery`, `decodeRecovery`).
+
 - The app cannot be built on macOS: there is no WP8.1 toolchain. The build gate
   runs on the Windows/Parallels machine.
 - **Build from a path that is not the Parallels share.** `C:\Mac\Home` is a

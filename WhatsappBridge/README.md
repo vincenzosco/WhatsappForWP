@@ -162,6 +162,7 @@ See `.env.example`. The main variables:
 | `BRIDGE_REQUIRE_KEY` | `off` | refuse to start while the cipher still uses the compiled default (`on` for any reachable deployment) |
 | `PAIRING` | `off` | accept one phone-generated key while no key is set yet (see *Pairing* below) |
 | `PAIRING_TTL_MIN` | `15` | how long the pairing window stays open |
+| `PAIRING_RECOVER` | `on` | let a device the store already knows re-open the pairing window for itself, after a reinstall took its key away (see *The phone that lost its key*) |
 | `BRIDGE_KEY_FILE` | — | where the received key is kept, so a restart does not ask for a new pairing; empty keeps it in the environment only |
 | `POLL_INTERVAL_MS` | `5000` | How often the WhatsApp state is polled |
 | `DISCOVERY_ENABLED` | `on` | Announce the adapter on the LAN (`off` disables it) |
@@ -271,8 +272,27 @@ restart reads the key back and does not ask again.
 
 The code has 80 random bits and the window closes after five wrong attempts or
 `PAIRING_TTL_MIN` minutes, whichever comes first. A server that already has a key
-never opens it: to pair again, stop the container, delete `BRIDGE_KEY_FILE` and
-start it with `PAIRING=on`.
+opens no window by itself: the manual way out is to stop the container, delete
+`BRIDGE_KEY_FILE` and start it with `PAIRING=on`. The phone that lost its key,
+though, opens one for itself - see below.
+
+### The phone that lost its key
+
+Reinstalling the app empties its own storage, and with it the frame key and the
+token; `AUTH_STRICT_DEVICE=on` then refuses the handshake of that device, so
+before this existed a phone in that state could not get back in without the
+operator resetting the server key. With `PAIRING_RECOVER` on (the default) the
+device this store already knows asks again with the passphrase compiled into the
+public app - the adapter tries that one key as a second attempt on a frame it
+cannot open - and the window it gets is its alone: another device, even holding
+the code, is refused (`pair.failed`). The same `paired` frame then carries back
+both the new key and the token derived from that device id.
+
+The cost, plainly: while this is on, a device id is the credential for its own
+window, and device ids live in `users.json` in plain text, so a copy of that file
+can pair as any device in it. A deployment that already treats `users.json` as a
+credential is unaffected; one that does not should set `PAIRING_RECOVER=off` and
+reset the server key by hand instead.
 
 Because the code now travels to the phone over the same channel it protects, it
 no longer separates the operator from a stranger who can reach the port: while
