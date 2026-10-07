@@ -48,6 +48,11 @@ const DEFAULTS = {
   // key it generated itself, proved by the one-time code printed at startup.
   PAIRING: 'off',
   PAIRING_TTL_MIN: '15',
+  // When on, a device this server already knows may re-open the pairing window
+  // for itself, with the passphrase compiled into the public app: the phone
+  // that lost its key to a reinstall gets it, and its token, back without an
+  // operator. See openRecovery in server.js for what that makes the device id.
+  PAIRING_RECOVER: 'on',
   // The server registry: this server publishes its own address into
   // whatsappforwp-endpoint/endpoint.json so the app can find it, and so the app
   // has more than one server to try when one goes down. Off by default: a
@@ -102,7 +107,10 @@ function loadConfig(env = process.env) {
       // from a phone that proves it read the code printed at startup. A server
       // that already has a key ignores this: there is nothing to replace.
       enabled: pick(env, 'PAIRING').toLowerCase() === 'on',
-      ttlMs: Math.max(1, parseInt(pick(env, 'PAIRING_TTL_MIN'), 10)) * 60000
+      ttlMs: Math.max(1, parseInt(pick(env, 'PAIRING_TTL_MIN'), 10)) * 60000,
+      // On unless it is turned off: a phone that lost its key has nobody else
+      // to ask, and only a device the store already knows can use this.
+      recover: pick(env, 'PAIRING_RECOVER').toLowerCase() !== 'off'
     },
     endpoint: {
       // On when this server should advertise itself in the shared registry. The

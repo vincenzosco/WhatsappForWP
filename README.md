@@ -588,6 +588,21 @@ every device keeps one token keyed on its own id. The settings page still has a
 field: a server started with its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
 (which refuses the public default) is reached by typing the same value there.
 
+One more reinstall is all it takes for a phone to lose what it has. Reinstalling
+empties the app's own storage on Windows Phone 8.1, so the phone is left with
+neither its key nor its token, while a server that has a key of its own refuses
+the handshake of a device it knows but that brings no token: it could never get
+back in. `PAIRING_RECOVER` (on by default) closes that from the server side. A
+device this store already knows may re-open the pairing window for itself using
+the passphrase compiled into the public app, and the same `paired` frame gives it
+back both the key and the token - nothing is typed, and nobody has to do anything
+at the server. What it costs is worth saying plainly: while it is on, a device id
+is the credential for that window, and the id sits in `users.json` in plain text,
+so a copy of that file can be used to pair as that device. Set
+`PAIRING_RECOVER=off` to refuse it and go back to the manual way out: delete the
+file `BRIDGE_KEY_FILE` points at, restart the server, and let the phone pair
+again into the window that opens.
+
 The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from
 [whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),

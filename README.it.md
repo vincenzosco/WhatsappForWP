@@ -607,6 +607,22 @@ al proprio id. La pagina delle impostazioni ha ancora un campo *Chiave del serve
 avviato con un `BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default
 pubblico) si raggiunge digitando lo stesso valore li'.
 
+Una reinstallazione in piu' e' tutto quello che serve perche' un telefono perda
+quello che ha. Reinstallare svuota la memoria dell'app su Windows Phone 8.1,
+quindi il telefono resta senza la sua chiave e senza il suo token, mentre un
+server che ha una chiave sua rifiuta l'handshake di un dispositivo che conosce ma
+che non porta nessun token: non rientrerebbe mai piu'. `PAIRING_RECOVER` (acceso
+di default) chiude quella porta dal lato del server: un dispositivo che questo
+store conosce gia' puo' riaprire la finestra di accoppiamento per se' con la
+passphrase compilata nell'app pubblico, e lo stesso frame `paired` gli
+restituisce sia la chiave sia il token - non si digita niente, e nessuno deve fare
+niente sul server. Quello che costa va detto chiaramente: finche' e' acceso, un
+device id e' la credenziale per quella finestra, e l'id sta in `users.json` in
+chiaro, quindi una copia di quel file puo' essere usata per accoppiarsi come quel
+dispositivo. Metti `PAIRING_RECOVER=off` per rifiutarlo, e torna alla via manuale:
+cancella il file puntato da `BRIDGE_KEY_FILE`, riavvia il server, e lascia che il
+telefono si accoppi di nuovo nella finestra che si apre.
+
 Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da
 [whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
