@@ -49,6 +49,7 @@ const ROOT = path.resolve(__dirname, '..');
 const DIAG_REL = 'WhatsappApp/Services/Diag.cs';
 const APP_REL = 'WhatsappApp/App.xaml.cs';
 const CHAT_PAGE_REL = 'WhatsappApp/Pages/ChatPage.xaml.cs';
+const CRASH_REPORT_REL = 'WhatsappApp/Services/CrashReport.cs';
 
 /**
  * The floor of rule D. It is the adapter's cold read of the account, measured on
@@ -133,6 +134,29 @@ function problemsFor(input) {
       ' frames then insert into a collection the ListView is already watching');
   }
 
+  // -------------------------------------------------------------------------
+  // E. the crash goes to the adapter by itself
+  // -------------------------------------------------------------------------
+  const crashReport = input.crashReport;
+  if (typeof crashReport === 'string') {
+    if (crashReport === '') {
+      problems.push(CRASH_REPORT_REL + ': not found - the crash of the previous run' +
+        ' is sent nowhere, so it is only ever visible on the phone screen the user' +
+        ' is holding');
+    } else {
+      if (!/SendControlAsync\("diag"/.test(crashReport)) {
+        problems.push(CRASH_REPORT_REL + ': the previous run is not sent to the' +
+          ' adapter (no SendControlAsync("diag")) - the tail it left is the only' +
+          ' copy of what it was doing when it died');
+      }
+      if (!/Diag\.PendingCrashTail/.test(crashReport)) {
+        problems.push(CRASH_REPORT_REL + ': CrashReport does not read' +
+          ' Diag.PendingCrashTail - the service would send nothing, which looks' +
+          ' exactly like a run that ended properly');
+      }
+    }
+  }
+
   return { problems };
 }
 
@@ -141,7 +165,11 @@ function main() {
   const input = {
     diag: read(DIAG_REL),
     app: read(APP_REL),
-    chatPage: read(CHAT_PAGE_REL)
+    chatPage: read(CHAT_PAGE_REL),
+    // Reported as a problem rather than read blindly: a missing service is the
+    // finding rule E exists for, not a crash of the guard.
+    crashReport: fs.existsSync(path.join(ROOT, CRASH_REPORT_REL))
+      ? read(CRASH_REPORT_REL) : ''
   };
   const { problems } = problemsFor(input);
 
@@ -158,4 +186,6 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { problemsFor, HISTORY_WAIT_FLOOR, DIAG_REL, APP_REL, CHAT_PAGE_REL };
+module.exports = {
+  problemsFor, HISTORY_WAIT_FLOOR, DIAG_REL, APP_REL, CHAT_PAGE_REL, CRASH_REPORT_REL
+};

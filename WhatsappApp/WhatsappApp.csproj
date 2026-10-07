@@ -133,6 +133,7 @@
     <Compile Include="Services\Guarded.cs" />
     <Compile Include="Services\RecordingSession.cs" />
     <Compile Include="Services\ConversationView.cs" />
+    <Compile Include="Services\CrashReport.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>
