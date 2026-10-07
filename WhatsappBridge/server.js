@@ -1227,18 +1227,22 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         // for a second handshake would let the commands already in flight (the app
         // asks for the QR code right after connecting) arrive while the socket has
         // no user yet, and those are refused by closing the connection.
-        if (!verdict.ok && authRegister && users
+        if (!verdict.ok && users
             && (verdict.reason === 'missing token' || verdict.reason === 'unknown token')) {
           // Room is only needed for a device the service has never seen: a device
           // it already knows is handed its own token again and never counts
           // against the ceiling.
           const known = clientId ? users.findByClientId(clientId) : null;
-          // A device the store already knows is always let back in: its token is
-          // derived from its device id and is handed back below, which is what a
-          // reinstall needs. AUTH_STRICT_DEVICE closes the door on a device the
-          // store has never seen, so an open service stays closed to strangers
-          // while the phone that lost its key still returns by itself.
-          const mayRegister = authStrictDevice ? !!known : true;
+          // A device the store already knows is always let back in, whatever the
+          // service's policy for NEW devices: its token is derived from its device
+          // id and is handed back below, which is exactly what a reinstall needs.
+          // `AUTH_REGISTER=off` says the service hands out no account of its own -
+          // it does not say a device that already has one may not come back, and
+          // tying the recovery to it made a reinstalled phone stay out for good.
+          // A device the store has never seen still needs both an open register
+          // (`authRegister`) and an open door (`AUTH_STRICT_DEVICE` off): an open
+          // service stays closed to strangers.
+          const mayRegister = known ? true : (authRegister && !authStrictDevice);
           if (mayRegister && (known || users.count() < authMaxUsers)) {
             created = users.register(clientId, msg.SenderName || 'device');
             verdict = { ok: true, user: created.user };
@@ -1247,6 +1251,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
               : `device registered: ${created.user.id} (${created.user.name})`);
           } else if (known) {
             logger('WARN', `device ${clientId} not re-entered: the store is full`);
+          } else if (!authRegister) {
+            logger('WARN', 'unknown device without a token, refused (AUTH_REGISTER is off)');
           } else {
             logger('WARN', 'unknown device without a token, refused (AUTH_STRICT_DEVICE)');
           }

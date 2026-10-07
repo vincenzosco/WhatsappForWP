@@ -167,7 +167,7 @@ See `.env.example`. The main variables:
 | `FFMPEG_ENABLED` | `on` | convert Ogg/Opus voice notes to MP3 for WP8.1 (`off` disables) |
 | `FFMPEG_PATH` | `ffmpeg` | the ffmpeg executable, when it is not on the PATH |
 | `AUTH_REQUIRED` | `off` | require a token in `hello` (`on` for a shared service) |
-| `AUTH_REGISTER` | `on` | a phone that arrives without a token is given one on its first connection (`off` closes the service: the tokens are handed out by hand) |
+| `AUTH_REGISTER` | `on` | a phone the store has never seen and that arrives without a token is given one on its first connection (`off` lets only a device the store already knows in, and the tokens of new devices are handed out by hand) |
 | `AUTH_STRICT_DEVICE` | `off` | only a device the store already knows may register itself; a known device is still handed its derived token back, so a reinstall still works (`on` closes the service to new devices) |
 | `AUTH_MAX_USERS` | `50` | ceiling on the devices that can register themselves |
 | `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
@@ -183,12 +183,14 @@ See `.env.example`. The main variables:
 | `ENDPOINT_REGISTRY_SECRET` | — | the shared secret that registry requires (`REGISTRY_TOKEN` on the VM) |
 
 The token is the only thing that distinguishes a phone on a shared service, and a
-phone that has none is given one: with `AUTH_REGISTER=on` (the default) the adapter
-creates the user on the first handshake and answers with a `registered` frame
-carrying the token, which the app keeps. The switch on the connection page is the
-whole configuration - the token identifies the device, it is not a password to be
-typed. Creating a user by hand is still there for a service that must stay closed,
-with `AUTH_REGISTER=off`:
+phone the store has never seen is given one: with `AUTH_REGISTER=on` (the default)
+the adapter creates the user on the first handshake and answers with a `registered`
+frame carrying the token, which the app keeps. The switch on the connection page is
+the whole configuration - the token identifies the device, it is not a password to
+be typed. `AUTH_REGISTER=off` closes the service to a device it has never seen and
+leaves creating a user to hand; it does not close the door on a device the store
+already knows, whose token is derived from its id and handed back on every return -
+which is what a reinstall needs on a closed instance:
 
 The token is **derived from the device**, not drawn at random: it is
 `HMAC-SHA256(secret, deviceId)` with a secret the store generates once and keeps
