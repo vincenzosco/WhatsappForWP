@@ -101,9 +101,11 @@ cd /tmp/docker-whatsappforwp && node --test "tools/*.test.js"   # 6 tests, the b
 
 The two sides must agree on two things that no guard verifies:
 
-1. **Key.** `WhatsappBridge/config.js` `BRIDGE_KEY` must equal the passphrase in
-   `WhatsappApp/Services/CryptoHelper.cs` (`WhatsAppCommunityWP8-2026`). A
-   mismatch shows up as "Errore decifratura messaggio" for every frame.
+1. **Key.** `WhatsappBridge/config.js` `BRIDGE_KEY` must equal the `Passphrase`
+   constant in `WhatsappApp/Services/CryptoHelper.cs` (`WhatsAppCommunityWP8-2026`):
+   it is the prefix both sides derive a device's frame key from
+   (`framePassphraseFor` = this + `":"` + device id). A mismatch shows up as
+   "Errore decifratura messaggio" for every frame.
 2. **Frame shape.** `[4-byte UInt32LE length][1-byte cipher tag (1 = GCM,
    2 = CBC+HMAC)][payload]`, JSON inside, control frames with `Type = 3` and
    `ChatId = "system"`. The app always writes tag 2 (AES-256-CBC +

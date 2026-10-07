@@ -263,8 +263,8 @@ pre-shared key (`SHA-256` of a passphrase, from which both sides derive two keys
 Tag `1` is still accepted and carries a 12-byte IV, the ciphertext and a 16-byte GCM tag,
 but **the app always writes tag `2`**: Windows Phone 8.1 answers AES-GCM with
 `NotImplementedException 0x80004001`. The adapter replies to each client with the cipher
-that client used. The app and the server must use the same passphrase (`BRIDGE_KEY` env
-var on the server, constant in `CryptoHelper.cs` in the app).
+that client used. The app and the server derive the same passphrase per device
+(`framePassphraseFor`: the constant in `CryptoHelper.cs` plus the device id).
 
 After decryption, the JSON body follows the `ChatMessage` schema:
 
@@ -569,39 +569,31 @@ be typed; `AUTH_REGISTER=off` goes back to handing the tokens out by hand. The
 token is derived from the device id the app presents, and that id is the
 package-specific hardware token, so reinstalling the app does not make a new
 device: the same phone keeps the same account, and the WhatsApp login is not
-asked for again. With `AUTH_STRICT_DEVICE=on` that convenience is turned off: a
-device the service already knows must present its token, so knowing a device id
-is not enough to reach an account.
+asked for again. With `AUTH_STRICT_DEVICE=on` the service is closed to strangers:
+only a device the store already knows may register itself, while a known device is
+still handed its derived token back, so a reinstall still works and a new device
+does not.
 
-The frame cipher key does not have to be chosen by hand. With `PAIRING=on` and no
-key of its own, a server prints a one-time code at startup; the app takes that
-code and sends a key the phone generated, sealed with it, and the server adopts it
-(`BRIDGE_KEY_FILE` keeps it across restarts). A phone that has no key of its own
-does this by itself the first time it opens - it asks the server for the code with
-`pair.code` and offers its key before the connection is opened - so nothing is
-typed and the button is not needed. *Send my key to the server* on the connection
-page is the same exchange by hand, for a later server or one whose window had
-already closed. The device token is not drawn by the
-phone: the server derives it from the device id, so
-every device keeps one token keyed on its own id. The settings page still has a
-*Server key*
-field: a server started with its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
-(which refuses the public default) is reached by typing the same value there.
+The frame cipher key is not chosen by hand and not paired any more: it is derived
+from the device id the app already presents. The server derives the same key from
+the id it knows (`framePassphraseFor` is the compiled passphrase plus the id), so a
+phone whose storage a reinstall emptied recomputes the same key with nothing stored
+and no operator action. There is no `BRIDGE_KEY` to keep in step, no `PAIRING`
+window, no code to read, and no *Server key* field. A phone that holds a token
+writes every frame with its own derived key; a phone without one - new, or emptied
+by a reinstall - writes its handshake with the passphrase compiled into the app,
+which is what lets the server read it.
 
 One more reinstall is all it takes for a phone to lose what it has. Reinstalling
 empties the app's own storage on Windows Phone 8.1, so the phone is left with
-neither its key nor its token, while a server that has a key of its own refuses
-the handshake of a device it knows but that brings no token: it could never get
-back in. `PAIRING_RECOVER` (on by default) closes that from the server side. A
-device this store already knows may re-open the pairing window for itself using
-the passphrase compiled into the public app, and the same `paired` frame gives it
-back both the key and the token - nothing is typed, and nobody has to do anything
-at the server. What it costs is worth saying plainly: while it is on, a device id
-is the credential for that window, and the id sits in `users.json` in plain text,
-so a copy of that file can be used to pair as that device. Set
-`PAIRING_RECOVER=off` to refuse it and go back to the manual way out: delete the
-file `BRIDGE_KEY_FILE` points at, restart the server, and let the phone pair
-again into the window that opens.
+neither its key nor its token. It does not need either: it has the same hardware
+device id, so it derives the same frame key again, and the server - which knows
+that id - reads its handshake, recognises the device and hands back the same token
+it derived for it before. Nothing is typed, nobody does anything at the server, and
+the WhatsApp login is not asked for again. What it costs is worth saying plainly:
+the compiled passphrase is the prefix of every device's key, so a device id is
+enough to derive that device's key, and the id sits in `users.json` in plain text.
+That is the trade made for a reinstall that needs nobody.
 
 The public service is not an address compiled into the app: `EndpointService`
 reads `endpoint.json` from
@@ -670,18 +662,17 @@ message copies and `chat-preferences.json` live in the app's folder and are neve
 cleared when the server changes. Every server in the list is linked to the same
 WhatsApp account, so the conversations are the same, and the app asks its chat
 list of whichever server it reaches. For a phone to be accepted by more than one
-server, the servers share the same `BRIDGE_KEY` (or were paired with the same
-phone-generated key) and accept the same device token: a shared `users.json`
+server, the servers share the same `BRIDGE_KEY` prefix and accept the same device
+token: a shared `users.json`
 gives both, or `AUTH_REGISTER=on` lets every server issue its own token on the
 phone's first connection.
 
 What remains true, and is worth saying plainly:
 
 - The transport is encrypted by the app-level cipher (AES-256-CBC + HMAC-SHA256)
-  with the passphrase the phone has (the compiled default, one typed in the
-  settings, or one the phone generated and paired). There is no TLS underneath: a
-  WP8.1 `StreamSocket` cannot pin a certificate, so a self-signed one is not an
-  option.
+  with the per-device passphrase (the compiled constant plus the device id). There
+  is no TLS underneath: a WP8.1 `StreamSocket` cannot pin a certificate, so a
+  self-signed one is not an option.
 - The operator of a shared server can technically reach the sessions on the
   machine. The token separates users from each other, not from the operator.
 - Tokens are stored only as scrypt hashes, and the WhatsApp session is protected

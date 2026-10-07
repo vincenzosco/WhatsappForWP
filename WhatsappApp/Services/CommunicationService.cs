@@ -335,9 +335,15 @@ namespace WhatsappApp.Services
             // new user of the same phone every time, with a new token each.
             _myUserId = SettingsService.DeviceId;
             _myUsername = username;
-            // The frame cipher is keyed before the socket is opened: a server that
-            // asked for its own BRIDGE_KEY is unreadable until the same key is set.
-            CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
+            // The frame cipher is keyed before the socket is opened. A phone that
+            // holds a token writes with the key derived from its device id, which
+            // the server derives again from the id it knows; a phone without one -
+            // new, or emptied by a reinstall - writes with the passphrase compiled
+            // into the app, which is what lets the server read its hello, recognise
+            // the device and hand its token back. No pairing, no stored key.
+            CryptoHelper.SetPassphrase(string.IsNullOrEmpty(SettingsService.Token)
+                ? ""
+                : CryptoHelper.DevicePassphrase(SettingsService.DeviceId));
 
             // Objects of the attempt, not of the service: until it is published, this
             // connection does not exist for anyone else.
@@ -385,27 +391,6 @@ namespace WhatsappApp.Services
                                 Endpoint(address, port))));
                     }
                     return false;
-                }
-
-                // "The app just opened": a phone that has no key of its own offers
-                // the one it generates to the server it is about to talk to, once
-                // per run. This method is the one place every connection is opened
-                // - the settings button, the discovered-server row, the single
-                // announced adapter and AutoConnector all end here - so the offer
-                // belongs here and not in one of them. The server replaces its key
-                // with this one and answers `paired`; it never throws, it is
-                // skipped when this phone already has a key, and a server that is
-                // not waiting to be paired answers at once and leaves the
-                // connection exactly as it was. The status above is already up, so
-                // the wait the pairing adds is not a screen that looks stuck.
-                if (await PairingService.TryAutoPairAsync(address, port, username))
-                {
-                    // The server adopted a key this phone generated after the one
-                    // set at the top of this method: both this socket and the
-                    // handshake on it have to be written with the new key. The
-                    // token, if the pairing carried one, is in the settings now and
-                    // the handshake reads it from there on its own.
-                    CryptoHelper.SetPassphrase(SettingsService.BridgeKey);
                 }
 
                 socket = new StreamSocket();
@@ -625,9 +610,10 @@ namespace WhatsappApp.Services
         /// thrown: the explanation to the user is written by
         /// ExplainConnectionFailure.
         ///
-        /// Internal and not private: the pairing screen opens a socket of its own
-        /// (ConnectionPage.PairWithServerAsync) and must not be the one connection
-        /// in the app that waits on the TCP stack instead of on a deadline.
+        /// Internal and not private: the server probe the settings page opens
+        /// (ConnectionPage.ConnectAsync and the discovery path) must not be the one
+        /// connection in the app that waits on the TCP stack instead of on a
+        /// deadline.
         /// </summary>
         internal static async Task ConnectWithDeadlineAsync(StreamSocket socket, HostName hostName, int port)
         {
