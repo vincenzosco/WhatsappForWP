@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IO;
 using System.Text;
+using System.Threading.Tasks;
+using Windows.Storage;
 
 namespace WhatsappApp.Services
 {
@@ -23,6 +26,19 @@ namespace WhatsappApp.Services
     /// two seconds (the discovery beacon) would fill the log and hide everything
     /// else. Debug.WriteLine is compiled out in release builds, so in production
     /// this code writes nothing and costs nothing.
+    ///
+    /// Why there is also a file: the list below is in memory, so the process that
+    /// dies takes it with it, and every crash investigated in this repo arrived as
+    /// a log that stopped at the assembly list with no DIAG line at all. The lines
+    /// are therefore appended to `diag.log` as the run goes, through the same
+    /// SerialQueue the other files use, cut to the last MaxBytes so the tail is
+    /// always the newest lines. A marker file says the run is alive; a marker file
+    /// still there at the next startup is what a crash looks like, and the tail the
+    /// previous run left is kept as PendingCrashTail for the report. The marker is
+    /// a file and not a line in the log because OnSuspending is the normal end of a
+    /// run on this platform: "the log has no end marker" is the normal case too,
+    /// and a crash after a resume would be missed by anything that read only the
+    /// log.
     /// </summary>
     public static class Diag
     {
@@ -44,6 +60,50 @@ namespace WhatsappApp.Services
         // the line instead of one copy per repeat.
         private static readonly Dictionary<string, int> FrameRepeats =
             new Dictionary<string, int>();
+
+        // ── the file the run leaves behind ───────────────────────────────────
+
+        /// <summary>The log file, and how large it may get before it is cut to its tail.</summary>
+        private const string FileName = "diag.log";
+        private const int MaxBytes = 65536;
+
+        /// <summary>
+        /// The marker a live run leaves: while it exists, the run has not ended on
+        /// purpose. A different file from the log, because a suspended run is a
+        /// normal run (see the class comment).
+        /// </summary>
+        private const string MarkerName = "diag-run.marker";
+
+        /// <summary>How much of the previous run travels to the adapter.</summary>
+        private const int CrashTailChars = 4000;
+
+        /// <summary>What the run writes when it starts, and when it is closed on purpose.</summary>
+        private const string RunStarted = "=== run started ";
+        private const string RunEnded = "=== run ended ";
+
+        /// <summary>The file writes, one at a time and in order (the ChatPreferences pattern).</summary>
+        private static readonly SerialQueue Writes = new SerialQueue();
+
+        /// <summary>How many lines of the history are already in the file.</summary>
+        private static int _written;
+
+        /// <summary>When the file was last written: the sink is not one open per line.</summary>
+        private static long _lastFlushTicks;
+
+        private static string _pendingTail = "";
+
+        /// <summary>
+        /// What the previous run left when it did not end on purpose, empty when it
+        /// did. It is what the next connection sends to the adapter, so the crash is
+        /// read in the container log instead of on a screen.
+        ///
+        /// It survives a run that could not send it: only EndRun clears it, and
+        /// EndRun is the deliberate close a crash never reaches.
+        /// </summary>
+        public static string PendingCrashTail
+        {
+            get { lock (Gate) { return _pendingTail; } }
+        }
 
         /// <summary>To call inside a catch, for a failure we carry on from.</summary>
         public static void Failed(string where, Exception ex)
@@ -132,6 +192,7 @@ namespace WhatsappApp.Services
                 }
             }
             Debug.WriteLine("DIAG " + text);
+            Flush();
         }
 
         /// <summary>Where a frame line sits in the buffer, or -1 if it was evicted.</summary>
@@ -176,6 +237,12 @@ namespace WhatsappApp.Services
                 History.Clear();
                 Seen.Clear();
                 FrameRepeats.Clear();
+
+                // The file keeps what it has - clearing the screen is not deleting
+                // the log - but the counter follows the buffer, or the first lines
+                // of the new history would never be written: the sink would think
+                // they were already there.
+                _written = 0;
             }
         }
 
@@ -192,6 +259,236 @@ namespace WhatsappApp.Services
                 AppendLine(line);
             }
             Debug.WriteLine("DIAG " + line);
+            Flush();
+        }
+
+        // ── the file sink ────────────────────────────────────────────────────
+
+        /// <summary>Appends what is new, at most once a second.</summary>
+        public static void Flush()
+        {
+            Flush(false);
+        }
+
+        /// <summary>
+        /// Appends the lines that are not in the file yet and returns. Forced when
+        /// the process may be about to die, where waiting for the second is waiting
+        /// for a write that never happens.
+        ///
+        /// The lines are marked as written before the write is queued, so a second
+        /// call inside the same second cannot queue the same lines twice. A write
+        /// that fails therefore loses those lines from the file - they stay in the
+        /// in-memory history - which is the trade the interval buys: without it, a
+        /// frame log would open the file once per frame.
+        /// </summary>
+        public static void Flush(bool force)
+        {
+            string text;
+            lock (Gate)
+            {
+                long now = DateTime.Now.Ticks;
+                if (!force && now - _lastFlushTicks < TimeSpan.TicksPerSecond) return;
+                if (_written >= History.Count) return;
+
+                _lastFlushTicks = now;
+
+                var builder = new StringBuilder();
+                for (int i = _written; i < History.Count; i++)
+                {
+                    builder.Append(History[i]);
+                    builder.Append("\r\n");
+                }
+                _written = History.Count;
+                text = builder.ToString();
+            }
+
+            string adding = text;
+            Guarded.RunGuardedAsync("Diag/Flush",
+                delegate { return Writes.RunAsync(delegate { return WriteLinesAsync(adding); }); });
+        }
+
+        /// <summary>
+        /// Reads the whole file, adds the lines and writes it back, cut to its last
+        /// MaxBytes. The cut is on the tail on purpose: a phone left in a crash loop
+        /// must still answer with the newest lines.
+        /// </summary>
+        private static async Task WriteLinesAsync(string added)
+        {
+            try
+            {
+                string text = await ReadAsync() + added;
+                if (text.Length > MaxBytes) text = text.Substring(text.Length - MaxBytes);
+
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    FileName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(file, text);
+            }
+            catch (Exception)
+            {
+                // A log that cannot be written is not reported through the log: the
+                // report takes the same path that just failed, and a phone with no
+                // storage left must not lose the app over its own diagnostics.
+            }
+        }
+
+        /// <summary>The file, or an empty string when there is none. Never throws.</summary>
+        private static async Task<string> ReadAsync()
+        {
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
+                return await FileIO.ReadTextAsync(file);
+            }
+            catch (FileNotFoundException)
+            {
+                return "";
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Diag/read", ex);
+                return "";
+            }
+        }
+
+        /// <summary>
+        /// Begins a run: it reads what the previous one left, puts the tail in the
+        /// history, writes the start marker and leaves the marker file. Answers true
+        /// when the previous run did not end on purpose.
+        ///
+        /// One method and not two, because the marker has to be read before it is
+        /// written: a run that wrote it first would find its own marker and report
+        /// itself as a crash.
+        /// </summary>
+        public static async Task<bool> StartRunAsync()
+        {
+            bool crashed = false;
+
+            try
+            {
+                if (await MarkerExistsAsync())
+                {
+                    crashed = true;
+                    string tail = Tail(await ReadAsync(), CrashTailChars);
+
+                    lock (Gate)
+                    {
+                        _pendingTail = tail;
+                        AppendLine("previous run did not end: " + tail.Length + " characters");
+                        string[] lines = SplitLines(tail);
+                        for (int i = 0; i < lines.Length; i++)
+                        {
+                            if (lines[i].Length > 0) AppendLine(lines[i]);
+                        }
+
+                        // It is already in the file: writing it back would only grow it.
+                        _written = History.Count;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Diag/StartRun", ex);
+            }
+
+            lock (Gate)
+            {
+                AppendLine(RunStarted + Stamp() + " ===");
+            }
+            Flush(true);
+            MarkAlive();
+            return crashed;
+        }
+
+        /// <summary>
+        /// Says the run is alive. Called at startup and on every resume: the marker
+        /// was removed by the suspension that preceded it, and a run that comes back
+        /// and later dies must still be reported.
+        /// </summary>
+        public static void MarkAlive()
+        {
+            Guarded.RunGuardedAsync("Diag/alive",
+                delegate { return Writes.RunAsync(delegate { return WriteMarkerAsync(); }); });
+        }
+
+        /// <summary>
+        /// The run ends on purpose: the closing line is written and the marker is
+        /// removed, so the next start does not read this run as a crash. Called from
+        /// the suspension and the close, which is every way a run is supposed to end.
+        /// </summary>
+        public static void EndRun()
+        {
+            lock (Gate)
+            {
+                AppendLine(RunEnded + Stamp() + " ===");
+                _pendingTail = "";
+            }
+            Flush(true);
+
+            Guarded.RunGuardedAsync("Diag/end-run",
+                delegate { return Writes.RunAsync(delegate { return DeleteMarkerAsync(); }); });
+        }
+
+        private static async Task<bool> MarkerExistsAsync()
+        {
+            try
+            {
+                await ApplicationData.Current.LocalFolder.GetFileAsync(MarkerName);
+                return true;
+            }
+            catch (FileNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        private static async Task WriteMarkerAsync()
+        {
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    MarkerName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(file, Stamp());
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Diag/alive-write", ex);
+            }
+        }
+
+        private static async Task DeleteMarkerAsync()
+        {
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(MarkerName);
+                await file.DeleteAsync();
+            }
+            catch (FileNotFoundException)
+            {
+                // Nothing to remove: the marker is gone, which is what was wanted.
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Diag/alive-delete", ex);
+            }
+        }
+
+        /// <summary>The last <paramref name="chars"/> characters, the crash report's shape.</summary>
+        private static string Tail(string text, int chars)
+        {
+            if (string.IsNullOrEmpty(text)) return "";
+            if (text.Length <= chars) return text;
+            return text.Substring(text.Length - chars);
+        }
+
+        private static string[] SplitLines(string text)
+        {
+            return text.Split(new string[] { "\r\n", "\n" }, StringSplitOptions.None);
+        }
+
+        /// <summary>The sortable local time the run markers carry.</summary>
+        private static string Stamp()
+        {
+            return DateTime.Now.ToString("s");
         }
     }
 }
