@@ -310,6 +310,10 @@ namespace WhatsappApp.Pages
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
             DataService.Instance.ChatListCompleted += OnChatListCompleted;
 
+            // The adapter's own refusals: the bar says why the list is empty.
+            DataService.Instance.AdapterError -= OnAdapterError;
+            DataService.Instance.AdapterError += OnAdapterError;
+
             // The adapter says nothing on its own until something asks: if the
             // socket came up before this page existed, the state frame has already
             // gone by and the list would wait for another one forever. Asking here
@@ -335,6 +339,7 @@ namespace WhatsappApp.Pages
             CommunicationService.Instance.ServerUnavailable -= OnServerUnavailable;
             CommunicationService.Instance.ConnectionEstablished -= OnServerAvailable;
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
+            DataService.Instance.AdapterError -= OnAdapterError;
         }
 
         /// <summary>
@@ -362,6 +367,18 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
+        /// The adapter refused a command and said why. The bar carries its own
+        /// sentence, so an empty chat list is legible instead of silent.
+        /// </summary>
+        private void OnAdapterError(object sender, string text)
+        {
+            Diag.Ok("adapter error on the chats page: " + text);
+            ServerUnavailableText.Text = Loc.Get("ChatsPage_AdapterError",
+                "The server answered:") + " " + text;
+            ServerUnavailableBar.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
         /// WhatsApp has just switched to connected. The request made on entry could
         /// not have an answer (the adapter answers "not connected" until the login
         /// is done), and this is the only thing that makes the list show up without
@@ -379,8 +396,20 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void RequestChats()
         {
-            if (!CommunicationService.Instance.IsConnected) return;
-            if (CommunicationService.Instance.WhatsAppState != "connected") return;
+            if (!CommunicationService.Instance.IsConnected)
+            {
+                // Named, because "the list is empty" and "the list was never
+                // asked for" look the same on the screen.
+                Diag.Ok("chats not requested: connected=False whatsapp="
+                    + CommunicationService.Instance.WhatsAppState);
+                return;
+            }
+            if (CommunicationService.Instance.WhatsAppState != "connected")
+            {
+                Diag.Ok("chats not requested: connected=True whatsapp="
+                    + CommunicationService.Instance.WhatsAppState);
+                return;
+            }
 
             // The rows that come back are the server order, and this is where that
             // batch starts: everything ApplyChat records from here on belongs to it.
