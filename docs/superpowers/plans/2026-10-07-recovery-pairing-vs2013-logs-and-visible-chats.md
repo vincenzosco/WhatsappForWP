@@ -373,3 +373,117 @@ git push origin master
 **Review Focus coverage.** Each of the five lines names the task and step that owns it and the test that pins it: Task 1 Step 4 (the unknown `SenderId` test, the pinned-window test, the reply decodable with the default), Task 4 Step 3 (the build must break, not lose the line), Task 3 Step 2 (the `error` frame becomes a sentence). The virgin-server case the first line implies is pinned by keeping `un server che ha gia una chiave non apre la finestra di pairing` and `il telefono puo chiedere il codice di accoppiamento invece di leggerlo dal log` green in Task 1 Step 8.
 
 **Proportion.** Five tasks, no code bodies except the two test-shaped blocks whose assertions are the decision and the promise in Step 4 of Task 1, which is the one place a wrong implementation is invisible in the tests until a phone is in the field. The adapter work is one task on purpose: the codec pair and the policy that uses it are one deliverable, and a reviewer could not accept one without the other.
+
+---
+
+## Status
+
+Executed 2026-10-07 on `master`. All six tasks are pushed. One place where this plan's own
+steps were superseded is recorded below, together with the run that proves the outcome and the
+bug that run found.
+
+### Task 1 was implemented, then replaced
+
+Task 1 was written to keep the pairing window and add `PAIRING_RECOVER=on`, so that a device
+the store knew could be re-paired under the public key. That is commit b6ef81e, *fix: let a
+known device re-pair itself after a reinstall*, pushed as written.
+
+Mid-session the user asked to drop the pairing key entirely - it is a value to keep in step for
+no benefit - and to derive the frame key from the phone's own device id instead, so that the
+same token comes back after any reinstall. Task 6 (commit 1fee395, *fix: derive the frame key
+from the device id and drop the pairing key*) therefore removed the whole mechanism Task 1 had
+added: `WhatsappBridge/key-store.js` and its test, the `pair` and `pair.code` commands, the
+pairing window and its tickets, `PAIRING*`, `BRIDGE_REQUIRE_KEY` and `BRIDGE_KEY_FILE`, the
+app's `PairingService`, the *Server key* field and button on the connection page, and the eight
+pairing strings. `PAIRING_RECOVER` no longer exists in the tree.
+
+What Task 1 promised - a reinstalled phone returns with no operator action - is delivered by the
+derivation Task 6 put in its place, and is proved by the run below. The plan's Task 1 steps are
+history, not instructions.
+
+### The run that proves it
+
+Commit ae09dc1 (*fix: let a known device return on a service that hands out no tokens*), image
+`latest` == `app-ae09dc1d07cf4c3106c2d6e1f208b556a016eb0e`, digest
+`sha256:11539cebf97bf016a2e14626961aa9619bd3bba3407da1810e534cf786610945`, pulled and
+recreated on the NAS (`Up ... (healthy)`, WhatsApp connected). The app on the phone had been
+installed from a build that never saw this server: its isolated storage held no token and no
+caches, which is exactly the state a reinstall leaves.
+
+The adapter (`docker logs whatsapp-for-wp8`; 15:20 UTC is 17:20 on the phone):
+
+```
+2026-10-07 15:20:32 [OK] device returned: e3841c1a742a7665 (device)
+2026-10-07 15:20:32 [NET] handshake from "unknown"
+```
+
+The phone (`diag.log`, pulled back with `ISETool ts de`):
+
+```
+=== run started 2026-10-07T17:20:26 ===
+ok: endpoint 2 server(s), first bore.pub:41417
+ok: ping: bore.pub:41417=399 ms, 192.168.0.108:8585=44 ms
+ok: connecting: public=True candidates=2 saved=192.168.0.108:8585
+out login.qr (x2)
+in  registered
+in  state
+out chats
+ok: connected to 192.168.0.108:8585
+out diag  previous run did not end
+in  chat 
+in  chat  Oke
+in  chat  Vengo giovedì meglio
+...
+in  chats.done
+ok: chats.done: 22 row(s)
+ok: chat list: 22 row(s), showing 22
+```
+
+**Row count: 22 conversations, 22 shown.** `/data/users.json` still holds 25 users and exactly
+one row for the phone's device id (`e3841c1a742a7665`, name "device"): the reinstall reused its
+own account instead of appending a second one.
+
+The `handshake from "unknown"` is the one cosmetic artefact: a freshly installed app has no
+stored user name yet, so the recovery `hello` carries no `SenderName` and the line falls back to
+`"unknown"`. The store keeps the name it already had (`device`), so nothing is lost by it.
+
+### The bug the run found first
+
+The first run of the same build, against the running container, was refused:
+
+```
+2026-10-07 14:47:15 [WARN] refused a handshake: missing token
+2026-10-07 14:47:43 [WARN] refused a handshake: missing token
+```
+
+and the phone's log showed `in unauthorized` with `ok: chats not requested: connected=False
+whatsapp=disconnected` - Task 3's diagnostic doing its job.
+
+Cause: the recovery branch in the `hello` case was gated behind `authRegister`, and the NAS runs
+`AUTH_REGISTER=off` with `AUTH_STRICT_DEVICE=on`. On that combination a device the store already
+knew could never be handed its derived token, so the reinstall path was dead on precisely the
+instance this plan is for. The frame itself decoded fine (a phone with no token keys its `hello`
+with the compiled passphrase), so the refusal was the flag alone - visible in the log as the
+absence of the `unknown device without a token` line that sits beside it.
+
+Fix (commit ae09dc1): `authRegister` no longer guards the branch, only the admission of a device
+the store has never seen:
+
+```js
+const known = clientId ? users.findByClientId(clientId) : null;
+const mayRegister = known ? true : (authRegister && !authStrictDevice);
+```
+
+A known device is always let back in and handed its own derived token; a stranger needs both an
+open register and an open door. The refusal log now names the rule that stopped it
+(`AUTH_REGISTER is off` / `AUTH_STRICT_DEVICE`) instead of mislabelling both as strict device.
+`test/server.test.js` gained *un device noto rientra anche con AUTH_REGISTER spento, uno
+sconosciuto no*, which fails on the old code; the `AUTH_REGISTER` row in both adapter READMEs and
+the paragraph in both root READMEs now say what `off` does and does not close.
+
+### Verification of the fixed build
+
+- `cd WhatsappBridge && npm test` -> 276/276 pass.
+- the thirteen guards -> OK each.
+- mirror `docker-whatsappforwp` synced (35 files, `--check` OK, server suite 276/276), pushed
+  b20f86d; workflow `image` on b20f86d -> success; NAS container recreated on the new digest.
