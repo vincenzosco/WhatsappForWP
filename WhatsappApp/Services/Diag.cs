@@ -336,8 +336,32 @@ namespace WhatsappApp.Services
                 string text = await ReadAsync() + added;
                 if (text.Length > MaxBytes) text = text.Substring(text.Length - MaxBytes);
 
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileName, CreationCollisionOption.ReplaceExisting);
+                // The file is fetched when it is there, and created only when it is
+                // not: a create truncates the file there and then, while the write is
+                // a second call. An app suspended between the two left a `diag.log`
+                // of 0 bytes with the run marker still in place, so the whole run was
+                // lost, crash tail included (seen on the phone on 2026-10-07).
+                // WriteTextAsync truncates and writes in one operation on a file that
+                // already exists, so there is no window in which to lose it, and a
+                // file that is not there yet has nothing to lose.
+                // No `await` in the catch: C# 5 answers CS1985, so a failed fetch
+                // leaves a null that the create below fills in.
+                StorageFile file = null;
+                try
+                {
+                    file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
+                }
+                catch (Exception)
+                {
+                    file = null;
+                }
+
+                if (file == null)
+                {
+                    file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                        FileName, CreationCollisionOption.ReplaceExisting);
+                }
+
                 await FileIO.WriteTextAsync(file, text);
             }
             catch (Exception)

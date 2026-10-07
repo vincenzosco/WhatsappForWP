@@ -48,3 +48,35 @@
             Debug.WriteLine("DIAG " + line);
             Flush();
         }
+
+        // The writer is the good one on purpose: this fixture is broken by rule F
+        // alone, so a failing test points at the debugger sink and nothing else.
+        private static async Task WriteLinesAsync(string added)
+        {
+            try
+            {
+                string text = await ReadAsync() + added;
+                if (text.Length > MaxBytes) text = text.Substring(text.Length - MaxBytes);
+
+                StorageFile file = null;
+                try
+                {
+                    file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
+                }
+                catch (Exception)
+                {
+                    file = null;
+                }
+
+                if (file == null)
+                {
+                    file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                        FileName, CreationCollisionOption.ReplaceExisting);
+                }
+
+                await FileIO.WriteTextAsync(file, text);
+            }
+            catch (Exception)
+            {
+            }
+        }

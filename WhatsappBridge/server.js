@@ -539,15 +539,22 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
   function sendToClients(session, msg) {
     if (!session || session.sockets.size === 0) return;
-    const json = JSON.stringify(msg);
-    // One frame per distinct cipher, not one per socket: the CBC clients (in
-    // practice all of them) share the same buffer.
+    // One frame per distinct key and cipher, not one per socket: the sockets that
+    // share a key (in practice all of them) share the same buffer.
+    //
+    // The key is part of the grouping and `frameFor` writes the frame, because a
+    // socket that adopted a passphrase (`wp8Passphrase`) cannot read a frame
+    // written with the server's own: grouping by the cipher alone handed those
+    // sockets a state and an incoming message they could not open. A phone that
+    // still has its token writes with the key derived from its device id, so
+    // this is the normal case, not an edge one.
     const packets = {};
     const dead = [];
     for (const socket of session.sockets) {
       const tag = socket.wp8Cipher || cryptoHelper.DEFAULT_CIPHER_TAG;
-      if (!packets[tag]) packets[tag] = cryptoHelper.buildFrame(json, tag);
-      try { socket.write(packets[tag]); } catch (e) { dead.push(socket); }
+      const key = (socket.wp8Passphrase || '') + '|' + tag;
+      if (!packets[key]) packets[key] = frameFor(socket, msg);
+      try { socket.write(packets[key]); } catch (e) { dead.push(socket); }
     }
     for (const socket of dead) session.sockets.delete(socket);
   }
