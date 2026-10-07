@@ -36,7 +36,13 @@
  *   C. `Diag.cs` writes both run markers and deletes the marker file when the
  *      run ends on purpose;
  *   D. `ChatPage.xaml.cs` waits for the history at least as long as the
- *      adapter's cold read (20000 ms, measured at about 15 s).
+ *      adapter's cold read (20000 ms, measured at about 15 s);
+ *   E. the crash of the previous run reaches the adapter by itself
+ *      (`CrashReport.cs` sends it, reading `Diag.PendingCrashTail`);
+ *   F. every diag line reaches the debugger too, through the single
+ *      `EmitToDebugger` sink that both the frame sink and the line sink call -
+ *      that is what puts the app's log in the Visual Studio 2013 Output window;
+ *      a sink that calls `Debug.WriteLine` directly skips it.
  *
  * Usage: node tools/check-diagnostics.js
  */
@@ -135,6 +141,27 @@ function problemsFor(input) {
   }
 
   // -------------------------------------------------------------------------
+  // F. every diag line reaches the debugger, through one sink
+  // -------------------------------------------------------------------------
+  if (!/private static void EmitToDebugger\s*\(\s*string\s+\w+\s*\)/.test(diag)) {
+    problems.push(DIAG_REL + ': EmitToDebugger is gone - the app\'s log lines no' +
+      ' longer reach the Visual Studio 2013 Output window, the only place they can' +
+      ' be read without exporting the phone\'s file first');
+  } else {
+    const writes = diag.split('Debug.WriteLine(').length - 1;
+    if (writes !== 1) {
+      problems.push(DIAG_REL + ': Debug.WriteLine is called ' + writes + ' time(s) in' +
+        ' Diag.cs, not exactly once inside EmitToDebugger - a sink that writes' +
+        ' directly skips the debugger and the two sinks diverge');
+    }
+    const calls = diag.split('EmitToDebugger(').length - 1 - 1;
+    if (calls < 2) {
+      problems.push(DIAG_REL + ': EmitToDebugger is called from ' + calls + ' sink(s),' +
+        ' not from both the frame sink and the line sink');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // E. the crash goes to the adapter by itself
   // -------------------------------------------------------------------------
   const crashReport = input.crashReport;
@@ -179,9 +206,9 @@ function main() {
     process.exit(1);
   }
   console.log('OK: the diagnostics reach the disk through one writer with a ' +
-    'ceiling, the unhandled handler flushes them, the run keeps its marker until ' +
-    'it ends on purpose, and the history wait is at least ' + HISTORY_WAIT_FLOOR +
-    ' ms.');
+    'ceiling, every line also reaches the debugger through EmitToDebugger, the ' +
+    'unhandled handler flushes them, the run keeps its marker until it ends on ' +
+    'purpose, and the history wait is at least ' + HISTORY_WAIT_FLOOR + ' ms.');
 }
 
 if (require.main === module) main();

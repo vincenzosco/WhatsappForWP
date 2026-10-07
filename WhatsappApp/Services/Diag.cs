@@ -191,7 +191,7 @@ namespace WhatsappApp.Services
                     AppendLine(text);
                 }
             }
-            Debug.WriteLine("DIAG " + text);
+            EmitToDebugger(text);
             Flush();
         }
 
@@ -258,8 +258,25 @@ namespace WhatsappApp.Services
                 // must not push everything else out of it.
                 AppendLine(line);
             }
-            Debug.WriteLine("DIAG " + line);
+            EmitToDebugger(line);
             Flush();
+        }
+
+        /// <summary>
+        /// One place that pushes a line to the debugger, so the app's own log is
+        /// readable in the Visual Studio 2013 Output window (Debug → Windows →
+        /// Output) while the app runs on the device under F5, without exporting the
+        /// phone's file first. `Debug.WriteLine` is the channel a managed debugger
+        /// listens on. `Debugger.Log` would reach it even for a line written before
+        /// the debugger attached, but Windows Phone 8.1 has no such member: the ARM
+        /// build answered `error CS0117: 'System.Diagnostics.Debugger' does not
+        /// contain a definition for 'Log'`, so this stays with `Debug.WriteLine`
+        /// alone. Nothing appears with no debugger attached, and `diag.log` plus the
+        /// Diagnostics page remain the channels on the phone.
+        /// </summary>
+        private static void EmitToDebugger(string text)
+        {
+            Debug.WriteLine("DIAG " + text);
         }
 
         // ── the file sink ────────────────────────────────────────────────────

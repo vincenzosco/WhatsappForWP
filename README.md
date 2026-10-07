@@ -344,6 +344,15 @@ msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86
 which must close with `0 Error(s)` and produce
 `WhatsappApp\AppPackages\WhatsappApp_<version>_Debug_Test\WhatsappApp_<version>_x86_Debug.appxbundle`.
 
+Every `DIAG` line the app writes is also pushed to the debugger, so **Visual
+Studio 2013** with the solution open, the configuration set to **Debug**, the
+platform to **ARM** and the phone as the target shows them in **Debug → Windows →
+Output** when the app is started with **F5** (deploy and debug). For an app that is
+already installed, use **Debug → Attach to Process** and pick it. Filter the window
+on `DIAG`. Without a debugger attached nothing appears there; `diag.log` (export
+it with `ISETool.exe ts`) and the Diagnostics page remain the channels on the
+phone.
+
 **Build from a path on a local disk, not from the shared folder.** If the project
 lives in the Mac share (`C:\Mac\Home\...`), the second pass of the XAML compiler
 *always* fails with
