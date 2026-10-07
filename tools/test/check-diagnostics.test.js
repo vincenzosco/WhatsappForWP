@@ -56,3 +56,8 @@ test('il report del crash parte dal servizio e non dalla pagina', () => {
 test('senza il servizio il guard non se ne occupa', () => {
   assert.deepStrictEqual(problemsFor({ diag, app, chatPage }).problems, []);
 });
+
+test('una riga che non arriva al debugger e un problema', () => {
+  const broken = { diag: fixture('diag-no-debugger-sink.cs'), app, chatPage };
+  assert.match(problemsFor(broken).problems.join('\n'), /EmitToDebugger/);
+});

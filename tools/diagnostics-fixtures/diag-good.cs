@@ -32,3 +32,25 @@
             {
             }
         }
+
+        // One place pushes a line to the debugger, so the app's own log is
+        // readable in the Visual Studio 2013 Output window while the app runs on
+        // the device. The two sinks call it: the frame sink and the line sink.
+        private static void EmitToDebugger(string text)
+        {
+            Debug.WriteLine("DIAG " + text);
+        }
+
+        private static void FrameSink(string text)
+        {
+            AppendLine(text);
+            EmitToDebugger(text);
+            Flush();
+        }
+
+        private static void LineSink(string line)
+        {
+            AppendLine(line);
+            EmitToDebugger(line);
+            Flush();
+        }
