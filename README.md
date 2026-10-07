@@ -570,11 +570,14 @@ one is theirs; with `AUTH_REQUIRED=on`, a message routed by its `device_id`
 never reaches another user's socket. With the switch off nothing changes and the
 instance stays private, with no token.
 
-A phone that arrives without a token is given one on its first connection
-(`AUTH_REGISTER=on`, the default): the adapter creates the device, answers with a
-`registered` frame and the app keeps the token, so the shared service asks for
-nothing but the switch. The token identifies the device, it is not a password to
-be typed; `AUTH_REGISTER=off` goes back to handing the tokens out by hand. The
+A phone the service has never seen and that arrives without a token is given one on
+its first connection (`AUTH_REGISTER=on`, the default): the adapter creates the
+device, answers with a `registered` frame and the app keeps the token, so the shared
+service asks for nothing but the switch. The token identifies the device, it is not
+a password to be typed; with `AUTH_REGISTER=off` only a device the store already
+knows is let in, and the tokens of new devices are handed out by hand - a phone that
+reinstalls still comes back by itself, because its token is derived from its id
+instead of being created for it. The
 token is derived from the device id the app presents, and that id is the
 package-specific hardware token, so reinstalling the app does not make a new
 device: the same phone keeps the same account, and the WhatsApp login is not

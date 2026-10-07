@@ -588,12 +588,15 @@ creato al primo handshake, e il token in `hello` decide quale e' il suo; con
 socket di un altro utente. Con l'interruttore spento non cambia niente e
 l'istanza resta privata, senza token.
 
-Un telefono che arriva senza token ne riceve uno alla prima connessione
-(`AUTH_REGISTER=on`, il valore predefinito): l'adapter crea il device, risponde
-con un frame `registered` e l'app conserva il token, quindi il servizio condiviso
-non chiede altro che l'interruttore. Il token identifica il dispositivo, non e'
-una password da digitare; con `AUTH_REGISTER=off` si torna a consegnare i token a
-mano. Il token e' derivato dall'id di dispositivo che l'app presenta, e quell'id e'
+Un telefono che il servizio non ha mai visto e che arriva senza token ne riceve uno
+alla prima connessione (`AUTH_REGISTER=on`, il valore predefinito): l'adapter crea
+il device, risponde con un frame `registered` e l'app conserva il token, quindi il
+servizio condiviso non chiede altro che l'interruttore. Il token identifica il
+dispositivo, non e' una password da digitare; con `AUTH_REGISTER=off` entra solo un
+device che il deposito conosce gia', e i token dei device nuovi si consegnano a
+mano - un telefono che reinstalla torna comunque da solo, perche' il suo token e'
+derivato dal suo id invece di essere creato per lui. Il token e' derivato dall'id di
+dispositivo che l'app presenta, e quell'id e'
 il token hardware specifico del pacchetto, quindi reinstallare l'app non crea un
 dispositivo nuovo: lo stesso telefono conserva lo stesso account, e l'accesso a
 WhatsApp non viene richiesto di nuovo. Con `AUTH_STRICT_DEVICE=on` il servizio si
