@@ -686,9 +686,13 @@ the adapter:
   not a failure: `MessageCache.LoadAsync` catches `FileNotFoundException` without a
   `Diag` line and logs only a copy it could not parse, so a missing file never hides
   the real fault in the log again. When a history burst is on its way, the bind also
-  waits for the adapter's `history.done` (or two seconds, so a server without the
-  frame does not leave the chat empty): the burst is one frame per message, and a
-  bind while it is still inserting re-lays out the list on every frame.
+  waits for the adapter's `history.done`, or twenty seconds, whichever comes first:
+  the burst is one frame per message, and a bind while it is still inserting re-lays
+  out the list on every frame. That wait must not be shorter than the adapter's own
+  read of the account - the first read is an HTTP round trip through GOWA and was
+  measured at about 15 s on 2026-10-07 - because the wait that expires first is the
+  one that binds the list before its burst and hands it fifty inserts it never asked
+  for. `check-diagnostics.js` pins the floor, so the value cannot drift back.
 - **The conversation's view state is one module.** `Services/ConversationView.cs`
   owns the bind, the scroll queue, the viewer lookup and the "at the bottom"
   question, because all four touch the same three things and the `E_UNEXPECTED`
