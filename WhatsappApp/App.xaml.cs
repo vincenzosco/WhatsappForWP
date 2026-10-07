@@ -70,6 +70,11 @@ namespace WhatsappApp
         private void OnUnhandled(object sender, UnhandledExceptionEventArgs e)
         {
             Diag.Failed("App/unhandled", e.Exception);
+
+            // Forced: the line above is only in memory until it is written, and
+            // this is the one moment where the process may not survive to write it
+            // later. A crash with no line is the failure nobody can fix.
+            Diag.Flush(true);
 #if DEBUG
             e.Handled = true;
 #endif
@@ -82,6 +87,7 @@ namespace WhatsappApp
         private void OnUnobservedTask(object sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
         {
             Diag.Failed("App/unobserved-task", e.Exception);
+            Diag.Flush(true);
             e.SetObserved();
         }
 
@@ -185,6 +191,12 @@ namespace WhatsappApp
             // OnLaunched restarts from here.
             SessionService.Section = CurrentSection();
 
+            // This is how a run is supposed to end, and it is the only place that
+            // says so: the marker file the run left is removed here, so the next
+            // start reads a run that never reached this line as one that died. A
+            // suspension is not an exit - OnResuming puts the marker back.
+            Diag.EndRun();
+
             // The socket is not closed here: the OS closes it on its own while
             // the app is suspended, and closing it ourselves would leave the app
             // marked as disconnected with nobody retrying. OnResuming handles
@@ -238,6 +250,10 @@ namespace WhatsappApp
         /// </summary>
         private void OnResuming(object sender, object e)
         {
+            // The run is alive again: the marker its suspension removed is put back,
+            // or a crash after this point would look like a run that ended cleanly.
+            Diag.MarkAlive();
+
             ConnectionWatchdog.Instance.CheckNow();
 
             // The other half of the suspension frame. If the watchdog found the
@@ -283,6 +299,14 @@ namespace WhatsappApp
             // The resource loader cannot be created from a background thread:
             // it is created here, once, on the UI thread.
             Loc.Prewarm();
+
+            // The run is recorded on disk from here on, and the previous one is read
+            // in the same piece of work: the marker file it left is what says whether
+            // it ended on purpose. Reading and writing go through one writer in this
+            // order, so this run cannot find its own marker (see Diag).
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("Diag/StartRun", Diag.StartRunAsync());
+#pragma warning restore 4014
 
             // The hardware Back button is not wired to the frame by the platform
             // on a Runtime app: without this the press leaves the app from the
