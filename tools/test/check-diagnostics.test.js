@@ -44,3 +44,15 @@ test('un attesa della storia piu corta della lettura dell adapter e un problema'
   const broken = { diag, app, chatPage: chatPage.replace('20000', '2000') };
   assert.match(problemsFor(broken).problems.join('\n'), /HistoryWaitMaxMilliseconds/);
 });
+
+test('il report del crash parte dal servizio e non dalla pagina', () => {
+  const crashReport = fixture('crashreport-good.cs');
+  assert.deepStrictEqual(problemsFor({ diag, app, chatPage, crashReport }).problems, []);
+
+  const broken = { diag, app, chatPage, crashReport: crashReport.replace('SendControlAsync', '') };
+  assert.match(problemsFor(broken).problems.join('\n'), /CrashReport/);
+});
+
+test('senza il servizio il guard non se ne occupa', () => {
+  assert.deepStrictEqual(problemsFor({ diag, app, chatPage }).problems, []);
+});
