@@ -121,6 +121,9 @@
   <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
     <value>New chat</value>
   </data>
+  <data name="ChatsPage_AdapterError" xml:space="preserve">
+    <value>The server answered:</value>
+  </data>
   <data name="ChatsPage_SettingsTooltip" xml:space="preserve">
     <value>Settings</value>
   </data>
