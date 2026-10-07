@@ -55,7 +55,11 @@ namespace WhatsappApp.Services
             {
                 if (_sent) return;
 
-                string tail = Diag.PendingCrashTail;
+                // The tail is read back from a file written with CRLF, and the
+                // adapter splits the report on LF: a carriage return would then sit
+                // at the end of every line it writes to the container log, which is
+                // the one place this text is going to be read.
+                string tail = Diag.PendingCrashTail.Replace("\r\n", "\n");
                 if (string.IsNullOrEmpty(tail)) return;
 
                 _sent = true;
@@ -63,7 +67,7 @@ namespace WhatsappApp.Services
 #pragma warning disable 4014
                 Guarded.RunGuardedAsync("CrashReport/send",
                     CommunicationService.Instance.SendControlAsync("diag",
-                        "previous run did not end\r\n" + tail));
+                        "previous run did not end\n" + tail));
 #pragma warning restore 4014
             }
             catch (Exception ex)
