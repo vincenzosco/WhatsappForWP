@@ -89,11 +89,11 @@ const initial = keysFor(process.env.BRIDGE_KEY || DEFAULT_PASSPHRASE);
 const ENC_KEY = initial.encKey;
 const MAC_KEY = initial.macKey;
 
-/** [tag][IV][CBC ciphertext][HMAC(IV || ciphertext)], scritto con le chiavi date. */
+/** [tag][IV][CBC ciphertext][HMAC(IV || ciphertext)], written with the keys it is handed. */
 function encryptCbcWith(keys, plaintext, tag) {
-  const scelto = tag || CIPHER_CBC_HMAC;
-  if (scelto !== CIPHER_CBC_HMAC) {
-    throw new Error('Unknown cipher tag to write: ' + scelto);
+  const chosen = tag || CIPHER_CBC_HMAC;
+  if (chosen !== CIPHER_CBC_HMAC) {
+    throw new Error('Unknown cipher tag to write: ' + chosen);
   }
 
   const iv = crypto.randomBytes(CBC_IV_LENGTH);
@@ -103,7 +103,7 @@ function encryptCbcWith(keys, plaintext, tag) {
   return Buffer.concat([Buffer.from([CIPHER_CBC_HMAC]), iv, body, mac]);
 }
 
-/** Lo stesso, con le chiavi correnti del server. */
+/** The same, with the server's own keys. */
 function encryptCbc(plaintext) {
   return encryptCbcWith({ encKey: ENC_KEY, macKey: MAC_KEY }, plaintext);
 }
@@ -132,7 +132,7 @@ function decryptCbcWith(keys, payload) {
   return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
 }
 
-/** Lo stesso, con le chiavi correnti del server. */
+/** The same, with the server's own keys. */
 function decryptCbc(payload) {
   return decryptCbcWith({ encKey: ENC_KEY, macKey: MAC_KEY }, payload);
 }

@@ -61,3 +61,20 @@ test('una riga che non arriva al debugger e un problema', () => {
   const broken = { diag: fixture('diag-no-debugger-sink.cs'), app, chatPage };
   assert.match(problemsFor(broken).problems.join('\n'), /EmitToDebugger/);
 });
+
+test('un file troncato prima della scrittura e un problema', () => {
+  // La scrittura di prima: create-con-replace e poi il testo, due chiamate, con
+  // l app sospesa in mezzo che lasciava il log vuoto.
+  const truncating = diag.replace(
+    '                    file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);',
+    '                    file = await ApplicationData.Current.LocalFolder.CreateFileAsync(\n'
+      + '                        FileName, CreationCollisionOption.ReplaceExisting);');
+  assert.notStrictEqual(truncating, diag, 'il fixture deve contenere la riga da rompere');
+  assert.match(problemsFor({ diag: truncating, app, chatPage }).problems.join('\n'),
+    /CreateFileAsync before fetching it/);
+});
+
+test('un writer senza la scrittura e un problema', () => {
+  const broken = { diag: diag.replace('await FileIO.WriteTextAsync(file, text);', ''), app, chatPage };
+  assert.match(problemsFor(broken).problems.join('\n'), /does not write the log/);
+});
