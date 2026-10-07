@@ -316,6 +316,10 @@ namespace WhatsappApp.Services
                     break;
                 case "error":
                     ClearMediaLoading(message);
+                    // The adapter's own words, for whichever page is listening: an
+                    // error frame is the only explanation a refused request gets,
+                    // and dropping it here is what kept it out of sight.
+                    if (!string.IsNullOrEmpty(message.Text)) RaiseAdapterError(message.Text);
                     break;
                 case "revoked":
                     RemoveMessage(message.ChatId, message.RelatedMessageId);
@@ -678,6 +682,21 @@ namespace WhatsappApp.Services
         {
             var handler = ChatListCompleted;
             if (handler != null) handler(this, rows);
+        }
+
+        /// <summary>
+        /// The adapter answered a command with `error`: its own sentence about why
+        /// something was refused. The Chats page listens and shows it, so an empty
+        /// list says which side refused it instead of staying silent - an adapter
+        /// that cannot read the phone's frames answers here, and that is the line
+        /// that used to be invisible.
+        /// </summary>
+        public event EventHandler<string> AdapterError;
+
+        private void RaiseAdapterError(string text)
+        {
+            var handler = AdapterError;
+            if (handler != null) handler(this, text);
         }
 
         /// <summary>A call-log entry.</summary>
