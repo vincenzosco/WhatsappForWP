@@ -18,7 +18,6 @@ namespace WhatsappApp.Services
         private const string KeyUsername = "Username";
         private const string KeyNotifications = "NotificationsEnabled";
         private const string KeyToken = "ServiceToken";
-        private const string KeyBridgeKey = "BridgeKey";
         private const string KeyDeviceId = "DeviceId";
         private const string KeyUsePublicServer = "UsePublicServer";
         private const string KeyEndpointUrl = "EndpointUrl";
@@ -38,7 +37,6 @@ namespace WhatsappApp.Services
         private static int _serverPort;
         private static string _username;
         private static string _token;
-        private static string _bridgeKey;
         private static string _deviceId;
         private static bool _usePublicServer;
         private static string _endpointUrl;
@@ -55,7 +53,6 @@ namespace WhatsappApp.Services
             _serverPort = ReadInt(KeyServerPort, DefaultServerPort);
             _username = ReadString(KeyUsername, "");
             _token = ReadString(KeyToken, "");
-            _bridgeKey = ReadString(KeyBridgeKey, "");
             _deviceId = ReadString(KeyDeviceId, "");
             // The service this app is built around is the shared one: it needs no
             // address, so a phone that has never been configured can go straight to
@@ -101,17 +98,6 @@ namespace WhatsappApp.Services
         {
             get { EnsureLoaded(); return _token; }
             set { EnsureLoaded(); _token = value; Settings.Values[KeyToken] = value; }
-        }
-
-        /// <summary>
-        /// The shared key of the frame cipher. Empty means the one compiled into
-        /// the app: only a server started with BRIDGE_REQUIRE_KEY and its own
-        /// BRIDGE_KEY needs this, and it must match it exactly.
-        /// </summary>
-        public static string BridgeKey
-        {
-            get { EnsureLoaded(); return _bridgeKey; }
-            set { EnsureLoaded(); _bridgeKey = value; Settings.Values[KeyBridgeKey] = value; }
         }
 
         /// <summary>

@@ -102,8 +102,6 @@ Frames with `Type = System`, `ChatId = "system"`.
 | app -> adapter | `status` | — |
 | app -> adapter | `login.qr` | — |
 | app -> adapter | `login.code` | `Text` = number with country code |
-| app -> adapter | `pair.code` | — (the app asks for the pairing code; answered by `pair.info`) |
-| app -> adapter | `pair` | `PairingPayload` = the key sealed with the pairing code, `SenderId` = device id |
 | app -> adapter | `contacts` | — |
 | app -> adapter | `logout` | — |
 | app -> adapter | `calls` | — (incoming only, from the most recent `CALLS_CHAT_LIMIT` chats) |
@@ -120,8 +118,6 @@ Frames with `Type = System`, `ChatId = "system"`.
 | adapter -> app | `state` | `State`, `AccountJid` |
 | adapter -> app | `qr` | `QrImageData` (base64 PNG), `QrDuration` |
 | adapter -> app | `paircode` | `PairCode` |
-| adapter -> app | `pair.info` | `PairingCode`, `PairingSeconds` (the bridge pairing code and how long it stays valid) |
-| adapter -> app | `paired` | `Token` (derived from the device id) |
 | adapter -> app | `contact` | `ChatId` = JID, `SenderName` = name |
 | adapter -> app | `call` | `ChatId`, `SenderName`, `Timestamp`, `CallId`, `CallReason`, `CallDurationSeconds`, `CallIsVideo` |
 | adapter -> app | `calls.done` | — (the scan is over, even when no call was found) |
@@ -158,12 +154,7 @@ See `.env.example`. The main variables:
 | `WEBHOOK_PORT` | `8586` | HTTP port of the webhook |
 | `WEBHOOK_PUBLIC_URL` | `http://127.0.0.1:8586/webhook` | URL GOWA uses to reach the adapter |
 | `WEBHOOK_SECRET` | `secret` | Must match GOWA's `--webhook-secret`; with no secret the webhook refuses every request instead of trusting it |
-| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | The frame cipher key. It must match `CryptoHelper.cs`, or the key typed in the app (see below). The default is compiled into the public app, so it is not a secret |
-| `BRIDGE_REQUIRE_KEY` | `off` | refuse to start while the cipher still uses the compiled default (`on` for any reachable deployment) |
-| `PAIRING` | `off` | accept one phone-generated key while no key is set yet (see *Pairing* below) |
-| `PAIRING_TTL_MIN` | `15` | how long the pairing window stays open |
-| `PAIRING_RECOVER` | `on` | let a device the store already knows re-open the pairing window for itself, after a reinstall took its key away (see *The phone that lost its key*) |
-| `BRIDGE_KEY_FILE` | — | where the received key is kept, so a restart does not ask for a new pairing; empty keeps it in the environment only |
+| `BRIDGE_KEY` | `WhatsAppCommunityWP8-2026` | The passphrase compiled into the app, and the prefix every device's frame key is derived from (`framePassphraseFor`). Not a global encryption key: there is nothing to keep in step |
 | `POLL_INTERVAL_MS` | `5000` | How often the WhatsApp state is polled |
 | `DISCOVERY_ENABLED` | `on` | Announce the adapter on the LAN (`off` disables it) |
 | `DISCOVERY_PORT` | `8587` | UDP port of the discovery beacon |
@@ -177,7 +168,7 @@ See `.env.example`. The main variables:
 | `FFMPEG_PATH` | `ffmpeg` | the ffmpeg executable, when it is not on the PATH |
 | `AUTH_REQUIRED` | `off` | require a token in `hello` (`on` for a shared service) |
 | `AUTH_REGISTER` | `on` | a phone that arrives without a token is given one on its first connection (`off` closes the service: the tokens are handed out by hand) |
-| `AUTH_STRICT_DEVICE` | `off` | a device the store already knows must present a verifying token; the device id alone is not enough (`on` closes the device-id impersonation path, at the cost of the reinstall-keeps-your-account behaviour) |
+| `AUTH_STRICT_DEVICE` | `off` | only a device the store already knows may register itself; a known device is still handed its derived token back, so a reinstall still works (`on` closes the service to new devices) |
 | `AUTH_MAX_USERS` | `50` | ceiling on the devices that can register themselves |
 | `USERS_FILE` | — | where the users live; empty keeps them in memory, a path survives a restart |
 | `ENDPOINT_PUBLISH` | `off` | add this server's own row to the shared registry, so the app finds it and can fail over to it (see *The server registry*) |
@@ -211,21 +202,16 @@ file does not grow one row per connection or per reinstall. (An earlier version
 used a random id kept in `LocalSettings`, which WP8.1 deletes on uninstall: a
 reinstall became a new device, which is why the WhatsApp login had to be redone.)
 A device the service has never seen is still given a new one; a device it knows is
-handed its own token back and told nothing, because it already has it. `AUTH_MAX_USERS` counts devices, and
-re-registering a known device never consumes a slot. The secret is a credential:
-a copy of the file can derive every device's token, which is the trade-off this
-store makes for a token that stays the same. `AUTH_STRICT_DEVICE=on` removes the
-trade-off for the device id: a device the store already knows must bring its
-token, so a phone that reinstalls and lost it is refused and needs a new token
-from `create-user.js`, instead of being handed the account back by whoever knows
-the device id.
+handed the same token again whenever it arrives without a working one - which is
+exactly the reinstall case. `AUTH_MAX_USERS` counts devices, and re-registering a
+known device never consumes a slot. The secret is a credential: a copy of the file
+can derive every device's token, which is the trade-off this store makes for a
+token that stays the same. `AUTH_STRICT_DEVICE=on` keeps a new device out - only a
+device the store already knows may register itself - while the known device still
+gets its derived token back.
 
-The frame cipher key can also be set in the app: the settings page has a *Server
-key* field, and a phone that fills it uses that value instead of the compiled
-default. A deployment that sets its own `BRIDGE_KEY` and `BRIDGE_REQUIRE_KEY=on`
-is reached by typing the same value there; with the field empty the compiled
-default is used, which is what a private server that never set `BRIDGE_KEY`
-expects.
+The frame key is not set anywhere by hand any more: it is derived per device from
+the device id (see *Frame keys* below), so the *Server key* field is gone.
 
 ```bash
 node create-user.js vincenzo            # prints id, name and the token, once
@@ -241,71 +227,29 @@ top-level `device_id` GOWA puts on every event. Tokens are kept only as scrypt
 hashes; a lost token is not recovered, but a phone that comes back with the same
 device id is handed the same token again, because it is derived from that id.
 
-### Pairing
+### Frame keys
 
-The frame key of this phone can be generated by the phone itself and sent to the
-server once, so nothing secret has to be typed on the server. The token is not
-drawn by the phone: the server derives it from this device's id, exactly as it
-does for any other device, so every phone keeps one token keyed on its own device
-id. With `PAIRING=on` and no key of its own, the adapter opens a one-time window
-and prints its code for the operator to see:
+The frame key of a phone is derived from its device id, not drawn and not paired.
+`framePassphraseFor(deviceId)` is the passphrase compiled into the app plus `":"`
+and the id, and both sides compute it the same way. Because the device id is the
+package-specific hardware token, it outlives an uninstall: a phone whose storage a
+reinstall emptied derives the same key again with nothing stored.
 
-```
-[WARN] PAIRING CODE: ABCD-EFGH-JKLM-NPQR
-```
+A phone that holds a token writes every frame with its own derived key; the
+adapter, which does not know that key up front, tries the keys of the devices the
+store already knows on any frame it cannot open (`decodeWithKnownKeys`), and once
+one matches it answers that socket under the same key. A phone without a token -
+new, or emptied by a reinstall - writes its `hello` with the passphrase compiled
+into the app instead, which is what lets the adapter read it, recognise the device
+(`SenderId`) and hand back the token it derives from that id. Nothing is typed at
+the server, there is no window to open and no code to read, and a phone that
+reinstalled its app keeps its account and its chat history.
 
-The app does not need that line. It asks for the code with the `pair.code`
-command and the server answers with a `pair.info` frame carrying the code and how
-long it stays valid, so *Send my key to the server* works on its own. With no key
-of its own, the app makes that ask by itself the first time it opens, before the
-connection is opened, so a first run needs the button for nothing and the button
-stays the manual path. The phone draws 32
-random bytes for the key, seals it with the code into one blob, and
-sends it inside the ordinary `pair` frame, together with its device id in
-`SenderId`. The outer frame is the public default - there is nothing else to
-write it with yet - but the blob inside is keyed by the code. If the window ran
-out between the answer and the pairing, the app asks again: the request opens a
-fresh window, so an expired code is replaced instead of failing. The server
-adopts the key (writing it to `BRIDGE_KEY_FILE`, when set), derives the device's
-token from that id, returns it in the `paired` frame, and closes the window; a
-restart reads the key back and does not ask again.
-
-The code has 80 random bits and the window closes after five wrong attempts or
-`PAIRING_TTL_MIN` minutes, whichever comes first. A server that already has a key
-opens no window by itself: the manual way out is to stop the container, delete
-`BRIDGE_KEY_FILE` and start it with `PAIRING=on`. The phone that lost its key,
-though, opens one for itself - see below.
-
-### The phone that lost its key
-
-Reinstalling the app empties its own storage, and with it the frame key and the
-token; `AUTH_STRICT_DEVICE=on` then refuses the handshake of that device, so
-before this existed a phone in that state could not get back in without the
-operator resetting the server key. With `PAIRING_RECOVER` on (the default) the
-device this store already knows asks again with the passphrase compiled into the
-public app - the adapter tries that one key as a second attempt on a frame it
-cannot open - and the window it gets is its alone: another device, even holding
-the code, is refused (`pair.failed`). The same `paired` frame then carries back
-both the new key and the token derived from that device id.
-
-The cost, plainly: while this is on, a device id is the credential for its own
-window, and device ids live in `users.json` in plain text, so a copy of that file
-can pair as any device in it. A deployment that already treats `users.json` as a
-credential is unaffected; one that does not should set `PAIRING_RECOVER=off` and
-reset the server key by hand instead.
-
-Because the code now travels to the phone over the same channel it protects, it
-no longer separates the operator from a stranger who can reach the port: while
-the server has no key of its own, the first phone that asks to pair is the one
-that does. That window lasts only until the first pairing, so on a host reachable
-from the internet pair promptly after the first start.
-
-Pairing registers the device in the same step, which is what admits a freshly
-paired phone to a service with `AUTH_REGISTER=off`. The token stays derived from
-the device id and the store's secret, so pairing does not change the trust model
-of `users.json`: it exists to establish the frame key, not to hand out a random
-credential.
-
+The cost, plainly: the compiled passphrase is the prefix of every device's key, so
+a device id is enough to derive that device's key, and device ids live in
+`users.json` in plain text. A deployment that already treats `users.json` as a
+credential is unaffected; one that needs the frames to stay secret from someone
+who can read both the app and the store should not use this bridge.
 ### Voice notes need ffmpeg
 
 WhatsApp voice notes are Ogg with the Opus codec, and Windows Phone 8.1 has no Opus

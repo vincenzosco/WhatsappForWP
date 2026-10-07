@@ -270,8 +270,8 @@ con `HMAC-SHA256`): IV casuale di 16 byte, testo cifrato, HMAC di 32 byte su IV 
 Il tag `1` resta accettato e porta IV di 12 byte, cifrato e tag GCM di 16 byte, ma
 **l'app scrive sempre il tag `2`**: Windows Phone 8.1 risponde a AES-GCM con
 `NotImplementedException 0x80004001`. L'adapter risponde a ciascun client con il cifrario
-che quel client ha usato. App e server devono usare la stessa passphrase (variabile
-`BRIDGE_KEY` sul server, costante in `CryptoHelper.cs` nell'app).
+che quel client ha usato. App e server derivano la stessa passphrase per dispositivo
+(`framePassphraseFor`: la costante in `CryptoHelper.cs` piu' il device id).
 
 Dopo la decifratura, il corpo JSON segue lo schema `ChatMessage`:
 
@@ -588,40 +588,33 @@ una password da digitare; con `AUTH_REGISTER=off` si torna a consegnare i token 
 mano. Il token e' derivato dall'id di dispositivo che l'app presenta, e quell'id e'
 il token hardware specifico del pacchetto, quindi reinstallare l'app non crea un
 dispositivo nuovo: lo stesso telefono conserva lo stesso account, e l'accesso a
-WhatsApp non viene richiesto di nuovo. Con `AUTH_STRICT_DEVICE=on` questa
-comodita' si spegne: un dispositivo che il servizio conosce gia' deve presentare
-il suo token, quindi conoscere un device id non basta per raggiungere un account.
+WhatsApp non viene richiesto di nuovo. Con `AUTH_STRICT_DEVICE=on` il servizio si
+chiude agli estranei: solo un dispositivo che lo store conosce gia' puo'
+registrarsi, mentre a un dispositivo noto il token derivato viene comunque
+restituito, quindi una reinstallazione funziona ancora e un dispositivo nuovo no.
 
-La chiave del cifrario dei frame non deve essere scelta a mano. Con `PAIRING=on`
-e nessuna chiave sua, un server stampa all'avvio un codice monouso; l'app prende
-quel codice e invia una chiave che il telefono ha generato, sigillata con esso, e
-il server la adotta (`BRIDGE_KEY_FILE` la conserva tra i riavvii). Un telefono che
-non ha ancora una chiave sua lo fa da solo la prima volta che si apre - chiede il
-codice al server con `pair.code` e offre la sua chiave prima che la connessione
-venga aperta - quindi non c'e' niente da digitare e il pulsante non serve. *Invia
-la chiave al server*, nella pagina di connessione, e' lo stesso scambio a mano,
-per un server successivo o per uno la cui finestra si era gia' chiusa. Il token del
-dispositivo non lo disegna il telefono: lo deriva il server dal device id, quindi
-ogni dispositivo tiene un solo token legato
-al proprio id. La pagina delle impostazioni ha ancora un campo *Chiave del server*: un server
-avviato con un `BRIDGE_KEY` suo e `BRIDGE_REQUIRE_KEY=on` (che rifiuta il default
-pubblico) si raggiunge digitando lo stesso valore li'.
+La chiave del cifrario dei frame non si sceglie a mano e non si accoppia piu': e'
+derivata dal device id che l'app presenta gia'. Il server deriva la stessa chiave
+dall'id che conosce (`framePassphraseFor` e' la passphrase compilata piu' l'id),
+quindi un telefono la cui memoria una reinstallazione ha svuotato ritrova la stessa
+chiave senza niente salvato e senza che nessuno faccia niente. Non c'e' un
+`BRIDGE_KEY` da tenere allineato, nessuna finestra `PAIRING`, nessun codice da
+leggere e nessun campo *Chiave del server*. Un telefono che ha un token scrive ogni
+frame con la chiave derivata dal suo device id; un telefono che non ne ha - nuovo,
+o svuotato da una reinstallazione - scrive l'handshake con la passphrase compilata
+nell'app, ed e' cio' che permette al server di leggerlo.
 
 Una reinstallazione in piu' e' tutto quello che serve perche' un telefono perda
-quello che ha. Reinstallare svuota la memoria dell'app su Windows Phone 8.1,
-quindi il telefono resta senza la sua chiave e senza il suo token, mentre un
-server che ha una chiave sua rifiuta l'handshake di un dispositivo che conosce ma
-che non porta nessun token: non rientrerebbe mai piu'. `PAIRING_RECOVER` (acceso
-di default) chiude quella porta dal lato del server: un dispositivo che questo
-store conosce gia' puo' riaprire la finestra di accoppiamento per se' con la
-passphrase compilata nell'app pubblico, e lo stesso frame `paired` gli
-restituisce sia la chiave sia il token - non si digita niente, e nessuno deve fare
-niente sul server. Quello che costa va detto chiaramente: finche' e' acceso, un
-device id e' la credenziale per quella finestra, e l'id sta in `users.json` in
-chiaro, quindi una copia di quel file puo' essere usata per accoppiarsi come quel
-dispositivo. Metti `PAIRING_RECOVER=off` per rifiutarlo, e torna alla via manuale:
-cancella il file puntato da `BRIDGE_KEY_FILE`, riavvia il server, e lascia che il
-telefono si accoppi di nuovo nella finestra che si apre.
+quello che ha. Reinstallare svuota la memoria dell'app su Windows Phone 8.1, quindi
+il telefono resta senza la sua chiave e senza il suo token. Non gli servono: ha lo
+stesso device id hardware, quindi ritrova la stessa chiave dei frame, e il server -
+che quell'id lo conosce - legge il suo handshake, riconosce il dispositivo e gli
+restituisce lo stesso token che aveva derivato per lui. Non si digita niente,
+nessuno fa niente sul server, e l'accesso a WhatsApp non viene richiesto di nuovo.
+Quello che costa va detto chiaramente: la passphrase compilata e' il prefisso della
+chiave di ogni dispositivo, quindi un device id basta per derivare la chiave di quel
+dispositivo, e l'id sta in `users.json` in chiaro. E' il compromesso fatto per una
+reinstallazione che non chiede niente a nessuno.
 
 Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
 legge `endpoint.json` da
@@ -692,18 +685,17 @@ dei messaggi per chat e `chat-preferences.json` vivono nella cartella dell'app e
 non vengono mai svuotate quando cambia il server. Ogni server della lista e'
 collegato allo stesso account WhatsApp, quindi le conversazioni sono le stesse, e
 l'app chiede la sua lista chat al server che raggiunge. Perche' un telefono sia
-accettato da piu' di un server, i server condividono lo stesso `BRIDGE_KEY` (o
-sono stati accoppiati con la stessa chiave generata dal telefono) e accettano lo
-stesso token del dispositivo: un `users.json` condiviso da' entrambe le cose,
+accettato da piu' di un server, i server condividono lo stesso prefisso
+`BRIDGE_KEY` e accettano lo stesso token del dispositivo: un `users.json` condiviso
+da' entrambe le cose,
 mentre `AUTH_REGISTER=on` lascia che ogni server rilasci il proprio token alla
 prima connessione del telefono.
 
 Quello che resta vero, e vale la pena dire chiaramente:
 
 - Il trasporto e' cifrato dal cifrario dell'app (AES-256-CBC + HMAC-SHA256) con
-  la passphrase che il telefono ha (quella compilata, una digitata nelle
-  impostazioni, o una che il telefono ha generato e accoppiato). Sotto non c'e'
-  TLS: uno `StreamSocket` di WP8.1 non sa fissare un certificato, quindi uno
+  la passphrase del dispositivo (la costante compilata piu' il device id). Sotto non
+  c'e' TLS: uno `StreamSocket` di WP8.1 non sa fissare un certificato, quindi uno
   autofirmato non e' una strada.
 - Chi gestisce un server condiviso puo' tecnicamente arrivare alle sessioni
   sulla macchina. Il token separa gli utenti tra loro, non dall'operatore.

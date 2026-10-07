@@ -25,9 +25,11 @@ namespace WhatsappApp.Services
     ///   encKey = HMAC-SHA256(master, "wp8-adapter enc")
     ///   macKey = HMAC-SHA256(master, "wp8-adapter mac")
     ///
-    /// The same derivation, on a different passphrase, is what seals the pairing
-    /// payload: the key this phone generates travels inside a blob only the
-    /// server's one-time code can open (SealWith / OpenWith).
+    /// The passphrase of a frame is derived from this device id (DevicePassphrase):
+    /// the id is a hardware token that survives an uninstall, so a phone whose
+    /// storage a reinstall emptied derives the same key again, and the server
+    /// derives the same one from the id it already knows. This is what replaced
+    /// the paired BRIDGE_KEY.
     /// </summary>
     public static class CryptoHelper
     {
@@ -46,9 +48,6 @@ namespace WhatsappApp.Services
 
         private const int IvLength = 16;
         private const int MacLength = 32;
-
-        /// <summary>Bytes of a generated secret: the size of the server's.</summary>
-        private const int SecretLength = 32;
 
         // tag + IV + at least one block + HMAC
         private const int MinPayloadLength = 1 + IvLength + 16 + MacLength;
@@ -70,53 +69,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// A secret the phone generates itself: 32 random bytes, base64url. The
-        /// pairing uses it for both the server key and this device's token, so the
-        /// server never invents either one and nothing on the server can derive
-        /// them afterwards.
+        /// The frame passphrase of one device: the constant above plus the device
+        /// id. The id outlives a reinstall, so the phone derives the same key again
+        /// with nothing stored, and the server derives the same one from the id it
+        /// already knows. It must stay identical to framePassphraseFor in
+        /// WhatsappBridge/crypto-helper.js.
         /// </summary>
-        public static string NewSecret()
+        public static string DevicePassphrase(string deviceId)
         {
-            byte[] bytes;
-            CryptographicBuffer.CopyToByteArray(
-                CryptographicBuffer.GenerateRandom((uint)SecretLength), out bytes);
-
-            // base64url: the same alphabet as Node's randomBytes(...).toString('base64url'),
-            // without the padding, so the value is safe to type and to store in JSON.
-            return Convert.ToBase64String(bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_');
-        }
-
-        /// <summary>
-        /// Seals a string with a passphrase that is not the frame key, in
-        /// base64([16-byte IV][ciphertext][32-byte HMAC]). It is what carries the
-        /// phone's new key to the server during pairing: the blob is opaque to
-        /// anyone who has not read the one-time code printed at startup, even
-        /// though the outer frame is written with the public default.
-        /// </summary>
-        public static string SealWith(string passphrase, string plaintext)
-        {
-            var sealedBytes = SealCbc(
-                DeriveKey(passphrase, "wp8-adapter enc"),
-                DeriveKey(passphrase, "wp8-adapter mac"),
-                Encoding.UTF8.GetBytes(plaintext));
-            return Convert.ToBase64String(sealedBytes);
-        }
-
-        /// <summary>
-        /// The inverse of <see cref="SealWith"/>. Throws ArgumentException when the
-        /// passphrase is wrong or the blob was damaged: the signature is verified
-        /// before anything is decrypted.
-        /// </summary>
-        public static string OpenWith(string passphrase, string base64)
-        {
-            if (string.IsNullOrEmpty(base64)) throw new ArgumentException("Empty sealed payload");
-
-            byte[] bytes = Convert.FromBase64String(base64);
-            byte[] plain = OpenCbc(
-                DeriveKey(passphrase, "wp8-adapter enc"),
-                DeriveKey(passphrase, "wp8-adapter mac"),
-                bytes);
-            return Encoding.UTF8.GetString(plain, 0, plain.Length);
+            return Passphrase + ":" + (deviceId ?? "");
         }
 
         /// <summary>

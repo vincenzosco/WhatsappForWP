@@ -285,12 +285,14 @@ the adapter:
 ## Known gotchas
 
 - **A reinstall empties the app's storage on WP8.1**, so the phone loses its
-  frame key and its token at once. The server has to put them back by itself:
-  with `PAIRING_RECOVER` on (the default) a device the store already knows
-  re-opens the pairing window for itself under the public passphrase, and the
-  `paired` frame returns both. Never "fix" a phone that cannot connect by asking
-  the operator to reset the server key: removing that manual step is the whole
-  point of the recovery in `server.js` (`openRecovery`, `decodeRecovery`).
+  frame key and its token at once. The server puts them back by itself, with no
+  pairing: the frame key is derived from the device id (`framePassphraseFor`, the
+  compiled passphrase plus the id) and that id is a hardware token that survives
+  the uninstall, so the phone recomputes the same key, and a `hello` without a
+  token is answered with the same token the store derives for that id. Never
+  "fix" a phone that cannot connect by asking the operator for a key or a code:
+  the derivation in `crypto-helper.js` and the re-issue in the `hello` case of
+  `server.js` (`decodeWithKnownKeys`) are the whole mechanism.
 
 - The app cannot be built on macOS: there is no WP8.1 toolchain. The build gate
   runs on the Windows/Parallels machine.
