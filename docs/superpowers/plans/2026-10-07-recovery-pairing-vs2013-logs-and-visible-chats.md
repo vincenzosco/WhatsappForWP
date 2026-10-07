@@ -487,3 +487,68 @@ the paragraph in both root READMEs now say what `off` does and does not close.
 - the thirteen guards -> OK each.
 - mirror `docker-whatsappforwp` synced (35 files, `--check` OK, server suite 276/276), pushed
   b20f86d; workflow `image` on b20f86d -> success; NAS container recreated on the new digest.
+
+### The review of this branch, and what it found
+
+Reviewed `eff1591..91fdd9c` along the two axes of `.agents/skills/code-review/SKILL.md`. No
+documented standard was broken. Two findings on the Spec axis, both fixed in commit 828f4b2:
+
+1. **Critical.** `sendToClients` grouped outgoing frames by cipher alone and wrote them with
+   `cryptoHelper.buildFrame`, the server's own key. A socket that had adopted a passphrase
+   (`wp8Passphrase`, set by `decodeWithKnownKeys` for the phone's device-derived key) therefore
+   received a `state` - and every incoming message, which is also sent through `sendToClients` -
+   under a key it could not read. That is the *normal* state of a phone that holds a token: it
+   would have answered the handshake and then never asked for the chats, because the `state` that
+   tells it the account is connected never arrived. The live run above only exercised the
+   no-token path (compiled key equals the server's key), which is why it looked green: the phone
+   in that run had no token, so `decodePayload` opened its frames first time and the socket never
+   adopted a passphrase. The grouping key is now `passphrase + '|' + tag` and the frame is written
+   by `frameFor`. Pinned by *un telefono con la chiave del suo device legge anche i broadcast*
+   (66/67 without the fix, 277/277 with it).
+2. **Important, and pre-existing.** `Diag.WriteLinesAsync` created the log with
+   `CreationCollisionOption.ReplaceExisting` - an immediate truncation - and wrote in a second
+   call, and it marked the lines as written *before* the write was queued. An app suspended
+   between the two therefore left a 0-byte `diag.log` with the run marker still in place, and the
+   early-return on `_written >= History.Count` kept it empty for the rest of the run. This was
+   observed live in this session: the export taken after the successful run came back 0 bytes
+   while `diag-run.marker` still said `2026-10-07T17:20:26`, so the run and its crash tail were
+   lost - exactly the artefact this plan exists to make readable. The file is now fetched and
+   created only when the fetch fails, and `FileIO.WriteTextAsync` truncates and writes in one
+   operation on a file that already exists. Guard rule G pins the order, two fixtures and two
+   tests were added (9 to 11), and the C# 5 guard answered the first attempt with CS1985
+   (`await` in a `catch`), so the fetch leaves a null instead.
+3. Judgement call: five Italian names in `WhatsappBridge/crypto-helper.js` (four comments and
+   `const scelto`) in a module whose identifiers and comments are English; rewritten. The two
+   pre-existing Italian slips in `server.js` are outside this diff and are left alone.
+
+### The final run: the device's own key, with the log to prove it
+
+Installing the app with `AppDeployCmd /install` **wipes its isolated storage** (the run at
+18:56:50 shows `ChatCache.Load: FileNotFoundException` and `in registered`, i.e. the phone
+arrived with no token). That run is therefore the compiled-key path again, and it is the one
+that produced the excerpts below. Relaunching without reinstalling is what exercises the
+device-key path, and that is the run at 18:58:14, with the log readable this time:
+
+```
+=== run started 2026-10-07T18:58:14 ===
+...
+in  state
+out chats
+in  chats.done
+ok: chats.done: 22 row(s)
+ok: chat list: 22 row(s), showing 22
+```
+
+and the adapter, for the same run (`docker logs whatsapp-for-wp8`):
+
+```
+2026-10-07 16:58:16 [NET] handshake from "unknown"
+```
+
+There is **no `device returned`** for that handshake: the phone presented a token that verified,
+so it keyed its frames with `CryptoHelper.DevicePassphrase(deviceId)`, the server adopted that
+passphrase through `decodeWithKnownKeys`, and the `state` broadcast that followed reached it -
+which is precisely what finding 1 above had broken. The 22 rows are the proof that the list was
+then asked for and answered. `/data/users.json` still holds 25 users with exactly one row for
+the phone's device id. `diag.log` came back at 3267 bytes with no truncation, so finding 2 is
+fixed on the device too, and the crash report for the earlier run is intact.
