@@ -476,7 +476,10 @@ namespace WhatsappApp.Pages
             // its own cannot tell a burst that never arrived from a list that was
             // laid out to death: this line is the one that names memory when the
             // count is high and the budget of the phone is close.
-            Diag.Ok("bound " + _messages.Count + " rows, memory "
+            // On disk at once: this is the line that has to survive the crash it
+            // measures, and the memory it names is what tells a fail-fast of the
+            // runtime from the phone terminating the app on its budget.
+            Diag.OkNow("bound " + _messages.Count + " rows, memory "
                 + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
 
             if (isActiveChat && _messages.Count > 0)
