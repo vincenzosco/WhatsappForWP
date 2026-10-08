@@ -314,8 +314,18 @@ namespace WhatsappApp.Services
                 case "media":
                     ApplyMediaFrame(message);
                     break;
+                case "attachment.sent":
+                    // The adapter took the attachment for this bubble: the guess
+                    // about the socket is replaced by the answer.
+                    SetMessageStatus(message.ChatId, message.RelatedMessageId, MessageStatus.Sent);
+                    break;
                 case "error":
                     ClearMediaLoading(message);
+                    // A refusal that names a bubble is that bubble's failure:
+                    // without this the message kept the checkmark while the file
+                    // never left the phone.
+                    if (!string.IsNullOrEmpty(message.RelatedMessageId))
+                        SetMessageStatus(message.ChatId, message.RelatedMessageId, MessageStatus.Failed);
                     // The adapter's own words, for whichever page is listening: an
                     // error frame is the only explanation a refused request gets,
                     // and dropping it here is what kept it out of sight.
@@ -774,6 +784,27 @@ namespace WhatsappApp.Services
         /// Realigns the chat preview to the last remaining message: after a
         /// revocation or an edit the preview would stay the old one.
         /// </summary>
+        /// <summary>
+        /// The adapter's answer for an attachment: the bubble changes from Sending
+        /// to Sent or Failed. It is written on the stored message and not on a
+        /// page's copy, because the answer can arrive while another chat is on
+        /// screen - or before the page that owns the bubble exists at all.
+        /// </summary>
+        public void SetMessageStatus(string chatId, string messageId, MessageStatus status)
+        {
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+
+            foreach (var message in messages)
+            {
+                if (message.Id != messageId) continue;
+                message.Status = status;
+                return;
+            }
+        }
+
         private void RefreshPreview(string chatId)
         {
             var contact = FindContact(chatId);

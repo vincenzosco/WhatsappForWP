@@ -129,3 +129,16 @@ test('methods legge il corpo di un metodo con modificatori', () => {
   assert.strictEqual(known.has('StartAsync'), true);
   assert.strictEqual(ff.handlesItsOwnFault(known.get('StartAsync')), true);
 });
+
+test("l'answer di un allegato senza SetMessageStatus si segnala", () => {
+  const source = 'case "attachment.sent":\n    break;';
+  const found = ff.statusAnswerProblems(source, 'WhatsappApp/Services/DataService.cs').join('\n');
+  assert.match(found, /SetMessageStatus/);
+});
+
+test('un case error che non segna Failed si segnala', () => {
+  const source = 'case "attachment.sent":\n  SetMessageStatus(a, b, MessageStatus.Sent);\n' +
+    'case "error":\n  RaiseAdapterError(x);';
+  const found = ff.statusAnswerProblems(source, 'WhatsappApp/Services/DataService.cs').join('\n');
+  assert.match(found, /Failed/);
+});
