@@ -363,3 +363,21 @@ what is still owed.
 - **`ffmpeg` on the machine**: the probe and the stripped-build recipe are done; the binary that
   makes received voice notes play here is not installed (the install needs an elevated shell).
 - The four `download.test.js` failures are the missing `zip` on this host, not this change.
+## The on-device memory numbers of 2026-10-08
+
+The 512 MB Lumia ran the ARM build with the message ceiling in place, and the figures the plan
+asked for are now on disk (`.tools/voice-device/IsolatedStore/diag.log`, run started 21:16:44, and
+`.tools/voice-device2/IsolatedStore/diag.log`, run started 21:44:27):
+
+- `ok: memory budget 185 MB` - the first line, as checklist item 31 expects, and about half of what
+  a 1 GB phone reports;
+- `ok: chat list: 21 row(s), showing 21, memory 16 MB` through `21 MB` across the refreshes;
+- `ok: bound 50 rows, memory 19 MB` in the first run and `21 MB` in the second, for an opened
+  conversation;
+- no `memory under pressure` line and no `ChatPage/...` failure, so the app was not closed and no
+  decoded image had to be dropped on either run.
+
+The ceiling itself was not reached: 50 messages bound is well under `MaxMessagesPerChat` (200), so
+the trim did not fire. What the run proves is the budget and the steady memory across a chat list
+and an opened conversation on the target device; the trim's own test remains the guard
+(`check-memory.js`, `historyCeilingProblems`).
