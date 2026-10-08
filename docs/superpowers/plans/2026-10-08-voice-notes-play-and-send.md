@@ -22,7 +22,7 @@ Read as three symptoms:
 
 Every one of these was read out of the tree on 2026-10-08; each names the file, and each is what a task changes or leans on.
 
-**Symptom 1.** `ffmpeg` is not installed on this machine (`which ffmpeg` → not found; no `ffmpeg` on the `PATH`). `WhatsappBridge/ffmpeg.js` probes it once at startup and, absent, `toPlayable` returns `null` and `server.js:390` sends the original bytes. WhatsApp voice notes are Ogg/Opus and WP8.1 has no Opus decoder (a hard constraint of this repo), so `VoicePlayer.Source` loads a file the phone cannot decode, `VoicePlayer_MediaFailed` fires, `ChatPage.xaml.cs:869` sets `AudioFailed = true` and `IsPlaying = false` — which is exactly "it never becomes playing". `README.md:126` and `README.md:176` already say all of this and already promise the fallback sentence; the machine is the half that is missing.
+**Symptom 1.** `ffmpeg` is not installed on this machine (`which ffmpeg` prints nothing and `ffmpeg -version` runs no program; there is no `ffmpeg` on the `PATH`). `WhatsappBridge/ffmpeg.js` probes it once at startup and, absent, `toPlayable` returns `null` and `server.js:390` sends the original bytes. WhatsApp voice notes are Ogg/Opus and WP8.1 has no Opus decoder (a hard constraint of this repo), so `VoicePlayer.Source` loads a file the phone cannot decode, `VoicePlayer_MediaFailed` fires, `ChatPage.xaml.cs:869` sets `AudioFailed = true` and `IsPlaying = false` — which is exactly "it never becomes playing". `README.md:126` and `README.md:176` already say all of this and already promise the fallback sentence; the machine is the half that is missing.
 
 **Symptom 2.** `WhatsappApp/Services/AttachmentInbox.cs` copies every outgoing attachment to one fixed name: `private const string CopyBaseName = "outgoing_attachment";` then `file.CopyAsync(LocalFolder, CopyBaseName + extension, NameCollisionOption.ReplaceExisting)`. `ChatPage.StopRecordingAsync` puts the recording in that same slot, so **every outgoing voice note bubble carries `MediaFilePath = "outgoing_attachment.m4a"`** — one file, replaced by the next recording. `ChatPage.ToggleVoice` then refuses to reload it, because the path has not changed:
 
@@ -74,7 +74,7 @@ The five conditions this feature will meet that no test above it pins, most like
 
 ### Task 1: The device evidence, and the two causes told apart
 
-The phone was disconnected when this plan was written (`ISETool.exe` → `Errore: ... non e stato rilevato alcun telefono Windows Phone`), so symptoms 1 and 2 are proven from the code and not yet on the device. This task is the first thing that runs, and it is what the rest of the plan is checked against: the log is the only thing that tells an audio file the phone refused from an audio file whose bytes never arrived.
+The phone was disconnected when this plan was written (`ISETool.exe` prints `Errore: ... non e stato rilevato alcun telefono Windows Phone`), so symptoms 1 and 2 are proven from the code and not yet on the device. This task is the first thing that runs, and it is what the rest of the plan is checked against: the log is the only thing that tells an audio file the phone refused from an audio file whose bytes never arrived.
 
 **Files:**
 - Evidence: `.tools/voice-before/IsolatedStore/diag.log` (a snapshot, gitignored)
@@ -349,9 +349,9 @@ Fixes symptom 3's missing link and its silent half. The app tells the adapter wh
 **Interfaces:**
 - Consumes: `ChatMessage.Id` (the app's local id, already on the frame as `RelatedMessageId` for `media.get`).
 - Produces:
-  - the app→adapter frame `media.begin` now carries `RelatedMessageId` = the bubble's `ChatMessage.Id`;
-  - the adapter→app frame `{ command: 'attachment.sent', chatId, relatedMessageId, text }` on success, where `text` is GOWA's message id (`''` when GOWA reported none);
-  - the adapter→app frame `{ command: 'error', chatId, relatedMessageId, text }` on every refusal, where `relatedMessageId` is now always present for an attachment. Task 5 reads both.
+  - the app-to-adapter frame `media.begin` now carries `RelatedMessageId` = the bubble's `ChatMessage.Id`;
+  - the adapter-to-app frame `{ command: 'attachment.sent', chatId, relatedMessageId, text }` on success, where `text` is GOWA's message id (`''` when GOWA reported none);
+  - the adapter-to-app frame `{ command: 'error', chatId, relatedMessageId, text }` on every refusal, where `relatedMessageId` is now always present for an attachment. Task 5 reads both.
 
 - [ ] **Step 1: Write the failing tests**
 
