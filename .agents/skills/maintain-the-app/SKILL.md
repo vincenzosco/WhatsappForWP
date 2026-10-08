@@ -293,6 +293,15 @@ the adapter:
   "fix" a phone that cannot connect by asking the operator for a key or a code:
   the derivation in `crypto-helper.js` and the re-issue in the `hello` case of
   `server.js` (`decodeWithKnownKeys`) are the whole mechanism.
+- **The re-issue is not gated by `AUTH_REGISTER`.** That flag says whether the
+  service creates an account for a device it has *never* seen; a device the store
+  already knows is always handed its derived token back, whatever the flag says.
+  Tying the branch to `authRegister` is what made a reinstalled phone stay out for
+  good on `AUTH_REGISTER=off` + `AUTH_STRICT_DEVICE=on` (fixed in `ae09dc1`, with
+  the test *un device noto rientra anche con AUTH_REGISTER spento, uno sconosciuto
+  no*). A refusal reading `refused a handshake: missing token` with **no**
+  `unknown device without a token` line beside it means the branch was never
+  reached - check the guard before touching the derivation.
 
 - The app cannot be built on macOS: there is no WP8.1 toolchain. The build gate
   runs on the Windows/Parallels machine.
