@@ -1077,6 +1077,25 @@ test('un video in arrivo si annuncia come video e i byte seguono a pezzi', async
   assert.strictEqual(bytes[0].MediaData, video.toString('base64'));
 });
 
+test('un vocale che non si puo convertire arriva con il motivo', async () => {
+  const sent = [];
+  const gowa = {
+    downloadMedia: async () => ({ base64: Buffer.from('opus').toString('base64'), mimeType: 'audio/ogg', fileName: 'voce.ogg' })
+  };
+  const transcoder = { isAvailable: () => false, toPlayable: async () => null };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'W1' });
+
+  const reason = sent.find((f) => f.Command === 'error' && /cannot be played/.test(f.Text || ''));
+  assert.ok(reason, 'the app must be told why the note will not play');
+  assert.strictEqual(reason.ChatId, 'a@s.whatsapp.net');
+  const media = sent.find((f) => f.Command === 'media' && f.MediaData);
+  assert.ok(media, 'the bytes still go out: the note arrives');
+});
+
 test('un vocale Ogg in arrivo arriva come MP3', async () => {
   const sent = [];
   const gowa = {
