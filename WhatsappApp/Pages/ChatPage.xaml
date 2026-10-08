@@ -231,13 +231,13 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button x:Name="PlayAudioButton" Grid.Column="0"
+                                        <Button x:Name="IncomingPlayAudioButton" Grid.Column="0"
                                                 Background="Transparent"
                                                 MinWidth="0" MinHeight="0"
                                                 Width="36" Height="36"
                                                 BorderThickness="0" Padding="0"
                                                 VerticalAlignment="Center"
-                                                Click="PlayAudioButton_Click">
+                                                Click="IncomingPlayAudioButton_Click">
                                             <Grid>
                                                 <Path Fill="White" Width="20" Height="20"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -426,13 +426,13 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Button x:Name="PlayAudioButton" Grid.Column="0"
+                                        <Button x:Name="OutgoingPlayAudioButton" Grid.Column="0"
                                                 Background="Transparent"
                                                 MinWidth="0" MinHeight="0"
                                                 Width="36" Height="36"
                                                 BorderThickness="0" Padding="0"
                                                 VerticalAlignment="Center"
-                                                Click="PlayAudioButton_Click">
+                                                Click="OutgoingPlayAudioButton_Click">
                                             <Grid>
                                                 <Path Fill="White" Width="20" Height="20"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"

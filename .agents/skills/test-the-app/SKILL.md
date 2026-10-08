@@ -26,7 +26,8 @@ node tools/check-project-files.js  # every .cs and .xaml is listed in the csproj
 node tools/check-chat-list-source.js  # the conversation ListView has no ItemsSource in XAML, only ConversationView.Bind
 node tools/check-diagnostics.js   # the run is on disk, and the history wait is not shorter than the read
 node tools/check-handshake-answer.js  # the connection is announced only after the server answered the handshake
-node --test "tools/test/**/*.test.js"  # the tools' own tests (104)
+node tools/check-xaml-names.js  # a x:Name is used once in one namescope
+node --test "tools/test/**/*.test.js"  # the tools' own tests (108)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -56,6 +57,7 @@ Two lessons the gates taught:
 | `check-chat-list-source.js` | A second writer for `MessagesListView.ItemsSource`. The list is bound in code by `ConversationView.Bind`; an `ItemsSource="{Binding}"` left in XAML is resolved against `DataContext`, which on this page is a `Contact` and not a collection, so it fights the code-set source and the conversation opens empty with a run of first chance `SYSTEM.NI.DLL` exceptions and no `DIAG` line. |
 | `check-diagnostics.js` | The diagnostics that never reach the disk: a log written without a `SerialQueue`, a file with no byte ceiling or no name, no marker file to tell a crash from a suspension, the unhandled-exception handler leaving the line in memory, and a history wait shorter than the adapter's cold read of the account (a 2 s wait against a measured 15 s binds the list before its burst and hands fifty inserts to a list already watching the collection). |
 | `check-handshake-answer.js` | A connection announced before the server answered it: `RaiseConnectionEstablished()` reached before `WaitForServerAnswerAsync` returned, the reader started after the wait, or a wait shorter than 20000 ms. The phone then shows a connected chat list that is really the adapter refusing every frame of the wrong key - which is how "errore pairing key" hid behind an apparently live connection. |
+| `check-xaml-names.js` | Two elements in one namescope with the same `x:Name`. A `DataTemplate` registers its names when a row is realized, so the second one answers `XamlParseException 0x802B000A` at run time and the screen that holds it closes instead of opening - it was the play button of the incoming bubble and the one of the outgoing bubble, both called `PlayAudioButton`, and the chat that closed the moment it was opened. The same name in two different templates is legal and is not flagged, and neither is a name inside a comment. |
 
 Also worth running while the tree is open:
 

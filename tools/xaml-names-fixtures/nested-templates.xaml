@@ -1,0 +1,11 @@
+<Page x:Name="Root">
+    <DataTemplate>
+        <Button x:Name="Bubble">
+            <Button.Template>
+                <ControlTemplate>
+                    <Border x:Name="Bubble"/>
+                </ControlTemplate>
+            </Button.Template>
+        </Button>
+    </DataTemplate>
+</Page>

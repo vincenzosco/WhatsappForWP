@@ -238,6 +238,9 @@ quasi sempre pronta da integrare.
      && node tools/check-fire-and-forget.js \
      && node tools/check-project-files.js \
      && node tools/check-chat-list-source.js \
+     && node tools/check-diagnostics.js \
+     && node tools/check-handshake-answer.js \
+     && node tools/check-xaml-names.js \
      && node --test "tools/test/**/*.test.js"
    cd WhatsappBridge && npm test
    ```

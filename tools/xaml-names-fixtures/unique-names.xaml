@@ -1,0 +1,9 @@
+<Page x:Name="Root">
+    <Grid x:Name="Body">
+        <DataTemplate>
+            <Border x:Name="Bubble">
+                <TextBlock x:Name="MessageText"/>
+            </Border>
+        </DataTemplate>
+    </Grid>
+</Page>
