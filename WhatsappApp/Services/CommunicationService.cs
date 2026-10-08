@@ -874,11 +874,14 @@ namespace WhatsappApp.Services
         /// chat travels in Text, the file and its type in the fields that already
         /// carry that name.
         /// </summary>
-        public async Task SendMediaBeginAsync(string chatId, string transferId,
+        public async Task SendMediaBeginAsync(string chatId, string messageId, string transferId,
             string fileName, string mimeType, int totalChunks)
         {
             var frame = NewControlFrame("media.begin");
             frame.Text = chatId;
+            // The bubble this attachment belongs to: the adapter answers for that
+            // message, and without it a refused send is invisible on the bubble.
+            frame.RelatedMessageId = messageId;
             frame.MediaTransferId = transferId;
             frame.MediaFileName = fileName;
             frame.MediaMimeType = mimeType;

@@ -883,6 +883,55 @@ test('senza sendAudio nel client un vocale ripiega su sendFile', async () => {
   ]);
 });
 
+test('un allegato riuscito risponde attachment.sent con la bolla', async () => {
+  const sent = [];
+  const gowa = {
+    sendAudio: async () => 'W1',
+    sendFile: async () => { throw new Error('un vocale non passa da sendFile'); },
+    sendVideo: async () => { throw new Error('un vocale non e un video'); }
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 't1', RelatedMessageId: 'm1', MediaFileName: 'voce.m4a', MediaMimeType: 'audio/mp4', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 't1', MediaChunkIndex: 0, MediaData: Buffer.from('voce').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 't1' });
+
+  const answer = sent.find((f) => f.Command === 'attachment.sent');
+  assert.ok(answer, 'a send nobody answers is a send nobody can report');
+  assert.strictEqual(answer.RelatedMessageId, 'm1');
+  assert.strictEqual(answer.Text, 'W1');
+  assert.strictEqual(answer.ChatId, 'a@s.whatsapp.net');
+});
+
+test('un allegato vuoto non sparisce in silenzio', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: {}, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 't2', RelatedMessageId: 'm2', MediaChunkTotal: 0 });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 't2' });
+
+  const refusal = sent.find((f) => f.Command === 'error');
+  assert.ok(refusal, 'parts.length === 0 must refuse, not return');
+  assert.strictEqual(refusal.RelatedMessageId, 'm2');
+});
+
+test('un media.end di un trasferimento sconosciuto viene rifiutato', async () => {
+  const sent = [];
+  const bridge = createBridge({ config: {}, gowa: {}, log: () => {}, debug: () => {} });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.end', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'mai-visto', RelatedMessageId: 'm3' });
+
+  const refusal = sent.find((f) => f.Command === 'error');
+  assert.ok(refusal, 'an unknown transfer is a fault, not a no-op');
+  assert.strictEqual(refusal.RelatedMessageId, 'm3');
+});
+
 test('un allegato a cui manca un pezzo non viene mandato, e lo dice', async () => {
   let sent = 0;
   const gowa = {
