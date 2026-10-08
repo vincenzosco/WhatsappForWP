@@ -862,12 +862,24 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   /// when the type is missing): image, video, audio, otherwise document. The
   /// type that comes out also travels to the app, which uses it to decide how
   /// to draw the bubble (see ChatMessage.IsAudio / IsDocument).
+  /**
+   * The Ogg family under its container MIME type. GOWA answers a downloaded
+   * voice note with `application/ogg` (the type RFC 3533 gives the container)
+   * and a file name without an extension, so neither the `audio/` prefix nor
+   * the extension says what it is: it used to be drawn as a document card
+   * instead of a play bar.
+   */
+  function isOggContainer(mime) {
+    return mime === 'application/ogg' || mime === 'application/opus' || mime === 'application/oga';
+  }
+
   function mediaKindOf(mimeType, fileName) {
     const mime = String(mimeType || '').toLowerCase();
     const name = String(fileName || '').toLowerCase();
     if (mime.indexOf('video/') === 0 || /\.(mp4|mov|3gp|avi|mkv|webm)$/.test(name)) return 'video';
     if (mime.indexOf('image/') === 0) return 'image';
-    if (mime.indexOf('audio/') === 0 || /\.(ogg|opus|oga|mp3|m4a|aac|amr|wav)$/.test(name)) return 'audio';
+    if (mime.indexOf('audio/') === 0 || isOggContainer(mime)) return 'audio';
+    if (/\.(ogg|opus|oga|mp3|m4a|aac|amr|wav)$/.test(name)) return 'audio';
     return 'document';
   }
 

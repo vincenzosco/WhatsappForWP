@@ -1174,6 +1174,28 @@ test('un vocale che non si puo convertire arriva con il motivo', async () => {
   assert.ok(media, 'the bytes still go out: the note arrives');
 });
 
+test('un vocale scaricato con MIME application/ogg resta un vocale, non un file', async () => {
+  const sent = [];
+  const gowa = {
+    downloadMedia: async () => ({
+      base64: Buffer.from('opus').toString('base64'),
+      mimeType: 'application/ogg',
+      fileName: '1791488882-534c1178-237a-4ac4-b184-0dd95eca54b9'
+    })
+  };
+  const transcoder = { isAvailable: () => false, toPlayable: async () => null };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: (packet) => sent.push(decodeFrame(packet)) });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.get', Text: 'a@s.whatsapp.net', RelatedMessageId: 'W2' });
+
+  const media = sent.find((f) => f.Command === 'media' && f.MediaData);
+  assert.ok(media, 'the bytes go out');
+  assert.strictEqual(media.MediaType, 'audio',
+    'application/ogg e il contenitore Ogg: chiamarlo document disegna una scheda file al posto della barra del vocale');
+});
+
 test('un vocale Ogg in arrivo arriva come MP3', async () => {
   const sent = [];
   const gowa = {
