@@ -123,7 +123,7 @@ client any more: it uses GOWA's REST API and webhooks.
 - Tapping an image in a chat opens it over the whole page; tapping it again closes it. A `[Image]` from an old conversation is downloaded first and opens at the next tap
 - A chat's profile picture and its name are two targets: tapping the picture opens it over the whole page, tapping the name opens the contact info, with the number, the about text, the business profile and, for a group, the description and the members with their roles (`contact.info`). Everything the server does not have is simply left out, and a page with nothing to show says so
 - A received video plays over the whole page on a `MediaElement` with the system transport controls, and closes with the X in the corner. Its bytes arrive in pieces and are written to a file as they come, so a full-length video is never held whole in memory; tapping the play box before the bytes are there downloads them first, like an image
-- A received voice note or audio shows a play bar and plays in the same player. WhatsApp sends voice notes as Ogg/Opus and WP8.1 has no Opus decoder, so the adapter converts them to a small mono MP3 first, using `ffmpeg` when it is installed (`FFMPEG_ENABLED`, `FFMPEG_PATH`); without `ffmpeg` the note still arrives and says it cannot be played
+- A received voice note or audio shows a play bar and plays in the same player. WhatsApp sends voice notes as Ogg/Opus and WP8.1 has no Opus decoder, so the adapter converts them to a small mono MP3 first, using `ffmpeg` when it is installed (`FFMPEG_ENABLED`, `FFMPEG_PATH`) and checking at startup which codecs that binary really has; without a usable `ffmpeg` the note still arrives and the app is told it cannot be played. A voice note recorded here plays its own file when tapped, and a send WhatsApp refused stops showing the checkmark and says so
 - A received document shows its file name and a document bar, and tapping it opens the file with the phone's own app. Its bytes come to a file like a video's, and a document from an old conversation is downloaded on tap first
 - A file shared or picked from the Gallery is copied into the app's own folder instead of being read into memory, so a long video is streamed out in pieces rather than taking the app down
 - A chat paints from its cached messages before the connection is up, and its last messages are kept per conversation on the phone
@@ -494,13 +494,18 @@ its siblings have no memory element at all — so this is runtime work, in two h
   the faces before the adapter answers, and a row whose decoded bitmap was dropped
   is redrawn when the list comes back to the front. The pictures are the app's copy
   of what the adapter sent: the adapter keeps them for five minutes as well, so a
-  chat list read twice does not go back to WhatsApp.
+  chat list read twice does not go back to WhatsApp;
+- **cap the conversation**: a chat kept in memory is bounded at 200 messages
+  (`MaxMessagesPerChat` in `DataService`); the older ones fall out and come back
+  from the server when the chat is reopened. This was the last allocation a busy
+  conversation could grow without a limit, and it is what a 512 MB phone needs most;
 
 `tools/check-memory.js` fails the build if a call site forgets the decode width, if
 one asks for more pixels than the screen can show, if `ImageHelper` sets
 `DecodePixelWidth` after the decode, if the row cache starts carrying picture bytes,
-if the avatar cache loses its caps or its serial queue, or if the avatar cache is not
-read before the cached rows are applied.
+if the avatar cache loses its caps or its serial queue, if the avatar cache is not
+read before the cached rows are applied, or if a chat's in-memory history has no
+`MaxMessagesPerChat` ceiling or does not apply it with a `while` trim.
 `WhatsappBridge/test/config.test.js` holds the adapter side of the same budget (`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
 
 ### App language

@@ -121,7 +121,7 @@ proprio: usa l'API REST e i webhook di GOWA.
 - carica i messaggi gia' in memoria aprendo una chat (`messages`, fino a `MESSAGES_LIMIT`), con frame marcati `IsHistory`: vengono inseriti in ordine di data e restano fuori dal conteggio dei non letti e dagli avvisi
 - la foto del profilo di una chat e il suo nome sono due bersagli: toccando la foto si apre a tutto schermo, toccando il nome si aprono le informazioni, con il numero, l'about, il profilo aziendale e, per un gruppo, la descrizione e i membri con il loro ruolo (`contact.info`). Tutto quello che il server non ha viene lasciato fuori, e una pagina senza niente da mostrare lo dice
 - un video ricevuto si riproduce a tutto schermo su un `MediaElement` con i controlli di sistema, e si chiude con la X nell'angolo. I suoi byte arrivano a pezzi e vengono scritti su un file mentre arrivano, quindi un video di lunghezza intera non sta mai tutto in memoria; toccare la casella con il triangolo prima che i byte ci siano li scarica prima, come per un'immagine
-- un vocale o un audio ricevuto mostra una barra con il triangolo e si riproduce nello stesso lettore. WhatsApp manda i vocali come Ogg/Opus e WP8.1 non ha un decoder Opus, quindi l'adapter li converte prima in un piccolo MP3 mono, usando `ffmpeg` quando e' installato (`FFMPEG_ENABLED`, `FFMPEG_PATH`); senza `ffmpeg` il vocale arriva lo stesso e dice che non si puo' riprodurre
+- un vocale o un audio ricevuto mostra una barra con il triangolo e si riproduce nello stesso lettore. WhatsApp manda i vocali come Ogg/Opus e WP8.1 non ha un decoder Opus, quindi l'adapter li converte prima in un piccolo MP3 mono, usando `ffmpeg` quando e' installato (`FFMPEG_ENABLED`, `FFMPEG_PATH`) e controllando all'avvio quali codec ha davvero quel binario; senza un `ffmpeg` utilizzabile il vocale arriva lo stesso e all'app viene detto che non si puo' riprodurre. Un vocale registrato qui riproduce il suo file quando lo si tocca, e un invio rifiutato da WhatsApp non mostra piu' la spunta e lo dice
 - un documento ricevuto mostra il nome del file e una barra con un foglio, e toccarla apre il file con l'app del telefono. I suoi byte arrivano su un file come quelli di un video, e un documento di una vecchia conversazione viene scaricato al tocco
 - un file condiviso o scelto dalla Galleria viene copiato nella cartella dell'app invece che letto in memoria, quindi un video lungo si spedisce a pezzi invece di chiudere l'app
 - una chat si disegna dai messaggi in cache prima che la connessione ci sia, e gli ultimi messaggi restano sul telefono per conversazione
@@ -508,14 +508,20 @@ memoria - quindi il lavoro e' a runtime, in due meta':
   mostra le facce prima che l'adapter risponda, e una riga la cui bitmap decodificata
   e' stata buttata via si ridisegna quando l'elenco torna davanti. Le immagini sono
   la copia di quello che l'adapter ha mandato: anche l'adapter le tiene per cinque
-  minuti, cosi' un elenco chat letto due volte non torna da WhatsApp.
+  minuti, cosi' un elenco chat letto due volte non torna da WhatsApp;
+- **limita la conversazione**: una chat tenuta in memoria e' limitata a 200
+  messaggi (`MaxMessagesPerChat` in `DataService`); i piu' vecchi escono e tornano
+  dal server quando la chat viene riaperta. Era l'ultima allocazione che una
+  conversazione occupata poteva far crescere senza un limite, ed e' quella che serve
+  di piu' a un telefono da 512 MB;
 
 `tools/check-memory.js` fa fallire la build se un punto di chiamata dimentica la
 misura di decodifica, se ne chiede piu' pixel di quanti lo schermo sappia mostrare, se
 `ImageHelper` imposta `DecodePixelWidth` dopo la decodifica, se la copia dell'elenco
 comincia a portarsi dietro i byte delle immagini, se la cache degli avatar perde i
-suoi tetti o la coda di scrittura, o se la cache degli avatar non viene letta prima
-delle righe salvate.
+suoi tetti o la coda di scrittura, se la cache degli avatar non viene letta prima
+delle righe salvate, o se la cronologia in memoria di una chat non ha un tetto
+`MaxMessagesPerChat` o non lo applica con un `while`.
 `WhatsappBridge/test/config.test.js` tiene l'altra meta' dello stesso budget
 (`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
 
