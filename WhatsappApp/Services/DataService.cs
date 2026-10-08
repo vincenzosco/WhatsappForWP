@@ -30,6 +30,13 @@ namespace WhatsappApp.Services
         private readonly ObservableCollection<CallLogEntry> _calls;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
 
+        // How many messages of one chat are kept in memory. The server still holds
+        // the older ones: this is a ceiling on growth, not a deletion, and reopening
+        // the chat asks for the history again. Without it a busy chat grows for as
+        // long as the session lasts, which is the last unbounded allocation on a
+        // 512 MB phone.
+        private const int MaxMessagesPerChat = 200;
+
         // The chats whose history this session has already requested: once per
         // chat, not on every opening.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
@@ -198,6 +205,7 @@ namespace WhatsappApp.Services
                 _chatMessages[message.ChatId] = new ObservableCollection<ChatMessage>();
             }
             _chatMessages[message.ChatId].Add(message);
+            TrimToCeiling(_chatMessages[message.ChatId]);
 
             // Find or create contact for this chat
             var contact = FindContact(message.ChatId);
@@ -969,6 +977,14 @@ namespace WhatsappApp.Services
             }
 
             list.Insert(index, message);
+            TrimToCeiling(list);
+        }
+
+        private static void TrimToCeiling(ObservableCollection<ChatMessage> list)
+        {
+            // while and not if: a burst can add several at once, and one trim per
+            // add would leave the list over the ceiling until the next message.
+            while (list.Count > MaxMessagesPerChat) list.RemoveAt(0);
         }
 
         public void AddMessage(string chatId, ChatMessage message)
@@ -978,6 +994,7 @@ namespace WhatsappApp.Services
                 _chatMessages[chatId] = new ObservableCollection<ChatMessage>();
             }
             _chatMessages[chatId].Add(message);
+            TrimToCeiling(_chatMessages[chatId]);
 
             // Update the contact's last message
             var contact = FindContact(chatId);

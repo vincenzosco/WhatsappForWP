@@ -193,3 +193,28 @@ test('DecodePixelWidth viene assegnato prima del SetSource', () => {
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /DecodePixelWidth/);
 });
+
+test('una chat senza tetto in memoria si segnala', () => {
+  const found = memory.historyCeilingProblems('public void AddMessage() {}', DATA_SERVICE).join('\n');
+  assert.match(found, /MaxMessagesPerChat/);
+});
+
+test('un tetto applicato con while passa', () => {
+  const source = 'private const int MaxMessagesPerChat = 200;\n' +
+    'while (list.Count > MaxMessagesPerChat) list.RemoveAt(0);';
+  assert.deepStrictEqual(memory.historyCeilingProblems(source, DATA_SERVICE), []);
+});
+
+test('un tetto a zero si segnala', () => {
+  const source = 'private const int MaxMessagesPerChat = 0;\n' +
+    'while (list.Count > MaxMessagesPerChat) list.RemoveAt(0);';
+  const found = memory.historyCeilingProblems(source, DATA_SERVICE).join('\n');
+  assert.match(found, /MaxMessagesPerChat/);
+});
+
+test('un tetto applicato con un if si segnala', () => {
+  const source = 'private const int MaxMessagesPerChat = 200;\n' +
+    'if (list.Count > MaxMessagesPerChat) list.RemoveAt(0);';
+  const found = memory.historyCeilingProblems(source, DATA_SERVICE).join('\n');
+  assert.match(found, /while/);
+});
