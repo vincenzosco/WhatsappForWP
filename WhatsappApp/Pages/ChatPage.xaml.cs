@@ -787,13 +787,17 @@ namespace WhatsappApp.Pages
 
             try
             {
-                if (_voiceLoadedFile != message.MediaFilePath)
+                bool anotherMessage = _voiceMessage != message;
+                // The name alone is not enough: a replaced file keeps the same name,
+                // so the player would go on holding the previous recording.
+                if (anotherMessage || _voiceLoadedFile != message.MediaFilePath)
                 {
                     VoicePlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                     _voiceLoadedFile = message.MediaFilePath;
                 }
                 message.AudioFailed = false;
                 _voiceMessage = message;
+                VoicePlayer.Position = TimeSpan.Zero;
                 VoicePlayer.Play();
                 message.IsPlaying = true;
                 StartPlaybackTimer();
@@ -1156,6 +1160,17 @@ namespace WhatsappApp.Pages
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
                 ulong length = (await file.GetBasicPropertiesAsync()).Size;
+
+                if (length == 0)
+                {
+                    // Not a smaller voice note: a file with nothing in it. Today it
+                    // started a transfer with total = 0, the adapter's mediaEnd
+                    // returned in silence, and the bubble kept its checkmark.
+                    Diag.Failed("ChatPage.SendAttachmentAsync/empty",
+                        new InvalidOperationException(fileName + " is 0 bytes"));
+                    message.Status = MessageStatus.Failed;
+                    return;
+                }
                 message.MediaSizeBytes = (long)length;
                 int total = length == 0
                     ? 0
