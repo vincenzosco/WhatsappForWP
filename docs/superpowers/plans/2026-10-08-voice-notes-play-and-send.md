@@ -666,3 +666,43 @@ not there. Six differences worth naming, then what is still owed.
 - **`ffmpeg` on this machine.** Until it is installed, received voice notes do not play here; the
   adapter says so in one line at startup instead of leaving it to the first tap.
 - **The four `download.test.js` failures** are the missing `zip` on this host, not this change.
+## The on-device run of 2026-10-08
+
+The Lumia answered this time, so Task 6 Steps 3-4 ran. Evidence: `.tools/voice-device/IsolatedStore/diag.log`
+(run started 21:16:44, the ARM build of 20:44) and `.tools/voice-device2/IsolatedStore/diag.log` (run
+started 21:44:27, the build with the two fixes below).
+
+What the first run showed:
+
+- the new build was live: `outgoing_attachment_1.m4a` was in the isolated store, so the
+  per-attachment name of Task 3 works on the phone;
+- the operator's three taps: the received note left no line at all, their own recording left a
+  spinner, and the contact saw nothing;
+- one outgoing attempt was in the log, and it is the answer to symptom 3: `out media.begin`,
+  `out media.end`, then `in error Send failed: your audio type is not allowed. ple...`. The
+  adapter's new `error` frame carries the bubble's `RelatedMessageId`, so the refusal is now
+  reportable, where before the bubble kept a checkmark. The refusal itself is WhatsApp: a voice
+  note is accepted only as Ogg/Opus and the phone records M4A/AAC.
+
+Two causes the run exposed that no task in this plan had. Both are in the adapter, and both were
+fixed after the run:
+
+1. **A voice note sent from another device answers the tap with nothing.** `.tools/probe-audio.js`
+   showed the two voice notes in the tested chat are history rows with `IsIncoming: false` - sent
+   from another device, which is exactly the user's "quelli mandati da un altro device".
+   `Downloadable` refused every outgoing message, so `OnPlayAudioClicked` returned without
+   requesting anything. Fixed in `5c7641d` (`!message.IsIncoming && !message.IsHistory`), pinned by
+   a new rule in `check-attachment-file.js`.
+2. **A downloaded voice note is read as a document.** `.tools/probe-media.js` showed the adapter
+   answering `media.get` with `MediaType: "document"`, `MediaMimeType: "application/ogg"` and an
+   extension-less file name: `mediaKindOf` knew only the `audio/` prefix and a list of extensions,
+   and the Ogg container's own MIME type is `application/ogg`. The note was drawn as a file card,
+   and `isOggOpus` had the same gap, so it was never converted either. Fixed in `5a27e39`.
+
+What is still owed after the run:
+
+- **`ffmpeg` on the host that runs the adapter.** The adapter now needs it in both directions, and
+  the stripped audio build must carry `libmp3lame` and `libopus` (see `WhatsappBridge/README.md`).
+  That host is `192.168.0.108`, not this machine, so the last device check waits on the operator
+  deploying `5a27e39` there and installing ffmpeg.
+- **The four `download.test.js` failures** are the missing `zip` on this host, not this change.
