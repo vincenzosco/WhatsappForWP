@@ -65,7 +65,7 @@ The tree is dirty with four reviewed, green changes from the investigation that 
 - Consumes: nothing.
 - Produces: a clean tree at a green commit; `WhatsappApp/Pages/ChatPage.xaml` and `ChatPage.xaml.cs` at their committed state for Task 2.
 
-- [ ] **Step 1: Commit the plan**
+- [x] **Step 1: Commit the plan**
 
 ```bash
 git add docs/superpowers/plans/2026-10-08-chat-open-xaml-name-duplicate.md
@@ -73,13 +73,13 @@ env GIT_AUTHOR_NAME=vincenzosco GIT_AUTHOR_EMAIL=131459463+vincenzosco@users.nor
   git commit -m "docs: plan the chat open fix the attached debugger named"
 ```
 
-- [ ] **Step 2: Run the gate on the tree as it stands**
+- [x] **Step 2: Run the gate on the tree as it stands**
 
 Run, from `tools/`, the Global Constraints list without its last entry (all of it but `check-xaml-names.js`, which does not exist yet), then `node --test "tools/test/**/*.test.js"`.
 
 Expected: thirteen `OK` lines and exit 0; 107 tests with the four `download.test.js` failures of the baseline.
 
-- [ ] **Step 3: Commit the standing work**
+- [x] **Step 3: Commit the standing work**
 
 ```bash
 git add WhatsappApp/Pages/ChatPage.xaml.cs WhatsappApp/Pages/ChatsPage.xaml.cs \
@@ -89,7 +89,7 @@ env GIT_AUTHOR_NAME=vincenzosco GIT_AUTHOR_EMAIL=131459463+vincenzosco@users.nor
   git commit -m "fix: say where the log stops and stop the screen request from lying"
 ```
 
-- [ ] **Step 4: Push**
+- [x] **Step 4: Push**
 
 ```bash
 git push origin master 2>&1 | grep -v "repository moved"
@@ -121,7 +121,7 @@ Expected: `master -> master`. `git status --short` is then empty.
   - `ChatPage.xaml` with `x:Name="IncomingPlayAudioButton"` at line 234 wired to `Click="IncomingPlayAudioButton_Click"`, and `x:Name="OutgoingPlayAudioButton"` at line 429 wired to `Click="OutgoingPlayAudioButton_Click"`. No `PlayAudioButton` name anywhere.
   - `ChatPage.xaml.cs` with `private void OnPlayAudioClicked(object sender)` holding the body that was in `PlayAudioButton_Click`, and the two event handlers above as one-line delegations to it.
 
-- [ ] **Step 1: Write the five fixtures**
+- [x] **Step 1: Write the five fixtures**
 
 `tools/xaml-names-fixtures/unique-names.xaml` - the legitimate shape: every name once.
 
@@ -192,7 +192,7 @@ Expected: `master -> master`. `git status --short` is then empty.
 </Page>
 ```
 
-- [ ] **Step 2: Write the failing test**
+- [x] **Step 2: Write the failing test**
 
 `tools/test/check-xaml-names.test.js`, with the fixture loader of `tools/test/check-handshake-answer.test.js`:
 
@@ -211,13 +211,13 @@ Six tests, each asserting on `nameProblems(xaml, file).join('\n')`:
 5. `due volte lo stesso nome in un DataTemplate e un problema` - the problems of `duplicate-in-template.xaml` match `/PlayAudioButton/` and `/4 and 5/`.
 6. `due volte lo stesso nome nella radice della pagina e un problema` - on the literal string `'<Page>\n<Button x:Name="A"/>\n<Button x:Name="A"/>\n</Page>'` with file `'inline.xaml'`, the problems match `/A/` and `/2 and 3/`.
 
-- [ ] **Step 3: Run the test and watch it fail**
+- [x] **Step 3: Run the test and watch it fail**
 
 Run: `node --test tools/test/check-xaml-names.test.js`
 
 Expected: FAIL - `Cannot find module '../check-xaml-names.js'`.
 
-- [ ] **Step 4: Implement `tools/check-xaml-names.js`**
+- [x] **Step 4: Implement `tools/check-xaml-names.js`**
 
 `nameProblems(xaml, file)`: one pass over the text with
 
@@ -239,19 +239,19 @@ OK: ${names} name(s) in ${files} XAML file(s), no name repeats inside one namesc
 
 and exit 0. Export `{ nameProblems }`; call `main()` behind `if (require.main === module)`.
 
-- [ ] **Step 5: Run the test and watch it pass**
+- [x] **Step 5: Run the test and watch it pass**
 
 Run: `node --test tools/test/check-xaml-names.test.js`
 
 Expected: six tests, all passing.
 
-- [ ] **Step 6: Run the guard on the app and reproduce the crash on the PC**
+- [x] **Step 6: Run the guard on the app and reproduce the crash on the PC**
 
 Run: `node tools/check-xaml-names.js`
 
 Expected: FAIL, exit 1, naming `WhatsappApp/Pages/ChatPage.xaml` and `x:Name="PlayAudioButton"` twice with lines **234** and **429** - the defect of the phone log, reproduced here in one second without a phone. Confirm the file count it walked excludes `obj/`: nine files, not thirteen.
 
-- [ ] **Step 7: Give the two buttons two names in `WhatsappApp/Pages/ChatPage.xaml`**
+- [x] **Step 7: Give the two buttons two names in `WhatsappApp/Pages/ChatPage.xaml`**
 
 At line 234, inside the bubble bound to `IsIncoming` (line 165):
 
@@ -271,7 +271,7 @@ and its `Click` becomes `Click="OutgoingPlayAudioButton_Click"`.
 
 `check-actions.js` requires a button named `X` to be wired to `X_Click`, which is why each gets its own handler rather than sharing the old one; the two handlers share the body instead.
 
-- [ ] **Step 8: Give the handler the two names its buttons now carry**
+- [x] **Step 8: Give the handler the two names its buttons now carry**
 
 In `WhatsappApp/Pages/ChatPage.xaml.cs`, the doc comment above `PlayAudioButton_Click` (line 730) stays where it is and keeps saying what the tap does; add why there are two of them. Rename the body method and add the two handlers:
 
@@ -292,13 +292,13 @@ In `WhatsappApp/Pages/ChatPage.xaml.cs`, the doc comment above `PlayAudioButton_
         }
 ```
 
-- [ ] **Step 9: Run the guard again**
+- [x] **Step 9: Run the guard again**
 
 Run: `node tools/check-xaml-names.js`
 
 Expected: `OK: 120 name(s) in 9 XAML file(s), no name repeats inside one namescope.`
 
-- [ ] **Step 10: Put the guard in the lists that claim to be the gate**
+- [x] **Step 10: Put the guard in the lists that claim to be the gate**
 
 `README.md` and `README.it.md`: the `3. Make the change, then run the fast gate:` block lists eleven guards and stops before `check-diagnostics.js` and `check-handshake-answer.js`. Add all three, in the same order and with the same continuation lines in both languages, so the block matches the Global Constraints list. `check-docs.js` compares headings and not code blocks, so the pair stays in step; make the two edits in the same commit anyway.
 
@@ -306,13 +306,13 @@ Expected: `OK: 120 name(s) in 9 XAML file(s), no name repeats inside one namesco
 
 `.agents/skills/maintain-the-app/SKILL.md`: add `&& node tools/check-xaml-names.js` to the fast-gate command in step 5.
 
-- [ ] **Step 11: Run the full gate**
+- [x] **Step 11: Run the full gate**
 
 Run, from `tools/`, the fourteen guards of the Global Constraints list, then `node --test "tools/test/**/*.test.js"`, then `cd WhatsappBridge && npm test`.
 
 Expected: fourteen `OK` lines and exit 0; 113 tests with 108 pass, the same 4 `download.test.js` failures, 1 skip; the adapter suite with its usual `pass`/`fail 0`.
 
-- [ ] **Step 12: Build ARM and check it is clean**
+- [x] **Step 12: Build ARM and check it is clean**
 
 ```bash
 (MSYS_NO_PATHCONV=1 "/c/Program Files (x86)/MSBuild/12.0/Bin/MSBuild.exe" WhatsappApp.sln /t:Rebuild \
@@ -324,7 +324,7 @@ git checkout -- WhatsappApp/Package.appxmanifest
 rm .build.log
 ```
 
-- [ ] **Step 13: Commit and push**
+- [x] **Step 13: Commit and push**
 
 ```bash
 git add tools/check-xaml-names.js tools/test/check-xaml-names.test.js tools/xaml-names-fixtures \
@@ -349,7 +349,7 @@ The fix is only proven where it failed. The artifact is the log of a run on the 
 - Consumes: the ARM package Task 2 built, at `WhatsappApp/bin/ARM/Debug/WhatsappApp_1.0.0.0_Bundle/WhatsappApp_1.0.0.0_ARM_Debug.appx`.
 - Produces: a phone log whose last lines are the conversation bound and nothing after it, and a ledger entry naming the run.
 
-- [ ] **Step 1: Install and launch, without a debugger**
+- [x] **Step 1: Install and launch, without a debugger**
 
 Ask the operator to unlock the phone screen first: `AppDeployCmd.exe` refuses `/launch` on a locked screen. Then, from `/c/Program Files (x86)/Microsoft SDKs/Windows Phone/v8.1/Tools/AppDeploy`:
 
@@ -360,11 +360,11 @@ env MSYS_NO_PATHCONV=1 ./AppDeployCmd.exe /launch 7ccc5b77-3cf2-4020-92a7-9542b2
 
 Read the output: the tool exits 0 even when it prints `Errore:`. `/install` wipes the isolated storage, so the token and the caches are rebuilt from the hardware id on this launch.
 
-- [ ] **Step 2: Open a chat and let it sit**
+- [x] **Step 2: Open a chat and let it sit**
 
 Ask the operator to open a conversation that has messages in it, wait for the messages to appear, then bring the app to the app list. Nothing is judged from the screen alone: the log decides.
 
-- [ ] **Step 3: Pull the run and read it**
+- [x] **Step 3: Pull the run and read it**
 
 With the app closed, from `.../IsolatedStorageExplorerTool`:
 
@@ -376,7 +376,7 @@ env MSYS_NO_PATHCONV=1 ./ISETool.exe ts de 7ccc5b77-3cf2-4020-92a7-9542b250bb49 
 
 Take the snapshot at least a few minutes after the run: a snapshot taken while the log is being written catches a `diag.log.~tmp` instead.
 
-- [ ] **Step 4: Assert on the log**
+- [x] **Step 4: Assert on the log**
 
 Expected, in `.tools/phone-open/IsolatedStore/diag.log`:
 
@@ -386,6 +386,55 @@ Expected, in `.tools/phone-open/IsolatedStore/diag.log`:
 
 If it still closes, the last line of the log is the next site and names it: fix forward from there, and the loop of Task 2 Step 11 to Task 3 Step 4 repeats.
 
-- [ ] **Step 5: Record the run in the ledger**
+- [x] **Step 5: Record the run in the ledger**
 
 Append to `.superpowers/sdd/2026-10-08-chat-open-xaml-name-duplicate/progress.md`: the date and time of the run, the package path, the four `DIAG` lines of Step 4, the absence of `App/unhandled`, and the snapshot directory. No commit: the ledger and the snapshot are gitignored, and the fix is already pushed.
+---
+
+## What execution changed
+
+The plan was followed and the tree ended where it said it would. Four differences worth
+naming, then what the phone said.
+
+1. **Task 2 Step 12's `sleep 135` became a poll.** This machine's ARM rebuild ran longer than
+   135 s, so a fixed sleep would have read a half-written log. The step now waits for
+   `Build succeeded` / `Build FAILED` / `error MSB` up to a 500 s cap. Outcome unchanged:
+   **0** `warning CS`/`error CS` lines and **1** `successfully created`.
+2. **Task 2 Step 13's message carries a body and the Codebuff footer.** The plan gave the
+   subject alone, but the five commits before it in this repository each state the *why* and
+   end with the footer (374 lines of history match `codebuff`). The subject is verbatim.
+3. **`git add` of the two skill files exits 1**, because `.agents/skills` sits in `.gitignore`,
+   and it aborts the `&&` chain before the commit. Both files are tracked (`git ls-files` lists
+   them), so the stage happens anyway; the staged set was read back with
+   `git diff --cached --name-only` before committing rather than assumed.
+4. **The guard's output matched the plan to the line number.** Step 6 predicted lines 234 and
+   429, and the guard printed `(lines 234 and 429)`. Step 9 predicted
+   `120 name(s) in 9 XAML file(s)`, and that is what it printed.
+
+### What the phone said
+
+Run of `2026-10-08T18:34:10` on the Lumia, `/install` then `/launch`, no debugger attached.
+`.tools/phone-open/IsolatedStore/diag.log` is 56 lines and ends:
+
+```
+ok: opened chat 393492556507@s.whatsapp.net, memory 22 MB
+ok: history done for 393492556507@s.whatsapp.net: 50 message(s), 15234 bytes
+ok: conversation bound 50 message(s)
+ok: bound 50 rows, memory 20 MB
+```
+
+`grep -c "App/unhandled"` is **0** and `grep -c "XamlParseException"` is **0**. The pre-fix run
+quoted in the Spec above ended at `bound 31 rows` with the exception on the line after it;
+this one ends at the bind and stops there.
+
+### What is left open
+
+- The four `download.test.js` failures are still failing, and they belong to the missing `zip`
+  on this host, not to this change. The suite went from 107 tests to 113 by the six this task
+  added, with the same four red.
+- Three stale generated `ChatPage.xaml` copies under `obj/` still hold the old duplicate name.
+  The guard skips `obj/` and `bin/` on purpose - without the skip it would report three
+  permanent false problems on a tree where the fix has landed - so they are harmless, but they
+  are why a repository-wide `grep PlayAudioButton` still returns hits.
+- The guard matches `x:Name="..."` with no space around the `=`. No XAML in this project uses
+  the spaced form today; one that did would be invisible to it.
