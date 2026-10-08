@@ -273,21 +273,27 @@ non si puo' riprodurre.
 
 **Un ffmpeg ridotto e' supportato.** L'adapter non assume che "ffmpeg parte"
 significhi "ffmpeg sa fare questo lavoro": all'avvio chiede al binario gli encoder, i
-muxer e il decoder che usa davvero (un MP3 da Ogg/Opus per i vocali, un MP4 piu' piccolo
-per un video grande) e scrive cosa ha trovato, per esempio
-`OK ffmpeg found: audio yes, video no`. Un build senza `libmp3lame` viene rifiutato con
-`WARN ffmpeg cannot make MP3`, sia che il binario venga da un pacchetto sia da un build
-proprio.
+muxer e il decoder che usa davvero (un MP3 da Ogg/Opus per un vocale ricevuto, un
+Ogg/Opus dall'M4A/AAC del telefono per uno spedito, un MP4 piu' piccolo per un video
+grande) e scrive cosa ha trovato, per esempio `OK ffmpeg found: audio yes, voice yes,
+video no`. Un build senza `libmp3lame` viene rifiutato con `WARN ffmpeg cannot make
+MP3`, e uno senza `libopus` con `WARN ffmpeg cannot make Opus`, sia che il binario
+venga da un pacchetto sia da un build proprio.
 
-Per costruire un ffmpeg piccolo, solo audio, per i vocali, configuralo solo con quei
-pezzi (l'encoder video resta fuori):
+Le due meta' sono indipendenti, e ognuna dice cosa le manca. `audio yes` e' la
+direzione ricevuta (MP3 per il telefono); `voice yes` quella spedita (Ogg/Opus per
+WhatsApp); `video yes` il rimpicciolimento dei video grandi.
+
+Per costruire un ffmpeg piccolo, solo audio, per i vocali in entrambe le direzioni,
+configuralo solo con quei pezzi (l'encoder video resta fuori):
 
 ```bash
 ./configure --disable-everything --disable-doc --disable-programs --enable-ffmpeg \
-  --enable-protocol=pipe --enable-demuxer=ogg --enable-decoder=opus \
-  --enable-parser=opus --enable-filter=aresample \
-  --enable-encoder=libmp3lame --enable-muxer=mp3 \
-  --enable-gpl --enable-libmp3lame
+  --enable-protocol=pipe \
+  --enable-demuxer=ogg,mov --enable-decoder=opus,aac \
+  --enable-parser=opus,aac --enable-filter=aresample \
+  --enable-encoder=libmp3lame,libopus --enable-muxer=mp3,ogg \
+  --enable-gpl --enable-libmp3lame --enable-libopus
 ```
 
 Aggiungi i pezzi video quando va rimpicciolito anche un video grande:
@@ -300,12 +306,14 @@ byte come prima e manda anche un motivo all'app (`This voice note cannot be play
 the phone: ffmpeg is not installed on the server to convert it.`), cosi' la persona sa
 perche' invece di scoprirlo al primo tocco.
 
-L'altra direzione non ha bisogno di ffmpeg. Un vocale registrato arriva dall'app
-come payload M4A/AAC; `sendMediaToGowa` passa un payload `audio` a
-`session.gowa.sendAudio`, che lo pubblica su `POST /send/audio` (campo del form
-`audio`). E' quella rotta a far spedire da GOWA un vocale WhatsApp invece di un
-file con un MIME audio. Un adapter costruito su un GOWA senza la rotta ripiega
-su `POST /send/file`.
+Anche l'altra direzione ha bisogno di ffmpeg. Un vocale registrato arriva dall'app come
+payload M4A/AAC, e WhatsApp accetta un vocale solo come Ogg/Opus: `sendMediaToGowa`
+chiede prima un Ogg/Opus al transcoder (mono, 16 kHz, 32 kbit/s) e passa quel payload
+`audio` a `session.gowa.sendAudio`, che lo pubblica su `POST /send/audio` (campo del
+form `audio`). E' quella rotta a far spedire da GOWA un vocale WhatsApp invece di un
+file con un MIME audio. Senza un encoder Opus esce l'M4A originale e viene rifiutato con
+`your audio type is not allowed`, che l'app ora mostra sulla bolla invece di una spunta.
+Un adapter costruito su un GOWA senza la rotta ripiega su `POST /send/file`.
 
 ## Avvio
 

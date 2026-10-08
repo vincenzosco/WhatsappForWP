@@ -9,8 +9,8 @@ const silent = () => {};
 // What a full ffmpeg prints for the three listings the probe reads. The words
 // are on their own lines, exactly as ffmpeg writes them.
 const LISTINGS = {
-  '-encoders': 'Encoders:\n A..... libmp3lame          libmp3lame\n A..... libx264             libx264',
-  '-muxers': 'Muxers:\n E  mp3           MP3\n E  mp4           MP4',
+  '-encoders': 'Encoders:\n A..... libmp3lame          libmp3lame\n A..... libopus             libopus\n A..... libx264             libx264',
+  '-muxers': 'Muxers:\n E  mp3           MP3\n E  ogg           Ogg\n E  mp4           MP4',
   '-decoders': 'Decoders:\n A....D opus                Opus'
 };
 
@@ -46,7 +46,7 @@ test('replaceExtension sostituisce solo l ultima estensione', () => {
 test('un ffmpeg completo dichiara audio e video', async () => {
   const transcoder = createTranscoder({ log: silent, run: probeRun(async () => Buffer.alloc(0)) });
   assert.strictEqual(await transcoder.probe(), true);
-  assert.deepStrictEqual(transcoder.capabilities(), { audio: true, video: true });
+  assert.deepStrictEqual(transcoder.capabilities(), { audio: true, opus: true, video: true });
 });
 
 test('un ffmpeg senza libmp3lame non e disponibile, e lo dice', async () => {
@@ -59,7 +59,7 @@ test('un ffmpeg senza libmp3lame non e disponibile, e lo dice', async () => {
     }
   });
   assert.strictEqual(await transcoder.probe(), false);
-  assert.deepStrictEqual(transcoder.capabilities(), { audio: false, video: false });
+  assert.deepStrictEqual(transcoder.capabilities(), { audio: false, opus: false, video: false });
   assert.ok(logs.some((line) => /WARN/.test(line) && /libmp3lame/.test(line)),
     'il log deve dire cosa manca al binario');
 });
@@ -71,15 +71,15 @@ test('un ffmpeg con audio ma senza video serve solo i vocali', async () => {
     run: async (args) => {
       const key = args[args.length - 1];
       if (key === '-version') return Buffer.alloc(0);
-      if (key === '-encoders') return Buffer.from('Encoders:\n A..... libmp3lame          libmp3lame');
-      if (key === '-muxers') return Buffer.from('Muxers:\n E  mp3           MP3');
+      if (key === '-encoders') return Buffer.from('Encoders:\n A..... libmp3lame          libmp3lame\n A..... libopus             libopus');
+      if (key === '-muxers') return Buffer.from('Muxers:\n E  mp3           MP3\n E  ogg           Ogg');
       if (key === '-decoders') return Buffer.from('Decoders:\n A....D opus                Opus');
       return Buffer.alloc(0);
     }
   });
   assert.strictEqual(await transcoder.probe(), true);
-  assert.deepStrictEqual(transcoder.capabilities(), { audio: true, video: false });
-  assert.ok(logs.some((line) => /OK/.test(line) && /audio yes, video no/.test(line)));
+  assert.deepStrictEqual(transcoder.capabilities(), { audio: true, opus: true, video: false });
+  assert.ok(logs.some((line) => /OK/.test(line) && /audio yes, voice yes, video no/.test(line)));
 });
 
 test('un vocale Ogg diventa un MP3', async () => {
@@ -122,7 +122,7 @@ test('senza ffmpeg si resta muti e non si prova per ogni vocale', async () => {
   });
   assert.strictEqual(await transcoder.probe(), false);
   assert.strictEqual(transcoder.isAvailable(), false);
-  assert.deepStrictEqual(transcoder.capabilities(), { audio: false, video: false });
+  assert.deepStrictEqual(transcoder.capabilities(), { audio: false, opus: false, video: false });
   assert.strictEqual(await transcoder.toPlayable(Buffer.from('x'), 'audio/ogg', 'voce.ogg'), null);
   assert.strictEqual(ran, 1);                       // solo la prova
 });
@@ -245,4 +245,66 @@ test('senza ffmpeg un video grande resta com e', async () => {
 
   const big = Buffer.alloc(VIDEO_COMPRESS_MIN_BYTES + 1);
   assert.strictEqual(await transcoder.toSmallerVideo(big, 'video/mp4', 'clip.mp4'), null);
+});
+
+test('un vocale registrato dal telefono diventa un Ogg/Opus', async () => {
+  const calls = [];
+  const transcoder = createTranscoder({
+    log: silent,
+    run: probeRun(async (args, input) => {
+      calls.push({ args, input });
+      return Buffer.from('ogg-finto');
+    })
+  });
+  await transcoder.probe();
+  const out = await transcoder.toVoiceNote(Buffer.from('m4a-finto'), 'audio/mp4', 'voce.m4a');
+
+  assert.ok(out, 'un M4A registrato va convertito: WhatsApp non accetta altro');
+  assert.strictEqual(out.mimeType, 'audio/ogg');
+  assert.strictEqual(out.fileName, 'voce.ogg');
+  assert.strictEqual(out.buffer.toString(), 'ogg-finto');
+  const transcodes = calls.filter((c) => c.args.includes('pipe:1'));
+  assert.strictEqual(transcodes.length, 1);
+  assert.ok(transcodes[0].args.includes('libopus'), 'la conversione usa l encoder Opus');
+});
+
+test('un vocale gia Ogg/Opus non si riconverte', async () => {
+  let ran = 0;
+  const transcoder = createTranscoder({
+    log: silent,
+    run: probeRun(async () => { ran++; return Buffer.alloc(0); })
+  });
+  await transcoder.probe();
+  const before = ran;
+  assert.strictEqual(await transcoder.toVoiceNote(Buffer.from('x'), 'audio/ogg', 'voce.ogg'), null);
+  assert.strictEqual(ran, before, 'un vocale gia pronto non passa da ffmpeg');
+});
+
+test('un ffmpeg senza libopus non prova a fare un vocale', async () => {
+  let transcodes = 0;
+  const transcoder = createTranscoder({
+    log: silent,
+    run: async (args) => {
+      const key = args[args.length - 1];
+      if (key === '-version') return Buffer.alloc(0);
+      if (key === '-encoders') return Buffer.from('Encoders:\n A..... libmp3lame          libmp3lame');
+      if (key === '-muxers') return Buffer.from('Muxers:\n E  mp3           MP3');
+      if (key === '-decoders') return Buffer.from('Decoders:\n A....D opus                Opus');
+      transcodes++;
+      return Buffer.alloc(1000);
+    }
+  });
+  await transcoder.probe();
+  assert.strictEqual(transcoder.capabilities().opus, false);
+  assert.strictEqual(await transcoder.toVoiceNote(Buffer.from('x'), 'audio/mp4', 'voce.m4a'), null);
+  assert.strictEqual(transcodes, 0, 'senza libopus non si tenta la conversione');
+});
+
+test('se ffmpeg fallisce su un vocale in uscita si manda l originale', async () => {
+  const transcoder = createTranscoder({
+    log: silent,
+    run: probeRun(async () => { throw new Error('boom'); })
+  });
+  await transcoder.probe();
+  assert.strictEqual(await transcoder.toVoiceNote(Buffer.from('x'), 'audio/mp4', 'voce.m4a'), null);
 });

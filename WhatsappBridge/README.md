@@ -264,21 +264,27 @@ that it cannot be played.
 
 **A stripped ffmpeg is supported.** The adapter does not assume that "ffmpeg runs"
 means "ffmpeg can do this job": at startup it asks the binary for the encoders, the
-muxers and the decoder it actually calls (an MP3 from Ogg/Opus for the voice notes, a
-smaller MP4 for a large video) and logs what it found, for example
-`OK ffmpeg found: audio yes, video no`. A build without `libmp3lame` is refused with
-`WARN ffmpeg cannot make MP3`, whether the binary came from a package or from a build
-of your own.
+muxers and the decoder it actually calls (an MP3 from Ogg/Opus for a received voice
+note, an Ogg/Opus from the phone's M4A/AAC for a sent one, a smaller MP4 for a large
+video) and logs what it found, for example `OK ffmpeg found: audio yes, voice yes,
+video no`. A build without `libmp3lame` is refused with `WARN ffmpeg cannot make MP3`,
+and one without `libopus` with `WARN ffmpeg cannot make Opus`, whether the binary came
+from a package or from a build of your own.
 
-To build a small, audio-only ffmpeg for the voice notes, configure it with just those
-pieces (the video encoder is left out):
+The two halves are independent, and each names what it is missing. `audio yes` is the
+received direction (MP3 for the phone); `voice yes` is the sent one (Ogg/Opus for
+WhatsApp); `video yes` is the large-video shrink.
+
+To build a small, audio-only ffmpeg for the voice notes in both directions, configure
+it with just those pieces (the video encoder is left out):
 
 ```bash
 ./configure --disable-everything --disable-doc --disable-programs --enable-ffmpeg \
-  --enable-protocol=pipe --enable-demuxer=ogg --enable-decoder=opus \
-  --enable-parser=opus --enable-filter=aresample \
-  --enable-encoder=libmp3lame --enable-muxer=mp3 \
-  --enable-gpl --enable-libmp3lame
+  --enable-protocol=pipe \
+  --enable-demuxer=ogg,mov --enable-decoder=opus,aac \
+  --enable-parser=opus,aac --enable-filter=aresample \
+  --enable-encoder=libmp3lame,libopus --enable-muxer=mp3,ogg \
+  --enable-gpl --enable-libmp3lame --enable-libopus
 ```
 
 Add the video pieces when a large video must be shrunk as well:
@@ -291,12 +297,15 @@ bytes as before and also sends the app a reason (`This voice note cannot be play
 the phone: ffmpeg is not installed on the server to convert it.`), so the person is
 told why instead of finding out on the first tap.
 
-The other direction needs no ffmpeg. A recorded voice note arrives from the app
-as an M4A/AAC payload; `sendMediaToGowa` gives an `audio` payload to
-`session.gowa.sendAudio`, which posts it to `POST /send/audio` (form field
-`audio`). That route is what makes GOWA send a WhatsApp voice note rather than a
-file with an audio MIME type. An adapter built against a GOWA without the route
-falls back to `POST /send/file`.
+The other direction needs ffmpeg too. A recorded voice note arrives from the app as an
+M4A/AAC payload, and WhatsApp accepts a voice note only as Ogg/Opus: `sendMediaToGowa`
+asks the transcoder for an Ogg/Opus first (mono, 16 kHz, 32 kbit/s) and gives that
+`audio` payload to `session.gowa.sendAudio`, which posts it to `POST /send/audio` (form
+field `audio`). That route is what makes GOWA send a WhatsApp voice note rather than a
+file with an audio MIME type. Without an Opus encoder the original M4A goes out and is
+refused with `your audio type is not allowed`, which the app now shows on the bubble
+instead of a checkmark. An adapter built against a GOWA without the route falls back to
+`POST /send/file`.
 
 ## Starting it
 
