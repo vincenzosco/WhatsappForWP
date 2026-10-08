@@ -1178,7 +1178,7 @@ namespace WhatsappApp.Pages
 
                 string transferId = Guid.NewGuid().ToString("N");
                 await CommunicationService.Instance.SendMediaBeginAsync(
-                    _contact.Id, transferId, fileName, mimeType, total);
+                    _contact.Id, message.Id, transferId, fileName, mimeType, total);
 
                 using (var stream = await file.OpenReadAsync())
                 {
