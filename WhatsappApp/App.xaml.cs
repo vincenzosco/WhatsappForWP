@@ -55,10 +55,18 @@ namespace WhatsappApp
 
             // A fatal exception on the UI thread used to kill the process before
             // any Diag line was written: the log stopped at the assembly list and
-            // the crash had no name. These two handlers put the type, the HRESULT
-            // and the message in the log before that happens.
+            // the crash had no name. These handlers put the type, the HRESULT, the
+            // message and the frames in the log before that happens.
             this.UnhandledException += this.OnUnhandled;
             System.Threading.Tasks.TaskScheduler.UnobservedTaskException += this.OnUnobservedTask;
+
+            // Only the UI thread is covered, and on this platform it cannot be
+            // otherwise: Windows Phone 8.1 declares no `AppDomain` at all (the ARM
+            // build answered `error CS0103: the name 'AppDomain' does not exist`),
+            // so an exception raised on a thread that is not the UI thread has no
+            // hook here and takes the process down without a line. What a background
+            // failure can do about it is not be raised: every worker goes through
+            // `Guarded`, which records the failure and keeps the app alive.
         }
 
         /// <summary>
@@ -71,14 +79,19 @@ namespace WhatsappApp
         {
             Diag.Failed("App/unhandled", e.Exception);
 
-            // Forced: the line above is only in memory until it is written, and
-            // this is the one moment where the process may not survive to write it
-            // later. A crash with no line is the failure nobody can fix.
+            // The frames too: the type and the HRESULT name the failure, and only
+            // the stack says which call raised it.
+            Diag.Stack(e.Exception);
+
+            // Forced: the lines above are only in memory until they are written,
+            // and this is the one moment where the process may not survive to
+            // write them later. A crash with no line is the failure nobody can fix.
             Diag.Flush(true);
 #if DEBUG
             e.Handled = true;
 #endif
         }
+
 
         /// <summary>
         /// A Task whose fault nobody read. The phone used to die with no line at
@@ -87,6 +100,7 @@ namespace WhatsappApp
         private void OnUnobservedTask(object sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
         {
             Diag.Failed("App/unobserved-task", e.Exception);
+            Diag.Stack(e.Exception);
             Diag.Flush(true);
             e.SetObserved();
         }
