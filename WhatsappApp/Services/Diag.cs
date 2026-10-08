@@ -105,10 +105,55 @@ namespace WhatsappApp.Services
             get { lock (Gate) { return _pendingTail; } }
         }
 
+        /// <summary>
+        /// How many frames of a crash reach the log. The top of the stack is where
+        /// the failure is; a report the buffer cannot hold helps nobody.
+        /// </summary>
+        private const int StackFrameLimit = 12;
+
         /// <summary>To call inside a catch, for a failure we carry on from.</summary>
         public static void Failed(string where, Exception ex)
         {
-            Write(where + ": " + Describe(ex));
+            Write(where + ": " + Describe(ex), true);
+        }
+
+        /// <summary>
+        /// The frames of an exception, one line each.
+        ///
+        /// Why it is here: `Describe` names the failure and the stack says where it
+        /// came from, and a report that names a crash without its frames cannot be
+        /// acted on. The lines are forced to the file at the end - a crash is the
+        /// one moment where waiting for the flush interval is waiting for a write
+        /// that never happens - and the inner chain is walked as well, because an
+        /// exception raised while handling another one keeps the cause one level
+        /// down.
+        /// </summary>
+        public static void Stack(Exception ex)
+        {
+            if (ex == null) return;
+
+            for (Exception current = ex; current != null; current = current.InnerException)
+            {
+                if (!ReferenceEquals(current, ex))
+                {
+                    Write("  inner: " + Describe(current), false);
+                }
+
+                string frames = current.StackTrace;
+                if (string.IsNullOrEmpty(frames)) continue;
+
+                string[] lines = frames.Split('\n');
+                int count = lines.Length < StackFrameLimit ? lines.Length : StackFrameLimit;
+                for (int i = 0; i < count; i++)
+                {
+                    string frame = lines[i].Trim();
+                    if (frame.Length > 0) Write("  " + frame, false);
+                }
+            }
+
+            // One write for the whole stack: the file is rewritten whole, so a
+            // frame that flushed on its own would rewrite it once per line.
+            Flush(true);
         }
 
         /// <summary>
@@ -248,6 +293,17 @@ namespace WhatsappApp.Services
 
         private static void Write(string line)
         {
+            Write(line, false);
+        }
+
+        /// <summary>
+        /// The line sink. `force` is for the lines that have to be on disk before
+        /// the process may die - a crash - and not for the ones a loop repeats,
+        /// where the interval is what keeps the log from being rewritten once per
+        /// frame.
+        /// </summary>
+        private static void Write(string line, bool force)
+        {
             lock (Gate)
             {
                 if (Seen.Contains(line)) return;
@@ -259,7 +315,7 @@ namespace WhatsappApp.Services
                 AppendLine(line);
             }
             EmitToDebugger(line);
-            Flush();
+            Flush(force);
         }
 
         /// <summary>

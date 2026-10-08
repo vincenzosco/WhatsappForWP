@@ -49,6 +49,14 @@
  *      with the run marker still in place (seen on the phone on 2026-10-07), and
  *      the run that had to be explained was the one whose log was gone.
  *
+ * `Application.UnhandledException` carries the UI thread only, and on Windows
+ * Phone 8.1 it cannot be widened: the profile declares no `AppDomain` at all, so
+ * an exception raised on a thread that is not the UI thread has no hook there and
+ * takes the process down with the log silent (a marker file with nothing beside
+ * it, seen on the phone on 2026-10-08). What such a failure can do instead is not
+ * be raised: every worker runs through `Guarded`, and what a `Guarded` worker
+ * cannot reach is a fail-fast of the runtime itself.
+ *
  * Usage: node tools/check-diagnostics.js
  */
 'use strict';
@@ -248,8 +256,9 @@ function main() {
   console.log('OK: the diagnostics reach the disk through one writer with a ' +
     'ceiling, the file is fetched before it is written so a suspension cannot ' +
     'empty it, every line also reaches the debugger through EmitToDebugger, the ' +
-    'unhandled handler flushes them, the run keeps its marker until it ends on ' +
-    'purpose, and the history wait is at least ' + HISTORY_WAIT_FLOOR + ' ms.');
+    'unhandled handler writes the frames and flushes them, the run keeps its ' +
+    'marker until it ends on purpose, and the history wait is at least ' +
+    HISTORY_WAIT_FLOOR + ' ms.');
 }
 
 if (require.main === module) main();
