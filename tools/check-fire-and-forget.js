@@ -34,6 +34,7 @@ const { stripComments } = require('./csharp');
 
 const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'WhatsappApp');
+const DATA_SERVICE = 'WhatsappApp/Services/DataService.cs';
 
 const DISABLE = '#pragma warning disable 4014';
 const RESTORE = '#pragma warning restore 4014';
@@ -119,6 +120,37 @@ function regions(source) {
 /** Un corpo che risponde del proprio fault: un `catch` c'e'. */
 function handlesItsOwnFault(body) {
   return /catch\s*\(/.test(body);
+}
+
+/**
+ * L'answer dell'adapter per un allegato deve essere osservata, o e' un fault che
+ * nessuno vede: `attachment.sent` porta il messaggio a Sent, `error` con un
+ * RelatedMessageId lo porta a Failed. Senza questo la bolla teneva la spunta
+ * perche' la connessione era su, e un invio rifiutato restava invisibile.
+ */
+function statusAnswerProblems(source, file) {
+  const problems = [];
+  if (file !== DATA_SERVICE) return problems;
+  const code = stripComments(source);
+
+  const sent = code.indexOf('case "attachment.sent":');
+  if (sent < 0) {
+    problems.push(`${file}: no case "attachment.sent": the adapter's answer for a sent ` +
+      'attachment is dropped, and the bubble keeps whatever status it guessed');
+  } else if (code.slice(sent, sent + 300).indexOf('SetMessageStatus(') < 0) {
+    problems.push(`${file}: case "attachment.sent" does not call SetMessageStatus: the ` +
+      'answer is read and then ignored');
+  }
+
+  const err = code.indexOf('case "error":');
+  if (err >= 0) {
+    const body = code.slice(err, err + 500);
+    if (body.indexOf('MessageStatus.Failed') < 0 || body.indexOf('RelatedMessageId') < 0) {
+      problems.push(`${file}: case "error" does not put Failed on the bubble it names: a ` +
+        'refused attachment keeps its checkmark');
+    }
+  }
+  return problems;
 }
 
 /**
@@ -224,6 +256,7 @@ function main() {
     for (const region of regions(source)) {
       problems.push(...regionProblems(region, rel, known));
     }
+    problems.push(...statusAnswerProblems(source, rel));
   }
 
   if (problems.length) {
@@ -238,6 +271,7 @@ function main() {
 if (require.main === module) main();
 
 module.exports = {
+  statusAnswerProblems,
   firstCall,
   methods,
   regions,

@@ -1207,9 +1207,9 @@ namespace WhatsappApp.Pages
                 }
 
                 await CommunicationService.Instance.SendMediaEndAsync(transferId, caption);
-                message.Status = CommunicationService.Instance.IsConnected
-                    ? MessageStatus.Sent
-                    : MessageStatus.Failed;
+                // The status is the adapter's answer, not the state of the socket:
+                // it arrives as attachment.sent or error and DataService writes it.
+                // The bubble keeps Sending until then.
             }
             catch (Exception ex)
             {
