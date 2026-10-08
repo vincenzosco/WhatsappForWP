@@ -156,8 +156,8 @@ black/white colours — never the terminal's theme.
 | Wrong account linked | `rm -rf .tools/gowa/storages` and log in again (this deletes the session) |
 | "The code needs N rows and M columns" | the window is too small: enlarge it or press `Cmd -`, or open `.tools/gowa/login-qr.png`, or use `--no-qr` |
 | Terminal shows garbage instead of the QR | a real TTY gets the coloured drawing: do not pipe the output through a pager, and keep the window above the printed size |
-| `OK ffmpeg found: audio yes` in the adapter lines | normal: voice-note conversion is available. `video no` is fine for a stripped build; `audio no` means received voice notes arrive but will not play |
-| `WARN ffmpeg not found` / `WARN ffmpeg cannot make MP3` in the adapter lines | the ffmpeg on PATH is absent or has no `libmp3lame`: received voice notes will not play. Install a full ffmpeg, or build the stripped audio-only one and point `FFMPEG_PATH` at it (see `WhatsappBridge/README.md`) |
+| `OK ffmpeg found: audio yes, voice yes, video no` in the adapter lines | normal for the stripped audio build: `audio` is the MP3 a received note becomes, `voice` the Ogg/Opus a recorded note becomes for WhatsApp, `video no` is the large-video shrink. `audio no` means received voice notes arrive but will not play; `voice no` means a recorded note cannot be sent |
+| `WARN ffmpeg not found` / `WARN ffmpeg cannot make MP3` / `WARN ffmpeg cannot make Opus` in the adapter lines | the ffmpeg on PATH is absent, has no `libmp3lame` (received notes will not play) or no `libopus` (a recorded note is refused by WhatsApp with `your audio type is not allowed`, and the bubble says failed). Install a full ffmpeg, or build the stripped audio-only one and point `FFMPEG_PATH` at it (see `WhatsappBridge/README.md`) |
 
 ## Rules
 

@@ -83,9 +83,12 @@ Un vocale si registra nell'app: il pulsante del microfono avvia
 AAC in un file M4A nella cartella dell'app, che e' quello che questo telefono
 registra e riproduce senza transcodifica. Il pulsante di stop chiude la
 registrazione, e il file aspetta nello stesso posto di una foto scelta: la barra
-di anteprima lo mostra e Invia lo spedisce. Sul lato adapter un vocale registrato
-va su `POST /send/audio`, che e' cio' che fa disegnare a WhatsApp un vocale con
-la forma d'onda invece di un allegato audio.
+di anteprima lo mostra e Invia lo spedisce. Sul lato adapter la registrazione
+viene convertita da M4A/AAC in Ogg/Opus (l'unica forma che WhatsApp accetta come
+vocale) e va su `POST /send/audio`, che e' cio' che fa disegnare a WhatsApp un
+vocale con la forma d'onda invece di un allegato audio. Senza un encoder Opus
+nell'ffmpeg dell'adapter l'invio viene rifiutato, e la bolla dice fallito invece
+di mostrare una spunta.
 
 ### WhatsappServer (app console .NET)
 
