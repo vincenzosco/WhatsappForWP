@@ -31,3 +31,10 @@ test('un lettore che si fida del solo nome e un problema', () => {
   const found = attachmentFileProblems(broken, CHAT).join('\n');
   assert.match(found, /anotherMessage/);
 });
+
+test('un Downloadable che rifiuta ogni messaggio in uscita e un problema', () => {
+  const broken = read(CHAT)
+    .replace(/!\s*message\.IsIncoming\s*&&\s*!\s*message\.IsHistory/, '!message.IsIncoming');
+  const found = attachmentFileProblems(broken, CHAT).join('\n');
+  assert.match(found, /IsHistory/);
+});

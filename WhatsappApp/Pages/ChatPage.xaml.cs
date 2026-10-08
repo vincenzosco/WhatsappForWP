@@ -433,10 +433,14 @@ namespace WhatsappApp.Pages
         {
             if (message == null) return false;
 
-            // Only what arrived from outside has an id the server knows: a message
-            // written here carries a local id, and asking the server for it would be
-            // a request without an answer.
-            if (!message.IsIncoming) return false;
+            // Only what the server knows by id can be requested: a message written
+            // here carries a local id, and asking the server for it would be a
+            // request without an answer.
+            // A history row is the exception even when it is outgoing: its id is
+            // the server's, so a voice note the person sent from another device
+            // (their own bubble, no bytes on this phone) can be fetched on the tap
+            // instead of doing nothing.
+            if (!message.IsIncoming && !message.IsHistory) return false;
 
             if (IsFileBacked(message.MediaType))
                 return string.IsNullOrEmpty(message.MediaFilePath);

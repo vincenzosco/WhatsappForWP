@@ -17,7 +17,11 @@
  *  1. in AttachmentInbox.cs la copia si chiama NextCopyName(...) e il nome
  *     condiviso `"outgoing_attachment"` non compare;
  *  2. in ChatPage.xaml.cs ToggleVoice confronta la bolla prima del nome
- *     (`bool anotherMessage = _voiceMessage != message`).
+ *     (`bool anotherMessage = _voiceMessage != message`);
+ *  3. in ChatPage.xaml.cs Downloadable non rifiuta ogni messaggio in uscita:
+ *     un vocale mandato da un altro dispositivo arriva come riga di cronologia
+ *     in uscita, senza byte qui, e il tocco deve poterlo chiedere
+ *     (`!message.IsIncoming && !message.IsHistory`).
  *
  * Usage:
  *   node tools/check-attachment-file.js
@@ -57,6 +61,12 @@ function attachmentFileProblems(source, file) {
         'file name (bool anotherMessage = _voiceMessage != message): a replaced file ' +
         'keeps the same name, so a name-only check never reloads the player');
     }
+    if (!/!\s*message\.IsIncoming\s*&&\s*!\s*message\.IsHistory/.test(text)) {
+      problems.push(`${file}: Downloadable must not refuse every outgoing message ` +
+        '(!message.IsIncoming && !message.IsHistory): a voice note sent from another ' +
+        'device arrives as an outgoing history row with no bytes here, and a tap that ' +
+        'cannot request it does nothing at all');
+    }
   }
 
   return problems;
@@ -79,8 +89,8 @@ function main() {
     console.log(`\n${problems.length} attachment problem(s).`);
     process.exit(1);
   }
-  console.log('OK: the attachment copy name is unique and the player loads the bubble it '
-    + 'was asked for.');
+  console.log('OK: the attachment copy name is unique, the player loads the bubble it '
+    + 'was asked for, and an outgoing history row can still be requested.');
 }
 
 if (require.main === module) main();
