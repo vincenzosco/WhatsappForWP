@@ -28,7 +28,7 @@ node tools/check-diagnostics.js   # the run is on disk, and the history wait is 
 node tools/check-handshake-answer.js  # the connection is announced only after the server answered the handshake
 node tools/check-xaml-names.js  # a x:Name is used once in one namescope
 node tools/check-attachment-file.js  # each attachment copies to its own name, and the player reloads the bubble it was asked for
-node --test "tools/test/**/*.test.js"  # the tools' own tests (112)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (114)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
