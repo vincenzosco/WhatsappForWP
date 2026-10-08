@@ -271,6 +271,10 @@ dipendenza dell'adapter. Senza di esso l'adapter scrive un avviso all'avvio e in
 byte originali, che il telefono non sa leggere; il vocale arriva lo stesso e dice che
 non si puo' riprodurre.
 
+Un vocale scaricato torna da GOWA con il MIME del contenitore Ogg (`application/ogg`) e
+di solito un nome senza estensione. L'adapter lo legge come audio anche cosi', quindi la
+bolla e' la barra del vocale e non una scheda file.
+
 **Un ffmpeg ridotto e' supportato.** L'adapter non assume che "ffmpeg parte"
 significhi "ffmpeg sa fare questo lavoro": all'avvio chiede al binario gli encoder, i
 muxer e il decoder che usa davvero (un MP3 da Ogg/Opus per un vocale ricevuto, un

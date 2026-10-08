@@ -35,6 +35,10 @@ test('Ogg e Opus si riconoscono dal tipo o dal nome', () => {
   assert.ok(isOggOpus(null, 'voce.opus'));
   assert.ok(!isOggOpus('audio/mpeg', 'canzone.mp3'));
   assert.ok(!isOggOpus('audio/mp4', 'voce.m4a'));
+  // Il contenitore Ogg ha un tipo suo, e un nome senza estensione: e' quello che
+  // GOWA restituisce per un vocale scaricato.
+  assert.ok(isOggOpus('application/ogg', '1791488882-534c1178-237a-4ac4-b184-0dd95eca54b9'));
+  assert.ok(isOggOpus('application/opus', null));
 });
 
 test('replaceExtension sostituisce solo l ultima estensione', () => {

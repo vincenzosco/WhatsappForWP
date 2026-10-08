@@ -262,6 +262,10 @@ dependency of the adapter. Without it the adapter logs a warning at startup and 
 the original bytes, which the phone cannot play; the voice note still arrives and shows
 that it cannot be played.
 
+A downloaded voice note comes back from GOWA with the Ogg container's own MIME type
+(`application/ogg`) and usually a file name with no extension. The adapter reads that as
+audio too, so the bubble is a play bar and not a file card.
+
 **A stripped ffmpeg is supported.** The adapter does not assume that "ffmpeg runs"
 means "ffmpeg can do this job": at startup it asks the binary for the encoders, the
 muxers and the decoder it actually calls (an MP3 from Ogg/Opus for a received voice

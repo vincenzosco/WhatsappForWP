@@ -82,6 +82,13 @@ function isOggOpus(mimeType, fileName) {
   const mime = String(mimeType || '').toLowerCase();
   const name = String(fileName || '').toLowerCase();
   if (mime === 'audio/ogg' || mime === 'audio/opus' || mime === 'audio/oga') return true;
+  // `application/ogg` is the Ogg container's own MIME type (RFC 3533), and it
+  // is what GOWA answers a downloaded voice note with - often with a file name
+  // that has no extension. Without this the note is never converted and reaches
+  // the phone as a codec it cannot read.
+  if (mime === 'application/ogg' || mime === 'application/opus' || mime === 'application/oga') {
+    return true;
+  }
   return name.endsWith('.ogg') || name.endsWith('.opus') || name.endsWith('.oga');
 }
 
