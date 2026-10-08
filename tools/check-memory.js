@@ -226,6 +226,37 @@ function cachedRowsProblems(source, file) {
   return problems;
 }
 
+/**
+ * Problemi del tetto della cronologia in memoria.
+ *
+ * Perche' esiste: `_chatMessages` cresce senza limite. Il server tiene la sua
+ * cronologia (MESSAGES_LIMIT), ma ogni messaggio dal vivo di una chat occupata
+ * resta in memoria per tutta la sessione, e su un telefono da 512 MB e' l'ultima
+ * allocazione senza tetto rimasta.
+ */
+function historyCeilingProblems(source, file) {
+  const problems = [];
+  if (file !== DATA_SERVICE) return problems;
+  const code = stripComments(source);
+
+  const declared = /MaxMessagesPerChat\s*=\s*(\d+)/.exec(code);
+  if (declared === null) {
+    problems.push(`${file}: no MaxMessagesPerChat: the in-memory history of a chat ` +
+      'grows without a ceiling, and on a 512 MB phone a busy chat is the last ' +
+      'unbounded allocation left');
+  } else if (Number(declared[1]) < 100) {
+    problems.push(`${file}: MaxMessagesPerChat is ${declared[1]}, too small to be a ` +
+      'ceiling: it would drop the conversation the user is reading');
+  }
+
+  if (!/while\s*\(list\.Count > MaxMessagesPerChat\)/.test(code)) {
+    problems.push(`${file}: the ceiling is not applied with ` +
+      '`while (list.Count > MaxMessagesPerChat)`: an `if` leaves the list over the ' +
+      'ceiling when a burst adds several messages at once');
+  }
+  return problems;
+}
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -247,6 +278,7 @@ function main() {
     problems.push(...attachmentProblems(source, rel));
     problems.push(...avatarCacheProblems(source, rel));
     problems.push(...cachedRowsProblems(source, rel));
+    problems.push(...historyCeilingProblems(source, rel));
     if (rel === HELPER) problems.push(...sourceShapeProblems(source, rel));
   }
 
@@ -267,6 +299,7 @@ module.exports = {
   avatarCacheProblems,
   cachedRowsProblems,
   sourceShapeProblems,
+  historyCeilingProblems,
   splitArguments,
   MAX_DECODE
 };
