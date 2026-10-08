@@ -457,8 +457,9 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void OnChatListCompleted(object sender, int rows)
         {
-            Diag.Ok("chat list: " + rows + " row(s), showing "
-                + DataService.Instance.Contacts.Count);
+            Diag.OkNow("chat list: " + rows + " row(s), showing "
+                + DataService.Instance.Contacts.Count + ", memory "
+                + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
         }
 
         /// <summary>
