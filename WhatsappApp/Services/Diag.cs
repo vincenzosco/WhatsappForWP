@@ -166,6 +166,21 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The same, for the lines that have to be on disk at once.
+        ///
+        /// Why it exists: `Ok` waits for the flush interval, so up to a second of
+        /// ordinary lines sit in memory, and a run that dies inside that second
+        /// leaves the last step it took invisible - the phone's run of 2026-10-08
+        /// stopped at the frame before the bind, with no line saying whether the
+        /// bind was even reached. It is for the lines that name a step, one per
+        /// chat opened, not for the ones a burst repeats one per message.
+        /// </summary>
+        public static void OkNow(string what)
+        {
+            Write("ok: " + what, true);
+        }
+
+        /// <summary>
         /// Type, HRESULT in hexadecimal and message: without the code two
         /// different failures stay indistinguishable in the log.
         /// </summary>

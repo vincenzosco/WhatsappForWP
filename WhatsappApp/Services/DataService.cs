@@ -336,7 +336,9 @@ namespace WhatsappApp.Services
                     // "history arrived" on its own cannot tell one message from none.
                     int bytes;
                     _historyBytes.TryGetValue(message.ChatId, out bytes);
-                    Diag.Ok("history done for " + message.ChatId + ": "
+                    // On disk at once: the chat page binds right after this line,
+                    // and a run that dies in the bind has to leave it behind.
+                    Diag.OkNow("history done for " + message.ChatId + ": "
                         + GetMessages(message.ChatId).Count + " message(s), "
                         + bytes + " bytes");
                     RaiseHistoryCompleted(message.ChatId);
