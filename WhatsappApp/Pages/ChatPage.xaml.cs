@@ -125,7 +125,8 @@ namespace WhatsappApp.Pages
                 // The next phone log then reads this line and, if the process still
                 // dies after a chat opens, the site it reached is the last thing
                 // before App/unhandled: the crash report has to name itself.
-                Diag.Ok("opened chat " + contact.Id);
+                Diag.OkNow("opened chat " + contact.Id + ", memory "
+                    + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
 
                 // Whether the history goes out now decides how the list binds: at
                 // once when nothing was asked for, and only when the burst closes
@@ -257,6 +258,14 @@ namespace WhatsappApp.Pages
             // DataService has already inserted the message into the same collection:
             // here we only scroll, otherwise the bubble would show up twice.
             if (message.ChatId != _contact.Id) return;
+
+            // History is not news. It is the burst this page is waiting for, and
+            // it enters the collection without the page touching the view: the
+            // bind comes after the burst, on purpose. Acting on it anyway did a
+            // walk of the list's visual tree, a queued scroll and a `read` frame
+            // for every row of a list that was not bound yet - the phone's run of
+            // 2026-10-08 died inside that burst with no line after the first row.
+            if (message.IsHistory) return;
 
             // A message is the end of "someone is writing": WhatsApp does not always
             // send the `paused` when the message follows at once, and the dots would

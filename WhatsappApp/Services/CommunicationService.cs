@@ -239,6 +239,9 @@ namespace WhatsappApp.Services
             var dispatcher = GetUiDispatcher();
             if (dispatcher == null)
             {
+                // On disk at once: this is the one path that runs a UI action on
+                // the calling thread, which is what a fail-fast looks like here.
+                Diag.OkNow("step no dispatcher, running inline");
                 action();
                 return;
             }

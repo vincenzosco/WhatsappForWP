@@ -16,7 +16,7 @@ namespace WhatsappApp.Services
     /// Diag shape, so one debug round says everything in three lines:
     ///
     ///     DIAG ok: crypto AES-256-CBC + HMAC-SHA256
-    ///     DIAG ok: screen kept awake (DisplayRequest)
+    ///     DIAG ok: screen request available (DisplayRequest)
     ///     DIAG ok: UDP discovery beacon listening on port 8587
     ///
     /// and in place of an "ok" line a line with the failure and its HRESULT.
@@ -101,7 +101,13 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>The screen kept on while the code is on screen.</summary>
+        /// <summary>
+        /// The display request exists on this phone, which is all this probe can
+        /// answer: it is asked for and given back at once, because the app does not
+        /// keep the screen on and nothing should hold a request for it. Saying
+        /// "screen kept awake" from here was a claim about a request this method had
+        /// already released.
+        /// </summary>
         private static void CheckScreenRequest()
         {
             try
@@ -109,7 +115,7 @@ namespace WhatsappApp.Services
                 var request = new Windows.System.Display.DisplayRequest();
                 request.RequestActive();
                 request.RequestRelease();
-                Diag.Ok("screen kept awake (DisplayRequest)");
+                Diag.Ok("screen request available (DisplayRequest)");
             }
             catch (Exception ex)
             {
