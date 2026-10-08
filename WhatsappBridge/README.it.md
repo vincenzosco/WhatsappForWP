@@ -271,6 +271,35 @@ dipendenza dell'adapter. Senza di esso l'adapter scrive un avviso all'avvio e in
 byte originali, che il telefono non sa leggere; il vocale arriva lo stesso e dice che
 non si puo' riprodurre.
 
+**Un ffmpeg ridotto e' supportato.** L'adapter non assume che "ffmpeg parte"
+significhi "ffmpeg sa fare questo lavoro": all'avvio chiede al binario gli encoder, i
+muxer e il decoder che usa davvero (un MP3 da Ogg/Opus per i vocali, un MP4 piu' piccolo
+per un video grande) e scrive cosa ha trovato, per esempio
+`OK ffmpeg found: audio yes, video no`. Un build senza `libmp3lame` viene rifiutato con
+`WARN ffmpeg cannot make MP3`, sia che il binario venga da un pacchetto sia da un build
+proprio.
+
+Per costruire un ffmpeg piccolo, solo audio, per i vocali, configuralo solo con quei
+pezzi (l'encoder video resta fuori):
+
+```bash
+./configure --disable-everything --disable-doc --disable-programs --enable-ffmpeg \
+  --enable-protocol=pipe --enable-demuxer=ogg --enable-decoder=opus \
+  --enable-parser=opus --enable-filter=aresample \
+  --enable-encoder=libmp3lame --enable-muxer=mp3 \
+  --enable-gpl --enable-libmp3lame
+```
+
+Aggiungi i pezzi video quando va rimpicciolito anche un video grande:
+`--enable-decoder=h264 --enable-parser=h264 --enable-filter=scale --enable-encoder=libx264 --enable-muxer=mp4 --enable-libx264`.
+Punta l'adapter al risultato con `FFMPEG_PATH=/percorso/di/quel/ffmpeg`, e la riga di
+avvio dice cosa sa fare.
+
+Quando un vocale ricevuto e' Ogg/Opus e nulla lo puo' convertire, l'adapter inoltra i
+byte come prima e manda anche un motivo all'app (`This voice note cannot be played on
+the phone: ffmpeg is not installed on the server to convert it.`), cosi' la persona sa
+perche' invece di scoprirlo al primo tocco.
+
 L'altra direzione non ha bisogno di ffmpeg. Un vocale registrato arriva dall'app
 come payload M4A/AAC; `sendMediaToGowa` passa un payload `audio` a
 `session.gowa.sendAudio`, che lo pubblica su `POST /send/audio` (campo del form

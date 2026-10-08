@@ -262,6 +262,35 @@ dependency of the adapter. Without it the adapter logs a warning at startup and 
 the original bytes, which the phone cannot play; the voice note still arrives and shows
 that it cannot be played.
 
+**A stripped ffmpeg is supported.** The adapter does not assume that "ffmpeg runs"
+means "ffmpeg can do this job": at startup it asks the binary for the encoders, the
+muxers and the decoder it actually calls (an MP3 from Ogg/Opus for the voice notes, a
+smaller MP4 for a large video) and logs what it found, for example
+`OK ffmpeg found: audio yes, video no`. A build without `libmp3lame` is refused with
+`WARN ffmpeg cannot make MP3`, whether the binary came from a package or from a build
+of your own.
+
+To build a small, audio-only ffmpeg for the voice notes, configure it with just those
+pieces (the video encoder is left out):
+
+```bash
+./configure --disable-everything --disable-doc --disable-programs --enable-ffmpeg \
+  --enable-protocol=pipe --enable-demuxer=ogg --enable-decoder=opus \
+  --enable-parser=opus --enable-filter=aresample \
+  --enable-encoder=libmp3lame --enable-muxer=mp3 \
+  --enable-gpl --enable-libmp3lame
+```
+
+Add the video pieces when a large video must be shrunk as well:
+`--enable-decoder=h264 --enable-parser=h264 --enable-filter=scale --enable-encoder=libx264 --enable-muxer=mp4 --enable-libx264`.
+Point the adapter at the result with `FFMPEG_PATH=/path/to/that/ffmpeg`, and the startup
+line then says what it can do.
+
+When a received note is Ogg/Opus and nothing can convert it, the adapter forwards the
+bytes as before and also sends the app a reason (`This voice note cannot be played on
+the phone: ffmpeg is not installed on the server to convert it.`), so the person is
+told why instead of finding out on the first tap.
+
 The other direction needs no ffmpeg. A recorded voice note arrives from the app
 as an M4A/AAC payload; `sendMediaToGowa` gives an `audio` payload to
 `session.gowa.sendAudio`, which posts it to `POST /send/audio` (form field

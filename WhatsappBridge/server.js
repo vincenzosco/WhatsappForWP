@@ -43,7 +43,7 @@ const { createWebhookServer } = require('./webhook-server');
 const { createDiscoveryBeacon, buildPayload } = require('./discovery');
 const { collectCalls } = require('./calls');
 const { collectChats } = require('./chats');
-const { createTranscoder } = require('./ffmpeg');
+const { createTranscoder, isOggOpus } = require('./ffmpeg');
 const { authenticate } = require('./auth');
 const { createUserStore } = require('./users');
 const { createEndpointPublisher } = require('./endpoint-publisher');
@@ -385,11 +385,20 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
    * read (Ogg/Opus) becomes MP3; everything else passes unchanged, and a voice
    * note does the same when ffmpeg is absent or the conversion fails.
    */
+  /** The English sentence the app shows when a received voice note cannot be converted. */
+  const UNCONVERTED_AUDIO_TEXT = 'This voice note cannot be played on the phone: ffmpeg is not installed on the server to convert it.';
+
   async function playableMedia(buffer, mediaType, mimeType, fileName) {
-    if (mediaType !== 'audio') return { buffer, mimeType, fileName };
+    if (mediaType !== 'audio') return { buffer, mimeType, fileName, unconverted: false };
     const converted = await mediaTools.toPlayable(buffer, mimeType, fileName);
-    if (!converted) return { buffer, mimeType, fileName };
-    return converted;
+    if (!converted) {
+      const canConvert = typeof mediaTools.isAvailable === 'function' && mediaTools.isAvailable();
+      // Ogg/Opus with nothing to convert it: the phone cannot read it, and the
+      // reason is worth saying instead of letting the first tap find out.
+      const unconverted = isOggOpus(mimeType, fileName) && !canConvert;
+      return { buffer, mimeType, fileName, unconverted };
+    }
+    return { buffer: converted.buffer, mimeType: converted.mimeType, fileName: converted.fileName, unconverted: false };
   }
 
   async function sendMedia(session, chatId, messageId) {
@@ -417,6 +426,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       const kind = mediaKindOf(media.mimeType, media.fileName);
       const playable = await playableMedia(Buffer.from(media.base64, 'base64'), kind,
         media.mimeType, media.fileName);
+      if (playable.unconverted) {
+        sendControl(session, { command: 'error', chatId, text: UNCONVERTED_AUDIO_TEXT });
+      }
       sendMediaChunks(session, chatId, messageId, kind, playable.mimeType, playable.fileName,
         playable.buffer.toString('base64'));
       logger('INFO', `media downloaded for ${messageId} (${media.base64.length} chars)`);
@@ -1144,6 +1156,9 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     // converted before being split toward the app.
     if (mediaBuffer && fields.mediaType === 'audio') {
       const playable = await playableMedia(mediaBuffer, 'audio', mediaMimeType, fields.mediaFileName);
+      if (playable.unconverted) {
+        sendControl(session, { command: 'error', chatId: fields.chatId, text: UNCONVERTED_AUDIO_TEXT });
+      }
       mediaBuffer = playable.buffer;
       mediaMimeType = playable.mimeType;
       fields.mediaFileName = playable.fileName;
