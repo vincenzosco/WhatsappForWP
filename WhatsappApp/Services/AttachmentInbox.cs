@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Threading.Tasks;
 using Windows.Storage;
 
@@ -26,8 +27,16 @@ namespace WhatsappApp.Services
     /// </summary>
     public static class AttachmentInbox
     {
-        // The name of the copied file: only one waiting at a time.
-        private const string CopyBaseName = "outgoing_attachment";
+        // One name per attachment, never shared: the file a message points at must
+        // be the file that message sent. A single fixed name means the next
+        // recording replaces the previous one under every bubble that used it.
+        private static int _copySequence;
+
+        private static string NextCopyName(string extension)
+        {
+            _copySequence++;
+            return "outgoing_attachment_" + _copySequence.ToString(CultureInfo.InvariantCulture) + extension;
+        }
 
         private static string _localFileName;
         private static string _fileName;
@@ -78,7 +87,7 @@ namespace WhatsappApp.Services
             string extension = ExtensionFor(mimeType, file.Name);
             StorageFile copy = await file.CopyAsync(
                 ApplicationData.Current.LocalFolder,
-                CopyBaseName + extension,
+                NextCopyName(extension),
                 NameCollisionOption.ReplaceExisting);
 
             PutLocal(copy.Name, file.Name, mimeType, note);
@@ -91,7 +100,7 @@ namespace WhatsappApp.Services
 
             string extension = ExtensionFor(mimeType, fileName);
             StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                CopyBaseName + extension, CreationCollisionOption.ReplaceExisting);
+                NextCopyName(extension), CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBytesAsync(file, buffer);
 
             PutLocal(file.Name, fileName, mimeType, note);

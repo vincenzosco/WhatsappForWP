@@ -241,6 +241,7 @@ quasi sempre pronta da integrare.
      && node tools/check-diagnostics.js \
      && node tools/check-handshake-answer.js \
      && node tools/check-xaml-names.js \
+     && node tools/check-attachment-file.js \
      && node --test "tools/test/**/*.test.js"
    cd WhatsappBridge && npm test
    ```
