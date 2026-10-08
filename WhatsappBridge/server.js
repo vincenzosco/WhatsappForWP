@@ -894,7 +894,19 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     // is sent there when the client knows the route, and as a file otherwise
     // (an adapter talking to an older GOWA must keep working).
     if (kind === 'audio' && typeof session.gowa.sendAudio === 'function') {
-      return session.gowa.sendAudio(chatId, caption || '', buffer, mimeType || 'audio/ogg', fileName || 'voice-note.ogg');
+      let audio = { buffer, mimeType: mimeType || 'audio/ogg', fileName: fileName || 'voice-note.ogg' };
+      // WhatsApp accepts a voice note only as Ogg/Opus, and the phone records
+      // M4A/AAC: without this the send is refused with "your audio type is not
+      // allowed". A build without an Opus encoder leaves the payload alone, and
+      // the refusal is then reported on the bubble.
+      if (mediaTools && typeof mediaTools.toVoiceNote === 'function') {
+        const voice = await mediaTools.toVoiceNote(audio.buffer, audio.mimeType, audio.fileName);
+        if (voice) {
+          logger('INFO', `voice note converted for WhatsApp: ${audio.buffer.length} -> ${voice.buffer.length} bytes`);
+          audio = voice;
+        }
+      }
+      return session.gowa.sendAudio(chatId, caption || '', audio.buffer, audio.mimeType, audio.fileName);
     }
     return session.gowa.sendFile(chatId, caption || '', buffer, mimeType || 'application/octet-stream', fileName);
   }

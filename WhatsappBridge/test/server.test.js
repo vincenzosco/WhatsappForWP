@@ -862,6 +862,35 @@ test('un vocale inviato va a sendAudio, non a sendFile', async () => {
   ]);
 });
 
+test('un vocale M4A viene convertito in Ogg prima di andare a WhatsApp', async () => {
+  const delivered = [];
+  const gowa = {
+    sendAudio: async (phone, caption, buffer, mimeType, fileName) => {
+      delivered.push({ mimeType, fileName, size: buffer.length });
+      return 'A2';
+    },
+    sendFile: async () => { throw new Error('un vocale non passa da sendFile'); },
+    sendImage: async () => { throw new Error('un vocale non e un immagine'); },
+    sendVideo: async () => { throw new Error('un vocale non e un video'); }
+  };
+  const transcoder = {
+    probe: async () => true,
+    toPlayable: async () => null,
+    toVoiceNote: async () => ({ buffer: Buffer.from('ogg'), mimeType: 'audio/ogg', fileName: 'voce.ogg' })
+  };
+  const bridge = createBridge({ config: {}, gowa, log: () => {}, debug: () => {}, transcoder });
+  bridge.setConnectedForTest();
+  bridge.addClientForTest({ write: () => {} });
+
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'a@s.whatsapp.net', MediaTransferId: 'v3', MediaFileName: 'voce.m4a', MediaMimeType: 'audio/mp4', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'v3', MediaChunkIndex: 0, MediaData: Buffer.from('voce').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'v3' });
+
+  assert.deepStrictEqual(delivered, [
+    { mimeType: 'audio/ogg', fileName: 'voce.ogg', size: 3 }
+  ]);
+});
+
 test('senza sendAudio nel client un vocale ripiega su sendFile', async () => {
   const delivered = [];
   const gowa = {

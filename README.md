@@ -80,9 +80,11 @@ A voice note is recorded in the app: the microphone button starts
 an M4A file in the app folder, which is what this phone records and plays
 without a transcoder. The stop button ends the recording, and the file waits in
 the same slot a picked photo uses: the preview bar shows it and Send streams it
-out. On the adapter side a recorded voice note goes to `POST /send/audio`, which
-is what makes WhatsApp draw a voice note with a waveform instead of an audio
-file attachment.
+out. On the adapter side the recording is converted from M4A/AAC to Ogg/Opus (the
+only form WhatsApp accepts as a voice note) and goes to `POST /send/audio`, which
+is what makes WhatsApp draw a voice note with a waveform instead of an audio file
+attachment. Without an Opus encoder in the adapter's ffmpeg the send is refused,
+and the bubble says failed instead of showing a checkmark.
 
 ### WhatsappServer (.NET Console App)
 

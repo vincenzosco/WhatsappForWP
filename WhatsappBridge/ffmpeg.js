@@ -61,6 +61,22 @@ const TRANSCODE_ARGS = [
   'pipe:1'
 ];
 
+// Mono, 16 kHz, 32 kbit/s Opus in Ogg: the only form WhatsApp accepts as a voice
+// note. The phone records AAC/M4A and has no Opus encoder (the same WP8.1 gap as
+// the decoder), so the conversion has to happen here, on the way out.
+const VOICE_ARGS = [
+  '-hide_banner',
+  '-loglevel', 'error',
+  '-i', 'pipe:0',
+  '-vn',
+  '-ac', '1',
+  '-ar', '16000',
+  '-b:a', '32k',
+  '-c:a', 'libopus',
+  '-f', 'ogg',
+  'pipe:1'
+];
+
 /** The type WP8.1 cannot read: Ogg, Opus or their container. */
 function isOggOpus(mimeType, fileName) {
   const mime = String(mimeType || '').toLowerCase();
@@ -104,7 +120,8 @@ function createTranscoder(options) {
   // message just to find out it is not there.
   let available = null;
   // What the binary can actually do: a stripped build may have only one half.
-  let caps = { audio: false, video: false };
+  // `audio` is an MP3 for a received note, `opus` an Ogg/Opus for a sent one.
+  let caps = { audio: false, opus: false, video: false };
 
   /** The text of one `ffmpeg -list` invocation, whatever the injected run returns. */
   async function listing(args) {
@@ -130,7 +147,7 @@ function createTranscoder(options) {
     async probe() {
       if (!enabled) {
         available = false;
-        caps = { audio: false, video: false };
+        caps = { audio: false, opus: false, video: false };
         logger('INFO', 'ffmpeg disabled: Ogg/Opus voice notes will not be playable on WP8.1');
         return false;
       }
@@ -138,7 +155,7 @@ function createTranscoder(options) {
         await run(['-version'], null);
       } catch (err) {
         available = false;
-        caps = { audio: false, video: false };
+        caps = { audio: false, opus: false, video: false };
         logger('WARN', `ffmpeg not found (${err.message}): Ogg/Opus voice notes will not be playable on WP8.1`);
         return false;
       }
@@ -149,17 +166,28 @@ function createTranscoder(options) {
         const muxers = await listing(['-hide_banner', '-muxers']);
         const decoders = await listing(['-hide_banner', '-decoders']);
         const missingAudio = hasPieces('libmp3lame', 'mp3', 'opus', encoders, muxers, decoders);
+        const missingVoice = hasPieces('libopus', 'ogg', null, encoders, muxers, decoders);
         const missingVideo = hasPieces('libx264', 'mp4', null, encoders, muxers, decoders);
-        caps = { audio: missingAudio === '', video: missingVideo === '' };
+        caps = {
+          audio: missingAudio === '',
+          opus: missingVoice === '',
+          video: missingVideo === ''
+        };
         available = caps.audio;
         if (!caps.audio) {
           logger('WARN', `ffmpeg cannot make MP3 (${missingAudio} missing): received voice notes will not be playable on WP8.1`);
         } else {
-          logger('OK', `ffmpeg found: audio yes, video ${caps.video ? 'yes' : 'no'}`);
+          logger('OK', `ffmpeg found: audio yes, voice ${caps.opus ? 'yes' : 'no'}, video ${caps.video ? 'yes' : 'no'}`);
+        }
+        // A build without an Opus encoder still shows a received note, but a
+        // voice note recorded on the phone cannot be sent: WhatsApp accepts a
+        // voice note only as Ogg/Opus and the phone records M4A/AAC.
+        if (!caps.opus) {
+          logger('WARN', `ffmpeg cannot make Opus (${missingVoice} missing): a recorded voice note cannot be sent as a WhatsApp voice note`);
         }
       } catch (err) {
         available = false;
-        caps = { audio: false, video: false };
+        caps = { audio: false, opus: false, video: false };
         logger('WARN', `ffmpeg could not be inspected (${err.message}): received voice notes will not be playable on WP8.1`);
       }
       return available;
@@ -185,6 +213,35 @@ function createTranscoder(options) {
         };
       } catch (err) {
         logger('WARN', `ffmpeg transcode failed: ${err.message}`);
+        return null;
+      }
+    },
+
+    /**
+     * The bytes to send to WhatsApp as a voice note. WhatsApp accepts a voice
+     * note only as Ogg/Opus, and the phone records M4A/AAC: without this the
+     * send comes back refused ("your audio type is not allowed").
+     *
+     * Returns null when the payload is already Ogg/Opus (nothing to do), when
+     * the build has no Opus encoder, when there is nothing to convert, or when
+     * the conversion failed: the caller then sends the original, and WhatsApp
+     * refuses it, which is what the bubble is told.
+     */
+    async toVoiceNote(buffer, mimeType, fileName) {
+      if (!enabled || caps.opus !== true) return null;
+      if (isOggOpus(mimeType, fileName)) return null;
+      if (!buffer || buffer.length === 0) return null;
+
+      try {
+        const ogg = await run(VOICE_ARGS, buffer);
+        if (!ogg || ogg.length === 0) return null;
+        return {
+          buffer: ogg,
+          mimeType: 'audio/ogg',
+          fileName: replaceExtension(fileName || 'voice.m4a', '.ogg')
+        };
+      } catch (err) {
+        logger('WARN', `ffmpeg voice-note conversion failed: ${err.message}`);
         return null;
       }
     },
@@ -227,6 +284,7 @@ module.exports = {
   isVideo,
   replaceExtension,
   TRANSCODE_ARGS,
+  VOICE_ARGS,
   VIDEO_ARGS,
   VIDEO_COMPRESS_MIN_BYTES
 };
