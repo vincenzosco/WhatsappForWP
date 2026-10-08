@@ -1,0 +1,8 @@
+<Page x:Name="Root">
+    <DataTemplate>
+        <Grid>
+            <Button x:Name="PlayAudioButton"/>
+            <Button x:Name="PlayAudioButton"/>
+        </Grid>
+    </DataTemplate>
+</Page>

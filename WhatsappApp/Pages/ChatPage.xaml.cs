@@ -736,8 +736,25 @@ namespace WhatsappApp.Pages
         /// pauses it and keeps the position; tapping another one rewinds the first.
         /// With no bytes yet it is the same tap that asks for them, which is what
         /// the old bar did before it could be played.
+        ///
+        /// Two buttons and not one: the incoming bubble and the outgoing one each
+        /// draw their own, and a name lives once in a namescope. Two buttons called
+        /// PlayAudioButton in this page single DataTemplate made the template throw
+        /// XamlParseException when its first row was realized, so the chat closed
+        /// instead of opening. check-actions.js wants a button named X wired to
+        /// X_Click, which is why each name has its own handler and both come here.
         /// </summary>
-        private void PlayAudioButton_Click(object sender, RoutedEventArgs e)
+        private void IncomingPlayAudioButton_Click(object sender, RoutedEventArgs e)
+        {
+            OnPlayAudioClicked(sender);
+        }
+
+        private void OutgoingPlayAudioButton_Click(object sender, RoutedEventArgs e)
+        {
+            OnPlayAudioClicked(sender);
+        }
+
+        private void OnPlayAudioClicked(object sender)
         {
             var element = sender as FrameworkElement;
             var message = element == null ? null : element.DataContext as ChatMessage;

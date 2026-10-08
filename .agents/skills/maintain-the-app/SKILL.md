@@ -198,7 +198,8 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-memory.js && node tools/check-actions.js &&
    node tools/check-fire-and-forget.js && node tools/check-project-files.js &&
    node tools/check-chat-list-source.js && node tools/check-diagnostics.js &&
-   node tools/check-handshake-answer.js`, plus
+   node tools/check-handshake-answer.js &&
+   node tools/check-xaml-names.js`, plus
    `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
 6. If the change is user-visible, say which page and which string key changed.
 7. Commit with a message that says *why* (the repo history is the changelog).
