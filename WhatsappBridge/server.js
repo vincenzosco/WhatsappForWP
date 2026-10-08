@@ -971,11 +971,31 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
   async function mediaEnd(session, msg) {
     const transfer = session.mediaTransfers.get(msg.MediaTransferId);
-    if (!transfer) return;
+    if (!transfer) {
+      // An unknown transfer is a fault, not a no-op: the app started one and
+      // nothing would ever answer it otherwise.
+      sendControl(session, {
+        command: 'error',
+        chatId: msg.ChatId,
+        relatedMessageId: msg.RelatedMessageId || undefined,
+        text: 'The attachment was not being received: send it again.'
+      });
+      return;
+    }
     session.mediaTransfers.delete(msg.MediaTransferId);
 
     const parts = transfer.parts.filter((part) => part);
-    if (parts.length === 0) return;
+    if (parts.length === 0) {
+      // A 0-byte file produces no pieces: refuse it instead of returning in
+      // silence and leaving the bubble with its checkmark.
+      sendControl(session, {
+        command: 'error',
+        chatId: transfer.chatId,
+        relatedMessageId: transfer.messageId || undefined,
+        text: 'The attachment is empty: there is nothing to send.'
+      });
+      return;
+    }
 
     // A missing piece is a fault, not a shorter file: sending half a video
     // without saying so is worse than not sending it.
@@ -994,7 +1014,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
     if (buffer.length > MAX_MEDIA_BYTES) {
       logger('WARN', `attachment too large (${buffer.length} bytes), refused`);
-      sendControl(session, { command: 'error', chatId: transfer.chatId, text: 'The file is too large to send.' });
+      sendControl(session, { command: 'error', chatId: transfer.chatId, relatedMessageId: transfer.messageId || undefined, text: 'The file is too large to send.' });
       return;
     }
 
@@ -1005,7 +1025,8 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
         Text: msg.Text || '',
         MediaData: buffer.toString('base64'),
         MediaMimeType: transfer.mimeType,
-        MediaFileName: transfer.fileName
+        MediaFileName: transfer.fileName,
+        RelatedMessageId: transfer.messageId
       });
       logger('INFO', 'WhatsApp not ready: attachment queued');
       return;
@@ -1013,10 +1034,17 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
 
     try {
       logger('MSG', `attachment to ${transfer.chatId}: ${buffer.length} bytes (${mediaKindOf(transfer.mimeType, transfer.fileName)})`);
-      await sendMediaToGowa(session, transfer.chatId, msg.Text, buffer, transfer.mimeType, transfer.fileName);
+      const gowaId = await sendMediaToGowa(session, transfer.chatId, msg.Text, buffer, transfer.mimeType, transfer.fileName);
+      // The answer the bubble's status hangs on: success used to answer nothing.
+      sendControl(session, {
+        command: 'attachment.sent',
+        chatId: transfer.chatId,
+        relatedMessageId: transfer.messageId || undefined,
+        text: gowaId || ''
+      });
     } catch (err) {
       logger('ERR', `attachment to ${transfer.chatId} failed: ${err.message}`);
-      sendControl(session, { command: 'error', chatId: transfer.chatId, text: `Send failed: ${err.message}` });
+      sendControl(session, { command: 'error', chatId: transfer.chatId, relatedMessageId: transfer.messageId || undefined, text: `Send failed: ${err.message}` });
     }
   }
 
@@ -1025,8 +1053,16 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
       if (msg.MediaData) {
         // An old version of the app sends the attachment inside the message:
         // still accepted, but on the right path.
-        await sendMediaToGowa(session, msg.ChatId, msg.Text, Buffer.from(msg.MediaData, 'base64'),
+        const gowaId = await sendMediaToGowa(session, msg.ChatId, msg.Text, Buffer.from(msg.MediaData, 'base64'),
           msg.MediaMimeType, msg.MediaFileName);
+        // A queued attachment is confirmed here, through the same answer a
+        // live one gets, so its bubble stops showing a guess.
+        sendControl(session, {
+          command: 'attachment.sent',
+          chatId: msg.ChatId,
+          relatedMessageId: msg.RelatedMessageId || undefined,
+          text: gowaId || ''
+        });
       } else if (msg.Text && msg.Text.trim()) {
         await session.gowa.sendText(msg.ChatId, msg.Text);
       }
