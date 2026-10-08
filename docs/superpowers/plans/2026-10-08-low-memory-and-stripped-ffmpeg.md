@@ -314,3 +314,52 @@ git add README.md README.it.md
 git commit -m "docs: say what a chat in memory is bounded to on a 512 MB phone"
 git push origin master
 ```
+
+---
+
+## What execution changed about this plan
+
+The two halves shipped and the tree is where the plan said it would be. Four differences, then
+what is still owed.
+
+1. **Task 1 named the helper `hasPieces`, not the plan's `canMake`, and reads the three listings
+   once.** The plan's Step 3 sketch has `canMake(encoder, muxer, decoder)` run `-encoders`,
+   `-muxers` and `-decoders` itself, which would run each listing twice (once for audio, once for
+   video). The implementation reads the three listings once and passes them in:
+   `hasPieces(encoder, muxer, decoder, encoders, muxers, decoders)`. Behaviour is unchanged and
+   is what the plan fixes: `capabilities()` returns `{ audio, video }`, `isAvailable()` is the
+   audio capability, `toSmallerVideo` returns `null` unless the video capability is true, and one
+   line is logged at startup. The five Review Focus conditions each have their test in
+   `WhatsappBridge/test/ffmpeg.test.js` (17 tests), including the no-MP3 build, the audio-only
+   build, and the video-only-fault build.
+
+2. **Task 2 was split across two commits and two repositories.** The README pair and the skill
+   line landed in `a175654` (the same commit as the voice plan's Task 2, because both edit the
+   adapter README's voice-note area). The mirror is `vincenzosco/docker-whatsappforwp` commit
+   `4fb5684`, after `node tools/sync.js --from ...`, `--check` (`OK: server/ matches the adapter
+   (35 file(s))`) and `(cd server && npm test)` (285/285). The plan's Step 5 commit message was
+   used for the app side only; the mirror has its own `sync:` subject because that is that
+   repository's convention.
+
+3. **Task 3's new tests reuse the `DATA_SERVICE` constant the test file already declares.** The
+   plan's Step 1 snippet is silent about it; `tools/test/check-memory.test.js` already has
+   `const DATA_SERVICE = 'WhatsappApp/Services/DataService.cs';` at line 74, so declaring it a
+   second time would have been a `SyntaxError` on the whole file. The four new tests use the
+   existing constant.
+
+4. **Task 4's on-device memory number could not be read.** The ARM build succeeded (`BUILD-EXIT=0`,
+   one package created, 0 `warning CS` / 0 `error CS`), the fifteen guards exit 0, the tools suite
+   is 123 / 118 pass / 4 fail / 1 skip, and the adapter suite is 285/285; but the Lumia is not
+   detected (`ISETool.exe ts de ...` prints `Errore: ... non e' stato rilevato alcun telefono
+   Windows Phone`), so neither `DIAG ok: memory budget N MB` nor the `bound N rows, memory M MB`
+   line of a chat past 200 messages exists.
+
+### What is still owed
+
+- **The on-device memory number**: a run with a chat past 200 messages, and the `bound` and
+  `memory` lines read from `diag.log`. The `while` trim and the 200-message ceiling are pinned by
+  `check-memory.js` and the four new tests, but the actual megabytes on a 512 MB phone are
+  unmeasured.
+- **`ffmpeg` on the machine**: the probe and the stripped-build recipe are done; the binary that
+  makes received voice notes play here is not installed (the install needs an elevated shell).
+- The four `download.test.js` failures are the missing `zip` on this host, not this change.
