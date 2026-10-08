@@ -103,24 +103,64 @@ function createTranscoder(options) {
   // null until it has been probed: a voice note must not start ffmpeg once per
   // message just to find out it is not there.
   let available = null;
+  // What the binary can actually do: a stripped build may have only one half.
+  let caps = { audio: false, video: false };
+
+  /** The text of one `ffmpeg -list` invocation, whatever the injected run returns. */
+  async function listing(args) {
+    const text = await run(args, null);
+    return Buffer.isBuffer(text) ? text.toString('utf8') : String(text || '');
+  }
+
+  /** The first named piece the build lacks, or '' when it has them all. */
+  function hasPieces(encoder, muxer, decoder, encoders, muxers, decoders) {
+    if (encoders.indexOf(encoder) < 0) return encoder;
+    if (muxers.indexOf(muxer) < 0) return muxer;
+    if (decoder && decoders.indexOf(decoder) < 0) return decoder;
+    return '';
+  }
 
   return {
     isAvailable() { return available === true; },
+
+    /** What the probed binary can do: an MP3 for voice notes, a smaller MP4 for video. */
+    capabilities() { return caps; },
 
     /** Probed once, at startup, and the log says how it went. */
     async probe() {
       if (!enabled) {
         available = false;
+        caps = { audio: false, video: false };
         logger('INFO', 'ffmpeg disabled: Ogg/Opus voice notes will not be playable on WP8.1');
         return false;
       }
       try {
         await run(['-version'], null);
-        available = true;
-        logger('OK', 'ffmpeg found: voice notes will be transcoded to MP3 for WP8.1');
       } catch (err) {
         available = false;
+        caps = { audio: false, video: false };
         logger('WARN', `ffmpeg not found (${err.message}): Ogg/Opus voice notes will not be playable on WP8.1`);
+        return false;
+      }
+      // A binary that runs is not a binary that can do this job: a stripped
+      // build may lack libmp3lame, and then every conversion fails in silence.
+      try {
+        const encoders = await listing(['-hide_banner', '-encoders']);
+        const muxers = await listing(['-hide_banner', '-muxers']);
+        const decoders = await listing(['-hide_banner', '-decoders']);
+        const missingAudio = hasPieces('libmp3lame', 'mp3', 'opus', encoders, muxers, decoders);
+        const missingVideo = hasPieces('libx264', 'mp4', null, encoders, muxers, decoders);
+        caps = { audio: missingAudio === '', video: missingVideo === '' };
+        available = caps.audio;
+        if (!caps.audio) {
+          logger('WARN', `ffmpeg cannot make MP3 (${missingAudio} missing): received voice notes will not be playable on WP8.1`);
+        } else {
+          logger('OK', `ffmpeg found: audio yes, video ${caps.video ? 'yes' : 'no'}`);
+        }
+      } catch (err) {
+        available = false;
+        caps = { audio: false, video: false };
+        logger('WARN', `ffmpeg could not be inspected (${err.message}): received voice notes will not be playable on WP8.1`);
       }
       return available;
     },
@@ -159,7 +199,7 @@ function createTranscoder(options) {
      * original in every one of those cases.
      */
     async toSmallerVideo(buffer, mimeType, fileName) {
-      if (!enabled || available !== true) return null;
+      if (!enabled || caps.video !== true) return null;
       if (!isVideo(mimeType, fileName)) return null;
       if (!buffer || buffer.length < VIDEO_COMPRESS_MIN_BYTES) return null;
 
