@@ -605,3 +605,64 @@ git push origin master
 ```
 
 Then the Docker mirror for anything under `WhatsappBridge/` that Task 2 and Task 4 changed, and `git status -sb` showing `## master...origin/master` with nothing ahead.
+
+---
+
+## What execution changed about this plan
+
+The plan was followed and the tree ended where it said it would, except where the hardware was
+not there. Six differences worth naming, then what is still owed.
+
+1. **Task 2 Step 5's `text` frame became an `error` frame.** The plan sends the reason as a
+   `text` control frame, but the app has no `text` case in
+   `DataService.OnControlMessageReceived`, so a `text` frame is dropped and the bubble stays
+   exactly as silent as before this plan. The reason travels as an `error` frame instead, which
+   reaches `RaiseAdapterError` - the app's one channel for adapter text, whose string already
+   exists. The two promises the plan cares about still hold: the bytes go out unchanged, and the
+   person is told why the note will not play. The test asserts `/cannot be played/` on the
+   frame's text, so it does not depend on which command carries it.
+
+2. **Task 2 Step 1 could not install `ffmpeg` and did not fall back to a manual binary.**
+   `choco install ffmpeg -y` fails with `System.UnauthorizedAccessException: Accesso al percorso
+   'C:\ProgramData\chocolatey\lib-bad' negato` (evidence in `.tools/ffmpeg-install.log`), because
+   the install writes under `C:\ProgramData\chocolatey` and this session is not elevated. The
+   plan's fallback - an `ffmpeg.org` build on the `PATH` - was not taken either: it means fetching
+   a binary this session cannot verify. What shipped instead is the half the plan can prove: the
+   startup log now says `WARN ffmpeg not found` or `WARN ffmpeg cannot make MP3 (...)`, and an
+   Ogg/Opus note that cannot be converted goes out with the reason on it. The machine change is
+   the operator's.
+
+3. **Task 3 Step 7's guard count and test count are one higher than the plan's text.** The plan
+   says "the fifteenth" in Step 3 and then, in Step 7, "the number of passing tests the next step
+   prints". `tools/check-attachment-file.js` is the fifteenth guard; the tools suite prints 118
+   passing (up from 108 before this plan), and `.agents/skills/test-the-app/SKILL.md` carries
+   that number.
+
+4. **Task 5 Step 1's guard did not exist and was added.** The plan says "add to
+   `tools/check-fire-and-forget.js`'s existing scan of `DataService` a check that its
+   `case \"attachment.sent\"` branch calls `SetMessageStatus`". `check-fire-and-forget.js` does
+   *not* scan `DataService`: it parses `#pragma warning disable 4014` regions and method bodies.
+   The rule `statusAnswerProblems(source, file)` was written (restricted to
+   `WhatsappApp/Services/DataService.cs`), wired into `main()`, exported, and given two tests.
+   That is more than the plan describes and it is the correct shape: the guard still exits 0 on
+   the fixed tree and would fail on a tree that drops either branch.
+
+5. **Task 5's Files block names the two `.resw` files, and no `.resw` was touched.** Step 4 says
+   as much ("Nothing new is user-visible here... change no key"); the Files block is the plan's
+   inconsistency, and the correct reading is Step 4's. `node tools/check-resw.js --strict` exits
+   0.
+
+6. **Task 6 Steps 3-4 did not run.** The Lumia is not detected - `ISETool.exe ts de ...` prints
+   `Errore: La distribuzione non e' riuscita perche' non e' stato rilevato alcun telefono
+   Windows Phone` - so no `.tools/voice-after` snapshot exists and the three symptoms were not
+   reproduced on hardware. `AppDeployCmd.exe /EnumerateDevices` still lists index 0 `Device`, so
+   the SDK is fine and the phone is what is not answering.
+
+### What is still owed
+
+- **The three symptoms on the phone.** They rest on the code, the fifteen guards, fifteen new
+  tests across the two plans, and the ARM build; the on-device run is the one check that would
+  turn "the code says so" into "the phone says so".
+- **`ffmpeg` on this machine.** Until it is installed, received voice notes do not play here; the
+  adapter says so in one line at startup instead of leaving it to the first tap.
+- **The four `download.test.js` failures** are the missing `zip` on this host, not this change.
