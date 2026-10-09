@@ -47,9 +47,12 @@
     <!-- This project's own tests. -->
     <Compile Include="*.cs" />
     <!-- The shared core, compiled where it lives: never copied, so the phone and
-         this runner cannot drift. Transport/ is device-only (WinRT types). -->
+         this runner cannot drift. The one exclusion is named explicitly rather than
+         by folder, because the folder also holds the portable ITransport - a blanket
+         Exclude on Transport/ silently dropped it. WebSocketTransport is the file
+         that uses WinRT types and only the phone can compile it. -->
     <Compile Include="..\WhatsappApp\Protocol\**\*.cs"
-             Exclude="..\WhatsappApp\Protocol\Transport\**\*.cs" />
+             Exclude="..\WhatsappApp\Protocol\Transport\WebSocketTransport.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

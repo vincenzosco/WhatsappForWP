@@ -649,3 +649,88 @@ _(filled by Task 6, Step 4: the probe lines from `diag.log` and the phone model)
   only proves the client agrees with the client would pass while the phone cannot
   connect; the transcript in `ProtocolTests/Vectors/` is the external truth and the
   reason Task 4 Step 1 writes the generator before the implementation.
+
+---
+
+## What execution changed about this plan
+
+**Done and committed:** Task 1 (`b5a3a43`), Task 2 (`e26ae43`), Task 3 (`0afd2ac`),
+and the transport/driver half of Task 5 with an offline suite of 29 tests that pass
+and an app build that reports `0 Error(s)` for x86 and ARM.
+
+**Not done:** Task 4 (the Noise handshake), the device probe of Task 6, and the docs
+of Task 7. The live probe below is why the milestone's checkpoint moved before more
+code was written.
+
+### Ruling: the first exchange is a protobuf `HandshakeMessage`, not a `<stream:features>` node
+
+The plan's Task 5 assumed "connect, read the first node, and it is
+`stream:features`". `node tools/test-protocol.js --connect` shows the server's first
+message is **4 bytes**, `88 02 03 f3`:
+
+- not a binary node (no valid list tag at the front),
+- not protobuf (the second byte would be a field 0, which is not a field),
+- not a 3-byte-length-prefixed frame (it would announce 8 913 411 bytes).
+
+The reference settles it. `validateConnection` in the socket sends a protobuf
+`HandshakeMessage{clientHello{ephemeral}}` and reads the server's
+`HandshakeMessage{serverHello{ephemeral, static, payload}}` back, and the Noise
+handshake travels **inside** those messages. `<stream:features>` is not part of this
+exchange, so a driver that waits for it waits forever.
+
+*Cost if wrong:* the 4 bytes are re-investigated against a newer reference before the
+handshake is written. The probe prints them and the code around them assumes nothing.
+
+### Ruling: M1's checkpoint is the Noise handshake, and it needs a protobuf subset
+
+The smallest step that proves anything against the real server is now: send
+`clientHello`, receive `serverHello`, and complete Noise XX far enough to decrypt the
+server's static key and its certificate chain. If WhatsApp's own bytes decrypt under
+keys we derived, our X25519/AES-GCM/HKDF are right - a stronger check than reading a
+node's tag, and the reason Task 3 was worth doing first.
+
+That pulls three small protobuf messages (`HandshakeMessage`, `CertChain` and its
+nested `NoiseCertificate`) and Curve25519 **signature verification** forward from M2.
+Both were scheduled for M2 in this plan's own milestone table; the table is what is
+wrong, not the port.
+
+*Cost if wrong:* the protobuf subset is written for the handshake only and M2
+finishes it, which is the same work in a different order.
+
+### Ruling: the wire details the probe and the reference fixed
+
+These are the values the handshake has to be written with, taken from the reference
+rather than guessed, and they replace the plan's Task 4 step 3 sketch:
+
+- **Noise mode.** `Noise_XX_25519_AESGCM_SHA256\0\0\0\0` - 32 bytes, and because it
+  is exactly 32 the initial hash **is** that string, not its SHA-256.
+- **Framing.** 3-byte big-endian length, then the payload. The client prepends a
+  4-byte intro (`WA\x06\x03`) to its **first** frame only. The server's first message
+  is not framed this way, which is part of the ruling above.
+- **Handshake cipher.** AES-256-GCM with a 12-byte IV that is eight zero bytes
+  followed by a 4-byte big-endian counter, and the additional data is the running
+  handshake hash.
+- **The handshake.** `-> e` (the client's ephemeral is inside `clientHello`),
+  `<- e, ee, s, es` (`serverHello`), `-> s, se` (the client's static key and the
+  encrypted `ClientPayload` in `clientFinish`). Each `MixKey` is
+  `HKDF(input, 64, salt, '')` - the plan's "HKDF(info, salt)" order was the reverse of
+  what is needed - and the public key is mixed into the hash before the DH output is.
+- **After the split.** One more `HKDF(empty, 64, salt, '')` gives the write and read
+  keys; the IV is the same counter form, and the additional data is empty.
+- **No key generation in the core.** `System.Security.Cryptography` is not in the
+  WP8.1 projection, so `Curve25519.NewPrivateKey` was removed and the caller supplies
+  the bytes.
+
+### Ruling: `Hmac.Sha256` is named `Hmac.Compute`
+
+Inside the class, a method named `Sha256` shadows the `Sha256` type, so
+`Sha256.Hash` would not compile. `ExpandKey` and `JidUtils.FirstTwoSegments` also
+avoid `out` parameters, because the C# 5 guard reads `out string x` in a signature as
+C# 6's inline declaration and would fail the build for a correct line. The guard was
+not weakened in either case.
+
+### Ruling: the desktop runner compiles the core but not the device transport
+
+`ProtocolTests.csproj` excludes `Protocol/Transport/WebSocketTransport.cs` **by
+name**. A blanket `Exclude` on `Protocol/Transport/**` silently dropped the portable
+`ITransport` too, which the build caught and a narrower exclusion fixes.

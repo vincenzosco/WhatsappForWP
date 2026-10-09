@@ -133,7 +133,9 @@
     <Compile Include="Services\RecordingSession.cs" />
     <Compile Include="Services\ConversationView.cs" />
     <Compile Include="Services\CrashReport.cs" />
+    <Compile Include="Protocol\Client\WhatsAppSocket.cs" />
     <Compile Include="Protocol\Diagnostics.cs" />
+    <Compile Include="Protocol\Transport\ITransport.cs" />
     <Compile Include="Protocol\Crypto\Aes.cs" />
     <Compile Include="Protocol\Crypto\AesGcm.cs" />
     <Compile Include="Protocol\Crypto\Curve25519.cs" />
