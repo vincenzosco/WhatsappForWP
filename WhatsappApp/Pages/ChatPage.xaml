@@ -555,6 +555,46 @@
             </ListView.ItemTemplate>
         </ListView>
 
+        <!-- WhatsApp's arrow back to the newest message, over the conversation
+             in the bottom left. One 44x44 target: the dark circle and the down
+             chevron. It is shown and hidden by the page from the view's own
+             position, never by a binding, and it starts hidden because a
+             conversation that opens at its newest message has nothing below. -->
+        <Button x:Name="RecentMessagesButton" Grid.Row="1"
+                HorizontalAlignment="Left" VerticalAlignment="Bottom"
+                Margin="12,0,0,12"
+                Width="44" Height="44"
+                MinWidth="0" MinHeight="0"
+                Padding="0"
+                BorderThickness="0"
+                Background="Transparent"
+                Visibility="Collapsed"
+                Click="RecentMessagesButton_Click">
+            <Grid Width="44" Height="44">
+                <Ellipse Width="44" Height="44" Fill="#FF455A64"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"
+                      Width="24" Height="24"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- IconArrowDown -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="6,9">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="12,16"/>
+                                        <LineSegment Point="18,9"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Grid>
+        </Button>
+
         <!-- Someone is writing: the same bubble as a message of theirs, with the
              three dots of WhatsApp instead of words. It is shown and hidden by
              the page, never by a binding, because only the page knows whether it

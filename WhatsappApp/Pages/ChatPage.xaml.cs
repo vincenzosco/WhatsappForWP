@@ -71,6 +71,7 @@ namespace WhatsappApp.Pages
             ToolTipService.SetToolTip(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
             ToolTipService.SetToolTip(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
             ToolTipService.SetToolTip(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
+            ToolTipService.SetToolTip(RecentMessagesButton, Loc.Get("ChatPage_JumpToRecentTooltip", "Jump to the newest messages"));
 
             // The picture and the name are two targets: the tooltip tells them apart.
             ToolTipService.SetToolTip(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
@@ -121,6 +122,13 @@ namespace WhatsappApp.Pages
                 // is still the one in front, so the field must answer for this chat
                 // before that wait starts.
                 DataService.Instance.ActiveChatId = contact.Id;
+
+                // The position of the conversation, watched from here on: the arrow
+                // over it is shown while the newest message is off screen, and the
+                // message left below is told as read when the reader reaches it. The
+                // callback is called once right here, before the list is bound, so the
+                // arrow starts in the right state instead of waiting for a scroll.
+                _view.WatchPosition(OnViewPositionChanged);
 
                 // The next phone log then reads this line and, if the process still
                 // dies after a chat opens, the site it reached is the last thing
@@ -210,7 +218,6 @@ namespace WhatsappApp.Pages
             // and the timer that refreshes them has no reason to run any more.
             StopTyping();
             HideTyping();
-            _view.UnwatchBottom();
 
             // The snapshot of the conversation: leaving is what writes it, not
             // every message, otherwise it would write a file in bursts.
@@ -302,7 +309,6 @@ namespace WhatsappApp.Pages
             // message that arrives here is a message the user is one scroll away
             // from. The number on the row stays until then.
             _markReadPending = true;
-            WatchBottomReached();
         }
 
         // ─── Someone is writing ───────────────────────────────────────────────
@@ -349,12 +355,22 @@ namespace WhatsappApp.Pages
         // ─── Reading the conversation ─────────────────────────────────────────
 
         /// <summary>
-        /// Starts watching the position of the conversation, so that a message left
-        /// below is marked as read when the reader reaches the bottom.
+        /// The newest message is off screen, or it is back on it. One subscription
+        /// and two jobs: WhatsApp's arrow is shown only while there is something
+        /// below to come back to, and a message left below is told to the server
+        /// when the reader gets to it (the work WatchBottom did on its own).
         /// </summary>
-        private void WatchBottomReached()
+        private void OnViewPositionChanged(bool atBottom)
         {
-            _view.WatchBottom(MarkReadWhenAtBottom);
+            RecentMessagesButton.Visibility = atBottom ? Visibility.Collapsed : Visibility.Visible;
+            if (atBottom) MarkReadWhenAtBottom();
+        }
+
+        /// <summary>The arrow was tapped: back to the newest message.</summary>
+        private void RecentMessagesButton_Click(object sender, RoutedEventArgs e)
+        {
+            Diag.Ok("jump to the newest message");
+            _view.ScrollToBottom();
         }
 
         /// <summary>
