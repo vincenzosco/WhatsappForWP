@@ -749,6 +749,11 @@ namespace WhatsappApp.Pages
         // it plays as soon as they arrive. Null when nobody is waiting.
         private ChatMessage _playWhenReady;
 
+        // A play was asked for on a file the element is still opening. Play() while
+        // it is opening does nothing and raises nothing, so the ask is kept and made
+        // again on MediaOpened: that silence is the voice note that "does not play".
+        private bool _playOnOpen;
+
         /// <summary>
         /// The play/pause glyph of one bubble. A second tap on the same voice note
         /// pauses it and keeps the position; tapping another one rewinds the first.
@@ -779,8 +784,18 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void OnAudioArrived(object sender, ChatMessage message)
         {
-            if (message == null || message != _playWhenReady) return;
+            if (message == null || _playWhenReady == null) return;
+            // The id and not the object: the row whose bytes arrived is the one the
+            // list holds now, and a reload of the conversation can have replaced the
+            // instance the tap was made on with another one carrying the same id.
+            if (message.Id != _playWhenReady.Id)
+            {
+                Diag.Ok("audio arrived: " + message.Id + " was not asked for");
+                return;
+            }
+
             _playWhenReady = null;
+            Diag.Ok("audio arrived: " + message.Id + " playing it");
             // The same path as a tap on a note that is already here: one player,
             // one bar playing, and the failure line if the phone refuses the file.
             ToggleVoice(message);
@@ -794,6 +809,9 @@ namespace WhatsappApp.Pages
 
             if (string.IsNullOrEmpty(message.MediaFilePath))
             {
+                // Without this the log of a tap that heard nothing cannot tell a
+                // note the app refused to ask for from one whose bytes never came.
+                Diag.Ok("voice tap: " + message.Id + ", no bytes here yet");
                 if (Downloadable(message)) RequestMedia(message);
                 return;
             }
@@ -824,6 +842,7 @@ namespace WhatsappApp.Pages
                 // so the player would go on holding the previous recording.
                 if (anotherMessage || _voiceLoadedFile != message.MediaFilePath)
                 {
+                    _playOnOpen = true;
                     VoicePlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                     _voiceLoadedFile = message.MediaFilePath;
                 }
@@ -833,6 +852,9 @@ namespace WhatsappApp.Pages
                 VoicePlayer.Play();
                 message.IsPlaying = true;
                 StartPlaybackTimer();
+                // The line that tells a note the phone refused (the MediaFailed one)
+                // from a play that was never asked for. The two used to look alike.
+                Diag.Ok("voice play: " + message.Id + " from " + message.MediaFilePath);
             }
             catch (Exception ex)
             {
@@ -844,6 +866,8 @@ namespace WhatsappApp.Pages
 
         private void PauseVoice(ChatMessage message)
         {
+            // A pause asked for while the file is still opening stays a pause.
+            _playOnOpen = false;
             try
             {
                 VoicePlayer.Pause();
@@ -869,6 +893,7 @@ namespace WhatsappApp.Pages
         /// <summary>Closes the player: it is called when the page is left.</summary>
         private void StopVoice()
         {
+            _playOnOpen = false;
             try
             {
                 VoicePlayer.Stop();
@@ -883,6 +908,40 @@ namespace WhatsappApp.Pages
             _voiceMessage = null;
             _voiceLoadedFile = null;
             StopPlaybackTimer();
+        }
+
+        /// <summary>
+        /// The element has the file: only from here does Play() do anything. A play
+        /// asked for while it was opening is made now, and the duration goes in the
+        /// log, because a duration that never arrives is what a silent bar looks
+        /// like from the inside.
+        /// </summary>
+        private void VoicePlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            double total = 0;
+            try
+            {
+                if (VoicePlayer.NaturalDuration.HasTimeSpan)
+                    total = VoicePlayer.NaturalDuration.TimeSpan.TotalSeconds;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/MediaOpened duration", ex);
+            }
+
+            Diag.Ok("voice opened: " + (total > 0 ? total + "s" : "no duration"));
+
+            if (!_playOnOpen) return;
+            _playOnOpen = false;
+            try
+            {
+                VoicePlayer.Play();
+                if (_voiceMessage != null) _voiceMessage.IsPlaying = true;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/MediaOpened play", ex);
+            }
         }
 
         private void VoicePlayer_MediaEnded(object sender, RoutedEventArgs e)
