@@ -390,6 +390,20 @@ namespace WhatsappApp.Services
         /// </summary>
         public event EventHandler<string> HistoryCompleted;
 
+        /// <summary>
+        /// The bytes of a voice note are on disk. A page that asked for them because
+        /// its play button was tapped plays the note now: without this the first tap
+        /// downloaded and stopped there, the bar stayed silent, and the note only
+        /// played on a second tap - which reads as a voice note that does not play.
+        /// </summary>
+        public event EventHandler<ChatMessage> AudioArrived;
+
+        private void RaiseAudioArrived(ChatMessage message)
+        {
+            var handler = AudioArrived;
+            if (handler != null) handler(this, message);
+        }
+
         private void RaiseHistoryCompleted(string chatId)
         {
             var handler = HistoryCompleted;
@@ -672,7 +686,12 @@ namespace WhatsappApp.Services
                         await target.LoadVideoThumbnailAsync();
                     }
                     else if (string.Equals(result.MediaType, "audio", StringComparison.OrdinalIgnoreCase))
+                    {
                         target.Type = MessageType.Audio;
+                        // The note is on disk and the bar can play it: whoever asked
+                        // for it hears it now instead of having to tap again.
+                        RaiseAudioArrived(target);
+                    }
                     // A document stays text: its bubble is the file name.
                 }
                 else if (string.Equals(result.MediaType, "image", StringComparison.OrdinalIgnoreCase))

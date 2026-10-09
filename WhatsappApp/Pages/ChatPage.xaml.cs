@@ -174,6 +174,10 @@ namespace WhatsappApp.Pages
                 // is not a message: the three dots of "writing".
                 DataService.Instance.TypingChanged += OnTypingChanged;
 
+                // A voice note whose play button was tapped: its bytes arrive later,
+                // and the note plays then (see OnAudioArrived).
+                DataService.Instance.AudioArrived += OnAudioArrived;
+
                 // An image shared from outside may have arrived while this page
                 // did not exist (process restarted): it is picked up here, and from
                 // here on also on arrival.
@@ -192,6 +196,8 @@ namespace WhatsappApp.Pages
                 _connectionEstablished = null;
             }
             DataService.Instance.TypingChanged -= OnTypingChanged;
+            DataService.Instance.AudioArrived -= OnAudioArrived;
+            _playWhenReady = null;
             AttachmentInbox.Ready -= OnAttachmentReady;
 
             // Leaving while writing: the contact must not keep seeing the dots,
@@ -577,6 +583,10 @@ namespace WhatsappApp.Pages
             // The spinner starts now: the first piece can take a while, and without
             // this the tap seems to have done nothing.
             message.IsMediaLoading = true;
+            // A tap on the play button of a note with no bytes yet: the bytes come
+            // later, and this is what makes the note play then instead of staying
+            // silent until a second tap.
+            _playWhenReady = message;
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("ChatPage/request media",
                 CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id));
@@ -735,6 +745,10 @@ namespace WhatsappApp.Pages
         private string _voiceLoadedFile;
         private DispatcherTimer _playbackTimer;
 
+        // The voice note whose bytes were asked for by a tap on its play button:
+        // it plays as soon as they arrive. Null when nobody is waiting.
+        private ChatMessage _playWhenReady;
+
         /// <summary>
         /// The play/pause glyph of one bubble. A second tap on the same voice note
         /// pauses it and keeps the position; tapping another one rewinds the first.
@@ -756,6 +770,20 @@ namespace WhatsappApp.Pages
         private void OutgoingPlayAudioButton_Click(object sender, RoutedEventArgs e)
         {
             OnPlayAudioClicked(sender);
+        }
+
+        /// <summary>
+        /// A voice note just landed on disk. If the tap that asked for it was a tap
+        /// on its play button, the note plays now: the tap used to download only, so
+        /// the bar stayed silent and the note seemed not to play at all.
+        /// </summary>
+        private void OnAudioArrived(object sender, ChatMessage message)
+        {
+            if (message == null || message != _playWhenReady) return;
+            _playWhenReady = null;
+            // The same path as a tap on a note that is already here: one player,
+            // one bar playing, and the failure line if the phone refuses the file.
+            ToggleVoice(message);
         }
 
         private void OnPlayAudioClicked(object sender)
