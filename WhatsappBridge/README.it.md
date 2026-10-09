@@ -288,12 +288,19 @@ Le due meta' sono indipendenti, e ognuna dice cosa le manca. `audio yes` e' la
 direzione ricevuta (MP3 per il telefono); `voice yes` quella spedita (Ogg/Opus per
 WhatsApp); `video yes` il rimpicciolimento dei video grandi.
 
+**Una conversione legge l'input da un file, non da un tubo.** ffmpeg non puo' spostarsi
+dentro un tubo, e l'M4A/AAC che registra il telefono tiene l'atomo `moov` in fondo al
+file: letto da `pipe:0`, ffmpeg non trova nessuna traccia, esce con 0 e scrive poche
+centinaia di byte di Ogg vuoto, che venivano poi spediti come un vocale senza niente
+dentro. L'adapter scrive i byte in un file nella cartella temporanea di sistema e lo
+cancella dopo, quindi un build che abilita `pipe` deve abilitare anche `file`.
+
 Per costruire un ffmpeg piccolo, solo audio, per i vocali in entrambe le direzioni,
 configuralo solo con quei pezzi (l'encoder video resta fuori):
 
 ```bash
 ./configure --disable-everything --disable-doc --disable-programs --enable-ffmpeg \
-  --enable-protocol=pipe \
+  --enable-protocol=pipe,file \
   --enable-demuxer=ogg,mov --enable-decoder=opus,aac \
   --enable-parser=opus,aac --enable-filter=aresample \
   --enable-encoder=libmp3lame,libopus --enable-muxer=mp3,ogg \

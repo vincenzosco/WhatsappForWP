@@ -926,6 +926,14 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
   function mediaBegin(session, msg) {
     if (!msg.MediaTransferId) return;
 
+    // The chat the attachment is for travels in `Text`, as it does for
+    // `messages`, `read` and `media.get`: a control frame carries `system` in
+    // `ChatId`. Reading the chat from `ChatId` here sent every attachment to
+    // "system@s.whatsapp.net", and GOWA answered "Phone system@s.whatsapp.net is
+    // not on whatsapp": no voice note ever left the phone. `ChatId` stays as the
+    // fallback, for a frame that carries the chat there instead of in `Text`.
+    const chatId = (msg.Text || '').trim() || msg.ChatId;
+
     // The declared total is what makes the end verifiable: without it, an
     // attachment missing a piece is indistinguishable from a whole one.
     const declared = Number(msg.MediaChunkTotal);
@@ -946,7 +954,7 @@ function createBridge({ config, gowa, log, debug, transcoder, users }) {
     }
 
     session.mediaTransfers.set(msg.MediaTransferId, {
-      chatId: msg.ChatId,
+      chatId,
       messageId: msg.RelatedMessageId || null,
       fileName: msg.MediaFileName || null,
       mimeType: msg.MediaMimeType || null,
