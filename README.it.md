@@ -184,7 +184,10 @@ I vocali hanno bisogno di `ffmpeg` sulla macchina che esegue l'adapter in entram
 le direzioni: `libmp3lame` per fare l'MP3 che il telefono sa riprodurre da quello
 che arriva, e `libopus` per fare l'Ogg/Opus che WhatsApp accetta da quello che
 viene registrato. L'adapter dice all'avvio quale delle due cose quel binario sa
-fare, e funziona anche con un build ridotto che ne ha una sola.
+fare, e funziona anche con un build ridotto che ne ha una sola. Un build tuo ha
+bisogno anche del protocollo `file`: una conversione riceve l'input come file
+temporaneo, perche' ffmpeg non puo' spostarsi dentro un tubo e l'M4A che registra
+questo telefono tiene l'atomo `moov` in fondo al file.
 Le variabili d'ambiente dell'adapter sono documentate in
 `WhatsappBridge/.env.example` (il file viene letto all'avvio; le variabili gia'
 esportate hanno la precedenza).
