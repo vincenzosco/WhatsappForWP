@@ -706,3 +706,41 @@ What is still owed after the run:
   That host is `192.168.0.108`, not this machine, so the last device check waits on the operator
   deploying `5a27e39` there and installing ffmpeg.
 - **The four `download.test.js` failures** are the missing `zip` on this host, not this change.
+
+## The second run of 2026-10-09
+
+The deploy this plan was waiting for was made by the agent, not the operator: the adapter runs as
+the `ghcr.io/vincenzosco/docker-whatsappforwp:latest` image on the NAS at `192.168.0.108`, and
+`.tools/nas-deploy.sh` pulls it and recreates the container over SSH. The image carried `ffmpeg`
+with both encoders, and the startup line reads `OK ffmpeg found: audio yes, voice yes, video yes`.
+
+The operator then tested on the Lumia and reported both directions still broken: *"il messaggio
+vocale non si sente ne si invia"*. `.tools/voice-now/IsolatedStore/diag.log` (pulled with
+`ISETool.exe ts de`) and the container log named two causes, neither of them the ones this plan
+had found:
+
+1. **The attachment went to the wrong chat.** The app puts the chat in `Text` and `system` in
+   `ChatId`, as the frame table in `WhatsappBridge/README.md` says and as `messages`, `read` and
+   `media.get` already read it - but `mediaBegin` took the chat from `ChatId`. Every attachment
+   therefore went to `system@s.whatsapp.net`, and GOWA answered `Phone system@s.whatsapp.net is not
+   on whatsapp`. The phone log shows the app sending `out media.begin
+   393492556507@s.whatsapp.net` and the adapter answering `in error Send failed: Phone
+   system@...`.
+2. **The conversion produced an empty note.** The container log reads `voice note converted for
+   WhatsApp: 79299 -> 322 bytes`: 322 bytes is the Ogg header and nothing else. ffmpeg was reading
+   the payload from `pipe:0`, and a pipe cannot be seeked - the M4A the phone records keeps its
+   `moov` atom at the end of the file (byte 77230 of 79299). Measured in the container on the same
+   file: `-i pipe:0` gives 322 bytes and exit 0 (so the stub was accepted as a conversion), the
+   same bytes as a file give 12223 bytes of Ogg/Opus, 3.19 s.
+
+Fixed in `18633f5` (mirror `a65f11a`): `mediaBegin` reads the chat from `Text` with `ChatId` as the
+fallback, and a conversion now writes its input to a folder under the system temp directory and
+removes it afterwards. The adapter suite is 293/293 (two tests added), the 15 guards exit 0, and
+the deployed image was checked through the protocol: an attachment posted with `Text` set and
+`ChatId: system` is logged as `attachment to 000000000000@s.whatsapp.net`, converts 79299 ->
+12223, and GOWA refuses the invented number rather than `system`. Nothing was delivered.
+
+What this run still does not cover: a **real** received note heard on the phone, and a real sent
+note shown as a voice note at the other end. Both need the operator in front of the Lumia; the
+received direction was checked as far as the protocol goes (`media.get` answers `MediaType: audio`,
+`MediaMimeType: audio/mpeg`).
