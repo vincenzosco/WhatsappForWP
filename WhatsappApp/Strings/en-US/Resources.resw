@@ -514,6 +514,9 @@
   <data name="ChatPage_ContactInfoTooltip" xml:space="preserve">
     <value>Contact info</value>
   </data>
+  <data name="ChatPage_JumpToRecentTooltip" xml:space="preserve">
+    <value>Jump to the newest messages</value>
+  </data>
   <data name="CommService_ServerUnavailable" xml:space="preserve">
     <value>Server not available, try again in a few minutes :)</value>
   </data>

@@ -35,7 +35,8 @@ namespace WhatsappApp.Services
         private ScrollViewer _viewer;
         private ChatMessage _pendingScroll;
         private bool _scrollQueued;
-        private Action _onBottom;
+        private Action<bool> _onPosition;
+        private bool? _lastAtBottom;
         private bool _watched;
 
         public ConversationView(ListView list, CoreDispatcher dispatcher)
@@ -58,6 +59,10 @@ namespace WhatsappApp.Services
             _items = messages;
             _list.ItemsSource = messages;
             Diag.Ok("conversation bound " + (messages == null ? 0 : messages.Count) + " message(s)");
+
+            // And here the viewer exists, which is what a position watch asked for
+            // during a navigation could not find.
+            AttachViewChanged();
         }
 
         /// <summary>
@@ -93,30 +98,63 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Watches the position so the caller is told when the reader reaches the
-        /// bottom. The handler is put on once: ViewChanged fires on every frame of
-        /// a scroll.
+        /// Watches the position so the caller is told, in both directions, whether
+        /// the newest row is on screen. It replaces what used to be a one-way
+        /// notification (the reader reached the bottom): the arrow that comes back
+        /// to the newest message has to be shown when it is left, which is the half
+        /// nobody was told about.
+        ///
+        /// The callback is called once right here, so the arrow starts in the right
+        /// state instead of waiting for the first scroll.
         /// </summary>
-        public void WatchBottom(Action onBottom)
+        public void WatchPosition(Action<bool> atBottom)
         {
+            _onPosition = atBottom;
+            _lastAtBottom = null;
+            AttachViewChanged();
+        }
+
+        /// <summary>
+        /// Puts the position handler on the viewer, once. It is called again from
+        /// Bind, and that second call is the point: the page asks for a position
+        /// during OnNavigatedTo, before the list has a viewer, and a handler that
+        /// gave up then would never hear anything. A conversation with no viewer is
+        /// at its bottom - there is nothing below to be torn away from - and that
+        /// is what it reports while it waits.
+        /// </summary>
+        private void AttachViewChanged()
+        {
+            if (_onPosition == null) return;
+
+            ReportPosition();
+
             if (_watched) return;
 
             ScrollViewer viewer = Viewer();
             if (viewer == null) return;
 
-            _onBottom = onBottom;
             viewer.ViewChanged += OnViewChanged;
             _watched = true;
         }
 
         /// <summary>Takes the position handler off, if it was put on.</summary>
-        public void UnwatchBottom()
+        private void DetachViewChanged()
         {
             if (!_watched) return;
 
             ScrollViewer viewer = Viewer();
             if (viewer != null) viewer.ViewChanged -= OnViewChanged;
             _watched = false;
+        }
+
+        /// <summary>The answer changed? Then it is worth saying.</summary>
+        private void ReportPosition()
+        {
+            bool atBottom = AtBottom();
+            if (_lastAtBottom == atBottom) return;
+
+            _lastAtBottom = atBottom;
+            _onPosition(atBottom);
         }
 
         /// <summary>
@@ -126,9 +164,14 @@ namespace WhatsappApp.Services
         /// </summary>
         public void Reset()
         {
-            UnwatchBottom();
+            DetachViewChanged();
             _viewer = null;
             _pendingScroll = null;
+            // The page that asked is the one leaving, and its callback closes over
+            // its own buttons: a kept one would be called for a page in the tree no
+            // more.
+            _onPosition = null;
+            _lastAtBottom = null;
         }
 
         private void QueueScroll(ChatMessage message)
@@ -182,8 +225,8 @@ namespace WhatsappApp.Services
 
         private void OnViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
-            if (_onBottom == null || !AtBottom()) return;
-            _onBottom();
+            if (_onPosition == null) return;
+            ReportPosition();
         }
 
         /// <summary>

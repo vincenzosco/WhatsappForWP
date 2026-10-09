@@ -30,3 +30,16 @@ test('un burst senza la chat in primo piano non deve muovere un altra lista', ()
       '');
   assert.match(chatScrollProblems(broken).join('\n'), /ActiveChatId/);
 });
+
+test('una freccia senza il suo gestore non riporta ai messaggi recenti', () => {
+  const broken = files();
+  broken.xaml = broken.xaml
+    .replace(/Click="RecentMessagesButton_Click"/, 'Click="RecentMessagesButtonClick"');
+  assert.match(chatScrollProblems(broken).join('\n'), /RecentMessagesButton_Click/);
+});
+
+test('una pagina che decide da sola il fondo e un problema', () => {
+  const broken = files();
+  broken.page = broken.page + '\r\n// ScrollableHeight\r\n';
+  assert.match(chatScrollProblems(broken).join('\n'), /ScrollableHeight/);
+});
