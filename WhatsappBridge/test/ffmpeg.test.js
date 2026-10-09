@@ -1,8 +1,9 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert');
-const { createTranscoder, isOggOpus, isVideo, replaceExtension, VIDEO_COMPRESS_MIN_BYTES } =
-  require('../ffmpeg');
+const fs = require('node:fs');
+const { createTranscoder, inputFileFor, isOggOpus, isVideo, replaceExtension,
+  VOICE_ARGS, VIDEO_COMPRESS_MIN_BYTES } = require('../ffmpeg');
 
 const silent = () => {};
 
@@ -270,6 +271,23 @@ test('un vocale registrato dal telefono diventa un Ogg/Opus', async () => {
   const transcodes = calls.filter((c) => c.args.includes('pipe:1'));
   assert.strictEqual(transcodes.length, 1);
   assert.ok(transcodes[0].args.includes('libopus'), 'la conversione usa l encoder Opus');
+});
+
+test('l input di una conversione va su un file, non su un tubo', () => {
+  const input = Buffer.from('m4a-finto');
+  const written = inputFileFor(VOICE_ARGS, input);
+  try {
+    // Su pipe:0 ffmpeg non puo tornare indietro nel file: il moov di un M4A
+    // registrato dal telefono sta in fondo, e la conversione esce vuota.
+    assert.ok(written.args.indexOf('pipe:0') < 0, 'un input su tubo non si legge');
+    const at = written.args.indexOf('-i');
+    assert.ok(at >= 0, 'ffmpeg vuole -i davanti all input');
+    const file = written.args[at + 1];
+    assert.ok(file !== 'pipe:0' && file.indexOf(written.dir) === 0, 'input su file');
+    assert.deepStrictEqual(fs.readFileSync(file), input, 'il file porta gli stessi byte');
+  } finally {
+    fs.rmSync(written.dir, { recursive: true, force: true });
+  }
 });
 
 test('un vocale gia Ogg/Opus non si riconverte', async () => {

@@ -862,6 +862,30 @@ test('un vocale inviato va a sendAudio, non a sendFile', async () => {
   ]);
 });
 
+test('un vocale va alla chat che l app mette in Text, non a system', async () => {
+  const delivered = [];
+  const gowa = {
+    sendAudio: async (phone) => {
+      delivered.push(phone);
+      return 'A0';
+    },
+    sendFile: async () => { throw new Error('un vocale non passa da sendFile'); },
+    sendImage: async () => { throw new Error('un vocale non e un immagine'); },
+    sendVideo: async () => { throw new Error('un vocale non e un video'); }
+  };
+  const bridge = mediaBridge(gowa);
+
+  // The frame the app sends: a control frame carries `system` in ChatId, and the
+  // chat the attachment is for travels in Text. Reading the chat from ChatId
+  // sent every voice note to system@s.whatsapp.net, and GOWA refused it there.
+  await bridge.handleControl({ Type: 3, Command: 'media.begin', ChatId: 'system', Text: 'a@s.whatsapp.net', MediaTransferId: 'v9', MediaFileName: 'voce.m4a', MediaMimeType: 'audio/mp4', MediaChunkTotal: 1 });
+  await bridge.handleControl({ Type: 3, Command: 'media.chunk', MediaTransferId: 'v9', MediaChunkIndex: 0, MediaData: Buffer.from('voce').toString('base64') });
+  await bridge.handleControl({ Type: 3, Command: 'media.end', MediaTransferId: 'v9' });
+
+  assert.deepStrictEqual(delivered, ['a@s.whatsapp.net'],
+    'system@s.whatsapp.net non esiste: li il vocale non parte');
+});
+
 test('un vocale M4A viene convertito in Ogg prima di andare a WhatsApp', async () => {
   const delivered = [];
   const gowa = {
