@@ -367,14 +367,18 @@ git commit -m "feat: encode and decode WhatsApp binary nodes in the app's own C#
 - Consumes: nothing.
 - Produces:
   - `Sha256.Hash(byte[]) → byte[]`
-  - `Hmac.Sha256(byte[] key, byte[] data) → byte[]`
+  - `Hmac.Compute(byte[] key, byte[] data) → byte[]` (not `Hmac.Sha256`: inside the
+    class that name would shadow the `Sha256` type and `Sha256.Hash` would not compile)
   - `Hkdf.Derive(byte[] key, byte[] salt, byte[] info, int length) → byte[]`
   - `Aes.CbcEncrypt(byte[] key, byte[] iv, byte[] plain) / CbcDecrypt(...) → byte[]`
     (PKCS#7)
   - `AesGcm.Seal(byte[] key, byte[] nonce, byte[] plain, byte[] aad) → byte[] ciphertext+16-byte tag`,
     `AesGcm.Open(byte[] key, byte[] nonce, byte[] sealedBytes, byte[] aad) → byte[]`
-  - `Curve25519.KeyPair(byte[] privateKey) → byte[] publicKey`,
-    `Curve25519.SharedSecret(byte[] privateKey, byte[] publicKey) → byte[]`
+  - `Curve25519.PublicKey(byte[] privateKey) → byte[]`,
+    `Curve25519.SharedSecret(byte[] privateKey, byte[] publicKey) → byte[]`, and
+    `Curve25519.ScalarMult(byte[] scalar, byte[] point) → byte[]` (no key generation:
+    the caller supplies the bytes, because `System.Security.Cryptography` is not in
+    the WP8.1 projection and a call to it would quietly make this file phone-hostile)
 
 - [ ] **Step 1: Write the failing tests with published vectors**
 
@@ -404,7 +408,9 @@ is the reason the file is written by hand rather than wrapped.
 - [ ] **Step 4: Run until green**
 
 Run: `node tools/test-protocol.js`
-Expected: PASS, one line per vector.
+Expected: PASS — `OK: 26 protocol test(s)` (`Aes.ExpandKey` returns the schedule and
+its round count comes from `RoundsFor`, because `out int rounds` trips the same
+C# 5 guard false positive that `JidUtils` had).
 
 - [ ] **Step 5: Cross-check against the reference implementation**
 
