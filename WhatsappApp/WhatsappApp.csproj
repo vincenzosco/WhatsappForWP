@@ -133,6 +133,13 @@
     <Compile Include="Services\RecordingSession.cs" />
     <Compile Include="Services\ConversationView.cs" />
     <Compile Include="Services\CrashReport.cs" />
+    <Compile Include="Protocol\Diagnostics.cs" />
+    <Compile Include="Protocol\WABinary\BinaryNode.cs" />
+    <Compile Include="Protocol\WABinary\JidUtils.cs" />
+    <Compile Include="Protocol\WABinary\NodeReader.cs" />
+    <Compile Include="Protocol\WABinary\NodeWriter.cs" />
+    <Compile Include="Protocol\WABinary\Tags.cs" />
+    <Compile Include="Protocol\WABinary\Tokens.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>

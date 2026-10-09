@@ -1,0 +1,224 @@
+using System.Collections.Generic;
+using WhatsappApp.Protocol;
+using WhatsappApp.Protocol.WABinary;
+
+namespace ProtocolTests
+{
+    /// <summary>
+    /// The binary codec: the tables, the round trips and the edges that a hand-rolled
+    /// implementation gets wrong (the 20-bit length, the packed forms, the device JID).
+    ///
+    /// The reference values are Baileys' `WABinary/constants.ts`: the token tables are
+    /// pinned at a few known indices, and the length of every table is pinned, because a
+    /// transcription that dropped or merged one entry shifts every later index and is
+    /// invisible in a round trip (the encoder and the decoder shift together).
+    /// </summary>
+    public static class WABinaryTests
+    {
+        [Test]
+        public static void The_token_tables_match_the_reference()
+        {
+            // 236, not 256: tags 236..239 are the dictionary selectors.
+            Assert.AreEqual(236, Tokens.SingleByteTokens.Length);
+            Assert.AreEqual("", Tokens.SingleByteTokens[0]);
+            Assert.AreEqual("s.whatsapp.net", Tokens.SingleByteTokens[3]);
+            Assert.AreEqual("type", Tokens.SingleByteTokens[4]);
+            Assert.AreEqual("message", Tokens.SingleByteTokens[19]);
+            Assert.AreEqual("iq", Tokens.SingleByteTokens[25]);
+            Assert.AreEqual("screen_height", Tokens.SingleByteTokens[235]);
+
+            Assert.AreEqual(4, Tokens.DoubleByteTokens.Length);
+            Assert.AreEqual(256, Tokens.DoubleByteTokens[0].Length);
+            Assert.AreEqual(256, Tokens.DoubleByteTokens[1].Length);
+            Assert.AreEqual(256, Tokens.DoubleByteTokens[2].Length);
+            Assert.AreEqual(256, Tokens.DoubleByteTokens[3].Length);
+
+            Assert.AreEqual("read-self", Tokens.DoubleByteTokens[0][0]);
+            Assert.AreEqual("mute_v2", Tokens.DoubleByteTokens[0][255]);
+            Assert.AreEqual("reject", Tokens.DoubleByteTokens[1][0]);
+            Assert.AreEqual("u_aud_limit_sil_restarts_test1", Tokens.DoubleByteTokens[1][255]);
+            Assert.AreEqual("64", Tokens.DoubleByteTokens[2][0]);
+            Assert.AreEqual("1537", Tokens.DoubleByteTokens[2][255]);
+            Assert.AreEqual("1724", Tokens.DoubleByteTokens[3][0]);
+            Assert.AreEqual("1961", Tokens.DoubleByteTokens[3][255]);
+        }
+
+        [Test]
+        public static void A_frame_starts_with_the_not_compressed_prefix()
+        {
+            byte[] frame = NodeWriter.Encode(new BinaryNode("iq"));
+            Assert.AreEqual(0, (int)frame[0]);
+
+            BinaryNode back = NodeReader.Decode(frame);
+            Assert.AreEqual("iq", back.Tag);
+        }
+
+        [Test]
+        public static void A_node_round_trips()
+        {
+            var node = new BinaryNode("iq");
+            node.Attrs.Add("type", "set");
+            node.Attrs.Add("to", "s.whatsapp.net");
+            node.Content = "ping";
+
+            BinaryNode back = NodeReader.Decode(NodeWriter.Encode(node));
+
+            Assert.AreEqual("iq", back.Tag);
+            Assert.AreEqual("set", back.Attrs["type"]);
+            Assert.AreEqual("s.whatsapp.net", back.Attrs["to"]);
+            Assert.AreEqual("ping", back.Content);
+        }
+
+        [Test]
+        public static void The_attribute_order_is_kept()
+        {
+            var node = new BinaryNode("iq");
+            node.Attrs.Add("zzz", "1");
+            node.Attrs.Add("aaa", "2");
+            node.Attrs.Add("mmm", "3");
+
+            BinaryNode back = NodeReader.Decode(NodeWriter.Encode(node));
+
+            var order = new List<string>();
+            foreach (KeyValuePair<string, string> attribute in back.Attrs) order.Add(attribute.Key);
+
+            Assert.AreEqual("zzz,aaa,mmm", string.Join(",", order.ToArray()));
+        }
+
+        [Test]
+        public static void A_children_list_round_trips()
+        {
+            var parent = new BinaryNode("ib");
+            var child = new BinaryNode("item");
+            child.Attrs.Add("v", "1");
+            parent.Content = new List<BinaryNode> { child };
+
+            BinaryNode back = NodeReader.Decode(NodeWriter.Encode(parent));
+            IList<BinaryNode> children = back.Children();
+
+            Assert.IsTrue(children != null);
+            Assert.AreEqual(1, children.Count);
+            Assert.AreEqual("item", children[0].Tag);
+            Assert.AreEqual("1", children[0].Attrs["v"]);
+            Assert.AreEqual("item", back.Child("item").Tag);
+        }
+
+        [Test]
+        public static void A_binary_payload_round_trips_unchanged()
+        {
+            byte[] payload = new byte[] { 0x00, 0xff, 0x10, 0x00, 0x7f };
+            var node = new BinaryNode("message");
+            node.Content = payload;
+
+            BinaryNode back = NodeReader.Decode(NodeWriter.Encode(node));
+            Assert.ByteArraysEqual(payload, back.Bytes());
+        }
+
+        [Test]
+        public static void A_jid_is_packed_as_a_pair_and_read_back()
+        {
+            var node = new BinaryNode("to");
+            node.Attrs.Add("jid", "393401234567@s.whatsapp.net");
+
+            byte[] bytes = NodeWriter.Encode(node);
+            BinaryNode back = NodeReader.Decode(bytes);
+
+            Assert.AreEqual("393401234567@s.whatsapp.net", back.Attrs["jid"]);
+
+            // The user is digits only, so it goes as nibbles, not as raw text, and the
+            // server is the token for s.whatsapp.net.
+            Assert.IsTrue(Contains(bytes, (byte)Tags.Nibble8));
+            Assert.IsTrue(Contains(bytes, (byte)Tags.JidPair));
+        }
+
+        [Test]
+        public static void A_device_jid_keeps_its_device()
+        {
+            var node = new BinaryNode("to");
+            node.Attrs.Add("jid", "393401234567:12@s.whatsapp.net");
+
+            byte[] bytes = NodeWriter.Encode(node);
+            BinaryNode back = NodeReader.Decode(bytes);
+
+            Assert.AreEqual("393401234567:12@s.whatsapp.net", back.Attrs["jid"]);
+            Assert.IsTrue(Contains(bytes, (byte)Tags.AdJid));
+        }
+
+        [Test]
+        public static void A_long_payload_uses_the_20_bit_length()
+        {
+            var payload = new byte[300];
+            for (int i = 0; i < payload.Length; i++) payload[i] = (byte)(i & 0xff);
+
+            var node = new BinaryNode("body");
+            node.Content = payload;
+
+            byte[] bytes = NodeWriter.Encode(node);
+
+            Assert.IsTrue(Contains(bytes, (byte)Tags.Binary20));
+            Assert.ByteArraysEqual(payload, NodeReader.Decode(bytes).Bytes());
+        }
+
+        [Test]
+        public static void Long_text_content_comes_back_as_its_utf8_bytes()
+        {
+            // A real asymmetry of the format, not a bug here: a long string is written
+            // with a BINARY_20 length, and the decoder reads content under a BINARY_*
+            // tag as bytes whatever it was. The reference does the same, so a caller
+            // that wants the text back has to decode it - this test is the record of
+            // that, so nobody "fixes" it into a stream WhatsApp does not read.
+            string text = new string('a', 300);
+            var node = new BinaryNode("body");
+            node.Content = text;
+
+            byte[] bytes = NodeWriter.Encode(node);
+            BinaryNode back = NodeReader.Decode(bytes);
+
+            Assert.IsTrue(Contains(bytes, (byte)Tags.Binary20));
+            Assert.ByteArraysEqual(System.Text.Encoding.UTF8.GetBytes(text), back.Bytes());
+        }
+
+        [Test]
+        public static void A_hex_string_is_packed_and_read_back()
+        {
+            var node = new BinaryNode("to");
+            node.Attrs.Add("hash", "ABCDEF01");
+
+            byte[] bytes = NodeWriter.Encode(node);
+            BinaryNode back = NodeReader.Decode(bytes);
+
+            Assert.AreEqual("ABCDEF01", back.Attrs["hash"]);
+            Assert.IsTrue(Contains(bytes, (byte)Tags.Hex8));
+        }
+
+        [Test]
+        public static void A_truncated_buffer_is_refused_not_read()
+        {
+            byte[] bytes = NodeWriter.Encode(new BinaryNode("iq"));
+            Assert.Throws<ProtocolException>(delegate { NodeReader.Decode(Truncate(bytes, 3)); });
+        }
+
+        [Test]
+        public static void A_compressed_frame_is_refused()
+        {
+            Assert.Throws<ProtocolException>(delegate { NodeReader.Decode(new byte[] { 0x02, 0x00 }); });
+        }
+
+        private static bool Contains(byte[] bytes, byte value)
+        {
+            for (int i = 0; i < bytes.Length; i++)
+            {
+                if (bytes[i] == value) return true;
+            }
+
+            return false;
+        }
+
+        private static byte[] Truncate(byte[] source, int length)
+        {
+            var copy = new byte[length];
+            System.Buffer.BlockCopy(source, 0, copy, 0, length);
+            return copy;
+        }
+    }
+}

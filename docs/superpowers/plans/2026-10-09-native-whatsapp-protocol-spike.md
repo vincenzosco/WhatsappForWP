@@ -288,14 +288,14 @@ public static void A_device_jid_keeps_its_device()
 }
 
 [Test]
-public static void A_long_string_uses_the_20_bit_length()
+public static void A_long_payload_uses_the_20_bit_length()
 {
-    string text = new string('a', 300);
+    var payload = new byte[300];
     var node = new BinaryNode("body");
-    node.Content = text;
+    node.Content = payload;
     byte[] bytes = NodeWriter.Encode(node);
     Assert.IsTrue(Contains(bytes, (byte)Tags.Binary20));
-    Assert.AreEqual(text, NodeReader.Decode(bytes).Content);
+    Assert.ByteArraysEqual(payload, NodeReader.Decode(bytes).Bytes());
 }
 
 [Test]
@@ -337,7 +337,7 @@ site string, never a silent default.
 - [ ] **Step 4: Run the tests until they pass**
 
 Run: `node tools/test-protocol.js`
-Expected: PASS — `OK: 10 protocol test(s)` (the two Task 1 smoke tests included).
+Expected: PASS — `OK: 15 protocol test(s)` (the two Task 1 smoke tests included).
 
 - [ ] **Step 5: Run the fast gate and the app build**
 
