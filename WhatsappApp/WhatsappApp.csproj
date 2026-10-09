@@ -134,6 +134,12 @@
     <Compile Include="Services\ConversationView.cs" />
     <Compile Include="Services\CrashReport.cs" />
     <Compile Include="Protocol\Diagnostics.cs" />
+    <Compile Include="Protocol\Crypto\Aes.cs" />
+    <Compile Include="Protocol\Crypto\AesGcm.cs" />
+    <Compile Include="Protocol\Crypto\Curve25519.cs" />
+    <Compile Include="Protocol\Crypto\Hkdf.cs" />
+    <Compile Include="Protocol\Crypto\Hmac.cs" />
+    <Compile Include="Protocol\Crypto\Sha256.cs" />
     <Compile Include="Protocol\WABinary\BinaryNode.cs" />
     <Compile Include="Protocol\WABinary\JidUtils.cs" />
     <Compile Include="Protocol\WABinary\NodeReader.cs" />
