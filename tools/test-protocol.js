@@ -14,6 +14,12 @@
  * WP8.1 platforms, and a net45 console project would break its gate.
  *
  * Usage:  node tools/test-protocol.js
+ *         node tools/test-protocol.js --connect
+ *
+ * `--connect` is passed through to the runner: it skips the offline suite and reads
+ * WhatsApp's first node from the real endpoint once, to check the codec and the
+ * framing against the server rather than against itself.
+ *
  * Exit code: 0 = every protocol test passed, 1 = build failed or a test failed.
  */
 'use strict';
@@ -88,7 +94,8 @@ function main() {
     return 1;
   }
 
-  const run = spawnSync(EXE, [], { stdio: 'inherit' });
+  // Everything after the script name goes to the runner (`--connect`).
+  const run = spawnSync(EXE, process.argv.slice(2), { stdio: 'inherit' });
   if (run.error) {
     console.error('Could not run the protocol tests: ' + run.error.message);
     return 1;

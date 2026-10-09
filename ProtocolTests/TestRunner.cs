@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 
+
 namespace ProtocolTests
 {
     /// <summary>
@@ -17,6 +18,14 @@ namespace ProtocolTests
     {
         public static int Main(string[] args)
         {
+            // The only mode that is not offline: talk to the real endpoint once and
+            // report what it sends. It is opt-in because a test suite that needs the
+            // network fails for reasons that have nothing to do with the code.
+            if (args != null && args.Length > 0 && args[0] == "--connect")
+            {
+                return LiveProbe.Run();
+            }
+
             var failures = new List<string>();
             var tests = new List<MethodInfo>();
 
