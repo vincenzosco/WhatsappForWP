@@ -178,6 +178,11 @@ namespace WhatsappApp.Pages
                 // and the note plays then (see OnAudioArrived).
                 DataService.Instance.AudioArrived += OnAudioArrived;
 
+                // The burst of old messages that closes for this chat. The list is
+                // bound before the burst of a chat that asked for it late, and the
+                // burst is what puts the newest messages in.
+                DataService.Instance.HistoryCompleted += OnHistoryCompleted;
+
                 // An image shared from outside may have arrived while this page
                 // did not exist (process restarted): it is picked up here, and from
                 // here on also on arrival.
@@ -197,6 +202,7 @@ namespace WhatsappApp.Pages
             }
             DataService.Instance.TypingChanged -= OnTypingChanged;
             DataService.Instance.AudioArrived -= OnAudioArrived;
+            DataService.Instance.HistoryCompleted -= OnHistoryCompleted;
             _playWhenReady = null;
             AttachmentInbox.Ready -= OnAttachmentReady;
 
@@ -349,6 +355,24 @@ namespace WhatsappApp.Pages
         private void WatchBottomReached()
         {
             _view.WatchBottom(MarkReadWhenAtBottom);
+        }
+
+        /// <summary>
+        /// The burst of old messages has closed for this chat. Its rows went in
+        /// below whatever the list was showing, and nothing else moves the view: a
+        /// chat that was bound before its burst was requested - opened while the
+        /// socket was down, or opened a second time in the same session - stayed at
+        /// its oldest row, which is the chat that opens on "those of an earlier
+        /// time". OnHistoryCompleted is the answer to that, and to the comment in
+        /// ConversationView.QueueScroll that promised it.
+        /// </summary>
+        private void OnHistoryCompleted(object sender, string chatId)
+        {
+            if (_contact == null || chatId != _contact.Id) return;
+            if (DataService.Instance.ActiveChatId != _contact.Id) return;
+
+            Diag.Ok("burst closed, moved to the newest for " + chatId);
+            _view.ScrollToBottom();
         }
 
         /// <summary>The reader has reached the bottom: the message left below is read.</summary>
