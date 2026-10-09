@@ -767,11 +767,6 @@ revisioni, documentazione e pull request sono tutte benvenute, come lo e' chiunq
 voglia aiutarlo a crescere: piu' mani e' l'unica cosa che lo fa andare avanti piu'
 in fretta.
 
-**L'app e' stata scritta al 100% da un agente AI**, guidato e rivisto da una
-persona. Leggere il codice con il sospetto che merita: eseguire i guard in
-`tools/`, eseguire i test dell'adapter e controllare qualunque cosa tocchi il
-proprio account prima di fidarsene.
-
 **L'autore non si assume la responsabilita' dell'account WhatsApp con cui si
 accede.** Collegare questo client significa connettere un client non ufficiale a
 WhatsApp, contro i Termini di servizio di WhatsApp, e l'account puo' essere bannato
