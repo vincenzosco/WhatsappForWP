@@ -279,12 +279,19 @@ The two halves are independent, and each names what it is missing. `audio yes` i
 received direction (MP3 for the phone); `voice yes` is the sent one (Ogg/Opus for
 WhatsApp); `video yes` is the large-video shrink.
 
+**A conversion reads its input from a file, not from a pipe.** ffmpeg cannot seek a
+pipe, and the M4A/AAC the phone records keeps its `moov` atom at the end of the file:
+read from `pipe:0`, ffmpeg finds no track, exits 0 and writes a few hundred bytes of
+empty Ogg, which was then sent as a voice note with nothing in it. The adapter writes
+the bytes to a file under the system temporary folder and deletes it afterwards, so a
+build that enables `pipe` must enable `file` as well.
+
 To build a small, audio-only ffmpeg for the voice notes in both directions, configure
 it with just those pieces (the video encoder is left out):
 
 ```bash
 ./configure --disable-everything --disable-doc --disable-programs --enable-ffmpeg \
-  --enable-protocol=pipe \
+  --enable-protocol=pipe,file \
   --enable-demuxer=ogg,mov --enable-decoder=opus,aac \
   --enable-parser=opus,aac --enable-filter=aresample \
   --enable-encoder=libmp3lame,libopus --enable-muxer=mp3,ogg \

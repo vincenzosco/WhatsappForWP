@@ -11,6 +11,9 @@
 // without it too. The call is injectable, so the tests need no ffmpeg installed.
 
 const { execFile } = require('child_process');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 // The ceiling of bytes in memory. The same number as server.js
 // (MAX_MEDIA_BYTES): past it there is no media any more, only a fault.
@@ -100,15 +103,55 @@ function replaceExtension(fileName, extension) {
   return `${base}${extension}`;
 }
 
-/** ffmpeg reads the input from stdin and writes the output to stdout: no file in between. */
+/**
+ * The arguments with the input on a file instead of on `pipe:0`, and the folder
+ * holding it.
+ *
+ * Why the input is not piped: ffmpeg cannot seek a pipe. The MP4/M4A the phone
+ * records keeps its `moov` atom at the END of the file (the same file has it at
+ * byte 77230 of 79299), so ffmpeg looking for it on a pipe reads the header,
+ * finds no track, and writes a 322-byte Ogg with no audio in it - and exits 0,
+ * so the empty note was accepted as a conversion and sent. On a file it seeks to
+ * the end, reads the whole recording, and the conversion is real.
+ */
+function inputFileFor(args, input) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'whatsapp-bridge-'));
+  const file = path.join(dir, 'input');
+  fs.writeFileSync(file, input);
+  return { dir, args: args.map((arg) => (arg === 'pipe:0' ? file : arg)) };
+}
+
+/** ffmpeg reads the input from a file and writes the output to stdout. */
 function execFfmpeg(command, args, input) {
   return new Promise((resolve, reject) => {
-    const child = execFile(command, args, { maxBuffer: MAX_MEDIA_BYTES, encoding: 'buffer' },
+    let written = null;
+    let realArgs = args;
+    if (input && input.length) {
+      try {
+        written = inputFileFor(args, input);
+        realArgs = written.args;
+      } catch (err) {
+        reject(err);
+        return;
+      }
+    }
+
+    const done = () => {
+      if (!written) return;
+      try { fs.rmSync(written.dir, { recursive: true, force: true }); } catch (err) { /* nothing left to do */ }
+      written = null;
+    };
+
+    const child = execFile(command, realArgs, { maxBuffer: MAX_MEDIA_BYTES, encoding: 'buffer' },
       (err, stdout) => {
+        done();
         if (err) { reject(err); return; }
         resolve(stdout);
       });
-    child.stdin.end(input || undefined);
+    child.on('error', done);
+    // Nothing goes on stdin: with the input on a file ffmpeg must not wait for
+    // a pipe that will never be written to.
+    child.stdin.end(written ? undefined : (input || undefined));
   });
 }
 
@@ -287,6 +330,7 @@ function createTranscoder(options) {
 
 module.exports = {
   createTranscoder,
+  inputFileFor,
   isOggOpus,
   isVideo,
   replaceExtension,
