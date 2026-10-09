@@ -179,7 +179,10 @@ screen on while it is visible — or you can reuse the session already linked.
 directions: `libmp3lame` to make the MP3 the phone can play from what arrives,
 and `libopus` to make the Ogg/Opus WhatsApp accepts from what is recorded. The
 adapter reports at startup which of the two that binary can do, and works with a
-stripped build that has only one.
+stripped build that has only one. A build of your own also needs the `file`
+protocol: a conversion is handed its input as a temporary file, because ffmpeg
+cannot seek a pipe and the M4A this phone records keeps its `moov` atom at the
+end of the file.
 Adapter environment variables are documented in
 `WhatsappBridge/.env.example` (the file is read at startup; variables already
 exported win over it).
