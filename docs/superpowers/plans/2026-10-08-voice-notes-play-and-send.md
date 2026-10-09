@@ -744,3 +744,25 @@ What this run still does not cover: a **real** received note heard on the phone,
 note shown as a voice note at the other end. Both need the operator in front of the Lumia; the
 received direction was checked as far as the protocol goes (`media.get` answers `MediaType: audio`,
 `MediaMimeType: audio/mpeg`).
+
+### Why the bar stayed silent, found on the third device run
+
+After `ed67239` (a downloaded note plays on the tap that asked for it) the operator tapped once and
+said the bar showed the pause and stayed mute. The diag lines added for exactly this question named
+the stage they stopped at:
+
+```
+ok: voice tap: 3A270802CCB836D71ED6, no bytes here yet
+ok: audio arrived: 3A270802CCB836D71ED6 playing it
+ok: voice play: 3A270802CCB836D71ED6 from incoming_3A270802CCB836D71ED6.mp3
+```
+
+`Play()` was called, nothing was raised, and the progress bar never moved: the element had not
+opened the file yet, and `Play()` on an element that is still opening does nothing - it does not
+throw and it does not raise `MediaFailed`. The player now asks again on `MediaOpened`, and logs the
+duration it found there. On the next run the operator heard both notes, and the log reads
+`ok: voice opened: 5,4s` and `ok: voice opened: 28,98s`.
+
+That also settles a question this plan could not: the adapter's received note is a mono MP3 at
+16 kHz, which is MPEG-2 LSF, and the phone decodes it. Changing that sample rate - a candidate fix
+there was no evidence for - would have moved the goalposts instead of finding this.

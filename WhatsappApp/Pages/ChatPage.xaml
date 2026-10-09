@@ -895,6 +895,7 @@
                       HorizontalAlignment="Left" VerticalAlignment="Top"
                       AutoPlay="False"
                       AreTransportControlsEnabled="False"
+                      MediaOpened="VoicePlayer_MediaOpened"
                       MediaEnded="VoicePlayer_MediaEnded"
                       MediaFailed="VoicePlayer_MediaFailed"/>
 
