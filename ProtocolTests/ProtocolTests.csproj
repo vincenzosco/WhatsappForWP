@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The protocol core's desktop test host.
+
+  The core (WhatsappApp/Protocol/**) is compiled into the WP8.1 app, where there is
+  no test runner and every iteration needs a phone. This project compiles the SAME
+  source files against plain .NET 4.5 with the same C# 5 compiler, so the codec and
+  the crypto are exercised in seconds on the machine that edits them.
+
+  It is deliberately NOT in WhatsappApp.sln: that solution builds only for the
+  WP8.1 platforms (x86/ARM) and a net45 console project would break its gate.
+  tools/test-protocol.js builds and runs this project on its own.
+-->
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{7C4A1E52-9B3D-4F18-8E27-2A6B5D0C9F31}</ProjectGuid>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ProtocolTests</RootNamespace>
+    <AssemblyName>ProtocolTests</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- This project's own tests. -->
+    <Compile Include="*.cs" />
+    <!-- The shared core, compiled where it lives: never copied, so the phone and
+         this runner cannot drift. Transport/ is device-only (WinRT types). -->
+    <Compile Include="..\WhatsappApp\Protocol\**\*.cs"
+             Exclude="..\WhatsappApp\Protocol\Transport\**\*.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>
