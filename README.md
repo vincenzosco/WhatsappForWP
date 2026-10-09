@@ -740,9 +740,6 @@ MIT - Community maintained project. Use at your own risk.
 reviews, documentation and pull requests are all welcome, and so is anyone who
 wants to help it grow: more hands is the only thing that makes it move faster.
 
-**The app was written 100% by an AI agent**, guided and reviewed by a human. Read
-the code with the suspicion that deserves: run the guards in `tools/`, run the
-adapter tests, and check anything that touches your own account before trusting it.
 
 **The author does not accept responsibility for the WhatsApp account used to sign
 in.** Linking this client means connecting an unofficial client to WhatsApp, which
