@@ -57,6 +57,10 @@
          that uses WinRT types and only the phone can compile it. -->
     <Compile Include="..\WhatsappApp\Protocol\**\*.cs"
              Exclude="..\WhatsappApp\Protocol\Transport\WebSocketTransport.cs" />
+    <!-- The one app-side file whose logic is testable off the phone: the start-up
+         rule. Named one by one and not by folder, because Services/ is otherwise
+         WinRT code this project cannot compile. -->
+    <Compile Include="..\WhatsappApp\Services\StartDecision.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
