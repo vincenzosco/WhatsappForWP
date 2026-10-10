@@ -5,9 +5,10 @@ namespace ProtocolTests
     /// <summary>
     /// The oracle's own shape.
     ///
-    /// These tests do not check arithmetic - none of it exists yet. They check that the
-    /// two things every later test leans on are really there: the constants the
-    /// reference printed, and the reference's frozen conversation in
+    /// These tests do not check the protocol; the arithmetic is checked in
+    /// `SignalSessionTests` and `X3dhTests`, against what is here. What they check is
+    /// that what those tests lean on is really there: the constants the reference
+    /// printed, and the reference's frozen conversation in
     /// `ProtocolTests/Vectors/SignalFixture.cs`. A fixture that quietly emptied itself
     /// (a generator that renamed a field, a transcription that lost a row) would make
     /// every test built on it pass by checking nothing, and this is the check that
@@ -31,7 +32,6 @@ namespace ProtocolTests
             Assert.AreEqual("WhisperRatchet", SignalConstants.InfoRatchet);
             Assert.AreEqual("WhisperMessageKeys", SignalConstants.InfoMessageKeys);
 
-            // (3 << 4) | 3, which is the 0x33 that starts every ciphertext below.
             // (3 << 4) | 3 is the 0x33 that starts every ciphertext below; the MAC is
             // the first 8 bytes of the HMAC; the key type byte is what makes an
             // identity key 33 bytes; and the two seeds are the chain's HMAC bytes.
@@ -56,12 +56,42 @@ namespace ProtocolTests
             Assert.AreEqual(32, SignalFixture.X3dh.AliceStepRatchetPrivate.Length);
             Assert.AreEqual((uint)10290, SignalFixture.X3dh.AliceRegistrationId);
 
+            // The two computed values, which `X3dhTests` compares the agreement against.
+            Assert.AreEqual(32, SignalFixture.X3dh.RootKey.Length);
+            Assert.AreEqual(32, SignalFixture.X3dh.RootKeyWithoutPreKey.Length);
+
             Assert.AreEqual(SignalConstants.TypedKeyLength, SignalFixture.X3dh.BobIdentityPublic.Length);
             Assert.AreEqual(SignalConstants.KeyTypeByte, SignalFixture.X3dh.BobIdentityPublic[0]);
             Assert.AreEqual(SignalConstants.TypedKeyLength, SignalFixture.X3dh.BobPreKeyPublic.Length);
             Assert.AreEqual(SignalConstants.TypedKeyLength, SignalFixture.X3dh.BobSignedPreKeyPublic.Length);
             Assert.AreEqual(64, SignalFixture.X3dh.BobSignedPreKeySignature.Length);
             Assert.AreEqual(0xD00Du, SignalFixture.X3dh.BobRegistrationId);
+        }
+
+        /// <summary>
+        /// Every public key here is the public half of the private key printed beside it.
+        ///
+        /// The two halves come from different places - the private ones out of the vector
+        /// the receiver runs, the public ones out of the bundle the sender fetches - so a
+        /// transcription that mangled either would leave two numbers that look plausible
+        /// and an agreement that never agrees. This is the check that says they belong
+        /// together, and it is the one that fails first when a constant is mistyped.
+        /// </summary>
+        [Test]
+        public static void ThePublicKeysBelongToThePrivateOnesBesideThem()
+        {
+            Assert.ByteArraysEqual(SignalFixture.X3dh.BobIdentityPublic,
+                X3dh.TypedPublicKey(SignalFixture.BobSide.IdentityPrivate));
+
+            Assert.ByteArraysEqual(SignalFixture.X3dh.BobSignedPreKeyPublic,
+                X3dh.TypedPublicKey(SignalFixture.BobSide.SignedPreKeyPrivate));
+
+            Assert.ByteArraysEqual(SignalFixture.X3dh.BobPreKeyPublic,
+                X3dh.TypedPublicKey(SignalFixture.BobSide.PreKeyPrivate));
+
+            // The sender's two are asserted against the message instead, which is where the
+            // fixture carries them (`SignalSessionTests.ThePreKeyMessageCarriesWhatTheReferenceCarries`):
+            // the base key is the X3DH ephemeral and the identity is hers.
         }
 
         /// <summary>

@@ -34,6 +34,25 @@ namespace ProtocolTests
             public static readonly uint BobSignedPreKeyId = 14983230u;
             public static readonly byte[] BobSignedPreKeyPublic = Hex("05a9ecf666ec55fc27988ecc417db0d62dd5e1fa751da1f7a2dd2eca0d14c8bd46");
             public static readonly byte[] BobSignedPreKeySignature = Hex("0b46fdb238f1e2df7b28a94ba575e58b0aa1d377bb843602cc8c2a7cd33770fdd741f65a240f7c3086f00f31dc4f3b8ceeab498356f8d5e4bfe6f2dd3eeca98f");
+
+            /// <summary>
+            /// The root key the keys above agree on: 32 bytes of `0xFF`, then the four DH
+            /// outputs, then HKDF with 32 zero bytes as the salt and `"WhisperText"` as the
+            /// info.
+            ///
+            /// These two are the only values here that are not out of the vectors file.
+            /// Neither X3DH nor the Double Ratchet specification publishes test vectors -
+            /// checked against the published revisions - so the root key was computed from
+            /// the same keys by a second script, over OpenSSL's own X25519 and HKDF
+            /// (`node signal-root-key.js`, in the same directory as the generator). It is an
+            /// oracle and not a transcription: nothing here was typed from memory, and it is
+            /// what says the *arithmetic* is right where the conversation above only says
+            /// the wire is.
+            /// </summary>
+            public static readonly byte[] RootKey = Hex("99ca9fe1d0946f2061adca394c2e574fb3b525e2ee1b9f94691fd1ee75a37701");
+
+            /// <inheritdoc cref="RootKey"/>
+            public static readonly byte[] RootKeyWithoutPreKey = Hex("a8b6d72cf7f17ff9c3e6838ca0d553c58d62d2ddbd3eb1080abf696a63b06877");
         }
 
         /// <summary>What the sender produced, and what came back to him.</summary>
