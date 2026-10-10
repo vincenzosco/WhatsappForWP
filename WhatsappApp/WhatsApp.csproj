@@ -142,6 +142,8 @@
     <Compile Include="Protocol\Client\CredentialStore.cs" />
     <Compile Include="Protocol\Client\Credentials.cs" />
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
+    <Compile Include="Protocol\Client\IncomingMessage.cs" />
+    <Compile Include="Protocol\Client\OutgoingMessage.cs" />
     <Compile Include="Protocol\Client\PairingQr.cs" />
     <Compile Include="Protocol\Client\PairingSession.cs" />
     <Compile Include="Protocol\Client\PreKeyUpload.cs" />
