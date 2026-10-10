@@ -145,6 +145,7 @@
     <Compile Include="Protocol\Client\WhatsAppSocket.cs" />
     <Compile Include="Protocol\Diagnostics.cs" />
     <Compile Include="Protocol\Noise\NoiseHandshake.cs" />
+    <Compile Include="Protocol\Signal\SignalConstants.cs" />
     <Compile Include="Protocol\Qr\QrCode.cs" />
     <Compile Include="Protocol\Qr\QrTables.cs" />
     <Compile Include="Protocol\Transport\ITransport.cs" />
