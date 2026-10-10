@@ -163,6 +163,7 @@
     <Compile Include="Protocol\WaProto\ClientPayload.cs" />
     <Compile Include="Protocol\WaProto\DeviceProps.cs" />
     <Compile Include="Protocol\WaProto\HandshakeMessage.cs" />
+    <Compile Include="Protocol\WaProto\Message.cs" />
     <Compile Include="Protocol\WaProto\Proto.cs" />
     <Compile Include="Protocol\Crypto\Aes.cs" />
     <Compile Include="Protocol\Crypto\AesGcm.cs" />
