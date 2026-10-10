@@ -150,7 +150,7 @@ namespace WhatsappApp.Protocol.Signal
         /// spent by reading it: null when it was already used, and null when it was never
         /// published, which the caller answers the same way.
         /// </summary>
-        public byte[] Take(uint id)
+        public byte[] Consume(uint id)
         {
             byte[] key;
             if (!_storage.TryRead(Private(id), out key)) return null;

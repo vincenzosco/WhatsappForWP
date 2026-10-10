@@ -186,11 +186,11 @@ namespace ProtocolTests
 
             Assert.AreEqual(3, store.Remaining);
 
-            Assert.ByteArraysEqual(keys[1], store.Take(2));
+            Assert.ByteArraysEqual(keys[1], store.Consume(2));
             Assert.AreEqual(2, store.Remaining);
 
-            Assert.IsTrue(store.Take(2) == null, "a key that was handed out is not handed out again");
-            Assert.IsTrue(store.Take(99) == null, "and an id that was never published is not a key");
+            Assert.IsTrue(store.Consume(2) == null, "a key that was handed out is not handed out again");
+            Assert.IsTrue(store.Consume(99) == null, "and an id that was never published is not a key");
             Assert.AreEqual(2, store.Remaining);
 
             // A restart: a second store over the same bytes. The remaining ids are where the
@@ -198,8 +198,8 @@ namespace ProtocolTests
             var restarted = new PreKeyStore(storage);
 
             Assert.AreEqual(2, restarted.Remaining);
-            Assert.IsTrue(restarted.Take(2) == null);
-            Assert.ByteArraysEqual(keys[2], restarted.Take(3));
+            Assert.IsTrue(restarted.Consume(2) == null);
+            Assert.ByteArraysEqual(keys[2], restarted.Consume(3));
             Assert.AreEqual(1, restarted.Remaining);
 
             // The signed pre-key, which is the other half of the same object: its id, its
@@ -221,7 +221,7 @@ namespace ProtocolTests
             // install that has not published anything yet is an ordinary install.
             var empty = new PreKeyStore(new Memory());
             Assert.AreEqual(0, empty.Remaining);
-            Assert.IsTrue(empty.Take(1) == null);
+            Assert.IsTrue(empty.Consume(1) == null);
             Assert.IsFalse(empty.HasSignedPreKey);
         }
 
