@@ -181,6 +181,25 @@ namespace ProtocolTests
                 + ", valid " + intermediate.NotBefore + ".." + intermediate.NotAfter);
             Console.WriteLine("  intermediate key: " + Hex(intermediate.Key, 8) + "...");
 
+            // The whole chain, so a failure can be reproduced offline as a fixture
+            // instead of by asking the server again.
+            Console.WriteLine("  leaf details: " + Hex(handshake.Certificates.Leaf.Details, 128));
+            Console.WriteLine("  leaf signature: " + Hex(handshake.Certificates.Leaf.Signature, 128));
+            Console.WriteLine("  intermediate details: " + Hex(handshake.Certificates.Intermediate.Details, 128));
+            Console.WriteLine("  intermediate signature: " + Hex(handshake.Certificates.Intermediate.Signature, 128));
+
+            // And the check that makes the handshake authenticated: the signatures, the
+            // issuer serials, the key the leaf names and both validity windows.
+            try
+            {
+                CertificateVerifier.Verify(handshake.Certificates, handshake.StaticKey, DateTime.UtcNow);
+            }
+            catch (ProtocolException error)
+            {
+                Console.WriteLine("PROBE FAILED: the certificate chain did not verify: " + error.Message);
+                return false;
+            }
+
             if (!SameBytes(leaf.Key, handshake.StaticKey))
             {
                 Console.WriteLine("PROBE FAILED: the leaf does not vouch for the decrypted static key");
@@ -207,9 +226,8 @@ namespace ProtocolTests
             }
 
             Console.WriteLine();
-            Console.WriteLine("PROBE OK: the chain is consistent (signatures still NOT verified:"
-                + " XEdDSA verification is the next milestone, and until it lands this"
-                + " handshake is authenticated in neither direction)");
+            Console.WriteLine("PROBE OK: WhatsApp's certificate chain VERIFIED - the handshake is"
+                + " authenticated, and the static key the certificate names is the one we decrypted");
             return true;
         }
 

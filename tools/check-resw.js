@@ -34,7 +34,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'WhatsappApp');
 const STRINGS = path.join(APP, 'Strings');
-const CSPROJ = path.join(APP, 'WhatsappApp.csproj');
+const CSPROJ = path.join(APP, 'WhatsApp.csproj');
 const LANGS = ['en-US', 'it-IT'];
 const STRICT = process.argv.includes('--strict');
 
@@ -77,15 +77,15 @@ const csproj = fs.readFileSync(CSPROJ, 'utf8');
 for (const lang of LANGS) {
   const rel = 'Strings\\' + lang + '\\Resources.resw';
   if (!csproj.includes('<PRIResource Include="' + rel + '"')) {
-    problems.push('WhatsappApp/WhatsappApp.csproj: "' + rel +
+    problems.push('WhatsappApp/WhatsApp.csproj: "' + rel +
       '" is not registered as a <PRIResource> (it would never ship)');
   }
 }
 const defaultLang = /<DefaultLanguage>([^<]+)<\/DefaultLanguage>/.exec(csproj);
 if (!defaultLang) {
-  problems.push('WhatsappApp/WhatsappApp.csproj: no <DefaultLanguage>');
+  problems.push('WhatsappApp/WhatsApp.csproj: no <DefaultLanguage>');
 } else if (LANGS.indexOf(defaultLang[1]) === -1) {
-  problems.push('WhatsappApp/WhatsappApp.csproj: <DefaultLanguage>' + defaultLang[1] +
+  problems.push('WhatsappApp/WhatsApp.csproj: <DefaultLanguage>' + defaultLang[1] +
     '</DefaultLanguage> is not one of ' + LANGS.join(', '));
 }
 
