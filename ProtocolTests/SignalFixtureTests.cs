@@ -53,6 +53,7 @@ namespace ProtocolTests
             Assert.AreEqual(32, SignalFixture.X3dh.AliceIdentityPrivate.Length);
             Assert.AreEqual(32, SignalFixture.X3dh.AliceBasePrivate.Length);
             Assert.AreEqual(32, SignalFixture.X3dh.AliceEphemeralPrivate.Length);
+            Assert.AreEqual(32, SignalFixture.X3dh.AliceStepRatchetPrivate.Length);
             Assert.AreEqual((uint)10290, SignalFixture.X3dh.AliceRegistrationId);
 
             Assert.AreEqual(SignalConstants.TypedKeyLength, SignalFixture.X3dh.BobIdentityPublic.Length);
@@ -72,23 +73,32 @@ namespace ProtocolTests
         [Test]
         public static void TheConversationIsFrozen()
         {
-            Assert.AreEqual(2, SignalFixture.Conversation.Plaintexts.Length);
+            // Three sends and two replies: A, B, E out and C, D back (the third send comes
+            // after the replies, on the chain the step opened).
+            Assert.AreEqual(3, SignalFixture.Conversation.Plaintexts.Length);
             Assert.AreEqual("A", SignalFixture.Conversation.Plaintexts[0]);
             Assert.AreEqual("B", SignalFixture.Conversation.Plaintexts[1]);
+            Assert.AreEqual("E", SignalFixture.Conversation.Plaintexts[2]);
 
-            Assert.AreEqual(2, SignalFixture.Conversation.Ciphertexts.Length);
+            Assert.AreEqual(3, SignalFixture.Conversation.Ciphertexts.Length);
             Assert.AreEqual(SignalConstants.MessageVersionByte,
                 SignalFixture.Hex(SignalFixture.Conversation.Ciphertexts[0])[0]);
             Assert.IsTrue(SignalFixture.Conversation.Ciphertexts[0] != SignalFixture.Conversation.Ciphertexts[1],
                 "two messages are two ciphertexts");
 
             Assert.AreEqual(2, SignalFixture.Conversation.Received.Length);
+            Assert.AreEqual(3, SignalFixture.BobSide.Received.Length);
+            Assert.AreEqual(2, SignalFixture.BobSide.Plaintexts.Length);
+            Assert.AreEqual("C", SignalFixture.BobSide.Plaintexts[0]);
             Assert.AreEqual("C", SignalFixture.Conversation.ReceivedTexts[0]);
             Assert.AreEqual("D", SignalFixture.Conversation.ReceivedTexts[1]);
 
-            // The first reply arrives with a new ratchet key, which is what makes it a
-            // ratchet rather than a chain.
-            Assert.AreEqual(32, SignalFixture.Hex(SignalFixture.Conversation.ReceivedEphemeralKeys[0]).Length);
+            // The first reply makes her step the ratchet, and the key her step generates is
+            // in the fixture because the third message is sent under it: the vectors carry
+            // it as the `newEphemeralKey` of the receive, and it is what the third
+            // ciphertext's own ratchet key comes out of - the same test the fixture's
+            // private halves are for (see `SignalSessionTests`).
+            Assert.AreEqual(32, SignalFixture.X3dh.AliceStepRatchetPrivate.Length);
         }
     }
 }
