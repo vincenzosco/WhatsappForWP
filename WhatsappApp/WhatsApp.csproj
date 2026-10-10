@@ -130,6 +130,7 @@
     <Compile Include="Services\MessageCache.cs" />
     <Compile Include="Services\NativeCredentialStorage.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
+    <Compile Include="Services\FileSessionStorage.cs" />
     <Compile Include="Services\MemoryWatcher.cs" />
     <Compile Include="Services\VideoCompressor.cs" />
     <Compile Include="Services\VideoThumbnail.cs" />
@@ -149,6 +150,7 @@
     <Compile Include="Protocol\Signal\Keys.cs" />
     <Compile Include="Protocol\Signal\PreKeyBundle.cs" />
     <Compile Include="Protocol\Signal\SessionRecord.cs" />
+    <Compile Include="Protocol\Signal\SessionStore.cs" />
     <Compile Include="Protocol\Signal\SignalConstants.cs" />
     <Compile Include="Protocol\Signal\WhisperMessage.cs" />
     <Compile Include="Protocol\Signal\X3dh.cs" />

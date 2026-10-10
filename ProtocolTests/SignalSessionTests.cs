@@ -188,8 +188,8 @@ namespace ProtocolTests
         [Test]
         public static void TheConversationContinuesAfterTheStep()
         {
-            SessionRecord alice = Alice(new CounterRandom());
-            SessionRecord bob = Bob(new CounterRandom());
+            SessionRecord alice = SignalSessions.Alice(new SignalSessions.CounterRandom());
+            SessionRecord bob = SignalSessions.Bob(new SignalSessions.CounterRandom());
 
             Assert.AreEqual("A", Deliver(alice, bob, "A"));
             Assert.AreEqual("B", Deliver(alice, bob, "B"));
@@ -283,57 +283,12 @@ namespace ProtocolTests
         /// </summary>
         private static SessionRecord Alice()
         {
-            return Alice(new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
-        }
-
-        private static SessionRecord Alice(IRandomSource random)
-        {
-            return SessionRecord.StartAsInitiator(
-                SignalFixture.X3dh.AliceIdentityPrivate,
-                SignalFixture.X3dh.AliceBasePrivate,
-                SignalFixture.X3dh.AliceEphemeralPrivate,
-                SignalFixture.X3dh.AliceRegistrationId,
-                Bundle(),
-                random);
+            return SignalSessions.Alice(new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
         }
 
         private static SessionRecord Bob()
         {
-            return Bob(new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
-        }
-
-        private static SessionRecord Bob(IRandomSource random)
-        {
-            return SessionRecord.StartAsResponder(
-                SignalFixture.BobSide.IdentityPrivate,
-                SignalFixture.BobSide.SignedPreKeyPrivate,
-                SignalFixture.BobSide.PreKeyPrivate,
-                SignalFixture.X3dh.BobRegistrationId,
-                PreKeySignalMessage.Decode(SignalEnvelope.Unwrap(FirstMessage())),
-                random);
-        }
-
-        /// <summary>The reference's own first message: the receiver's session is built from it.</summary>
-        private static byte[] FirstMessage()
-        {
-            return SignalFixture.Hex(SignalFixture.BobSide.Received[0]);
-        }
-
-        /// <summary>The receiver's device, as the server would hand it out.</summary>
-        private static PreKeyBundle Bundle()
-        {
-            var bundle = new PreKeyBundle();
-            bundle.RegistrationId = SignalFixture.X3dh.BobRegistrationId;
-            bundle.IdentityKey = SignalFixture.X3dh.BobIdentityPublic;
-            bundle.PreKeyId = SignalFixture.X3dh.BobPreKeyId;
-            bundle.HasPreKey = true;
-            bundle.PreKeyPublic = SignalFixture.X3dh.BobPreKeyPublic;
-            bundle.SignedPreKeyId = SignalFixture.X3dh.BobSignedPreKeyId;
-            bundle.HasSignedPreKey = true;
-            bundle.SignedPreKeyPublic = SignalFixture.X3dh.BobSignedPreKeyPublic;
-            bundle.SignedPreKeySignature = SignalFixture.X3dh.BobSignedPreKeySignature;
-
-            return bundle;
+            return SignalSessions.Bob(new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
         }
 
         /// <summary>
@@ -450,28 +405,10 @@ namespace ProtocolTests
             }
         }
 
-        /// <summary>
-        /// A source that answers a different key every time, which is what a conversation
-        /// longer than the fixture's needs: the fixture holds one ratchet key per side, and
-        /// a second step that drew the first key again would send a message on a chain the
-        /// peer has already finished with. The bytes are not the reference's - nothing in a
-        /// conversation this long is - and they only have to be keys, so each draw is its
-        /// predecessor's bytes plus one: distinct, 32 bytes, and clamped the way any X25519
-        /// private key is.
-        /// </summary>
-        private sealed class CounterRandom : IRandomSource
+        /// <summary>Where the two shapes of a session come from; see `SignalSessions`.</summary>
+        private static byte[] FirstMessage()
         {
-            private int _draws;
-
-            public byte[] Bytes(int count)
-            {
-                _draws++;
-
-                var key = new byte[count];
-                for (int i = 0; i < count; i++) key[i] = (byte)(0x10 + _draws);
-
-                return key;
-            }
+            return SignalSessions.FirstMessage();
         }
     }
 }
