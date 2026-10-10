@@ -658,9 +658,19 @@ _(filled by Task 6, Step 4: the probe lines from `diag.log` and the phone model)
 and the transport/driver half of Task 5 with an offline suite of 29 tests that pass
 and an app build that reports `0 Error(s)` for x86 and ARM.
 
-**Not done:** Task 4 (the Noise handshake), the device probe of Task 6, and the docs
-of Task 7. The live probe below is why the milestone's checkpoint moved before more
-code was written.
+**Also done since:** the protobuf subset (`WaProto/`) and the Noise handshake
+(`Noise/NoiseHandshake.cs`), with an offline suite of 36 tests. The decisive check is
+the live one, and it passes: `node tools/test-protocol.js --connect` sends
+`clientHello` to `wss://web.whatsapp.com/ws/chat` and **decrypts the server's
+`serverHello`** - its static key and its whole certificate chain - with keys derived by
+our own managed X25519, HKDF and AES-GCM. The chain's own relationships then hold
+against the server: the leaf's key field equals the static key the handshake produced,
+the leaf is issued by the intermediate's serial, and the intermediate by serial 0.
+
+**Not done:** XEdDSA verification of the certificate signatures (so the handshake is
+not yet authenticated - see the ruling below), the `ClientPayload` and the login half,
+the device transport, the probe on the Lumia of Task 6, and the docs of Task 7.
+`tools/check-csharp5.js` and the app build are re-run after every step.
 
 ### Ruling: the first exchange is a protobuf `HandshakeMessage`, not a `<stream:features>` node
 
@@ -720,6 +730,41 @@ rather than guessed, and they replace the plan's Task 4 step 3 sketch:
 - **No key generation in the core.** `System.Security.Cryptography` is not in the
   WP8.1 projection, so `Curve25519.NewPrivateKey` was removed and the caller supplies
   the bytes.
+
+### Ruling: the four bytes are reported, never parsed
+
+`88 02 03 f3` arrives on its own before any frame. Read as a frame its first three
+bytes announce 8 913 411 bytes, so it cannot be the head of a frame either; nothing in
+the reference names it. The probe prints it as `UNCLASSIFIED` and does not feed it to
+the frame accumulator, and the plan claims nothing about what it means.
+
+*Cost if wrong:* if it ever turns out to be the head of a frame, the accumulator would
+have to keep it and the probe's classification is the thing to change - which is why
+the line prints the bytes rather than hiding them.
+
+### Ruling: the certificate's details fields come from the server's own bytes
+
+`NoiseCertificate.Details` has no readable `.proto` in the reference distribution, so
+the field numbers were settled by decoding WhatsApp's real certificate and finding the
+one field equal to the static key the handshake had just decrypted. That is
+`serial = 1`, `issuerSerial = 2`, `key = 3`, `notBefore = 4`, `notAfter = 5`; the first
+guess (issuer as a string at 2, expires at 3, key at 4) decoded a 50-byte certificate
+into a serial and a missing key, which is exactly what the live probe printed before
+the fix. `ProtocolTests/HandshakeTests` freezes that capture.
+
+*Cost if wrong:* none - the numbers are checked against the live certificate on every
+`--connect` run, and the fixture pins them offline.
+
+### Ruling: XEdDSA verification is deferred, and the handshake says so
+
+Decrypting the server's keys proves the primitives; it does **not** prove we are
+talking to WhatsApp, because the certificate signatures are not verified until XEdDSA
+(an Ed25519 verify plus `Curve25519`'s sign-bit convention) is implemented. The probe
+prints that sentence at the end of every run and this ruling is what keeps it honest.
+
+*Cost if wrong:* until XEdDSA lands, a man in the middle with the same Noise
+parameters would be indistinguishable from the server. Nothing of the user's is sent
+over that channel yet, and the next task in the client plan is the verification.
 
 ### Ruling: `Hmac.Sha256` is named `Hmac.Compute`
 
