@@ -147,6 +147,7 @@
     <Compile Include="Protocol\Client\PairingQr.cs" />
     <Compile Include="Protocol\Client\PairingSession.cs" />
     <Compile Include="Protocol\Client\PreKeyUpload.cs" />
+    <Compile Include="Protocol\Client\SessionKeepAlive.cs" />
     <Compile Include="Protocol\Client\WhatsAppSocket.cs" />
     <Compile Include="Protocol\Diagnostics.cs" />
     <Compile Include="Protocol\Noise\NoiseHandshake.cs" />
