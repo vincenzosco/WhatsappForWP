@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol;
@@ -28,7 +29,7 @@ namespace ProtocolTests
             BinaryNode features = new BinaryNode(AnyNodeTag);
             features.Content = new List<BinaryNode>();
 
-            var transport = new ScriptedTransport(NodeWriter.Encode(features));
+            var transport = new ScriptedTransport(Frame(NodeWriter.Encode(features)));
 
             BinaryNode first = new WhatsAppSocket(transport, new SilentLog())
                 .ConnectAsync(WhatsAppSocket.DefaultUrl).GetAwaiter().GetResult();
@@ -66,6 +67,21 @@ namespace ProtocolTests
                 new WhatsAppSocket(transport, new SilentLog())
                     .ConnectAsync(WhatsAppSocket.DefaultUrl).GetAwaiter().GetResult();
             });
+        }
+
+        /// <summary>
+        /// One node as it arrives from the server: a three-byte big-endian length and then
+        /// the node. The socket reads the wire, and the wire is framed - a fixture without
+        /// the length is not a frame, and the reader is right to wait for the rest of it.
+        /// </summary>
+        private static byte[] Frame(byte[] payload)
+        {
+            var frame = new byte[3 + payload.Length];
+            frame[0] = (byte)((payload.Length >> 16) & 0xff);
+            frame[1] = (byte)((payload.Length >> 8) & 0xff);
+            frame[2] = (byte)(payload.Length & 0xff);
+            Buffer.BlockCopy(payload, 0, frame, 3, payload.Length);
+            return frame;
         }
 
         /// <summary>A transport that hands back scripted frames and records what was sent.</summary>

@@ -12,6 +12,10 @@ namespace WhatsappApp.Protocol.WaProto
     /// length-delimited only, which is all `HandshakeMessage`, `CertChain` and the
     /// login payload need; a field of any other shape is not silently skipped, it is
     /// refused.
+    ///
+    /// The field numbers go up to protobuf's own limit, not to 15: `ClientPayload`
+    /// carries `pull` at 33, and 15 was a limit that only held until the first
+    /// message past the handshake was written.
     /// </summary>
     public sealed class ProtoWriter
     {
@@ -36,6 +40,14 @@ namespace WhatsappApp.Protocol.WaProto
             return this;
         }
 
+        /// <summary>The UTF-8 bytes of a string in a length-delimited field.</summary>
+        public ProtoWriter Text(int field, string value)
+        {
+            if (value == null) return this;
+
+            return Bytes(field, System.Text.Encoding.UTF8.GetBytes(value));
+        }
+
         public byte[] ToArray()
         {
             return _bytes.ToArray();
@@ -43,9 +55,11 @@ namespace WhatsappApp.Protocol.WaProto
 
         private void WriteTag(int field, int wireType)
         {
-            if (field < 1 || field > 15)
+            // 2^29 - 1 is protobuf's own ceiling: the tag is a varint whose low three
+            // bits are the wire type.
+            if (field < 1 || field > 536870911)
             {
-                throw new ProtocolException("this writer only carries fields 1..15, not " + field);
+                throw new ProtocolException("not a protobuf field number: " + field);
             }
 
             WriteVarint((ulong)((field << 3) | wireType));

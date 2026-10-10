@@ -34,7 +34,21 @@ namespace ProtocolTests
     {
         private const int TimeoutMilliseconds = 20000;
 
-        public static int Run()
+        /// <summary>
+        /// What the runner calls. The handshake probe is the default; `--pair` runs the
+        /// pairing probe below, which is the one that asks the server for a QR.
+        /// </summary>
+        public static int Run(string[] args)
+        {
+            for (int i = 0; args != null && i < args.Length; i++)
+            {
+                if (args[i] == "--pair") return RunPairing();
+            }
+
+            return RunHandshake();
+        }
+
+        private static int RunHandshake()
         {
             var transport = new DesktopTransport(TimeoutMilliseconds);
 
@@ -229,6 +243,117 @@ namespace ProtocolTests
             Console.WriteLine("PROBE OK: WhatsApp's certificate chain VERIFIED - the handshake is"
                 + " authenticated, and the static key the certificate names is the one we decrypted");
             return true;
+        }
+
+        /// <summary>
+        /// The pairing probe: the one run that asks the server to pair this device.
+        ///
+        /// It is what settles the `ClientPayload`'s field numbers against the only
+        /// authority there is - if the payload is wrong the server closes the connection
+        /// instead of issuing codes, and no offline test can tell the difference. The run
+        /// prints the codes and waits, so a person with the phone in hand can scan one and
+        /// turn the same run into a real pairing.
+        ///
+        /// Run with: `node tools/test-protocol.js --connect --pair`.
+        /// </summary>
+        private static int RunPairing()
+        {
+            var random = new SystemRandomSource();
+            Credentials credentials = Credentials.Create(random);
+
+            var transport = new DesktopTransport(TimeoutMilliseconds);
+            var session = new PairingSession(transport, credentials, new ConsoleLog(), random);
+
+            try
+            {
+                Console.WriteLine("pairing: connecting to " + WhatsAppSocket.DefaultUrl);
+                Console.WriteLine("  our identity key: " + Hex(credentials.IdentityPublicKey, 32));
+                Console.WriteLine("  registration id: " + credentials.RegistrationId);
+
+                IList<string> codes = session.StartAsync().GetAwaiter().GetResult();
+
+                Console.WriteLine();
+                Console.WriteLine("PROBE OK: the server asked for a pairing (" + codes.Count + " code(s))");
+                Console.WriteLine();
+
+                for (int i = 0; i < codes.Count; i++)
+                {
+                    Console.WriteLine("  code " + (i + 1) + " of " + codes.Count + ": " + codes[i]);
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("scan one with WhatsApp (Linked devices, Link a device); waiting up to "
+                    + PairingWaitSeconds + " s for the pairing");
+
+                Credentials paired = session.WaitForPairAsync(TimeSpan.FromSeconds(PairingWaitSeconds))
+                    .GetAwaiter().GetResult();
+
+                if (paired == null)
+                {
+                    Console.WriteLine();
+                    Console.WriteLine("no code was scanned: the payload was accepted and the codes were"
+                        + " issued, which is what this run checks");
+                    return 0;
+                }
+
+                Console.WriteLine();
+                Console.WriteLine("PROBE OK: paired as " + paired.Jid + " (lid " + paired.Lid
+                    + ", platform " + paired.Platform + ")");
+                return 0;
+            }
+            catch (Exception error)
+            {
+                Console.WriteLine("PROBE FAILED: " + error.GetType().Name + ": " + error.Message);
+
+                Exception cause = error.InnerException;
+                if (cause != null) Console.WriteLine("  caused by: " + cause.GetType().Name + ": " + cause.Message);
+
+                return 1;
+            }
+            finally
+            {
+                session.Close();
+            }
+        }
+
+        /// <summary>How long the pairing probe waits for someone to scan a code.</summary>
+        private const int PairingWaitSeconds = 45;
+
+        /// <summary>
+        /// Randomness for the probe, from the platform. Allowed here and not in the core:
+        /// only `WhatsappApp/Protocol/**` has to build on the WP8.1 projection.
+        /// </summary>
+        private sealed class SystemRandomSource : IRandomSource
+        {
+            public byte[] Bytes(int count)
+            {
+                var bytes = new byte[count];
+                var generator = new System.Security.Cryptography.RNGCryptoServiceProvider();
+                try
+                {
+                    generator.GetBytes(bytes);
+                }
+                finally
+                {
+                    generator.Dispose();
+                }
+
+                return bytes;
+            }
+        }
+
+        /// <summary>The core's log, printed: a probe that fails is read by a person.</summary>
+        private sealed class ConsoleLog : ILog
+        {
+            public void Info(string line)
+            {
+                Console.WriteLine("  " + line);
+            }
+
+            public void Failure(string site, Exception error)
+            {
+                Console.WriteLine("  " + site + " failed: " + error.Message);
+            }
         }
 
         /// <summary>The root certificate's serial, from the reference's constant.</summary>
