@@ -104,7 +104,7 @@ builds the oracle first, so every later task has something frozen to fail agains
   plaintexts), `SignalFixture.Group` (a sender key chain and one `skmsg`
   ciphertext), each as byte arrays and strings.
 
-- [ ] **Step 1: Capture the constants from the reference**
+- [x] **Step 1: Capture the constants from the reference**
 
 Print the reference's own constants from a temporary directory outside this
 repository — the same method Task 4 of the retire plan used for the QR tables:
@@ -124,7 +124,7 @@ not state them: a constant copied out of a plan is a constant nobody checked,
 and a wrong one makes every message below decode locally and be refused by
 WhatsApp.
 
-- [ ] **Step 2 (RED): the fixture's own test**
+- [x] **Step 2 (RED): the fixture's own test**
 
 `ProtocolTests/SignalFixtureTests.cs` — one test that fails while the fixture is
 absent or empty, and that pins the shape rather than the arithmetic:
@@ -144,7 +144,7 @@ public static void TheFixturesArePopulated()
 Run: `node tools/test-protocol.js` — Expected: fail, `SignalFixture` does not
 exist.
 
-- [ ] **Step 3 (GREEN): print the fixtures**
+- [x] **Step 3 (GREEN): print the fixtures**
 
 A Node script in `/tmp/signalref` that, with the reference library, (a) runs the
 specification's X3DH test vector, (b) builds a session between two reference
@@ -154,7 +154,7 @@ a sender key chain and one `skmsg`. Its output is written into
 `XEdDsaTests.cs` writes its certificates, with the script's command in the file
 header. Run the test again — Expected: pass.
 
-- [ ] **Step 4: The second oracle, for the arithmetic**
+- [ ] **Step 4: The second oracle, for the arithmetic** — **open.** The X3DH half is Task 2's first step and the chain-key half is Task 3's, which is what the execution notes record: the reference conversation pins the wire, and the specifications pin the arithmetic.
 
 The reference's transcript proves the wire format; the published specifications
 prove the arithmetic. Freeze the X3DH specification's appendix test vector (its
@@ -162,7 +162,7 @@ prove the arithmetic. Freeze the X3DH specification's appendix test vector (its
 specification's appendix chain-key vectors into the same fixture, each labelled
 with the section it came from.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add WhatsappApp/Protocol/Signal/SignalConstants.cs ProtocolTests/Vectors/SignalFixture.cs \
