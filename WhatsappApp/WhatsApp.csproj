@@ -109,14 +109,18 @@
     <Compile Include="Services\EndpointService.cs" />
     <Compile Include="Services\ServerPinger.cs" />
     <Compile Include="Services\DataService.cs" />
+    <Compile Include="Services\DeviceRandomSource.cs" />
     <Compile Include="Services\Diag.cs" />
     <Compile Include="Services\ImageHelper.cs" />
     <Compile Include="Services\Loc.cs" />
     <Compile Include="Services\SelfCheck.cs" />
     <Compile Include="Services\SerialQueue.cs" />
     <Compile Include="Services\SessionService.cs" />
+    <Compile Include="Services\SessionState.cs" />
     <Compile Include="Services\SettingsService.cs" />
+    <Compile Include="Services\StartDecision.cs" />
     <Compile Include="Services\NotificationService.cs" />
+    <Compile Include="Services\ProtocolLog.cs" />
     <Compile Include="Services\ConnectionWatchdog.cs" />
     <Compile Include="Services\AttachmentInbox.cs" />
     <Compile Include="Services\AvatarCache.cs" />
@@ -124,6 +128,7 @@
     <Compile Include="Services\ChatPreferences.cs" />
     <Compile Include="Services\IncomingMediaStore.cs" />
     <Compile Include="Services\MessageCache.cs" />
+    <Compile Include="Services\NativeCredentialStorage.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
     <Compile Include="Services\MemoryWatcher.cs" />
     <Compile Include="Services\VideoCompressor.cs" />
@@ -143,6 +148,7 @@
     <Compile Include="Protocol\Qr\QrCode.cs" />
     <Compile Include="Protocol\Qr\QrTables.cs" />
     <Compile Include="Protocol\Transport\ITransport.cs" />
+    <Compile Include="Protocol\Transport\WebSocketTransport.cs" />
     <Compile Include="Protocol\WaProto\AdvIdentity.cs" />
     <Compile Include="Protocol\WaProto\CertificateVerifier.cs" />
     <Compile Include="Protocol\WaProto\ClientPayload.cs" />
@@ -172,6 +178,9 @@
     </Compile>
     <Compile Include="Pages\ConnectionPage.xaml.cs">
       <DependentUpon>ConnectionPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\PairPage.xaml.cs">
+      <DependentUpon>PairPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\ChatsPage.xaml.cs">
       <DependentUpon>ChatsPage.xaml</DependentUpon>
@@ -237,6 +246,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\ConnectionPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\PairPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

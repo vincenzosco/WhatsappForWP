@@ -815,6 +815,33 @@ server accepted the payload without it.
   the file's header. Why: a hand-typed error correction table produces a symbol
   that decodes to the right length and the wrong data. Cost if wrong: none, the
   script is reproducible.
+- **The WinRT transport belongs to `Protocol/Transport`, and only to the phone.**
+  `Ruling:` `WebSocketTransport.cs` lives beside `ITransport.cs` and
+  `ProtocolTests.csproj` excludes it by name. Why: the project file already
+  excluded exactly that path, so the plan had this file in mind and put it in
+  Task 7's prose instead of Task 5's list — and the alternative (a `Services/`
+  transport) would split the transport implementations across two folders. Cost
+  if wrong: the desktop host cannot compile the file, which is what its exclusion
+  line says.
+- **`MessageType` is set through `Control`, and the close handler takes
+  `IWebSocket`.** `Ruling:` `_socket.Control.MessageType = SocketMessageType.Binary`
+  and `OnClosed(IWebSocket sender, ...)`. Why: the WP8.1 projection has neither
+  the socket's own `MessageType` (CS1061) nor a `MessageWebSocket` sender on
+  `Closed` (CS0123) — the x86 and ARM builds answered with both, and the default
+  message type is text, which would put the protocol's bytes through a UTF-8
+  encoder. Cost if wrong: none; the build is the check.
+- **`StartDecision.Decide` is what `App.OnLaunched` calls, not
+  `PairPage.StartIfUnpaired`.** `Ruling:` the plan's Task 5 promises both a rule
+  (`Decide`, step 1) and a page helper that decides and navigates
+  (`StartIfUnpaired`, Interfaces) — two copies of one rule. Why: the page has no
+  business knowing whether a session exists, and a second copy of the rule is a
+  second thing to keep true. Cost if wrong: one static method nobody calls.
+- **`PairPage` rotates the codes it holds, and says so when they run out.**
+  `Ruling:` each ref stays up 20 seconds, or 60 when the server issued a batch
+  (`PairingSession` hands out the six the live run saw at once), and the expired
+  sentence plus the retry button follow the last one. Why: review focus 2 — a code
+  left up past its ref is a scan that does nothing, and the scanning phone has no
+  way to say what went wrong. Cost if wrong: a redraw that happens too often.
 - **`WhatsappSocketTests`'s first-node fixture gained a three-byte length.**
   `Ruling:` the fixture is framed. Why: the socket now reads the wire, the wire is
   framed, and the old fixture was a bare node no server ever sends — the check is
@@ -841,11 +868,15 @@ server accepted the payload without it.
   `gh auth refresh -s read:packages,write:packages`.
 - **The push to `docker-whatsappforwp` has not happened.** The commit is local
   (`6891bce`) because it is a shared branch in another repository.
-- **Task 5 is not started, and it has a prerequisite the plan did not name:**
-  `WhatsappApp/Protocol/Transport/WebSocketTransport.cs`, the WinRT transport,
-  does not exist — `Protocol/Transport/` holds `ITransport.cs` alone, so nothing
-  on the phone can open the connection yet. The plan's Task 5 assumed it was
-  "Task 7's" and left it out; it is the next real piece of work, and it comes
-  before the page is worth writing.
+- **Task 5 steps 1-5 are done; step 6 is the device.** The prerequisite the
+  plan did not name — `WhatsappApp/Protocol/Transport/WebSocketTransport.cs` —
+  was written in this task (see the ruling below). What is left is the install on
+  the Lumia: nothing on this machine proves a phone camera reads the symbol.
+- **`SessionState.Expired` has no writer yet.** The flag `StartDecision`'s
+  expired-session rule is tested against is stored and read, but the only thing
+  that can set it is the native session — a handshake the server refuses — and
+  that is Task 6. Until then an unlinked phone shows the QR for the other
+  reasons (nothing stored, or a store that does not parse), and review focus 1's
+  sentence appears when Task 6 lands.
 - **Task 6 stays gated** on the client plan's M3 and M4, and Task 7's README
   claim waits for it.

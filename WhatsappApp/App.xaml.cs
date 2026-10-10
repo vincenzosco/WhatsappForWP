@@ -139,16 +139,30 @@ namespace WhatsappApp
                 rootFrame.Navigated += this.RootFrame_FirstNavigated;
                 rootFrame.NavigationFailed += this.RootFrame_NavigationFailed;
 
-                // After a termination (the OS closed the process while the app was
-                // suspended) we restart from the section the user was in, instead
-                // of always from the chats. Contacts and messages are not
-                // restored: the adapter sends them again on connection.
+                // Where this start goes. The decision is a rule and it lives in
+                // StartDecision, where it is a test (ProtocolTests/StartupTests.cs):
+                // no account stored - or an account WhatsApp has already refused -
+                // is the QR, an app the OS terminated comes back to its section, and
+                // a cold start with an account is the chats. Nothing about the old
+                // server is an input, which is what keeps an install upgraded from
+                // the server build off its connection page.
+                //
+                // After a termination contacts and messages are not restored: they
+                // come from WhatsApp again on connection.
+                bool resumed = e.PreviousExecutionState == ApplicationExecutionState.Terminated;
+
+                StartTarget target = StartDecision.Decide(
+                    NativeCredentialStorage.Session().HasSession,
+                    SessionState.Expired,
+                    resumed,
+                    SessionService.Section == AppSection.Chats);
+
                 Type startPage;
-                if (!SettingsService.HasSavedSettings)
+                if (target == StartTarget.Pair)
                 {
-                    startPage = typeof(ConnectionPage);
+                    startPage = typeof(PairPage);
                 }
-                else if (e.PreviousExecutionState == ApplicationExecutionState.Terminated)
+                else if (target == StartTarget.LastSection)
                 {
                     startPage = SectionNav.PageFor(SessionService.Section);
                 }
