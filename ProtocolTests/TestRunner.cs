@@ -23,7 +23,7 @@ namespace ProtocolTests
             // network fails for reasons that have nothing to do with the code.
             if (args != null && args.Length > 0 && args[0] == "--connect")
             {
-                return LiveProbe.Run();
+                return LiveProbe.Run(args);
             }
 
             var failures = new List<string>();
