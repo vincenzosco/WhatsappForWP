@@ -41,9 +41,23 @@ namespace ProtocolTests
             if (!condition) throw new AssertionException("expected true but was false");
         }
 
+        /// <summary>
+        /// The same, with the reason the caller was checking it. A failure that says what
+        /// it expected to be true is the difference between a fix and a search.
+        /// </summary>
+        public static void IsTrue(bool condition, string because)
+        {
+            if (!condition) throw new AssertionException("expected true but was false: " + because);
+        }
+
         public static void IsFalse(bool condition)
         {
             if (condition) throw new AssertionException("expected false but was true");
+        }
+
+        public static void IsFalse(bool condition, string because)
+        {
+            if (condition) throw new AssertionException("expected false but was true: " + because);
         }
 
         public static void ByteArraysEqual(byte[] expected, byte[] actual)

@@ -73,24 +73,23 @@ namespace WhatsappApp.Protocol.WaProto
 
             while (reader.HasMore)
             {
-                int wireType;
-                int field = reader.ReadTag(out wireType);
+                ProtoField field = reader.ReadField();
 
-                if (field == ServerHelloField && wireType == 2)
+                if (field.Number == ServerHelloField && field.WireType == 2)
                 {
                     serverHello = DecodeHello(reader.ReadBytes());
                     seen = "serverHello";
                     continue;
                 }
 
-                if (wireType == 2 && (field == ClientHelloField || field == ClientFinishField))
+                if (field.WireType == 2 && (field.Number == ClientHelloField || field.Number == ClientFinishField))
                 {
                     reader.ReadBytes();
-                    seen = field == ClientHelloField ? "clientHello" : "clientFinish";
+                    seen = field.Number == ClientHelloField ? "clientHello" : "clientFinish";
                     continue;
                 }
 
-                reader.Skip(wireType);
+                reader.SkipField(field.WireType);
             }
 
             if (serverHello == null)
@@ -114,13 +113,12 @@ namespace WhatsappApp.Protocol.WaProto
 
             while (reader.HasMore)
             {
-                int wireType;
-                int field = reader.ReadTag(out wireType);
+                ProtoField field = reader.ReadField();
 
-                if (wireType == 2 && field == EphemeralField) hello.Ephemeral = reader.ReadBytes();
-                else if (wireType == 2 && field == StaticField) hello.Static = reader.ReadBytes();
-                else if (wireType == 2 && field == PayloadField) hello.Payload = reader.ReadBytes();
-                else reader.Skip(wireType);
+                if (field.WireType == 2 && field.Number == EphemeralField) hello.Ephemeral = reader.ReadBytes();
+                else if (field.WireType == 2 && field.Number == StaticField) hello.Static = reader.ReadBytes();
+                else if (field.WireType == 2 && field.Number == PayloadField) hello.Payload = reader.ReadBytes();
+                else reader.SkipField(field.WireType);
             }
 
             return hello;
@@ -181,12 +179,11 @@ namespace WhatsappApp.Protocol.WaProto
 
             while (reader.HasMore)
             {
-                int wireType;
-                int field = reader.ReadTag(out wireType);
+                ProtoField field = reader.ReadField();
 
-                if (wireType == 2 && field == 1) chain.Leaf = DecodeCertificate(reader.ReadBytes());
-                else if (wireType == 2 && field == 2) chain.Intermediate = DecodeCertificate(reader.ReadBytes());
-                else reader.Skip(wireType);
+                if (field.WireType == 2 && field.Number == 1) chain.Leaf = DecodeCertificate(reader.ReadBytes());
+                else if (field.WireType == 2 && field.Number == 2) chain.Intermediate = DecodeCertificate(reader.ReadBytes());
+                else reader.SkipField(field.WireType);
             }
 
             if (chain.Leaf == null) throw new ProtocolException("the certificate chain carries no leaf");
@@ -201,15 +198,14 @@ namespace WhatsappApp.Protocol.WaProto
 
             while (reader.HasMore)
             {
-                int wireType;
-                int field = reader.ReadTag(out wireType);
+                ProtoField field = reader.ReadField();
 
-                if (wireType == 0 && field == 1) details.Serial = reader.ReadVarint();
-                else if (wireType == 0 && field == 2) details.IssuerSerial = reader.ReadVarint();
-                else if (wireType == 2 && field == 3) details.Key = reader.ReadBytes();
-                else if (wireType == 0 && field == 4) details.NotBefore = reader.ReadVarint();
-                else if (wireType == 0 && field == 5) details.NotAfter = reader.ReadVarint();
-                else reader.Skip(wireType);
+                if (field.WireType == 0 && field.Number == 1) details.Serial = reader.ReadVarint();
+                else if (field.WireType == 0 && field.Number == 2) details.IssuerSerial = reader.ReadVarint();
+                else if (field.WireType == 2 && field.Number == 3) details.Key = reader.ReadBytes();
+                else if (field.WireType == 0 && field.Number == 4) details.NotBefore = reader.ReadVarint();
+                else if (field.WireType == 0 && field.Number == 5) details.NotAfter = reader.ReadVarint();
+                else reader.SkipField(field.WireType);
             }
 
             return details;
@@ -222,12 +218,11 @@ namespace WhatsappApp.Protocol.WaProto
 
             while (reader.HasMore)
             {
-                int wireType;
-                int field = reader.ReadTag(out wireType);
+                ProtoField field = reader.ReadField();
 
-                if (wireType == 2 && field == 1) certificate.Details = reader.ReadBytes();
-                else if (wireType == 2 && field == 2) certificate.Signature = reader.ReadBytes();
-                else reader.Skip(wireType);
+                if (field.WireType == 2 && field.Number == 1) certificate.Details = reader.ReadBytes();
+                else if (field.WireType == 2 && field.Number == 2) certificate.Signature = reader.ReadBytes();
+                else reader.SkipField(field.WireType);
             }
 
             return certificate;

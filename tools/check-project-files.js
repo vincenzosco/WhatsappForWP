@@ -4,7 +4,7 @@
  *
  * Guard for a file the solution cannot see.
  *
- * Perche' esiste: un file .cs che non compare in WhatsappApp.csproj e'
+ * Perche' esiste: un file .cs che non compare in WhatsApp.csproj e'
  * invisibile a MSBuild, e nient'altro se ne accorge. La guardia C# 5 lo legge
  * (gira sui file, non sul progetto), i test dei tool passano, e il guasto esce
  * solo sulla build della VM - o, peggio, viene committato e la build successiva
@@ -26,7 +26,7 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 const APP = path.join(ROOT, 'WhatsappApp');
-const PROJECT = path.join(APP, 'WhatsappApp.csproj');
+const PROJECT = path.join(APP, 'WhatsApp.csproj');
 
 /** Ogni file dell'app, senza obj/ e bin/. */
 function walk(dir, out) {
@@ -71,11 +71,11 @@ function main() {
   for (const file of walk(APP, [])) {
     const rel = relative(file);
     if (file.endsWith('.cs') && !app.compile.has(rel)) {
-      problems.push(`WhatsappApp/${rel}: not in WhatsappApp.csproj as a <Compile Include>, ` +
+      problems.push(`WhatsappApp/${rel}: not in WhatsApp.csproj as a <Compile Include>, ` +
         'so MSBuild cannot see it and the type it holds does not exist');
     }
     if (file.endsWith('.xaml') && !app.pages.has(rel)) {
-      problems.push(`WhatsappApp/${rel}: not in WhatsappApp.csproj as a <Page> or ` +
+      problems.push(`WhatsappApp/${rel}: not in WhatsApp.csproj as a <Page> or ` +
         '<ApplicationDefinition>, so it is never compiled');
     }
   }

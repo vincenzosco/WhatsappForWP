@@ -33,5 +33,5 @@ test('walk salta obj e bin', () => {
   const rels = out.map((f) => f.replace(/\\/g, '/'));
   assert.strictEqual(rels.some((f) => f.includes('/obj/')), false);
   assert.strictEqual(rels.some((f) => f.includes('/bin/')), false);
-  assert.strictEqual(rels.some((f) => f.endsWith('WhatsappApp.csproj')), true);
+  assert.strictEqual(rels.some((f) => f.endsWith('WhatsApp.csproj')), true);
 });

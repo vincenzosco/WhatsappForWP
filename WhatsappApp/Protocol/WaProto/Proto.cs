@@ -72,6 +72,23 @@ namespace WhatsappApp.Protocol.WaProto
     /// <see cref="ProtocolException"/>: a handshake parsed halfway is a handshake that
     /// fails later with a message nobody can act on.
     /// </summary>
+    /// <summary>
+    /// One field's tag: which field it is and how its bytes are laid out.
+    ///
+    /// A struct rather than a number and an `out` parameter because the C# 5 guard reads
+    /// any declaration of the form `out <type> <name>` as C# 6's inline declaration and
+    /// fails the build - a false positive, but the guard is what the WP8.1 toolchain can
+    /// actually compile, and returning both values is clearer here anyway.
+    /// </summary>
+    public struct ProtoField
+    {
+        /// <summary>The field number, 1 and up.</summary>
+        public int Number;
+
+        /// <summary>0 for a varint, 1 for 64 bits, 2 for length-delimited, 5 for 32 bits.</summary>
+        public int WireType;
+    }
+
     public sealed class ProtoReader
     {
         private readonly byte[] _data;
@@ -90,11 +107,15 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>The next field's number and wire type.</summary>
-        public int ReadTag(out int wireType)
+        public ProtoField ReadField()
         {
             ulong tag = ReadVarint();
-            wireType = (int)(tag & 7);
-            return (int)(tag >> 3);
+
+            var field = new ProtoField();
+            field.Number = (int)(tag >> 3);
+            field.WireType = (int)(tag & 7);
+
+            return field;
         }
 
         public byte[] ReadBytes()
@@ -133,7 +154,7 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>Steps over a field this reader does not know.</summary>
-        public void Skip(int wireType)
+        public void SkipField(int wireType)
         {
             if (wireType == 0)
             {
