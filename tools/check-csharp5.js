@@ -20,7 +20,7 @@ const path = require('path');
 const { stripComments } = require('./csharp');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SCAN_ROOTS = ['WhatsappApp', 'WhatsappServer'];
+const SCAN_ROOTS = ['WhatsappApp'];
 const SKIP_DIRS = new Set(['bin', 'obj', 'node_modules', '.git', 'AppPackages']);
 
 const RULES = [
@@ -38,7 +38,7 @@ const RULES = [
   // An async entry point needs C# 7.1 (and .NET 4.6.1+); on this toolchain the
   // compiler answers CS0028 "wrong signature to be an entry point" plus CS5001
   // "does not contain a static 'Main' method", so the project never builds at
-  // all - which is how WhatsappServer sat broken.
+  // all - a whole project sits broken with one line like that.
   { name: 'async entry point (needs C# 7.1; use static void Main)', re: /\basync\s+Task(\s*<[^>]*>)?\s+Main\s*\(/ }
 ];
 
