@@ -96,13 +96,14 @@ builds the oracle first, so every later task has something frozen to fail agains
 - Produces: `SignalConstants.InfoText`, `SignalConstants.InfoRatchet`,
   `SignalConstants.InfoMessageKeys`, `SignalConstants.InfoSenderKey`,
   `SignalConstants.InfoSenderKeyDistribution`, `SignalConstants.AgreementPrefix`
-  (32 bytes, `0xFF`), `SignalConstants.MessageVersion` (the ASCII version byte),
+  (32 bytes, `0xFF`),  `SignalConstants.MessageVersion` (the ASCII version byte),
   `SignalConstants.MacLength`; and, in the fixture, `SignalFixture.X3dh` (the
-  specification's Alice/Bob key material and the expected `SK`),
-  `SignalFixture.Conversation` (the reference's own Alice-to-Bob transcript:
-  root key, their ratchet public key, and the ciphertext of two messages with the
-  plaintexts), `SignalFixture.Group` (a sender key chain and one `skmsg`
-  ciphertext), each as byte arrays and strings.
+  reference's own Alice/Bob key material, and the two root keys those keys agree
+  on), `SignalFixture.Conversation` (the reference's own transcript in both
+  directions: Alice's three ciphertexts, Bob's two, and what each decrypts to),
+  `SignalFixture.BobSide` (the receiver's private halves, which are what make the
+  other direction testable), each as byte arrays and strings. There is no group
+  fixture yet: Task 6 captures one when it is written.
 
 - [x] **Step 1: Capture the constants from the reference**
 
@@ -154,13 +155,7 @@ a sender key chain and one `skmsg`. Its output is written into
 `XEdDsaTests.cs` writes its certificates, with the script's command in the file
 header. Run the test again — Expected: pass.
 
-- [ ] **Step 4: The second oracle, for the arithmetic** — **open.** The X3DH half is Task 2's first step and the chain-key half is Task 3's, which is what the execution notes record: the reference conversation pins the wire, and the specifications pin the arithmetic.
-
-The reference's transcript proves the wire format; the published specifications
-prove the arithmetic. Freeze the X3DH specification's appendix test vector (its
-`DH1..DH3`, `F || KM` and the resulting `SK`) and the Double Ratchet
-specification's appendix chain-key vectors into the same fixture, each labelled
-with the section it came from.
+- [x] **Step 4: The second oracle, for the arithmetic** — **done, differently.** The published specifications carry no such vectors: X3DH revision 1 and the Double Ratchet revision 4 were read end to end for this step, and neither has an appendix of test vectors. What the primitives *do* have is RFC 7748 for the curve and RFC 5869 for HKDF, both already pinned in `CryptoTests`, so what was missing was the composition - and that is `SignalFixture.X3dh.RootKey` and `RootKeyWithoutPreKey`, computed from the fixture's own keys by `signal-root-key.js` over OpenSSL's X25519 and HKDF, and compared by `X3dhTests` against both sides of the agreement. See the execution notes for how the two values were produced.
 
 - [x] **Step 5: Commit**
 
@@ -172,7 +167,7 @@ git commit -m "test: freeze the reference's Signal constants and a transcript to
 
 ---
 
-### Task 2: X3DH, and the two sides that have to agree
+### Task 2: X3DH, and the two sides that have to agree — **done**
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Signal/X3dh.cs`
@@ -183,114 +178,133 @@ git commit -m "test: freeze the reference's Signal constants and a transcript to
 - Consumes: `Curve25519.ScalarMult`/`PublicKey`, `Hkdf`, `SignalConstants`.
 - Produces: `X3dh.AliceSecret(byte[] aliceIdentityPrivate, byte[] aliceEphemeralPrivate, byte[] bobIdentityPublic, byte[] bobSignedPreKeyPublic, byte[] bobOneTimePreKeyPublic)`
   and `X3dh.BobSecret(byte[] bobIdentityPrivate, byte[] bobSignedPreKeyPrivate, byte[] bobOneTimePreKeyPrivate, byte[] aliceIdentityPublic, byte[] aliceEphemeralPublic)`,
-  both returning 32 bytes; a null `bobOneTimePreKeyPublic` means the three-DH
-  form. Throws `ProtocolException` on a key of the wrong length.
+  both returning 32 bytes; a null or empty `bobOneTimePreKeyPublic` means the
+  three-DH form. Throws `ProtocolException` on a key that is not 32 or 33 bytes,
+  and on a 33-byte key whose first byte is not `0x05`. Also produces the three
+  helpers the rest of the milestone uses: `X3dh.Bare(byte[])`, `X3dh.Typed(byte[])`
+  and `X3dh.TypedPublicKey(byte[])`, plus `X3dh.Text(string)` for the info strings.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
-`ProtocolTests/X3dhTests.cs`:
+`ProtocolTests/X3dhTests.cs`. The first test is not the specification's vector —
+it publishes none — but `SignalFixture.X3dh.RootKey`, computed from the fixture's
+own keys by `signal-root-key.js` over OpenSSL's X25519 and HKDF (see Step 4 of
+Task 1 and the execution notes):
 
-- `TheRuleBookVectorAgrees` — the specification's appendix values, through both
-  `AliceSecret` and `BobSecret`, equal the vector's `SK`.
-- `BothSidesAgree` — a fresh pair of key sets (fixed bytes, not random): Alice's
-  and Bob's halves are equal, with and without a one-time pre-key.
-- `TheThreeDhFormAgreesWithItself` — the four-DH value and the three-DH value are
-  different, and each agrees with its own receiver (review focus 3: a bundle whose
-  OPK is gone).
-- `AKeyOfTheWrongLengthIsRefused` — `Assert.Throws<ProtocolException>`.
+- `TheSenderAgreesOnTheRootKeyTheReferenceKeysProduce` — `AliceSecret` equals
+  `RootKey`, byte for byte.
+- `TheReceiverAgreesOnTheSameRootKey` — `BobSecret` equals it too, which is the
+  half the first ciphertext cannot check on its own.
+- `WithoutAOneTimePreKeyBothSidesStillAgree` — the same two tests against
+  `RootKeyWithoutPreKey`, which is the ordinary case once a device has handed out
+  every pre-key it published (review focus 3).
+- `TheTwoFormsAreTwoKeys` — the fourth DH changes the root; if it did not, both
+  sides would agree with each other and with nobody else.
+- `AKeyOfTheWrongLengthIsRefused` — every argument of both sides, one at a time;
+  the optional pre-key is the one argument null is allowed to be.
 
 Run: `node tools/test-protocol.js` — Expected: fail, `X3dh` does not exist.
 
-- [ ] **Step 2: Implement the agreement**
+- [x] **Step 2: Implement the agreement**
 
 DH order per the specification: `DH1 = DH(IKA, SPKB)`, `DH2 = DH(EKA, IKB)`,
 `DH3 = DH(EKA, SPKB)`, `DH4 = DH(EKA, OPKB)`; the secret is
 `HKDF(AgreementPrefix || DH1 || DH2 || DH3 || DH4, salt = 32 zero bytes,
 info = SignalConstants.InfoText)` truncated to 32 bytes. `BobSecret` computes the
-same four in the receiver's order.
+same four in the receiver's order - `DH1 = DH(SPKB, IKA)` and so on - with one
+shared `Derive` writing the buffer, so there is exactly one place where the order
+is written down.
 
-- [ ] **Step 3: Run the tests**
+- [x] **Step 3: Run the tests**
 
-Run: `node tools/test-protocol.js` — Expected: pass.
+Run: `node tools/test-protocol.js` — Expected: pass. It does: 89 test(s).
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add WhatsappApp/Protocol/Signal/X3dh.cs ProtocolTests/X3dhTests.cs WhatsappApp/WhatsApp.csproj
-git commit -m "feat: the X3DH agreement, against the specification's own vector"
-```
+- [x] **Step 4: Commit** — `88dbf9b`, together with Tasks 3 and 4 and the session
+  that ties them together, because the conversation is what makes any of it
+  credible: the agreement alone cannot show that its output is the reference's.
 
 ---
 
-### Task 3: The ratchet
+### Task 3: The ratchet — **done, and not as two files**
 
 **Files:**
-- Create: `WhatsappApp/Protocol/Signal/Keys.cs`, `WhatsappApp/Protocol/Signal/Ratchet.cs`
-- Create: `ProtocolTests/RatchetTests.cs`
+- Create: `WhatsappApp/Protocol/Signal/Keys.cs`
+- Create: `WhatsappApp/Protocol/Signal/SessionRecord.cs` (with Task 4)
 - Modify: `WhatsappApp/WhatsApp.csproj`
 
 **Interfaces:**
-- Consumes: `Hmac`, `Hkdf`, `SignalConstants`.
+- Consumes: `Hmac`, `Hkdf`, `Curve25519`, `SignalConstants`, `IRandomSource`.
 - Produces:
-  - `RootAndChain Keys.Root(byte[] rootKey, byte[] dhOutput)` — `root` and `chain`
-    as two fields of a `RootAndChain` struct, 32 bytes each.
-  - `byte[] Keys.NextChainKey(byte[] chainKey)`, `byte[] Keys.MessageKey(byte[] chainKey)`.
-  - `Ratchet.Step(byte[] rootKey, byte[] ourRatchetPrivate, byte[] theirRatchetPublic)`
-    returning a `RatchetStep` with `RootKey`, `OurRatchetPrivate`,
-    `OurRatchetPublic` and `TheirChainKey`.
-  - `Ratchet.SendingChain(byte[] chainKey, int index)` / `Ratchet.ReceivingChain(...)`,
-    which advance a chain to an index and keep the skipped message keys in a
-    `SkippedKeys` list (review focus 1).
+  - `RootAndChain Keys.Root(byte[] dhOutput, byte[] currentRootKey)` — `RootKey`
+    and `ChainKey` as two fields of a `RootAndChain` struct, 32 bytes each.
+  - `byte[] Keys.NextChainKey(byte[] chainKey)`, `byte[] Keys.MessageKey(byte[] chainKey)`,
+    and `MessageKeys Keys.MessageKeys(byte[] messageKey)` (cipher key, MAC key, IV).
+  - `SessionRecord.StartAsInitiator(...)` / `StartAsResponder(...)`,
+    `byte[] Encrypt(byte[])`, `byte[] Decrypt(byte[] wire, bool preKey)`,
+    `bool HasSession`, `bool PreKeyPending`, `byte[] TheirIdentityPublic`,
+    `byte[] OurIdentityPublic`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests** — the chain-key half of the
+specification's appendix does not exist either (see Task 1, Step 4), so the oracle
+is the reference's conversation, and the tests live in `SignalSessionTests`:
 
-- `TheRuleBookChainKeysAgree` — the Double Ratchet specification's appendix
-  vectors for `KDF_CK` (`0x01` for the message key, `0x02` for the next chain key).
-- `TheRootAdvancesWithBothKeys` — the same DH on both sides gives the same root
-  and chain.
-- `ASkippedMessageKeyComesBack` — send messages 1, 2, 3, receive 1 and 3: message 3
-  decrypts, and message 2's key is still there afterwards.
-- `AReplayedMessageDecryptsToTheSameBytes` (review focus 1) — the same ciphertext
-  twice gives the same plaintext, not an exception.
+- `TheRuleBookChainKeysAgree` — **not written, and deliberately**: `MessageKey` and
+  `NextChainKey` are `HMAC-SHA256(chainKey, 0x01)` and `(chainKey, 0x02)`, and both
+  seeds are pinned by every ciphertext the conversation test compares. A vector
+  written by us would agree with us.
+- `TheRootAdvancesWithBothKeys` — the same, and for the same reason: the third
+  ciphertext is only reproducible if the step's root and chain are the reference's,
+  and Bob's replies are only readable if his step agrees with Alice's.
+- `ASkippedMessageKeyComesBack` (review focus 1) —
+  `AMessageThatArrivesEarlyIsStillReadable`: first, third, then second.
+- `AReplayedMessageDecryptsToTheSameBytes` — **the specification's behaviour is
+  not the reference's**: the reference deletes the message key it used, so a
+  duplicate is refused with an error rather than decrypted twice, and
+  `AReplayedMessageIsRefused` pins that. A test asserting the specification's
+  reading would pin behaviour no WhatsApp client has.
 
-Run: `node tools/test-protocol.js` — Expected: fail.
+- [x] **Step 2: Implement `Keys` and the ratchet**
 
-- [ ] **Step 2: Implement `Keys` and `Ratchet`**
+`NextChainKey` and `MessageKey` are the two HMACs of `KDF_CK`; `Root` is
+`HKDF(dhOutput, salt = currentRootKey, info = "WhisperRatchet", 64 bytes)` split in
+half; `MessageKeys` is `HKDF(messageKey, salt = 32 zeros, info =
+"WhisperMessageKeys", 80 bytes)` split into cipher key, MAC key and IV.
 
-`NextChainKey` and `MessageKey` are the two HMACs of the specification's
-`KDF_CK`; `Root` is `HKDF(rootKey, dhOutput, info = SignalConstants.InfoRatchet,
-64 bytes)` split in half.
+The ratchet itself is `SessionRecord` rather than a `Ratchet.cs`: the step is not
+stateless - it archives a chain, records a counter, keeps skipped keys and draws a
+new key pair - and splitting those from the record that owns them would have meant
+two objects holding one session's state, with the bugs that come with it. The
+chains are kept as a list rather than the reference's map, because a session has a
+handful of them and a list of five beats a dictionary on a phone.
 
-- [ ] **Step 3: Run the tests** — `node tools/test-protocol.js`, Expected: pass.
+- [x] **Step 3: Run the tests** — `node tools/test-protocol.js`: 89 test(s), then
+  90 with the fixture's own keys (see Task 1's `X3dhTests`).
 
-- [ ] **Step 4: Commit**
-
-```bash
-git add WhatsappApp/Protocol/Signal/Keys.cs WhatsappApp/Protocol/Signal/Ratchet.cs \
-        ProtocolTests/RatchetTests.cs WhatsappApp/WhatsApp.csproj
-git commit -m "feat: the Double Ratchet's key schedule, with skipped keys kept"
-```
+- [x] **Step 4: Commit** — `88dbf9b`, with Tasks 2 and 4.
 
 ---
 
-### Task 4: The message, as the wire wants it
+### Task 4: The message, as the wire wants it — **done**
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Signal/Cipher.cs`, `WhatsappApp/Protocol/Signal/WhisperMessage.cs`
-- Create: `ProtocolTests/WhisperMessageTests.cs`
+- Create: `ProtocolTests/SignalSessionTests.cs` (rather than `WhisperMessageTests.cs`: the
+  message's own tests are the conversation's, and a second file would have tested the
+  framing against a fixture that only has the whole messages)
 - Modify: `WhatsappApp/WhatsApp.csproj`
 
 **Interfaces:**
 - Consumes: `Aes` (CBC), `Hmac`, `ProtoWriter`/`ProtoReader`, `SignalConstants`.
-- Produces: `Cipher.Encrypt(byte[] cipherKey, byte[] iv, byte[] macKey, byte[] plaintext)`
-  and `Cipher.Decrypt(...)`, both with the reference's truncated MAC;
-  `WhisperMessage.Encode(byte[] ratchetKey, int counter, int previousCounter, byte[] ciphertext,
-  byte[] macKey, byte[] senderIdentityPrivate, byte[] receiverIdentityPublic)` and
-  `WhisperMessage.Decode(byte[] payload)` returning a `WhisperContent` with those
-  fields; and `PreKeyWhisperMessage` with the registration id, the pre-key id and
-  the base key.
+- Produces: `Cipher.Encrypt(byte[] cipherKey, byte[] iv, byte[] plaintext)`,
+  `Cipher.Decrypt(...)`, `Cipher.Mac(byte[] macKey, byte[] senderIdentity,
+  byte[] receiverIdentity, byte[] message)` and `Cipher.VerifyMac(...)` (the
+  reference's 8-byte truncation); `SignalMessage.Encode/Decode`,
+  `SignalMessage.Seal(...)`, `SignalEnvelope.Seal/Open` for the sealed message and
+  `SignalEnvelope.Wrap/Unwrap` for the pre-key wrapper, which carries no MAC;
+  `PreKeySignalMessage.Encode/Decode` with the pre-key id, the base key, the
+  sender's identity and registration id, and the signed pre-key id.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `TheReferenceCiphertextIsReproduced` — Task 1's transcript: the same keys and
   plaintext produce the reference's own bytes, `Assert.ByteArraysEqual`. This is
@@ -302,22 +316,36 @@ git commit -m "feat: the Double Ratchet's key schedule, with skipped keys kept"
 
 Run: `node tools/test-protocol.js` — Expected: fail.
 
-- [ ] **Step 2: Implement `Cipher` and the two message shapes**
+- [x] **Step 2: Implement `Cipher` and the two message shapes**
 
 AES-256-CBC with the reference's padding, HMAC-SHA256 over
-`version || senderIdentity || receiverIdentity || payload` truncated to
+`senderIdentity || receiverIdentity || versionByte || protobuf` truncated to
 `MacLength` — the exact input order is the reference's, and the fixture is what
-says it is right.
+says it is right. Two shapes, and the asymmetry between them is the thing the
+plan got wrong and the fixture caught: the sealed message carries the MAC, the
+pre-key wrapper around it does not, and the wrapper's registration id is the
+*sender's*.
 
-- [ ] **Step 3: Run the tests** — Expected: pass.
+- [x] **Step 3: Run the tests** — Expected: pass, and it does: 84 test(s), then 90
+  with `X3dhTests` and the fixture's own-key check.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit** — `88dbf9b` (with Tasks 2 and 3).
 
-```bash
-git add WhatsappApp/Protocol/Signal/Cipher.cs WhatsappApp/Protocol/Signal/WhisperMessage.cs \
-        ProtocolTests/WhisperMessageTests.cs WhatsappApp/WhatsApp.csproj
-git commit -m "feat: the whisper message format, byte for byte against the reference"
-```
+The tests that carry this task, in `ProtocolTests/SignalSessionTests.cs`:
+
+- `WhatTheSenderProducesIsTheReferenceSCiphertext` — the whole chain at once
+  (agreement, first step, both HMACs, the message keys' HKDF, AES-CBC, the
+  protobuf, the version byte, the MAC), against the reference's own bytes.
+- `WhatTheReceiverOpensIsTheReferenceSText` and
+  `WhatTheReceiverSendsBackIsTheReferenceSCiphertext` — the same keys, the other
+  direction, which is the half a session can get wrong while encrypting perfectly.
+- `WhatTheSenderProducesAfterTheStepIsTheReferenceSCiphertext` — the third message,
+  which pins the *receiving* step: it is the reference's bytes because the fixture
+  now carries the private ratchet key its step generated.
+- `ThePreKeyMessageCarriesWhatTheReferenceCarries` — the wrapper's fields, read off
+  the reference's bytes rather than ours.
+- `ATamperedMessageIsRefused`, `AReplayedMessageIsRefused`,
+  `AMessageThatArrivesEarlyIsStillReadable`, `TheConversationContinuesAfterTheStep`.
 
 ---
 
@@ -519,109 +547,120 @@ the generator below re-runs against any later version.
 them from the Go or TypeScript implementation instead of assuming this one. Cost if
 wrong: Task 6's first step becomes a capture, which is where it belongs anyway.
 
-Open for Task 2: the X3DH specification's appendix vector is not in the fixture
-yet. The reference conversation is the stronger oracle for the *wire*; the
-specification is the oracle for the *arithmetic*, and Task 2 adds it as
-`SignalFixture.X3dh.RuleBook`.
+`Ruling:` the *arithmetic's* oracle is a script, not a specification vector,
+because the specifications publish none. Why: X3DH revision 1 and the Double
+Ratchet revision 4 were read end to end for this (there is no appendix of test
+vectors in either), so what is frozen for the arithmetic is
+`SignalFixture.X3dh.RootKey` and `RootKeyWithoutPreKey`, computed from the
+fixture's own keys over OpenSSL's X25519 and HKDF by `signal-root-key.js`. The
+primitives keep their own published vectors - RFC 7748 and RFC 5869, both already
+in `CryptoTests`. Cost if wrong: the composition is checked against a second
+implementation rather than against the one the wire format comes from; the wire
+still has the reference's own bytes, and `88dbf9b` is what shows the two agree.
 
 ### The generator, as it ran
 
+Two scripts, both in a directory outside this repository (`/tmp/signalref`, with
+`npm install libsignal-protocol` in it). They are here because the fixture's whole
+value is that nothing in it was typed, and a generator that lives only on one
+machine's disk is a generator a reviewer cannot check.
+
+The first reads the reference's own vectors file and writes
+`ProtocolTests/Vectors/SignalFixture.cs`. What follows is its head, its reads and
+the decisions it makes; the string assembly around them is marked where it is
+elided, because it is the part that cannot be wrong without the output being
+visibly malformed:
+
 ```javascript
 // Prints ProtocolTests/Vectors/SignalFixture.cs from the reference's own frozen
-// conversation (libsignal-protocol's test/testvectors.js).
-const fs = require('fs'), vm = require('vm'), path = require('path');
+// vectors: libsignal-protocol's test/testvectors.js, the file its own suite runs.
+//
+//   mkdir -p /tmp/signalref && cd /tmp/signalref && npm init -y
+//   npm install libsignal-protocol
+//   node emit-signal-fixture.js        # with REPO pointing at the repository root
+//
+// Nothing in the output is typed by hand: a constant copied by eye is a bug the
+// fixture cannot catch.
+'use strict';
 
-const code = fs.readFileSync('node_modules/libsignal-protocol/test/testvectors.js', 'utf8');
+const fs = require('fs');
+const vm = require('vm');
+const path = require('path');
+
+const ROOT = process.env.REPO || '.';
+const VECTORS = 'node_modules/libsignal-protocol/test/testvectors.js';
+
+const code = fs.readFileSync(VECTORS, 'utf8');
 const sandbox = { console: console, hexToArrayBuffer: (hex) => hex };
 vm.createContext(sandbox);
 vm.runInContext(code.replace('var TestVectors =', 'this.TestVectors ='), sandbox);
 
 const tests = sandbox.TestVectors;
-console.error('tests: ' + tests.map(t => t.name + '(' + t.vectors.length + ')').join(', '));
+const alice = tests.filter((t) => t.name === 'Standard Signal Protocol Test Vectors as Alice')[0];
+const bob = tests.filter((t) => t.name === 'Standard Signal Protocol Test Vectors as Bob')[0];
+if (!alice) throw new Error('no Alice test in ' + VECTORS);
+if (!bob) throw new Error('no Bob test in ' + VECTORS);
 
-const alice = tests.filter(t => /alice/i.test(t.name))[0];
-if (!alice) throw new Error('no Alice test');
-const vectors = alice.vectors;
+const aliceSends = alice.vectors.filter((v) => v[0] === 'sendMessage');
+const aliceRecvs = alice.vectors.filter((v) => v[0] === 'receiveMessage' && v[1].expectedSmsText);
+const bobRecvs = bob.vectors.filter((v) => v[0] === 'receiveMessage' && v[1].expectedSmsText);
+const bobSends = bob.vectors.filter((v) => v[0] === 'sendMessage');
 
-const sends = vectors.filter(v => v[0] === 'sendMessage').slice(0, 2);
-const recvs = vectors.filter(v => v[0] === 'receiveMessage' && v[1].expectedSmsText).slice(0, 2);
-const first = sends[0][1], keys = first.getKeys, bundle = keys.devices[0];
+const bundleEntry = aliceSends[0][1];
+const bundle = bundleEntry.getKeys.devices[0];
+const bobFirst = bobRecvs[0][1];
 
-const hex = (value) => '0x' + value.toString(16).toUpperCase();
-
-let out = '';
-out += 'using System;\n\n';
-out += 'namespace ProtocolTests\n';
-out += '{\n';
-out += '    /// <summary>\n';
-out += '    /// The reference conversation, frozen. Printed by a script in a temporary\n';
-out += '    /// directory outside this repository, from libsignal-protocol\'s own\n';
-out += '    /// test/testvectors.js - the same file its own test suite runs against.\n';
-out += '    ///\n';
-out += '    /// The command that regenerates it, from a directory outside this repository:\n';
-out += '    ///\n';
-out += '    ///   mkdir -p /tmp/signalref && cd /tmp/signalref && npm init -y\n';
-out += '    ///   npm install libsignal-protocol\n';
-out += '    ///   node emit-fixture.js                 # the script is in the plan\'s notes\n';
-out += '    ///\n';
-out += '    /// Nothing in it was typed: a constant copied by eye is a bug the fixture cannot\n';
-out += '    /// catch - which is how a mangled certificate constant once cost an afternoon.\n';
-out += '    /// </summary>\n';
-out += '    public static class SignalFixture\n';
-out += '    {\n';
-out += '        public static class X3dh\n';
-out += '        {\n';
-out += '            /// <summary>Alice\'s private halves, in the clear, because a fixture is not a phone.</summary>\n';
-out += '            public static readonly byte[] AliceIdentityPrivate = Hex("' + first.ourIdentityKey + '");\n';
-out += '            public static readonly byte[] AliceBasePrivate = Hex("' + first.ourBaseKey + '");\n';
-out += '            public static readonly byte[] AliceEphemeralPrivate = Hex("' + first.ourEphemeralKey + '");\n';
-out += '            public static readonly uint AliceRegistrationId = ' + first.registrationId + ';\n\n';
-out += '            /// <summary>Bob\'s half, as the server hands it out in a pre-key bundle.</summary>\n';
-out += '            public static readonly byte[] BobIdentityPublic = Hex("' + keys.identityKey + '");\n';
-out += '            public static readonly uint BobRegistrationId = ' + hex(bundle.registrationId) + ';\n';
-out += '            public static readonly uint BobPreKeyId = ' + bundle.preKey.keyId + ';\n';
-out += '            public static readonly byte[] BobPreKeyPublic = Hex("' + bundle.preKey.publicKey + '");\n';
-out += '            public static readonly uint BobSignedPreKeyId = ' + bundle.signedPreKey.keyId + ';\n';
-out += '            public static readonly byte[] BobSignedPreKeyPublic = Hex("' + bundle.signedPreKey.publicKey + '");\n';
-out += '            public static readonly byte[] BobSignedPreKeySignature = Hex("' + bundle.signedPreKey.signature + '");\n';
-out += '        }\n\n';
-out += '        /// <summary>The conversation: what Alice sent, and what came back.</summary>\n';
-out += '        public static class Conversation\n';
-out += '        {\n';
-out += '            public static readonly string[] Plaintexts = new string[] { ' +
-       sends.map(s => '"' + s[1].smsText + '"').join(', ') + ' };\n';
-out += '            public static readonly string[] Ciphertexts = new string[]\n';
-out += '            {\n';
-out += sends.map(s => '                "' + s[1].expectedCiphertext + '"').join(',\n') + '\n';
-out += '            };\n\n';
-out += '            /// <summary>Bob\'s replies: the first arrives with a new ratchet key.</summary>\n';
-out += '            public static readonly string[] Received = new string[]\n';
-out += '            {\n';
-out += recvs.map(r => '                "' + r[1].message + '"').join(',\n') + '\n';
-out += '            };\n';
-out += '            public static readonly string[] ReceivedTexts = new string[] { ' +
-       recvs.map(r => '"' + r[1].expectedSmsText + '"').join(', ') + ' };\n';
-out += '            public static readonly string[] ReceivedEphemeralKeys = new string[]\n';
-out += '            {\n';
-out += recvs.map(r => '                "' + r[1].newEphemeralKey + '"').join(',\n') + '\n';
-out += '            };\n';
-out += '        }\n\n';
-out += '        /// <summary>Hex, the way the vectors write it.</summary>\n';
-out += '        public static byte[] Hex(string hex)\n';
-out += '        {\n';
-out += '            var bytes = new byte[hex.Length / 2];\n';
-out += '            for (int i = 0; i < bytes.Length; i++)\n';
-out += '            {\n';
-out += '                bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);\n';
-out += '            }\n\n';
-out += '            return bytes;\n';
-out += '        }\n';
-out += '    }\n';
-out += '}\n';
-
-fs.writeFileSync(path.resolve(process.env.REPO, 'ProtocolTests/Vectors/SignalFixture.cs'), out);
-console.error('wrote ' + out.length + ' bytes');
+// ... the rest is string building: the three private halves, the bundle, both
+// transcripts, and the private ratchet key each side's first step generated (the
+// vectors call it `newEphemeralKey`, and it is what makes the third ciphertext and
+// the receiver's replies comparable).
 ```
+
+The second computes the two values the vectors do not carry - the root key with
+and without the one-time pre-key - over OpenSSL's X25519 and HKDF:
+
+```javascript
+// Computes the session's initial root key from the fixture's own keys: an oracle
+// independent of both our code and of libsignal's vectors file, which does not
+// carry the root key.
+//
+//   node signal-root-key.js
+//
+// The X25519 private keys here are already clamped, and the scalar is imported as
+// PKCS#8 - OpenSSL does not clamp an imported scalar, so an unclamped one would
+// silently disagree with the reference. (It cost an hour here: two Diffie-Hellmans
+// that must be equal were not, because the *test* keys were raw random bytes.)
+'use strict';
+
+const crypto = require('crypto');
+const PKCS8 = '302e020100300506032b656e04220420';
+const SPKI = '302a300506032b656e032100';
+const H = (value) => Buffer.from(value, 'hex');
+
+const privateKey = (raw) => crypto.createPrivateKey({
+  key: Buffer.concat([H(PKCS8), H(raw)]), format: 'der', type: 'pkcs8'
+});
+const publicKey = (hex) => crypto.createPublicKey({
+  key: Buffer.concat([H(SPKI), H(hex.slice(-64))]), format: 'der', type: 'spki'
+});
+const sharedSecret = (privateRaw, publicHex) => crypto.diffieHellman({
+  privateKey: privateKey(privateRaw), publicKey: publicKey(publicHex)
+});
+// Bob's half is computed against Alice's *public* keys, not against her private
+// ones wearing a type byte: the first version of this script did the latter and
+// "found" a disagreement in a Diffie-Hellman that is symmetric by construction.
+const publicOf = (privateRaw) =>
+  crypto.createPublicKey(privateKey(privateRaw)).export({ format: 'der', type: 'spki' }).slice(-32).toString('hex');
+const hkdf = (input, length) => Buffer.from(
+  crypto.hkdfSync('sha256', input, Buffer.alloc(32), Buffer.from('WhisperText'), length));
+
+// ... the fixture's keys verbatim, Alice's four DHs and Bob's four, a check that
+// the eight agree pairwise, then the two HKDFs and their hex.
+```
+
+`signal-root-key.js` compares the two sides' four DHs before it derives anything,
+because a DH that is symmetric by construction is the one thing a script like this
+cannot "check" — it was written wrong once, and the check is what said so.
 
 ### Task 1's result
 
@@ -634,3 +673,42 @@ console.error('wrote ' + out.length + ' bytes');
   `(byte)255` are not equal - the failure reads `expected <255> but was <255>`. Both
   are fixed, and the second is commented in the test so nobody spends an afternoon
   on it.
+
+### Tasks 2, 3, 4 - the session, and the three things the fixture caught
+
+The three tasks landed together (`88dbf9b`), because the conversation is what
+makes any of them credible: the agreement alone cannot show its output is the
+reference's, and the message format alone cannot show which key it is sealing for.
+What the fixture caught, in the order it was written:
+
+- **A pre-key message is not sealed twice.** The plan assumed a wrapper around the
+  sealed message, with a second MAC of its own. The reference writes a bare version
+  byte in front of the `PreKeyWhisperMessage` protobuf (`SessionCipher.js`, the
+  pre-key branch's `String.fromCharCode`) and nothing else: no tag. The first
+  comparison failed on the last eight bytes, which is exactly the second MAC's size -
+  and the eight bytes the reference writes there turned out to be the registration id
+  and the signed pre-key id, because both messages' trailing bytes were *identical*.
+- **The wrapper's registration id is the sender's.** `preKeyMsg.registrationId =
+  myRegistrationId` (`SessionCipher.js:101`), not the receiver's: the field says
+  which device the message came from. The session now carries our own id, which is
+  why `StartAsInitiator` takes it as an argument.
+- **The step's ratchet key is not the first one.** `newEphemeralKey` in the vectors
+  is the *private* half of the key a session's ratchet step generates - verified by
+  computing its public half, which is the ratchet key of the very message that step
+  produces. That is what made the third ciphertext comparable, and with it the
+  receiving half of the ratchet: before it, Alice's step drew her own first key
+  again and the two sessions disagreed about a key neither had changed.
+
+Two test-side traps, for whoever writes the next one. A fixed random source that
+returns the same key for every step makes a session step onto the key it already
+has, and the failure it produces (`the message key for 0 was already used`) has
+nothing to do with the code under test - the conversation test now uses a counter
+source and says why. And a message's *type* travels with it: the sender's session
+says `PreKeyPending`, the stanza says `type="pkmsg"`, and the receiver is told by
+it which path to take, because a wrapped message and a plain one cannot be told
+apart from the bytes alone.
+
+Counts: `node tools/test-protocol.js` -> **OK: 90 protocol test(s)** (84 after the
+three tasks, 89 with `X3dhTests`, 90 with the fixture's own-key check). The
+settled pieces of the plan above are the ones marked done; nothing in this section
+is an argument for a claim the tests do not make.
