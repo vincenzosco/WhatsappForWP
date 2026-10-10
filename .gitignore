@@ -39,12 +39,6 @@ bld/
 # non deve mai finire nel repository.
 .tools/
 
-# Node.js / Bridge
-WhatsappBridge/node_modules/
-WhatsappBridge/.wwebjs_auth/
-WhatsappBridge/.npm/
-WhatsappBridge/package-lock.json
-
 # Windows
 Thumbs.db
 *.log

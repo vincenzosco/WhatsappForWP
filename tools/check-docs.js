@@ -41,7 +41,6 @@ const ROOT = path.resolve(__dirname, '..');
 // con la sezione omonima.
 const PAIRS = [
   { english: 'README.md', italian: 'README.it.md', disclosure: true },
-  { english: 'WhatsappBridge/README.md', italian: 'WhatsappBridge/README.it.md', disclosure: false },
 ];
 
 const DISCLOSURE = 'Disclosure';
