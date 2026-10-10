@@ -722,3 +722,130 @@ writes, and Task 7's own guard is what proves it.
 (filled in as the tasks run: the three visibilities as they were, the `download.js`
 decision, the pinning of the payload's field numbers by the live run, and every
 ruling made, in the form `Ruling: <what> — <why> — <cost if wrong>`)
+
+### The three visibilities as they were (Task 1 Step 1)
+
+`gh repo view <repo> --json visibility`, 2026-10-10, before anything changed:
+
+```
+docker-whatsappforwp: {"visibility":"PUBLIC"}
+whatsappforwp-endpoint: {"visibility":"PUBLIC"}
+go-whatsapp-web-multidevice: {"visibility":"PUBLIC"}
+```
+
+After the change all three answer `{"visibility":"PRIVATE"}`, and the two checks
+that do not depend on this machine's token agree: `endpoint.json` on
+`raw.githubusercontent.com` and the fork's API entry both answer **404**
+anonymously.
+
+### The `download.js` decision (Task 2 Step 2)
+
+Deleted, with its test. Its only caller left in the tree was
+`tools/start-login.js`, which this task deletes; nothing under `WhatsappBridge/`
+required it (the ffmpeg bootstrap the plan expected does not call it). The four
+`zip ENOENT` failures that lived in `tools/test/download.test.js` on a machine
+without `zip` went with it.
+
+### The payload's field numbers, arbitrated by the server (Task 3 Step 6)
+
+`node tools/test-protocol.js --connect --pair` printed `PROBE OK: the server asked
+for a pairing (6 code(s))` followed by six QR strings. The numbers the server
+accepted: `passive` 3, `pull` 33, `userAgent` 5, `webInfo` 6, `connectType` 12,
+`connectReason` 13, `devicePairingData` 19, and inside it `eRegid` 1 (four bytes),
+`eKeytype` 2 (`0x05`), `eIdent` 3, `eSkeyId` 4 (three bytes), `eSkeyVal` 5,
+`eSkeySig` 6, `deviceProps` 8. `DeviceProps`: `os` 1, `version` 2,
+`platformType` 3, `requireFullSync` 4, `historySyncConfig` 5, with `UWP` = 21.
+
+`buildHash` (7) is the one field Baileys sends and this client does not; the
+server accepted the payload without it.
+
+### Rulings
+
+- **The announced version is WhatsApp Web's, not this app's.** `Ruling:` the
+  `UserAgent` version is `2.3000.1049558099` — the first live pairing run came
+  back `<failure reason="405" location="frc">`, and 405 is
+  `ConnectFailureClientOutdated` in the reference: the server refuses a companion
+  older than the floor it supports. Why: the version is a gate, not a label, and
+  the app's own 1.0.0 does not pass it. The app's real version lives in
+  `DeviceProps`. Cost if wrong: the pairing stops working when WhatsApp raises
+  its floor, and the failure is that same bare 405 — so the constant carries a
+  comment that says so.
+- **`ClientPayload.pull` is field 33, so the protobuf writer had to grow.**
+  `Ruling:` `ProtoWriter` accepts field numbers up to 2^29 - 1 instead of 1..15.
+  Why: 15 was a limit that held only until the first message past the handshake
+  was written. Cost if wrong: none; the tag varint is what enforces it.
+- **A handshake that has begun is not a channel that has split.** `Ruling:`
+  `WhatsAppSocket` keeps `_noise` and `_channelEncrypted` as two states. Why:
+  the first live pairing run decrypted the server's handshake frame as if it were
+  a transport frame and died on "the authentication tag does not match". Cost if
+  wrong: none, and the bug is pinned by the live run.
+- **A pairing that ends without an account is not an error.** `Ruling:`
+  `WaitForPairAsync` returns null when the connection ends first. Why: a transport
+  out of patience and a server that drops a connection whose codes nobody scanned
+  mean the same thing to the caller — show the expiry and start a new session.
+  Cost if wrong: a malformed `pair-success` is still an exception, because only
+  the read is guarded.
+- **`Credentials.Create` takes an `IRandomSource` rather than drawing its own.**
+  `Ruling:` the interface replaces the plan's parameterless `Create()`. Why: the
+  core may not use `System.Security.Cryptography` (the WP8.1 projection has none)
+  and `CryptographicBuffer` is a `Windows.*` type the desktop host cannot
+  compile, so randomness is injected — which is also what makes the drawing
+  testable. Cost if wrong: one more parameter at the call site.
+- **The store keeps `SignedPreKeyPrivate` too.** `Ruling:` one more key than the
+  plan's interface list. Why: an incoming session is completed with the signed
+  pre-key's private half, so a session that survived a restart without it would
+  fail on the first message. Cost if wrong: 44 bytes of storage.
+- **`PairingSession.StartAsync` returns the codes, `WaitForPairAsync` the
+  account.** `Ruling:` the plan's single `WhatsAppSocket.PairAsync` is split in
+  two. Why: the page has to show a code for the half minute a person needs to
+  reach for their phone, and one method cannot return both. Cost if wrong: one
+  extra type.
+- **The QR fixture's short input is not `"HELLO WORLD"`.** `Ruling:` it is
+  `"Hello, WhatsApp!"`. Why: the reference encodes `"HELLO WORLD"` in
+  alphanumeric mode, which this encoder does not implement — and the pairing
+  payload is mixed-case, so byte mode is the mode that matters. Cost if wrong:
+  an all-uppercase input produces a larger symbol that still scans.
+- **The encoder carries versions 1..40, not 1..11.** `Ruling:` all forty. Why:
+  the real pairing payload is **277 characters**, which needs version 12 at level
+  Medium — the plan's 216-character estimate was low and its ceiling was under
+  the real payload. Cost if wrong: a larger table file.
+- **The mask tables come from the reference, not from typing.** `Ruling:`
+  `QrTables.cs` and `QrFixture.cs` are printed by a script in a temporary
+  directory outside this repository, and the command that regenerates them is in
+  the file's header. Why: a hand-typed error correction table produces a symbol
+  that decodes to the right length and the wrong data. Cost if wrong: none, the
+  script is reproducible.
+- **`WhatsappSocketTests`'s first-node fixture gained a three-byte length.**
+  `Ruling:` the fixture is framed. Why: the socket now reads the wire, the wire is
+  framed, and the old fixture was a bare node no server ever sends — the check is
+  unchanged, the input was wrong. Cost if wrong: none.
+
+### Deviations from the plan's file lists
+
+- `tools/check-csharp5.js` (`SCAN_ROOTS` dropped `WhatsappServer`) and
+  `tools/test/services.test.js` were added to Task 2: Step 1's grep found them,
+  and the plan says anything else that names a deleted file joins the list.
+- Task 2's commit initially swept in five unrelated files that were already
+  modified in the worktree (`README.md`, `README.it.md`, `ConversationView.cs`,
+  `ChatPage.xaml.cs`, `.agents/skills/test-the-app/SKILL.md`). It was soft-reset
+  and re-made with only this task's files; those five are still uncommitted.
+
+### Open items, at the time of writing
+
+- **The GHCR package is still publicly pullable.** The repositories are private,
+  but an anonymous `ghcr.io/token` still returns a pull token and
+  `docker-whatsappforwp:latest` still answers 200 — a private repository with a
+  public package, which is the leak Task 1 is about. The token on this machine
+  (`gist, read:org, repo, workflow`) has no packages scope, so this is the
+  operator's to do: the package's settings page, or
+  `gh auth refresh -s read:packages,write:packages`.
+- **The push to `docker-whatsappforwp` has not happened.** The commit is local
+  (`6891bce`) because it is a shared branch in another repository.
+- **Task 5 is not started, and it has a prerequisite the plan did not name:**
+  `WhatsappApp/Protocol/Transport/WebSocketTransport.cs`, the WinRT transport,
+  does not exist — `Protocol/Transport/` holds `ITransport.cs` alone, so nothing
+  on the phone can open the connection yet. The plan's Task 5 assumed it was
+  "Task 7's" and left it out; it is the next real piece of work, and it comes
+  before the page is worth writing.
+- **Task 6 stays gated** on the client plan's M3 and M4, and Task 7's README
+  claim waits for it.
