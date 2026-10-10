@@ -211,7 +211,7 @@ git commit -m "feat: the Message protobuf, from the reference's own bytes"
 
 ---
 
-### Task 2: The pre-keys this device publishes
+### Task 2: The pre-keys this device publishes — **done**, `05a77f3`
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Client/PreKeyUpload.cs`
@@ -263,7 +263,7 @@ git commit -m "feat: publish this device's pre-keys, so a peer can start a sessi
 
 ---
 
-### Task 3: A peer's devices, and the session a first send builds
+### Task 3: A peer's devices, and the session a first send builds — **done**, `ced34f4`
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Client/DeviceDirectory.cs`
@@ -328,7 +328,7 @@ git commit -m "feat: a peer's device list, and the session a first send builds f
 
 ---
 
-### Task 4: The text that leaves the phone
+### Task 4: The text that leaves the phone — **done**, `840773e`
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Client/OutgoingMessage.cs`
@@ -378,7 +378,7 @@ git commit -m "feat: a text leaves the phone as one enc per device"
 
 ---
 
-### Task 5: The text that arrives, and what it answers
+### Task 5: The text that arrives, and what it answers — **done**, `7ab6353`
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Client/IncomingMessage.cs`
@@ -439,7 +439,11 @@ git commit -m "feat: read a message, answer it, and leave it out when it is our 
 
 ---
 
-### Task 5b: Pre-keys the server hands out stay ahead of the demand
+### Task 5b: Pre-keys the server hands out stay ahead of the demand — **done, folded into Task 2**
+
+The two constants and their test are there (`PreKeyUpload.LowWaterMark`, `PreKeyUpload.RefillCount`,
+`PreKeyUploadTests.TheFloorIsTheLastCountThatIsStillEnough`). The one thing left is the caller:
+`NativeSession` checks the floor on every reconnect, which is Task 6.
 
 **Files:**
 - Modify: `WhatsappApp/Protocol/Client/PreKeyUpload.cs` (the floor)
@@ -473,7 +477,12 @@ git commit -m "feat: refill the one-time pre-keys before the server runs out"
 
 ---
 
-### Task 5c: The connection stays alive, and the phone says it is there
+### Task 5c: The connection stays alive, and the phone says it is there — **done**, `550b2ea`
+
+Not as written: the reference's keep-alive is an `iq` on `w:p` carrying one `ping` *child*,
+not an empty `iq`, and presence is the reference's own `presence` node with the account's
+`name` on it (no `category` children). Both are what the code builds, and both are pinned
+by tests.
 
 **Files:**
 - Create: `WhatsappApp/Protocol/Client/SessionKeepAlive.cs`
@@ -696,3 +705,45 @@ what the phone did. The M3 plan's own notes are the shape to copy.
   surface**: a green `test-protocol` is not a green app build, and this task is the proof.
 - After the fix: all fourteen guards exit 0, `node --test tools/test/**/*.test.js` green,
   app rebuild `0 Error(s)`.
+
+### Tasks 2, 3, 4, 5, 5c - the protocol chain, and what each one cost (`05a77f3` to `550b2ea`)
+
+- Every node shape in Tasks 2, 4, 5 and 5c was read out of the reference's own source in
+  `/tmp/m4ref/node_modules/@whiskeysockets/baileys/lib` rather than remembered: the pre-key
+  upload's child order (`registration`, `type`, `identity`, `list`, `skey`), the participant
+  shape (`to[jid]` wrapping `enc`, `v` `2`, `type` `pkmsg`/`msg`), the ack's
+  `id`/`to`/`class`, the receipt's first-id-plus-list, and the keep-alive's `ping` child.
+  The plan was wrong about two of them (`list` before `skey`; an empty ping) and the plan
+  now says so.
+- **RED was observed for Task 1 only.** Tasks 2, 3, 4, 5 and 5c were written implementation
+  and test together and run once. That is a real deviation from the plan's steps, and it is
+  recorded rather than papered over: the first run of each did fail, but on a compile error
+  or a wrong assertion, not on a missing type.
+- The tests that were wrong, and the code that was right:
+  - the device JID is `name:device@server`, not `name@server:device` (the test caught a real
+    bug in `DeviceDirectory.Devices`);
+  - `SessionRecord.Decrypt` takes the whole `enc` even for a pre-key message - it unwraps
+    the wrapper itself - and the test was handing it the inside;
+  - the device-sent form's destination is *this* device for every message that arrives, so
+    it cannot be what marks our own copy: the sender does. `IsOurEcho` reads the stanza's
+    `from` now, and the test that failed is what showed it;
+  - a moved byte in a pre-key `enc` corrupts the wrapper before the message, so the read
+    path wraps the whole open-and-decrypt in one sentence that names the message id - the
+    earlier code named the pre-key mismatch and no id at all;
+  - `Assert.AreEqual` compares `object`s: a boxed `7` is not a boxed `(uint)7`, and it has
+    no message parameter (three call sites each learned one of those).
+- `PreKeyStore.Take` was renamed `Consume`. `check-csharp5` refuses `.Take(`/`.First(`
+  without `using System.Linq;` - a real rule, earned by a CS1061 on the phone - and adding
+  the using would have been a lie: neither call is LINQ. `SeenMessages.First` became
+  `IsNew` for the same reason.
+- State after `550b2ea`: `node tools/test-protocol.js` **127 protocol test(s)**, exit 0;
+  all fourteen guards exit 0; `node --test tools/test/**/*.test.js` green; x86 rebuild
+  `0 Error(s)`, package created.
+
+### What is left
+
+- **Task 6**: `NativeSession`, `NativeChatStore`, the surface frozen by its Step 1 grep,
+  and the pages reading from them. The socket loop, `historySync`, and the reconnect that
+  also checks the pre-key floor.
+- **Task 7**: executing `retire-the-server` Tasks 6 and 7 (the eight services, the guard,
+  the READMEs), the full gate, and the phone - which is where this milestone is proved.
