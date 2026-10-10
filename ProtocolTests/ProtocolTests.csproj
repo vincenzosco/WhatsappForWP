@@ -46,6 +46,10 @@
   <ItemGroup>
     <!-- This project's own tests. -->
     <Compile Include="*.cs" />
+    <!-- The frozen vectors: a subdirectory, so it needs its own line - the `*.cs`
+         above is not recursive, and a fixture that is not compiled is a fixture that
+         quietly stops checking anything. -->
+    <Compile Include="Vectors\*.cs" />
     <!-- The shared core, compiled where it lives: never copied, so the phone and
          this runner cannot drift. The one exclusion is named explicitly rather than
          by folder, because the folder also holds the portable ITransport - a blanket
