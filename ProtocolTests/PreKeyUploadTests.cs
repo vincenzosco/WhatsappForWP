@@ -89,7 +89,7 @@ namespace ProtocolTests
 
                 // The id the server hands out is the id that finds the private half, and
                 // the private half is the one the published public key belongs to.
-                byte[] stored = store.Take(id);
+                byte[] stored = store.Consume(id);
                 Assert.IsTrue(stored != null, "every published key has to be stored under its own id");
                 Assert.ByteArraysEqual(list[i].Child("value").Bytes(), Curve25519.PublicKey(stored));
             }
@@ -118,7 +118,7 @@ namespace ProtocolTests
 
             for (uint id = 1; id <= 18; id++)
             {
-                store.Take(id);
+                store.Consume(id);
             }
 
             Assert.AreEqual(2, store.Remaining);
