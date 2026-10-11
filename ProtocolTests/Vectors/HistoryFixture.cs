@@ -9,6 +9,15 @@ namespace ProtocolTests.Vectors
     ///     node -e "const p=require('@whiskeysockets/baileys').proto, zlib=require('zlib'); \
     ///       const s=p.HistorySync.encode({syncType:2, conversations:[ ... ]}).finish(); \
     ///       console.log(s.toString('hex')); console.log(zlib.deflateSync(Buffer.from(s)).toString('hex'));"
+///
+/// The keys of the `md-msg-hist` blob come from the same checkout, over a media key of 32
+/// bytes of `0x07`:
+///
+///     node --input-type=module -e "import * as m from
+///       './node_modules/@whiskeysockets/baileys/lib/Utils/messages-media.js';
+///       console.log(m.hkdfInfoKey('md-msg-hist'));
+///       const k = await m.getMediaKeys(Buffer.alloc(32, 7), 'md-msg-hist');
+///       console.log(Buffer.from(k.iv).toString('hex')); ..."
     ///
     /// The field numbers below are not read off the protocol documentation: they are the
     /// reference's own, printed by encoding one field at a time and reading the tag varint
@@ -64,5 +73,15 @@ namespace ProtocolTests.Vectors
             "0a20010101010101010101010101010101010101010101010101010101010101010110d2091a200202020202020202020202" +
             "0202020202020202020202020202020202020202022220030303030303030303030303030303030303030303030303030303" +
             "03030303032a082f762f7436322f783002380142083345423043434343";
+
+        /// <summary>The info string the history keys are expanded with: `hkdfInfoKey('md-msg-hist')`.</summary>
+        public const string HistoryInfo = "WhatsApp History Keys";
+
+        /// <summary>The three keys for a media key of 32 bytes of `0x07`, as the reference derives them.</summary>
+        public const string HistoryIv = "8c5afed3583347a1449e12ab5f2d8deb";
+        public const string HistoryCipherKey =
+            "37af562252ffce1c9ebf55e1cf225cd87484873e854e5fd5ef2c7ae4071d4509";
+        public const string HistoryMacKey =
+            "1c532784afa512320359296081cb8e6f055e43ec9f672a218e9c3ae161808504";
     }
 }
