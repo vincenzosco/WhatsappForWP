@@ -717,6 +717,38 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Somebody's picture: the query answers a URL, the URL answers the JPEG.
+        ///
+        /// Two round trips and not one, because that is the shape: the picture query is asked
+        /// with `query="url"` and answers a signed, expiring address (`ProfilePictures`), so
+        /// the bytes are fetched at once and it is the bytes the caller keeps.
+        ///
+        /// Null when there is no picture, which is an answer and not a failure - a contact
+        /// with no photo is the ordinary case.
+        /// </summary>
+        public async Task<byte[]> RequestAvatarAsync(string jid, bool preview)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a picture needs somebody to ask about");
+
+            NativeSession session = OpenSession();
+
+            BinaryNode answer = await RequestAsync(session, ProfilePictures.Query(
+                OutgoingMessage.Id(_random), jid, preview ? ProfilePictures.Preview : ProfilePictures.Image));
+
+            string url = ProfilePictures.Read(answer);
+            if (url == null)
+            {
+                Diag.Ok("native: " + jid + " has no picture");
+                return null;
+            }
+
+            byte[] jpeg = await new WinRtMediaFetcher().GetAsync(url);
+            Diag.Ok("native: " + jpeg.Length + " byte(s) of picture for " + jid);
+
+            return jpeg;
+        }
+
+        /// <summary>
         /// The history the server just sent, into the chat list.
         ///
         /// Two shapes, both the reference's: a bootstrap carries the compressed payload

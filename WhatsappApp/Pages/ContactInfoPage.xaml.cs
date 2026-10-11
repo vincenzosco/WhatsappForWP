@@ -74,11 +74,51 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void RequestInfo()
         {
+            // The picture is WhatsApp's own query now. The rest of the page - the name, the
+            // number, the about line, the business hours - still arrives in the adapter's
+            // `contact.info` frame, which leaves with the adapter itself.
+            if (NativeConnection.Instance.IsConnected)
+            {
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("ContactInfoPage/picture", RequestPictureAsync());
+#pragma warning restore 4014
+            }
+
             if (!CommunicationService.Instance.IsConnected) return;
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("ContactInfoPage/info",
                 CommunicationService.Instance.SendControlAsync("contact.info", _contact.Id));
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The full picture, from WhatsApp itself: the query answers a URL, the URL answers
+        /// the JPEG, and the cache keeps the bytes because the URL expires.
+        ///
+        /// No picture is not a failure: the page then shows the initials the bubble already
+        /// draws, and nothing is logged as broken.
+        /// </summary>
+        private async System.Threading.Tasks.Task RequestPictureAsync()
+        {
+            try
+            {
+                byte[] jpeg = await NativeConnection.Instance.RequestAvatarAsync(_contact.Id, false);
+                if (jpeg == null || jpeg.Length == 0) return;
+
+                string data = Convert.ToBase64String(jpeg);
+
+                if (_contact.AvatarData != data)
+                {
+                    _contact.AvatarData = data;
+                    await _contact.LoadAvatarAsync();
+                }
+
+                AvatarCache.Remember(_contact.Id, data);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ContactInfoPage/picture", ex);
+            }
         }
 
         private void OnControlMessageReceived(object sender, ChatMessage message)

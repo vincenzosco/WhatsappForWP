@@ -155,6 +155,7 @@
     <Compile Include="Protocol\Client\OutgoingMessage.cs" />
     <Compile Include="Protocol\Client\PairingQr.cs" />
     <Compile Include="Protocol\Client\PairingSession.cs" />
+    <Compile Include="Protocol\Client\ProfilePictures.cs" />
     <Compile Include="Protocol\Client\PreKeyUpload.cs" />
     <Compile Include="Protocol\Client\SessionKeepAlive.cs" />
     <Compile Include="Protocol\Client\Zlib.cs" />
