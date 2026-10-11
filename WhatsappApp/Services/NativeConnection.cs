@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
+using WhatsappApp.Protocol.Signal;
 using WhatsappApp.Protocol.Transport;
 using WhatsappApp.Protocol.WABinary;
 
@@ -42,8 +43,10 @@ namespace WhatsappApp.Services
         }
 
         private readonly CredentialStore _store = new CredentialStore(new NativeCredentialStorage());
+        private readonly IRandomSource _random = new DeviceRandomSource();
 
         private NativeSession _session;
+        private PreKeyStore _preKeys;
         private bool _running;
         private DateTime _lastNode;
 
@@ -88,9 +91,14 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// One login and the reading that follows it. Every failure is named and the session
-        /// is closed on the way out, so the next `Start` begins from nothing rather than
-        /// from half a connection.
+        /// The account, kept open: one login, the reading that follows it, and - when the
+        /// connection ends for a reason that is not the account's death - the wait and the
+        /// next login.
+        ///
+        /// Why the retry is a loop around the whole connection and not a `goto` inside the
+        /// reader: everything the login set up (the noise handshake, the pre-key floor check,
+        /// presence) has to happen again on a new socket, and the only thing that must not
+        /// happen twice is clearing the account.
         /// </summary>
         private async Task RunAsync()
         {
@@ -109,72 +117,148 @@ namespace WhatsappApp.Services
                 return;
             }
 
-            var session = new NativeSession(new WebSocketTransport(), new ProtocolLog(), new DeviceRandomSource());
-            _session = session;
-            Status = "logging in as " + account.Jid;
+            int attempt = 0;
 
-            try
+            while (_running)
             {
-                await session.LoginAsync(account, WhatsAppSocket.DefaultUrl);
+                NativeSession session = null;
+                try
+                {
+                    session = new NativeSession(new WebSocketTransport(), new ProtocolLog(), _random);
+                    _session = session;
+                    Status = "logging in as " + account.Jid;
 
-                _lastNode = DateTime.UtcNow;
-                Status = "logged in as " + account.Jid;
-                Diag.Ok("native: logged in as " + account.Jid);
+                    await session.LoginAsync(account, WhatsAppSocket.DefaultUrl);
 
-                await session.GoAvailableAsync(account.PushName);
+                    _lastNode = DateTime.UtcNow;
+                    Status = "logged in as " + account.Jid;
+                    Diag.Ok("native: logged in as " + account.Jid);
+
+                    await PublishPreKeysAsync(session, account);
+                    await session.GoAvailableAsync(account.PushName);
 
 #pragma warning disable 4014
-                Guarded.RunGuardedAsync("NativeConnection/keepalive", KeepAliveAsync(session));
+                    Guarded.RunGuardedAsync("NativeConnection/keepalive", KeepAliveAsync(session));
 #pragma warning restore 4014
 
-                while (true)
-                {
-                    BinaryNode node = await session.ReadNodeAsync();
-                    _lastNode = DateTime.UtcNow;
+                    // A connection that worked resets the patience: the next drop waits a
+                    // second again, not the half minute an hour of retrying had reached.
+                    attempt = 0;
 
-                    // The server's liveness probe and the end of the session arrive on the
-                    // same channel, and the probe has to be answered first: an unanswered
-                    // one is the server closing a connection it thinks is dead (the pairing
-                    // of 2026-10-10 was lost exactly this way).
-                    if (SessionKeepAlive.IsPing(node))
-                    {
-                        Diag.Ok("native: the server asked whether this connection is alive");
-                        await session.AnswerProbeAsync(node);
-                        continue;
-                    }
-
-                    string ended = NativeSession.Refusal(node);
-                    if (ended != null)
-                    {
-                        throw new SessionRefusedException("the server ended the session: " + ended);
-                    }
+                    await ReadAsync(session);
                 }
-            }
-            catch (SessionRefusedException refused)
-            {
-                // WhatsApp unlinked this device, or reset the keys: the account is dead, and
-                // keeping it would put the app on a chat list that can never fill. Clearing
-                // it and flagging the run is what sends `StartDecision` back to the QR.
-                Diag.Ok("native: " + refused.Message);
-                Status = refused.Message;
+                catch (SessionRefusedException refused)
+                {
+                    // WhatsApp took this account away: the phone was unlinked from another
+                    // device, the primary is gone, or it is banned. Keeping the account would
+                    // put the app on a chat list that can never fill, so it is cleared and the
+                    // run is flagged - which is what sends `StartDecision` back to the QR.
+                    Diag.Ok("native: " + refused.Message);
+                    Status = refused.Message;
 
-                SessionState.Expired = true;
-                _store.Clear();
+                    SessionState.Expired = true;
+                    _store.Clear();
+
+                    break;
+                }
+                catch (Exception error)
+                {
+                    Diag.Failed("NativeConnection/connection", error);
+                    Status = Diag.Describe(error);
+                }
+                finally
+                {
+                    if (session != null) session.Close();
+                    if (ReferenceEquals(_session, session)) _session = null;
+                }
+
+                if (!_running) break;
+
+                attempt++;
+                int delay = ConnectionPolicy.ReconnectDelaySeconds(attempt);
+                Status = Status + " - retrying in " + delay + "s";
+                Diag.Ok("native: " + Status);
+
+                await Task.Delay(TimeSpan.FromSeconds(delay));
+            }
+
+            _running = false;
+            Diag.Ok("native: the account is closed (" + Status + ")");
+        }
+
+        /// <summary>
+        /// Reads until the connection ends. The liveness probe is answered before anything
+        /// else is asked of the node, because an unanswered one is the server closing a
+        /// connection it believes is dead - which is how the pairing of 2026-10-10 was lost.
+        ///
+        /// A node that is neither a probe nor a refusal is left to the tasks that interpret
+        /// it (the classifier, the history sync, the message path); this loop owns only the
+        /// two answers that stop it.
+        /// </summary>
+        private async Task ReadAsync(NativeSession session)
+        {
+            while (true)
+            {
+                BinaryNode node = await session.ReadNodeAsync();
+                _lastNode = DateTime.UtcNow;
+
+                if (SessionKeepAlive.IsPing(node))
+                {
+                    Diag.Ok("native: the server asked whether this connection is alive");
+                    await session.AnswerProbeAsync(node);
+                    continue;
+                }
+
+                string ended = NativeSession.Refusal(node);
+                if (ended == null) continue;
+
+                if (ConnectionPolicy.AccountIsGone(node))
+                {
+                    throw new SessionRefusedException("WhatsApp ended this account: " + ended);
+                }
+
+                throw new ProtocolException("the connection ended: " + ended);
+            }
+        }
+
+        /// <summary>
+        /// Publishes one-time pre-keys when the server is running low on them, once per
+        /// login.
+        ///
+        /// A failure here is named and survived: a phone that cannot publish pre-keys can
+        /// still send and read, it is *being written to for the first time* that stops
+        /// working - and that is not worth ending a working connection over.
+        /// </summary>
+        private async Task PublishPreKeysAsync(NativeSession session, Credentials account)
+        {
+            try
+            {
+                PreKeyStore store = await PreKeysAsync();
+                if (!ConnectionPolicy.NeedsPreKeys(store.Remaining)) return;
+
+                await session.SendAsync(PreKeyUpload.Node(account, store, _random, PreKeyUpload.RefillCount));
+                Diag.Ok("native: published " + PreKeyUpload.RefillCount + " pre-key(s), "
+                    + store.Remaining + " in the store");
             }
             catch (Exception error)
             {
-                Diag.Failed("NativeConnection/login", error);
-                Status = Diag.Describe(error);
+                Diag.Failed("NativeConnection/prekeys", error);
             }
-            finally
-            {
-                session.Close();
+        }
 
-                if (ReferenceEquals(_session, session)) _session = null;
-                _running = false;
+        /// <summary>
+        /// The pre-key store, opened once and kept: it reads every blob in the folder when it
+        /// opens, so opening it per login would re-read the whole protocol directory every
+        /// time the Wi-Fi blinked.
+        /// </summary>
+        private async Task<PreKeyStore> PreKeysAsync()
+        {
+            if (_preKeys != null) return _preKeys;
 
-                Diag.Ok("native: the session is over (" + Status + ")");
-            }
+            ISessionStorage storage = await FileSessionStorage.OpenAsync();
+            _preKeys = new PreKeyStore(storage);
+
+            return _preKeys;
         }
 
         /// <summary>
@@ -192,7 +276,7 @@ namespace WhatsappApp.Services
                 await Task.Delay(TimeSpan.FromSeconds(SessionKeepAlive.PingSeconds));
 
                 if (!session.IsOpen) return;
-                if (!SessionKeepAlive.IsStale(_lastNode, DateTime.UtcNow)) continue;
+                if (!ConnectionPolicy.ConnectionIsStale(_lastNode, DateTime.UtcNow)) continue;
 
                 await session.PingAsync();
             }
