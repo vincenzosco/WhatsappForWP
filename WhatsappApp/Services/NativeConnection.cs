@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
@@ -48,7 +49,12 @@ namespace WhatsappApp.Services
         private readonly SeenMessages _seen = new SeenMessages(NativeChats.SeenLimit);
         private readonly NativeChats _chats = new NativeChats();
 
+        /// <summary>The answers this client is waiting for, by the id of the query it sent.</summary>
+        private readonly Dictionary<string, TaskCompletionSource<BinaryNode>> _waiters =
+            new Dictionary<string, TaskCompletionSource<BinaryNode>>();
+
         private NativeSession _session;
+        private Credentials _account;
         private ISessionStorage _storage;
         private PreKeyStore _preKeys;
         private SessionStore _sessions;
@@ -93,6 +99,15 @@ namespace WhatsappApp.Services
 
         /// <summary>The status line changed, for the screens that show it.</summary>
         public event EventHandler<string> ConnectionStatusChanged;
+
+        /// <summary>
+        /// A receipt arrived for something this phone sent: the message was delivered, or it
+        /// was read.
+        /// </summary>
+        public event EventHandler<MessageStatusUpdate> MessageStatusChanged;
+
+        /// <summary>How long a query the server never answers is waited for before it is given up on.</summary>
+        public const int AnswerSeconds = 20;
 
         /// <summary>
         /// Opens the stored account, if there is one, and starts reading.
@@ -156,6 +171,7 @@ namespace WhatsappApp.Services
 
                     await session.LoginAsync(account, WhatsAppSocket.DefaultUrl);
 
+                    _account = account;
                     _lastNode = DateTime.UtcNow;
                     Status = "logged in as " + account.Jid;
                     Diag.Ok("native: logged in as " + account.Jid);
@@ -249,6 +265,18 @@ namespace WhatsappApp.Services
                     throw new ProtocolException("the connection ended: " + ended);
                 }
 
+                if (kind == InboundKind.Ack || (kind == InboundKind.Ignored && node.Tag == "iq"))
+                {
+                    CompleteWaiter(node);
+                    continue;
+                }
+
+                if (kind == InboundKind.Receipt)
+                {
+                    AnnounceReceipt(node);
+                    continue;
+                }
+
                 try
                 {
                     if (kind == InboundKind.Message)
@@ -325,6 +353,159 @@ namespace WhatsappApp.Services
             // A pre-key message spent one of this device's one-time keys, and a server with
             // none left stops handing this phone out to peers.
             await PublishPreKeysAsync(session, account);
+        }
+
+        /// <summary>
+        /// Asks the server something and waits for its answer, on the one socket both share.
+        ///
+        /// Why a waiter table and not a blocking read: every answer arrives in the same
+        /// stream as the messages, on the loop that owns the socket, so the caller that wants
+        /// one answer cannot be the loop - it has to leave a place for the loop to put it.
+        /// The timeout is what keeps a server that never answers from parking the caller
+        /// forever; the waiter is removed either way.
+        /// </summary>
+        private async Task<BinaryNode> RequestAsync(NativeSession session, BinaryNode query)
+        {
+            string id = query.Attrs["id"];
+            if (string.IsNullOrEmpty(id)) throw new ProtocolException("a query with no id has no answer to wait for");
+
+            var completion = new TaskCompletionSource<BinaryNode>();
+            lock (_waiters) _waiters[id] = completion;
+
+            try
+            {
+                await session.SendAsync(query);
+
+                Task<BinaryNode> answer = completion.Task;
+                Task finished = await Task.WhenAny(answer, Task.Delay(TimeSpan.FromSeconds(AnswerSeconds)));
+                if (finished != answer) throw new ProtocolException("the server did not answer " + id);
+
+                return await answer;
+            }
+            finally
+            {
+                lock (_waiters) _waiters.Remove(id);
+            }
+        }
+
+        /// <summary>
+        /// Hands an `iq` answer to whoever asked for it. An `error` answers with the Node
+        /// itself so the caller's failure sentence carries what the server said, instead of a
+        /// timeout twenty seconds later.
+        /// </summary>
+        private void CompleteWaiter(BinaryNode node)
+        {
+            string id = node.Attrs["id"];
+            if (string.IsNullOrEmpty(id)) return;
+
+            TaskCompletionSource<BinaryNode> completion;
+            lock (_waiters)
+            {
+                if (!_waiters.TryGetValue(id, out completion)) return;
+            }
+
+            if (node.Attrs["type"] == "error")
+            {
+                completion.TrySetException(new ProtocolException("the server refused " + id + ": " + node));
+                return;
+            }
+
+            completion.TrySetResult(node);
+        }
+
+        /// <summary>A receipt off the wire, as the status of the messages it names.</summary>
+        private void AnnounceReceipt(BinaryNode node)
+        {
+            if (MessageStatusChanged == null) return;
+
+            string jid = Conversation.From(node);
+            IList<string> ids = Conversation.Ids(node);
+            bool isRead = Conversation.IsRead(node);
+
+            for (int i = 0; i < ids.Count; i++)
+            {
+                var update = new MessageStatusUpdate();
+                update.Jid = jid;
+                update.Id = ids[i];
+                update.IsRead = isRead;
+
+                MessageStatusChanged(this, update);
+            }
+        }
+
+        /// <summary>
+        /// A text to one chat: this device's message, the peer's devices, a session each.
+        ///
+        /// The devices are asked for on every send rather than cached, because a contact who
+        /// linked a new phone - or removed one - would otherwise be written to at the device
+        /// list they had yesterday. What is *not* re-done is the session: an established one
+        /// is what the ratchet is for (`DeviceDirectory.Session`).
+        /// </summary>
+        public async Task<string> SendTextAsync(string jid, string body)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a message needs a chat to go to");
+            if (string.IsNullOrEmpty(body)) throw new ProtocolException("there is nothing to send");
+
+            NativeSession session = _session;
+            if (session == null || !session.IsOpen) throw new ProtocolException("there is no open account to send on");
+
+            BinaryNode answer = await RequestAsync(session, DeviceDirectory.Query(jid, _random));
+            IList<KeyValuePair<string, PreKeyBundle>> bundles = DeviceDirectory.Bundles(answer);
+            if (bundles.Count == 0) throw new ProtocolException("the server knows no device of " + jid);
+
+            SessionStore store = await SessionsAsync();
+            var devices = new List<KeyValuePair<string, SessionRecord>>();
+            for (int i = 0; i < bundles.Count; i++)
+            {
+                devices.Add(new KeyValuePair<string, SessionRecord>(bundles[i].Key,
+                    DeviceDirectory.Session(bundles[i].Key, bundles[i].Value, _account, store, _random)));
+            }
+
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            await session.SendAsync(OutgoingMessage.Node(jid, id, body, devices, timestamp));
+
+            _chats.AddOutgoing(jid, id, body, timestamp);
+            Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
+
+            return id;
+        }
+
+        /// <summary>Marks a chat's messages read: the receipt is what stops the peer's phone showing them unread.</summary>
+        public async Task MarkReadAsync(string jid, IList<string> ids)
+        {
+            if (ids == null || ids.Count == 0) return;
+
+            NativeSession session = _session;
+            if (session == null || !session.IsOpen) return;
+
+            await session.SendAsync(IncomingMessage.Receipt(jid, ids, "read", NowSeconds()));
+        }
+
+        /// <summary>This phone is typing in a chat, or has stopped.</summary>
+        public async Task SendTypingAsync(string jid, bool typing)
+        {
+            NativeSession session = _session;
+            if (session == null || !session.IsOpen) return;
+
+            string ourJid = _account == null ? null : _account.Jid;
+            await session.SendAsync(Conversation.Typing(ourJid, jid,
+                typing ? Conversation.Composing : Conversation.Paused));
+        }
+
+        /// <summary>Says this phone is here. The push name is what the server passes on.</summary>
+        public async Task SendPresenceAsync(string state)
+        {
+            NativeSession session = _session;
+            if (session == null || !session.IsOpen) return;
+
+            await session.GoAvailableAsync(_account == null ? null : _account.PushName);
+        }
+
+        private static uint NowSeconds()
+        {
+            return (uint)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
         }
 
         /// <summary>
@@ -440,5 +621,24 @@ namespace WhatsappApp.Services
                 await session.PingAsync();
             }
         }
+    }
+
+    /// <summary>
+    /// The news a receipt brings: which message, in which chat, and whether it was read.
+    ///
+    /// It is deliberately not the `ChatMessage` itself: the caller that owns the bubble is
+    /// the app (`Services/DataService`), and a protocol event that carried a UI model would
+    /// put a `BitmapImage` in the core.
+    /// </summary>
+    public sealed class MessageStatusUpdate
+    {
+        /// <summary>The chat the message belongs to.</summary>
+        public string Jid;
+
+        /// <summary>The message the receipt names.</summary>
+        public string Id;
+
+        /// <summary>True when it says read and not merely delivered.</summary>
+        public bool IsRead;
     }
 }

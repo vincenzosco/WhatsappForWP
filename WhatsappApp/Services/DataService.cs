@@ -127,6 +127,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.MessageArrived += OnNativeMessage;
             NativeConnection.Instance.ChatArrived += OnNativeChat;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
+            NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
 
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
@@ -225,6 +226,19 @@ namespace WhatsappApp.Services
         private void OnNativeHistoryFinished(object sender, WhatsappApp.Protocol.WaProto.HistorySync sync)
         {
             Diag.Ok("native: the history is complete, " + _contacts.Count + " row(s) in the list");
+        }
+
+        /// <summary>
+        /// A receipt for something this phone sent: the bubble that said `Sent` becomes
+        /// `Delivered`, and then `Read`. The ids come off the wire one per message, and the
+        /// chat is the one the receipt names - not the open chat, which may be another one.
+        /// </summary>
+        private void OnNativeStatus(object sender, MessageStatusUpdate update)
+        {
+            if (update == null || string.IsNullOrEmpty(update.Id)) return;
+
+            SetMessageStatus(update.Jid, update.Id,
+                update.IsRead ? MessageStatus.Read : MessageStatus.Delivered);
         }
 
         /// <summary>
@@ -1155,17 +1169,43 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(chatId)) return;
 
-            if (!CommunicationService.Instance.IsConnected)
+            if (!NativeConnection.Instance.IsConnected)
             {
+                // A read that cannot go out now is queued and retried when an account is
+                // open again, so it is never lost.
                 _pendingReads.Add(chatId);
                 return;
             }
 
             _pendingReads.Remove(chatId);
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("DataService/read",
-                CommunicationService.Instance.SendControlAsync("read", chatId));
+            Guarded.RunGuardedAsync("DataService/read", MarkReadAsync(chatId));
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The receipt for a whole chat: every message of it that came from the other side.
+        ///
+        /// One receipt per batch rather than one per message - the node carries a list of
+        /// ids, and a chat opened after a day away has a hundred of them, which is a hundred
+        /// frames if this is written the obvious way.
+        /// </summary>
+        private async Task MarkReadAsync(string chatId)
+        {
+            var ids = new List<string>();
+            ObservableCollection<ChatMessage> messages = GetMessages(chatId);
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                ChatMessage message = messages[i];
+                if (message == null || !message.IsIncoming) continue;
+                if (message.Status == MessageStatus.Read) continue;
+                if (string.IsNullOrEmpty(message.Id)) continue;
+
+                ids.Add(message.Id);
+            }
+
+            await NativeConnection.Instance.MarkReadAsync(chatId, ids);
         }
 
         /// <summary>

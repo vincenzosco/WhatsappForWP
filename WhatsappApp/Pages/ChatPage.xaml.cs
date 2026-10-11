@@ -81,6 +81,7 @@ namespace WhatsappApp.Pages
             // binding happens later, once the saved copy is in.
             _view = new ConversationView(MessagesListView, Dispatcher);
             _recording = new RecordingSession();
+            Diag.Ok("probe build: scroll waits for the layout, position watch permanent");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -462,10 +463,10 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void SendTyping(string state)
         {
-            if (_contact == null || !CommunicationService.Instance.IsConnected) return;
+            if (_contact == null || !NativeConnection.Instance.IsConnected) return;
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("ChatPage/typing",
-                CommunicationService.Instance.SendControlAsync("typing", _contact.Id, state));
+                NativeConnection.Instance.SendTypingAsync(_contact.Id, state != "paused"));
 #pragma warning restore 4014
         }
 
@@ -1362,17 +1363,26 @@ namespace WhatsappApp.Pages
             // The status is decided now, not when the page was opened: a message
             // written with the socket down stayed "sent" forever without ever
             // leaving. Now it shows as failed and can be rewritten.
-            if (!CommunicationService.Instance.IsConnected)
+            if (!NativeConnection.Instance.IsConnected)
             {
                 message.Status = MessageStatus.Failed;
                 return;
             }
 
             message.Status = MessageStatus.Sending;
-            await CommunicationService.Instance.SendMessageAsync(message);
-            message.Status = CommunicationService.Instance.IsConnected
-                ? MessageStatus.Sent
-                : MessageStatus.Failed;
+
+            // The send is on the phone's own protocol now. A failure is named and the bubble
+            // says so: a message that did not leave must not read as sent.
+            try
+            {
+                await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text);
+                message.Status = MessageStatus.Sent;
+            }
+            catch (WhatsappApp.Protocol.ProtocolException failed)
+            {
+                Diag.Failed("ChatPage/send", failed);
+                message.Status = MessageStatus.Failed;
+            }
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)
