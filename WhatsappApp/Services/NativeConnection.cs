@@ -81,6 +81,19 @@ namespace WhatsappApp.Services
         public string Status { get; private set; }
 
         /// <summary>
+        /// This account's own JID, once it is open. It is what a message this phone sends is
+        /// signed with, and what the pages show as "me".
+        /// </summary>
+        public string Jid
+        {
+            get
+            {
+                Credentials account = _account;
+                return account == null ? null : account.Jid;
+            }
+        }
+
+        /// <summary>
         /// The chats this client knows about, already ordered and de-duplicated. The store the
         /// pages bind reads it; nothing else should be a second source of the same list.
         /// </summary>
@@ -453,9 +466,110 @@ namespace WhatsappApp.Services
             if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a message needs a chat to go to");
             if (string.IsNullOrEmpty(body)) throw new ProtocolException("there is nothing to send");
 
+            NativeSession session = OpenSession();
+            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            await session.SendAsync(OutgoingMessage.Node(jid, id, body, devices, timestamp));
+
+            _chats.AddOutgoing(jid, id, body, timestamp);
+            Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
+
+            return id;
+        }
+
+        /// <summary>
+        /// A photo, a voice note, a video or a document: encrypted here, uploaded to
+        /// WhatsApp's own media host, and then sent as a message that says where it is.
+        ///
+        /// Three round trips and not one, because each answers a different question: the
+        /// device list asks *who*, the media connection asks *where* (and hands out the
+        /// token, which has a lifetime, so it is asked for per send rather than cached), and
+        /// the upload itself answers with the address the message carries.
+        ///
+        /// The bytes are handed over whole: the media format puts the signature of the
+        /// ciphertext after it, so a sender cannot stream it either
+        /// (`WhatsappApp.Protocol.Media.MediaUpload`).
+        /// </summary>
+        public async Task<string> SendMediaAsync(string jid, byte[] file, string mediaType, string mimeType,
+            string fileName, string caption, uint seconds, bool voiceNote)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a message needs a chat to go to");
+            if (file == null || file.Length == 0) throw new ProtocolException("there is no file to send");
+            if (string.IsNullOrEmpty(mediaType)) throw new ProtocolException("a file needs its media type");
+
+            NativeSession session = OpenSession();
+            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+
+            BinaryNode answer = await RequestAsync(session, MediaConn.Query(OutgoingMessage.Id(_random)));
+            MediaConnInfo conn = MediaConn.Read(answer);
+
+            UploadedMedia uploaded = await MediaUpload.SendAsync(new WinRtMediaFetcher(), conn, file,
+                mediaType, mimeType, fileName, _random);
+
+            Message payload = MessageFor(uploaded, caption, seconds, voiceNote);
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            await session.SendAsync(OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
+                MediaWord(mediaType, voiceNote), devices, timestamp));
+
+            _chats.AddOutgoing(jid, id, RowText(uploaded, caption), timestamp);
+            Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + jid
+                + " over " + devices.Count + " device(s)");
+
+            return id;
+        }
+
+        /// <summary>The message shape that matches the file: the four builders, chosen once.</summary>
+        private static Message MessageFor(UploadedMedia uploaded, string caption, uint seconds, bool voiceNote)
+        {
+            if (uploaded.MediaType == MediaKeys.Image) return MediaUpload.Image(uploaded, caption);
+            if (uploaded.MediaType == MediaKeys.Video) return MediaUpload.Video(uploaded, caption, seconds);
+            if (uploaded.MediaType == MediaKeys.Audio) return MediaUpload.Audio(uploaded, seconds, voiceNote);
+
+            return MediaUpload.Document(uploaded, caption);
+        }
+
+        /// <summary>The `mediatype` attribute: the reference's `getMediaType`, `ptt` included.</summary>
+        private static string MediaWord(string mediaType, bool voiceNote)
+        {
+            if (mediaType == MediaKeys.Audio && voiceNote) return "ptt";
+
+            return mediaType;
+        }
+
+        /// <summary>What the chat row shows: the caption, or the file's own name.</summary>
+        private static string RowText(UploadedMedia uploaded, string caption)
+        {
+            if (!string.IsNullOrEmpty(caption)) return caption;
+            if (!string.IsNullOrEmpty(uploaded.FileName)) return uploaded.FileName;
+
+            return "[" + uploaded.MediaType + "]";
+        }
+
+        /// <summary>The session a send needs, or the sentence that says why there is none.</summary>
+        private NativeSession OpenSession()
+        {
             NativeSession session = _session;
             if (session == null || !session.IsOpen) throw new ProtocolException("there is no open account to send on");
 
+            return session;
+        }
+
+        /// <summary>
+        /// The sessions one chat's devices need, one per device, asked for on the wire every
+        /// time.
+        ///
+        /// Why per send and not cached: a contact who linked a new phone - or removed one -
+        /// would otherwise be written to at the device list they had yesterday. What is *not*
+        /// re-done is the session itself: an established one is what the ratchet is for
+        /// (`DeviceDirectory.Session`).
+        /// </summary>
+        private async Task<IList<KeyValuePair<string, SessionRecord>>> DevicesAsync(NativeSession session, string jid)
+        {
             BinaryNode answer = await RequestAsync(session, DeviceDirectory.Query(jid, _random));
             IList<KeyValuePair<string, PreKeyBundle>> bundles = DeviceDirectory.Bundles(answer);
             if (bundles.Count == 0) throw new ProtocolException("the server knows no device of " + jid);
@@ -468,15 +582,7 @@ namespace WhatsappApp.Services
                     DeviceDirectory.Session(bundles[i].Key, bundles[i].Value, _account, store, _random)));
             }
 
-            string id = OutgoingMessage.Id(_random);
-            uint timestamp = NowSeconds();
-
-            await session.SendAsync(OutgoingMessage.Node(jid, id, body, devices, timestamp));
-
-            _chats.AddOutgoing(jid, id, body, timestamp);
-            Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
-
-            return id;
+            return devices;
         }
 
         /// <summary>Marks a chat's messages read: the receipt is what stops the peer's phone showing them unread.</summary>

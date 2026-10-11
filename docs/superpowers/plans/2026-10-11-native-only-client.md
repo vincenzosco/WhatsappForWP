@@ -1144,7 +1144,8 @@ the form `Ruling: <what> - <why> - <cost if wrong>`.
 | 5 | `d948e19`, `1f34e32` | done: `NativeChats`, then the wiring - an inbound stanza is acked, opened, and becomes history, a chat row or a message; `DataService` reads `NativeConnection` and no longer the adapter. 163 |
 | 6 | `12b610e` | done: `Conversation` (typing + receipts), the send path with its waiter table, receipts into `SetMessageStatus`, `ChatPage` send/typing and `DataService`'s read off the adapter. 169 |
 | 7 | (this commit) | done: `MediaKeys`, `MediaDownload`, `IMediaFetcher`, `WinRtMediaFetcher`, the four media protobufs in `Message`, the row + the bytes in `NativeConnection`, the bytes into `IncomingMediaStore.StoreAsync` and `DataService`, the tap into `NativeConnection.DownloadMediaAsync`. 178 protocol tests |
-| 8-13 | - | not started |
+| 8 | (this commit) | done: `MediaConn` + `MediaUpload`, `IMediaFetcher.PostAsync` (and its WinRT half), `NativeConnection.SendMediaAsync` (device list, media connection, upload, message), `ChatPage`'s attachment path, `OutgoingMessage`'s media stanza. 190 protocol tests |
+| 9-13 | - | not started |
 
 What Task 7 changed about the tree the tasks before it left:
 
@@ -1169,6 +1170,32 @@ What Task 7 changed about the tree the tasks before it left:
 
 Every platform rebuilt: x86 and ARM `MSBuild -t:Rebuild` both ended with `Your package has
 been successfully created.`
+
+What Task 8 changed about the tree, and the one deliberate deviation:
+
+- The upload is `Prepare` (the key, the body, both hashes) plus `SendAsync` (the POST), split
+  because the encryption half is the half that has to be right and it is testable without a
+  host. The body is checked by handing it straight to `MediaDownload.Open` in the test, which
+  is the receiver's own check.
+- **`MediaConn.Query(id)` takes the id** where the plan wrote `Query()`: the answer comes back
+  on the same socket as the messages and the id is the only thing that ties it to the wait.
+- **`SendMediaAsync` carries more than the plan's four arguments** - `(jid, file, mediaType,
+  mimeType, fileName, caption, seconds, voiceNote)`: a voice note needs its seconds and its
+  `ptt` flag, and the media type cannot be guessed from the MIME type alone (`audio/ogg` is a
+  voice note here and an audio file there). The four-argument shape would have forced the app
+  to send a voice note the receiver shows as a music file.
+- **`OutgoingMessage.Node` gained the media stanza** - `type="media"` and `mediatype` on every
+  `enc` (`messages-send.js`, `getMessageType` at 885 and `getMediaType` at 906) - and the text
+  node now delegates to it, so there is one place a stanza is framed.
+- **The bubble takes the wire id.** Both sends now assign the id the client minted to the
+  message the page put on screen. Without it a receipt names a message the list does not have,
+  and the ticks of a message this phone sent never turn blue - which is what Task 6's receipt
+  path was for.
+- **One flag is a ruling, not a measurement**: an attachment whose MIME type is `audio/*` is
+  sent as a voice note (`ptt`), and its seconds are 0. Why: the picker cannot produce an audio
+  file this app recorded, the recorder always can, and a receiving phone draws a music file
+  for a `ptt` it should have shown as a note - the reverse mistake is worse. Cost if wrong: a
+  picked MP3 arrives as a voice note, and the note's bar shows 0:00 until it plays.
 
 Every task above ended with all fourteen guards exit 0, `node --test tools/test/*.test.js`
 101 pass / 0 fail, `check-csharp5` exit 0, and the x86 `MSBuild -t:Rebuild` producing

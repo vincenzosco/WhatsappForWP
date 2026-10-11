@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Transport;
@@ -6,7 +7,8 @@ using WhatsappApp.Protocol.Transport;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The phone's <see cref="IMediaFetcher"/>: one HTTPS GET, read whole into memory.
+    /// The phone's <see cref="IMediaFetcher"/>: one HTTPS GET for a blob and one POST for an
+    /// upload, read whole into memory.
     ///
     /// Whole, and not streamed to a file, because that is what the format needs: a media blob
     /// is one AES-CBC ciphertext with a ten-byte MAC at the end, so its last ten bytes are the
@@ -29,6 +31,58 @@ namespace WhatsappApp.Services
         /// Why not shorter: a 4 MB video over a phone's Wi-Fi is a minute's work on a Lumia.
         /// </summary>
         private static readonly TimeSpan Patience = TimeSpan.FromSeconds(60);
+
+        public async Task<byte[]> PostAsync(string url, byte[] body,
+            System.Collections.Generic.IList<System.Collections.Generic.KeyValuePair<string, string>> headers)
+        {
+            if (string.IsNullOrEmpty(url)) throw new ProtocolException("there is no address to upload media to");
+            if (body == null) throw new ProtocolException("there is nothing to upload");
+
+            var patience = new System.Threading.CancellationTokenSource(Patience);
+
+            try
+            {
+                using (var client = new Windows.Web.Http.HttpClient())
+                using (var content = new Windows.Web.Http.HttpBufferContent(body.AsBuffer()))
+                {
+                    if (headers != null)
+                    {
+                        for (int i = 0; i < headers.Count; i++)
+                        {
+                            content.Headers.TryAppendWithoutValidation(headers[i].Key, headers[i].Value);
+                        }
+                    }
+
+                    Windows.Web.Http.HttpResponseMessage response =
+                        await client.PostAsync(new Uri(url), content).AsTask(patience.Token);
+
+                    if (!response.IsSuccessStatusCode)
+                    {
+                        throw new ProtocolException("the upload to " + url + " answered "
+                            + (int)response.StatusCode);
+                    }
+
+                    Windows.Storage.Streams.IBuffer buffer =
+                        await response.Content.ReadAsBufferAsync().AsTask(patience.Token);
+                    var bytes = new byte[buffer.Length];
+
+                    using (var reader = Windows.Storage.Streams.DataReader.FromBuffer(buffer))
+                    {
+                        reader.ReadBytes(bytes);
+                    }
+
+                    return bytes;
+                }
+            }
+            catch (ProtocolException)
+            {
+                throw;
+            }
+            catch (Exception error)
+            {
+                throw new ProtocolException("the upload to " + url + " failed: " + error.Message, error);
+            }
+        }
 
         public async Task<byte[]> GetAsync(string url)
         {

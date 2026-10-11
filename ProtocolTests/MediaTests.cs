@@ -191,6 +191,12 @@ namespace ProtocolTests
 
                 return Task.FromResult(body);
             }
+
+            public Task<byte[]> PostAsync(string url, byte[] body,
+                IList<KeyValuePair<string, string>> headers)
+            {
+                throw new ProtocolException("this fetcher does not upload");
+            }
         }
 
         private static byte[] Hex(string hex)
