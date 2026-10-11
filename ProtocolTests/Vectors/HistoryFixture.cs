@@ -18,6 +18,12 @@ namespace ProtocolTests.Vectors
 ///       console.log(m.hkdfInfoKey('md-msg-hist'));
 ///       const k = await m.getMediaKeys(Buffer.alloc(32, 7), 'md-msg-hist');
 ///       console.log(Buffer.from(k.iv).toString('hex')); ..."
+///
+/// The blob behind a download is printed by the same checkout
+/// (`/tmp/m4ref/gen-history-blob.mjs`), over a media key of 32 bytes of `0x07`: `Plain`
+/// deflated to 253 bytes, encrypted with the history cipher key and MAC-ed to 266. The
+/// notification's `fileSha256` and `fileLength` are taken over the *compressed* payload,
+/// because that is what the media path hashes and measures before the inflate.
     ///
     /// The field numbers below are not read off the protocol documentation: they are the
     /// reference's own, printed by encoding one field at a time and reading the tag varint
@@ -83,5 +89,27 @@ namespace ProtocolTests.Vectors
             "37af562252ffce1c9ebf55e1cf225cd87484873e854e5fd5ef2c7ae4071d4509";
         public const string HistoryMacKey =
             "1c532784afa512320359296081cb8e6f055e43ec9f672a218e9c3ae161808504";
+
+        /// <summary>
+        /// The notification that hides the history behind a download: a 32-byte media key of
+        /// `0x07`, `directPath` `/v/t62/hist`, and the hashes of the compressed payload.
+        /// </summary>
+        public const string DownloadedNotification =
+            "0a205349dde6616bf60377e20c596431f0e807f24dbf9c2fc9bfb9dd0fe68d2c" +
+            "a94110fd011a2007070707070707070707070707070707070707070707070707" +
+            "070707070707072220ee8c02a85455fae9812c520e51067595bd0236e73eda44" +
+            "2097de980fbbfc50d42a0b2f762f7436322f686973743002";
+
+        /// <summary>The body that path serves: 266 bytes, ciphertext and its ten-byte MAC.</summary>
+        public const string EncryptedBody =
+            "70533d3a21d57869bba232a1b4c3a7067159a3611c1fb966ae8e9bec0278c363" +
+            "d9dd5841a457d85a3dd6681050c27149af3ef9736535ec421748245239148fb5" +
+            "196dd471f368bbf841561a18d763763ea87c0be5ed25b49c0db02dcc71df0c7f" +
+            "4521d6a935bb4a05b1afbf3d7578b570d6a3cc49eca17d5b5a9f2bd1dc01e67d" +
+            "f503729011bf8afb2816e68178c9b5303859da8033f94a7dd5c3ee4756fb69da" +
+            "2526d12b9ce72fb71386d57b17b9bcbb0f592ba38f31462f959aef970002a2ee" +
+            "89c66c102b1a7f694a395991f1d6339319c1bdf02d9446f3001959f2f19d6ea1" +
+            "af9daf26101bfea30d6c6ef4cc30d37da1089b9cdfd17985bb1b2b6821d13689" +
+            "ee1c1ab78ed1d16cd58f";
     }
 }

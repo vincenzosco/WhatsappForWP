@@ -165,6 +165,7 @@
     <Compile Include="Protocol\Signal\X3dh.cs" />
     <Compile Include="Protocol\Qr\QrCode.cs" />
     <Compile Include="Protocol\Qr\QrTables.cs" />
+    <Compile Include="Protocol\Media\HistoryBlob.cs" />
     <Compile Include="Protocol\Media\MediaDownload.cs" />
     <Compile Include="Protocol\Media\MediaKeys.cs" />
     <Compile Include="Protocol\Media\MediaUpload.cs" />

@@ -1,6 +1,8 @@
+using System;
 using System.Collections.Generic;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
+using WhatsappApp.Protocol.Crypto;
 using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WaProto;
 using ProtocolTests.Vectors;
@@ -172,6 +174,87 @@ namespace ProtocolTests
             Assert.AreEqual(HistoryFixture.HistoryIv, Assert.Hex(MediaKeys.Iv(mediaKey, MediaKeys.History)));
             Assert.AreEqual(HistoryFixture.HistoryCipherKey, Assert.Hex(MediaKeys.CipherKey(mediaKey, MediaKeys.History)));
             Assert.AreEqual(HistoryFixture.HistoryMacKey, Assert.Hex(MediaKeys.MacKey(mediaKey, MediaKeys.History)));
+        }
+
+        [Test]
+        public static void AHistoryBehindADownloadBecomesTheSameConversations()
+        {
+            HistorySyncNotification notification =
+                HistorySyncNotification.Decode(Hex(HistoryFixture.DownloadedNotification));
+            byte[] sync = HistoryBlob.Open(Hex(HistoryFixture.EncryptedBody), notification);
+
+            Assert.AreEqual(HistoryFixture.Plain, Assert.Hex(sync),
+                "the downloaded blob is the same history the inline bootstrap carries");
+            Assert.AreEqual(2, HistorySync.Decode(sync).Conversations.Count,
+                "and it decodes to the two conversations");
+        }
+
+        [Test]
+        public static void ANotificationWithNoKeyIsRefusedByName()
+        {
+            var bare = new HistorySyncNotification();
+            bare.DirectPath = "/v/t62/hist";
+
+            string said = null;
+            try { HistoryBlob.Open(new byte[64], bare); }
+            catch (ProtocolException error) { said = error.Message; }
+
+            Assert.IsTrue(said != null, "a blob with no media key cannot be opened");
+            Assert.IsTrue(said.Contains("mediaKey"), "the sentence names the missing field: " + said);
+        }
+
+        [Test]
+        public static void AHashTakenOverTheInflatedPayloadIsRefusedByName()
+        {
+            HistorySyncNotification notification =
+                HistorySyncNotification.Decode(Hex(HistoryFixture.DownloadedNotification));
+            notification.FileSha256 = Sha256.Hash(Hex(HistoryFixture.Plain));
+
+            string said = null;
+            try { HistoryBlob.Open(Hex(HistoryFixture.EncryptedBody), notification); }
+            catch (ProtocolException error) { said = error.Message; }
+
+            Assert.IsTrue(said != null, "the media path's own check refuses it");
+            Assert.IsTrue(said.Contains("fileSha256"), "and the sentence names the check: " + said);
+        }
+
+        [Test]
+        public static void ABlobThatIsNotCompressedIsRefused()
+        {
+            string said = null;
+            try { Zlib.Inflate(Hex(HistoryFixture.Plain)); }
+            catch (Exception error) { said = error.Message; }
+
+            Assert.IsTrue(said != null,
+                "a history that arrives uncompressed cannot be inflated: the caller's DIAG line names the blob");
+        }
+
+        [Test]
+        public static void TheFetchedHistoryBecomesTheSameConversations()
+        {
+            HistorySyncNotification notification =
+                HistorySyncNotification.Decode(Hex(HistoryFixture.DownloadedNotification));
+            MediaTests.ScriptedFetcher fetcher = new MediaTests.ScriptedFetcher();
+            fetcher.Add(MediaDownload.DefaultHost + "/v/t62/hist", Hex(HistoryFixture.EncryptedBody));
+
+            byte[] sync = HistoryBlob.FetchAsync(fetcher, notification).Result;
+
+            Assert.AreEqual(HistoryFixture.Plain, Assert.Hex(sync),
+                "the fetch is the path the phone takes, and it ends at the inline fixture's own bytes");
+        }
+
+        [Test]
+        public static void AFailedDownloadNamesItsAddress()
+        {
+            HistorySyncNotification notification =
+                HistorySyncNotification.Decode(Hex(HistoryFixture.DownloadedNotification));
+
+            string said = null;
+            try { HistoryBlob.FetchAsync(new MediaTests.ScriptedFetcher(), notification).Wait(); }
+            catch (AggregateException error) { said = error.InnerException.Message; }
+
+            Assert.IsTrue(said != null, "a download that fails is raised, not swallowed");
+            Assert.IsTrue(said.Contains("/v/t62/hist"), "and the sentence names the address: " + said);
         }
 
         private static byte[] Hex(string hex)
