@@ -1146,7 +1146,8 @@ the form `Ruling: <what> - <why> - <cost if wrong>`.
 | 7 | (this commit) | done: `MediaKeys`, `MediaDownload`, `IMediaFetcher`, `WinRtMediaFetcher`, the four media protobufs in `Message`, the row + the bytes in `NativeConnection`, the bytes into `IncomingMediaStore.StoreAsync` and `DataService`, the tap into `NativeConnection.DownloadMediaAsync`. 178 protocol tests |
 | 8 | (this commit) | done: `MediaConn` + `MediaUpload`, `IMediaFetcher.PostAsync` (and its WinRT half), `NativeConnection.SendMediaAsync` (device list, media connection, upload, message), `ChatPage`'s attachment path, `OutgoingMessage`'s media stanza. 190 protocol tests |
 | 9 | (this commit) | **partly done**: `SenderKeyRecord` + `SenderKeyMessage` + `SenderKeyDistribution`, `SenderKeys`, `GroupDirectory`, sender keys on disk in `SessionStore`, 15 tests incl. the reference's own distribution and ciphertext. The group **send** and the `skmsg` **receive** wiring, `GroupDirectory.FanOut` and the `DataService` half are not written yet - see the notes below |
-| 10-13 | - | not started |
+| 10 | (this commit) | **partly done**: `ProfilePictures` (query, setter, reader) with 5 tests, `NativeConnection.RequestAvatarAsync`, and `ContactInfoPage` asking WhatsApp for the full picture. The chat list's `preview` prefetch is not wired |
+| 11-13 | - | not started |
 
 What Task 7 changed about the tree the tasks before it left:
 
@@ -1171,6 +1172,26 @@ What Task 7 changed about the tree the tasks before it left:
 
 Every platform rebuilt: x86 and ARM `MSBuild -t:Rebuild` both ended with `Your package has
 been successfully created.`
+
+What Task 10 changed, and the one place the reference contradicted the plan:
+
+- **The answer is a URL, not the JPEG.** The plan wrote `Read(BinaryNode)` as "the picture
+  child's bytes" and its test as `TheAnswerYieldsTheBytes`; both references ask with
+  `query="url"` and read `picture.attrs.url` (`Socket/chats.js:572-582`, `user.go:548-600`),
+  and that is what this does. The bytes come from a second call - `RequestAvatarAsync` asks,
+  fetches and returns them - and the test is `TheAnswerYieldsTheUrl`. Why: a query shaped
+  around the plan's wording would ask for a form of the answer neither reference asks for,
+  and a field that stopped being sent would read here as "no picture".
+- **The JID asked about is the `target` attribute**, not the `to`: `to` is
+  `s.whatsapp.net` and `target` is the contact. Both references agree, and it is the reverse
+  of every other query in this client.
+- **`ContactInfoPage` asks for the picture natively and still asks the adapter for the
+  rest.** The page's `contact.info` frame carries the name, number, about and business hours
+  as well, and there is no native equivalent of that frame yet; deleting the call now would
+  empty the page. Task 12 removes it with the adapter.
+- **Not done**: the chat list's `preview` prefetch for rows without a cached avatar. The
+  query and the reader are here; who asks for previews, and how many, is open (it is the
+  kind of loop `check-memory.js` is about).
 
 What Task 9 has and has not, as of this commit:
 
