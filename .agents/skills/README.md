@@ -66,7 +66,10 @@ node tools/check-docs.js           # documenti: inglese e italiano allineati, di
   il turno sulla domanda "quale approccio?".
 - **Spingere e' la regola, non una domanda**: ogni lavoro finisce con
   `git push origin master`. Chi esegue non si ferma a chiedere il permesso di
-  pushare: e' stato chiesto esplicitamente che si pushi tutto.
+  pushare: e' stato chiesto esplicitamente che si pushi tutto. Il messaggio del
+  commit che si spinge non porta attribuzione AI - nessun `Co-Authored-By`,
+  nessun footer "Generated with", nessuna emoji di agente
+  ([`agent-publisher`](agent-publisher/SKILL.md) ha la regola e il motivo).
 - **Testare**: eseguire la matrice in `test-the-app`. Qui si ferma tutto cio' che
   si puo' verificare senza dispositivo; il gate autorevole e' `msbuild` sulla
   macchina Windows, e in fondo c'e' la checklist da fare sul telefono.

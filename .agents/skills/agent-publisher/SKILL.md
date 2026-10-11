@@ -25,6 +25,14 @@ One commit per decision. The subject says *why*, in English, with no apostrophe;
 the recent history is the style. Multiple independent decisions are multiple
 commits, not one large one.
 
+The message carries **no AI attribution**: no `Co-Authored-By` line, no
+"Generated with ..." footer, no robot emoji. GitHub reads a `Co-Authored-By`
+naming an agent account into the repository's contributors list, which is how
+the operator ended up force-pushing two commits out of another project to strip
+one; the commit is signed by the person whose account pushes it. The older
+commits of this repository carry the footer - they are history and stay as they
+are, but no new commit adds it back.
+
 ## The push
 
 `git push origin master`. Push is the rule, not a question: a change is finished
