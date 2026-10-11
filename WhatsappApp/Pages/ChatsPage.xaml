@@ -330,14 +330,14 @@
                 </ListView.ItemTemplate>
             </ListView>
 
-            <!-- The server did not answer: a strip at the top, which stays
-                 until a connection succeeds. It is not the empty state: a
-                 cached list may exist anyway. -->
-            <Border x:Name="ServerUnavailableBar" Grid.Row="2"
+            <!-- The client is not connected yet: a strip at the top, which stays
+                 until the socket is up. It is not the empty state: a cached list
+                 is on screen anyway, and it is a photograph of the last session. -->
+            <Border x:Name="ConnectionBar" Grid.Row="2"
                     Background="#FFB26A00"
                     VerticalAlignment="Top"
                     Visibility="Collapsed">
-                <TextBlock x:Name="ServerUnavailableText"
+                <TextBlock x:Name="ConnectionBarText"
                            Foreground="White" FontSize="13" TextWrapping="Wrap"
                            Margin="12,8,12,8"/>
             </Border>

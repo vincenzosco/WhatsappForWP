@@ -1,33 +1,32 @@
 using System;
-using System.Threading.Tasks;
 
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The crash of the previous run, sent to the adapter by itself.
+    /// The crash of the previous run, put in front of the next one.
     ///
-    /// Why it exists: the phone has no debugger attached, and the diagnostics page
-    /// needs the app to still be alive to show anything. A run that died leaves its
-    /// tail in `Diag.PendingCrashTail`, and this is what carries it off the device:
-    /// on the first connection of the next run the tail goes to the adapter as a
-    /// `diag` frame, which the adapter writes to its container log, so the crash is
-    /// read on a PC instead of copied off a screen by hand.
+    /// Why it exists: the phone has no debugger attached, and a run that died left
+    /// its tail in `Diag.PendingCrashTail` with nothing to read it. A new run's log
+    /// therefore began at its own first line, and the crash that explains why the
+    /// previous one never connected was only visible as an absence.
+    ///
+    /// This is what carries it across: at start-up the tail is written into the run
+    /// that is now beginning, line by line, so it appears on the diagnostics page
+    /// and in `diag.log` - which is the file `ISETool` pulls off the phone (see
+    /// `test-the-app`). It used to be sent to the adapter as a `diag` frame; there
+    /// is no adapter any more, and the phone's own log is where a crash is read.
     ///
     /// One report per run, and only for a run that did not end on purpose: `EndRun`
-    /// is what clears the tail, and a crash never reaches it. A tail that could not
-    /// be sent - no socket yet, no pairing yet - is therefore still there for the
-    /// next run, which is the case that matters: a phone that cannot connect is the
-    /// phone whose crash is most worth reading.
+    /// is what clears the tail, and a crash never reaches it.
     /// </summary>
     public static class CrashReport
     {
         private static bool _started;
-        private static bool _sent;
 
         /// <summary>
-        /// Subscribes once per process. Called from App.StartServicesOnce, next to
-        /// the other services: the connection event exists from then on, and a
-        /// second subscription would send the same report twice.
+        /// Called once per process from App.StartServicesOnce, next to the other
+        /// services. A run that ended properly has nothing to report and leaves this
+        /// silent, so the log only carries the runs that really died.
         /// </summary>
         public static void Start()
         {
@@ -36,43 +35,24 @@ namespace WhatsappApp.Services
 
             try
             {
-                CommunicationService.Instance.ConnectionEstablished += OnConnectionEstablished;
+                // The tail is read back from a file written with CRLF: split on an
+                // LF leaves a carriage return at the end of every line, and this text
+                // is going into a log that is read by hand.
+                string tail = Diag.PendingCrashTail.Replace("\r\n", "\n");
+                if (string.IsNullOrEmpty(tail)) return;
+
+                Diag.Ok("the previous run did not end");
+                string[] lines = tail.Split('\n');
+                for (int i = 0; i < lines.Length; i++)
+                {
+                    if (lines[i].Length == 0) continue;
+                    Diag.Ok("  " + lines[i]);
+                }
+                Diag.Flush(true);
             }
             catch (Exception ex)
             {
                 Diag.Failed("CrashReport.Start", ex);
-            }
-        }
-
-        /// <summary>
-        /// The socket is up: the previous run's tail goes out, once. A run that ended
-        /// properly has nothing to send and leaves this silent, so the container log
-        /// only carries runs that really died.
-        /// </summary>
-        private static void OnConnectionEstablished(object sender, EventArgs e)
-        {
-            try
-            {
-                if (_sent) return;
-
-                // The tail is read back from a file written with CRLF, and the
-                // adapter splits the report on LF: a carriage return would then sit
-                // at the end of every line it writes to the container log, which is
-                // the one place this text is going to be read.
-                string tail = Diag.PendingCrashTail.Replace("\r\n", "\n");
-                if (string.IsNullOrEmpty(tail)) return;
-
-                _sent = true;
-                Diag.Ok("crash report sent");
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("CrashReport/send",
-                    CommunicationService.Instance.SendControlAsync("diag",
-                        "previous run did not end\n" + tail));
-#pragma warning restore 4014
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("CrashReport/OnConnectionEstablished", ex);
             }
         }
     }

@@ -294,40 +294,20 @@ namespace WhatsappApp.Pages
             AttachmentInbox.Ready += OnAttachmentReady;
             UpdatePendingAttachment();
 
-            // The request is made again on every entry and on every switch to
-            // connected, instead of waiting for someone to open the settings: at
-            // startup the connection is not there yet, and the list arrived only if
-            // the user came back here after opening them.
-            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
-
-            // The server that does not answer and the connection that comes back:
-            // the bar is governed by these two events.
-            CommunicationService.Instance.ServerUnavailable += OnServerUnavailable;
-            CommunicationService.Instance.ConnectionEstablished += OnServerAvailable;
-
-            // The list finished arriving: the count of rows the server answered
-            // is the difference between an empty list and a refused one.
+            // The list arrived with the login's history sync: the count of rows it
+            // carried is the difference between an empty list and one that never
+            // came. There is nothing to ask for on entry any more - the conversations
+            // are pushed by WhatsApp after a pairing, and `DataService` is what turns
+            // them into the rows this list is bound to.
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
             DataService.Instance.ChatListCompleted += OnChatListCompleted;
 
-            // The adapter's own refusals: the bar says why the list is empty.
-            DataService.Instance.AdapterError -= OnAdapterError;
-            DataService.Instance.AdapterError += OnAdapterError;
-
-            // The adapter says nothing on its own until something asks: if the
-            // socket came up before this page existed, the state frame has already
-            // gone by and the list would wait for another one forever. Asking here
-            // makes the answer arrive now, and OnControlMessageReceived turns it
-            // into the list request.
-            if (CommunicationService.Instance.IsConnected)
-            {
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("ChatsPage/status",
-                    CommunicationService.Instance.SendControlAsync("status"));
-#pragma warning restore 4014
-            }
-
-            RequestChats();
+            // The bar: the client says when the socket is up and when it lost it, and
+            // that is the whole of what this page can say about the connection (the
+            // account screen says the rest).
+            NativeConnection.Instance.ConnectionStatusChanged -= OnClientStatusChanged;
+            NativeConnection.Instance.ConnectionStatusChanged += OnClientStatusChanged;
+            ShowConnectionBar();
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -335,90 +315,37 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
             AttachmentInbox.Ready -= OnAttachmentReady;
-            CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
-            CommunicationService.Instance.ServerUnavailable -= OnServerUnavailable;
-            CommunicationService.Instance.ConnectionEstablished -= OnServerAvailable;
+            NativeConnection.Instance.ConnectionStatusChanged -= OnClientStatusChanged;
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
-            DataService.Instance.AdapterError -= OnAdapterError;
         }
 
         /// <summary>
-        /// The main server did not answer after the automatic attempts: the bar says
-        /// so, and it stays until a connection succeeds.
+        /// The client's own sentence about the connection changed. The bar is the only
+        /// thing here that reads it: whether WhatsApp is linked and what it is doing is
+        /// the account screen's answer, and this page only has to say whether the rows
+        /// under it are live yet.
         /// </summary>
-        private void OnServerUnavailable(object sender, EventArgs e)
+        private void OnClientStatusChanged(object sender, string status)
         {
-            ServerUnavailableText.Text = Loc.Get("CommService_ServerUnavailable",
-                "Server non disponibile, riprova tra qualche minuto :)");
-            ServerUnavailableBar.Visibility = Visibility.Visible;
-        }
-
-        private void OnServerAvailable(object sender, EventArgs e)
-        {
-            ServerUnavailableBar.Visibility = Visibility.Collapsed;
-
-            // The socket is up. Whether WhatsApp is linked is a separate answer,
-            // and the list is asked for only once it is connected: this is the
-            // request that produces it.
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("ChatsPage/status",
-                CommunicationService.Instance.SendControlAsync("status"));
-#pragma warning restore 4014
+            ShowConnectionBar();
         }
 
         /// <summary>
-        /// The adapter refused a command and said why. The bar carries its own
-        /// sentence, so an empty chat list is legible instead of silent.
+        /// The bar while the client is not connected. The list stays on screen either
+        /// way - it is a photograph of the last session, kept on the phone - and the bar
+        /// is what says the rows under it are not live yet.
         /// </summary>
-        private void OnAdapterError(object sender, string text)
+        private void ShowConnectionBar()
         {
-            Diag.Ok("adapter error on the chats page: " + text);
-            ServerUnavailableText.Text = Loc.Get("ChatsPage_AdapterError",
-                "The server answered:") + " " + text;
-            ServerUnavailableBar.Visibility = Visibility.Visible;
-        }
-
-        /// <summary>
-        /// WhatsApp has just switched to connected. The request made on entry could
-        /// not have an answer (the adapter answers "not connected" until the login
-        /// is done), and this is the only thing that makes the list show up without
-        /// touching anything.
-        /// </summary>
-        private void OnControlMessageReceived(object sender, ChatMessage message)
-        {
-            if (message == null || message.Command != "state") return;
-            RequestChats();
-        }
-
-        /// <summary>
-        /// Requests the conversation list. Only if there is someone who can answer:
-        /// with WhatsApp not connected the adapter answers with an error and no row.
-        /// </summary>
-        private void RequestChats()
-        {
-            if (!CommunicationService.Instance.IsConnected)
+            if (NativeConnection.Instance.IsConnected)
             {
-                // Named, because "the list is empty" and "the list was never
-                // asked for" look the same on the screen.
-                Diag.Ok("chats not requested: connected=False whatsapp="
-                    + CommunicationService.Instance.WhatsAppState);
-                return;
-            }
-            if (CommunicationService.Instance.WhatsAppState != "connected")
-            {
-                Diag.Ok("chats not requested: connected=True whatsapp="
-                    + CommunicationService.Instance.WhatsAppState);
+                ConnectionBar.Visibility = Visibility.Collapsed;
                 return;
             }
 
-            // The rows that come back are the server order, and this is where that
-            // batch starts: everything ApplyChat records from here on belongs to it.
-            DataService.Instance.BeginChatList();
-
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("ChatsPage/chats",
-                CommunicationService.Instance.SendControlAsync("chats"));
-#pragma warning restore 4014
+            ConnectionBarText.Text = Loc.Get("ChatsPage_NotConnected",
+                "Connecting to WhatsApp...");
+            ConnectionBar.Visibility = Visibility.Visible;
         }
 
         private void OnAttachmentReady()

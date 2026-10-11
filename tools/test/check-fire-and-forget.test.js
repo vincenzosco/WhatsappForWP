@@ -130,15 +130,16 @@ test('methods legge il corpo di un metodo con modificatori', () => {
   assert.strictEqual(ff.handlesItsOwnFault(known.get('StartAsync')), true);
 });
 
-test("l'answer di un allegato senza SetMessageStatus si segnala", () => {
-  const source = 'case "attachment.sent":\n    break;';
+test('un ack che non arriva alla bolla si segnala', () => {
+  const source = 'NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;\n' +
+    'private void OnNativeStatus(object sender, MessageStatusUpdate update)\n{\n    return;\n}';
   const found = ff.statusAnswerProblems(source, 'WhatsappApp/Services/DataService.cs').join('\n');
   assert.match(found, /SetMessageStatus/);
 });
 
-test('un case error che non segna Failed si segnala', () => {
-  const source = 'case "attachment.sent":\n  SetMessageStatus(a, b, MessageStatus.Sent);\n' +
-    'case "error":\n  RaiseAdapterError(x);';
+test('un servizio che non ascolta gli ack si segnala', () => {
+  const source = 'private void OnNativeStatus(object sender, MessageStatusUpdate update)\n' +
+    '{\n  SetMessageStatus(a, b, MessageStatus.Read);\n}';
   const found = ff.statusAnswerProblems(source, 'WhatsappApp/Services/DataService.cs').join('\n');
-  assert.match(found, /Failed/);
+  assert.match(found, /MessageStatusChanged/);
 });

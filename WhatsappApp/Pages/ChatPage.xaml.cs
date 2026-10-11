@@ -25,7 +25,6 @@ namespace WhatsappApp.Pages
         // The handler put on ConnectionEstablished while this chat is open: a
         // chat opened before the socket is up asks for nothing, and this is what
         // gives it its history when the connection arrives.
-        private EventHandler _connectionEstablished;
         // The chosen attachment: the name of the file copied into the app folder,
         // plus what is needed to send it. Not the bytes: a whole video in memory
         // is the heaviest thing this page could hold, and it is what used to close
@@ -137,47 +136,29 @@ namespace WhatsappApp.Pages
                 Diag.OkNow("opened chat " + contact.Id + ", memory "
                     + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
 
-                // Whether the history goes out now decides how the list binds: at
-                // once when nothing was asked for, and only when the burst closes
-                // when there is one on the way.
-                bool historyRequested = CommunicationService.Instance.IsConnected
+                // Whether a burst is still on its way decides how the list binds: at
+                // once when there is none to wait for, and only when it closes when
+                // there is. WhatsApp pushes the history once per login, so a
+                // conversation opened before it lands waits for it here, and one
+                // opened after binds from the copy already on the phone.
+                bool historyRequested = !DataService.Instance.HistoryComplete
                     && DataService.Instance.MarkHistoryRequested(contact.Id);
 #pragma warning disable 4014
                 Guarded.RunGuardedAsync("ChatPage/cached messages",
                     BindAfterCacheAsync(contact.Id, historyRequested));
 #pragma warning restore 4014
 
-                // The chat history: the adapter answers with the old messages,
-                // marked IsHistory, and it is requested once per chat per session.
-                // Without this request a chat that was just opened stays empty
-                // until something new arrives.
-                if (historyRequested)
-                {
-                    Diag.Ok("history requested for " + contact.Id);
-#pragma warning disable 4014
-                    Guarded.RunGuardedAsync("ChatPage/messages",
-                        CommunicationService.Instance.SendControlAsync("messages", contact.Id));
-#pragma warning restore 4014
-                }
-                else
-                {
-                    // Asked for by nobody: this line tells apart a chat that was
-                    // already served this session from one opened with no socket,
-                    // which is the only case that asks for nothing at all.
-                    Diag.Ok("history not requested for " + contact.Id
-                        + (CommunicationService.Instance.IsConnected ? " (already asked)" : " (offline)"));
-                }
+                // There is nothing to ask for: the history is pushed once per login
+                // and `DataService` puts it in the collection this page binds. This
+                // line is the one that tells "the burst is still coming" apart from
+                // "this account has nothing older", which look the same on screen.
+                Diag.Ok(historyRequested
+                    ? "waiting for the history burst of " + contact.Id
+                    : "no burst expected for " + contact.Id + " (history complete)");
 
-                // A chat opened before the socket is up asked for nothing above,
-                // and this is what gives it its history when the connection
-                // arrives instead of an empty conversation for as long as it is
-                // open. MarkHistoryRequested is the gate, so a chat that was
-                // already served asks for nothing here.
-                _connectionEstablished = OnConnectionEstablished;
-                CommunicationService.Instance.ConnectionEstablished += _connectionEstablished;
-
-                // Listen for new messages
-                CommunicationService.Instance.MessageReceived += OnMessageReceived;
+                // A message that arrives now, for this chat: the row is already in the
+                // collection, and this is what scrolls to it and marks it read.
+                DataService.Instance.MessageArrived += OnMessageArrived;
 
                 // And for what WhatsApp says about the person of this chat, which
                 // is not a message: the three dots of "writing".
@@ -203,12 +184,7 @@ namespace WhatsappApp.Pages
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            CommunicationService.Instance.MessageReceived -= OnMessageReceived;
-            if (_connectionEstablished != null)
-            {
-                CommunicationService.Instance.ConnectionEstablished -= _connectionEstablished;
-                _connectionEstablished = null;
-            }
+            DataService.Instance.MessageArrived -= OnMessageArrived;
             DataService.Instance.TypingChanged -= OnTypingChanged;
             DataService.Instance.AudioArrived -= OnAudioArrived;
             DataService.Instance.HistoryCompleted -= OnHistoryCompleted;
@@ -273,7 +249,7 @@ namespace WhatsappApp.Pages
             return _view.AtBottom();
         }
 
-        private void OnMessageReceived(object sender, ChatMessage message)
+        private void OnMessageArrived(object sender, ChatMessage message)
         {
             // DataService has already inserted the message into the same collection:
             // here we only scroll, otherwise the bubble would show up twice.
@@ -427,7 +403,7 @@ namespace WhatsappApp.Pages
             }
             _typingTimer.Start();
 
-            if (_typingSent || !CommunicationService.Instance.IsConnected) return;
+            if (_typingSent || !NativeConnection.Instance.IsConnected) return;
             _typingSent = true;
             SendTyping("composing");
         }
@@ -545,31 +521,23 @@ namespace WhatsappApp.Pages
             if (isActiveChat && _messages.Count > 0)
                 _view.ScrollTo(_messages[_messages.Count - 1]);
 
-            // The burst closed and the conversation is still empty: the request
-            // went out and the adapter answered, so it was the wrong moment - the
-            // account was not connected yet on the server side, or the frame
-            // arrived before the request. One more ask, once per chat per session.
-            if (historyRequested && _messages.Count == 0
-                && CommunicationService.Instance.IsConnected
-                && DataService.Instance.MarkHistoryRetried(chatId))
+            // The burst closed and the conversation is still empty: this account has
+            // nothing older in that chat.
+            if (historyRequested && _messages.Count == 0)
             {
-                Diag.Ok("history retried for " + chatId);
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("ChatPage/messages retry",
-                    CommunicationService.Instance.SendControlAsync("messages", chatId));
-#pragma warning restore 4014
+                Diag.Ok("history arrived empty for " + chatId);
             }
         }
 
         /// <summary>
         /// How long the list waits for the end of a history burst before binding
-        /// anyway. The adapter's first read of the account is an HTTP round trip
-        /// through GOWA and was measured at about 15 s on 2026-10-07, so a shorter
-        /// wait binds the list first and lets the whole burst insert into a list
-        /// that is already watching the collection - which is the failure
-        /// ConversationView.Bind exists to prevent. Twenty seconds covers that
-        /// read with room to spare, and the wait is still bounded, so an adapter
-        /// without the closing frame does not leave the chat empty.
+        /// anyway. The burst is a run of frames pushed after a login, and the sync
+        /// that closes it was measured at about 15 s from the connection on
+        /// 2026-10-07, so a shorter wait binds the list first and lets the whole burst
+        /// insert into a list that is already watching the collection - which is the
+        /// failure ConversationView.Bind exists to prevent. Twenty seconds covers that
+        /// with room to spare, and the wait is still bounded, so a burst that never
+        /// closes does not leave the chat empty.
         /// </summary>
         private const int HistoryWaitMaxMilliseconds = 20000;
 
@@ -597,25 +565,6 @@ namespace WhatsappApp.Pages
             {
                 DataService.Instance.HistoryCompleted -= onDone;
             }
-        }
-
-        /// <summary>
-        /// The socket became ready while this conversation is the one in front.
-        /// A chat opened before the connection asked for nothing, and this is
-        /// what gives it its history instead of an empty list for as long as it
-        /// stays open.
-        /// </summary>
-        private void OnConnectionEstablished(object sender, EventArgs e)
-        {
-            if (_contact == null) return;
-            if (DataService.Instance.ActiveChatId != _contact.Id) return;
-            if (!DataService.Instance.MarkHistoryRequested(_contact.Id)) return;
-
-            Diag.Ok("history requested on connect for " + _contact.Id);
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("ChatPage/messages on connect",
-                CommunicationService.Instance.SendControlAsync("messages", _contact.Id));
-#pragma warning restore 4014
         }
 
         private void RequestMedia(ChatMessage message)
@@ -1193,8 +1142,8 @@ namespace WhatsappApp.Pages
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Text = text,
-                SenderId = CommunicationService.Instance.MyUserId ?? "me",
-                SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
+                SenderId = NativeConnection.Instance.Jid ?? "me",
+                SenderName = Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
                 Timestamp = DateTime.Now,
                 Type = MessageType.Text,

@@ -23,7 +23,7 @@ namespace WhatsappApp.Services
     /// (E_ILLEGAL_METHOD_CALL) or from an operation no longer valid (0x800710DD).
     ///
     /// Every line appears once: without the deduplication, a loop that fails every
-    /// two seconds (the discovery beacon) would fill the log and hide everything
+    /// two seconds (a reconnect loop) would fill the log and hide everything
     /// else. Debug.WriteLine is compiled out in release builds, so in production
     /// this code writes nothing and costs nothing.
     ///
@@ -34,7 +34,8 @@ namespace WhatsappApp.Services
     /// SerialQueue the other files use, cut to the last MaxBytes so the tail is
     /// always the newest lines. A marker file says the run is alive; a marker file
     /// still there at the next startup is what a crash looks like, and the tail the
-    /// previous run left is kept as PendingCrashTail for the report. The marker is
+    /// previous run left is kept as PendingCrashTail, which the run that follows
+    /// writes into its own log (see CrashReport). The marker is
     /// a file and not a line in the log because OnSuspending is the normal end of a
     /// run on this platform: "the log has no end marker" is the normal case too,
     /// and a crash after a resume would be missed by anything that read only the
@@ -94,10 +95,11 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// What the previous run left when it did not end on purpose, empty when it
-        /// did. It is what the next connection sends to the adapter, so the crash is
-        /// read in the container log instead of on a screen.
+        /// did. `CrashReport` writes it into the next run's own log at start-up, so
+        /// the crash is read on the diagnostics page and in `diag.log` rather than
+        /// only in the run that died.
         ///
-        /// It survives a run that could not send it: only EndRun clears it, and
+        /// It survives a run that could not write it down: only EndRun clears it, and
         /// EndRun is the deliberate close a crash never reaches.
         /// </summary>
         public static string PendingCrashTail
@@ -480,20 +482,17 @@ namespace WhatsappApp.Services
                 if (await MarkerExistsAsync())
                 {
                     crashed = true;
+
+                    // Read first, then kept: the read is a file call and cannot run
+                    // inside the lock (C# 5 refuses an `await` in a `lock` body).
                     string tail = Tail(await ReadAsync(), CrashTailChars);
 
+                    // Kept, not written: `CrashReport.Start` puts it in this run's
+                    // log straight after, through the same writer as every other
+                    // line. Writing it here as well would say it twice.
                     lock (Gate)
                     {
                         _pendingTail = tail;
-                        AppendLine("previous run did not end: " + tail.Length + " characters");
-                        string[] lines = SplitLines(tail);
-                        for (int i = 0; i < lines.Length; i++)
-                        {
-                            if (lines[i].Length > 0) AppendLine(lines[i]);
-                        }
-
-                        // It is already in the file: writing it back would only grow it.
-                        _written = History.Count;
                     }
                 }
             }

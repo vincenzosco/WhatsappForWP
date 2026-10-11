@@ -10,10 +10,17 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Pages
 {
     /// <summary>
-    /// The information of a person or a group: the large picture, the name, the
-    /// number, the about, the business profile and, for a group, the description
-    /// and the members. The page asks one thing (`contact.info`) and waits for one
-    /// thing; the adapter has already put the rest together.
+    /// The information of a person or a group: the large picture, the name and the
+    /// number, and - when something can fill them - the about, the business profile
+    /// and a group's description and members.
+    ///
+    /// The name and the number are this phone's own: they came with the chat row, and
+    /// the page shows them without asking anybody. The picture is asked of WhatsApp
+    /// itself (`NativeConnection.RequestAvatarAsync` - the query answers a URL, the URL
+    /// answers the JPEG). Everything the rest of the page draws used to arrive in one
+    /// `contact.info` frame the adapter composed out of three server routes; there is no
+    /// adapter any more and no native reader for those three yet, so the page states the
+    /// limit instead of leaving a heading with nothing under it.
     /// </summary>
     public sealed partial class ContactInfoPage : Page
     {
@@ -39,7 +46,8 @@ namespace WhatsappApp.Pages
             BusinessCategoriesLabel.Text = Loc.Get("ContactInfoPage_Categories", "Categories");
             BusinessHoursLabel.Text = Loc.Get("ContactInfoPage_Hours", "Hours");
             GroupDescriptionLabel.Text = Loc.Get("ContactInfoPage_GroupDescription", "Group description");
-            EmptyText.Text = Loc.Get("ContactInfoPage_NoInfo", "No information from the server.");
+            EmptyText.Text = Loc.Get("ContactInfoPage_NoInfo",
+                "The name, the number and the picture are what this phone knows. WhatsApp's about, business and group details are not read by this client yet.");
 
             MembersList.ItemsSource = _members;
             HoursList.ItemsSource = _hours;
@@ -57,38 +65,35 @@ namespace WhatsappApp.Pages
             DataContext = _contact;
             NameText.Text = _contact.Name;
 
-            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
             RequestInfo();
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
             HideFullScreen();
         }
 
         /// <summary>
-        /// Asks for the profile. There is nothing to await: the answer is a
-        /// control frame, and it arrives at the event.
+        /// Fills what this phone already knows, and asks WhatsApp for the picture.
+        ///
+        /// There is nothing to await for the first half: the row the chat list drew is
+        /// the source, and this is the same contact object. The picture is a query with
+        /// an answer, and it is guarded like every other network call.
         /// </summary>
         private void RequestInfo()
         {
-            // The picture is WhatsApp's own query now. The rest of the page - the name, the
-            // number, the about line, the business hours - still arrives in the adapter's
-            // `contact.info` frame, which leaves with the adapter itself.
+            var known = new ContactInfo();
+            known.Name = _contact.Name;
+            known.Number = DisplayNumber(_contact.Id);
+            Apply(known);
+
             if (NativeConnection.Instance.IsConnected)
             {
 #pragma warning disable 4014
                 Guarded.RunGuardedAsync("ContactInfoPage/picture", RequestPictureAsync());
 #pragma warning restore 4014
             }
-
-            if (!CommunicationService.Instance.IsConnected) return;
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("ContactInfoPage/info",
-                CommunicationService.Instance.SendControlAsync("contact.info", _contact.Id));
-#pragma warning restore 4014
         }
 
         /// <summary>
@@ -121,46 +126,47 @@ namespace WhatsappApp.Pages
             }
         }
 
-        private void OnControlMessageReceived(object sender, ChatMessage message)
+        /// <summary>
+        /// The number the way a person reads one: the user part of the JID, without the
+        /// device and without the server. A group has no number at all - its JID is not
+        /// a phone - so it shows none rather than a made-up one.
+        /// </summary>
+        private static string DisplayNumber(string jid)
         {
-            if (message == null || message.Command != "contact.info") return;
-            if (message.ChatId != _contact.Id) return;
+            if (string.IsNullOrEmpty(jid)) return null;
+            if (jid.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase)) return null;
 
-            Apply(ContactInfo.FromJson(message.Text));
+            int at = jid.IndexOf('@');
+            string user = at < 0 ? jid : jid.Substring(0, at);
+
+            int device = user.IndexOf(':');
+            if (device >= 0) user = user.Substring(0, device);
+
+            if (user.Length == 0) return null;
+            return "+" + user;
         }
 
         /// <summary>
-        /// Fills the page. `any` says whether there is something to show: when
-        /// there is nothing, the page says so instead of staying half empty.
+        /// Fills the page from what there is. Everything here is optional except the
+        /// name: a heading with nothing under it is worse than one heading fewer, which
+        /// is why each block shows itself only when it has something to say.
         /// </summary>
         private void Apply(ContactInfo info)
         {
-            bool any = false;
-
             if (info != null)
             {
                 if (!string.IsNullOrEmpty(info.Name)) NameText.Text = info.Name;
-
-                // The picture that arrives now is good for the chat list too: it is
-                // kept, so the next opening has it without asking.
-                if (!string.IsNullOrEmpty(info.AvatarData))
-                {
-                    if (_contact.AvatarData != info.AvatarData)
-                    {
-                        _contact.AvatarData = info.AvatarData;
-#pragma warning disable 4014
-                        _contact.LoadAvatarAsync();
-#pragma warning restore 4014
-                    }
-                    AvatarCache.Remember(_contact.Id, info.AvatarData);
-                }
 
                 if (!string.IsNullOrEmpty(info.Number))
                 {
                     NumberText.Text = info.Number;
                     NumberLabel.Visibility = Visibility.Visible;
                     NumberText.Visibility = Visibility.Visible;
-                    any = true;
+                }
+                else
+                {
+                    NumberLabel.Visibility = Visibility.Collapsed;
+                    NumberText.Visibility = Visibility.Collapsed;
                 }
 
                 if (!string.IsNullOrEmpty(info.About))
@@ -168,17 +174,18 @@ namespace WhatsappApp.Pages
                     AboutText.Text = info.About;
                     AboutLabel.Visibility = Visibility.Visible;
                     AboutText.Visibility = Visibility.Visible;
-                    any = true;
                 }
 
-                ApplyBusiness(info.Business, ref any);
-                ApplyGroup(info.Group, ref any);
+                ApplyBusiness(info.Business);
+                ApplyGroup(info.Group);
             }
 
-            EmptyText.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+            // And the limit, always: this is the sentence that says why the page is
+            // short, and it is true whether or not anything above was filled.
+            EmptyText.Visibility = Visibility.Visible;
         }
 
-        private void ApplyBusiness(ContactBusiness business, ref bool any)
+        private void ApplyBusiness(ContactBusiness business)
         {
             if (business == null)
             {
@@ -187,7 +194,6 @@ namespace WhatsappApp.Pages
             }
 
             BusinessPanel.Visibility = Visibility.Visible;
-            any = true;
 
             ShowIf(BusinessEmailLabel, BusinessEmailText, business.Email);
             ShowIf(BusinessAddressLabel, BusinessAddressText, business.Address);
@@ -217,7 +223,7 @@ namespace WhatsappApp.Pages
             value.Text = text ?? "";
         }
 
-        private void ApplyGroup(ContactGroup group, ref bool any)
+        private void ApplyGroup(ContactGroup group)
         {
             if (group == null)
             {
@@ -226,7 +232,6 @@ namespace WhatsappApp.Pages
             }
 
             GroupPanel.Visibility = Visibility.Visible;
-            any = true;
 
             bool hasDescription = !string.IsNullOrEmpty(group.Description);
             GroupDescriptionLabel.Visibility = hasDescription ? Visibility.Visible : Visibility.Collapsed;

@@ -52,10 +52,9 @@
                        VerticalAlignment="Center" Margin="8,0,0,4"/>
         </Grid>
 
-        <!-- What this screen is: the account this phone is linked as, and the way back
-             to the code that links it. Nothing about the server it talks through is
-             here: an address, a port and a token are not something a person links, and
-             a screen that shows them asks the reader to understand the plumbing. -->
+        <!-- What this screen is: the account this phone is linked as, what the client
+             is doing, and the way to a code that links a different one. Nothing about
+             a server is here, because there is no server: the phone is the client. -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,16,16,16">
 
@@ -71,48 +70,37 @@
 
                 <!-- Shown instead of the number when there is none to show. -->
                 <TextBlock x:Name="AccountHintText" x:Uid="ConnectionPage_NotLinked"
-                           Text="This phone is not linked. Show the QR code to link it."
+                           Text="This phone is not linked. Tap below to show the QR code."
                            Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
                            Visibility="Collapsed" Margin="0,6,0,0"/>
 
-                <Button x:Name="ShowQrButton" x:Uid="ConnectionPage_ShowQr"
-                        Content="Show the QR code"
+                <TextBlock x:Uid="ConnectionPage_StatusLabel" Text="Connection"
+                           Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"
+                           Margin="0,20,0,0"/>
+
+                <!-- The client's own sentence about what it is doing. It is written by
+                     NativeConnection and it is deliberately not translated: it is the
+                     same line the log carries (see the diagnostics page). -->
+                <TextBlock x:Name="StatusText" Text=""
+                           Foreground="#FF000000" FontSize="14" TextWrapping="Wrap"
+                           Margin="0,6,0,0"/>
+
+                <!-- The one action this screen still has. It has no x:Uid on the Path
+                     rule: an x:Uid on a Button overwrites its Content (see
+                     maintain-the-app). -->
+                <Button x:Name="LinkDeviceButton" x:Uid="ConnectionPage_LinkDevice"
+                        Content="Link a device"
                         Background="{StaticResource WhatsAppAccentBrush}"
                         Foreground="White" FontSize="18" FontWeight="SemiBold"
-                        Height="52" BorderThickness="0" Margin="0,16,0,0"
-                        Click="ShowQrButton_Click"/>
+                        Height="52" BorderThickness="0" Margin="0,24,0,0"
+                        Click="LinkDeviceButton_Click"/>
 
-                <!-- What the last press did: requesting, unavailable, or what went
-                     wrong. A button that shows nothing is a button that looks dead. -->
-                <TextBlock x:Name="QrStatusText" Text=""
+                <TextBlock x:Uid="ConnectionPage_LinkDeviceHint"
+                           Text="Linking a device replaces the account this phone uses."
                            Foreground="#FF606060" FontSize="12" TextWrapping="Wrap"
-                           TextAlignment="Center" Margin="0,8,0,0"/>
+                           Margin="0,8,0,0"/>
 
             </StackPanel>
         </ScrollViewer>
-
-        <!-- Full-screen QR: the phone scans the code with WhatsApp, so it must be
-             big, on a white background and with the screen kept on. -->
-        <Grid x:Name="QrOverlay" Grid.RowSpan="2" Background="White" Visibility="Collapsed">
-            <StackPanel VerticalAlignment="Center" Margin="16,16,16,16">
-                <TextBlock x:Uid="ConnectionPage_QrOverlayTitle"
-                           Text="Scan this code with WhatsApp"
-                           Foreground="#FF075E54" FontSize="20" FontWeight="SemiBold"
-                           TextAlignment="Center" TextWrapping="Wrap"/>
-                <Image x:Name="QrOverlayImage" Width="340" Height="340" Margin="0,12,0,0"
-                       Stretch="Uniform" HorizontalAlignment="Center"/>
-                <!-- Text filled by the code-behind, which alternates the
-                     instruction with "I am refreshing the code": that is why it
-                     has no x:Uid and the .resw key has no suffix. -->
-                <TextBlock x:Name="QrOverlayHintText" Text=""
-                           Foreground="#FF606060" FontSize="13" TextAlignment="Center"
-                           TextWrapping="Wrap" Margin="0,12,0,0"/>
-                <Button x:Name="QrOverlayCloseButton" x:Uid="ConnectionPage_QrOverlayClose"
-                        Content="Close"
-                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="16"
-                        Height="44" BorderThickness="0" Margin="0,16,0,0"
-                        Click="QrOverlayCloseButton_Click"/>
-            </StackPanel>
-        </Grid>
     </Grid>
 </Page>

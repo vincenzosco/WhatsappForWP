@@ -45,12 +45,20 @@ test('un attesa della storia piu corta della lettura dell adapter e un problema'
   assert.match(problemsFor(broken).problems.join('\n'), /HistoryWaitMaxMilliseconds/);
 });
 
-test('il report del crash parte dal servizio e non dalla pagina', () => {
+test('il report del crash viene dal servizio e non dalla pagina', () => {
   const crashReport = fixture('crashreport-good.cs');
   assert.deepStrictEqual(problemsFor({ diag, app, chatPage, crashReport }).problems, []);
 
-  const broken = { diag, app, chatPage, crashReport: crashReport.replace('SendControlAsync', '') };
-  assert.match(problemsFor(broken).problems.join('\n'), /CrashReport/);
+  const nothing = { diag, app, chatPage, crashReport: crashReport.replace('Diag.PendingCrashTail', '') };
+  assert.match(problemsFor(nothing).problems.join('\n'), /CrashReport/);
+});
+
+test('un report che aspetta la connessione e un problema', () => {
+  // La forma vecchia: la coda partiva come frame `diag` appena il socket c'era.
+  const crashReport = fixture('crashreport-good.cs') +
+    '\n            CommunicationService.Instance.SendControlAsync("diag", tail);\n';
+  assert.match(problemsFor({ diag, app, chatPage, crashReport }).problems.join('\n'),
+    /still sends the tail over the wire/);
 });
 
 test('senza il servizio il guard non se ne occupa', () => {

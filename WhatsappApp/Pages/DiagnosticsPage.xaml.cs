@@ -13,9 +13,9 @@ namespace WhatsappApp.Pages
     ///
     /// Why it exists: Diag writes to Debug.WriteLine, which needs a PC with a
     /// debugger attached - and the run being diagnosed is the one on the phone.
-    /// This page shows the same history, plus the connection fields that decide
-    /// whether the adapter is reachable at all, so a report is a screenshot
-    /// instead of a pasted assembly list.
+    /// This page shows the same history, plus the few fields that say what state
+    /// the client is in, so a report is a screenshot instead of a pasted assembly
+    /// list.
     /// </summary>
     public sealed partial class DiagnosticsPage : Page
     {
@@ -43,13 +43,14 @@ namespace WhatsappApp.Pages
 
         private void Refresh()
         {
-            var comm = CommunicationService.Instance;
             var text = new StringBuilder();
 
-            text.Append("connected: ").Append(comm.IsConnected).Append('\n');
-            text.Append("whatsapp: ").Append(comm.WhatsAppState).Append('\n');
-            text.Append("account: ").Append(comm.AccountJid).Append('\n');
-            text.Append("server: ").Append(comm.ServerAddress).Append('\n');
+            // The native client is the whole connection now, so these are the fields
+            // that say what it is doing: whether the socket is up, which line of its
+            // own state machine it is on, and the account it is linked as.
+            text.Append("connected: ").Append(NativeConnection.Instance.IsConnected).Append('\n');
+            text.Append("status: ").Append(NativeConnection.Instance.Status).Append('\n');
+            text.Append("account: ").Append(NativeConnection.Instance.Jid).Append('\n');
             text.Append("device: ").Append(SettingsService.DeviceId).Append('\n');
             text.Append("chats: ").Append(DataService.Instance.Contacts.Count).Append('\n');
             text.Append("---\n");
@@ -67,32 +68,6 @@ namespace WhatsappApp.Pages
         {
             Diag.Clear();
             Refresh();
-        }
-
-        /// <summary>
-        /// Sends exactly what the screen shows to the adapter, which writes it to
-        /// the container log.
-        ///
-        /// Why it exists: the phone has no clipboard worth the name on WP8.1, so
-        /// getting this text onto a PC meant a screenshot and a cable. The report
-        /// is the same string either way, so the log and a pasted copy cannot
-        /// disagree.
-        /// </summary>
-        private void SendButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (!CommunicationService.Instance.IsConnected)
-            {
-                ActionStatusText.Text = Loc.Get("DiagnosticsPage_SendOffline",
-                    "Not connected: the report could not be sent.");
-                return;
-            }
-
-            string report = DiagnosticsText.Text ?? "";
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("DiagnosticsPage/send",
-                CommunicationService.Instance.SendControlAsync("diag", report));
-#pragma warning restore 4014
-            ActionStatusText.Text = Loc.Get("DiagnosticsPage_Sent", "Report sent to the server.");
         }
 
         /// <summary>
