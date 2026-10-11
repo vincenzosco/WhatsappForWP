@@ -17,10 +17,9 @@ namespace WhatsappApp.Pages
     /// The name and the number are this phone's own: they came with the chat row, and
     /// the page shows them without asking anybody. The picture is asked of WhatsApp
     /// itself (`NativeConnection.RequestAvatarAsync` - the query answers a URL, the URL
-    /// answers the JPEG). Everything the rest of the page draws used to arrive in one
-    /// `contact.info` frame the adapter composed out of three server routes; there is no
-    /// adapter any more and no native reader for those three yet, so the page states the
-    /// limit instead of leaving a heading with nothing under it.
+    /// answers the JPEG). Everything the rest of the page draws needs a reader this client
+    /// does not have yet (the about text, the business profile, the group metadata), so the
+    /// page states the limit instead of leaving a heading with nothing under it.
     /// </summary>
     public sealed partial class ContactInfoPage : Page
     {

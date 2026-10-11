@@ -21,10 +21,10 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The chat list of the last session, kept on the phone.
     ///
-    /// Why it exists: at startup the connection is not there yet, and the adapter
-    /// answers the list request only when WhatsApp is linked. Without this copy
-    /// the app opens on an empty list for the seconds it takes, and it looks like
-    /// nothing happened.
+    /// Why it exists: at startup the connection is not there yet, and the list
+    /// arrives with the sync that follows a login. Without this copy the app opens
+    /// on an empty list for the seconds it takes, and it looks like nothing
+    /// happened.
     ///
     /// It is not the truth: it is a photograph. As soon as the server answers,
     /// every row is replaced by the real one (see DataService.ApplyChat). Without
@@ -98,10 +98,10 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The copy of a row with only the fields the list draws.
         ///
-        /// The unread count is not here on purpose. It is a live number the
-        /// adapter owns and clears with the `read` frame; a copy of it on disk is
-        /// a number nobody has verified since, and re-applying it brought back a
-        /// count the reader had already cleared.
+        /// The unread count is not here on purpose. It is a live number, cleared by
+        /// the receipt the reader's own page sends; a copy of it on disk is a number
+        /// nobody has verified since, and re-applying it brought back a count the
+        /// reader had already cleared.
         /// </summary>
         private static ChatMessage Slim(ChatMessage row)
         {

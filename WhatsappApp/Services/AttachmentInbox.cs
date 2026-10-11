@@ -191,8 +191,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// "image", "video", "audio" or "document": the word the adapter and the
-        /// app use to decide how to send and how to draw. The MIME type may be
+        /// "image", "video", "audio" or "document": the word this app and
+        /// `MediaUpload` use to decide how to send and how to draw. The MIME type may be
         /// missing (a shared bitmap), so the word is also derived from the
         /// extension.
         ///

@@ -36,8 +36,8 @@ namespace WhatsappApp.Services
 
     /// <summary>
     /// Pinning, muting and deleting a chat are decisions of this phone, not of
-    /// WhatsApp: GOWA has no endpoint for any of the three, and the conversation
-    /// list the adapter sends is read-only.
+    /// WhatsApp: its protocol has no call for any of the three, and the conversation
+    /// list this client reads is read-only.
     ///
     /// Why not in the list cache (ChatCache): that is a photograph the server
     /// replaces row by row, and a chat that no longer appears in that list (old,

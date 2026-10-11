@@ -9,9 +9,15 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Models
 {
     /// <summary>
-    /// The information of a profile as the adapter composes it (command
-    /// `contact.info`). The field names are the wire ones: DataContractJson
-    /// Serializer is case-sensitive, and the two sides must stay in agreement.
+    /// The information of a profile: the about text, the number, the picture, a
+    /// business profile and a group's description and members.
+    ///
+    /// Nothing fills it yet. The three routes it would be read from (the user's
+    /// status and about, the business profile, the group metadata) are not read by
+    /// this client, and `ContactInfoPage` says so rather than drawing headings with
+    /// nothing under them; whoever writes the reader fills this shape and the page
+    /// draws it. The field names are what a `[DataContract]` serializes with, so a
+    /// rename here is a change to what is written on disk.
     /// </summary>
     [DataContract]
     public class ContactInfo
@@ -27,7 +33,7 @@ namespace WhatsappApp.Models
         [DataMember]
         public string Number { get; set; }
 
-        /// <summary>The profile picture in base64, if the adapter has it.</summary>
+        /// <summary>The profile picture in base64, when the reader has one.</summary>
         [DataMember]
         public string AvatarData { get; set; }
 

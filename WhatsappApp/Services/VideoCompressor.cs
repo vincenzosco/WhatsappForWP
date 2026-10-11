@@ -16,8 +16,7 @@ namespace WhatsappApp.Services
     ///
     /// It never throws and never returns nothing: a phone that cannot convert the
     /// file - the platform refusing, no encoder for that format, no space - gets
-    /// the original name back, and the adapter shrinks the video as a last resort
-    /// (see WhatsappBridge/ffmpeg.js).
+    /// the original name back, and the file is sent as it is.
     /// </summary>
     public static class VideoCompressor
     {

@@ -67,8 +67,8 @@ namespace WhatsappApp.Models
 
         /// <summary>
         /// At the top of the list. It is a decision of this phone
-        /// (ChatPreferences): WhatsApp knows nothing of a pin made here, and the
-        /// adapter sends no field for it.
+        /// (ChatPreferences): WhatsApp knows nothing of a pin made here, and its
+        /// own list carries no field for it.
         /// </summary>
         public bool IsPinned
         {
@@ -83,7 +83,7 @@ namespace WhatsappApp.Models
             set { _isMuted = value; OnPropertyChanged(); }
         }
 
-        /// <summary>The profile picture that arrived from the adapter, still in base64.</summary>
+        /// <summary>The profile picture this client fetched from WhatsApp, still in base64.</summary>
         public string AvatarData
         {
             get { return _avatarData; }

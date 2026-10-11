@@ -350,8 +350,8 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// History: an old message, which the adapter sends when the chat is
-        /// opened. It is a normal message and must be drawn as such, but it did not
+        /// History: an old message, which the sync brings when the app opens the
+        /// account. It is a normal message and must be drawn as such, but it did not
         /// arrive now: it does not count as unread and raises no notification.
         /// </summary>
         /// <summary>
@@ -373,8 +373,8 @@ namespace WhatsappApp.Models
 
         /// <summary>
         /// How many messages of this conversation are still unread. It is not data
-        /// of the message: it is data of the chat-list row, and the adapter counts
-        /// it because it is the only one that sees the messages that arrived while
+        /// of the message: it is data of the chat-list row, and the sync is what
+        /// carries it, because it is the only thing that saw what arrived while
         /// the phone was off.
         /// </summary>
         [DataMember]
@@ -527,8 +527,8 @@ namespace WhatsappApp.Models
 
         /// <summary>
         /// The name drawn on a document card. The real file name when there is
-        /// one, otherwise the text the adapter wrote for the row (the file name
-        /// it carried, or the word [Document]).
+        /// one, otherwise the text the row carries (the file name it was sent
+        /// with, or the word [Document]).
         /// </summary>
         public string DocumentTitle
         {
@@ -543,7 +543,7 @@ namespace WhatsappApp.Models
         /// <summary>
         /// The short type badge of a document card: PDF, DOCX, XLSX, ZIP. It
         /// comes from the extension of the name, which is the only thing we have:
-        /// the adapter sends no separate type word.
+        /// the message carries no separate type word.
         /// </summary>
         public string DocumentBadge
         {
@@ -683,7 +683,7 @@ namespace WhatsappApp.Models
             }
         }
 
-        /// <summary>The text is only the placeholder the adapter writes for a media.</summary>
+        /// <summary>The text is only the placeholder a media message carries.</summary>
         private bool IsMediaPlaceholder
         {
             get
@@ -743,7 +743,7 @@ namespace WhatsappApp.Models
         /// Interprets the Timestamp field of a frame.
         ///
         /// It accepts /Date(ms)/ with any number of backslashes before the slashes
-        /// - an older adapter doubled them, and those backslashes are escapes of the
+        /// - the old bridge doubled them, and those backslashes are escapes of the
         /// JSON reader, not part of the value -, an ISO 8601 date with or without a
         /// zone, raw milliseconds, and a date written in the culture of the phone.
         /// Anything else becomes the current time, with the Diag line saying what

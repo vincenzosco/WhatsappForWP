@@ -17,8 +17,8 @@ namespace WhatsappApp.Services
     ///
     /// The format is AAC in an M4A container (MediaEncodingProfile.CreateM4a):
     /// it is what Windows Phone 8.1 records and decodes without help. Ogg/Opus
-    /// is what WhatsApp prefers, but the phone has no Opus encoder, and the
-    /// adapter cannot convert in the outgoing direction.
+    /// is what WhatsApp prefers, but the phone has no Opus encoder and nothing here
+    /// converts in the outgoing direction: the note is sent as the M4A it is.
     ///
     /// Every failure is answered with false/null and a Diag line: a denied
     /// microphone, a device with none, a capture engine the projection refuses.
