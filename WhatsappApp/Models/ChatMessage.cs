@@ -54,26 +54,17 @@ namespace WhatsappApp.Models
         private string _mediaData;      // base64-encoded media content
         private string _mediaMimeType;  // e.g. "image/jpeg", "image/png"
         private string _mediaFileName;  // optional filename
-        private string _mediaTransferId;   // id of an attachment that travels in pieces
-        private int _mediaChunkIndex;      // which piece this is
-        private int _mediaChunkTotal;      // how many pieces in all
-        private string _mediaType;         // "image", "video": the type declared by the server
-        private string _command;        // control frame command (see adapter protocol)
-        private string _state;          // "disconnected" | "waiting" | "connected"
-        private string _pairCode;       // pairing code for phone-number login
-        private string _qrImageData;    // base64 PNG of the login QR code
-        private int _qrDuration;        // QR validity in seconds
+        private string _mediaType;         // "image", "video": the type declared by the message
+        private string _state;          // what someone is doing in a chat ("composing", "paused")
         private string _avatarData;     // profile picture, base64
         private bool _isGroup;          // the chat is a group
         private bool _isHistory;        // old message, sent when the chat is opened
         private int _unreadCount;       // chat-list row: how many unread messages
-        private string _accountJid;     // WhatsApp JID of the logged-in account
-        private string _callId;             // call id, from GOWA
-        private string _callReason;         // outcome reported by GOWA (timeout, reject, ...)
+        private string _relatedMessageId;   // message touched by a revocation or an edit
+        private string _callId;             // call id, from WhatsApp's call log
+        private string _callReason;         // what the call log row says it was (missed, incoming, outgoing)
         private int _callDurationSeconds;   // duration in seconds, 0 when unknown
         private bool _callIsVideo;          // video call
-        private string _relatedMessageId;   // message touched by a revocation or an edit
-        private string _token;              // token of the shared service (see handshake)
         private string _mediaFilePath;       // local file of the received video (client-side, not on the wire)
         private BitmapImage _mediaImage; // decoded MediaData, for the XAML image binding
 
@@ -231,30 +222,6 @@ namespace WhatsappApp.Models
         /// </summary>
         public WhatsappApp.Protocol.WaProto.MediaInfo Media;
 
-        /// <summary>Identifier of an attachment that travels in pieces (media.begin/end).</summary>
-        [DataMember]
-        public string MediaTransferId
-        {
-            get { return _mediaTransferId; }
-            set { _mediaTransferId = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>Which piece of an attachment this frame is.</summary>
-        [DataMember]
-        public int MediaChunkIndex
-        {
-            get { return _mediaChunkIndex; }
-            set { _mediaChunkIndex = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>How many pieces the attachment has in all.</summary>
-        [DataMember]
-        public int MediaChunkTotal
-        {
-            get { return _mediaChunkTotal; }
-            set { _mediaChunkTotal = value; OnPropertyChanged(); }
-        }
-
         /// <summary>
         /// The media type as the server declares it ("image", "video"). It is not
         /// the MIME type: it tells that a history row *is* an image even when the
@@ -310,18 +277,10 @@ namespace WhatsappApp.Models
             set { _isMediaLoading = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Command of the control frames sent/received by the adapter (Type = System).</summary>
-        [DataMember]
-        public string Command
-        {
-            get { return _command; }
-            set { _command = value; OnPropertyChanged(); }
-        }
-
         /// <summary>
-        /// What the frame says about its subject: the WhatsApp connection state
-        /// ("disconnected", "waiting", "connected") for a `state` frame, or what
-        /// someone is doing in a chat ("composing", "paused") for a `typing` one.
+        /// What someone is doing in a chat ("composing", "paused"), which is what a
+        /// `typing` frame carries: `ChatPage` reads it to show the typing line, and
+        /// nothing else about a frame's subject lives here.
         /// </summary>
         [DataMember]
         public string State
@@ -330,39 +289,11 @@ namespace WhatsappApp.Models
             set { _state = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Pairing code to enter on the phone (phone-number login).</summary>
-        [DataMember]
-        public string PairCode
-        {
-            get { return _pairCode; }
-            set { _pairCode = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>Login QR code encoded in base64 (PNG).</summary>
-        [DataMember]
-        public string QrImageData
-        {
-            get { return _qrImageData; }
-            set { _qrImageData = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>Validity of the QR code, in seconds.</summary>
-        [DataMember]
-        public int QrDuration
-        {
-            get { return _qrDuration; }
-            set { _qrDuration = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>JID of the linked WhatsApp account (e.g. 393401234567@s.whatsapp.net).</summary>
-        [DataMember]
-        public string AccountJid
-        {
-            get { return _accountJid; }
-            set { _accountJid = value; OnPropertyChanged(); }
-        }
-
-        /// <summary>Call identifier as GOWA knows it.</summary>
+        /// <summary>
+        /// A call, as the call log row carries it (`Protocol/Client/Calls.cs` reads the
+        /// log into `CallLogEntry`, and `DataService` copies the four fields across when
+        /// it turns a row into a `ChatMessage` for the Calls page).
+        /// </summary>
         [DataMember]
         public string CallId
         {
@@ -370,7 +301,7 @@ namespace WhatsappApp.Models
             set { _callId = value; OnPropertyChanged(); }
         }
 
-        /// <summary>Call outcome according to GOWA: "timeout", "reject", ... Empty if it does not say.</summary>
+        /// <summary>Call outcome: "missed", "incoming", "outgoing". Empty if the log does not say.</summary>
         [DataMember]
         public string CallReason
         {
@@ -394,18 +325,6 @@ namespace WhatsappApp.Models
             set { _callIsVideo = value; OnPropertyChanged(); }
         }
 
-        /// <summary>
-        /// The token of the shared service. It travels in the `hello` frame, like
-        /// everything else: this protocol has no headers to put it in. On a private
-        /// service it stays empty, and the server does not ask for it.
-        /// </summary>
-        [DataMember]
-        public string Token
-        {
-            get { return _token; }
-            set { _token = value; OnPropertyChanged(); }
-        }
-
         /// <summary>Id of the message a revocation or edit frame refers to.</summary>
         [DataMember]
         public string RelatedMessageId
@@ -422,7 +341,7 @@ namespace WhatsappApp.Models
             set { _avatarData = value; OnPropertyChanged(); }
         }
 
-        /// <summary>True for groups: GOWA has no personal avatar for them.</summary>
+        /// <summary>True for groups: a group has its own picture and no personal one.</summary>
         [DataMember]
         public bool IsGroup
         {
