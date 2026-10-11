@@ -36,6 +36,22 @@ namespace ProtocolTests
             }
         }
 
+        /// <summary>
+        /// The same, with the reason the caller was checking it, as `IsTrue` has had all
+        /// along. It is here because the reason is the whole diagnostic when the two values
+        /// disagree about something the numbers do not explain - which code means the
+        /// account is gone, say - and a test that has to drop its sentence to fit the
+        /// signature is a test that says less the moment it fails.
+        /// </summary>
+        public static void AreEqual(object expected, object actual, string because)
+        {
+            if (!Equals(expected, actual))
+            {
+                throw new AssertionException(
+                    "expected <" + Describe(expected) + "> but was <" + Describe(actual) + ">: " + because);
+            }
+        }
+
         public static void IsTrue(bool condition)
         {
             if (!condition) throw new AssertionException("expected true but was false");

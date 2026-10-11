@@ -144,6 +144,7 @@
     <Compile Include="Protocol\Client\ConnectionPolicy.cs" />
     <Compile Include="Protocol\Client\Credentials.cs" />
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
+    <Compile Include="Protocol\Client\InboundRouter.cs" />
     <Compile Include="Protocol\Client\IncomingMessage.cs" />
     <Compile Include="Protocol\Client\NativeSession.cs" />
     <Compile Include="Protocol\Client\OutgoingMessage.cs" />

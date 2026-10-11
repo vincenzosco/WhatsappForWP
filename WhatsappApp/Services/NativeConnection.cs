@@ -210,7 +210,17 @@ namespace WhatsappApp.Services
                 }
 
                 string ended = NativeSession.Refusal(node);
-                if (ended == null) continue;
+                if (ended == null)
+                {
+                    // Nothing reads the rest yet. Naming what arrived is what makes the next
+                    // device run's log worth reading: the run of 2026-10-10 ended at
+                    // `paired as ...` with no line after it, and the nodes that followed the
+                    // login were exactly what nobody had written down.
+                    Diag.Ok("native: " + InboundRouter.Classify(node) + " (" + node.Tag
+                        + ") arrived, and nothing reads it yet");
+
+                    continue;
+                }
 
                 if (ConnectionPolicy.AccountIsGone(node))
                 {
