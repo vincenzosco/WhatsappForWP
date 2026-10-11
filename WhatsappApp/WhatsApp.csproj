@@ -146,6 +146,7 @@
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
     <Compile Include="Protocol\Client\InboundRouter.cs" />
     <Compile Include="Protocol\Client\IncomingMessage.cs" />
+    <Compile Include="Protocol\Client\NativeChats.cs" />
     <Compile Include="Protocol\Client\NativeSession.cs" />
     <Compile Include="Protocol\Client\OutgoingMessage.cs" />
     <Compile Include="Protocol\Client\PairingQr.cs" />
