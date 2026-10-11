@@ -68,7 +68,10 @@ WhatsappApp/BundleArtifacts/
 # Skills installed for this project (security-audit and friends). They sit here
 # so they are found from the repository root, but they are third-party
 # instructions, not part of the app: they are not vendored into the repo.
-skills/
+# Solo la cartella skills/ della radice: la regola senza lo slash iniziale
+# prendeva anche .agents/skills/, che invece e' la documentazione del progetto
+# e si versiona (un `git add .agents/skills/...` rispondeva "paths are ignored").
+/skills/
 
 # Piano in esecuzione (executing-plans): scratch, mai committato.
 .superpowers/
