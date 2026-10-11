@@ -1318,3 +1318,32 @@ What the reference corrected in this plan, mid-flight:
   a phone between two commits would have media but no text, or text but no chat list. Cost if
   wrong: the adapter's dead code stays in the tree for the length of the plan, and a plan step
   that lands half-done leaves an app with two paths - which is what `check-no-server` is for.
+
+### Task 11 (2026-10-11, this commit)
+
+| Task | Commit | State |
+| --- | --- | --- |
+| 11 | (this commit) | done: `Calls` + `CallLogEntryModel`, `StatusFeed` + `StatusPost`, the call log from the history sync, and the **Status feed**: `HistorySync.statusV3Messages`, `NativeConnection` into `_statuses`, `DataService.Statuses`, `StatusPage`'s list, the view receipt on tap and the photo fetched on the same tap. 234 protocol tests |
+| 12-13 | - | not started |
+
+- **The Status page is no longer a stub.** The plan's Step 3 said it "reads status messages ... into its existing row model"; there was no row model - the page was an empty state and the adapter never fed it. A feed was built instead, on the rows every other page uses (`DataService.Statuses`, a `ChatMessage` each), so the initials square, the picture and the time are the same three as a chat's.
+- **The reference corrected the plan twice, and both were read, not remembered**: the call log's field 12 is `callCreatorJID` (not a "peer") and there are `groupJID` 13 and `participants` 14; and a status sync carries its statuses in `statusV3Messages` field 3 (`syncType == InitialStatusV3`), not in a conversation. Both are now read from `/tmp/ref/whatsmeow-main/proto`.
+- **Still not run on the phone.** No step of this plan that needs the Lumia has run: the Status feed, the call log and the group paths are pinned offline and by nothing else.
+
+### Task 13: the line-by-line pass (2026-10-11, this commit)
+
+`bug-hunter`, local-sequential, over the whole tree (triage: 211 files, 179 scannable, FILE_BUDGET 60, large-codebase). **Coverage is partial and is reported as partial**: the CRITICAL/HIGH app source was read (protocol core, the media and Signal layers, the services and the pages touched by Tasks 5-11); `tools/**` and `ProtocolTests/**` were treated as context, and `bin/`, `obj/` and `skills/` were not read. Five real bugs, all fixed with a test each; one recorded for manual review.
+
+| # | Severity | Where | What it was |
+| --- | --- | --- | --- |
+| 1 | Critical | `CredentialStore.Load` | `PushName` is optional (`RequiredKeys`) but was read with `ReadText`, which throws for an absent key - and `HasSession` loads inside its own try, so a whole valid account came back as "no session" and the app showed the QR over it. This is the `ProtocolException: no Session.PushName is stored` the device log named |
+| 2 | High | `IncomingMessage` | the chat was keyed on the stanza's raw `from`, which keeps the sender's device - a contact writing from a linked phone got a chat row named `15551230000:5`, and one row per device. `JidUtils.Normalize` (the reference's `ToNonAD`/`jidNormalizedUser`) and a separate `IncomingMessage.Chat` now split the two |
+| 3 | High | `HistorySync` / `Calls` | `CallLogRecord` field 12 is `callCreatorJID`, not a peer: it is this account on every call we made, so outgoing calls were filed under our own number, and a group call was never filed under its group |
+| 4 | Medium | `HistorySync` | `statusV3Messages` (field 3) was skipped entirely, so the feed was empty on a first launch no matter how many statuses the phone had |
+| 5 | Low | `StatusFeed` / `NativeConnection` | the feed's author kept the device suffix (bug 2 on the status path) |
+
+`Ruling:` BUG-6 (`DeviceDirectory.Bundles` dereferences a missing `registration`/`skey` child as an NRE rather than a named refusal) is left in the report and not fixed. Why: the negative answer is an `error` child and it *is* handled, and both references treat those nodes as always present - fixing it would mean inventing a sentence for an answer that does not occur. Cost if wrong: an NRE with no name in the log instead of a sentence, and the device log is where that would show up.
+
+`Ruling:` the thread the socket reader runs on is left alone too. `DataService` mutates its `ObservableCollection`s from the reader loop, which is a UWP hazard - but it is pre-existing and everywhere (every native message already did it), and a fix is a change to the threading model of every event in `NativeConnection`, not a line in a bug fix. Cost if wrong: a cross-thread exception on a busy chat list, which no offline test can show.
+
+Every gate green for this commit: 234 protocol tests, 101 node tests, all fourteen `tools/check-*.js` exit 0, and **both** the x86 and the ARM `MSBuild -t:Rebuild` ending with `Your package has been successfully created.`

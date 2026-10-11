@@ -41,6 +41,27 @@ namespace ProtocolTests
             Assert.AreEqual((uint)1760000000, incoming.Timestamp);
         }
 
+        /// <summary>
+        /// The address it came from and the chat it belongs to are two different JIDs.
+        ///
+        /// A message written from a linked device arrives with the sender's device in `from`
+        /// (`15551230000:5@s.whatsapp.net`), and the chat is the same person without it - the
+        /// reference splits them exactly here (`whatsmeow`, `parseMessageSource`). A chat
+        /// keyed on `From` gave that contact one chat row per device they write from.
+        /// </summary>
+        [Test]
+        public static void TheChatIsTheSenderWithoutTheirDevice()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("hello", "9988776655443322");
+
+            IncomingMessage incoming = IncomingMessage.Read(sent.Node, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(PeerDevice, incoming.From, "the session is still keyed on the device");
+            Assert.AreEqual(PeerUser, incoming.Chat, "and the chat is not");
+        }
+
         [Test]
         public static void TheDecodedMessageIsHandedToTheCallerAndNotOnlyItsWords()
         {

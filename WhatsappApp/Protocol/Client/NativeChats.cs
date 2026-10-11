@@ -59,6 +59,10 @@ namespace WhatsappApp.Protocol.Client
                 HistoryConversation chunk = sync.Conversations[i];
                 if (chunk.Jid == null) continue;
 
+                // The history carries a `status@broadcast` conversation with every status of
+                // the last day inside it. None of it is a chat, so none of it becomes a row.
+                if (StatusFeed.IsStatus(chunk.Jid)) continue;
+
                 HistoryConversation row = EnsureRow(chunk.Jid);
 
                 row.UnreadCount = chunk.UnreadCount;
@@ -89,6 +93,11 @@ namespace WhatsappApp.Protocol.Client
         public bool AddIncoming(HistoryMessage message)
         {
             if (message == null || message.Jid == null) return false;
+
+            // A status is not a chat, and a chat list that held one would show a row called
+            // "status" for every contact who posted that morning
+            // (`StatusFeed.IsStatus`; Review Focus 5).
+            if (StatusFeed.IsStatus(message.Jid)) return false;
 
             HistoryConversation row = EnsureRow(message.Jid);
             if (!AddMessage(row, message)) return false;

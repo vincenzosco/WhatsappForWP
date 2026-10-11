@@ -85,6 +85,33 @@ namespace WhatsappApp.Protocol.WABinary
             return (user ?? string.Empty) + devicePart + "@" + server;
         }
 
+        /// <summary>
+        /// The JID with the device taken off, which is the JID of the *chat*.
+        ///
+        /// The reference does exactly this before it decides which conversation a message
+        /// belongs to - `whatsmeow`, `message.go`, `parseMessageSource`,
+        /// `source.Chat = from.ToNonAD()`, and Baileys' `jidNormalizedUser`, which drops the
+        /// device and rewrites `c.us` to `s.whatsapp.net`. It matters because a message written
+        /// from a linked device arrives with the sender's device in `from`
+        /// (`15551230000:5@s.whatsapp.net`), and a chat keyed on the raw string would give that
+        /// contact a second chat row named after their device.
+        ///
+        /// The device itself is still needed - it is what a Signal session is stored under -
+        /// so this is only for the chat and for anything shown to a person.
+        /// </summary>
+        public static string Normalize(string jid)
+        {
+            DecodedJid decoded = Decode(jid);
+
+            // Not a JID at all (an empty string, a group already bare, a test's placeholder):
+            // there is nothing to strip and guessing one would lose it.
+            if (!decoded.IsJid) return jid;
+
+            string server = decoded.Server == "c.us" ? WhatsappServer : decoded.Server;
+
+            return Encode(decoded.User, server, 0);
+        }
+
         /// <summary>The server a domain byte names, for an AD JID on the way in.</summary>
         public static string ServerForDomain(int domainType)
         {

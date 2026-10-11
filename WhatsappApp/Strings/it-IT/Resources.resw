@@ -77,7 +77,7 @@
     <value>Aggiornamenti non disponibili</value>
   </data>
   <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
-    <value>WhatsApp non espone gli stati a questa app: il server con cui parla non ha un endpoint per gli aggiornamenti, quindi questa sezione resta vuota per scelta. Chat e chiamate non ne sono toccate.</value>
+    <value>Gli aggiornamenti pubblicati dai tuoi contatti compaiono qui, e toccarne uno dice all'autore che l'hai visto.</value>
   </data>
   <data name="CallsPage_EmptyHint" xml:space="preserve">
     <value>WhatsApp non ha registrato chiamate in entrata nelle chat che il server ha scansionato. Il registro arriva dalla history del server: solo chiamate in entrata, dalle 25 chat più recenti.</value>

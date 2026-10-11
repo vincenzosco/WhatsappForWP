@@ -49,6 +49,16 @@ namespace WhatsappApp.Protocol.WaProto
         public IList<HistoryPushName> PushNames = new List<HistoryPushName>();
         public IList<CallLogRecord> CallLogRecords = new List<CallLogRecord>();
 
+        /// <summary>
+        /// The statuses a sync brought (`statusV3Messages`, field 3).
+        ///
+        /// This is where they are: a status sync has `syncType == InitialStatusV3` and its
+        /// payload is this list of `WebMessageInfo`s, not a conversation - a reader that
+        /// looked only at `Conversations` found nothing on a phone that had a day of
+        /// statuses waiting, which is what `InitialStatusV3` is for.
+        /// </summary>
+        public IList<HistoryMessage> StatusMessages = new List<HistoryMessage>();
+
         public static HistorySync Decode(byte[] bytes)
         {
             if (bytes == null) throw new ProtocolException("no history payload to read");
@@ -68,6 +78,10 @@ namespace WhatsappApp.Protocol.WaProto
 
                     case 2:
                         sync.Conversations.Add(HistoryConversation.Decode(reader.ReadBytes()));
+                        break;
+
+                    case 3:
+                        sync.StatusMessages.Add(HistoryMessage.FromWebMessage(reader.ReadBytes()));
                         break;
 
                     case 5:
@@ -225,6 +239,21 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>
+        /// One `WebMessageInfo` that is not behind a `HistorySyncMsg` wrapper.
+        ///
+        /// That is the shape of a status: `statusV3Messages` is a repeated `WebMessageInfo`
+        /// with no wrapper around it, so the same reader is used and only how it is entered
+        /// differs (`HistorySync.Decode`, field 3).
+        /// </summary>
+        public static HistoryMessage FromWebMessage(byte[] bytes)
+        {
+            var message = new HistoryMessage();
+            ReadWebMessage(message, bytes);
+
+            return message;
+        }
+
+        /// <summary>
         /// The `WebMessageInfo` half: the key (who, which way, which id), the timestamp, the
         /// sender for a group, and the message itself.
         /// </summary>
@@ -365,8 +394,29 @@ namespace WhatsappApp.Protocol.WaProto
     public sealed class CallLogRecord
     {
         public string CallId;
-        public string Peer;
+
+        /// <summary>
+        /// Who started the call (`callCreatorJID`, field 12).
+        ///
+        /// It is not the chat on its own, and calling it a `peer` was wrong: for a call this
+        /// phone received the creator is the caller, but for one this phone made the creator
+        /// is *us* - so an outgoing call attributed to this field puts this account's own JID
+        /// in the call log (`Calls.FromHistory` picks the other party out of the record
+        /// instead).
+        /// </summary>
+        public string CallCreatorJid;
+
+        /// <summary>The group, for a group call (`groupJID`, field 13).</summary>
         public string Group;
+
+        /// <summary>
+        /// Everybody on the call (`participants`, field 14), each entry's `userJID`.
+        ///
+        /// The other party of a one-to-one call is only knowable here: the sync sends the
+        /// creator and the participant list, and for a call we made the creator is us.
+        /// </summary>
+        public IList<string> Participants = new List<string>();
+
         public bool IsIncoming;
         public bool IsVideo;
         public int Result;
@@ -409,12 +459,19 @@ namespace WhatsappApp.Protocol.WaProto
                         break;
 
                     case 12:
-                        record.Peer = Utf8(reader.ReadBytes());
+                        record.CallCreatorJid = Utf8(reader.ReadBytes());
                         break;
 
                     case 13:
                         record.Group = Utf8(reader.ReadBytes());
                         break;
+
+                    case 14:
+                        {
+                            string who = ParticipantJid(reader.ReadBytes());
+                            if (!string.IsNullOrEmpty(who)) record.Participants.Add(who);
+                            break;
+                        }
 
                     default:
                         reader.SkipField(field.WireType);
@@ -423,6 +480,22 @@ namespace WhatsappApp.Protocol.WaProto
             }
 
             return record;
+        }
+
+        /// <summary>The `userJID` of one `ParticipantInfo` (its field 1, the only one this client reads).</summary>
+        private static string ParticipantJid(byte[] bytes)
+        {
+            var reader = new ProtoReader(bytes);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == 1 && field.WireType == 2) return Utf8(reader.ReadBytes());
+                reader.SkipField(field.WireType);
+            }
+
+            return null;
         }
 
         private static string Utf8(byte[] bytes)

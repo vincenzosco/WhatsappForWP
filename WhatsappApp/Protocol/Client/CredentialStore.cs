@@ -138,7 +138,15 @@ namespace WhatsappApp.Protocol.Client
             credentials.Jid = ReadText(JidKey);
             credentials.Lid = ReadText(LidKey);
             credentials.Platform = ReadText(PlatformKey);
-            credentials.PushName = ReadText(PushNameKey);
+
+            // Optional, and the one key that is: the pairing of an ordinary account carries
+            // no push name (`PairingSession` only sets one for a business account), so a
+            // whole session is stored without it. Reading it with `ReadText` threw here, and
+            // because `HasSession` loads the account inside its own try, the throw came back
+            // as "no session stored" - the app then showed the QR over an account that was
+            // there the whole time (`Save` writes an empty value, and the phone's storage
+            // removes the key).
+            credentials.PushName = ReadOptionalText(PushNameKey);
 
             return credentials;
         }
@@ -225,6 +233,20 @@ namespace WhatsappApp.Protocol.Client
             if (string.IsNullOrEmpty(value)) throw new ProtocolException("no " + key + " is stored");
 
             return value;
+        }
+
+        /// <summary>
+        /// A value that is allowed to be absent, read as null when it is.
+        ///
+        /// Only `PushName` is one (`RequiredKeys`), and the difference is not cosmetic: a
+        /// caller that read it as required would refuse a session the phone really has, and
+        /// an account with no push name is the ordinary case for a personal account.
+        /// </summary>
+        private string ReadOptionalText(string key)
+        {
+            string value = _storage.Read(key);
+
+            return string.IsNullOrEmpty(value) ? null : value;
         }
 
         private static string Value(string text)

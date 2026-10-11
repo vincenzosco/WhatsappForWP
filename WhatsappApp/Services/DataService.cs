@@ -6,8 +6,10 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WaProto;
+using WhatsappApp.Protocol.WABinary;
 
 namespace WhatsappApp.Services
 {
@@ -30,6 +32,7 @@ namespace WhatsappApp.Services
 
         private readonly ObservableCollection<Contact> _contacts;
         private readonly ObservableCollection<CallLogEntry> _calls;
+        private readonly ObservableCollection<ChatMessage> _statuses;
         private readonly Dictionary<string, ObservableCollection<ChatMessage>> _chatMessages;
 
         // How many messages of one chat are kept in memory. The server still holds
@@ -131,6 +134,9 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
             NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
             NativeConnection.Instance.MediaArrived += OnNativeMedia;
+            NativeConnection.Instance.CallsScanned += OnNativeCalls;
+            NativeConnection.Instance.StatusArrived += OnNativeStatusPost;
+            NativeConnection.Instance.StatusMediaArrived += OnNativeStatusMedia;
 
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
@@ -169,12 +175,28 @@ namespace WhatsappApp.Services
         /// <summary>The adapter-side scan is done: the page can stop waiting.</summary>
         public event EventHandler CallsScanCompleted;
 
+        /// <summary>
+        /// The status feed: one row per update, newest first.
+        ///
+        /// It is a `ChatMessage` like every other row this service hands a page, so the page
+        /// draws it with the controls it already has - the initials square, the picture and
+        /// the time are the same three as a chat's.
+        /// </summary>
+        public ObservableCollection<ChatMessage> Statuses
+        {
+            get { return _statuses; }
+        }
+
+        /// <summary>The feed changed: a status arrived, or its photo did.</summary>
+        public event EventHandler StatusesChanged;
+
         public event PropertyChangedEventHandler PropertyChanged;
 
         private DataService()
         {
             _contacts = new ObservableCollection<Contact>();
             _calls = new ObservableCollection<CallLogEntry>();
+            _statuses = new ObservableCollection<ChatMessage>();
             _chatMessages = new Dictionary<string, ObservableCollection<ChatMessage>>();
         }
 
@@ -195,7 +217,8 @@ namespace WhatsappApp.Services
             message.Type = MessageType.Text;
             message.IsIncoming = !incoming.IsFromMe;
             message.IsGroup = incoming.Jid.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
-            message.SenderId = incoming.Sender;
+            // Without the device: this is what a bubble and a contact lookup are keyed on.
+            message.SenderId = JidUtils.Normalize(incoming.Sender);
             message.SenderName = string.IsNullOrEmpty(incoming.SenderName) ? null : incoming.SenderName;
             message.Timestamp = Moment(incoming.Timestamp);
 
@@ -356,6 +379,249 @@ namespace WhatsappApp.Services
         private void OnNativeHistoryFinished(object sender, WhatsappApp.Protocol.WaProto.HistorySync sync)
         {
             Diag.Ok("native: the history is complete, " + _contacts.Count + " row(s) in the list");
+        }
+
+        /// <summary>
+        /// The call log, as the history brought it.
+        ///
+        /// The whole list is rewritten each time rather than appended to: the sync re-sends
+        /// the same records in chunks, and a log that grew a duplicate per chunk would show a
+        /// call three times. The page's list is the one a person reads, and it is built from
+        /// what WhatsApp last said - which is also what makes a call refused from this phone
+        /// and one made on another disappear the way they should (WhatsApp does not send them).
+        /// </summary>
+        private void OnNativeCalls(object sender, IList<CallLogEntryModel> entries)
+        {
+            ClearCalls();
+
+            if (entries == null) return;
+
+            for (int i = 0; i < entries.Count; i++)
+            {
+                var row = new ChatMessage();
+                row.ChatId = entries[i].Jid;
+                row.Timestamp = Moment(entries[i].Timestamp);
+                row.CallId = entries[i].Id;
+                row.CallDurationSeconds = entries[i].Seconds;
+                row.CallIsVideo = entries[i].IsVideo;
+                // The reason is the word the row shows: a call the phone never answered is
+                // `missed`, and one that connected is not a reason at all.
+                row.CallReason = entries[i].IsMissed ? "missed" : (entries[i].IsIncoming ? "incoming" : "outgoing");
+
+                AddCall(row);
+            }
+
+            Diag.Ok("native: " + _calls.Count + " call(s) in the log");
+            RaiseCallsScanCompleted();
+        }
+
+        /// <summary>
+        /// The call log a page just asked for: WhatsApp sent it with the history, so this is
+        /// the client's own list re-told rather than a new question.
+        /// </summary>
+        public void ScanCalls()
+        {
+            ClearCalls();
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/scan calls", NativeConnection.Instance.ScanCallsAsync());
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// A status was posted: one row in the feed, with the photo it may carry.
+        ///
+        /// The row is written before the bytes, so a page that opens on a live status shows
+        /// the author and the caption at once and the picture follows. The same encoded
+        /// `Message` decode a chat message's media goes through is used here
+        /// (`ApplyNativeMedia`), because there is one place the media type is worked out.
+        /// </summary>
+        private void OnNativeStatusPost(object sender, StatusPost post)
+        {
+            if (post == null || string.IsNullOrEmpty(post.Id) || string.IsNullOrEmpty(post.Author)) return;
+
+            ChatMessage row = FindStatus(post.Id);
+            if (row == null)
+            {
+                row = new ChatMessage();
+                row.Id = post.Id;
+                row.ChatId = post.Author;
+                row.IsIncoming = true;
+                row.Type = MessageType.Text;
+                row.Timestamp = Moment(post.Timestamp);
+                _statuses.Insert(0, row);
+            }
+
+            row.SenderName = DisplayNameForJid(post.Author);
+            if (!string.IsNullOrEmpty(post.Text)) row.Text = post.Text;
+
+            ApplyNativeMedia(row, post.Encoded);
+            if (row.Media != null && row.Media.IsFetchable) row.IsMediaLoading = true;
+
+            Diag.Ok("native: status " + post.Id + " from " + post.Author);
+            RaiseStatusesChanged();
+        }
+
+        /// <summary>
+        /// The bytes of a status have arrived: they go where every other received media goes
+        /// (`IncomingMediaStore` - memory for a picture, the phone's folder for a video) and
+        /// into the row that is already on screen.
+        /// </summary>
+        private void OnNativeStatusMedia(object sender, MediaArrival arrival)
+        {
+            if (arrival == null || string.IsNullOrEmpty(arrival.Id)) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/status media", ApplyStatusBytesAsync(arrival));
+#pragma warning restore 4014
+        }
+
+        private async Task ApplyStatusBytesAsync(MediaArrival arrival)
+        {
+            try
+            {
+                ChatMessage row = FindStatus(arrival.Id);
+                if (row == null) return;
+
+                MediaInfo info = arrival.Info;
+
+                IncomingMediaResult result = await IncomingMediaStore.StoreAsync(arrival.Id,
+                    info == null ? null : info.Type,
+                    info == null ? null : info.MimeType,
+                    info == null ? null : info.FileName,
+                    arrival.Bytes);
+
+                if (result == null)
+                {
+                    row.IsMediaLoading = false;
+                    return;
+                }
+
+                await ApplyStatusMediaAsync(row, result);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/status media", ex);
+            }
+        }
+
+        /// <summary>
+        /// A status whose bytes did not arrive with it - the history brought the photo and
+        /// not the file, or an earlier fetch failed: the tap asks WhatsApp for the blob and
+        /// puts it in the row, which is the same path a chat bubble's tap takes.
+        /// </summary>
+        public void RequestStatusMedia(ChatMessage row)
+        {
+            if (row == null) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/status media request", RequestStatusMediaAsync(row));
+#pragma warning restore 4014
+        }
+
+        private async Task RequestStatusMediaAsync(ChatMessage row)
+        {
+            MediaInfo info = row.Media;
+            if (info == null || !info.IsFetchable)
+            {
+                row.IsMediaLoading = false;
+                Diag.Ok("status: " + row.Id + " names no key or no address, so it is not fetchable");
+                return;
+            }
+
+            try
+            {
+                byte[] bytes = await NativeConnection.Instance.DownloadMediaAsync(info);
+
+                IncomingMediaResult result = await IncomingMediaStore.StoreAsync(row.Id,
+                    info.Type, info.MimeType, info.FileName, bytes);
+
+                if (result == null)
+                {
+                    row.IsMediaLoading = false;
+                    return;
+                }
+
+                await ApplyStatusMediaAsync(row, result);
+            }
+            catch (Exception ex)
+            {
+                row.IsMediaLoading = false;
+                Diag.Failed("DataService/status media request", ex);
+            }
+        }
+
+        /// <summary>Where a status's bytes end up: the same three decisions as a chat bubble's.</summary>
+        private async Task ApplyStatusMediaAsync(ChatMessage row, IncomingMediaResult result)
+        {
+            row.IsMediaLoading = false;
+            row.MediaMimeType = result.MimeType ?? row.MediaMimeType;
+            row.MediaType = result.MediaType;
+
+            if (!string.IsNullOrEmpty(result.LocalFileName))
+            {
+                row.MediaFilePath = result.LocalFileName;
+                if (!string.IsNullOrEmpty(result.FileName)) row.MediaFileName = result.FileName;
+                row.MediaSizeBytes = result.SizeBytes;
+                if (string.Equals(result.MediaType, "video", StringComparison.OrdinalIgnoreCase))
+                    row.Type = MessageType.Video;
+            }
+            else
+            {
+                row.MediaData = result.Base64;
+            }
+
+            if (string.Equals(result.MediaType, "image", StringComparison.OrdinalIgnoreCase))
+            {
+                row.Type = MessageType.Image;
+                await row.LoadMediaImageAsync();
+            }
+
+            RaiseStatusesChanged();
+        }
+
+        /// <summary>
+        /// Watching a status: the `read` receipt to the broadcast list that names it, which is
+        /// what fills the author's ring (`StatusFeed.Viewed`). The row says it was watched so
+        /// the page can draw it as seen; the receipt is sent once per status.
+        /// </summary>
+        public void MarkStatusViewed(ChatMessage row)
+        {
+            if (row == null || string.IsNullOrEmpty(row.Id) || string.IsNullOrEmpty(row.ChatId)) return;
+
+            row.IsStatusViewed = true;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/view status",
+                NativeConnection.Instance.ViewStatusAsync(row.ChatId, row.Id));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The feed as WhatsApp has it so far. Like the call log there is nothing to ask the
+        /// server for; this re-tells what has arrived to a page that just opened.
+        /// </summary>
+        public void ScanStatuses()
+        {
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/scan statuses", NativeConnection.Instance.ScanStatusesAsync());
+#pragma warning restore 4014
+        }
+
+        private ChatMessage FindStatus(string id)
+        {
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                if (_statuses[i].Id == id) return _statuses[i];
+            }
+
+            return null;
+        }
+
+        private void RaiseStatusesChanged()
+        {
+            var handler = StatusesChanged;
+            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         /// <summary>
@@ -1068,6 +1334,12 @@ namespace WhatsappApp.Services
         public static string DisplayNameForJid(string jid)
         {
             if (string.IsNullOrEmpty(jid)) return "?";
+
+            // The device comes off first: a JID that arrived as `15551230000:5@s.whatsapp.net`
+            // used to name the row `15551230000:5`, and a chat list full of device numbers is
+            // one nobody can read (`JidUtils.Normalize`).
+            jid = JidUtils.Normalize(jid);
+
             string user = jid.Split('@')[0];
             if (jid.EndsWith("@g.us")) return string.Format(Loc.Get("DataService_Group", "Group {0}"), user);
             if (user.Length >= 8 && user.All(char.IsDigit)) return "+" + user;

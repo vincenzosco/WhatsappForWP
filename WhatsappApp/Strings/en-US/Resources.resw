@@ -77,7 +77,7 @@
     <value>Updates are not available</value>
   </data>
   <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
-    <value>WhatsApp does not expose status updates to this app: the server it talks to has no endpoint for them, so this section stays empty on purpose. Chats and calls are unaffected.</value>
+    <value>Updates your contacts post appear here, and tapping one tells them you have seen it.</value>
   </data>
   <data name="CallsPage_EmptyHint" xml:space="preserve">
     <value>WhatsApp recorded no incoming calls in the chats the server scanned. Call records come from the server's own history: incoming calls only, from the most recent 25 chats.</value>

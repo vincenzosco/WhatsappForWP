@@ -180,6 +180,38 @@ namespace ProtocolTests
             }
         }
 
+        /// <summary>
+        /// The account the phone really has, with the one key that is allowed to be absent.
+        ///
+        /// This is the shape a personal account is paired in: `PairingSession` writes a push
+        /// name only for a business account, so every ordinary session is stored without one.
+        /// Reading it as required threw `no Session.PushName is stored` inside `Load`, and
+        /// because `HasSession` loads the account in its own try the throw came back as "no
+        /// session stored": the app showed the QR over an account that was there the whole
+        /// time, which is the failure this test exists to keep out.
+        /// </summary>
+        [Test]
+        public static void A_session_with_no_push_name_is_still_a_session()
+        {
+            var storage = new MemoryStorage();
+            var store = new CredentialStore(storage);
+
+            Credentials credentials = Credentials.Create(new CountingRandom());
+            credentials.Jid = "393892672185:5@s.whatsapp.net";
+            credentials.Lid = "123456789012345:5@lid";
+            credentials.Platform = "uwp";
+            credentials.PushName = null;
+            store.Save(credentials);
+
+            Assert.IsTrue(store.HasSession,
+                "an account with no push name is an account: the sign-in must not fall back to the QR");
+
+            Credentials restored = store.Load();
+            Assert.IsTrue(restored.PushName == null,
+                "and it loads with no name rather than throwing");
+            Assert.AreEqual(credentials.Jid, restored.Jid);
+        }
+
         [Test]
         public static void The_pairing_QR_is_the_string_a_phone_scans()
         {
