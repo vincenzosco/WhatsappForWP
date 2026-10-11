@@ -215,6 +215,32 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A history sync is this account's own, or it is not applied at all.
+        ///
+        /// The sync is a peer-routed self stanza: it arrives with `from` set to one of this
+        /// account's own devices, which is exactly the check the reference makes before it reads
+        /// one (`historySyncNotification` is a self-only protocol message, and both references
+        /// drop it when the stanza is not ours). `IncomingMessage.IsMine` is that check, and it
+        /// has to hold for the number, for the LID, and with the device part on or off.
+        /// </summary>
+        [Test]
+        public static void AHistorySyncIsOnlyThisAccountsOwn()
+        {
+            var world = new World();
+            world.Us.Lid = "15559990000@lid";
+
+            Assert.IsTrue(IncomingMessage.IsMine(OurDevice, world.Us), "our own device is ours");
+            Assert.IsTrue(IncomingMessage.IsMine(OurUser, world.Us), "and the account itself");
+            Assert.IsTrue(IncomingMessage.IsMine("15559990000:9@s.whatsapp.net", world.Us),
+                "another device of this account is still ours: the sync comes from the phone");
+            Assert.IsTrue(IncomingMessage.IsMine("15559990000:4@lid", world.Us),
+                "the same over the LID, which is how a linked device is named");
+            Assert.IsFalse(IncomingMessage.IsMine(PeerDevice, world.Us),
+                "a contact's stanza must not write this phone's chat list");
+            Assert.IsFalse(IncomingMessage.IsMine(null, world.Us), "and nothing is nobody");
+        }
+
+        /// <summary>
         /// The world one conversation needs: this device with its published pre-keys, and
         /// somebody on the other end who builds a session from them.
         /// </summary>

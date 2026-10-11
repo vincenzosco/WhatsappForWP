@@ -221,6 +221,17 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>The encoded `Message`, or null when the row carried none.</summary>
         public byte[] Encoded;
 
+        /// <summary>
+        /// True for a message the sync carried: it is drawn like any other, but it did not
+        /// arrive now, so it counts no unread message and raises no notification.
+        ///
+        /// The live reader leaves it false, and that one bit is what tells the two apart at the
+        /// app's single input (`DataService.OnNativeMessage`): without it every message of a
+        /// finished conversation would arrive as new - a toast per old message and a chat row
+        /// counted once more per sync.
+        /// </summary>
+        public bool IsHistory;
+
         public static HistoryMessage Decode(byte[] bytes)
         {
             var message = new HistoryMessage();

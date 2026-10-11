@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.WaProto;
 using ProtocolTests.Vectors;
@@ -30,6 +31,67 @@ namespace ProtocolTests
             Assert.AreEqual(2, chats.Rows[0].Messages.Count, "oldest first, as the payload has them");
             Assert.AreEqual("ci sei?", chats.Rows[0].Messages[0].Text);
             Assert.AreEqual("sono qui", chats.Rows[0].Messages[1].Text);
+        }
+
+        /// <summary>
+        /// The chunk answers the messages the app draws, and nothing else.
+        ///
+        /// A sync that filled the rows and handed no message over was the list of chats that all
+        /// open empty: the rows are what the person scrolls, the messages are what they read.
+        /// </summary>
+        [Test]
+        public static void TheMessagesAChunkBroughtAreTheOnesTheAppDraws()
+        {
+            var chats = new NativeChats();
+            IList<HistoryMessage> applied = chats.ApplyHistory(HistorySync.Decode(Hex(HistoryFixture.Plain)));
+
+            Assert.AreEqual(3, applied.Count, "the person's two messages and the group's one");
+            Assert.AreEqual("ci sei?", applied[0].Text);
+            Assert.AreEqual("393000000000@s.whatsapp.net", applied[0].Jid,
+                "the chat travels with the message, and the row's own JID is what the chat is called");
+            Assert.IsTrue(applied[0].IsHistory,
+                "and it is marked as history: nothing in here arrived now");
+            Assert.AreEqual("buongiorno", applied[2].Text, "the group's message is in the same answer");
+            Assert.IsTrue(chats.Rows[0].Messages[0].IsHistory,
+                "the flag is on the row's own copy too, not only on the answer");
+        }
+
+        [Test]
+        public static void AChunkDeliveredTwiceHandsTheAppNothingTwice()
+        {
+            var chats = new NativeChats();
+            HistorySync sync = HistorySync.Decode(Hex(HistoryFixture.Plain));
+
+            Assert.AreEqual(3, chats.ApplyHistory(sync).Count, "the first time it is the whole chunk");
+
+            var again = new HistorySync();
+            again.Conversations.Add(sync.Conversations[0]);
+
+            Assert.AreEqual(0, chats.ApplyHistory(again).Count,
+                "a re-delivered chunk adds no message, so it hands none over");
+        }
+
+        [Test]
+        public static void AMessageThisClientCannotDrawIsNotHandedToTheApp()
+        {
+            // A message whose payload is a protocol message: no words and no media, which is
+            // what a sticker or a reaction looks like to this client. It stays in the row - the
+            // order, the preview and the dedupe are the row's - and it is not a bubble.
+            byte[] inner = new ProtoWriter().Bytes(WhatsappApp.Protocol.WaProto.Message.ProtocolField,
+                new ProtoWriter().Varint(2, 5).ToArray()).ToArray();
+            byte[] key = new ProtoWriter().Text(1, "393444444444@s.whatsapp.net")
+                .Text(3, "3EB0NNNN0001").ToArray();
+            byte[] web = new ProtoWriter().Bytes(1, key).Bytes(2, inner).Varint(3, 1791610500).ToArray();
+            byte[] conversation = new ProtoWriter().Text(1, "393444444444@s.whatsapp.net")
+                .Bytes(2, new ProtoWriter().Bytes(1, web).ToArray()).ToArray();
+            HistorySync sync = HistorySync.Decode(new ProtoWriter()
+                .Varint(1, HistorySync.Recent).Bytes(2, conversation).ToArray());
+
+            var chats = new NativeChats();
+            IList<HistoryMessage> applied = chats.ApplyHistory(sync);
+
+            Assert.AreEqual(0, applied.Count, "a message with nothing to draw is not an empty bubble");
+            Assert.AreEqual(1, chats.Rows[0].Messages.Count, "and it is still a message of the chat");
         }
 
         [Test]

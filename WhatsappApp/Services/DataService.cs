@@ -211,6 +211,12 @@ namespace WhatsappApp.Services
             message.SenderId = JidUtils.Normalize(incoming.Sender);
             message.SenderName = string.IsNullOrEmpty(incoming.SenderName) ? null : incoming.SenderName;
             message.Timestamp = Moment(incoming.Timestamp);
+            // What the sync carried and what arrived now take the same path from here, so the
+            // one bit that tells them apart has to travel: a history row is inserted by date, is
+            // not counted and raises no toast (`OnNetworkMessageReceived`), while a live one is
+            // the newest message of its chat. Dropping the flag turned every message of the
+            // sync into a new one: a toast each and a chat row counted once more.
+            message.IsHistory = incoming.IsHistory;
 
             // A photo, a voice note, a video or a document: the encoded message is where
             // its keys are, and the same decoding serves a live message and a history row.

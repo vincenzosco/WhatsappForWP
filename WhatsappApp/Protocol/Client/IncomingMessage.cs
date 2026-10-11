@@ -495,8 +495,21 @@ namespace WhatsappApp.Protocol.Client
             return sessions.Load(from);
         }
 
-        /// <summary>Whether a device-sent form names one of this account's own JIDs.</summary>
-        private static bool IsMine(string jid, Credentials credentials)
+        /// <summary>
+        /// Whether a JID is one of this account's own - the number or the LID, any of its
+        /// devices, the device part dropped.
+        ///
+        /// Public because two callers ask it about a stanza and not only about a device-sent
+        /// form: a message from another of this account's devices is our own copy and is not
+        /// shown (that is the `IsOurEcho` above), and a **history sync** is applied only when it
+        /// comes from here. The second one is the reference's own rule and it is not a detail:
+        /// `historySyncNotification` is a self-only protocol message, and both references drop
+        /// it when the stanza is not ours - "an attacker could otherwise spoof any of these to
+        /// manipulate local state" (`Utils/process-message.js`, mirroring `whatsmeow`'s
+        /// `handleProtocolMessage`). Applied from anybody, the same stanza lets a contact write
+        /// this phone's chat list, its call log and its status feed.
+        /// </summary>
+        public static bool IsMine(string jid, Credentials credentials)
         {
             if (string.IsNullOrEmpty(jid) || credentials == null) return false;
 
