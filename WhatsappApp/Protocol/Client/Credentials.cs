@@ -133,7 +133,13 @@ namespace WhatsappApp.Protocol.Client
             return (value % ((1U << RegistrationIdBits) - 1)) + 1;
         }
 
-        private static byte[] Clamp(byte[] privateKey)
+        /// <summary>
+        /// Signal's clamping, in place: `k[0] &amp;= 248; k[31] &amp;= 127; k[31] |= 64`.
+        ///
+        /// Public because a sender key signing key needs the same treatment for the same
+        /// reason (`SenderKeyRecord.Create`): XEdDSA signs with the bytes as they are.
+        /// </summary>
+        public static byte[] Clamp(byte[] privateKey)
         {
             if (privateKey == null || privateKey.Length != Curve25519.KeyLength)
             {

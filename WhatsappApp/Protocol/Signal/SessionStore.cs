@@ -86,6 +86,44 @@ namespace WhatsappApp.Protocol.Signal
         {
             return "session/" + peer;
         }
+
+        /// <summary>
+        /// A group's sender key record, by whatever the caller names it - the group and the
+        /// member whose chain it is, in practice.
+        ///
+        /// It lives in this store and not a second one because it is the same kind of thing
+        /// as a session: a record read on every message and written back after the ratchet
+        /// moved. Null for a name with nothing under it, and null for a record that is not
+        /// whole, exactly as <see cref="Load"/> is.
+        /// </summary>
+        public SenderKeyRecord LoadSenderKey(string name)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ProtocolException("a sender key is stored under a name");
+
+            byte[] stored;
+            if (!_storage.TryRead(SenderKeyPrefix + name, out stored)) return null;
+
+            return SenderKeyRecord.Decode(stored);
+        }
+
+        /// <summary>Writes a sender key record, replacing the one that was there.</summary>
+        public void SaveSenderKey(string name, SenderKeyRecord record)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ProtocolException("a sender key is stored under a name");
+            if (record == null) throw new ProtocolException("there is no sender key record to save");
+
+            _storage.Write(SenderKeyPrefix + name, record.Encode());
+        }
+
+        /// <summary>Forgets a sender key: a member left the group, or the chain was rotated.</summary>
+        public void RemoveSenderKey(string name)
+        {
+            if (string.IsNullOrEmpty(name)) throw new ProtocolException("a sender key is stored under a name");
+
+            _storage.Remove(SenderKeyPrefix + name);
+        }
+
+        private const string SenderKeyPrefix = "senderkey/";
     }
 
     /// <summary>
