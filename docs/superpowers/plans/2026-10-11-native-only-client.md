@@ -1141,8 +1141,15 @@ the form `Ruling: <what> - <why> - <cost if wrong>`.
 | 2 | `9597c09` | done: `ConnectionPolicy` + the reconnect loop + pre-key publish. 141 protocol tests |
 | 3 | `f44d36b` | done: `InboundRouter` + the harness's missing `AreEqual(..., because)`. 147 |
 | 4 | `9ed5280` | done: `HistorySync`, `HistorySyncNotification`, `Zlib`. 155 |
-| 5 | `d948e19` | **half**: `NativeChats` and its tests are done. The `DataService`/`NativeConnection` wiring is not started. 162 |
-| 6-13 | - | not started |
+| 5 | `d948e19`, `1f34e32` | done: `NativeChats`, then the wiring - an inbound stanza is acked, opened, and becomes history, a chat row or a message; `DataService` reads `NativeConnection` and no longer the adapter. 163 |
+| 6 | `12b610e` | done: `Conversation` (typing + receipts), the send path with its waiter table, receipts into `SetMessageStatus`, `ChatPage` send/typing and `DataService`'s read off the adapter. 169 |
+| 7-13 | - | not started |
+
+Two things Task 5 and 6 deliberately left open, because they are Task 7's: the history
+chunks that arrive **behind a media download** are named in the log and not fetched
+(`NativeConnection.ApplyHistory`), and a message whose payload is media is acknowledged and
+left alone (`ReadMessageAsync`, "carries no words"). Both are working code paths that say
+what they cannot do yet - not silent drops.
 
 Every task above ended with all fourteen guards exit 0, `node --test tools/test/*.test.js`
 101 pass / 0 fail, `check-csharp5` exit 0, and the x86 `MSBuild -t:Rebuild` producing
