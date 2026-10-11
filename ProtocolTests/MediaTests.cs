@@ -171,8 +171,12 @@ namespace ProtocolTests
             Assert.ByteArraysEqual(Hex(MediaFixture.MediaKey), info.MediaKey);
         }
 
-        /// <summary>A fetcher that answers the URLs it was given and refuses the rest.</summary>
-        private sealed class ScriptedFetcher : IMediaFetcher
+        /// <summary>
+        /// A fetcher that answers the URLs it was given and refuses the rest. `internal`
+        /// rather than private because the history tests fetch through it too: one scripted
+        /// fetcher, not two copies that can disagree.
+        /// </summary>
+        internal sealed class ScriptedFetcher : IMediaFetcher
         {
             private readonly Dictionary<string, byte[]> _bodies = new Dictionary<string, byte[]>();
 
