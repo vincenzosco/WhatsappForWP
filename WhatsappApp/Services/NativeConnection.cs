@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
+using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.Signal;
 using WhatsappApp.Protocol.Transport;
 using WhatsappApp.Protocol.WaProto;
@@ -99,6 +100,12 @@ namespace WhatsappApp.Services
 
         /// <summary>The status line changed, for the screens that show it.</summary>
         public event EventHandler<string> ConnectionStatusChanged;
+
+        /// <summary>
+        /// The bytes of a media message, fetched and decrypted: a photo, a voice note, a
+        /// document or a video, with the message it belongs to.
+        /// </summary>
+        public event EventHandler<MediaArrival> MediaArrived;
 
         /// <summary>
         /// A receipt arrived for something this phone sent: the message was delivered, or it
@@ -331,7 +338,7 @@ namespace WhatsappApp.Services
 
             if (incoming.Text == null)
             {
-                Diag.Ok("native: message " + incoming.Id + " carries no words (media arrives with the media path)");
+                await ReadMediaAsync(incoming);
                 return;
             }
 
@@ -509,6 +516,101 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// A message whose payload is media: the row first, then the bytes.
+        ///
+        /// The row goes out before the download is even started, because the bubble - a photo
+        /// with its caption, or a voice note with its seconds - is what a person sees while
+        /// the bytes are still coming, and a chat that stayed empty for the length of a 4 MB
+        /// download would look like a message that never arrived.
+        ///
+        /// Every failure here is named and survived. A photo that cannot be downloaded - the
+        /// phone lost its connection half way, the blob was taken down, the signature does not
+        /// match - is a bubble that stays without its picture, and it must not be a session
+        /// that ends. The message was acknowledged before this ran, so the server will not
+        /// send it again either way.
+        ///
+        /// The encoded `Message` travels on the row, so the app reads a photo the same way
+        /// whether it came in live or came out of the history: one decoder, one place the
+        /// media type is worked out (`MediaMessages.Of`).
+        /// </summary>
+        private async Task ReadMediaAsync(IncomingMessage incoming)
+        {
+            MediaInfo info = MediaMessages.Of(incoming.Content);
+            if (info == null)
+            {
+                Diag.Ok("native: message " + incoming.Id + " carries nothing this client reads yet");
+                return;
+            }
+
+            var message = new HistoryMessage();
+            message.Jid = incoming.From;
+            message.Id = incoming.Id;
+            message.Timestamp = incoming.Timestamp;
+            message.Encoded = incoming.Content.Encode();
+
+            if (_chats.AddIncoming(message))
+            {
+                Diag.Ok("native: " + info.Type + " " + incoming.Id + " from " + incoming.From);
+
+                HistoryConversation row = _chats.Find(incoming.From);
+                if (row != null && ChatArrived != null) ChatArrived(this, row);
+                if (MessageArrived != null) MessageArrived(this, message);
+            }
+
+            if (!info.IsFetchable)
+            {
+                Diag.Ok("native: the media of " + incoming.Id + " names no key or no address");
+                return;
+            }
+
+            byte[] bytes;
+            try
+            {
+                bytes = await MediaDownload.FetchAsync(new WinRtMediaFetcher(), info.MediaKey,
+                    info.Type, info.DirectPath, info.Url, info.FileSha256, info.FileEncSha256, info.FileLength);
+            }
+            catch (Exception error)
+            {
+                // The bubble stays, without its picture. A tap asks again (the media info is
+                // on the bubble), so a download that failed once is not a message that can
+                // never be opened.
+                Diag.Failed("NativeConnection/media " + incoming.Id, error);
+                return;
+            }
+
+            Diag.Ok("native: " + bytes.Length + " byte(s) of " + info.Type + " for " + incoming.Id);
+
+            AnnounceMedia(incoming.From, incoming.Id, info, bytes);
+        }
+
+        /// <summary>The bytes of a media message, for the app to put in the bubble.</summary>
+        private void AnnounceMedia(string jid, string id, MediaInfo info, byte[] bytes)
+        {
+            if (MediaArrived == null) return;
+
+            var arrival = new MediaArrival();
+            arrival.Jid = jid;
+            arrival.Id = id;
+            arrival.Info = info;
+            arrival.Bytes = bytes;
+
+            MediaArrived(this, arrival);
+        }
+
+        /// <summary>
+        /// The bytes of a media message this phone already knows about but has not got - a row
+        /// from the history, or one whose download failed earlier.
+        /// </summary>
+        public Task<byte[]> DownloadMediaAsync(MediaInfo info)
+        {
+            if (info == null) throw new ProtocolException("there is no media to download");
+            if (!info.IsFetchable) throw new ProtocolException("this media names no key or no address");
+
+            return MediaDownload.FetchAsync(new WinRtMediaFetcher(), info.MediaKey, info.Type,
+                info.DirectPath, info.Url, info.FileSha256, info.FileEncSha256, info.FileLength);
+        }
+
+        /// <summary>
         /// The history the server just sent, into the chat list.
         ///
         /// Two shapes, both the reference's: a bootstrap carries the compressed payload
@@ -621,6 +723,27 @@ namespace WhatsappApp.Services
                 await session.PingAsync();
             }
         }
+    }
+
+    /// <summary>
+    /// A media message's bytes, with the message they belong to.
+    ///
+    /// The bytes and not a decoded image: what to do with a voice note, a video and a PDF is
+    /// three different things, and the app is where those three are known.
+    /// </summary>
+    public sealed class MediaArrival
+    {
+        /// <summary>The chat it arrived in.</summary>
+        public string Jid;
+
+        /// <summary>The message it belongs to, which is what the bubble is found by.</summary>
+        public string Id;
+
+        /// <summary>What the media says about itself: type, MIME type, file name, seconds.</summary>
+        public MediaInfo Info;
+
+        /// <summary>The decrypted file.</summary>
+        public byte[] Bytes;
     }
 
     /// <summary>

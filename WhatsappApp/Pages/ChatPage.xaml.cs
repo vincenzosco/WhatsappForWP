@@ -620,18 +620,17 @@ namespace WhatsappApp.Pages
 
         private void RequestMedia(ChatMessage message)
         {
-            if (!CommunicationService.Instance.IsConnected) return;
-            // The spinner starts now: the first piece can take a while, and without
-            // this the tap seems to have done nothing.
+            if (message == null) return;
+
+            // The spinner starts now: the file is fetched from WhatsApp, decrypted and
+            // written before the bubble can draw it, and without this the tap seems to
+            // have done nothing.
             message.IsMediaLoading = true;
             // A tap on the play button of a note with no bytes yet: the bytes come
             // later, and this is what makes the note play then instead of staying
             // silent until a second tap.
             _playWhenReady = message;
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("ChatPage/request media",
-                CommunicationService.Instance.RequestMediaAsync(message.ChatId, message.Id));
-#pragma warning restore 4014
+            DataService.Instance.RequestMedia(message);
         }
 
         /// <summary>

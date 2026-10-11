@@ -28,6 +28,18 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>The encoded `ExtendedText`: a quote, a link preview, a thumbnail.</summary>
         public const int ExtendedTextField = 6;
 
+        /// <summary>The encoded `ImageMessage`: a photo.</summary>
+        public const int ImageField = 3;
+
+        /// <summary>The encoded `DocumentMessage`: an attachment.</summary>
+        public const int DocumentField = 7;
+
+        /// <summary>The encoded `AudioMessage`: a voice note or a track.</summary>
+        public const int AudioField = 8;
+
+        /// <summary>The encoded `VideoMessage`: a video.</summary>
+        public const int VideoField = 9;
+
         /// <summary>The encoded `ProtocolMessage`: revoke, ephemeral, edit.</summary>
         public const int ProtocolField = 12;
 
@@ -42,6 +54,19 @@ namespace WhatsappApp.Protocol.WaProto
 
         /// <summary>`extendedTextMessage`, field 6, kept encoded.</summary>
         public byte[] ExtendedTextMessage;
+
+        /// <summary>
+        /// The four media, as they arrived.
+        ///
+        /// Kept encoded and not decoded here, because the four have four different field
+        /// tables and only the media path needs them (`MediaMessages` holds the tables). The
+        /// important part is that they are kept at all: this decoder used to skip them, which
+        /// turned every photo a contact sent into an empty bubble.
+        /// </summary>
+        public byte[] ImageMessage;
+        public byte[] DocumentMessage;
+        public byte[] AudioMessage;
+        public byte[] VideoMessage;
 
         /// <summary>`protocolMessage`, field 12, kept encoded.</summary>
         public byte[] ProtocolMessage;
@@ -126,7 +151,11 @@ namespace WhatsappApp.Protocol.WaProto
             return new ProtoWriter()
                 .Text(ConversationField, Conversation)
                 .Bytes(SenderKeyDistributionField, SenderKeyDistributionMessage)
+                .Bytes(ImageField, ImageMessage)
                 .Bytes(ExtendedTextField, ExtendedTextMessage)
+                .Bytes(DocumentField, DocumentMessage)
+                .Bytes(AudioField, AudioMessage)
+                .Bytes(VideoField, VideoMessage)
                 .Bytes(ProtocolField, ProtocolMessage)
                 .Bytes(DeviceSentField, DeviceSentMessage)
                 .ToArray();
@@ -156,6 +185,22 @@ namespace WhatsappApp.Protocol.WaProto
 
                     case ExtendedTextField:
                         message.ExtendedTextMessage = reader.ReadBytes();
+                        break;
+
+                    case ImageField:
+                        message.ImageMessage = reader.ReadBytes();
+                        break;
+
+                    case DocumentField:
+                        message.DocumentMessage = reader.ReadBytes();
+                        break;
+
+                    case AudioField:
+                        message.AudioMessage = reader.ReadBytes();
+                        break;
+
+                    case VideoField:
+                        message.VideoMessage = reader.ReadBytes();
                         break;
 
                     case ProtocolField:
