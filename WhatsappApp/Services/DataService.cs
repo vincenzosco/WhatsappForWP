@@ -121,9 +121,12 @@ namespace WhatsappApp.Services
             if (_listening) return;
             _listening = true;
 
-            CommunicationService.Instance.MessageReceived += OnNetworkMessageReceived;
-            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
-            CommunicationService.Instance.ConnectionEstablished += OnConnectionEstablished;
+            // The native client is the only source of the chats and the messages. The
+            // adapter's own events are not subscribed to at all: two sources for one chat
+            // list is how every message arrives twice.
+            NativeConnection.Instance.MessageArrived += OnNativeMessage;
+            NativeConnection.Instance.ChatArrived += OnNativeChat;
+            NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
 
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
@@ -169,6 +172,71 @@ namespace WhatsappApp.Services
             _contacts = new ObservableCollection<Contact>();
             _calls = new ObservableCollection<CallLogEntry>();
             _chatMessages = new Dictionary<string, ObservableCollection<ChatMessage>>();
+        }
+
+        /// <summary>
+        /// One message off the native client, into the same path the adapter's frames took.
+        /// The list, the unread counts, the previews, the preferences and the caches are one
+        /// implementation and stay one: a second path for the new source would be a second
+        /// set of bugs, and the two would disagree within a day.
+        /// </summary>
+        private void OnNativeMessage(object sender, WhatsappApp.Protocol.WaProto.HistoryMessage incoming)
+        {
+            if (incoming == null || string.IsNullOrEmpty(incoming.Jid)) return;
+
+            var message = new ChatMessage();
+            message.Id = incoming.Id;
+            message.ChatId = incoming.Jid;
+            message.Text = incoming.Text;
+            message.Type = MessageType.Text;
+            message.IsIncoming = !incoming.IsFromMe;
+            message.IsGroup = incoming.Jid.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
+            message.SenderId = incoming.Sender;
+            message.SenderName = string.IsNullOrEmpty(incoming.SenderName) ? null : incoming.SenderName;
+            message.Timestamp = Moment(incoming.Timestamp);
+
+            OnNetworkMessageReceived(this, message);
+        }
+
+        /// <summary>
+        /// One chat row as the history knows it: who it is with, what it is called, how much
+        /// is unread, and the last of the messages that came with it.
+        ///
+        /// A row with no messages is still a row - WhatsApp knows the conversation even when
+        /// nothing was synced from it - which is what `ApplyChat` already does.
+        /// </summary>
+        private void OnNativeChat(object sender, WhatsappApp.Protocol.WaProto.HistoryConversation row)
+        {
+            if (row == null || string.IsNullOrEmpty(row.Jid)) return;
+
+            var message = new ChatMessage();
+            message.ChatId = row.Jid;
+            message.SenderName = row.Name;
+            message.UnreadCount = row.UnreadCount;
+            message.IsGroup = row.IsGroup;
+            message.Type = MessageType.Text;
+            message.Timestamp = Moment(row.LastMessageTimestamp > 0 ? row.LastMessageTimestamp : row.ConversationTimestamp);
+
+            if (row.Messages.Count > 0) message.Text = row.Messages[row.Messages.Count - 1].Text;
+
+            ApplyChat(message);
+        }
+
+        private void OnNativeHistoryFinished(object sender, WhatsappApp.Protocol.WaProto.HistorySync sync)
+        {
+            Diag.Ok("native: the history is complete, " + _contacts.Count + " row(s) in the list");
+        }
+
+        /// <summary>
+        /// A wire timestamp in seconds as the local moment it happened. Zero is "the server
+        /// did not say", and a row stamped with 1970 would sort itself to the bottom of the
+        /// list forever.
+        /// </summary>
+        private static DateTime Moment(long seconds)
+        {
+            if (seconds <= 0) return DateTime.Now;
+
+            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds).ToLocalTime();
         }
 
         private async void OnNetworkMessageReceived(object sender, ChatMessage message)
