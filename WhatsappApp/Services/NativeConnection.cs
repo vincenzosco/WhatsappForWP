@@ -54,6 +54,27 @@ namespace WhatsappApp.Services
         private readonly Dictionary<string, TaskCompletionSource<BinaryNode>> _waiters =
             new Dictionary<string, TaskCompletionSource<BinaryNode>>();
 
+        /// <summary>
+        /// The calls the history has brought, since the app opened.
+        ///
+        /// They are not asked for and they cannot be: WhatsApp puts the call log in the
+        /// history sync (`HistorySync.callLogRecords`, field 13), which is why a call made
+        /// while the phone was off is here the next time the app opens. What this holds is
+        /// therefore the answer to "what has arrived", and `ScanCallsAsync` is that answer
+        /// re-told to whoever just opened the page.
+        /// </summary>
+        private IList<CallLogEntryModel> _calls = new List<CallLogEntryModel>();
+
+        /// <summary>
+        /// The statuses that have arrived, since the app opened, newest first.
+        ///
+        /// They come from two places and hold the same shape either way: the history sync
+        /// carries a `status@broadcast` conversation with the last day's updates in it, and a
+        /// status posted while the app is open arrives as a live message. Ids are what keeps
+        /// the history's re-sent chunks from showing the same update twice.
+        /// </summary>
+        private IList<StatusPost> _statuses = new List<StatusPost>();
+
         private NativeSession _session;
         private Credentials _account;
         private ISessionStorage _storage;
@@ -119,6 +140,24 @@ namespace WhatsappApp.Services
         /// document or a video, with the message it belongs to.
         /// </summary>
         public event EventHandler<MediaArrival> MediaArrived;
+
+        /// <summary>
+        /// The call log, every time a history sync brings more of it.
+        /// </summary>
+        public event EventHandler<IList<CallLogEntryModel>> CallsScanned;
+
+        /// <summary>
+        /// A status was posted: somebody else's update, from the history or live. It is the
+        /// row, and the photo's bytes follow on <see cref="StatusMediaArrived"/> when it has
+        /// one.
+        /// </summary>
+        public event EventHandler<StatusPost> StatusArrived;
+
+        /// <summary>
+        /// The bytes of a status, fetched and decrypted. `Jid` is the author and `Id` is the
+        /// status message, because a status has no chat to be found in.
+        /// </summary>
+        public event EventHandler<MediaArrival> StatusMediaArrived;
 
         /// <summary>
         /// A receipt arrived for something this phone sent: the message was delivered, or it
@@ -349,6 +388,16 @@ namespace WhatsappApp.Services
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
             if (incoming.IsOurEcho) return;
 
+            if (StatusFeed.IsStatus(incoming.From))
+            {
+                // A status is not a chat: a row for `status@broadcast` would sit at the top of
+                // the list under the name "status" for every contact who posted this morning
+                // (`StatusFeed.IsStatus`; Review Focus 5). It goes to the feed instead, and
+                // the chat list never hears about it.
+                await AnnounceStatusAsync(incoming);
+                return;
+            }
+
             if (incoming.Content == null && incoming.Text == null)
             {
                 // A group stanza that carried nothing but a member's sender key: it was
@@ -366,19 +415,22 @@ namespace WhatsappApp.Services
 
             var message = new HistoryMessage();
             message.Id = incoming.Id;
-            message.Jid = incoming.From;
+            // The chat, not the address it came from: the stanza keeps the sender's device
+            // and a row keyed on it would be a row per device (`IncomingMessage.Chat`).
+            message.Jid = incoming.Chat;
             message.Text = incoming.Text;
             message.Timestamp = incoming.Timestamp;
             message.IsFromMe = false;
             // Who wrote it, for a group: the row's chat is the group, so the sender has to
-            // travel with the message or the bubble would say the group wrote it.
-            message.Sender = incoming.Sender;
+            // travel with the message or the bubble would say the group wrote it. Without
+            // its device, because this one is shown to a person.
+            message.Sender = JidUtils.Normalize(incoming.Sender);
 
             if (!_chats.AddIncoming(message)) return;
 
             Diag.Ok("native: " + incoming.Id + " from " + incoming.From);
 
-            HistoryConversation row = _chats.Find(incoming.From);
+            HistoryConversation row = _chats.Find(message.Jid);
             if (row != null && ChatArrived != null) ChatArrived(this, row);
             if (MessageArrived != null) MessageArrived(this, message);
 
@@ -875,16 +927,17 @@ namespace WhatsappApp.Services
             }
 
             var message = new HistoryMessage();
-            message.Jid = incoming.From;
+            message.Jid = incoming.Chat;
             message.Id = incoming.Id;
             message.Timestamp = incoming.Timestamp;
+            message.Sender = JidUtils.Normalize(incoming.Sender);
             message.Encoded = incoming.Content.Encode();
 
             if (_chats.AddIncoming(message))
             {
                 Diag.Ok("native: " + info.Type + " " + incoming.Id + " from " + incoming.From);
 
-                HistoryConversation row = _chats.Find(incoming.From);
+                HistoryConversation row = _chats.Find(message.Jid);
                 if (row != null && ChatArrived != null) ChatArrived(this, row);
                 if (MessageArrived != null) MessageArrived(this, message);
             }
@@ -912,7 +965,7 @@ namespace WhatsappApp.Services
 
             Diag.Ok("native: " + bytes.Length + " byte(s) of " + info.Type + " for " + incoming.Id);
 
-            AnnounceMedia(incoming.From, incoming.Id, info, bytes);
+            AnnounceMedia(message.Jid, incoming.Id, info, bytes);
         }
 
         /// <summary>The bytes of a media message, for the app to put in the bubble.</summary>
@@ -994,6 +1047,9 @@ namespace WhatsappApp.Services
 
             HistorySync sync = HistorySync.Decode(Zlib.Inflate(notification.InlinePayload));
 
+            ApplyCalls(sync);
+            ApplyStatuses(sync);
+
             _chats.ApplyHistory(sync);
             Diag.Ok("native: history sync type " + sync.SyncType + " carried "
                 + sync.Conversations.Count + " conversation(s), " + _chats.Rows.Count + " row(s) now");
@@ -1005,6 +1061,201 @@ namespace WhatsappApp.Services
             }
 
             if (_chats.IsSyncComplete && HistoryFinished != null) HistoryFinished(this, sync);
+        }
+
+        /// <summary>
+        /// The call log a sync brought, added to what is already here and told to whoever is
+        /// listening.
+        ///
+        /// Two syncs both carry the same records - the history is re-sent in chunks and its
+        /// call log with it - so the ids are what keeps a call from appearing twice. There is
+        /// no ceiling on the list and there does not need to be: it is what WhatsApp sent, and
+        /// WhatsApp's own call log is bounded by the phone's storage, not by this client's
+        /// memory (the page's rows come from `DataService`, which is where the list a person
+        /// sees lives).
+        /// </summary>
+        private void ApplyCalls(HistorySync sync)
+        {
+            // This account's own JID, because the record's creator is us on every call we
+            // made (`Calls.FromHistory`).
+            IList<CallLogEntryModel> arrived = Calls.FromHistory(sync, Jid);
+            if (arrived.Count == 0) return;
+
+            for (int i = 0; i < arrived.Count; i++)
+            {
+                bool known = false;
+                for (int k = 0; k < _calls.Count; k++)
+                {
+                    if (_calls[k].Id == arrived[i].Id) { known = true; break; }
+                }
+
+                if (!known) _calls.Add(arrived[i]);
+            }
+
+            Diag.Ok("native: " + arrived.Count + " call(s) in the history, " + _calls.Count + " known");
+
+            if (CallsScanned != null) CallsScanned(this, _calls);
+        }
+
+        /// <summary>
+        /// The call log as it stands, told to whoever just asked for it.
+        ///
+        /// Why there is nothing to ask the server: the log arrived with the history (see
+        /// `ApplyCalls`), and re-asking would be a query WhatsApp has no answer for. A page
+        /// that opens before the first sync therefore shows an empty log and fills when the
+        /// sync arrives - which is the same moment the chat list fills.
+        /// </summary>
+        public Task ScanCallsAsync()
+        {
+            if (CallsScanned != null) CallsScanned(this, _calls);
+
+            Diag.Ok("native: the call log has " + _calls.Count + " entry(ies)");
+
+            return Task.FromResult(0);
+        }
+
+        /// <summary>
+        /// Refuses a call: the `call` node with a `reject` child, on the one socket.
+        /// </summary>
+        public async Task RejectCallAsync(string callId, string jid)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Reject(callId, jid));
+            Diag.Ok("native: refused the call " + callId + " from " + jid);
+        }
+
+        /// <summary>
+        /// One status off the wire: into the feed, and its photo fetched if it carries one.
+        ///
+        /// The row goes out before the bytes, exactly as a media message's does, so the page
+        /// draws the update and fills in the picture when it arrives. A status whose bytes
+        /// cannot be fetched - no key, the blob taken down, the connection died - is still an
+        /// update on screen, and a tap asks again (the media info travels with the row).
+        /// </summary>
+        private async Task AnnounceStatusAsync(IncomingMessage incoming)
+        {
+            var post = new StatusPost();
+            // The author, without their device: it is a name the feed shows.
+            post.Author = JidUtils.Normalize(string.IsNullOrEmpty(incoming.Sender)
+                ? incoming.From : incoming.Sender);
+            post.Id = incoming.Id;
+            post.Timestamp = incoming.Timestamp;
+            post.Text = incoming.Text;
+            if (incoming.Content != null) post.Encoded = incoming.Content.Encode();
+
+            if (!KnownStatus(post.Id)) _statuses.Insert(0, post);
+
+            Diag.Ok("native: a status from " + post.Author + " (" + post.Id + ")");
+
+            if (StatusArrived != null) StatusArrived(this, post);
+
+            if (incoming.Content == null) return;
+
+            MediaInfo info = MediaMessages.Of(incoming.Content);
+            if (info == null || !info.IsFetchable) return;
+
+            byte[] bytes;
+            try
+            {
+                bytes = await MediaDownload.FetchAsync(new WinRtMediaFetcher(), info.MediaKey,
+                    info.Type, info.DirectPath, info.Url, info.FileSha256, info.FileEncSha256, info.FileLength);
+            }
+            catch (Exception error)
+            {
+                // The update stays on screen without its picture. A tap asks again, and the
+                // log says which one failed rather than the feed going quiet.
+                Diag.Failed("NativeConnection/status " + post.Id, error);
+                return;
+            }
+
+            AnnounceStatusMedia(post.Author, post.Id, info, bytes);
+        }
+
+        /// <summary>The bytes of a status, told to whoever draws it.</summary>
+        private void AnnounceStatusMedia(string author, string id, MediaInfo info, byte[] bytes)
+        {
+            if (StatusMediaArrived == null) return;
+
+            var arrival = new MediaArrival();
+            arrival.Jid = author;
+            arrival.Id = id;
+            arrival.Info = info;
+            arrival.Bytes = bytes;
+
+            StatusMediaArrived(this, arrival);
+        }
+
+        /// <summary>
+        /// The statuses a sync brought, each one only the first time it is seen.
+        ///
+        /// The history is re-sent in chunks with its status conversation in every one of
+        /// them, so the id is what keeps an update from being drawn two or three times.
+        /// </summary>
+        private void ApplyStatuses(HistorySync sync)
+        {
+            IList<StatusPost> arrived = StatusFeed.FromHistory(sync);
+            if (arrived.Count == 0) return;
+
+            int fresh = 0;
+            for (int i = 0; i < arrived.Count; i++)
+            {
+                if (KnownStatus(arrived[i].Id)) continue;
+
+                _statuses.Add(arrived[i]);
+                fresh++;
+
+                if (StatusArrived != null) StatusArrived(this, arrived[i]);
+            }
+
+            Diag.Ok("native: " + arrived.Count + " status(es) in the history, " + fresh + " new");
+        }
+
+        private bool KnownStatus(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return true;
+
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                if (_statuses[i].Id == id) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>The statuses that have arrived, newest first, for a page that just opened.</summary>
+        public IList<StatusPost> StatusPosts
+        {
+            get { return _statuses; }
+        }
+
+        /// <summary>
+        /// The feed as it stands, told to whoever just asked for it. Like the call log there
+        /// is nothing to ask the server: statuses arrive with the history and with the live
+        /// messages, and a page that opens before either shows an empty feed until one does.
+        /// </summary>
+        public Task ScanStatusesAsync()
+        {
+            if (StatusArrived != null)
+            {
+                for (int i = 0; i < _statuses.Count; i++) StatusArrived(this, _statuses[i]);
+            }
+
+            Diag.Ok("native: the feed has " + _statuses.Count + " status(es)");
+
+            return Task.FromResult(0);
+        }
+
+        /// <summary>
+        /// Watches a status: the `read` receipt to the broadcast list that names it, which is
+        /// what fills the author's ring (`StatusFeed.Viewed`).
+        /// </summary>
+        public async Task ViewStatusAsync(string author, string id)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(StatusFeed.Viewed(author, id));
+            Diag.Ok("native: watched the status " + id + " by " + author);
         }
 
         /// <summary>

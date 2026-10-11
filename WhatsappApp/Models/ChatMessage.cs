@@ -83,6 +83,7 @@ namespace WhatsappApp.Models
         // not change what is stored.
         private long _mediaSizeBytes;
         private bool _isPlaying;          // a voice note of this bubble is playing
+        private bool _isStatusViewed;     // a status row that has been watched
         private bool _audioFailed;        // the phone refused to decode it
         private double _playbackProgress; // 0..1, what the bar draws
         private string _playbackTimeText;
@@ -655,6 +656,19 @@ namespace WhatsappApp.Models
                 OnPropertyChanged();
                 OnPropertyChanged("IsAudioNotPlaying");
             }
+        }
+
+        /// <summary>
+        /// A status this phone has watched.
+        ///
+        /// Presentation state and nothing else: the receipt that says so is what fills the
+        /// author's ring and it has already gone to the broadcast list
+        /// (`StatusFeed.Viewed`); this is only what draws the row as seen.
+        /// </summary>
+        public bool IsStatusViewed
+        {
+            get { return _isStatusViewed; }
+            set { _isStatusViewed = value; OnPropertyChanged(); }
         }
 
         /// <summary>The play glyph shows exactly when nothing is playing.</summary>

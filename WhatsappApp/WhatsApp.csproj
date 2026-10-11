@@ -144,6 +144,7 @@
     <Compile Include="Protocol\Client\CredentialStore.cs" />
     <Compile Include="Protocol\Client\ConnectionPolicy.cs" />
     <Compile Include="Protocol\Client\Conversation.cs" />
+    <Compile Include="Protocol\Client\Calls.cs" />
     <Compile Include="Protocol\Client\Credentials.cs" />
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
     <Compile Include="Protocol\Client\InboundRouter.cs" />
@@ -158,6 +159,7 @@
     <Compile Include="Protocol\Client\ProfilePictures.cs" />
     <Compile Include="Protocol\Client\PreKeyUpload.cs" />
     <Compile Include="Protocol\Client\SessionKeepAlive.cs" />
+    <Compile Include="Protocol\Client\StatusFeed.cs" />
     <Compile Include="Protocol\Client\Zlib.cs" />
     <Compile Include="Protocol\Client\WhatsAppSocket.cs" />
     <Compile Include="Protocol\Diagnostics.cs" />

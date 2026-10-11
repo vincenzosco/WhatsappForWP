@@ -8,9 +8,9 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Pages
 {
     /// <summary>
-    /// Call log. The data is not local: the adapter derives it from the GOWA
-    /// history (incoming calls only, from the most recent chats) and sends it
-    /// when it receives the "calls" command.
+    /// Call log. There is nothing to ask a server for: WhatsApp puts the call log in the
+    /// history sync (`HistorySync.callLogRecords`), so the rows arrive on their own and this
+    /// page is a view over what the client already holds (`DataService.Calls`).
     /// </summary>
     public sealed partial class CallsPage : Page
     {
@@ -46,22 +46,17 @@ namespace WhatsappApp.Pages
 
         private void RefreshCalls()
         {
-            if (!CommunicationService.Instance.IsConnected)
+            if (!NativeConnection.Instance.IsConnected)
             {
                 ShowMessage(Loc.Get("CallsPage_NotConnected",
                     "Not connected to the server: call records are unavailable."));
                 return;
             }
 
-            DataService.Instance.ClearCalls();
             ShowMessage(Loc.Get("CallsPage_Scanning", "Looking for calls..."));
 
-            // OnNavigatedTo is not async: the request is sent and the
-            // "calls.done" frame is awaited to know the adapter has finished.
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("CallsPage/scan",
-                CommunicationService.Instance.SendControlAsync("calls"));
-#pragma warning restore 4014
+            // The client re-tells the log it holds and raises CallsScanCompleted when it has.
+            DataService.Instance.ScanCalls();
         }
 
         private void OnCallsScanCompleted(object sender, EventArgs e)

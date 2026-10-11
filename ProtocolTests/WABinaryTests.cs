@@ -144,6 +144,39 @@ namespace ProtocolTests
             Assert.IsTrue(Contains(bytes, (byte)Tags.AdJid));
         }
 
+        /// <summary>
+        /// The chat's JID, which is the address without the device.
+        ///
+        /// Both references normalize before they decide which conversation a message
+        /// belongs to (`whatsmeow`, `message.go`, `source.Chat = from.ToNonAD()`; Baileys'
+        /// `jidNormalizedUser`), and without it a contact writing from a linked device gets a
+        /// second chat row named after that device.
+        /// </summary>
+        [Test]
+        public static void A_chat_jid_drops_the_device()
+        {
+            Assert.AreEqual("393401234567@s.whatsapp.net",
+                JidUtils.Normalize("393401234567:12@s.whatsapp.net"));
+            Assert.AreEqual("393401234567@s.whatsapp.net",
+                JidUtils.Normalize("393401234567@s.whatsapp.net"),
+                "a JID with no device is already a chat");
+            Assert.AreEqual("393401234567@s.whatsapp.net",
+                JidUtils.Normalize("393401234567:0@s.whatsapp.net"),
+                "and device zero is no device");
+            Assert.AreEqual("120363000000000000@g.us",
+                JidUtils.Normalize("120363000000000000@g.us"),
+                "a group has no device to drop");
+            Assert.AreEqual("status@broadcast",
+                JidUtils.Normalize("status:5@broadcast"),
+                "and neither has a status, whose author is the device-qualified part");
+            Assert.AreEqual("393401234567@s.whatsapp.net",
+                JidUtils.Normalize("393401234567@c.us"),
+                "`c.us` is the old spelling of the same server");
+            Assert.AreEqual("", JidUtils.Normalize(""));
+            Assert.AreEqual("not a jid", JidUtils.Normalize("not a jid"),
+                "a string that is not a JID is left alone rather than guessed at");
+        }
+
         [Test]
         public static void A_long_payload_uses_the_20_bit_length()
         {

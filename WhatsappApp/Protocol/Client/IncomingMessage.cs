@@ -31,8 +31,23 @@ namespace WhatsappApp.Protocol.Client
         /// Who it came from, as the stanza spells it: the device JID of the sender, or the
         /// **group** when the message is a group's. A group message's `from` is the group
         /// and the sender is a `participant` attribute, which is why both are here.
+        ///
+        /// It keeps the device on purpose - that is what a Signal session is stored under -
+        /// so it is *not* the chat (`Chat` is).
         /// </summary>
         public string From;
+
+        /// <summary>
+        /// The chat this message belongs to: `From` without the device, which is what the
+        /// chat list, the message rows and the status feed key on.
+        ///
+        /// The reference makes the same split (`whatsmeow`, `parseMessageSource`:
+        /// `source.Chat = from.ToNonAD()`, `source.Sender = from`), and it is what keeps a
+        /// contact who writes from a linked device from getting a second chat row named after
+        /// that device. For a group or a status it is the list's own JID, which has no
+        /// device to drop.
+        /// </summary>
+        public string Chat;
 
         /// <summary>
         /// The member who wrote it, for a group message; null for a 1:1 one, where `From`
@@ -134,7 +149,14 @@ namespace WhatsappApp.Protocol.Client
             var incoming = new IncomingMessage();
             incoming.Id = id;
             incoming.From = from;
+            incoming.Chat = JidUtils.Normalize(from);
             incoming.Timestamp = Seconds(message.Attrs["t"]);
+
+            // A status arrives exactly like a group message: the stanza's `from` names the
+            // list (`status@broadcast`) and the author is the `participant`. Without this
+            // the feed would credit every status to "status@broadcast" and the page would
+            // show one anonymous row per update (`StatusFeed.Post`).
+            if (StatusFeed.IsStatus(from)) incoming.Sender = message.Attrs["participant"];
 
             if (read.DeviceSentMessage == null)
             {
@@ -189,6 +211,7 @@ namespace WhatsappApp.Protocol.Client
                 var keyOnly = new IncomingMessage();
                 keyOnly.Id = id;
                 keyOnly.From = groupJid;
+                keyOnly.Chat = groupJid;
                 keyOnly.Sender = participant;
                 keyOnly.Timestamp = Seconds(message.Attrs["t"]);
 
@@ -225,6 +248,7 @@ namespace WhatsappApp.Protocol.Client
             var incoming = new IncomingMessage();
             incoming.Id = id;
             incoming.From = groupJid;
+            incoming.Chat = groupJid;
             incoming.Sender = participant;
             incoming.Timestamp = Seconds(message.Attrs["t"]);
             incoming.IsOurEcho = IsMine(participant, credentials);
