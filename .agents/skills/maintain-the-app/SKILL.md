@@ -203,6 +203,7 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-memory.js && node tools/check-actions.js &&
    node tools/check-fire-and-forget.js && node tools/check-project-files.js &&
    node tools/check-chat-list-source.js && node tools/check-chat-scroll.js &&
+   node tools/check-history-sync.js &&
    node tools/check-diagnostics.js &&
    node tools/check-xaml-names.js &&
    node tools/check-attachment-file.js && node tools/check-no-server.js`, plus

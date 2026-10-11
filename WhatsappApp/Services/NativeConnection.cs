@@ -409,6 +409,18 @@ namespace WhatsappApp.Services
             HistorySyncNotification history = HistorySyncNotification.From(incoming.Content);
             if (history != null)
             {
+                // The sync is this account's own: it is a peer-routed self stanza, sent by
+                // another device of this account, and the reference reads it only from there.
+                // The same stanza from a contact is a contact writing this phone's chat list,
+                // its call log and its status feed, which is why the check is here, before
+                // anything the notification carries is fetched or applied.
+                if (!IncomingMessage.IsMine(incoming.From, account))
+                {
+                    Diag.Ok("native: a history sync from " + incoming.From
+                        + " is not this account's, so it is left alone");
+                    return;
+                }
+
                 await ApplyHistoryAsync(history);
                 return;
             }
@@ -1107,15 +1119,21 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// A decoded sync into the pages, in the order they expect: the calls and the statuses
-        /// first (each is a list of its own), then the chat rows, then whoever is listening.
-        /// Both shapes above end here, so neither one has its own version of this.
+        /// first (each is a list of its own), then the chat rows, then the messages those rows
+        /// added, then whoever is listening. Both shapes above end here, so neither one has its
+        /// own version of this.
+        ///
+        /// The messages come after their rows and before the burst is declared closed. They are
+        /// the conversation a person opens - a sync that only filled the list is a list of chats
+        /// that all open empty - and they come from `_chats.ApplyHistory`'s answer rather than
+        /// from the chunk, so a re-delivered chunk hands the app nothing twice.
         /// </summary>
         private void ApplySync(HistorySync sync)
         {
             ApplyCalls(sync);
             ApplyStatuses(sync);
 
-            _chats.ApplyHistory(sync);
+            IList<HistoryMessage> fromTheSync = _chats.ApplyHistory(sync);
             Diag.Ok("native: history sync type " + sync.SyncType + " carried "
                 + sync.Conversations.Count + " conversation(s), " + _chats.Rows.Count + " row(s) now");
 
@@ -1124,6 +1142,13 @@ namespace WhatsappApp.Services
                 HistoryConversation row = _chats.Find(sync.Conversations[i].Jid);
                 if (row != null && ChatArrived != null) ChatArrived(this, row);
             }
+
+            if (MessageArrived != null)
+            {
+                for (int i = 0; i < fromTheSync.Count; i++) MessageArrived(this, fromTheSync[i]);
+            }
+
+            Diag.Ok("native: " + fromTheSync.Count + " message(s) of the sync are in the chats");
 
             if (_chats.IsSyncComplete && HistoryFinished != null) HistoryFinished(this, sync);
         }

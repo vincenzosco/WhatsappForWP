@@ -43,16 +43,24 @@ namespace WhatsappApp.Protocol.Client
         public bool IsSyncComplete { get; private set; }
 
         /// <summary>
-        /// One chunk of history: the conversations it carries, merged into the rows.
+        /// One chunk of history: the conversations it carries, merged into the rows, and the
+        /// messages the chunk actually added - which is what the app beside it draws.
         ///
         /// The unread count is *set*, not added: the server's number is the truth about a
         /// chat's unread messages at the moment of the sync, and adding it to what a previous
         /// chunk already said would double it. A live message is the case that counts up
         /// (see <see cref="AddIncoming"/>).
+        ///
+        /// The answer is the messages and not the chunk: it has the dedupe applied, so a chunk
+        /// WhatsApp re-delivers hands the app nothing twice, and it carries only what this
+        /// client can draw (<see cref="Shows"/>). A row whose messages were never handed over
+        /// is the conversation a person opens to find empty, which is the failure this answer
+        /// exists to end.
         /// </summary>
-        public void ApplyHistory(HistorySync sync)
+        public IList<HistoryMessage> ApplyHistory(HistorySync sync)
         {
-            if (sync == null) return;
+            var applied = new List<HistoryMessage>();
+            if (sync == null) return applied;
 
             for (int i = 0; i < sync.Conversations.Count; i++)
             {
@@ -71,7 +79,20 @@ namespace WhatsappApp.Protocol.Client
                 if (chunk.LastMessageTimestamp > row.LastMessageTimestamp) row.LastMessageTimestamp = chunk.LastMessageTimestamp;
                 if (chunk.ConversationTimestamp > row.ConversationTimestamp) row.ConversationTimestamp = chunk.ConversationTimestamp;
 
-                for (int m = 0; m < chunk.Messages.Count; m++) AddMessage(row, chunk.Messages[m]);
+                for (int m = 0; m < chunk.Messages.Count; m++)
+                {
+                    HistoryMessage message = chunk.Messages[m];
+
+                    // The conversation is the chat, even when the key did not carry one: a
+                    // message with no chat of its own would reach the app as a conversation of
+                    // its own, next to the person it belongs to.
+                    if (string.IsNullOrEmpty(message.Jid)) message.Jid = chunk.Jid;
+
+                    if (!AddMessage(row, message)) continue;
+
+                    message.IsHistory = true;
+                    if (Shows(message)) applied.Add(message);
+                }
             }
 
             for (int i = 0; i < sync.PushNames.Count; i++)
@@ -84,6 +105,27 @@ namespace WhatsappApp.Protocol.Client
             if (sync.SyncType == HistorySync.InitialBootstrap || sync.Progress >= 100) IsSyncComplete = true;
 
             Order();
+
+            return applied;
+        }
+
+        /// <summary>
+        /// Whether a history message carries something this client can draw: words, or media it
+        /// reads.
+        ///
+        /// The live path decides the same thing in the same words (`NativeConnection.ReadMediaAsync`
+        /// asks `MediaMessages.Of` and leaves a message that answers null alone), and it is decided
+        /// again here because the two inputs are not the same shape: a live message the client
+        /// cannot read is one stanza it names and drops, while a history chunk carries hundreds, and
+        /// a sticker or a reaction among them would otherwise arrive as one empty bubble per
+        /// message - a conversation that looks broken where it used to look short.
+        /// </summary>
+        private static bool Shows(HistoryMessage message)
+        {
+            if (message.Text != null) return true;
+            if (message.Encoded == null) return false;
+
+            return MediaMessages.Of(Message.Decode(message.Encoded)) != null;
         }
 
         /// <summary>
