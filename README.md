@@ -129,6 +129,8 @@ client any more: it uses GOWA's REST API and webhooks.
 - A received document shows its file name and a document bar, and tapping it opens the file with the phone's own app. Its bytes come to a file like a video's, and a document from an old conversation is downloaded on tap first
 - A file shared or picked from the Gallery is copied into the app's own folder instead of being read into memory, so a long video is streamed out in pieces rather than taking the app down
 - A chat paints from its cached messages before the connection is up, and its last messages are kept per conversation on the phone
+- Opening a chat shows its newest message: a burst of old messages that arrives after the list is already on screen (a chat opened before the connection is up, or opened a second time in a session) is followed to the bottom when it closes, instead of leaving the reader on the oldest row
+- An arrow over the conversation, in the bottom left like WhatsApp's, appears while the newest message is off screen and returns to it when tapped. It is drawn from the view's own position and never shows in a conversation shorter than the screen
 
 **Setup (one command)**
 

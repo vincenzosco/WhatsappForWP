@@ -38,6 +38,13 @@ namespace WhatsappApp.Services
         private Action<bool> _onPosition;
         private bool? _lastAtBottom;
         private bool _watched;
+        // The position was asked for before the list had a ScrollViewer, and the
+        // layout pass that gives it one has not run yet: LayoutUpdated is where
+        // the wait ends.
+        private bool _waitingForViewer;
+        // A scroll was asked for before the list was in the tree: it is kept and
+        // flushed by the layout pass instead of dropped.
+        private bool _waitingForScrollLayout;
 
         public ConversationView(ListView list, CoreDispatcher dispatcher)
         {
@@ -60,8 +67,11 @@ namespace WhatsappApp.Services
             _list.ItemsSource = messages;
             Diag.Ok("conversation bound " + (messages == null ? 0 : messages.Count) + " message(s)");
 
-            // And here the viewer exists, which is what a position watch asked for
-            // during a navigation could not find.
+            // A position watch asked for during a navigation found no viewer; this
+            // is the next chance. The list still has no ScrollViewer on this line
+            // - it is created by the layout pass that follows - so a watch that
+            // finds nothing here waits for LayoutUpdated instead of giving up,
+            // which is what left the arrow unable to ever appear.
             AttachViewChanged();
         }
 
@@ -131,15 +141,55 @@ namespace WhatsappApp.Services
             if (_watched) return;
 
             ScrollViewer viewer = Viewer();
+            if (viewer != null)
+            {
+                StopWaitingForViewer();
+                viewer.ViewChanged += OnViewChanged;
+                _watched = true;
+                return;
+            }
+
+            // No viewer yet: the ListView creates it in the layout pass that follows
+            // the bind, not on the bind itself, so a watch put on now has nothing to
+            // subscribe to. LayoutUpdated is that pass; it is taken off the moment a
+            // viewer is found, and DetachViewChanged takes it off if the page leaves
+            // first.
+            if (_waitingForViewer) return;
+
+            _waitingForViewer = true;
+            _list.LayoutUpdated += OnListLayoutUpdated;
+        }
+
+        /// <summary>
+        /// The layout pass ran: the list may have its viewer now, and if it does the
+        /// watch moves from the layout to the scroll and stops watching the layout.
+        /// </summary>
+        private void OnListLayoutUpdated(object sender, object e)
+        {
+            ScrollViewer viewer = Viewer();
+            Diag.Ok("probe position layout: viewer=" + (viewer != null));
             if (viewer == null) return;
 
+            StopWaitingForViewer();
             viewer.ViewChanged += OnViewChanged;
             _watched = true;
+            ReportPosition();
+        }
+
+        /// <summary>Stops waiting for the viewer, if the wait was on.</summary>
+        private void StopWaitingForViewer()
+        {
+            if (!_waitingForViewer) return;
+
+            _list.LayoutUpdated -= OnListLayoutUpdated;
+            _waitingForViewer = false;
         }
 
         /// <summary>Takes the position handler off, if it was put on.</summary>
         private void DetachViewChanged()
         {
+            StopWaitingForViewer();
+
             if (!_watched) return;
 
             ScrollViewer viewer = Viewer();
@@ -165,6 +215,8 @@ namespace WhatsappApp.Services
         public void Reset()
         {
             DetachViewChanged();
+            StopWaitingForScrollLayout();
+            _scrollQueued = false;
             _viewer = null;
             _pendingScroll = null;
             // The page that asked is the one leaving, and its callback closes over
@@ -183,44 +235,135 @@ namespace WhatsappApp.Services
 #pragma warning disable 4014
             _dispatcher.RunAsync(CoreDispatcherPriority.Low, () =>
             {
-                // The dispatcher would swallow a fault raised here, so each step
-                // logs its own: a scroll that throws must not only be visible, it
-                // must say which call threw. UpdateLayout on a list that was just
-                // bound during a navigation is what answered E_UNEXPECTED here, so
-                // it is kept out of the common path - the viewer reaches the bottom
-                // without a layout pass, and only the ScrollIntoView fallback needs
-                // the container to exist.
-                _scrollQueued = false;
-                ChatMessage target = _pendingScroll;
-                _pendingScroll = null;
+                try { FlushScroll(); }
+                catch (Exception ex) { Diag.Failed("ConversationView/flushScroll", ex); }
+            });
+#pragma warning restore 4014
+        }
 
-                // A list that is not in the tree yet has no viewer to walk to and
-                // no layout to force: the walk during a navigation is the
-                // E_UNEXPECTED this class exists to avoid. WP8.1 has no
-                // FrameworkElement.IsLoaded (that one is Windows 10), so the test
-                // is the list having a visual child at all - its ScrollViewer.
-                // The next scroll - the one the history burst produces - runs when
-                // the list is up.
-                if (VisualTreeHelper.GetChildrenCount(_list) == 0) return;
+        /// <summary>
+        /// Runs the queued scroll, or keeps it for the layout pass that follows.
+        ///
+        /// The dispatch runs before the ListView has created its children when the
+        /// scroll is asked for at bind time, and a list with no viewer has no way to
+        /// reach the bottom. Dropping the scroll there is the chat that opened on
+        /// its oldest row: the bind asks for the newest row, and the layout that
+        /// would have carried it out had not happened yet. It is kept instead, and
+        /// LayoutUpdated flushes it.
+        ///
+        /// The dispatcher would swallow a fault raised here, so each step logs its
+        /// own: a scroll that throws must not only be visible, it must say which
+        /// call threw. UpdateLayout on a list that was just bound during a
+        /// navigation is what answered E_UNEXPECTED here, so it is kept out of the
+        /// common path - the viewer reaches the bottom without a layout pass, and
+        /// only the ScrollIntoView fallback needs the container to exist.
+        /// </summary>
+        private void FlushScroll()
+        {
+            // WP8.1 has no FrameworkElement.IsLoaded (that one is Windows 10), so
+            // the test is the list having a visual child at all - its ScrollViewer.
+            int children = VisualTreeHelper.GetChildrenCount(_list);
+            if (children == 0)
+            {
+                WaitForScrollLayout();
+                return;
+            }
 
-                ScrollViewer viewer = Viewer();
-                if (viewer != null && viewer.ScrollableHeight > 0)
-                {
-                    ChangeViewToBottom(viewer);
-                    return;
-                }
+            _scrollQueued = false;
 
+            // The row to show: the one that was asked for, or the newest of the
+            // collection when the bottom is what the caller wanted.
+            ChatMessage target = _pendingScroll;
+            _pendingScroll = null;
+            if (target == null && _items != null && _items.Count > 0)
+                target = _items[_items.Count - 1];
+
+            // ScrollIntoView, not a move to ScrollableHeight. A ListView that has
+            // not measured its rows yet answers a ScrollableHeight of two pixels for
+            // fifty messages - the rows are realized as they come on screen - and
+            // moving to that "bottom" leaves the conversation on its oldest row,
+            // which is exactly the chat that opened on "those of an earlier time".
+            // ScrollIntoView asks the list for the row instead: it realizes what it
+            // must and puts that row on screen against the bottom edge.
+            if (target != null)
+            {
                 try
                 {
-                    _list.UpdateLayout();
-                    if (target != null) _list.ScrollIntoView(target);
+                    _list.ScrollIntoView(target);
+                    Diag.Ok("probe flush: scrolled to a row, offset=" + Offset()
+                        + " scrollable=" + Scrollable());
+                    return;
                 }
                 catch (Exception ex)
                 {
                     Diag.Failed("ConversationView/scrollIntoView", ex);
                 }
+            }
+
+            // Nothing to name - an empty collection, a bottom asked for before the
+            // bind - so the viewer is the only handle left.
+            ScrollViewer viewer = Viewer();
+            Diag.Ok("probe flush: no row, viewer=" + (viewer != null)
+                + " scrollable=" + Scrollable());
+            if (viewer != null && viewer.ScrollableHeight > 0)
+            {
+                ChangeViewToBottom(viewer);
+            }
+        }
+
+        /// <summary>The viewer's current offset, or -1 while there is no viewer.</summary>
+        private double Offset()
+        {
+            ScrollViewer viewer = Viewer();
+            return viewer == null ? -1 : viewer.VerticalOffset;
+        }
+
+        /// <summary>The viewer's scrollable height, or -1 while there is no viewer.</summary>
+        private double Scrollable()
+        {
+            ScrollViewer viewer = Viewer();
+            return viewer == null ? -1 : viewer.ScrollableHeight;
+        }
+
+        /// <summary>
+        /// The list is not in the tree yet, so the scroll waits for the layout that
+        /// puts it there. _scrollQueued stays on: a second request only replaces
+        /// what will be flushed, instead of scheduling a second dispatch.
+        /// </summary>
+        private void WaitForScrollLayout()
+        {
+            if (_waitingForScrollLayout) return;
+
+            _waitingForScrollLayout = true;
+            _list.LayoutUpdated += OnScrollLayoutUpdated;
+        }
+
+        /// <summary>
+        /// The layout ran and the list is in the tree: the flush is asked for on the
+        /// dispatcher rather than done here, because touching the scroll in the
+        /// middle of a layout pass is the re-entrancy this class avoids.
+        /// </summary>
+        private void OnScrollLayoutUpdated(object sender, object e)
+        {
+            Diag.Ok("probe scroll layout: children=" + VisualTreeHelper.GetChildrenCount(_list));
+            if (VisualTreeHelper.GetChildrenCount(_list) == 0) return;
+
+            StopWaitingForScrollLayout();
+#pragma warning disable 4014
+            _dispatcher.RunAsync(CoreDispatcherPriority.Low, () =>
+            {
+                try { FlushScroll(); }
+                catch (Exception ex) { Diag.Failed("ConversationView/flushScroll", ex); }
             });
 #pragma warning restore 4014
+        }
+
+        private void StopWaitingForScrollLayout()
+        {
+            if (!_waitingForScrollLayout) return;
+
+            _list.LayoutUpdated -= OnScrollLayoutUpdated;
+            _waitingForScrollLayout = false;
         }
 
         private void OnViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
