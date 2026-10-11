@@ -198,6 +198,26 @@ namespace ProtocolTests
             Assert.Throws<ProtocolException>(delegate { NodeReader.Decode(Truncate(bytes, 3)); });
         }
 
+        /// <summary>
+        /// A packed string that announces zero bytes is an empty string, not a crash.
+        ///
+        /// `0x80` is a HEX_8 with a count of zero and the odd-count bit set, and the
+        /// reference trims the padding nibble with a slice that is a no-op on an empty
+        /// string. `value.Length -= 1` on an empty StringBuilder is not: it is an
+        /// ArgumentOutOfRangeException out of the codec, so a malformed frame from the
+        /// server ends the read with an error nobody can act on instead of being refused
+        /// as the node it is not.
+        /// </summary>
+        [Test]
+        public static void An_empty_packed_string_is_refused_not_thrown_over()
+        {
+            // [prefix][LIST_8, size 1][HEX_8][0x80]: a node whose header is an empty pack,
+            // which ReadNode refuses because a node without a header is not a node.
+            byte[] frame = new byte[] { 0x00, (byte)Tags.List8, 1, (byte)Tags.Hex8, 0x80 };
+
+            Assert.Throws<ProtocolException>(delegate { NodeReader.Decode(frame); });
+        }
+
         [Test]
         public static void A_compressed_frame_is_refused()
         {

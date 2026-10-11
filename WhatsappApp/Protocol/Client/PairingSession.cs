@@ -36,14 +36,24 @@ namespace WhatsappApp.Protocol.Client
         private readonly WhatsAppSocket _socket;
         private readonly Credentials _credentials;
         private readonly ILog _log;
+        private readonly IRandomSource _random;
+
+        /// <summary>When a node last arrived: what the keep-alive reads to know a ping is due.</summary>
+        private DateTime _lastNode;
+
+        /// <summary>The keep-alive, and the flag that ends it (see <see cref="KeepAliveAsync"/>).</summary>
+        private Task _keepAlive;
+        private bool _closed;
 
         public PairingSession(ITransport transport, Credentials credentials, ILog log, IRandomSource random)
         {
             if (credentials == null) throw new ProtocolException("a pairing session needs credentials to pair");
+            if (random == null) throw new ProtocolException("a pairing session needs a source of randomness");
 
             _credentials = credentials;
             _socket = new WhatsAppSocket(transport, log, random);
             _log = log == null ? new SilentLog() : log;
+            _random = random;
         }
 
         /// <summary>The credentials this session is trying to get paired, filled in as the server answers.</summary>
@@ -64,10 +74,21 @@ namespace WhatsappApp.Protocol.Client
         public async Task<IList<string>> StartAsync()
         {
             await _socket.HandshakeAsync(WhatsAppSocket.DefaultUrl, _credentials);
+            StartKeepAlive();
 
             while (true)
             {
-                BinaryNode node = await _socket.ReadNodeAsync();
+                BinaryNode node = await ReadAsync();
+
+                // The server's own liveness probe arrives here too, and it has to be
+                // answered before anything else: an unanswered probe is the server
+                // hanging up, and the codes on screen become codes nobody can use.
+                if (SessionKeepAlive.IsPing(node))
+                {
+                    await AnswerPingAsync(node);
+                    continue;
+                }
+
                 BinaryNode pairDevice = node.Child("pair-device");
                 if (pairDevice == null)
                 {
@@ -115,6 +136,12 @@ namespace WhatsappApp.Protocol.Client
                 if (await Task.WhenAny(next, Task.Delay(remaining)) != next)
                 {
                     _log.Info("whatsapp: the pairing timed out");
+
+                    // The read that lost the race is still pending, and `Close` faults it:
+                    // with nobody left to observe that fault it surfaces as an unobserved
+                    // task exception - a crash-report line for what is an ordinary timeout.
+                    Observe(next);
+
                     Close();
                     return null;
                 }
@@ -135,6 +162,14 @@ namespace WhatsappApp.Protocol.Client
                     return null;
                 }
 
+                _lastNode = DateTime.UtcNow;
+
+                if (SessionKeepAlive.IsPing(node))
+                {
+                    await AnswerPingAsync(node);
+                    continue;
+                }
+
                 BinaryNode pairSuccess = node.Child("pair-success");
                 if (pairSuccess != null) return await AcceptAsync(node, pairSuccess);
             }
@@ -142,7 +177,87 @@ namespace WhatsappApp.Protocol.Client
 
         public void Close()
         {
+            _closed = true;
             _socket.Close();
+        }
+
+        /// <summary>
+        /// One node, and the clock the keep-alive reads. Every read goes through here, so
+        /// "nothing has arrived for a ping interval" is a fact this class knows rather than
+        /// something each loop would have to remember to record.
+        /// </summary>
+        private async Task<BinaryNode> ReadAsync()
+        {
+            BinaryNode node = await _socket.ReadNodeAsync();
+            _lastNode = DateTime.UtcNow;
+            return node;
+        }
+
+        /// <summary>
+        /// The answer to the server's probe, whichever of the two shapes it takes (see
+        /// `SessionKeepAlive.PingAnswer`). This is a frame and never an exception: a probe
+        /// that cannot be answered is a connection that is ending, and the reader says so a
+        /// line later - throwing here aborted a pairing that was working.
+        /// </summary>
+        private Task AnswerPingAsync(BinaryNode ping)
+        {
+            _log.Info("whatsapp: the server asked whether this connection is alive");
+            return _socket.SendAsync(SessionKeepAlive.PingAnswer(ping, _random));
+        }
+
+        private void StartKeepAlive()
+        {
+            _lastNode = DateTime.UtcNow;
+            _keepAlive = KeepAliveAsync();
+        }
+
+        /// <summary>
+        /// The ping that keeps a quiet connection a connection.
+        ///
+        /// Why it exists here and not only in the session that follows: pairing is the long
+        /// silence - a person has to fetch their phone, open WhatsApp and find the scanner,
+        /// which is minutes - and the reference (`whatsmeow/keepalive.go`) pings every 20 to
+        /// 30 seconds through exactly that. Without it the server probes and then closes: the
+        /// device run of 2026-10-10 was dropped about thirty seconds in, with the codes on
+        /// screen (`<iq type="get" t="..." xmlns="urn:xmpp:ping">`, four bytes, `0x80072EFE`).
+        ///
+        /// It only **sends**, never reads: the two loops above are the only reader this socket
+        /// may have, and a second one would take the frames out of order. It answers for its
+        /// own fault as well, because a keep-alive that cannot go out is a connection that is
+        /// ending - the reader is the one that has to say so, and a fault nobody observes is
+        /// a crash report for an ordinary end.
+        /// </summary>
+        private async Task KeepAliveAsync()
+        {
+            try
+            {
+                while (!_closed)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(SessionKeepAlive.PingSeconds));
+
+                    if (_closed) return;
+                    if (!SessionKeepAlive.IsStale(_lastNode, DateTime.UtcNow)) continue;
+
+                    await _socket.SendAsync(SessionKeepAlive.Ping(_random));
+                }
+            }
+            catch (Exception error)
+            {
+                _log.Info("whatsapp: the keep-alive stopped: " + error.Message);
+            }
+        }
+
+        /// <summary>
+        /// Takes the fault of a task nobody is going to await. Used for the read a timeout
+        /// abandons: the read is not cancelled - the socket is closed under it - and a
+        /// fault with no observer is reported as an unhandled failure instead of being the
+        /// timeout it already was.
+        /// </summary>
+        private static void Observe(Task task)
+        {
+            task.ContinueWith(
+                delegate(Task finished) { AggregateException ignored = finished.Exception; },
+                TaskContinuationOptions.ExecuteSynchronously);
         }
 
         /// <summary>The acknowledgement the server waits for, with no content of our own.</summary>

@@ -222,6 +222,41 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A message that arrives on a chain the ratchet has already moved past is still
+        /// opened on that chain.
+        ///
+        /// This is the case `AMessageThatArrivesEarlyIsStillReadable` does not reach: there
+        /// the gap is inside one chain, and the chain the key is taken from is the same one
+        /// either way. Here the sender's first message is overtaken by her second, then the
+        /// ratchet steps twice before it lands, so the key that opens it is a kept one
+        /// belonging to a chain that is no longer current - and the failure, if the key is
+        /// taken from the current chain instead, is a message that is refused as a
+        /// duplicate of one nobody has sent.
+        /// </summary>
+        [Test]
+        public static void AMessageThatArrivesOnAnOlderChainIsStillReadable()
+        {
+            SessionRecord alice = SignalSessions.Alice(new SignalSessions.CounterRandom());
+            SessionRecord bob = SignalSessions.Bob(new SignalSessions.CounterRandom());
+
+            // Two messages on her first chain, the second delivered first: the first one's
+            // key is a key he has passed over and kept.
+            bool preKey = alice.PreKeyPending;
+            byte[] first = alice.Encrypt(PaddedBody("first"));
+            byte[] second = alice.Encrypt(PaddedBody("second"));
+
+            Assert.AreEqual("second", Body(bob.Decrypt(second, preKey)));
+
+            // A reply, and her answer to it: two ratchet steps, so by the time the first
+            // message lands the chain it was sent on is two keys old.
+            Assert.AreEqual("reply", Deliver(bob, alice, "reply"));
+            Assert.AreEqual("third", Deliver(alice, bob, "third"));
+
+            // The delayed message is opened on its own chain, from the key he kept.
+            Assert.AreEqual("first", Body(bob.Decrypt(first, preKey)));
+        }
+
+        /// <summary>
         /// The same message twice is refused rather than decrypted twice. The key it used
         /// is deleted, which is the reference's behaviour, and the duplicate is the app's
         /// to drop by message id - a test that asserted otherwise would pin a behaviour

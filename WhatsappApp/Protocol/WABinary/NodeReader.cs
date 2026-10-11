@@ -242,7 +242,12 @@ namespace WhatsappApp.Protocol.WABinary
                     value.Append(Unpack(tag, current & 0x0f));
                 }
 
-                if ((startByte >> 7) != 0) value.Length -= 1; // the odd count's padding
+                // The odd count's last nibble is padding. An empty pack (`0x80`) has no
+                // byte to pad, and the reference's `str.slice(0, -1)` on an empty string is
+                // a no-op - so this is a guard and not a trim: a length of -1 on an empty
+                // StringBuilder is an ArgumentOutOfRangeException out of the codec, which is
+                // neither the empty string the reference returns nor a refusal to read.
+                if ((startByte >> 7) != 0 && value.Length > 0) value.Length -= 1;
                 return value.ToString();
             }
 

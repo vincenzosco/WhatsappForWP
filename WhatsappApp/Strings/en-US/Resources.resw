@@ -220,101 +220,11 @@
   <data name="ChatMessage_Yesterday" xml:space="preserve">
     <value>Yesterday</value>
   </data>
-  <data name="ConnectionPage_ServerLabel.Text" xml:space="preserve">
-    <value>WhatsApp server (adapter)</value>
-  </data>
-  <data name="ConnectionPage_ServerPlaceholder.PlaceholderText" xml:space="preserve">
-    <value>e.g. 192.168.1.100</value>
-  </data>
-  <data name="ConnectionPage_PortLabel.Text" xml:space="preserve">
-    <value>TCP port</value>
-  </data>
-  <data name="ConnectionPage_NameLabel.Text" xml:space="preserve">
-    <value>Your name</value>
-  </data>
-  <data name="ConnectionPage_Notifications.Header" xml:space="preserve">
-    <value>Notify me about new messages</value>
-  </data>
-  <data name="ConnectionPage_PublicServer.Header" xml:space="preserve">
-    <value>Use the public server</value>
-  </data>
   <data name="EndpointService_PublicName" xml:space="preserve">
     <value>Public server</value>
   </data>
-  <data name="ConnectionPage_Connect.Content" xml:space="preserve">
-    <value>Connect to the server</value>
-  </data>
-  <data name="ConnectionPage_Disconnect.Content" xml:space="preserve">
-    <value>Disconnect</value>
-  </data>
-  <data name="ConnectionPage_WhatsAppTitle.Text" xml:space="preserve">
-    <value>WhatsApp connection</value>
-  </data>
-  <data name="ConnectionPage_QrLogin.Content" xml:space="preserve">
-    <value>Sign in with QR code</value>
-  </data>
-  <data name="ConnectionPage_OrPhone.Text" xml:space="preserve">
-    <value>or sign in with your phone number</value>
-  </data>
-  <data name="ConnectionPage_PhonePlaceholder.PlaceholderText" xml:space="preserve">
-    <value>Number with country code (e.g. 393401234567)</value>
-  </data>
-  <data name="ConnectionPage_GetCode.Content" xml:space="preserve">
-    <value>Get the code</value>
-  </data>
-  <data name="ConnectionPage_HelpTitle.Text" xml:space="preserve">
-    <value>How to sign in</value>
-  </data>
-  <data name="ConnectionPage_HelpQr.Text" xml:space="preserve">
-    <value>QR code: open WhatsApp on your phone, open Linked devices and tap Link a device, then scan the code.</value>
-  </data>
-  <data name="ConnectionPage_HelpPhone.Text" xml:space="preserve">
-    <value>Phone number: enter the international number, tap Get the code, then type it in WhatsApp.</value>
-  </data>
-  <data name="ConnectionPage_Version.Text" xml:space="preserve">
-    <value>WhatsApp Community Edition v2.0 (GOWA)</value>
-  </data>
-  <data name="ConnectionPage_FirstRunTitle" xml:space="preserve">
-    <value>First-time setup</value>
-  </data>
-  <data name="ConnectionPage_SettingsTitle" xml:space="preserve">
-    <value>Server settings</value>
-  </data>
-  <data name="ConnectionPage_DefaultUsername" xml:space="preserve">
-    <value>User</value>
-  </data>
-  <data name="ConnectionPage_Connecting" xml:space="preserve">
-    <value>Connecting to {0}:{1}...</value>
-  </data>
-  <data name="ConnectionPage_ConnectingPublic" xml:space="preserve">
-    <value>Connecting to the public server...</value>
-  </data>
-  <data name="ConnectionPage_Connected" xml:space="preserve">
-    <value>Connected!</value>
-  </data>
-  <data name="ConnectionPage_ConnectFailed" xml:space="preserve">
-    <value>Connection failed</value>
-  </data>
-  <data name="ConnectionPage_WhatsAppConnected" xml:space="preserve">
-    <value>WhatsApp connected!</value>
-  </data>
-  <data name="ConnectionPage_ConnectedAs" xml:space="preserve">
-    <value>Connected as {0}</value>
-  </data>
-  <data name="ConnectionPage_Waiting" xml:space="preserve">
-    <value>Waiting for pairing: follow the instructions below.</value>
-  </data>
-  <data name="ConnectionPage_WhatsAppDisconnected" xml:space="preserve">
-    <value>Not connected to WhatsApp. Sign in with the QR code or your phone number.</value>
-  </data>
-  <data name="ConnectionPage_InvalidPhone" xml:space="preserve">
-    <value>Enter a valid number with country code (e.g. 393401234567).</value>
-  </data>
   <data name="ConnectionPage_RequestingQr" xml:space="preserve">
     <value>Requesting the QR code...</value>
-  </data>
-  <data name="ConnectionPage_RequestingCode" xml:space="preserve">
-    <value>Requesting the code...</value>
   </data>
   <data name="ConnectionPage_QrUnavailable" xml:space="preserve">
     <value>QR code not available.</value>
@@ -327,12 +237,6 @@
   </data>
   <data name="ConnectionPage_QrError" xml:space="preserve">
     <value>Could not show the QR code: {0}</value>
-  </data>
-  <data name="ConnectionPage_PairCode" xml:space="preserve">
-    <value>Code: {0}</value>
-  </data>
-  <data name="ConnectionPage_PairCodeHint" xml:space="preserve">
-    <value>Enter this code in WhatsApp: Linked devices, Link a device, Link with phone number instead.</value>
   </data>
   <data name="CommService_Connecting" xml:space="preserve">
     <value>Connecting...</value>
@@ -391,17 +295,20 @@
   <data name="DataService_Group" xml:space="preserve">
     <value>Group {0}</value>
   </data>
-  <data name="ConnectionPage_Discovering.Text" xml:space="preserve">
-    <value>Looking for the server on the network...</value>
+  <data name="ConnectionPage_AccountTitle" xml:space="preserve">
+    <value>Account</value>
   </data>
-  <data name="ConnectionPage_DiscoveredLabel.Text" xml:space="preserve">
-    <value>Servers found</value>
+  <data name="ConnectionPage_LinkedLabel.Text" xml:space="preserve">
+    <value>Linked number</value>
   </data>
-  <data name="ConnectionPage_ManualToggle.Content" xml:space="preserve">
-    <value>Enter the address by hand</value>
+  <data name="ConnectionPage_NotLinked.Text" xml:space="preserve">
+    <value>This phone is not linked. Show the QR code to link it.</value>
   </data>
-  <data name="ConnectionPage_NoServerFound.Text" xml:space="preserve">
-    <value>No server found. Start the adapter on the computer, or enter the address by hand.</value>
+  <data name="ConnectionPage_ShowQr.Content" xml:space="preserve">
+    <value>Show the QR code</value>
+  </data>
+  <data name="ConnectionPage_AlreadyLinked" xml:space="preserve">
+    <value>This phone is already linked to WhatsApp.</value>
   </data>
   <data name="ConnectionPage_QrOverlayTitle.Text" xml:space="preserve">
     <value>Scan this code with WhatsApp</value>
@@ -526,17 +433,11 @@
   <data name="CommService_NotAuthorized" xml:space="preserve">
     <value>This server did not recognize this device. Check the token in the settings.</value>
   </data>
-  <data name="ConnectionPage_TokenLabel.Text" xml:space="preserve">
-    <value>Server token (created automatically on the first connection)</value>
-  </data>
   <data name="TileUnreadOne" xml:space="preserve">
     <value>1 unread message</value>
   </data>
   <data name="TileUnreadMany" xml:space="preserve">
     <value>{0} unread messages</value>
-  </data>
-  <data name="ConnectionPage_Diagnostics.Content" xml:space="preserve">
-    <value>Show diagnostics</value>
   </data>
   <data name="ChatsPage_Diagnostics.Content" xml:space="preserve">
     <value>Why is it empty?</value>
@@ -596,3 +497,4 @@
     <value>Try again</value>
   </data>
 </root>
+

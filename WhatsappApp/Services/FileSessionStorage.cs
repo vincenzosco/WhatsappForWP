@@ -68,7 +68,24 @@ namespace WhatsappApp.Services
             for (int i = 0; i < files.Count; i++)
             {
                 StorageFile file = files[i];
-                if (file.Name.EndsWith(TempSuffix, StringComparison.Ordinal)) continue;
+                if (file.Name.EndsWith(TempSuffix, StringComparison.Ordinal))
+                {
+                    // A temporary file at start-up is a write that was interrupted: the
+                    // rename never happened, so the record it was replacing is still there
+                    // under its real name and this one is a fragment. It is deleted rather
+                    // than skipped, because skipping leaves one per crash in the folder
+                    // forever and the folder is the app's.
+                    try
+                    {
+                        await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                    }
+                    catch (Exception ex)
+                    {
+                        Diag.Failed("FileSessionStorage.Open/" + file.Name, ex);
+                    }
+
+                    continue;
+                }
 
                 try
                 {
@@ -185,16 +202,23 @@ namespace WhatsappApp.Services
         /// </summary>
         private static string FileName(string key)
         {
-            var name = new StringBuilder(key.Length);
+            // The key is escaped as UTF-8 *bytes*, one `%xx` each, and not as UTF-16 code
+            // units: a code unit above U+00FF is more than two hex digits, and the decoder
+            // beside this one reads exactly two - so a key holding one came back as a
+            // different key and its session was lost on the next start. Not reachable with
+            // today's keys (JIDs and pre-key ids are ASCII), which is why it is worth
+            // closing before something adds a name to one.
+            byte[] bytes = Encoding.UTF8.GetBytes(key);
+            var name = new StringBuilder(bytes.Length);
 
-            for (int i = 0; i < key.Length; i++)
+            for (int i = 0; i < bytes.Length; i++)
             {
-                char c = key[i];
-                bool safe = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9') || c == '.' || c == '_' || c == '-';
+                byte b = bytes[i];
+                bool safe = (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z')
+                    || (b >= '0' && b <= '9') || b == '.' || b == '_' || b == '-';
 
-                if (safe) name.Append(c);
-                else name.Append('%').Append(((int)c).ToString("x2"));
+                if (safe) name.Append((char)b);
+                else name.Append('%').Append(b.ToString("x2"));
             }
 
             return name.ToString();
@@ -203,21 +227,21 @@ namespace WhatsappApp.Services
         /// <summary>The key a file name stands for, for the blobs read at start-up.</summary>
         private static string KeyFor(string name)
         {
-            var key = new StringBuilder(name.Length);
+            var bytes = new List<byte>(name.Length);
 
             for (int i = 0; i < name.Length; i++)
             {
                 if (name[i] == '%' && i + 2 < name.Length)
                 {
-                    key.Append((char)Convert.ToInt32(name.Substring(i + 1, 2), 16));
+                    bytes.Add((byte)Convert.ToInt32(name.Substring(i + 1, 2), 16));
                     i += 2;
                     continue;
                 }
 
-                key.Append(name[i]);
+                bytes.Add((byte)name[i]);
             }
 
-            return key.ToString();
+            return Encoding.UTF8.GetString(bytes.ToArray(), 0, bytes.Count);
         }
     }
 }
