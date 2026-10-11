@@ -3,8 +3,10 @@
 [English](README.md) | **Italiano**
 
 Un client WhatsApp per Windows Phone 8.1 (Universal Windows Platform) mantenuto
-dalla community. Il progetto comprende un'interfaccia completa in stile WhatsApp e
-un server ponte per collegarsi ai server WhatsApp veri.
+dalla community. Il telefono **e'** il client: parla il protocollo di WhatsApp in
+prima persona - l'handshake Noise, il formato binario dei nodi, il doppio ratchet di
+Signal, il caricamento e lo scaricamento dei media - quindi non c'e' nessun server da
+avviare e niente da configurare.
 
 ## Progetti
 
@@ -18,41 +20,41 @@ L'app principale, con un'interfaccia utente autentica di WhatsApp.
 - tile live con quanti messaggi aspettano, la foto di chi ha scritto per ultimo e il suo nome
 - fumetti con orario e stato inviato/consegnato/letto
 - messaggi di testo con Invio per inviare
-- allegati immagine: si sceglie una foto dalla galleria e si invia attraverso il ponte
-- anteprima dell'immagine nel fumetto (base64 sul canale TCP)
-- l'app trova l'adapter sulla rete locale da sola, quindi non c'e' nessun indirizzo da digitare
-- login dal telefono: il QR o il codice di abbinamento compare a tutto schermo nell'app
+- allegati immagine: si sceglie una foto dalla galleria e si invia allo spazio media di WhatsApp
+- anteprima dell'immagine nel fumetto
+- il primo avvio collega il telefono da solo: il codice QR lo disegna l'app (i suoi moduli sono calcolati sul telefono, nessuna immagine arriva da fuori) e inquadrarlo lega questo dispositivo all'account
 - indicatore di scrittura: tre puntini animati nella conversazione mentre l'altra persona scrive, e lo stesso stato viene mandato mentre scrivi tu
 - interfaccia nella lingua del dispositivo: inglese e italiano
 
 **Architettura:**
 
-L'app usa una connessione TCP con messaggi JSON preceduti dalla lunghezza:
-
-```
-[4 byte: UInt32 LE lunghezza] [N byte: JSON UTF-8 del ChatMessage]
-```
-
-Il modello `ChatMessage` viene serializzato con `DataContractJsonSerializer`; il
-suo campo `Timestamp` e' il semplice valore `/Date(<ms>)/`, senza backslash.
+L'app apre il WebSocket di WhatsApp (`wss://web.whatsapp.com/ws/chat`) su TLS e su
+quello parla il protocollo. `WhatsappApp/Protocol/` e' il filo: l'handshake Noise con
+il controllo della catena di certificati, il lettore e lo scrittore dei nodi binari,
+le sessioni Signal (X3DH, il doppio ratchet, la chiave del mittente di un gruppo), le
+chiavi dei media e i messaggi protobuf. `WhatsappApp/Protocol/Client/` e' la
+sessione: il login, il classificatore dei nodi, la sincronizzazione della cronologia,
+l'invio, le ricevute, il registro delle chiamate e il feed degli stati.
+`WhatsappApp/Services/NativeConnection.cs` tiene il socket, i tentativi e gli eventi
+che le pagine ascoltano.
 
 #### Chiamate
 
-La scheda Chiamate elenca **solo** le chiamate in entrata, prese dalle chat che
-l'adapter ha scansionato (`CALLS_CHAT_LIMIT`, default 25), aggiornate all'apertura
-della scheda o con il pulsante Aggiorna. GOWA non conserva le chiamate in uscita,
-quindi non c'e' altro da mostrare.
+La scheda Chiamate elenca il registro delle chiamate dell'account, come lo porta la
+sincronizzazione della cronologia di WhatsApp (`HistorySync.callLogRecords`), in
+entrambe le direzioni: una chiamata fatta da questo telefono e una ricevuta ci sono
+tutte e due, e una mai risposta dice `missed`. Si aggiorna all'apertura della scheda.
 
 #### Chat e nuove chat
 
-L'elenco chat e' la lista vera delle conversazioni dell'account (`GET /chats`,
-limitata da `CHATS_LIMIT`), non la rubrica di WhatsApp, che su un dispositivo
-appena collegato e' vuota. Ogni riga porta l'ultimo messaggio e la sua immagine
-del profilo (`GET /user/avatar` e poi l'indirizzo CDN che restituisce, quindi due
-richieste per chat, gruppi compresi; si spegne con `CHATS_AVATARS=off`). Il nome di
-un gruppo arriva da `GET /user/my/groups`, una richiesta per tutti, perche'
-l'elenco delle conversazioni non ha un nome utilizzabile per un gruppo e ripiega
-su `Group <numero>`.
+L'elenco chat e' la lista vera delle conversazioni dell'account, come la manda la
+sincronizzazione della cronologia dopo un login: ogni riga porta la conversazione,
+l'ultimo messaggio, il numero dei non letti e il nome. Il nome di un gruppo arriva
+dalla richiesta dei metadati a WhatsApp, perche' la riga sincronizzata non ne ha uno
+utilizzabile. L'immagine del profilo di una chat viene chiesta a WhatsApp quando la
+riga viene disegnata (la richiesta risponde un indirizzo e l'indirizzo risponde il
+JPEG), quindi un gruppo ce l'ha come chiunque altro, e i byte restano sul telefono
+perche' un riavvio mostri le facce prima che la connessione ci sia.
 
 Una nuova chat si apre in tre modi: digitando un numero con prefisso, scegliendo
 un contatto con il selettore del sistema (e' il consenso dell'utente, quindi l'app
@@ -61,11 +63,11 @@ server conosce gia'.
 
 Mentre qualcuno scrive, nella conversazione compare un fumetto con tre puntini, uno
 che sale dopo l'altro, e sparisce quando smette. E' l'unica cosa che questa app mostra
-che non sia un messaggio, e arriva da WhatsApp (l'evento `chat_presence`, che GOWA 9.5
-inoltra), non da un'ipotesi. Nell'altra direzione funziona allo stesso modo: mentre
-scrivi tu, l'adapter lo dice a WhatsApp e il contatto vede gli stessi puntini. Le due
-direzioni hanno bisogno che l'account sia online, quindi l'adapter lo mette `available`
-mentre l'app e' collegata e `unavailable` quando non lo e'.
+che non sia un messaggio, e arriva da WhatsApp (`chatstate` e il nodo `chat_presence`),
+non da un'ipotesi. Nell'altra direzione funziona allo stesso modo: mentre scrivi tu,
+questo telefono manda lo stesso nodo e il contatto vede gli stessi puntini. Le due
+direzioni hanno bisogno che l'account sia presente, quindi il client si mette
+`available` mentre l'app gira e `unavailable` quando il sistema la sospende.
 
 Allegare un'immagine usa `PickSingleFileAndContinue`. `PickSingleFileAsync` e'
 documentata come non supportata su Windows Phone, e sul telefono falliva in
@@ -83,126 +85,13 @@ Un vocale si registra nell'app: il pulsante del microfono avvia
 AAC in un file M4A nella cartella dell'app, che e' quello che questo telefono
 registra e riproduce senza transcodifica. Il pulsante di stop chiude la
 registrazione, e il file aspetta nello stesso posto di una foto scelta: la barra
-di anteprima lo mostra e Invia lo spedisce. Sul lato adapter la registrazione
-viene convertita da M4A/AAC in Ogg/Opus (l'unica forma che WhatsApp accetta come
-vocale) e va su `POST /send/audio`, che e' cio' che fa disegnare a WhatsApp un
-vocale con la forma d'onda invece di un allegato audio. Senza un encoder Opus
-nell'ffmpeg dell'adapter l'invio viene rifiutato, e la bolla dice fallito invece
-di mostrare una spunta.
+di anteprima lo mostra e Invia lo carica sullo spazio media di WhatsApp come vocale.
 
-### WhatsappServer (app console .NET)
-
-Un semplice server TCP di inoltro, che distribuisce i messaggi tra i client
-collegati.
-
-- ascolta sulla porta 8585 (default)
-- inoltra tra i client messaggi JSON preceduti dalla lunghezza
-- mostra a video i collegamenti e un'anteprima dei messaggi
-- scritto in .NET Framework 4.5.1
-
-> **Nota:** questo relay e' stato sostituito da `WhatsappBridge/server.js`, che ora
-> fa da ponte tra l'app WP8 e un server **GOWA** self-hosted invece di inoltrare i
-> messaggi ad altri telefoni. Il progetto .NET resta per riferimento o per un uso
-> autonomo.
-
-### Adapter GOWA (Node.js)
-
-Un adapter sottile che collega l'app per Windows Phone 8.1 a un server
-[GOWA](https://github.com/vincenzosco/go-whatsapp-web-multidevice) self-hosted
-(`go-whatsapp-web-multidevice`). **Non** implementa piu' un client WhatsApp
-proprio: usa l'API REST e i webhook di GOWA.
-
-**Funzioni**
-
-- login con **QR code** o con **codice di abbinamento** del numero, entrambi mostrati nell'app
-- si annuncia sulla rete locale in UDP, quindi l'app lo trova senza essere configurata
-- mantiene il canale TCP cifrato (AES-256-GCM) tra app e adapter
-- il telefono puo' generare da se' la chiave del canale e consegnarla al server una volta sola, provata da un codice che il server stampa all'avvio, quindi un server raggiungibile non ha bisogno di nessun segreto digitato sopra; il token del dispositivo e' derivato dal device id (vedi il README dell'adapter, *Accoppiamento*)
-- invia testi, foto, video e file (`POST /send/message`, `/send/image`, `/send/video`, `/send/file`); un allegato piu' grande di un frame viaggia a pezzi (`media.begin` / `media.chunk` / `media.end`), e un media che arriva da WhatsApp torna allo stesso modo in frame `media` che portano l'indice del pezzo
-- riceve i messaggi in arrivo da un webhook di GOWA (con verifica HMAC)
-- tiene viva la connessione da sola: un watchdog chiede lo stato ogni 20 s, e una connessione silenziosa da 60 s viene chiusa e riaperta, quindi l'app si riprende da sola quando WP8.1 le chiude il socket mentre e' sospesa
-- carica i messaggi gia' in memoria aprendo una chat (`messages`, fino a `MESSAGES_LIMIT`), con frame marcati `IsHistory`: vengono inseriti in ordine di data e restano fuori dal conteggio dei non letti e dagli avvisi
-- la foto del profilo di una chat e il suo nome sono due bersagli: toccando la foto si apre a tutto schermo, toccando il nome si aprono le informazioni, con il numero, l'about, il profilo aziendale e, per un gruppo, la descrizione e i membri con il loro ruolo (`contact.info`). Tutto quello che il server non ha viene lasciato fuori, e una pagina senza niente da mostrare lo dice
-- un video ricevuto si riproduce a tutto schermo su un `MediaElement` con i controlli di sistema, e si chiude con la X nell'angolo. I suoi byte arrivano a pezzi e vengono scritti su un file mentre arrivano, quindi un video di lunghezza intera non sta mai tutto in memoria; toccare la casella con il triangolo prima che i byte ci siano li scarica prima, come per un'immagine
-- un vocale o un audio ricevuto mostra una barra con il triangolo e si riproduce nello stesso lettore. WhatsApp manda i vocali come Ogg/Opus e WP8.1 non ha un decoder Opus, quindi l'adapter li converte prima in un piccolo MP3 mono, usando `ffmpeg` quando e' installato (`FFMPEG_ENABLED`, `FFMPEG_PATH`) e controllando all'avvio quali codec ha davvero quel binario; senza un `ffmpeg` utilizzabile il vocale arriva lo stesso e all'app viene detto che non si puo' riprodurre. Un vocale che torna dal server viene letto come audio anche quando arriva con il tipo del contenitore Ogg (`application/ogg`) e senza estensione, quindi la bolla e' la barra del vocale e non una scheda file. Toccando il triangolo di un vocale i cui byte non sono ancora sul telefono li si chiede, e il vocale parte da solo appena arrivano: un tocco come fa WhatsApp, invece di un primo tocco che scaricava e restava muto. La barra diventa pausa subito e il suono arriva un attimo dopo, mentre il telefono apre il file (`Play()` su un elemento che sta ancora aprendo non fa niente e non lo dice: la riproduzione viene chiesta di nuovo su `MediaOpened`). Un vocale registrato qui riproduce il suo file quando lo si tocca e parte come un vero vocale WhatsApp: l'adapter converte la registrazione M4A/AAC in Ogg/Opus, l'unica forma che WhatsApp accetta, e un invio che viene ancora rifiutato non mostra piu' la spunta e lo dice
-- un documento ricevuto mostra il nome del file e una barra con un foglio, e toccarla apre il file con l'app del telefono. I suoi byte arrivano su un file come quelli di un video, e un documento di una vecchia conversazione viene scaricato al tocco
-- un file condiviso o scelto dalla Galleria viene copiato nella cartella dell'app invece che letto in memoria, quindi un video lungo si spedisce a pezzi invece di chiudere l'app
-- una chat si disegna dai messaggi in cache prima che la connessione ci sia, e gli ultimi messaggi restano sul telefono per conversazione
-- aprire una chat mostra il suo messaggio piu' recente: un gruppo di messaggi vecchi che arriva dopo che la lista e' gia' a schermo (una chat aperta prima della connessione, o aperta una seconda volta nella stessa sessione) viene seguito fino in fondo quando si chiude, invece di lasciare chi legge sulla riga piu' vecchia
-- una freccia sopra la conversazione, in basso a sinistra come quella di WhatsApp, compare mentre il messaggio piu' recente e' fuori schermo e ci ritorna quando la si tocca. E' disegnata dalla posizione della vista e non compare mai in una conversazione piu' corta dello schermo
-- elenca le **conversazioni** vere dell'account da `GET /chats` (la rubrica e' vuota su un dispositivo appena collegato), ognuna con l'ultimo messaggio e la sua **immagine del profilo** da `GET /user/avatar` (due richieste per chat, gruppi compresi: l'endpoint restituisce l'indirizzo dell'immagine, non l'immagine) (`CHATS_LIMIT`, `CHATS_AVATARS`)
-- Le chat si possono **fissare** (il menu dei tre puntini in alto a sinistra, o una pressione prolungata su una riga), **silenziare** (nessun avviso per quella conversazione; il numero dei non letti resta) ed **eliminare da questo telefono** (pressione prolungata, poi Elimina). Sono tre decisioni di questo telefono: il server non ha un endpoint per nessuna delle tre, quindi vivono nella cartella dell'app, e una chat fissata qui non e' fissata sugli altri dispositivi
-- Lo stesso menu dei tre puntini segna **tutte le chat come lette** in un colpo solo: l'elenco intero smette di essere nuovo, e il numero dei non letti di ogni conversazione parte con lo stesso `read` che la pagina della chat manda quando ne apri una
-- Una chat eliminata torna quando ci arriva un messaggio nuovo, e su WhatsApp non viene cancellato niente: questa app elimina la conversazione da questo telefono, non dall'account
-- tiene sul telefono l'ultimo elenco delle conversazioni: l'elenco e' a schermo mentre la connessione sta ancora arrivando, e si aggiorna appena WhatsApp si dichiara collegato
-
-**Avvio (un solo comando)**
-
-```bash
-node tools/start-login.js --download   # --download solo la prima volta
-```
-
-Lo script scarica in `.tools/gowa` il binario ufficiale di GOWA per **il sistema e
-la CPU su cui stai girando** (macOS Intel/ARM, Linux x64/arm64/armv7/386, Windows
-x64/386), verifica il SHA-256 pubblicato e lo scompatta con `node:zlib`: non
-servono `unzip` ne' `tar`. Poi avvia `whatsapp rest`, avvia
-`WhatsappBridge/server.js`, annuncia l'adapter sulla rete locale in UDP (cosi'
-l'app lo trova **da sola**) e stampa indirizzi e porte. Il login si fa normalmente
-**dal telefono**: l'app mostra il QR a tutto schermo, quindi non c'e' niente da
-inquadrare dal computer. Il QR nel terminale resta disponibile e viene disegnato
-come un codice davvero scansionabile, rinnovato finche' serve; quando non entra
-nella finestra lo script lo dice e scrive il PNG in `.tools/gowa/login-qr.png`
-invece di disegnare qualcosa di tagliato. L'adapter registra da solo il suo webhook
-su GOWA.
-
-Quali servizi partono e' un elenco dichiarativo (`tools/services.js`), non due
-figli scritti a mano: metti un `WhatsappCallServer/server.js` nel repo e il
-launcher lo avvia anche lui, gli da' la sua porta, lo mostra nel riepilogo e lo
-ferma con `Ctrl-C` / `--stop` come gli altri (`--no-calls` lo spegne,
-`--list-services` mostra l'elenco risolto).
-
-| Opzione | Effetto |
-| --- | --- |
-| `--code 393401234567` | collega con il codice di abbinamento invece del QR |
-| `--no-bridge` | solo GOWA e il QR |
-| `--once` | disegna un solo QR ed esce |
-| `--no-qr` | non disegna niente: il login si fa dal telefono, nell'app (consigliato) |
-| `--open-qr` | apre il PNG del codice in Anteprima, dove si ricarica a ogni rotazione |
-| `--url http://host:3000` | usa un GOWA gia' avviato |
-| `--ui` | serve anche la dashboard web di GOWA |
-| `--stop` | ferma lo stack avviato prima |
-
-La sessione WhatsApp sta in `.tools/gowa/storages/whatsapp.db` (ignorata da git),
-quindi dai lanci successivi ci si ricollega da soli senza un nuovo QR. `Ctrl-C`
-ferma GOWA e l'adapter.
-
-Poi, nell'app: trova l'adapter sulla rete e si collega da sola (c'e' comunque
-**Inserisci l'indirizzo a mano** per un server che non si riesce a scoprire). Il
-login si fa dal telefono — l'app mostra il suo QR a tutto schermo e tiene lo schermo
-acceso finche' resta visibile — oppure si riusa la sessione gia' collegata.
-
-**Requisiti:** Node.js 18.13+ e, per il QR nel terminale, ImageMagick 7 (`magick`).
-I vocali hanno bisogno di `ffmpeg` sulla macchina che esegue l'adapter in entrambe
-le direzioni: `libmp3lame` per fare l'MP3 che il telefono sa riprodurre da quello
-che arriva, e `libopus` per fare l'Ogg/Opus che WhatsApp accetta da quello che
-viene registrato. L'adapter dice all'avvio quale delle due cose quel binario sa
-fare, e funziona anche con un build ridotto che ne ha una sola. Un build tuo ha
-bisogno anche del protocollo `file`: una conversione riceve l'input come file
-temporaneo, perche' ffmpeg non puo' spostarsi dentro un tubo e l'M4A che registra
-questo telefono tiene l'atomo `moov` in fondo al file.
-Le variabili d'ambiente dell'adapter sono documentate in
-`WhatsappBridge/.env.example` (il file viene letto all'avvio; le variabili gia'
-esportate hanno la precedenza).
-
-**A mano**, se si preferisce avviare i pezzi da soli: avviare un GOWA che parli
-l'API REST v9 (`whatsapp rest --port=3000 --host=127.0.0.1`), poi
-`cd WhatsappBridge && cp .env.example .env && npm start`.
-
-Per mettere in piedi l'adapter (con GOWA) su un NAS o su un PC sempre acceso c'e'
-un repository di deployment separato:
-[vincenzosco/docker-whatsappforwp](https://github.com/vincenzosco/docker-whatsappforwp).
-Pubblica un'immagine a container unico con GOWA e questo adapter, e lo stesso
-server si avvia ancora con `node server.js`.
+La parte di questo che va detta e' nei **Limiti**: i vocali di WhatsApp sono in
+Ogg/Opus e WP8.1 non ha ne' un encoder ne' un decoder Opus, quindi un vocale
+registrato qui parte come M4A in un fumetto da vocale, e un vocale Ogg/Opus che
+arriva non si riesce a riprodurre su questo telefono. Il server che convertiva nei
+due sensi (con `ffmpeg`) se n'e' andato con tutto il resto.
 
 ## Struttura dell'app
 
@@ -255,10 +144,9 @@ quasi sempre pronta da integrare.
      && node tools/check-xaml-names.js \
      && node tools/check-attachment-file.js \
      && node --test "tools/test/**/*.test.js"
-   cd WhatsappBridge && npm test
    ```
 
-4. Se tocchi `WhatsappApp/` o `WhatsappServer/`, compilalo su Windows
+4. Compila l'app su Windows
    (`msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`)
    e scrivi nella pull request che riporta `0 Error(s)`. Non esiste un host di test
    C#, quindi per l'app il gate e' la build.
@@ -268,94 +156,45 @@ quasi sempre pronta da integrare.
    sia `README.md` sia `README.it.md` nello stesso commit.
 
 Una segnalazione utile contiene le righe `DIAG` della finestra Output, quale build
-hai usato e cosa ha fatto il telefono. Se puoi, lancia
-`node tools/start-login.js --no-qr` e allega il log dell'adapter.
+hai usato e cosa ha fatto il telefono. Le stesse righe sono nel `diag.log` dell'app,
+che la pagina Diagnostica mostra e che `ISETool.exe ts` copia dal telefono.
 
 ## Protocollo
 
-Il protocollo TCP usa messaggi JSON preceduti dalla lunghezza, compatibili con
-`DataWriter`/`DataReader` di Windows:
+Il client parla il protocollo di WhatsApp, e niente qui dentro e' inventato: ogni
+passo e' fissato contro le implementazioni di riferimento (`@whiskeysockets/baileys`
+e `whatsmeow`), e i test che lo tengono onesto stanno in `ProtocolTests/`.
 
-- 4 byte: lunghezza del messaggio (UInt32, Little Endian)
-- 1 byte: tag cifrario (`1` = AES-256-GCM, `2` = AES-256-CBC + HMAC-SHA256)
-- N byte: payload cifrato
+- **Trasporto**: un WebSocket verso `wss://web.whatsapp.com/ws/chat` su TLS, e su di
+esso tutto e' un **nodo binario** - un tag, una mappa di attributi, una lista di
+figli o dei byte (`Protocol/WABinary/`). `NodeReader` e `NodeWriter` sono le due
+meta' di quel formato, e la lunghezza di un nodo viene controllata contro un tetto
+prima di leggerlo.
+- **Handshake**: l'handshake del protocollo Noise con la catena di certificati del
+server, verificata sul telefono (`Protocol/Noise/NoiseHandshake.cs`). L'abbinamento
+che segue e' un QR i cui moduli li calcola questa app (`Protocol/Qr/QrCode.cs`).
+- **Messaggi**: il protocollo Signal - X3DH per una sessione nuova, il doppio ratchet
+per ogni messaggio dopo, la chiave del mittente per un gruppo (`Protocol/Signal/`).
+Un messaggio con dei media nomina le chiavi e l'indirizzo del file, e i byte vengono
+caricati e scaricati dallo spazio media di WhatsApp, cifrati e decifrati sul telefono
+(`Protocol/Media/`).
+- **La sessione**: il classificatore dei nodi, la sincronizzazione della cronologia,
+l'invio con le sue ricevute, la richiesta delle immagini del profilo, il registro
+delle chiamate e il feed degli stati (`Protocol/Client/`). L'account e' lo store di
+credenziali del protocollo, nella cartella dell'app
+(`Protocol/Client/CredentialStore.cs`).
 
-Il payload e' cifrato con **AES-256-CBC e autenticato con HMAC-SHA256** con una chiave
-condivisa (lo `SHA-256` di una passphrase, da cui entrambe le parti derivano due chiavi
-con `HMAC-SHA256`): IV casuale di 16 byte, testo cifrato, HMAC di 32 byte su IV e cifrato.
-Il tag `1` resta accettato e porta IV di 12 byte, cifrato e tag GCM di 16 byte, ma
-**l'app scrive sempre il tag `2`**: Windows Phone 8.1 risponde a AES-GCM con
-`NotImplementedException 0x80004001`. L'adapter risponde a ciascun client con il cifrario
-che quel client ha usato. App e server derivano la stessa passphrase per dispositivo
-(`framePassphraseFor`: la costante in `CryptoHelper.cs` piu' il device id).
+Tutto cio' che l'app stampa a runtime e' in inglese: le righe `DIAG` e i messaggi
+delle eccezioni che ci finiscono. Anche i commenti nel sorgente sono in inglese: il
+codice si spiega in una lingua sola. Restano fuori i nomi dei test e le diagnostiche
+degli script di guardia in `tools/` - strumenti per sviluppatori che nessuno esegue -
+e le stringhe dell'interfaccia in `Strings/it-IT`, che sono traduzioni, non diagnostica.
 
-Dopo la decifratura, il corpo JSON segue lo schema `ChatMessage`:
-
-```json
-{
-  "Id": "msg_123",
-  "Text": "Ciao!",
-  "SenderId": "393401234567@s.whatsapp.net",
-  "SenderName": "Mario",
-  "ChatId": "393401234567@s.whatsapp.net",
-  "Timestamp": "\/Date(1750000000000)\/",
-  "Status": 1,
-  "Type": 0,
-  "IsIncoming": true,
-  "MediaData": "/9j/4AAQ...base64...",
-  "MediaMimeType": "image/jpeg",
-  "MediaFileName": "photo.jpg"
-}
-```
-
-Tipi: 0=Testo, 1=Immagine, 2=Audio, 3=Sistema
-Stati: 0=In invio, 1=Inviato, 2=Consegnato, 3=Letto, 4=Fallito
-
-I frame con `Type = 3` sono **frame di controllo** (`ChatId = "system"`) usati per
-il flusso di login WhatsApp: l'app manda `login.qr` / `login.code` e l'adapter
-risponde con i frame `qr` / `paircode` / `state` / `contact` / `error`. La tabella
-completa dei comandi e' in `WhatsappBridge/README.it.md`.
-
-Una lunghezza di frame non viene mai creduta sulla parola: l'app riempie per
-intero il prefisso di 4 byte (`InputStreamOptions.Partial` puo' spezzarlo) e
-rifiuta qualunque valore fuori da `1..8 MiB` (`FrameCodec.MaxFrameLength`), e l'adapter
-chiude il client che annuncia piu' di `MAX_FRAME_LENGTH` (gli stessi 8 MiB)
-invece di accumularlo.
-
-`Timestamp` e' l'unico campo di cui vale la pena dire il *tipo* sul filo: porta
-`/Date(<millisecondi dal 1970, UTC>)/`, e nessun backslash - il `\/` che si vede nel testo JSON e'
-l'escape del lettore, non parte del valore. Scrivere il valore con i backslash (un difetto
-dell'adapter, corretto in questi commit) faceva buttare via l'intero frame al telefono con
-`SerializationException 0x8013150C`, "String was not recognized as a valid DateTime". L'app legge
-quel campo come stringa e lo interpreta con tolleranza, quindi un timestamp che non riesce a
-leggere costa il timestamp, non il messaggio.
-
-Il byte order e' detto per esteso da entrambe le parti: l'adapter scrive la
-lunghezza con `writeUInt32LE` e l'app costruisce lettori e scrittori con i
-`CreateFrameReader`/`CreateFrameWriter` di `WhatsappApp/Services/FrameCodec.cs`,
-che impostano `ByteOrder = ByteOrder.LittleEndian`. Il valore predefinito di WinRT non e'
-little-endian, e un lettore che non concorda non fallisce in modo evidente:
-legge una lunghezza invertita (`0x00000121` tornava come `0x21010000`, 553713664)
-e scarta un frame che era perfettamente valido. `tools/check-framing.js` fa
-fallire il gate veloce se nella parte socket un `DataReader`/`DataWriter` viene
-creato in un altro modo.
-
-Tutto cio' che il server e l'app stampano a runtime e' in inglese: il log e i
-messaggi di errore dell'adapter, e le righe `DIAG` dell'app con i messaggi delle
-eccezioni che ci finiscono. Anche i commenti nel sorgente sono in inglese: il
-codice si spiega in una lingua sola. Restano fuori i nomi dei test e le
-diagnostiche degli script di guardia in `tools/` - strumenti per sviluppatori che
-nessun operatore esegue - e le stringhe localizzate in `Strings/it-IT`, che sono
-traduzioni, non diagnostica. Anche i testi di errore che l'adapter manda all'app
-per essere mostrati sono contenuto UI, e restano in italiano in attesa della
-localizzazione dell'app.
-
-Un tentativo di connessione possiede il suo socket, il suo `DataReader` e il suo
-ciclo di lettura: solo il tentativo piu' recente li pubblica e solo il suo ciclo
-li legge, quindi un tentativo fallito (per esempio su un indirizzo salvato che
-non risponde piu') non puo' chiudere la connessione che invece e' riuscita. La
-connessione ha una scadenza di 6 secondi; `0x8007274C` significa che e' scaduta,
-e l'app dimentica l'indirizzo salvato e ripiega sulla scoperta.
+Una connessione e' di chi l'ha aperta: solo il tentativo piu' recente pubblica il suo
+socket e il suo ciclo di lettura, quindi un socket fallito non puo' chiudere quello
+che invece e' riuscito. Il client si riconnette da solo, con un'attesa limitata tra i
+tentativi, e una sessione silenziosa da un po' viene chiusa e riaperta invece di
+restare un socket che sembra vivo e non riceve niente.
 
 ## Compilazione
 
@@ -412,15 +251,6 @@ C# 5, altrimenti elenca file, riga e costrutto da correggere. Lo stesso script
 controlla anche i membri **assenti dalla proiezione WinRT di Windows Phone 8.1**
 (es. `CryptographicBuffer.CreateFromByteArray` a 3 argomenti,
 `ContentDialog.CloseButtonText`): compilano su Windows 8.1/10 ma non su WP8.1.
-
-### Adapter GOWA
-
-```bash
-cd WhatsappBridge
-npm install
-npm test     # test unitari e di integrazione
-npm start
-```
 
 ### Icone, tile e splash screen
 
@@ -517,10 +347,10 @@ memoria - quindi il lavoro e' a runtime, in due meta':
   volta, come `DIAG ok: memory budget N MB`;
 - **e si richiedono dal telefono**: i byte di un'immagine si tengono in
   `avatar-cache.json` (al massimo 40 conversazioni, circa 1 MB), cosi' un riavvio
-  mostra le facce prima che l'adapter risponda, e una riga la cui bitmap decodificata
+  mostra le facce prima che la connessione ci sia, e una riga la cui bitmap decodificata
   e' stata buttata via si ridisegna quando l'elenco torna davanti. Le immagini sono
-  la copia di quello che l'adapter ha mandato: anche l'adapter le tiene per cinque
-  minuti, cosi' un elenco chat letto due volte non torna da WhatsApp;
+  la copia di quello che WhatsApp ha risposto: si chiede una volta, e la cache e' cio'
+  che impedisce a un elenco letto due volte di chiedere di nuovo;
 - **limita la conversazione**: una chat tenuta in memoria e' limitata a 200
   messaggi (`MaxMessagesPerChat` in `DataService`); i piu' vecchi escono e tornano
   dal server quando la chat viene riaperta. Era l'ultima allocazione che una
@@ -534,8 +364,6 @@ comincia a portarsi dietro i byte delle immagini, se la cache degli avatar perde
 suoi tetti o la coda di scrittura, se la cache degli avatar non viene letta prima
 delle righe salvate, o se la cronologia in memoria di una chat non ha un tetto
 `MaxMessagesPerChat` o non lo applica con un `while`.
-`WhatsappBridge/test/config.test.js` tiene l'altra meta' dello stesso budget
-(`CHATS_LIMIT` ≤ 30, `MESSAGES_LIMIT` ≤ 60).
 
 ### Lingua dell'app
 
@@ -546,12 +374,11 @@ L'app segue automaticamente la lingua del dispositivo tramite risorse `.resw`:
 | Inglese | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback per ogni altra lingua |
 | Italiano | `WhatsappApp/Strings/it-IT/Resources.resw` | |
 
-L'interfaccia dell'app e' l'**unica superficie localizzata**: tutto cio' che gli
-script e il server stampano (il banner del launcher, il suo `--help`, il log
-dell'adapter, il relay legacy) e' solo in inglese, cosi' leggere un log non
-richiede una seconda lingua. Anche i commenti nel sorgente sono in inglese, quindi
-l'italiano resta solo nei nomi dei test e nelle diagnostiche degli script di
-guardia, che nessuno esegue a runtime.
+L'interfaccia dell'app e' l'**unica superficie localizzata**: tutto cio' che l'app e
+gli script stampano (le righe `DIAG`, le diagnostiche delle guardie, gli strumenti in
+`tools/`) e' solo in inglese, cosi' leggere un log non richiede una seconda lingua.
+Anche i commenti nel sorgente sono in inglese, quindi l'italiano resta solo nei nomi
+dei test e nelle diagnostiche degli script di guardia, che nessuno esegue a runtime.
 
 - I testi dichiarati in XAML usano `x:Uid`, e la proprieta' deve corrispondere al
   tipo dell'elemento: `TextBlock` -> `.Text`, `Button` -> `.Content`,
@@ -590,7 +417,6 @@ vanno tenuti allineati:
 | Documento | Inglese | Italiano |
 | --- | --- | --- |
 | README del progetto | `README.md` | `README.it.md` |
-| README dell'adapter | `WhatsappBridge/README.md` | `WhatsappBridge/README.it.md` |
 
 Aggiungere, spostare o rinominare una sezione significa farlo in entrambi i file,
 nello stesso commit, e lo stesso vale per la sezione `## Disclosure` in fondo a
@@ -602,158 +428,25 @@ qualunque emoji diversa dal segno di pericolo:
 node tools/check-docs.js
 ```
 
-## Server condiviso ed endpoint pubblico
-
-L'adapter puo' ospitare piu' di un account. Ogni utente ha un device GOWA suo,
-creato al primo handshake, e il token in `hello` decide quale e' il suo; con
-`AUTH_REQUIRED=on`, un messaggio instradato dal suo `device_id` non arriva mai al
-socket di un altro utente. Con l'interruttore spento non cambia niente e
-l'istanza resta privata, senza token.
-
-Un telefono che il servizio non ha mai visto e che arriva senza token ne riceve uno
-alla prima connessione (`AUTH_REGISTER=on`, il valore predefinito): l'adapter crea
-il device, risponde con un frame `registered` e l'app conserva il token, quindi il
-servizio condiviso non chiede altro che l'interruttore. Il token identifica il
-dispositivo, non e' una password da digitare; con `AUTH_REGISTER=off` entra solo un
-device che il deposito conosce gia', e i token dei device nuovi si consegnano a
-mano - un telefono che reinstalla torna comunque da solo, perche' il suo token e'
-derivato dal suo id invece di essere creato per lui. Il token e' derivato dall'id di
-dispositivo che l'app presenta, e quell'id e'
-il token hardware specifico del pacchetto, quindi reinstallare l'app non crea un
-dispositivo nuovo: lo stesso telefono conserva lo stesso account, e l'accesso a
-WhatsApp non viene richiesto di nuovo. Con `AUTH_STRICT_DEVICE=on` il servizio si
-chiude agli estranei: solo un dispositivo che lo store conosce gia' puo'
-registrarsi, mentre a un dispositivo noto il token derivato viene comunque
-restituito, quindi una reinstallazione funziona ancora e un dispositivo nuovo no.
-
-La chiave del cifrario dei frame non si sceglie a mano e non si accoppia piu': e'
-derivata dal device id che l'app presenta gia'. Il server deriva la stessa chiave
-dall'id che conosce (`framePassphraseFor` e' la passphrase compilata piu' l'id),
-quindi un telefono la cui memoria una reinstallazione ha svuotato ritrova la stessa
-chiave senza niente salvato e senza che nessuno faccia niente. Non c'e' un
-`BRIDGE_KEY` da tenere allineato, nessuna finestra `PAIRING`, nessun codice da
-leggere e nessun campo *Chiave del server*. Un telefono che ha un token scrive ogni
-frame con la chiave derivata dal suo device id; un telefono che non ne ha - nuovo,
-o svuotato da una reinstallazione - scrive l'handshake con la passphrase compilata
-nell'app, ed e' cio' che permette al server di leggerlo.
-
-Una reinstallazione in piu' e' tutto quello che serve perche' un telefono perda
-quello che ha. Reinstallare svuota la memoria dell'app su Windows Phone 8.1, quindi
-il telefono resta senza la sua chiave e senza il suo token. Non gli servono: ha lo
-stesso device id hardware, quindi ritrova la stessa chiave dei frame, e il server -
-che quell'id lo conosce - legge il suo handshake, riconosce il dispositivo e gli
-restituisce lo stesso token che aveva derivato per lui. Non si digita niente,
-nessuno fa niente sul server, e l'accesso a WhatsApp non viene richiesto di nuovo.
-Quello che costa va detto chiaramente: la passphrase compilata e' il prefisso della
-chiave di ogni dispositivo, quindi un device id basta per derivare la chiave di quel
-dispositivo, e l'id sta in `users.json` in chiaro. E' il compromesso fatto per una
-reinstallazione che non chiede niente a nessuno.
-
-Il servizio pubblico non e' un indirizzo compilato nell'app: `EndpointService`
-legge `endpoint.json` da
-[whatsappforwp-endpoint](https://github.com/vincenzosco/whatsappforwp-endpoint),
-perche' il tunnel bore.pub che espone il server prende una porta nuova a ogni
-riavvio. Quel file ora contiene una lista: ogni server annuncia il proprio
-indirizzo nell'array `servers`, e il primo e' anche in cima al file, per un'app
-costruita prima della lista. L'interruttore nella pagina di connessione sceglie
-tra la lista pubblica e un server proprio.
-
-L'app usa quella lista per continuare a funzionare quando un server va giu'.
-`AutoConnector` costruisce i candidati - gli indirizzi del registro, poi l'ultimo
-che ha risposto - e poi ne **misura il ping tutti insieme**: ognuno e' una
-connessione TCP misurata con la stessa scadenza di sei secondi che usa il resto
-dell'app. Chiama per primo il piu' veloce e poi gli altri in ordine, cosi' il
-telefono si attacca al server che risponde prima e non a quello che capita prima
-nella lista. Con un server solo non c'e' niente da ordinare e nulla cambia. Il
-watchdog che gia' si accorge di una connessione muta lo richiama dopo aver chiuso
-quella morta, quindi un server che smette di rispondere viene sostituito dal
-prossimo senza che l'utente faccia nulla; solo quando non risponde nessuno,
-nemmeno un adapter trovato in LAN, l'app dice che il server non e' disponibile.
-I tempi misurati sono scritti nella pagina Diagnostica.
-
-Perche' l'indirizzo di un server compaia nel repository - e quindi sia
-raggiungibile dal telefono - ogni server scrive la propria riga di
-`endpoint.json`; nessuno modifica il file a mano:
-
-1. Su una macchina che il telefono puo' chiamare direttamente (una macchina in
-   LAN che esegue l'adapter) metti `ENDPOINT_PUBLISH=on` e da' al server un
-   `ENDPOINT_SERVER_ID` suo. Quando l'IP del container non e' quello che il
-   telefono chiama, metti in `ENDPOINT_HOST` l'indirizzo reale (in un container
-   bridged quello rilevato e' di Docker). L'adapter scrive la riga all'avvio e la
-   rinfresca ogni `ENDPOINT_PUBLISH_MINUTES`, cosi' un cambio di DHCP viene
-   ripreso da solo.
-2. Da' al server una credenziale che possa scrivere sul repository dell'endpoint:
-   un token (`ENDPOINT_TOKEN`, oppure `GH_TOKEN`), oppure niente se sulla macchina
-   e' stato fatto `gh auth login` - senza token l'adapter pubblica attraverso il
-   GitHub CLI. Senza nessuna delle due il server funziona lo stesso: non viene
-   pubblicato, e il log lo dice. `ENDPOINT_REPO` sceglie il repository, quindi puo'
-   essere un altro o un fork.
-3. Nel deployment pubblico la riga pubblica la scrive da se' il container tunnel,
-   perche' e' l'unico componente che conosce l'indirizzo bore.pub: metti un
-   `GH_TOKEN` nel `.env` di Docker, oppure puntalo al registro condiviso qui
-   sotto, e ripubblica ogni volta che la porta cambia.
-4. Due server non devono condividere lo stesso `ENDPOINT_SERVER_ID`, o si
-   sovrascrivono la riga a vicenda.
-5. Nell'app accendi *Usa il server pubblico* cosi' legge la lista. Gli indirizzi
-   trovati sono nella pagina Diagnostica (`endpoint N server(s), first
-   host:port`), e quello che ha risposto e' l'indirizzo che l'app tiene per la
-   connessione successiva.
-
-I container del deployment pubblico non tengono nessun token: il tunnel e
-l'adapter riportano i loro indirizzi a un piccolo servizio di registro che gira
-su una VM gratuita e2-micro di Google Cloud con IP statico, ed e' quel servizio
-l'unica cosa che scrive `endpoint.json`, con l'unica credenziale. Metti
-`ENDPOINT_REGISTRY_URL` (per esempio `http://<ip-vm>:8787`) e
-`ENDPOINT_REGISTRY_SECRET` nel `.env` di Docker al posto di `GH_TOKEN`, e il
-tunnel - o il server di chiunque altro - si annuncia senza ricevere mai il
-permesso di scrivere sul repository. Il servizio, la sua unit systemd e
-l'installer sono in `registry/`; l'esecuzione e' nel README del repository
-Docker.
-
-La tabella completa delle variabili `ENDPOINT_*` e la forma del file sono in
-[WhatsappBridge/README.it.md](WhatsappBridge/README.it.md#il-registro-dei-server).
-
-Le conversazioni restano sul telefono, non su un server: `chats.json`, le copie
-dei messaggi per chat e `chat-preferences.json` vivono nella cartella dell'app e
-non vengono mai svuotate quando cambia il server. Ogni server della lista e'
-collegato allo stesso account WhatsApp, quindi le conversazioni sono le stesse, e
-l'app chiede la sua lista chat al server che raggiunge. Perche' un telefono sia
-accettato da piu' di un server, i server condividono lo stesso prefisso
-`BRIDGE_KEY` e accettano lo stesso token del dispositivo: un `users.json` condiviso
-da' entrambe le cose,
-mentre `AUTH_REGISTER=on` lascia che ogni server rilasci il proprio token alla
-prima connessione del telefono.
-
-Quello che resta vero, e vale la pena dire chiaramente:
-
-- Il trasporto e' cifrato dal cifrario dell'app (AES-256-CBC + HMAC-SHA256) con
-  la passphrase del dispositivo (la costante compilata piu' il device id). Sotto non
-  c'e' TLS: uno `StreamSocket` di WP8.1 non sa fissare un certificato, quindi uno
-  autofirmato non e' una strada.
-- Chi gestisce un server condiviso puo' tecnicamente arrivare alle sessioni
-  sulla macchina. Il token separa gli utenti tra loro, non dall'operatore.
-- I token sono salvati solo come hash scrypt, e la sessione WhatsApp e'
-  protetta cifrando il volume sull'host.
-
 ## Limiti
 
-- Gli indicatori di scrittura dipendono dal fatto che l'account sia online, ed e' la stessa cosa che vedono i contatti: WhatsApp manda quegli eventi solo a un client marcato online, l'adapter mette l'account `available` mentre un client dell'app e' collegato e `unavailable` quando esce l'ultimo. Con l'app chiusa non si manda e non si riceve nessuna presenza, quindi in quel momento non si vede niente.
-- Gli aggiornamenti non sono disponibili: il server GOWA con cui parla questa app non ha un endpoint per gli stati, quindi la sezione Stato resta vuota per scelta.
-- Il registro chiamate elenca solo le chiamate in entrata, prese dalle chat più recenti che il server ha scansionato. I limiti esatti sono nella sezione Chiamate qui sotto.
-- Eliminazioni e modifiche fatte dal telefono arrivano all'app solo mentre è collegata: non vengono riprodotte dopo un riavvio. Il confronto usa l'id del messaggio di WhatsApp, quindi i messaggi inviati dall'app non vengono riconosciuti.
+- Un vocale che arriva in Ogg/Opus non si riesce a riprodurre qui: i vocali di WhatsApp sono in Ogg/Opus e WP8.1 non ha un decoder Opus, e il server che li convertiva in MP3 (con `ffmpeg`) non c'e' piu'. Un vocale **registrato** da questo telefono parte invece come M4A/AAC, quindi chi lo riceve puo' vederlo come file audio invece che come vocale.
+- Gli indicatori di scrittura dipendono dal fatto che l'account sia presente, ed e' la stessa cosa che vedono i contatti: WhatsApp manda quegli eventi solo a un client marcato online, l'app mette l'account `available` mentre gira e `unavailable` quando il sistema la sospende. Con l'app chiusa non si manda e non si riceve nessuna presenza, quindi in quel momento non si vede niente.
+- I messaggi piu' vecchi sono solo quelli che WhatsApp ha spinto dopo il login: questo client non chiede su richiesta la cronologia passata di una conversazione, quindi una chat mostra cio' che l'ultima sincronizzazione ha portato e cio' che e' arrivato dopo.
+- Eliminazioni e modifiche fatte da un altro dispositivo non vengono ancora lette: un messaggio revocato altrove resta a schermo finche' la conversazione non viene ripresa a un login nuovo.
 - Le notifiche vengono alzate mentre l'app gira: WP8.1 la sospende in background, il che chiude il socket, e questo progetto non ha un servizio cloud da cui fare push. Un messaggio arrivato con l'app sospesa viene consegnato alla ripresa, quando l'app si ricollega da sola: non viene annunciato nel momento in cui arriva.
-- Fissare, silenziare ed eliminare vivono solo su questo telefono, in `chat-preferences.json` nella cartella dell'app. Niente di tutto questo viene mandato a WhatsApp o all'adapter, quindi un altro dispositivo non lo vede, e si perde quando si cancellano i dati dell'app.
-- Il numero dei non letti di una chat lo tiene l'adapter, in memoria, e si azzera quando la conversazione viene aperta nell'app. Riavviare l'adapter fa ripartire il conteggio da zero, e i messaggi arrivati mentre non gira ne' l'app ne' l'adapter non vengono contati.
+- Fissare, silenziare ed eliminare vivono solo su questo telefono, in `chat-preferences.json` nella cartella dell'app. Niente di tutto questo viene mandato a WhatsApp, quindi un altro dispositivo non lo vede, e si perde quando si cancellano i dati dell'app.
+- Il numero dei non letti di una chat arriva da WhatsApp con la sincronizzazione della cronologia e si azzera quando la conversazione viene aperta nell'app: il conteggio viene detto al server, e i messaggi arrivati mentre l'app era chiusa vengono contati alla sincronizzazione successiva.
 - Un file condiviso da un'altra app viene letto nel momento in cui la condivisione viene consegnata, perche' l'app puo' essere terminata mentre il selettore o l'app che condivide sono aperti. I file molto grandi vengono comunque tenuti in memoria per essere spediti, quindi un video di lunghezza intera puo' non starci su un telefono da 512 MB.
-- Aprendo una chat si vedono i messaggi recenti che il server ha gia'. I piu' vecchi non vengono richiesti al telefono. Una foto o un video di quella cronologia mostrano una parola (`[Image]`, `[Video]`) finche' non vengono toccati, e allora l'adapter li scarica dal server e l'app li riproduce o li disegna. I byte di un video ricevuto restano nella cartella locale dell'app finche' dura la sessione, e non vengono ripuliti alla chiusura. Gli ultimi 60 messaggi di una conversazione sono in una cache sul telefono, quindi la prima vista di una chat e' una fotografia che il server sostituisce.
+- Una foto o un video di una vecchia conversazione mostrano una parola (`[Image]`, `[Video]`) finche' non vengono toccati, e allora l'app li scarica da WhatsApp e li riproduce o li disegna. I byte di un video ricevuto restano nella cartella locale dell'app e non vengono ripuliti alla chiusura. Gli ultimi 60 messaggi di una conversazione sono in una cache sul telefono, quindi la prima vista di una chat e' una fotografia che la connessione poi sostituisce.
 - La tile live dice quanti messaggi aspettano, chi ha scritto per ultimo e la sua foto. La scrive l'app, quindi ha bisogno che l'app sia girata dopo che il conteggio e' cambiato: un messaggio arrivato mentre l'app e' sospesa viene contato quando riprende. Con il conteggio a zero la tile torna a quella del manifest.
 - Sotto pressione di memoria l'app butta le bitmap degli avatar decodificate; i byte restano, e le immagini si ridisegnano quando l'elenco chat torna davanti. Finche' la pressione dura non si decodifica niente di nuovo, quindi su un telefono che resta sotto pressione l'elenco mostra le iniziali per un po'.
 
 ## Disclaimer
 
 - Questo e' un progetto non ufficiale, non affiliato a WhatsApp o a Meta.
-- GOWA (e quindi questo adapter) usa metodi non ufficiali per collegarsi a
-  WhatsApp, il che viola i Termini di servizio di WhatsApp.
+- Questo client usa metodi non ufficiali per collegarsi a WhatsApp, il che viola i
+  Termini di servizio di WhatsApp.
 - Usare questo ponte puo' causare il ban permanente del proprio numero.
 - Usarlo solo con numeri di prova o secondari.
 - Per un uso in produzione fare riferimento alla WhatsApp Business API ufficiale.
@@ -771,8 +464,8 @@ in fretta.
 
 **L'app e' stata scritta al 100% da un agente AI**, guidato e rivisto da una
 persona. Leggere il codice con il sospetto che merita: eseguire i guard in
-`tools/`, eseguire i test dell'adapter e controllare qualunque cosa tocchi il
-proprio account prima di fidarsene.
+`tools/` e i test del protocollo, e controllare qualunque cosa tocchi il proprio
+account prima di fidarsene.
 
 **L'autore non si assume la responsabilita' dell'account WhatsApp con cui si
 accede.** Collegare questo client significa connettere un client non ufficiale a

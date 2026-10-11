@@ -1,6 +1,6 @@
 ---
 name: agent-investigator
-description: Use before changing code, to turn a prompt, a log or a bug report into facts: which files, which lines, which guard, what the adapter sends, what the phone printed. Produces a report with file:line evidence and changes nothing.
+description: Use before changing code, to turn a prompt, a log or a bug report into facts: which files, which lines, which guard, what the wire carries, what the phone printed. Produces a report with file:line evidence and changes nothing.
 ---
 
 # The investigator
@@ -29,9 +29,7 @@ It changes nothing: no edit, no commit, no build, no push.
    that already fails names the file.
 3. The C# at the named site, read **whole** - this codebase keeps per-file
    invariants in comments, and reading half of a file is how a cause is missed.
-4. The adapter and its tests (`WhatsappBridge/`, `npm test`) when the wire is
-   involved.
-5. The plans in `docs/superpowers/plans/`, because a prior decision often says
+4. The plans in `docs/superpowers/plans/`, because a prior decision often says
    why the code is the way it is.
 
 ## Evidence rules
