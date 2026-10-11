@@ -7,9 +7,10 @@ description: How to verify a change to the WhatsApp WP8.1 app and its GOWA adapt
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 41 C# files, 145 keys in each `.resw`, 24 inline icon
-Paths (14 distinct icons), 21 buttons, 1 button style, 173 adapter tests, 58 tests
-in `tools/test`.
+Current expected counts: 52 C# files, 173 keys in each `.resw`, 29 inline icon
+Paths (17 distinct icons), 32 buttons, 1 button style, 293 adapter tests, 129 tests
+in `tools/test` (4 of those shell out to the `zip` CLI and fail on a host that
+has none, e.g. this Windows machine - the rest are green).
 
 ```bash
 cd /Users/vincenzo/Documents/WhatsappForWP
@@ -24,11 +25,12 @@ node tools/check-actions.js     # a button named X is wired to X_Click and draws
 node tools/check-fire-and-forget.js  # a call fired without await is observed, or it loses its fault
 node tools/check-project-files.js  # every .cs and .xaml is listed in the csproj, or MSBuild cannot see it
 node tools/check-chat-list-source.js  # the conversation ListView has no ItemsSource in XAML, only ConversationView.Bind
+node tools/check-chat-scroll.js  # a chat follows the history burst, and the arrow back to the newest message is wired
 node tools/check-diagnostics.js   # the run is on disk, and the history wait is not shorter than the read
 node tools/check-handshake-answer.js  # the connection is announced only after the server answered the handshake
 node tools/check-xaml-names.js  # a x:Name is used once in one namescope
 node tools/check-attachment-file.js  # each attachment copies to its own name, and the player reloads the bubble it was asked for
-node --test "tools/test/**/*.test.js"  # the tools' own tests (118)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (129)
 node tools/qr-term.js --self-test  # terminal QR: module recovery and drawing
 ```
 
@@ -56,6 +58,7 @@ Two lessons the gates taught:
 | `check-fire-and-forget.js` | A call inside `#pragma warning disable 4014` whose fault nobody observes: it does not go through `Guarded.RunGuardedAsync`, and the method it names catches nothing, so an exception thrown at the call site lands in a Task nobody awaits. That is the voice note whose tap did nothing and left no `DIAG` line. It also refuses two statements in one region, a call the app does not define, and a dispatcher lambda that catches nothing. |
 | `check-project-files.js` | A `.cs` or `.xaml` under `WhatsappApp` that `WhatsappApp.csproj` does not list. MSBuild never sees it, so the type it holds "does not exist" only on the VM build, and the guards all pass in the meantime - which is how `RecordingSession.cs` and `ConversationView.cs` were committed without their `Compile` entries. |
 | `check-chat-list-source.js` | A second writer for `MessagesListView.ItemsSource`. The list is bound in code by `ConversationView.Bind`; an `ItemsSource="{Binding}"` left in XAML is resolved against `DataContext`, which on this page is a `Contact` and not a collection, so it fights the code-set source and the conversation opens empty with a run of first chance `SYSTEM.NI.DLL` exceptions and no `DIAG` line. |
+| `check-chat-scroll.js` | A chat that opens on its old messages: the page not subscribed to `HistoryCompleted` (so the burst that lands after the bind moves nothing and the reader stays at the oldest row), a handler that does not ask `ActiveChatId` (a burst for a chat no longer in front would move another page's list), and the arrow back to the newest message - missing its `RecentMessagesButton_Click` wiring, `Grid.Row="1"`, `Visibility="Collapsed"` or `<!-- IconArrowDown -->` - plus the page holding its own `ScrollableHeight`, a second opinion about the bottom that goes stale. |
 | `check-diagnostics.js` | The diagnostics that never reach the disk: a log written without a `SerialQueue`, a file with no byte ceiling or no name, no marker file to tell a crash from a suspension, the unhandled-exception handler leaving the line in memory, and a history wait shorter than the adapter's cold read of the account (a 2 s wait against a measured 15 s binds the list before its burst and hands fifty inserts to a list already watching the collection). |
 | `check-handshake-answer.js` | A connection announced before the server answered it: `RaiseConnectionEstablished()` reached before `WaitForServerAnswerAsync` returned, the reader started after the wait, or a wait shorter than 20000 ms. The phone then shows a connected chat list that is really the adapter refusing every frame of the wrong key - which is how "errore pairing key" hid behind an apparently live connection. |
 | `check-attachment-file.js` | An outgoing attachment copied to the shared name `outgoing_attachment` (every recording then replaces the one before it, and every bubble that points at that name plays the last file), and a `ToggleVoice` that trusts the file name alone instead of reloading when the bubble changes (`bool anotherMessage = _voiceMessage != message`). |
@@ -86,7 +89,7 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 cd WhatsappBridge && npm test
 ```
 
-Expected `pass 173`, `fail 0`. It covers the config and its `.env` loader, the GOWA
+Expected `pass 293`, `fail 0`. It covers the config and its `.env` loader, the GOWA
 client (including the per-device `withDevice`/`createDevice`), the chat list and
 the group pictures, the call scan, the `ffmpeg` transcode (with the executable
 injected, so the suite needs no `ffmpeg`), the message format (including the
