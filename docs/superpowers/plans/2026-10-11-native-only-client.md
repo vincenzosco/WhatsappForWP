@@ -1143,13 +1143,32 @@ the form `Ruling: <what> - <why> - <cost if wrong>`.
 | 4 | `9ed5280` | done: `HistorySync`, `HistorySyncNotification`, `Zlib`. 155 |
 | 5 | `d948e19`, `1f34e32` | done: `NativeChats`, then the wiring - an inbound stanza is acked, opened, and becomes history, a chat row or a message; `DataService` reads `NativeConnection` and no longer the adapter. 163 |
 | 6 | `12b610e` | done: `Conversation` (typing + receipts), the send path with its waiter table, receipts into `SetMessageStatus`, `ChatPage` send/typing and `DataService`'s read off the adapter. 169 |
-| 7-13 | - | not started |
+| 7 | (this commit) | done: `MediaKeys`, `MediaDownload`, `IMediaFetcher`, `WinRtMediaFetcher`, the four media protobufs in `Message`, the row + the bytes in `NativeConnection`, the bytes into `IncomingMediaStore.StoreAsync` and `DataService`, the tap into `NativeConnection.DownloadMediaAsync`. 178 protocol tests |
+| 8-13 | - | not started |
 
-Two things Task 5 and 6 deliberately left open, because they are Task 7's: the history
-chunks that arrive **behind a media download** are named in the log and not fetched
-(`NativeConnection.ApplyHistory`), and a message whose payload is media is acknowledged and
-left alone (`ReadMessageAsync`, "carries no words"). Both are working code paths that say
-what they cannot do yet - not silent drops.
+What Task 7 changed about the tree the tasks before it left:
+
+- The media key schedule, the ten-byte MAC, the two hashes and the four field tables were
+  printed from the reference (`/tmp/m4ref`, one field at a time) and are pinned by
+  `ProtocolTests/Vectors/MediaFixture.cs`; the field numbers really do differ per type
+  (`fileSha256` is 4 in a photo and 3 in a voice note, `directPath` 11 against 9), which is
+  why `MediaMessages` has four tables and not one.
+- **One deviation from the plan's file list**: the tests live in `ProtocolTests/MediaTests.cs`
+  instead of `MediaKeysTests.cs` + `MediaDownloadTests.cs`. The four cases the plan names are
+  all there, in one file, because they share the fixture the reference printed.
+- **`Windows.Web.Http.HttpClient` has no `Timeout` property** (the desktop one does, and the
+  plan's Step 3 assumed it): `WinRtMediaFetcher` passes a `CancellationTokenSource` to
+  `AsTask` instead. A download that never answered would otherwise park the stanza reader -
+  the same loop every other message arrives on - forever.
+- The message whose payload is media is now **a row and then bytes**, not a stanza that is
+  "acknowledged and left alone": `ReadMessageAsync` adds the row (with the encoded `Message`
+  on it) and emits `MessageArrived`, then fetches, decrypts and emits `MediaArrived`. A
+  download that fails leaves the bubble without its picture and a tap asks again.
+- The history chunks that arrive **behind a media download** are still named in the log and
+  not fetched (`NativeConnection.ApplyHistory`); that half of the sentence above still stands.
+
+Every platform rebuilt: x86 and ARM `MSBuild -t:Rebuild` both ended with `Your package has
+been successfully created.`
 
 Every task above ended with all fourteen guards exit 0, `node --test tools/test/*.test.js`
 101 pass / 0 fail, `check-csharp5` exit 0, and the x86 `MSBuild -t:Rebuild` producing

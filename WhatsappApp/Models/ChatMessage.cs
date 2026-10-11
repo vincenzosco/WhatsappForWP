@@ -222,6 +222,14 @@ namespace WhatsappApp.Models
             }
         }
 
+        /// <summary>
+        /// The keys and the address this media was sent with, as the protocol read them out
+        /// of the message (`MediaMessages.Of`). It is not a `[DataMember]` and not bound:
+        /// it is not wire data but this client's own knowledge of where those bytes are,
+        /// and it is what a tap on a bubble without its bytes is answered with.
+        /// </summary>
+        public WhatsappApp.Protocol.WaProto.MediaInfo Media;
+
         /// <summary>Identifier of an attachment that travels in pieces (media.begin/end).</summary>
         [DataMember]
         public string MediaTransferId

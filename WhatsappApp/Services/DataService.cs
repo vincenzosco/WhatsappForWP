@@ -6,6 +6,8 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.Media;
+using WhatsappApp.Protocol.WaProto;
 
 namespace WhatsappApp.Services
 {
@@ -128,6 +130,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.ChatArrived += OnNativeChat;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
             NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
+            NativeConnection.Instance.MediaArrived += OnNativeMedia;
 
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
@@ -196,7 +199,134 @@ namespace WhatsappApp.Services
             message.SenderName = string.IsNullOrEmpty(incoming.SenderName) ? null : incoming.SenderName;
             message.Timestamp = Moment(incoming.Timestamp);
 
+            // A photo, a voice note, a video or a document: the encoded message is where
+            // its keys are, and the same decoding serves a live message and a history row.
+            ApplyNativeMedia(message, incoming.Encoded);
+
             OnNetworkMessageReceived(this, message);
+        }
+
+        /// <summary>
+        /// The media a message carries, applied to the row the pages bind: the type that
+        /// decides which bubble is drawn, the MIME type, the file name, the caption, and the
+        /// keys and address a later tap fetches the bytes with.
+        ///
+        /// The encoded `Message` and not a decoded one, in both directions: the history row
+        /// carries it on the wire (`HistoryMessage.Encoded`) and the live reader puts it there
+        /// (`NativeConnection.ReadMediaAsync`), so there is exactly one decoder and one place
+        /// the media type is worked out (`MediaMessages.Of`).
+        /// </summary>
+        private static void ApplyNativeMedia(ChatMessage message, byte[] encoded)
+        {
+            if (message == null || encoded == null) return;
+
+            MediaInfo info = MediaMessages.Of(Message.Decode(encoded));
+            if (info == null) return;
+
+            message.Media = info;
+            message.MediaType = info.Type;
+            if (!string.IsNullOrEmpty(info.MimeType)) message.MediaMimeType = info.MimeType;
+            if (!string.IsNullOrEmpty(info.FileName)) message.MediaFileName = info.FileName;
+            if (!string.IsNullOrEmpty(info.Caption) && string.IsNullOrEmpty(message.Text)) message.Text = info.Caption;
+
+            if (string.Equals(info.Type, MediaKeys.Image, StringComparison.OrdinalIgnoreCase))
+                message.Type = MessageType.Image;
+            else if (string.Equals(info.Type, MediaKeys.Video, StringComparison.OrdinalIgnoreCase))
+                message.Type = MessageType.Video;
+            else if (string.Equals(info.Type, MediaKeys.Audio, StringComparison.OrdinalIgnoreCase))
+                message.Type = MessageType.Audio;
+            // A document has no type of its own on purpose: its bubble is the file name, and
+            // `MediaType` ("document") is what tells the card to draw it as one.
+        }
+
+        /// <summary>
+        /// The bytes of a native media message have arrived: they go where the adapter's
+        /// pieces went (memory for an image, the phone's folder for a video, a note or a
+        /// document) and into the bubble that is already on screen.
+        /// </summary>
+        private void OnNativeMedia(object sender, MediaArrival arrival)
+        {
+            if (arrival == null || string.IsNullOrEmpty(arrival.Id)) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/native media", ApplyNativeMediaAsync(arrival));
+#pragma warning restore 4014
+        }
+
+        private async Task ApplyNativeMediaAsync(MediaArrival arrival)
+        {
+            try
+            {
+                MediaInfo info = arrival.Info;
+
+                IncomingMediaResult result = await IncomingMediaStore.StoreAsync(arrival.Id,
+                    info == null ? null : info.Type,
+                    info == null ? null : info.MimeType,
+                    info == null ? null : info.FileName,
+                    arrival.Bytes);
+
+                if (result == null) return;
+
+                var message = new ChatMessage();
+                message.ChatId = arrival.Jid;
+                message.RelatedMessageId = arrival.Id;
+
+                await ApplyMedia(message, result);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/ApplyNativeMediaAsync", ex);
+            }
+        }
+
+        /// <summary>
+        /// A tap on a bubble whose media has no bytes: the file is fetched from WhatsApp,
+        /// decrypted here, stored and put in the bubble, which is where the image control and
+        /// the player read it from. A media message that arrived without keys (or an old one
+        /// the client never kept them for) says so and stops the spinner rather than spinning
+        /// forever.
+        /// </summary>
+        public void RequestMedia(ChatMessage message)
+        {
+            if (message == null) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/request media", RequestNativeMediaAsync(message));
+#pragma warning restore 4014
+        }
+
+        private async Task RequestNativeMediaAsync(ChatMessage message)
+        {
+            MediaInfo info = message.Media;
+            if (info == null)
+            {
+                message.IsMediaLoading = false;
+                Diag.Ok("media: message " + message.Id + " arrived without keys, so it is not fetchable");
+                return;
+            }
+
+            try
+            {
+                byte[] bytes = await NativeConnection.Instance.DownloadMediaAsync(info);
+
+                IncomingMediaResult result = await IncomingMediaStore.StoreAsync(message.Id,
+                    info.Type, info.MimeType, info.FileName, bytes);
+
+                if (result == null)
+                {
+                    message.IsMediaLoading = false;
+                    return;
+                }
+
+                await ApplyMedia(message, result);
+            }
+            catch (Exception ex)
+            {
+                // The spinner stops and the failure is named: a bubble that spins forever is
+                // what a person reads as "this phone is broken".
+                message.IsMediaLoading = false;
+                Diag.Failed("DataService/request media", ex);
+            }
         }
 
         /// <summary>

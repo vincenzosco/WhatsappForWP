@@ -217,6 +217,63 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>Drops a received media: it is never assembled halfway.</summary>
+        /// <summary>
+        /// A media this client fetched and decrypted itself, in one piece.
+        ///
+        /// The chunk path above exists because the adapter could not send a video in one
+        /// frame; the native client asks WhatsApp for a blob and gets the whole file, so
+        /// there is nothing to reassemble here - but where the bytes end up is the same
+        /// decision, and it is the same code: an image stays in memory (drawn at once),
+        /// a video, a voice note and a document go to a file, because a whole video in
+        /// memory on a 512 MB phone does not fit.
+        /// </summary>
+        public static Task<IncomingMediaResult> StoreAsync(string messageId, string mediaType,
+            string mimeType, string fileName, byte[] bytes)
+        {
+            return Chunks.RunAsync(delegate
+            {
+                return StoreCoreAsync(messageId, mediaType, mimeType, fileName, bytes);
+            });
+        }
+
+        private static async Task<IncomingMediaResult> StoreCoreAsync(string messageId, string mediaType,
+            string mimeType, string fileName, byte[] bytes)
+        {
+            if (bytes == null || messageId == null) return null;
+
+            string type = string.IsNullOrEmpty(mediaType) ? "image" : mediaType.ToLower();
+
+            var result = new IncomingMediaResult
+            {
+                MediaType = type,
+                MimeType = mimeType,
+                FileName = fileName,
+                SizeBytes = bytes.Length
+            };
+
+            if (!ToDisk(type))
+            {
+                result.Base64 = Convert.ToBase64String(bytes);
+                return result;
+            }
+
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    LocalNameFor(messageId, mimeType, fileName), CreationCollisionOption.ReplaceExisting);
+
+                await FileIO.WriteBytesAsync(file, bytes);
+
+                result.LocalFileName = file.Name;
+                return result;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("IncomingMediaStore.StoreAsync", ex);
+                return null;
+            }
+        }
+
         private static void Abandon(Pending pending)
         {
             if (pending == null) return;
