@@ -1145,7 +1145,7 @@ the form `Ruling: <what> - <why> - <cost if wrong>`.
 | 6 | `12b610e` | done: `Conversation` (typing + receipts), the send path with its waiter table, receipts into `SetMessageStatus`, `ChatPage` send/typing and `DataService`'s read off the adapter. 169 |
 | 7 | (this commit) | done: `MediaKeys`, `MediaDownload`, `IMediaFetcher`, `WinRtMediaFetcher`, the four media protobufs in `Message`, the row + the bytes in `NativeConnection`, the bytes into `IncomingMediaStore.StoreAsync` and `DataService`, the tap into `NativeConnection.DownloadMediaAsync`. 178 protocol tests |
 | 8 | (this commit) | done: `MediaConn` + `MediaUpload`, `IMediaFetcher.PostAsync` (and its WinRT half), `NativeConnection.SendMediaAsync` (device list, media connection, upload, message), `ChatPage`'s attachment path, `OutgoingMessage`'s media stanza. 190 protocol tests |
-| 9 | (this commit) | **partly done**: `SenderKeyRecord` + `SenderKeyMessage` + `SenderKeyDistribution`, `SenderKeys`, `GroupDirectory`, sender keys on disk in `SessionStore`, 15 tests incl. the reference's own distribution and ciphertext. The group **send** and the `skmsg` **receive** wiring, `GroupDirectory.FanOut` and the `DataService` half are not written yet - see the notes below |
+| 9 | (this commit) | done, less two named gaps: the sender key (record, message, distribution), `GroupDirectory`, `OutgoingMessage.Group` (one `skmsg` plus the `participants` node), `NativeConnection.SendGroupAsync`/`SenderKeyAsync`/`MemberDevicesAsync`, the `skmsg` receive path in `IncomingMessage`, `DeviceDirectory`'s multi-JID query. 219 protocol tests, incl. 6 that drive a whole group exchange |
 | 10 | (this commit) | **partly done**: `ProfilePictures` (query, setter, reader) with 5 tests, `NativeConnection.RequestAvatarAsync`, and `ContactInfoPage` asking WhatsApp for the full picture. The chat list's `preview` prefetch is not wired |
 | 11-13 | - | not started |
 
@@ -1192,6 +1192,35 @@ What Task 10 changed, and the one place the reference contradicted the plan:
 - **Not done**: the chat list's `preview` prefetch for rows without a cached avatar. The
   query and the reader are here; who asks for previews, and how many, is open (it is the
   kind of loop `check-memory.js` is about).
+
+What Task 9 added in its wiring step, and the two gaps it leaves:
+
+- **The send is one ciphertext, not twenty**: `OutgoingMessage.Group` writes the sender key
+  for each device that has not had it (in a `participants` node, `to[jid]` + `enc`), then one
+  `enc type="skmsg"` for everybody. The plaintext is the message with **no device-sent
+  wrapper** (`marshalMessage`: only a 1:1 send has one).
+- **`addressing_mode` is echoed** when the group's metadata names one, and nothing is sent when
+  it does not: a guessed mode is a message the group cannot attribute.
+- **The key is handed out once per member device per run** (`_senderKeysSent`, in memory).
+  `Ruling:` in memory and not on disk. Why: after a restart every device gets the key once
+  more, which costs one small encrypted node per device and can never leave a member unable
+  to read; a file would be a second copy of the server's membership that can disagree with it.
+  Cost if wrong: a longer-lived duplicate than the reference needs.
+- **The receive path reads the key before the ciphertext**, always: the `to[device]` node's
+  plaintext is a message whose only field is `senderKeyDistributionMessage`, and the `skmsg`
+  cannot be opened without the key it carries. **The reference's two shapes are both read** -
+  `to[jid]` straight under the stanza (Baileys) and inside a `participants` node (whatsmeow) -
+  and the first test written here caught a reader that knew only one of them.
+- **Two gaps, both named rather than half-done**: a group **read receipt** goes to the group
+  without the `participant` attribute (`whatsmeow` sets it: the receipt then names the message's
+  author), because `DataService.MarkReadAsync` only has the chat and the ids; and a group row
+  created by a *live* message shows the member's number and not their push name, because the
+  names arrive with the history sync and not on the message. Neither loses a message; both are
+  visible on the phone the moment a real group is used.
+- `GroupDirectory.FanOut` as the plan listed it ("one session per participant device") is not a
+  function any more: the fan-out is `NativeConnection.MemberDevicesAsync` + the per-device
+  bundles in `SendGroupAsync`, because the device lists and the bundles are two requests that
+  have to be made in the order the reference makes them.
 
 What Task 9 has and has not, as of this commit:
 
