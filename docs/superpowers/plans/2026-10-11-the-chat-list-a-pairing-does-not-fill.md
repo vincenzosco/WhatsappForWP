@@ -540,13 +540,26 @@ Filled in as the plan runs; Task 1's lines are recorded here the day they are re
 
 | Task | Commit | State |
 | --- | --- | --- |
-| 1. the phone run that names the case | - | not started |
-| 2. the `md-msg-hist` keys | - | not started |
-| 3. `HistoryBlob` | - | not started |
-| 4. the wiring and the device | - | not started |
+| 1. the phone run that names the case | - | not run here: no device on this machine, so Tasks 2-4 took the download half from the reference instead |
+| 2. the `md-msg-hist` keys | 426cd9d | done - 235 protocol tests |
+| 3. `HistoryBlob` | 37718da | done - 241 protocol tests |
+| 4. the wiring and the device | a899bff | the code, the skill item and the gate are done; Step 7 needs a phone |
 
 What the phone said (Task 1, Step 4):
 
 | Date | `native: history sync ...` line | Which case |
 | --- | --- | --- |
 | - | - | - |
+
+### What the execution changed in this plan
+
+- **Task 3, Step 6: the fetch does not open twice.** The snippet opened
+  `MediaDownload.FetchAsync`'s answer, but that method fetches **and** opens: what it returns
+  is already decrypted, so a second `Open` checks a MAC over plaintext and refuses a blob
+  WhatsApp really sent. `HistoryBlob.FetchAsync` inflates that answer instead, and
+  `TheFetchedHistoryBecomesTheSameConversations` - the scripted fetcher the plan asked for -
+  is what caught it before the commit. The file names the trap, because the next reader will
+  reach for the same two calls.
+- **Task 4, Step 6 lived in item 13 of the on-device checklist** instead of as a new item: the
+  checklist already asked for the conversations after a pairing, so the `DIAG` lines and the
+  two failure sentences went into it rather than into a near-duplicate item.
