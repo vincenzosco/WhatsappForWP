@@ -55,6 +55,22 @@ namespace WhatsappApp.Pages
         private readonly DeviceRandomSource _random = new DeviceRandomSource();
         private readonly CredentialStore _store = new CredentialStore(new NativeCredentialStorage());
 
+        /// <summary>
+        /// The screen request, and why this page has one: a code goes stale the moment the
+        /// app is suspended, and the screen locking is what suspends it. The phone sleeps,
+        /// the socket dies, and the code stays on screen looking perfectly scannable - the
+        /// run of 2026-10-10 did exactly that (QR up at 14:32:5x, `=== run ended ===` at
+        /// 14:33:14 with the code still displayed, and the phone that scanned it answered
+        /// "Impossibile collegare il dispositivo", because the ref belonged to a
+        /// connection that no longer existed). The old connection page held one for the
+        /// same reason; this page is where the QR lives now.
+        ///
+        /// Held while a code is on screen and released with it: an expired page has
+        /// nothing to read, and holding a phone awake for it is a phone with no battery.
+        /// </summary>
+        private Windows.System.Display.DisplayRequest _displayRequest;
+        private bool _displayRequestActive;
+
         private DispatcherTimer _rotation;
         private WebSocketTransport _transport;
         private PairingSession _session;
@@ -88,6 +104,7 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
 
             StopRotation();
+            ReleaseScreenOn();
             if (_session != null) _session.Close();
         }
 
@@ -154,6 +171,13 @@ namespace WhatsappApp.Pages
                 // The account is new and the store has it: whatever was refused before is
                 // no longer this phone's problem.
                 SessionState.Expired = false;
+
+                // And the login that makes the link real. The server drops the pairing
+                // connection after `pair-device-sign` (the reference calls it
+                // `expectDisconnect`), and a device that stops here is a device WhatsApp's
+                // own side reports as failed to link - which is what the phone showed on
+                // 2026-10-10 (see NativeConnection).
+                NativeConnection.Instance.Start();
 
                 Diag.Ok("whatsapp: linked as " + paired.Jid);
 
@@ -270,8 +294,44 @@ namespace WhatsappApp.Pages
             QrImage.Width = side;
             QrImage.Height = side;
 
+            // There is a code on screen, so the screen has to stay on: see the field.
+            // Idempotent, so the rotation calls it once per code for nothing.
+            KeepScreenOn();
+
             Diag.Ok("whatsapp: the pairing code is on screen (" + side + " px, "
                 + PixelsPerModule + " per module)");
+        }
+
+        /// <summary>
+        /// The screen stays on: if it turns off or dims while the code is on screen, the
+        /// code becomes unreadable and the scan fails with no error message at all.
+        ///
+        /// All inside the try, construction included: creating the request can fail on
+        /// the platform, and a convenience must never stop the code from being shown.
+        /// </summary>
+        private void KeepScreenOn()
+        {
+            if (_displayRequestActive) return;
+            try
+            {
+                if (_displayRequest == null) _displayRequest = new Windows.System.Display.DisplayRequest();
+                _displayRequest.RequestActive();
+                _displayRequestActive = true;
+            }
+            catch (Exception error)
+            {
+                // Active-request limit reached, or member not implemented on this
+                // phone: we carry on without.
+                Diag.Failed("PairPage/KeepScreenOn", error);
+            }
+        }
+
+        private void ReleaseScreenOn()
+        {
+            if (!_displayRequestActive || _displayRequest == null) return;
+            try { _displayRequest.RequestRelease(); }
+            catch (Exception error) { Diag.Failed("PairPage/ReleaseScreenOn", error); }
+            _displayRequestActive = false;
         }
 
         private static int SecondsPerCode(int count)
@@ -287,6 +347,9 @@ namespace WhatsappApp.Pages
         private void ShowExpired()
         {
             Diag.Ok("whatsapp: the pairing codes have run out");
+
+            // The codes are gone, so the reason to be awake is gone with them.
+            ReleaseScreenOn();
 
             QrImage.Visibility = Visibility.Collapsed;
             ExpiredText.Visibility = Visibility.Visible;

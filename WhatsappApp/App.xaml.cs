@@ -377,6 +377,12 @@ namespace WhatsappApp
             // when suspending the app, and on resume the connection looks active
             // but nothing gets through anymore (see ConnectionWatchdog).
             ConnectionWatchdog.Instance.Start();
+
+            // The account this phone is linked as, brought online. It is not the adapter's
+            // connection: it is the login WhatsApp needs after a pairing, and without it a
+            // device pairs and never appears as linked (see NativeConnection). A start with
+            // no account stored does nothing here, and the QR is the page.
+            NativeConnection.Instance.Start();
         }
 
         /// <summary>

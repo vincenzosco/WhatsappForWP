@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Crypto;
+using WhatsappApp.Protocol.WaProto;
 
 namespace WhatsappApp.Protocol.Signal
 {
@@ -45,6 +46,16 @@ namespace WhatsappApp.Protocol.Signal
             /// <summary>Keys passed over and kept, by index, for messages that may still arrive.</summary>
             public readonly Dictionary<int, byte[]> Skipped = new Dictionary<int, byte[]>();
         }
+
+        /// <summary>
+        /// The first byte of <see cref="Encode"/>: the format's version.
+        ///
+        /// A record written by a later build is refused rather than guessed at. Reading one
+        /// anyway would drop the fields this build does not know as unknown and count the
+        /// rest as a session - a session missing half its state, which encrypts happily and
+        /// cannot be read by the other side.
+        /// </summary>
+        private const byte FileVersion = 1;
 
         private readonly IRandomSource _random;
 
@@ -320,7 +331,7 @@ namespace WhatsappApp.Protocol.Signal
 
             if (!Same(message.EphemeralKey, _theirRatchetPublic)) StepReceiving(message.EphemeralKey, message.PreviousCounter);
 
-            byte[] messageKey = TakeMessageKey(message.Counter);
+            byte[] messageKey = TakeMessageKey(message.EphemeralKey, message.Counter);
             MessageKeys keys = Keys.MessageKeys(messageKey);
 
             // The MAC is checked before anything is decrypted. It covers the two
@@ -338,6 +349,65 @@ namespace WhatsappApp.Protocol.Signal
             _pendingPreKey = false;
 
             return plaintext;
+        }
+
+        /// <summary>
+        /// The record as bytes, for the store that keeps it between runs.
+        ///
+        /// The framing is ours: nothing on the wire depends on it, and the reference keeps
+        /// its own sessions its own way. So it is framed the way a file has to be - a
+        /// version byte, the length of what follows, the protobuf, and the SHA-256 of the
+        /// protobuf - rather than as another message format.
+        ///
+        /// The length is not decoration, and neither is the digest. A record read back has
+        /// to be exactly what was written or be refused, because the alternative is a
+        /// session with a damaged key: a save interrupted half way - the app closed, the
+        /// phone out of room - would otherwise parse as a perfectly good record holding 31
+        /// bytes of one key and a zero, and the whole thing would surface days later as one
+        /// conversation that cannot be read. The digest catches what the length cannot: a
+        /// bit flipped inside a key leaves every length intact.
+        /// </summary>
+        public byte[] Encode()
+        {
+            byte[] body = Body();
+            byte[] digest = Sha256.Hash(body);
+
+            var framed = new byte[1 + 4 + body.Length + digest.Length];
+            framed[0] = FileVersion;
+
+            // Big-endian, because a hex dump of the file should read the way the number
+            // does; nothing depends on it but a person looking at one.
+            framed[1] = (byte)(body.Length >> 24);
+            framed[2] = (byte)(body.Length >> 16);
+            framed[3] = (byte)(body.Length >> 8);
+            framed[4] = (byte)body.Length;
+
+            Buffer.BlockCopy(body, 0, framed, 5, body.Length);
+            Buffer.BlockCopy(digest, 0, framed, 5 + body.Length, digest.Length);
+
+            return framed;
+        }
+
+        /// <summary>
+        /// The record <see cref="Encode"/> wrote, or null.
+        ///
+        /// Null for anything that is not a whole record - truncated, damaged, empty, or
+        /// written by a version this build does not know - and null rather than an exception
+        /// is the point. What reaches this is a file, and a file is the one input that can
+        /// be anything at all; a caller that gets null starts a new session, which is what
+        /// the user would ask for, where an exception would escape from the middle of a
+        /// decryption and take the conversation with it (review focus 2).
+        /// </summary>
+        public static SessionRecord Decode(byte[] bytes, IRandomSource random)
+        {
+            try
+            {
+                return Read(bytes, random);
+            }
+            catch (ProtocolException)
+            {
+                return null;
+            }
         }
 
         /// <summary>
@@ -400,6 +470,15 @@ namespace WhatsappApp.Protocol.Signal
         /// The message key at an index, advancing the chain to reach it and keeping every
         /// key it passes.
         ///
+        /// The chain is the one the message's *own* ratchet key hangs off, not the one the
+        /// session currently sends under. They are the same chain in the ordinary case and
+        /// they are not after a step: a message can arrive on a key the ratchet has already
+        /// moved past - a retry, a reordered pair - and `StepReceiving` deliberately leaves
+        /// that chain in `_chains` so it can be opened. Reading the key from the current
+        /// chain instead takes one that belongs to another message: the counter is already
+        /// spent there, which surfaces as "the message key was already used" for a message
+        /// nobody has read, or - worse - spends a key a message still on its way needs.
+        ///
         /// Two cases that look similar and are not:
         ///
         /// - **A message that arrives before a gap it can fill** is answered from a kept
@@ -410,9 +489,9 @@ namespace WhatsappApp.Protocol.Signal
         ///   the reason a duplicate is not a decryption: the same message twice is the
         ///   *app's* to drop, by its id, and it is dropped there (see `DataService`).
         /// </summary>
-        private byte[] TakeMessageKey(uint counter)
+        private byte[] TakeMessageKey(byte[] ratchetKey, uint counter)
         {
-            Chain chain = Find(_theirRatchetPublic);
+            Chain chain = Find(ratchetKey);
             if (chain == null) throw new ProtocolException("no chain for the message's ratchet key");
 
             int index = (int)counter;
@@ -467,6 +546,216 @@ namespace WhatsappApp.Protocol.Signal
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// The record as one protobuf. One field per piece of state, numbered as they are
+        /// read here, and two of them nested: the sending chain, which an untouched
+        /// responder does not have yet, and the chains keyed by the peer's ratchet key.
+        /// </summary>
+        private byte[] Body()
+        {
+            var writer = new ProtoWriter();
+            writer.Bytes(1, _ourIdentityPrivate);
+            writer.Bytes(2, _ourIdentityPublic);
+            writer.Bytes(3, _theirIdentityPublic);
+            writer.Bytes(4, _rootKey);
+            writer.Bytes(5, _ourRatchetPrivate);
+            writer.Bytes(6, _ourRatchetPublic);
+            writer.Bytes(7, _theirRatchetPublic);
+            writer.Varint(8, _previousCounter);
+            if (_ourBaseKeyPublic != null) writer.Bytes(9, _ourBaseKeyPublic);
+            writer.Varint(10, _ourRegistrationId);
+            writer.Varint(11, _theirRegistrationId);
+            writer.Varint(12, _theirPreKeyId);
+            writer.Varint(13, _hasTheirPreKey ? 1u : 0u);
+            writer.Varint(14, _theirSignedPreKeyId);
+            writer.Varint(15, _pendingPreKey ? 1u : 0u);
+
+            if (_sending != null)
+            {
+                var sending = new ProtoWriter();
+                sending.Bytes(1, _sending.ChainKey);
+                sending.Varint(2, (ulong)_sending.Counter);
+
+                writer.Bytes(16, sending.ToArray());
+            }
+
+            foreach (Chain chain in _chains) writer.Bytes(17, Body(chain));
+
+            return writer.ToArray();
+        }
+
+        /// <summary>
+        /// One chain: the key it hangs off, where it has got to, and every key it passed
+        /// over and kept.
+        ///
+        /// A skipped key is stored with its index rather than as a run in order, because
+        /// what is kept is a *set* - a gap that was filled has no entry - and a format that
+        /// assumed a run would write a key that is no longer there and read one that never
+        /// was.
+        /// </summary>
+        private static byte[] Body(Chain chain)
+        {
+            var writer = new ProtoWriter();
+            writer.Bytes(1, chain.RatchetKey);
+            writer.Bytes(2, chain.ChainKey);
+            writer.Varint(3, (ulong)chain.Counter);
+
+            foreach (KeyValuePair<int, byte[]> skipped in chain.Skipped)
+            {
+                var pair = new ProtoWriter();
+                pair.Varint(1, (ulong)skipped.Key);
+                pair.Bytes(2, skipped.Value);
+
+                writer.Bytes(4, pair.ToArray());
+            }
+
+            return writer.ToArray();
+        }
+
+        /// <summary>
+        /// The framing and then the protobuf, with every failure a `ProtocolException` for
+        /// <see cref="Decode"/> to turn into null.
+        /// </summary>
+        private static SessionRecord Read(byte[] bytes, IRandomSource random)
+        {
+            if (bytes == null || bytes.Length < 1 + 4 + Sha256.DigestLength) return null;
+            if (bytes[0] != FileVersion) return null;
+
+            int length = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
+            if (length < 0 || length > bytes.Length) return null;
+            if (bytes.Length != 1 + 4 + length + Sha256.DigestLength) return null;
+
+            var body = new byte[length];
+            Buffer.BlockCopy(bytes, 5, body, 0, length);
+
+            var digest = new byte[Sha256.DigestLength];
+            Buffer.BlockCopy(bytes, 5 + length, digest, 0, digest.Length);
+
+            if (!Hmac.FixedTimeEquals(Sha256.Hash(body), digest))
+            {
+                throw new ProtocolException("a record's digest is not the digest of its own bytes");
+            }
+
+            var session = new SessionRecord(random);
+            var sending = new Chain();
+            bool hasSending = false;
+            var reader = new ProtoReader(body);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == 1 && field.WireType == 2) session._ourIdentityPrivate = reader.ReadBytes();
+                else if (field.Number == 2 && field.WireType == 2) session._ourIdentityPublic = reader.ReadBytes();
+                else if (field.Number == 3 && field.WireType == 2) session._theirIdentityPublic = reader.ReadBytes();
+                else if (field.Number == 4 && field.WireType == 2) session._rootKey = reader.ReadBytes();
+                else if (field.Number == 5 && field.WireType == 2) session._ourRatchetPrivate = reader.ReadBytes();
+                else if (field.Number == 6 && field.WireType == 2) session._ourRatchetPublic = reader.ReadBytes();
+                else if (field.Number == 7 && field.WireType == 2) session._theirRatchetPublic = reader.ReadBytes();
+                else if (field.Number == 8 && field.WireType == 0) session._previousCounter = (uint)reader.ReadVarint();
+                else if (field.Number == 9 && field.WireType == 2) session._ourBaseKeyPublic = reader.ReadBytes();
+                else if (field.Number == 10 && field.WireType == 0) session._ourRegistrationId = (uint)reader.ReadVarint();
+                else if (field.Number == 11 && field.WireType == 0) session._theirRegistrationId = (uint)reader.ReadVarint();
+                else if (field.Number == 12 && field.WireType == 0) session._theirPreKeyId = (uint)reader.ReadVarint();
+                else if (field.Number == 13 && field.WireType == 0) session._hasTheirPreKey = reader.ReadVarint() != 0;
+                else if (field.Number == 14 && field.WireType == 0) session._theirSignedPreKeyId = (uint)reader.ReadVarint();
+                else if (field.Number == 15 && field.WireType == 0) session._pendingPreKey = reader.ReadVarint() != 0;
+                else if (field.Number == 16 && field.WireType == 2) hasSending = ReadSending(reader.ReadBytes(), sending);
+                else if (field.Number == 17 && field.WireType == 2) session._chains.Add(ReadChain(reader.ReadBytes()));
+                else reader.SkipField(field.WireType);
+            }
+
+            if (hasSending) session._sending = sending;
+
+            session.Check();
+
+            return session;
+        }
+
+        private static bool ReadSending(byte[] bytes, Chain chain)
+        {
+            var reader = new ProtoReader(bytes);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == 1 && field.WireType == 2) chain.ChainKey = reader.ReadBytes();
+                else if (field.Number == 2 && field.WireType == 0) chain.Counter = (int)reader.ReadVarint();
+                else reader.SkipField(field.WireType);
+            }
+
+            if (chain.ChainKey == null) throw new ProtocolException("a sending chain without a chain key is not a chain");
+
+            return true;
+        }
+
+        private static Chain ReadChain(byte[] bytes)
+        {
+            var chain = new Chain();
+            var reader = new ProtoReader(bytes);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == 1 && field.WireType == 2) chain.RatchetKey = reader.ReadBytes();
+                else if (field.Number == 2 && field.WireType == 2) chain.ChainKey = reader.ReadBytes();
+                else if (field.Number == 3 && field.WireType == 0) chain.Counter = (int)reader.ReadVarint();
+                else if (field.Number == 4 && field.WireType == 2) ReadSkipped(reader.ReadBytes(), chain);
+                else reader.SkipField(field.WireType);
+            }
+
+            if (chain.RatchetKey == null) throw new ProtocolException("a chain without a ratchet key is not a chain");
+            if (chain.ChainKey == null) throw new ProtocolException("a chain without a chain key is not a chain");
+
+            return chain;
+        }
+
+        private static void ReadSkipped(byte[] bytes, Chain chain)
+        {
+            int index = 0;
+            byte[] key = null;
+            var reader = new ProtoReader(bytes);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == 1 && field.WireType == 0) index = (int)reader.ReadVarint();
+                else if (field.Number == 2 && field.WireType == 2) key = reader.ReadBytes();
+                else reader.SkipField(field.WireType);
+            }
+
+            if (key == null || key.Length != 32) throw new ProtocolException("a kept message key is 32 bytes");
+
+            chain.Skipped[index] = key;
+        }
+
+        /// <summary>
+        /// Everything a session cannot be without. A file that parses into something missing
+        /// one of these is not a session, and the caller has to be told so before it tries to
+        /// encrypt with it, where the failure would read as "the message key is wrong".
+        /// </summary>
+        private void Check()
+        {
+            Require(_ourIdentityPrivate, 32, "our identity private key");
+            Require(_ourIdentityPublic, SignalConstants.TypedKeyLength, "our identity public key");
+            Require(_theirIdentityPublic, SignalConstants.TypedKeyLength, "the peer's identity key");
+            Require(_rootKey, 32, "the root key");
+            Require(_ourRatchetPrivate, 32, "our ratchet private key");
+            Require(_ourRatchetPublic, SignalConstants.TypedKeyLength, "our ratchet public key");
+            Require(_theirRatchetPublic, SignalConstants.TypedKeyLength, "the peer's ratchet key");
+        }
+
+        private static void Require(byte[] key, int length, string what)
+        {
+            if (key == null || key.Length != length)
+            {
+                throw new ProtocolException("a session needs " + what);
+            }
         }
 
         /// <summary>The protobuf behind the framing: `version || message || mac`.</summary>

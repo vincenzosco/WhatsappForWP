@@ -349,64 +349,84 @@ The tests that carry this task, in `ProtocolTests/SignalSessionTests.cs`:
 
 ---
 
-### Task 5: Sessions that survive the app being closed
+### Task 5: Sessions that survive the app being closed — **done**, `91ae8d4`
 
 **Files:**
-- Create: `WhatsappApp/Protocol/Signal/Session.cs`, `WhatsappApp/Protocol/Signal/SessionStore.cs`
+- Create: `WhatsappApp/Protocol/Signal/SessionStore.cs` (the record's own `Encode`/
+  `Decode` are methods on `SessionRecord` rather than a `Session.cs`: the file that
+  owns the state is the file that knows how to write it)
 - Create: `WhatsappApp/Services/FileSessionStorage.cs` (the phone's half)
 - Create: `ProtocolTests/SessionStoreTests.cs`
+- Create: `ProtocolTests/SignalSessions.cs` (the builders the session tests and the
+  store tests share, so neither builds the other's)
 - Modify: `WhatsappApp/WhatsApp.csproj`
 
 **Interfaces:**
-- Consumes: `Ratchet`, `WhisperMessage`, `ProtoWriter`/`ProtoReader`.
+- Consumes: `ProtoWriter`/`ProtoReader`, `Sha256`, `Hmac`, `IRandomSource`.
 - Produces: `SessionRecord` with `public byte[] Encrypt(byte[] plaintext)`,
-  `public byte[] Decrypt(byte[] payload)`, `public bool HasSession`,
-  `public byte[] Encode()` and `public static SessionRecord Decode(byte[] bytes)`
-  (the last one returns null for anything it cannot parse whole);
-  `interface ISessionStorage { bool TryRead(string key, out byte[] record); void Write(string key, byte[] record); void Remove(string key); }`;
-  `SessionStore(ISessionStorage storage)` with `public SessionRecord Load(string key)`,
-  `public void Save(string key, SessionRecord record)` and `public int Count`;
-  `PreKeyStore(ISessionStorage storage)` with
+  `public byte[] Decrypt(byte[] wire, bool preKey)`, `public bool HasSession`,
+  `public bool PreKeyPending`, `public byte[] Encode()` and
+  `public static SessionRecord Decode(byte[] bytes, IRandomSource random)` (the
+  last one returns null for anything it cannot parse whole);
+  `interface ISessionStorage { bool TryRead(string key, out byte[] value); void Write(string key, byte[] value); void Remove(string key); }`;
+  `SessionStore(ISessionStorage storage, IRandomSource random)` with
+  `public SessionRecord Load(string peer)`, `public void Save(string peer, SessionRecord session)`
+  and `public void Remove(string peer)`; `PreKeyStore(ISessionStorage storage)` with
   `public byte[] Take(uint id)` (null when the id is spent or unknown),
-  `public void Publish(uint id, byte[] preKey)` and `public int Remaining`.
+  `public void Publish(uint id, byte[] preKey)`, `public int Remaining`,
+  `public void SetSignedPreKey(uint id, byte[] privateKey, byte[] signature)` and
+  the three getters for it.
 
-- [ ] **Step 1: Write the failing tests**
+  Two deviations from this plan's first draft, both recorded as they were made: the
+  storage's `out` parameter is `byte[] value` rather than `record`, because the
+  pre-key store writes through the same interface and a pre-key is not a record;
+  and `Count` is gone, because there is no way to ask a file-per-peer store how many
+  peers it has without enumerating it, and nothing needed the answer.
 
-- `ARecordRoundTrips` — a session built and encoded, decoded, encrypts and
-  decrypts after the round trip (the same message key material).
-- `AHalfWrittenRecordIsNoSession` (review focus 2) — a truncated record and a
-  record with one byte corrupted both answer "no session" rather than throwing
-  out of a decryption.
-- `TheStoreKeepsOneSessionPerPeer` — two peers, two records, no crossing.
-- `ThePreKeyStoreNeverHandsTheSameOneTimeKeyTwice` — the pre-key store the
-  bundle upload (M4) draws from: the second draw of a consumed id fails, and the
-  signed pre-key keeps its id, its private half and its signature across a
-  restart.
+- [x] **Step 1: Write the failing tests**
+
+- `ARecordRoundTrips` — a session built, moved (one message sent, so the record that
+  is saved has a counter and a pending pre-key in it), encoded, decoded and compared
+  byte for byte, then continued in both directions. Comparing the re-encoded bytes
+  rather than a field is the point: the state is a ratchet, and a field-by-field
+  test would pass while the one that moved was wrong.
+- `AHalfWrittenRecordIsNoSession` (review focus 2) — truncated at six places *and*
+  byte by byte through all of it, plus a version byte this build does not know, plus
+  the two trivial cases (null, empty), and through the store, which is where a file
+  actually arrives.
+- `TheStoreKeepsOneSessionPerPeer` — two peers, two records, no crossing; overwriting
+  one leaves the other; removing one removes only that one; removing an absent one is
+  not an error.
+- `ThePreKeyStoreNeverHandsTheSameOneTimeKeyTwice` — the second draw of a consumed id
+  fails, and the signed pre-key keeps its id, its private half and its signature
+  across a restart.
 
 Run: `node tools/test-protocol.js` — Expected: fail.
 
-- [ ] **Step 2: Implement the record and the pre-key store**
+- [x] **Step 2: Implement the record and the pre-key store**
 
-The record is ours, not the reference's: `ProtoWriter` fields for the version, the
-current root, the two chains and the skipped keys, with a length-prefixed wrapper
-so a truncated file is detected instead of parsed. The phone's
-`ISessionStorage` is one file per peer under
-`ApplicationData.Current.LocalFolder`, written through a temporary file and
-renamed, so the half-written state is the one on disk for as little time as
-possible. `PreKeyStore` keeps the one-time pre-keys this device has published but
-not spent, over the same storage interface, keyed by id — it is what M4 uploads
-and what `X3dh.BobSecret` consumes.
+The record is ours, not the reference's: `ProtoWriter` fields for the identity keys,
+ the root, the ratchet keys, the counters, the pending pre-key and the base key, with
+ the two chains nested. The framing is a version byte, the body's length, the body,and the SHA-256 of the body - one more field than this plan asked for, and for a
+reason it says: the length catches a write that was cut short, and the digest catches
+a bit flipped inside a 32-byte key, which leaves every length intact and would
+ otherwise parse into a session that cannot be read. A record whose digest does not
+ match, whose length does not add up, or whose version is not this build's is null:
+ `Decode` never throws, because what reaches it is a file.
 
-- [ ] **Step 3: Run the tests** — Expected: pass.
+The phone's `ISessionStorage` is held in memory and written through, not one file per
+peer read on demand, and the deviation is worth the paragraph: the core's interface is
+synchronous (an encrypt cannot await a file), the platform's file API is asynchronous,
+and blocking on it with `.Wait()` deadlocks the moment a caller on the UI thread asks
+for a session. So `OpenAsync` reads the folder once and the writes go behind the
+caller, one at a time, through `SerialQueue` - the same shape `ChatPreferences` uses.
+A write goes to `.writing` first and is renamed over the real name, and the cleanup
+is gated on the rename having failed, because after a rename the same file object
+names the record itself.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 3: Run the tests** — Expected: pass. It does: 94 test(s).
 
-```bash
-git add WhatsappApp/Protocol/Signal/Session.cs WhatsappApp/Protocol/Signal/SessionStore.cs \
-        WhatsappApp/Services/FileSessionStorage.cs ProtocolTests/SessionStoreTests.cs \
-        WhatsappApp/WhatsApp.csproj
-git commit -m "feat: sessions on disk, and a half-written one is not a session"
-```
+- [x] **Step 4: Commit** — `91ae8d4`.
 
 ---
 

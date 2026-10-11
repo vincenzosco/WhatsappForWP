@@ -52,178 +52,42 @@
                        VerticalAlignment="Center" Margin="8,0,0,4"/>
         </Grid>
 
+        <!-- What this screen is: the account this phone is linked as, and the way back
+             to the code that links it. Nothing about the server it talks through is
+             here: an address, a port and a token are not something a person links, and
+             a screen that shows them asks the reader to understand the plumbing. -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,16,16,16">
 
-                <!-- Servers found on the network -->
-                <TextBlock x:Uid="ConnectionPage_DiscoveredLabel" Text="Servers found"
+                <TextBlock x:Uid="ConnectionPage_LinkedLabel" Text="Linked number"
                            Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
-                <TextBlock x:Name="DiscoveryStatusText" x:Uid="ConnectionPage_Discovering"
-                           Text="Looking for the server on the network..."
-                           Foreground="#FF808080" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                <ListView x:Name="ServersList" Margin="0,4,0,0" Background="White"
-                          SelectionMode="None" IsItemClickEnabled="True"
-                          Visibility="Collapsed" ItemClick="ServersList_ItemClick">
-                    <ListView.ItemTemplate>
-                        <DataTemplate>
-                            <StackPanel Margin="0,8,0,8">
-                                <TextBlock Text="{Binding DisplayName}" FontSize="16"
-                                           Foreground="#FF075E54" TextWrapping="Wrap"/>
-                                <TextBlock Text="{Binding Endpoint}" FontSize="12"
-                                           Foreground="#FF808080"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </ListView.ItemTemplate>
-                </ListView>
-                <TextBlock x:Name="NoServerText" x:Uid="ConnectionPage_NoServerFound"
-                           Text="No server found. Start the adapter on the computer, or enter the address by hand."
-                           Foreground="#FF606060" FontSize="12" TextWrapping="Wrap"
-                           Visibility="Collapsed" Margin="0,4,0,0"/>
 
-                <!-- Manual entry: it stays the fallback when automatic discovery
-                     sees nothing (networks that filter UDP). -->
-                <Button x:Name="ManualToggleButton" x:Uid="ConnectionPage_ManualToggle"
-                        Content="Enter the address by hand"
-                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="14"
-                        Height="40" BorderThickness="0" Margin="0,12,0,0"
-                        Click="ManualToggleButton_Click"/>
-
-                <StackPanel x:Name="ManualPanel" Visibility="Collapsed">
-                    <TextBlock x:Uid="ConnectionPage_ServerLabel" Text="WhatsApp server (adapter)"
-                               Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                    <TextBox x:Name="ServerAddressBox" x:Uid="ConnectionPage_ServerPlaceholder"
-                             Text="192.168.1.100"
-                             PlaceholderText="e.g. 192.168.1.100"
-                             Background="White" FontSize="16" Margin="0,4,0,0"/>
-
-                    <TextBlock x:Uid="ConnectionPage_PortLabel" Text="TCP port"
-                               Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                    <TextBox x:Name="ServerPortBox" Text="8585"
-                             PlaceholderText="8585"
-                             Background="White" FontSize="16" Margin="0,4,0,0"/>
-                </StackPanel>
-
-                <TextBlock x:Uid="ConnectionPage_NameLabel" Text="Your name"
-                           Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                <TextBox x:Name="UsernameBox" Text=""
-                         Background="White" FontSize="16" Margin="0,4,0,0"/>
-
-                <TextBlock x:Uid="ConnectionPage_TokenLabel" Text="Server token (leave it empty on your own server)"
-                           Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold" Margin="0,12,0,0"/>
-                <TextBox x:Name="TokenBox" Text=""
-                         Background="White" FontSize="16" Margin="0,4,0,0"/>
-
-                <ToggleSwitch x:Name="PublicServerToggle" x:Uid="ConnectionPage_PublicServer"
-                              Header="Use the public server"
-                              Margin="0,12,0,0"
-                              Toggled="PublicServerToggle_Toggled"/>
-
-                <ToggleSwitch x:Name="NotificationsToggle" x:Uid="ConnectionPage_Notifications"
-                              Header="Notify me about new messages"
-                              Margin="0,12,0,0"
-                              Toggled="NotificationsToggle_Toggled"/>
-
-                <Button x:Name="ActionButton" x:Uid="ConnectionPage_Connect"
-                        Content="Connect to the server"
-                        Background="{StaticResource WhatsAppAccentBrush}"
-                        Foreground="White" FontSize="18" FontWeight="SemiBold"
-                        Height="52" BorderThickness="0" Margin="0,12,0,0"
-                        Click="ActionButton_Click"/>
-
-                <Button x:Name="DisconnectButton" x:Uid="ConnectionPage_Disconnect"
-                        Content="Disconnect"
-                        Background="#FFE53935"
-                        Foreground="White" FontSize="16"
-                        Height="44" BorderThickness="0" Margin="0,8,0,0"
-                        Visibility="Collapsed"
-                        Click="DisconnectButton_Click"/>
-
-                <!-- Status -->
-                <Border x:Name="StatusPanel" Background="#FFF0F0F0" CornerRadius="8" Margin="0,8,0,0"
-                        Visibility="Collapsed">
-                    <StackPanel Margin="12">
-                        <TextBlock x:Name="StatusText" Text=""
-                                   Foreground="#FF128C7E" FontSize="14" TextAlignment="Center"
-                                   TextWrapping="Wrap"/>
-                    </StackPanel>
+                <Border x:Name="NumberPanel" Background="White" CornerRadius="8"
+                        Margin="0,6,0,0" Visibility="Collapsed">
+                    <TextBlock x:Name="AccountNumberText" Text=""
+                               Foreground="#FF000000" FontSize="24" FontWeight="SemiBold"
+                               TextAlignment="Center" TextWrapping="Wrap" Margin="12"/>
                 </Border>
 
-                <!-- Diagnostics: the one screen a stuck user can always reach.
-                     It stays visible even when the status panel is hidden. -->
-                <Button x:Name="DiagnosticsButton" x:Uid="ConnectionPage_Diagnostics"
-                        Content="Show diagnostics"
-                        Background="#FFE0E0E0" Foreground="#FF075E54" FontSize="14"
-                        Height="40" BorderThickness="0" Margin="0,8,0,0"
-                        Click="DiagnosticsButton_Click"/>
+                <!-- Shown instead of the number when there is none to show. -->
+                <TextBlock x:Name="AccountHintText" x:Uid="ConnectionPage_NotLinked"
+                           Text="This phone is not linked. Show the QR code to link it."
+                           Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
+                           Visibility="Collapsed" Margin="0,6,0,0"/>
 
-                <!-- WhatsApp login -->
-                <StackPanel x:Name="WhatsAppPanel" Visibility="Collapsed" Margin="0,16,0,0">
-                    <TextBlock x:Uid="ConnectionPage_WhatsAppTitle" Text="WhatsApp connection"
-                               Foreground="#FF075E54" FontSize="14" FontWeight="SemiBold"/>
+                <Button x:Name="ShowQrButton" x:Uid="ConnectionPage_ShowQr"
+                        Content="Show the QR code"
+                        Background="{StaticResource WhatsAppAccentBrush}"
+                        Foreground="White" FontSize="18" FontWeight="SemiBold"
+                        Height="52" BorderThickness="0" Margin="0,16,0,0"
+                        Click="ShowQrButton_Click"/>
 
-                    <Border Background="White" CornerRadius="8" Margin="0,4,0,0">
-                        <StackPanel Margin="12">
-                            <TextBlock x:Name="WhatsAppStateText" Text=""
-                                       Foreground="#FF606060" FontSize="14" TextWrapping="Wrap"
-                                       TextAlignment="Center"/>
+                <!-- What the last press did: requesting, unavailable, or what went
+                     wrong. A button that shows nothing is a button that looks dead. -->
+                <TextBlock x:Name="QrStatusText" Text=""
+                           Foreground="#FF606060" FontSize="12" TextWrapping="Wrap"
+                           TextAlignment="Center" Margin="0,8,0,0"/>
 
-                            <!-- QR code login -->
-                            <Button x:Name="LoginQrButton" x:Uid="ConnectionPage_QrLogin"
-                                    Content="Sign in with QR code"
-                                    Background="{StaticResource WhatsAppGreenBrush}"
-                                    Foreground="White" FontSize="16"
-                                    Height="44" BorderThickness="0" Margin="0,10,0,0"
-                                    Click="LoginQrButton_Click"/>
-
-                            <Image x:Name="QrImage" Width="240" Height="240" Margin="0,10,0,0"
-                                   Visibility="Collapsed" Stretch="Uniform"/>
-
-                            <TextBlock x:Name="QrInfoText" Text="" Foreground="#FF808080" FontSize="12"
-                                       TextWrapping="Wrap" TextAlignment="Center" Margin="0,6,0,0"/>
-
-                            <!-- Phone number login -->
-                            <TextBlock x:Uid="ConnectionPage_OrPhone" Text="or sign in with your phone number"
-                                       Foreground="#FF606060" FontSize="13"
-                                       HorizontalAlignment="Center" Margin="0,14,0,0"/>
-
-                            <TextBox x:Name="PhoneBox" x:Uid="ConnectionPage_PhonePlaceholder"
-                                     Text=""
-                                     PlaceholderText="Number with country code (e.g. 393401234567)"
-                                     Background="#FFF7F7F7" FontSize="16" Margin="0,6,0,0"/>
-
-                            <Button x:Name="LoginCodeButton" x:Uid="ConnectionPage_GetCode"
-                                    Content="Get the code"
-                                    Background="{StaticResource WhatsAppGreenBrush}"
-                                    Foreground="White" FontSize="16"
-                                    Height="44" BorderThickness="0" Margin="0,8,0,0"
-                                    Click="LoginCodeButton_Click"/>
-
-                            <TextBlock x:Name="PairCodeText" Text="" Foreground="#FF075E54" FontSize="22"
-                                       FontWeight="Bold" TextAlignment="Center"
-                                       TextWrapping="Wrap" Margin="0,10,0,0"/>
-
-                        </StackPanel>
-                    </Border>
-
-                    <!-- How to -->
-                    <Border Background="#FFF7F7F7" CornerRadius="8" Margin="0,8,0,0">
-                        <StackPanel Margin="12">
-                            <TextBlock x:Uid="ConnectionPage_HelpTitle" Text="How to sign in"
-                                       Foreground="#FF606060" FontSize="12" FontWeight="SemiBold"/>
-                            <TextBlock x:Uid="ConnectionPage_HelpQr"
-                                       Text="QR code: open WhatsApp on your phone, open Linked devices and tap Link a device, then scan the code."
-                                       Foreground="#FF606060" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                            <TextBlock x:Uid="ConnectionPage_HelpPhone"
-                                       Text="Phone number: enter the international number, tap Get the code, then type it in WhatsApp."
-                                       Foreground="#FF606060" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"/>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- Version -->
-                <TextBlock x:Uid="ConnectionPage_Version" Text="WhatsApp Community Edition v2.0 (GOWA)"
-                           Foreground="#FF808080" FontSize="11"
-                           HorizontalAlignment="Center" Margin="0,16,0,16"/>
             </StackPanel>
         </ScrollViewer>
 
@@ -237,9 +101,6 @@
                            TextAlignment="Center" TextWrapping="Wrap"/>
                 <Image x:Name="QrOverlayImage" Width="340" Height="340" Margin="0,12,0,0"
                        Stretch="Uniform" HorizontalAlignment="Center"/>
-                <TextBlock x:Name="QrOverlayCodeText" Text="" FontSize="30" FontWeight="Bold"
-                           Foreground="#FF075E54" TextAlignment="Center"
-                           TextWrapping="Wrap" Margin="0,12,0,0"/>
                 <!-- Text filled by the code-behind, which alternates the
                      instruction with "I am refreshing the code": that is why it
                      has no x:Uid and the .resw key has no suffix. -->

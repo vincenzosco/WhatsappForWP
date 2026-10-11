@@ -23,8 +23,11 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,12,16,12">
 
+                <!-- The text is black on purpose, not the theme's foreground: this page
+                     has a light background of its own (#FFECE5DD), so on a phone set to
+                     the dark theme the default white text was white on beige. -->
                 <TextBlock x:Uid="PairPage_Instructions" Text="Open WhatsApp on your phone, go to Settings, Linked devices, Link a device, and scan this code. The code changes every few seconds on its own: keep the camera on it."
-                           TextWrapping="Wrap" FontSize="15"/>
+                           Foreground="#FF000000" TextWrapping="Wrap" FontSize="15"/>
 
                 <!-- The code. Its size is fixed by the drawer (four pixels per module
                      plus the quiet zone), so no Stretch: a scaled QR is a blurred one,
@@ -32,16 +35,16 @@
                 <Image x:Name="QrImage" Margin="0,16,0,16" HorizontalAlignment="Center"/>
 
                 <TextBlock x:Uid="PairPage_Waiting" Text="Waiting for the scan..."
-                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"/>
+                           Foreground="#FF000000" TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"/>
 
                 <!-- Shown instead of the waiting line when the codes have run out, or
                      when WhatsApp refused the session this phone had stored. -->
                 <TextBlock x:Name="ExpiredText" x:Uid="PairPage_ExpiredSession" Text="This code has expired. Ask for a new one and scan that."
-                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
+                           Foreground="#FF000000" TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
                            Visibility="Collapsed"/>
 
                 <TextBlock x:Name="ErrorText" x:Uid="PairPage_Error" Text="The connection to WhatsApp failed. Check that this phone has a network and try again."
-                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
+                           Foreground="#FF000000" TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
                            Visibility="Collapsed"/>
 
             </StackPanel>

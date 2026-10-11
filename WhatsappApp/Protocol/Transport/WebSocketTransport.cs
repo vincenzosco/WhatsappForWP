@@ -118,18 +118,36 @@ namespace WhatsappApp.Protocol.Transport
         }
 
         /// <summary>
-        /// The message WinRT delivered. It is `async void` because that is the only
-        /// shape an event handler has here, so nothing may escape it: a fault is written
-        /// down and handed to the reader that is waiting, which is where it matters.
+        /// The message WinRT delivered.
+        ///
+        /// It returns void because that is the only shape an event handler has here, so
+        /// nothing may escape it: a fault is written down and handed to the reader that is
+        /// waiting, which is where it matters.
+        ///
+        /// **The reader `GetDataReader()` hands over is already loaded.** The event is
+        /// raised once per whole message and the reader holds it, which is what makes
+        /// `UnconsumedBufferLength` meaningful before anything is read; asking it to load
+        /// its own message answers `E_INVALID_OPERATION` (0x800710DD). It did, on the
+        /// device - every message threw before a byte came out, so the first read of a
+        /// pairing failed and the page showed an error it could not explain (the `LoadAsync`
+        /// that used to be here was copied from `DataReader(stream)` code, where loading is
+        /// exactly what is required).
         /// </summary>
-        private async void OnMessageReceived(MessageWebSocket sender, MessageWebSocketMessageReceivedEventArgs args)
+        private void OnMessageReceived(MessageWebSocket sender, MessageWebSocketMessageReceivedEventArgs args)
         {
             try
             {
                 DataReader reader = args.GetDataReader();
                 uint length = reader.UnconsumedBufferLength;
 
-                await reader.LoadAsync(length);
+                // An empty message is not a frame and not a close: handing it to the reader
+                // would end a session that is perfectly fine, and the server never sends
+                // one, so it is written down and stepped over.
+                if (length == 0)
+                {
+                    Diag.Ok("WebSocketTransport: an empty message arrived and was ignored");
+                    return;
+                }
 
                 var payload = new byte[length];
                 reader.ReadBytes(payload);

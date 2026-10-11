@@ -128,6 +128,7 @@
     <Compile Include="Services\ChatPreferences.cs" />
     <Compile Include="Services\IncomingMediaStore.cs" />
     <Compile Include="Services\MessageCache.cs" />
+    <Compile Include="Services\NativeConnection.cs" />
     <Compile Include="Services\NativeCredentialStorage.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
     <Compile Include="Services\FileSessionStorage.cs" />
@@ -143,6 +144,7 @@
     <Compile Include="Protocol\Client\Credentials.cs" />
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
     <Compile Include="Protocol\Client\IncomingMessage.cs" />
+    <Compile Include="Protocol\Client\NativeSession.cs" />
     <Compile Include="Protocol\Client\OutgoingMessage.cs" />
     <Compile Include="Protocol\Client\PairingQr.cs" />
     <Compile Include="Protocol\Client\PairingSession.cs" />
