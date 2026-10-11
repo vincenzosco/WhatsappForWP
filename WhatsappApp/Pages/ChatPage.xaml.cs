@@ -1206,18 +1206,15 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// How many BYTES are read per piece. It is a multiple of 3: its base64 is
-        /// therefore exactly (bytes/3)*4 characters long, with no padding, and the
-        /// pieces concatenate in base64 without re-encoding anything. 525000 bytes
-        /// make 700000 characters, like MediaChunkChars and like the adapter.
-        /// </summary>
-        private const int MediaChunkBytes = 525000;
-
-        /// <summary>
-        /// An attachment is sent in pieces, read from the file copied into the app
-        /// folder (see AttachmentInbox). A frame has an 8 MiB ceiling and the
-        /// content travels in base64, which adds a third: a video does not fit in a
-        /// single frame, and does not fit in the phone memory either.
+        /// An attachment is read whole from the file copied into the app folder (see
+        /// AttachmentInbox), encrypted and uploaded by `NativeConnection.SendMediaAsync`:
+        /// one POST carries the file to WhatsApp's own media host, and the message that
+        /// follows names where it is. The chunk protocol that used to be here belonged to
+        /// the adapter and left with it.
+        ///
+        /// Whole and in memory, and not streamed: the ciphertext carries its own ten-byte
+        /// signature at the end, so a sender that streamed the file could not compute the
+        /// MAC before the last block either (`MediaUpload.Body`).
         /// </summary>
         private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
@@ -1239,8 +1236,8 @@ namespace WhatsappApp.Pages
             {
                 Id = Guid.NewGuid().ToString("N"),
                 Text = caption ?? "",
-                SenderId = CommunicationService.Instance.MyUserId ?? "me",
-                SenderName = CommunicationService.Instance.MyUsername ?? Loc.Get("ChatPage_Me", "Me"),
+                SenderId = NativeConnection.Instance.Jid ?? "me",
+                SenderName = Loc.Get("ChatPage_Me", "Me"),
                 ChatId = _contact.Id,
                 Timestamp = DateTime.Now,
                 Type = type,
@@ -1263,16 +1260,18 @@ namespace WhatsappApp.Pages
             ScrollToMessage(message);
             ClearSelectedImage();
 
-            if (!CommunicationService.Instance.IsConnected)
+            if (!NativeConnection.Instance.IsConnected)
             {
                 message.Status = MessageStatus.Failed;
                 return;
             }
 
+            message.Status = MessageStatus.Sending;
+
             // The video is made smaller here, after the bubble is on screen: the
-            // bubble says "sending" while the conversion runs, and what is read
-            // and uploaded below is the smaller file. On a phone that cannot
-            // convert it, the original is sent and the adapter shrinks it.
+            // bubble says "sending" while the conversion runs, and what is uploaded
+            // below is the smaller file. On a phone that cannot convert it, the
+            // original is sent.
             if (kind == "video")
             {
                 string smaller = await VideoCompressor.SmallerAsync(localFileName);
@@ -1289,64 +1288,60 @@ namespace WhatsappApp.Pages
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
-                ulong length = (await file.GetBasicPropertiesAsync()).Size;
+                byte[] file = await ReadWholeFileAsync(localFileName);
 
-                if (length == 0)
+                if (file == null || file.Length == 0)
                 {
-                    // Not a smaller voice note: a file with nothing in it. Today it
-                    // started a transfer with total = 0, the adapter's mediaEnd
-                    // returned in silence, and the bubble kept its checkmark.
+                    // A file with nothing in it: it would be a message with no media at the
+                    // other end, and the bubble keeps its checkmark forever.
                     Diag.Failed("ChatPage.SendAttachmentAsync/empty",
                         new InvalidOperationException(fileName + " is 0 bytes"));
                     message.Status = MessageStatus.Failed;
                     return;
                 }
-                message.MediaSizeBytes = (long)length;
-                int total = length == 0
-                    ? 0
-                    : (int)((length + (ulong)MediaChunkBytes - 1) / (ulong)MediaChunkBytes);
 
-                string transferId = Guid.NewGuid().ToString("N");
-                await CommunicationService.Instance.SendMediaBeginAsync(
-                    _contact.Id, message.Id, transferId, fileName, mimeType, total);
+                message.MediaSizeBytes = file.Length;
 
-                using (var stream = await file.OpenReadAsync())
-                {
-                    using (var reader = new DataReader(stream))
-                    {
-                        // ReadBytes reads raw bytes, so the byte order does not matter
-                        // here: it is read in pieces and encoded.
-                        for (int i = 0; i < total; i++)
-                        {
-                            ulong offset = (ulong)i * (ulong)MediaChunkBytes;
-                            int size = (int)Math.Min((ulong)MediaChunkBytes, length - offset);
+                bool voiceNote = kind == "audio";
 
-                            while (reader.UnconsumedBufferLength < size)
-                            {
-                                uint loaded = await reader.LoadAsync(
-                                    (uint)(size - (int)reader.UnconsumedBufferLength));
-                                if (loaded == 0) break;
-                            }
+                string id = await NativeConnection.Instance.SendMediaAsync(_contact.Id, file, kind,
+                    mimeType, fileName, caption ?? "", 0, voiceNote);
 
-                            byte[] buffer = new byte[size];
-                            reader.ReadBytes(buffer);
-                            await CommunicationService.Instance.SendMediaChunkAsync(
-                                transferId, i, Convert.ToBase64String(buffer));
-                        }
-                    }
-                }
-
-                await CommunicationService.Instance.SendMediaEndAsync(transferId, caption);
-                // The status is the adapter's answer, not the state of the socket:
-                // it arrives as attachment.sent or error and DataService writes it.
-                // The bubble keeps Sending until then.
+                // The wire id becomes the bubble's: a receipt names the message by it, and
+                // a bubble with a random id of its own never sees its ticks turn blue.
+                message.Id = id;
+                message.Status = MessageStatus.Sent;
+            }
+            catch (WhatsappApp.Protocol.ProtocolException refused)
+            {
+                // A refused upload is the bubble's failure and it is named: the sentence
+                // says which check refused it, which is the difference between a file too
+                // big and a socket that is not there.
+                Diag.Failed("ChatPage/send attachment", refused);
+                message.Status = MessageStatus.Failed;
             }
             catch (Exception ex)
             {
                 Diag.Failed("ChatPage.SendAttachmentAsync", ex);
                 message.Status = MessageStatus.Failed;
             }
+        }
+
+        /// <summary>
+        /// The attachment, whole, as bytes.
+        /// </summary>
+        private static async System.Threading.Tasks.Task<byte[]> ReadWholeFileAsync(string localFileName)
+        {
+            StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
+            Windows.Storage.Streams.IBuffer buffer = await FileIO.ReadBufferAsync(file);
+            var bytes = new byte[buffer.Length];
+
+            using (var reader = DataReader.FromBuffer(buffer))
+            {
+                reader.ReadBytes(bytes);
+            }
+
+            return bytes;
         }
 
         private async void AddAndSendMessage(ChatMessage message)
@@ -1374,7 +1369,8 @@ namespace WhatsappApp.Pages
             // says so: a message that did not leave must not read as sent.
             try
             {
-                await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text);
+                // The wire id becomes the bubble's: a receipt names the message by it.
+                message.Id = await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text);
                 message.Status = MessageStatus.Sent;
             }
             catch (WhatsappApp.Protocol.ProtocolException failed)

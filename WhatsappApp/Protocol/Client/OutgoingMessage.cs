@@ -32,6 +32,12 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The `enc` type of a message on a session that already exists.</summary>
         public const string ExistingType = "msg";
 
+        /// <summary>The stanza's `type` for a message that is only words.</summary>
+        public const string TextType = "text";
+
+        /// <summary>The stanza's `type` for a message that carries a file.</summary>
+        public const string MediaType = "media";
+
         /// <summary>How many random bytes a message id is: sixteen hex characters.</summary>
         public const int IdBytes = 8;
 
@@ -55,17 +61,35 @@ namespace WhatsappApp.Protocol.Client
         public static BinaryNode Node(string to, string id, string body,
             IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp)
         {
+            if (body == null) throw new ProtocolException("a text message needs words");
+
+            return Node(to, id, Message.Text(body), TextType, null, devices, timestamp);
+        }
+
+        /// <summary>
+        /// The same stanza carrying a message of any shape, which is what a photo needs.
+        ///
+        /// Two attributes are the difference and both are the reference's
+        /// (`Socket/messages-send.js`, `getMessageType` at 885 and `getMediaType` at 906):
+        /// the stanza's `type` is **`media`** and not `text`, and each `enc` also carries
+        /// `mediatype` (`image`, `video`, `ptt` for a voice note, `document`), which is what
+        /// tells the receiving phone which player to prepare before it has decrypted
+        /// anything.
+        /// </summary>
+        public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp)
+        {
             if (string.IsNullOrEmpty(to)) throw new ProtocolException("a message needs somebody to go to");
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
-            if (body == null) throw new ProtocolException("a text message needs words");
+            if (message == null) throw new ProtocolException("there is no message to send");
             if (devices == null || devices.Count == 0)
             {
                 throw new ProtocolException("a message needs at least one device to encrypt for");
             }
 
-            // The device-sent form, built once for every device: the same words, the same
+            // The device-sent form, built once for every device: the same message, the same
             // id, the same JID, in every copy.
-            byte[] plaintext = Message.DeviceSent(to, Message.Text(body)).Encode();
+            byte[] plaintext = Message.DeviceSent(to, message).Encode();
 
             var content = new List<BinaryNode>();
             for (int i = 0; i < devices.Count; i++)
@@ -79,6 +103,7 @@ namespace WhatsappApp.Protocol.Client
                 BinaryNode enc = new BinaryNode("enc");
                 enc.Attrs.Add("v", KeyVersion);
                 enc.Attrs.Add("type", session.PreKeyPending ? PreKeyType : ExistingType);
+                if (!string.IsNullOrEmpty(mediaType)) enc.Attrs.Add("mediatype", mediaType);
                 enc.Content = session.Encrypt(plaintext);
 
                 BinaryNode device = new BinaryNode("to");
@@ -88,14 +113,14 @@ namespace WhatsappApp.Protocol.Client
                 content.Add(device);
             }
 
-            var message = new BinaryNode("message");
-            message.Attrs.Add("to", to);
-            message.Attrs.Add("type", "text");
-            message.Attrs.Add("id", id);
-            message.Attrs.Add("t", timestamp.ToString());
-            message.Content = content;
+            var stanza = new BinaryNode("message");
+            stanza.Attrs.Add("to", to);
+            stanza.Attrs.Add("type", string.IsNullOrEmpty(type) ? TextType : type);
+            stanza.Attrs.Add("id", id);
+            stanza.Attrs.Add("t", timestamp.ToString());
+            stanza.Content = content;
 
-            return message;
+            return stanza;
         }
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Threading.Tasks;
 
 namespace WhatsappApp.Protocol.Transport
@@ -18,5 +19,12 @@ namespace WhatsappApp.Protocol.Transport
     {
         /// <summary>The bytes at a URL, or a <see cref="ProtocolException"/> naming it.</summary>
         Task<byte[]> GetAsync(string url);
+
+        /// <summary>
+        /// A body POSTed to a URL, and the answer's bytes. The media upload is the only
+        /// caller: WhatsApp takes the encrypted file as one `application/octet-stream`
+        /// body and answers a small JSON object naming where it now lives.
+        /// </summary>
+        Task<byte[]> PostAsync(string url, byte[] body, IList<KeyValuePair<string, string>> headers);
     }
 }

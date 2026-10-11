@@ -148,6 +148,7 @@
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
     <Compile Include="Protocol\Client\InboundRouter.cs" />
     <Compile Include="Protocol\Client\IncomingMessage.cs" />
+    <Compile Include="Protocol\Client\MediaConn.cs" />
     <Compile Include="Protocol\Client\NativeChats.cs" />
     <Compile Include="Protocol\Client\NativeSession.cs" />
     <Compile Include="Protocol\Client\OutgoingMessage.cs" />
@@ -171,6 +172,7 @@
     <Compile Include="Protocol\Qr\QrTables.cs" />
     <Compile Include="Protocol\Media\MediaDownload.cs" />
     <Compile Include="Protocol\Media\MediaKeys.cs" />
+    <Compile Include="Protocol\Media\MediaUpload.cs" />
     <Compile Include="Protocol\Transport\IMediaFetcher.cs" />
     <Compile Include="Protocol\Transport\ITransport.cs" />
     <Compile Include="Protocol\Transport\WebSocketTransport.cs" />
