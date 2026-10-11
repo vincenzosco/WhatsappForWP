@@ -81,6 +81,22 @@ for (const p of ['Pages/ChatsPage','Pages/StatusPage','Pages/CallsPage','Pages/C
 }"
 ```
 
+```bash
+# every event handler a page's XAML names must exist in its code-behind
+node -e "
+const fs=require('fs');
+const ATTRS=['Click','ItemClick','Toggled','Checked','Unchecked','SelectionChanged','TextChanged','KeyDown','KeyUp','Loaded','Tapped'];
+for (const dir of ['Pages','Controls']) for (const f of fs.readdirSync('WhatsappApp/'+dir)) {
+  if (!f.endsWith('.xaml')) continue;
+  const src='WhatsappApp/'+dir+'/'+f, cs=src+'.cs';
+  if (!fs.existsSync(cs)) continue;
+  const declared=new Set(fs.readFileSync(cs,'utf8').split(/[^A-Za-z0-9_]+/));
+  const named=[...fs.readFileSync(src,'utf8').matchAll(new RegExp('('+ATTRS.join('|')+')[=]\"([A-Za-z_][A-Za-z0-9_]*)\"','g'))].map(m=>m[2]);
+  const missing=named.filter(n=>!declared.has(n));
+  console.log(src+': '+(missing.length?'missing '+missing.join(', '):'none'));
+}"
+```
+
 ## The protocol suite
 
 ```bash
@@ -135,6 +151,29 @@ Expected `0 Error(s)`. Notes worth remembering:
   `The name "...Converter" does not exist in the namespace ...`. Building a
   second time (without cleaning) resolves the reference against the freshly
   compiled assembly.
+- **`error CS1061` from `obj\Pages\<Page>.xaml` that names a handler the tree no
+  longer has is a stale XAML copy, not a source error.** The XAML pass writes a
+  preprocessed copy of every page and a `.g.cs` next to it under
+  `obj\<Configuration>\Pages\` (the platform-less configurations, so `AnyCPU`)
+  and `obj\<Platform>\<Configuration>\Pages\`; when that copy is newer than the
+  `.xaml` it came from, MSBuild finds the target up to date and compiles the old
+  wiring. The `#line` directives in the copy are also what put `obj\Pages\...`
+  and a line number the page no longer has into the message. The refactor of
+  2026-10-11 that deleted the connection page's buttons left eleven of them in
+  `obj\Debug\Pages\` - `'ConnectionPage' does not contain a definition for
+  'QrOverlayCloseButton_Click'`, at `obj\Pages\ConnectionPage.xaml(253,98)` -
+  while no `.xaml` in the tree named that handler. The handler snippet above says
+  whether the source is consistent (all 42 handler attributes were, that day),
+  and `rm -rf WhatsappApp/obj WhatsappApp/bin` followed by a build answers
+  `0 Error(s)`.
+- **The gate is `/t:Rebuild`: a plain solution build for `x86` ends in
+  `error APPX3104`.** `AppxBundlePlatforms` is `arm` - the phone - and the
+  bundle target refuses the x86 packages the same command has just written:
+  `msbuild WhatsappApp.sln /p:Configuration=Debug /p:Platform=x86` (no
+  `/t:Rebuild`) fails with `error APPX3104: ... x86 ... not in the list of
+  platforms selected for building the app bundle ... arm`. It is the packaging
+  step and not a code error, and the ARM package is unaffected: `/t:Rebuild` and
+  a direct `WhatsappApp.csproj -p:Platform=x86` build both end at `0 Error(s)`.
 - The VS2013 XAML designer needs a developer licence / sideload policy and is not
   needed: close the designer, open `.xaml` as XML, or build with `msbuild`.
 
