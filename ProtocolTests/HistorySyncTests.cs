@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
+using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WaProto;
 using ProtocolTests.Vectors;
 
@@ -158,6 +159,19 @@ namespace ProtocolTests
 
             Assert.AreEqual(2, sync.Conversations.Count, "a field nobody knows is skipped, not fatal");
             Assert.AreEqual("ci sei?", sync.Conversations[0].Messages[0].Text);
+        }
+
+        [Test]
+        public static void TheHistoryKeysAreTheReferences()
+        {
+            byte[] mediaKey = new byte[32];
+            for (int i = 0; i < mediaKey.Length; i++) mediaKey[i] = 7;
+
+            Assert.AreEqual(HistoryFixture.HistoryInfo, MediaKeys.Info(MediaKeys.History),
+                "the info string is the reference's hkdfInfoKey('md-msg-hist')");
+            Assert.AreEqual(HistoryFixture.HistoryIv, Assert.Hex(MediaKeys.Iv(mediaKey, MediaKeys.History)));
+            Assert.AreEqual(HistoryFixture.HistoryCipherKey, Assert.Hex(MediaKeys.CipherKey(mediaKey, MediaKeys.History)));
+            Assert.AreEqual(HistoryFixture.HistoryMacKey, Assert.Hex(MediaKeys.MacKey(mediaKey, MediaKeys.History)));
         }
 
         private static byte[] Hex(string hex)
