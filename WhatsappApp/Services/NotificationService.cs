@@ -46,7 +46,7 @@ namespace WhatsappApp.Services
         /// The picture of the sender is written to a file first, then the tile is
         /// drawn: a tile wants a path, not the bytes.
         ///
-        /// The bytes come from the adapter already in base64, and are written as
+        /// The bytes arrive as base64 with the message, and are written as
         /// they are. Over the system ceiling the picture is left alone and the tile
         /// falls back to the app icon: better an icon than a tile the phone rejects.
         /// </summary>

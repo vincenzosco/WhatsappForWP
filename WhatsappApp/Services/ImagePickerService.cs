@@ -17,8 +17,8 @@ namespace WhatsappApp.Services
     /// deposits it in AttachmentInbox.
     ///
     /// Documents are in the list because the picker is the only way in: with only
-    /// images and videos there was no route at all to send a PDF, and the adapter
-    /// has always had one (POST /send/file).
+    /// images and videos there was no route at all to send a PDF, and a PDF goes out
+    /// the same way every other attachment does.
     /// </summary>
     public static class ImagePickerService
     {

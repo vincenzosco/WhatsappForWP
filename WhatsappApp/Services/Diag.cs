@@ -75,7 +75,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private const string MarkerName = "diag-run.marker";
 
-        /// <summary>How much of the previous run travels to the adapter.</summary>
+        /// <summary>How much of the previous run's tail is carried into this one.</summary>
         private const int CrashTailChars = 4000;
 
         /// <summary>What the run writes when it starts, and when it is closed on purpose.</summary>

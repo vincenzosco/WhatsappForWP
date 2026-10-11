@@ -6,8 +6,9 @@ namespace WhatsappApp.Services
 {
     /// <summary>
     /// Session state that survives the app being terminated: which section the
-    /// user was in. Contacts and messages are not saved, instead: they come from
-    /// the adapter, which sends them again on every connection.
+    /// user was in. Contacts and messages are not saved here: the chat list has its
+    /// own cache (`ChatCache`) and the messages arrive again with the sync that
+    /// follows a login.
     /// </summary>
     public static class SessionService
     {

@@ -292,7 +292,7 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// WhatsApp says that the person of a chat is writing, or has stopped. It
-        /// is forwarded by the adapter as a `typing` frame; this page is the only
+        /// arrives as a `typing` node off the native client; this page is the only
         /// one that can show it, and only for its own chat.
         /// </summary>
         private void OnTypingChanged(object sender, ChatMessage message)
@@ -448,8 +448,8 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// A media of this conversation that does not have the bytes yet: it is a
-        /// history row (or a video whose file the adapter did not have), and it can
-        /// be requested from the server. The type says whether it was an image, a
+        /// history row (or a video this phone never fetched), and it can be
+        /// requested again from WhatsApp. The type says whether it was an image, a
         /// video, an audio or a document; they can all be requested.
         /// </summary>
         private static bool Downloadable(ChatMessage message)
@@ -489,8 +489,8 @@ namespace WhatsappApp.Pages
         ///
         /// When a history burst is on its way, the list waits for it: binding now
         /// would re-lay out the list on every one of its frames, and the burst is
-        /// one frame per message. The wait is bounded, so an adapter that does not
-        /// send the closing frame does not leave the chat empty.
+        /// one node per message. The wait is bounded, so a sync that never closes
+        /// its burst does not leave the chat empty.
         /// </summary>
         private async System.Threading.Tasks.Task BindAfterCacheAsync(string chatId, bool historyRequested)
         {
@@ -1114,10 +1114,10 @@ namespace WhatsappApp.Pages
         /// <summary>
         /// This conversation has been shown: the number is cleared here and on the
         /// server. DataService owns both halves now: it clears the row and sends the
-        /// `read` frame, or queues it when the socket is not usable. The adapter
+        /// `read` receipt, or queues it when the socket is not usable. The other side
         /// counts every incoming message, even the ones the user is watching, so
         /// without telling it the number would come back at the next list update -
-        /// and on a socket the OS already closed the frame was lost silently.
+        /// and on a socket the OS already closed the receipt was lost silently.
         /// </summary>
         private void MarkRead()
         {

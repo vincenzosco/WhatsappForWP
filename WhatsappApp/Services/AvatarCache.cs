@@ -29,7 +29,7 @@ namespace WhatsappApp.Services
     }
 
     /// <summary>
-    /// The profile pictures the adapter sent, kept on the phone.
+    /// The profile pictures that arrived with the chat list, kept on the phone.
     ///
     /// Why it exists: the chat list arrives with the picture of every
     /// conversation, and the app decodes and draws it. But the bytes did not
@@ -37,8 +37,9 @@ namespace WhatsappApp.Services
     /// because it is the file read before the connection exists and must stay
     /// small, and the decoded copy is dropped by MemoryWatcher under pressure.
     /// Result: after a restart, or after a memory spike, the list shows the
-    /// initials until the adapter sends every row again, that is two HTTP requests
-    /// per chat (the picture address, then the bytes from the CDN).
+    /// initials until the list brings every row again, and every picture costs two
+    /// requests per chat (the query that answers a picture address, then the download
+    /// of the bytes).
     ///
     /// Here the bytes are kept. It is not the truth: it is a cache, and the row
     /// that arrives from the server replaces it as soon as it arrives (see

@@ -14,9 +14,9 @@ using WhatsappApp.Protocol.WABinary;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Central data service that holds contacts and messages,
-    /// bridges the communication service with the UI.
-    /// Contacts come from the adapter (GOWA), no longer from sample data.
+    /// Central data service that holds contacts, messages and calls: the one path
+    /// the pages read and the one place a message is applied, whichever source
+    /// brought it (a live node off the native client, or the history sync).
     /// </summary>
     public class DataService : INotifyPropertyChanged
     {
@@ -54,8 +54,8 @@ namespace WhatsappApp.Services
         // The chats the reader has cleared while the socket was not usable. The
         // `read` frame is re-sent for each of them as soon as a connection is
         // established: a frame written into a socket the OS already closed is
-        // lost, and without this the adapter kept counting a chat that had been
-        // read and put the number back at the next list.
+        // lost, and without this a chat that had been read is counted again at the
+        // next list, because nothing on the other side was ever told.
         private readonly HashSet<string> _pendingReads = new HashSet<string>();
 
         // The chat-list rows as the server last sent them (for the cache) and the
@@ -116,9 +116,9 @@ namespace WhatsappApp.Services
             if (_listening) return;
             _listening = true;
 
-            // The native client is the only source of the chats and the messages. The
-            // adapter's own events are not subscribed to at all: two sources for one chat
-            // list is how every message arrives twice.
+            // The native client is the only source of the chats and the messages.
+            // Nothing else feeds this service: two sources for one chat list is how
+            // every message arrives twice.
             NativeConnection.Instance.MessageArrived += OnNativeMessage;
             NativeConnection.Instance.ChatArrived += OnNativeChat;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
@@ -156,13 +156,13 @@ namespace WhatsappApp.Services
             NotificationService.SetUnread(TotalUnread());
         }
 
-        /// <summary>Call log, filled by the adapter on request.</summary>
+        /// <summary>Call log, filled by a scan of WhatsApp's own log.</summary>
         public ObservableCollection<CallLogEntry> Calls
         {
             get { return _calls; }
         }
 
-        /// <summary>The adapter-side scan is done: the page can stop waiting.</summary>
+        /// <summary>The scan is done: the page can stop waiting.</summary>
         public event EventHandler CallsScanCompleted;
 
         /// <summary>
@@ -191,7 +191,7 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// One message off the native client, into the same path the adapter's frames took.
+        /// One message off the native client, into the one path every message takes.
         /// The list, the unread counts, the previews, the preferences and the caches are one
         /// implementation and stay one: a second path for the new source would be a second
         /// set of bugs, and the two would disagree within a day.
@@ -253,9 +253,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The bytes of a native media message have arrived: they go where the adapter's
-        /// pieces went (memory for an image, the phone's folder for a video, a note or a
-        /// document) and into the bubble that is already on screen.
+        /// The bytes of a native media message have arrived: `IncomingMediaStore` decides
+        /// where they go (memory for an image, the phone's folder for a video, a note or a
+        /// document) and this puts them into the bubble that is already on screen.
         /// </summary>
         private void OnNativeMedia(object sender, MediaArrival arrival)
         {
@@ -817,8 +817,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The history burst of one chat has ended: the adapter sends a
-        /// `history.done` frame after the last of its messages. The chat page waits
+        /// The history burst of one chat has ended, which is the last message the sync
+        /// had for it. The chat page waits
         /// for it before binding its list, because a bind while the burst is still
         /// inserting re-lays out the list on every frame. The argument is the chat
         /// id, carried in the frame's ChatId.
@@ -910,7 +910,7 @@ namespace WhatsappApp.Services
             }
 
             // The profile picture. When the row carries it, the bytes are also kept
-            // on the phone: at the next opening the list has a face before the adapter
+            // on the phone: at the next opening the list has a face before the sync
             // answers. When it does not carry it - a row from the local copy - the
             // kept one is used.
             string avatar = message.AvatarData;
@@ -1060,9 +1060,9 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// The conversation list has finished arriving, with how many rows it
-        /// carried. The adapter sends `chats.done` after the last `chat` frame,
-        /// so this is the only place that can say the list was answered and was
-        /// empty - which is what tells an empty list from an unreachable server.
+        /// carried. It is raised after the last conversation the sync had, so this is
+        /// the only place that can say the list was answered and was empty - which is
+        /// what tells an empty account from a connection that never came up.
         /// </summary>
         public event EventHandler<int> ChatListCompleted;
 
@@ -1108,7 +1108,7 @@ namespace WhatsappApp.Services
         /// revocation or an edit the preview would stay the old one.
         /// </summary>
         /// <summary>
-        /// The adapter's answer for an attachment: the bubble changes from Sending
+        /// The answer for an attachment: the bubble changes from Sending
         /// to Sent or Failed. It is written on the stored message and not on a
         /// page's copy, because the answer can arrive while another chat is on
         /// screen - or before the page that owns the bubble exists at all.
@@ -1253,8 +1253,8 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Inserts a history message in the right place.
         ///
-        /// In the right place and not at the bottom: the adapter does not promise the
-        /// order - chats.js already says so - and reopening a chat means the old
+        /// In the right place and not at the bottom: the sync does not promise the
+        /// order, and reopening a chat means the old
         /// messages must end up before the ones that arrived in this session. The
         /// same id twice does not enter: it is the key that makes requesting the
         /// history unable to duplicate what is already there.
@@ -1340,9 +1340,9 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// Every conversation at once: the reader cleared the whole list, not one
-        /// chat. The frame is the same "read" the chat page sends - the adapter has
-        /// no separate command - so a chat with nothing unread is left alone instead
-        /// of paying for a frame of its own.
+        /// chat. The receipt is the same "read" the chat page sends - the protocol has
+        /// no separate read-all - so a chat with nothing unread is left alone instead
+        /// of paying for a receipt of its own.
         /// </summary>
         public void ClearAllUnread()
         {
@@ -1366,7 +1366,7 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Tells the adapter that a conversation has been read, or remembers to
+        /// Tells the other side that a conversation has been read, or remembers to
         /// tell it. The check is on the connection, not on the count alone: a
         /// socket the OS already closed still looks connected, and the frame
         /// written into it is lost. A read that cannot go out now is queued and

@@ -87,7 +87,7 @@ namespace WhatsappApp.Pages
         /// <summary>
         /// The whole list stops being new. It is the same "read" the chat page
         /// sends, decided for every chat at once instead of one at a time: the
-        /// adapter has no separate "read all" command, so the two sides cannot
+        /// protocol has no separate read-all, so the two sides cannot
         /// disagree about what has been read.
         /// </summary>
         private void ReadAllMenuItem_Click(object sender, RoutedEventArgs e)
@@ -378,9 +378,9 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// The server answered the list, with this many rows in it. Written to
-        /// the diagnostics: a row count of zero with a healthy adapter on the
-        /// list of what the phone can see is a finding, not a failure to show.
+        /// The list has finished arriving, with this many rows in it. Written to
+        /// the diagnostics: a row count of zero with a healthy connection is a
+        /// finding, not a failure to show.
         /// </summary>
         private void OnChatListCompleted(object sender, int rows)
         {

@@ -4,9 +4,10 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Models
 {
     /// <summary>
-    /// A call-log entry. The data comes from the adapter, which derives it from
-    /// the GOWA history: they are incoming calls only, taken from the most recent
-    /// chats the server scanned.
+    /// A call-log entry, as `Protocol/Client/Calls.cs` read it out of WhatsApp's
+    /// own call log. `DataService` turns each one into a `ChatMessage` row for the
+    /// Calls page, so the words a row shows (its direction, whether it was missed)
+    /// come from here.
     ///
     /// It does not implement INotifyPropertyChanged: the collection is emptied and
     /// refilled on every scan, not changed field by field.
