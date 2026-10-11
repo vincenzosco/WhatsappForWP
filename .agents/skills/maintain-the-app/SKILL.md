@@ -208,7 +208,10 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-attachment-file.js && node tools/check-no-server.js`, plus
    `node --test "tools/test/**/*.test.js"`.
 6. If the change is user-visible, say which page and which string key changed.
-7. Commit with a message that says *why* (the repo history is the changelog).
+7. Commit with a message that says *why* (the repo history is the changelog),
+   and with **no AI attribution** in it: no `Co-Authored-By`, no "Generated
+   with" footer, no robot emoji. [`agent-publisher`](../agent-publisher/SKILL.md)
+   has the rule and the reason.
 8. **Push.** A change is finished only when it is on `origin/master`: a commit
    that lives on this machine alone is invisible to everyone else, so every
    change ends with `git push`, not with the commit. Never leave the branch
