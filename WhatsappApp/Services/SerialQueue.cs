@@ -6,12 +6,12 @@ namespace WhatsappApp.Services
     /// <summary>
     /// One thing at a time, in the order they arrive.
     ///
-    /// Why it exists: half of this app's work is asynchronous, and its handlers
-    /// are not awaited - DispatchOnUiThread is async void, the frame handlers are
-    /// async void, and a file write starts without anyone awaiting it. Two of them
-    /// touching the same resource interleave: two StoreAsync on one DataWriter put
-    /// one length prefix in front of the other payload, and the connection falls
-    /// over a frame that does not exist.
+    /// Why it exists: half of this app's work is asynchronous, and much of it is
+    /// started without anyone awaiting it - a media write, a cache save, a handler
+    /// that was fired and not awaited. Two of those touching one resource
+    /// interleave: two writes of the same file land out of order (that bug was
+    /// fixed once in `ChatPreferences`), and two `StoreAsync` on one `DataWriter`
+    /// put one payload's bytes in front of the other's.
     ///
     /// Work enters here and runs to completion, in line: the queue is a chain of
     /// Tasks, not a thread, so it costs nothing when empty. A piece that fails
