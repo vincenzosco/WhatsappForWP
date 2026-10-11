@@ -1,6 +1,6 @@
 ---
 name: update-the-app
-description: Step-by-step recipes for extending the WhatsApp WP8.1 app - adding a page, a section, an icon, a localized string, a language, a GOWA endpoint, and bumping the version. Use when the user asks for a new feature, a new screen, a new string, a new language, or a version bump.
+description: Step-by-step recipes for extending the WhatsApp WP8.1 app - adding a page, a section, an icon, a localized string, a language, a call on the wire, and bumping the version. Use when the user asks for a new feature, a new screen, a new string, a new language, or a version bump.
 ---
 
 # Updating the app
@@ -108,36 +108,33 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
    neutral fallback means changing `<DefaultLanguage>` and the C# fallbacks to
    match.
 
-## Talk to a new GOWA endpoint
+## Talk to a new node on the wire
 
-1. `WhatsappBridge/gowa-client.js`: add the call, read the `results` object, and
-   cover it in `test/gowa-client.test.js`.
-2. `WhatsappBridge/server.js`: expose it as a control command
-   (`hello|status|login.qr|login.code|contacts|calls|chats|logout`) or as a reply
-   frame. A command that sends **several** frames must always end with its own
-   `<name>.done` frame, also when it fails: the app uses it to stop waiting. The
-   scan behind `chats` and `calls` costs one HTTP request per chat, so it is
-   cached for a minute and the cache is dropped on the `connected` transition.
-3. App side: send it with
-   `CommunicationService.Instance.SendControlAsync("cmd", payload)` and handle
-   the reply in `Pages/ConnectionPage.xaml.cs::OnControlMessageReceived`
-   (control frames carry `Command`/`State`/`PairCode`/`QrImageData`/`AccountJid`).
-4. `cd WhatsappBridge && npm test`.
-5. Remember the wire format: WP8's `DataContractJsonSerializer` needs the value
-   `/Date(epochMs)/`, which `message-format.js` produces on purpose - with **no
-   backslashes**, because the `\/` of JSON text is the reader's escape, not part of
-   the value.
+1. The call itself belongs in `WhatsappApp/Protocol/Client/`, next to the one it
+   resembles. `GroupDirectory.Query` is the shape of a `type="get"` query: the id
+   the caller waits on, the `xmlns`, the `to`, and one child carrying the request.
+   The answer arrives on the same socket as the messages, and the id is what ties
+   it to the wait.
+2. Read the answer into a plain shape (`GroupInfo`, `StatusPost`) rather than into
+   the view, and throw `ProtocolException` (`Protocol/Diagnostics.cs`) when it does
+   not fit - the caller then has one kind of failure to report.
+3. A test in `ProtocolTests/` with the node the server answered: that suite
+   compiles the protocol files themselves, so it runs on any machine and not only
+   on the VM.
+4. App side: hand the shape to `Services/NativeConnection.cs`, or to
+   `Services/DataService.cs` when it is state the pages read.
+5. `node tools/test-protocol.js && node tools/check-csharp5.js`.
 
-## Change what the scripts or the server print
+## Change what a guard or the test runner prints
 
 Everything outside the app UI is English (see `maintain-the-app`). When you change
 one of those strings:
 
-1. Change it in the file that prints it (the adapter, `tools/start-login.js`,
-   `tools/qr-term.js`, `tools/download.js`, `tools/services.js`, `WhatsappServer`).
-2. Update the test that asserts it - the adapter tests assert on `message-format`
-   output, and `tools/test` covers the downloader and the service list.
-3. The fast gate: `cd WhatsappBridge && npm test`, `node --test "tools/test/**/*.test.js"`,
+1. Change it in the file that prints it (`tools/check-*.js`,
+   `tools/test-protocol.js`, `tools/csharp.js`).
+2. Update the test that asserts it: the guard has one in `tools/test/` when it has
+   a test at all, and the runner's own summary is in `tools/test-protocol.js`.
+3. The fast gate: `node --test "tools/test/**/*.test.js"`,
    plus the three guards a string change can move: `node tools/check-resw.js --strict`,
    `node tools/check-docs.js` (both languages in step) and `node tools/check-actions.js`
    (an icon-only button carries its label, and its name has to match its handler).
@@ -146,8 +143,8 @@ one of those strings:
 
 ## Change the documentation
 
-1. Every document that explains the project exists twice: `README.md` /
-   `README.it.md` and `WhatsappBridge/README.md` / `WhatsappBridge/README.it.md`.
+1. The documents that explain the project exist twice: `README.md` /
+   `README.it.md`.
    Write the section in the English file, then the same section in the Italian
    one - same position, same heading level, same order; only the text is
    translated. Adding, moving or dropping a section in one of the two is what the

@@ -1,6 +1,6 @@
 ---
 name: maintain-the-app
-description: Constraints and safe workflow for changing the WhatsApp for Windows Phone 8.1 codebase (C# 5 only, vector icons, resw localization, GOWA adapter, bilingual docs). Use before editing any file under WhatsappApp/, WhatsappBridge/ or any README, when a build fails, or when deciding where a change belongs.
+description: Constraints and safe workflow for changing the WhatsApp for Windows Phone 8.1 codebase (C# 5 only, vector icons, resw localization, the native client and its protocol core, bilingual docs). Use before editing any file under WhatsappApp/ or any README, when a build fails, or when deciding where a change belongs.
 ---
 
 # Maintaining the app
@@ -8,34 +8,35 @@ description: Constraints and safe workflow for changing the WhatsApp for Windows
 ## What this is
 
 An unofficial WhatsApp client for **Windows Phone 8.1**, built in Visual Studio
-2015 with the WP8.1 SDK, that talks to a self-hosted **GOWA**
-(go-whatsapp-web-multidevice) server through a thin Node.js adapter.
+2015 with the WP8.1 SDK. The phone **is** the client: it speaks WhatsApp's own
+protocol itself (see `Protocol/`), so there is no server to run - the account, the
+Signal sessions and the media keys all live in the app's own folder.
 
 ```
 WhatsappApp/            WP8.1 XAML app (C# 5)
   App.xaml(.cs)         colours, start page, resource loader warm-up
   Controls/SectionNav   the shared bottom navigation bar
-  Pages/                ChatsPage, StatusPage, CallsPage, ChatPage, ConnectionPage
+  Pages/                ChatsPage, StatusPage, CallsPage, ChatPage, ConnectionPage, PairPage
   Converters/           IValueConverter implementations used by the XAML
-  Models/               Contact, ChatMessage, ServerConfig
-  Services/             CommunicationService (socket), DataService (state),
-                        CryptoHelper (AES-256-CBC + HMAC), Loc (strings), ImageHelper,
-                        SettingsService, SessionService (last section),
-                        Diag (every failure we survive, with its HRESULT),
-                        SelfCheck (DEBUG-only probe of the platform)
+  Protocol/             the wire itself: WABinary (nodes), Noise (the handshake),
+                        Signal (X3DH, the double ratchet, the sender key), Media,
+                        WaProto (protobuf), Qr (the pairing code)
+  Protocol/Client/      the session: the login, the node classifier, the history
+                        sync, sending, receipts, the call log, the status feed
+  Models/               Contact, ChatMessage, ContactInfo, CallLogEntry
+  Services/             NativeConnection (the socket and the login), DataService (state),
+                        Loc (strings), ImageHelper, SettingsService,
+                        SessionService (last section),
+                        Diag (every failure we survive, with its HRESULT)
   Strings/<lang>/       Resources.resw - every user-visible string
   Assets/               generated PNGs (tiles, logos, splash)
-WhatsappBridge/         Node.js adapter: GOWA HTTP + webhook -> encrypted TCP frames
-WhatsappServer/         legacy .NET console project (not part of the app flow)
+ProtocolTests/          the protocol's own tests, run by tools/test-protocol.js
 tools/                  static guards - run them, they are the real gate
-  start-login.js        starts GOWA + the adapter and draws the login QR
-  qr-term.js            PNG -> terminal QR (module recovery + half blocks)
+  test-protocol.js      builds and runs ProtocolTests
+  check-no-server.js    the retired server stays out of the tree and the docs
   check-docs.js         the two languages of the docs stay in step, no emoji
 README.md / README.it.md                project docs, English + Italian
-WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 .agents/skills/         this directory
-.tools/                 local, git ignored: the GOWA binary, its log and
-                        storages/whatsapp.db (the live WhatsApp session)
 ```
 
 ## Hard constraints
@@ -83,23 +84,22 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
    root `Frame` while it can; at a section root it leaves the event alone, so
    the system suspends the app. `SectionNav` trims the section page it leaves,
    so Back from any section root still exits.
-6. **The adapter is a separate, dependency-free Node.js program** (`package.json`
-   has zero runtime dependencies). Its tests must keep passing.
+6. **The protocol core is not the app.** Everything under `WhatsappApp/Protocol/`
+   is the wire - the node format, the handshake, the Signal sessions, the media
+   keys - and it is pinned against the reference implementations, not against a
+   guess. A change there is a change to `ProtocolTests/` too, in the same commit.
 7. **One page per section.** A new screen means a new file under `Pages/`, not
    another block inside an existing page, and it must be registered in the
    `.csproj` (a page that is not listed does not exist at build time).
 8. **Runtime text is English.** Everything a person reads *outside the app UI* is
-   English: the adapter's log and error messages, the `text:` frames it sends for
-   display, the app's `Diag`/`SelfCheck` lines (with every message inside an
-   exception that can reach them), the launcher `tools/start-login.js`,
-   `qr-term.js` and `download.js`, the service-list reasons, and the legacy relay's
-   console text. An operator reading a container log or a debugger window needs no
-   second language. Only the app UI is localized, through the `.resw` pairs;
-   source comments are English too, while the test names and the guard-script
-   diagnostics under `tools/` stay Italian, because nobody reads them at run time.
+   English: the app's `Diag` lines (with every message inside an exception that can
+   reach them), the guards and the tooling under `tools/`. Someone reading a
+   debugger window or a phone log needs no second language. Only the app UI is
+   localized, through the `.resw` pairs; source comments are English too, while the
+   test names and the guard-script diagnostics under `tools/` stay Italian, because
+   nobody reads them at run time.
 9. **The docs are written in pairs, English and Italian.** `README.md` and
-   `README.it.md` are versions of each other, and so are
-   `WhatsappBridge/README.md` and `WhatsappBridge/README.it.md`: a section is
+   `README.it.md` are versions of each other: a section is
    added, moved or renamed in **both**, in the same commit, with the same heading
    depth and order, and each links to the other. `## Disclosure` (open source,
    maintainers wanted, written by an AI agent, no responsibility for the account
@@ -110,24 +110,28 @@ WhatsappBridge/README.md / .it.md       adapter docs, English + Italian
 
 ## Showing only data that exists
 
-A screen may only show data that exists upstream. Two facts this project
+A screen may only show data that exists upstream. The facts this project
 established the hard way:
 
-- **GOWA has no status endpoint.** Nothing in its API or its webhooks exposes
-  status updates, so the Status section is empty on purpose and says so, rather
-  than pretending the feature is missing from the app.
-- **GOWA records incoming calls only** (`CreateIncomingCallRecord`), in its own
-  chat storage; the Calls section scans the most recent chats and says so in its
-  empty state and in the README pair.
-- **The chat list is `GET /chats`, not `GET /user/my/contacts`.** The second one
-  is the WhatsApp *address book*: on a freshly linked device it is empty while
-  `/chats` is full, which is exactly how the chat list came up blank. Profile
-  pictures come from `GET /user/avatar?phone=<JID>&is_preview=true`, for people
-  **and** groups: the parameter is a JID (GOWA appends a suffix only to a value
-  with no `@` in it, `SanitizePhone`), and the profile-picture lookup accepts any
-  JID. Asking with the bare digits is what made every group show initials.
+- **The history is pushed, not fetched on demand.** WhatsApp sends the
+  conversations and a window of messages after a login; there is no per-chat
+  "give me the older ones" this client asks for, so a conversation shows what the
+  sync carried and what has arrived since, and the README pair says so.
+- **The call log comes from that same sync** (`HistorySync.callLogRecords`), both
+  directions, with `callCreatorJID` being *this* account on a call it made - which
+  is why an outgoing call is filed under the other party and not under us.
+- **The chat list is the account's conversations**, as the sync sends them, not
+  the WhatsApp *address book*: on a freshly linked device the address book is
+  empty while the conversations are not, which is exactly how the chat list came
+  up blank. A group's name comes from the group metadata query, and a profile
+  picture is a request that answers an address which then answers the JPEG - for
+  a group like anybody else.
+- **The profile details have no reader yet.** The name, the number and the
+  picture are the app's own; the about line, the business profile and a group's
+  members are what the old server used to compose, and `ContactInfoPage` says so
+  instead of drawing headings with nothing under them.
 - **Notifications can only be raised while the app runs.** WP8.1 suspends the
-  app, which closes the TCP socket, and this project has no cloud service to push
+  app, which closes the socket, and this project has no cloud service to push
   through, so a toast can only be raised for a message that arrives while the app
   is in the foreground. The README pair's Limiti/Limitations section says so.
 - **The contact picker is the user's consent.** `ContactPicker` shows the system
@@ -136,12 +140,12 @@ established the hard way:
   not want.
 
 The rule that follows: when a source has a limit, the screen and the README pair
-state it, and **no screen invents state that no server sends** - "online" and
+state it, and **no screen invents state that nothing sends** - "online" and
 "last seen at" were removed for exactly that reason. The other half of the rule is
-that what a server *does* send may be shown: WhatsApp sends typing notifications
-(`chat_presence`, GOWA 9.5), but only to a client marked online, so the three dots
-appear only because the adapter marks the account `available` while an app client
-is connected. A limit is stated, never filled in with a guess.
+that what WhatsApp *does* send may be shown: it sends typing notifications
+(`chatstate` and the `chat_presence` node), but only to a client marked online, so
+the three dots appear only because the client marks itself `available` while the
+app runs. A limit is stated, never filled in with a guess.
 
 ### "Read" is a decision, never an assumption
 
@@ -192,30 +196,28 @@ waiting) and the message is marked read when the reader reaches it.
 3. Read the file you are about to change **completely**; this codebase keeps
    per-file invariants in comments.
 4. Make the change.
-5. Run the fast gate: `node tools/check-csharp5.js && node tools/check-icons.js &&
+5. Run the fast gate: `node tools/test-protocol.js && node tools/check-csharp5.js &&
+   node tools/check-icons.js &&
    node tools/check-resw.js --strict && node tools/check-docs.js &&
-   node tools/check-framing.js && node tools/check-tile.js &&
+   node tools/check-tile.js &&
    node tools/check-memory.js && node tools/check-actions.js &&
    node tools/check-fire-and-forget.js && node tools/check-project-files.js &&
-   node tools/check-chat-list-source.js && node tools/check-diagnostics.js &&
-   node tools/check-handshake-answer.js &&
+   node tools/check-chat-list-source.js && node tools/check-chat-scroll.js &&
+   node tools/check-diagnostics.js &&
    node tools/check-xaml-names.js &&
-   node tools/check-attachment-file.js`, plus
-   `node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
+   node tools/check-attachment-file.js && node tools/check-no-server.js`, plus
+   `node --test "tools/test/**/*.test.js"`.
 6. If the change is user-visible, say which page and which string key changed.
 7. Commit with a message that says *why* (the repo history is the changelog).
 8. **Push.** A change is finished only when it is on `origin/master`: a commit
    that lives on this machine alone is invisible to everyone else, so every
    change ends with `git push`, not with the commit. Never leave the branch
-   ahead of `origin/master`. A change under `WhatsappBridge/` is not finished
-   either until it is mirrored into the Docker repository - see *The Docker
-   repository* below.
+   ahead of `origin/master`.
 
-   **Pushing is the default, not a question.** This was asked for explicitly:
-   do not stop before `git push origin master`, and do not stop before the
-   mirror is committed and pushed to `origin main` (`docker-whatsappforwp`). If
-   the environment holds a rule against pushing unasked, the standing request
-   here overrides it - the work is pushed as part of finishing it.
+   **Pushing is the standing request here**, made explicitly by the operator: do
+   not stop before `git push origin master`. If the environment holds a rule
+   against pushing unasked, this standing request is what it was given for -
+   the work is pushed as part of finishing it.
 
 ## Where a change belongs
 
@@ -224,86 +226,27 @@ waiting) and the message is marked read when the reader reaches it.
 | New section of the app | new `Pages/XxxPage.xaml(.cs)` + a case in `SectionNav` |
 | New icon | inline `<Path.Data><PathGeometry>` on the `Path` (never a resource) |
 | New string | both `.resw` files (same key), then `x:Uid`/`Loc.Get` |
-| Socket/protocol behaviour | `Services/CommunicationService.cs` (+ adapter + its tests) |
+| Socket/protocol behaviour | `Protocol/Client/WhatsAppSocket.cs`, `Services/NativeConnection.cs` (+ the `ProtocolTests/` that pin it) |
+| A new node, a new field, a new query | `Protocol/Client/` (the reader) + `Protocol/WaProto/` (the shape) + a test in `ProtocolTests/` |
 | Contacts/messages state | `Services/DataService.cs` (keep `_contactIndex` in sync) |
 | State kept across suspend/termination | `Services/SessionService.cs` |
 | Image handling | `Services/ImageHelper.cs` |
-| A new GOWA call | `WhatsappBridge/gowa-client.js`, a control command in `server.js`, and the app side in `ConnectionPage`/`CommunicationService` |
-| A change to the adapter (`WhatsappBridge/`) | the same change in the Docker repository (`docker-whatsappforwp`): run its `tools/sync.js`, commit and push - see *The Docker repository* |
-| Local start-up behaviour (ports, login, stop) | `tools/start-login.js` (+ the `run-the-login-server` skill) |
-| Drawing of the login QR | `tools/qr-term.js` (run its `--self-test` afterwards) |
+| Drawing of the pairing QR | `Protocol/Qr/QrCode.cs` (the modules) and `Pages/PairPage` (the rotation) |
 | Anything a reader reads (README, guides) | the English file **and** its Italian pair, then `node tools/check-docs.js` |
 | A claim about the project (open source, maintainers, AI-written, responsibility) | `## Disclosure` at the end of `README.md` **and** `README.it.md` |
 
-## The Docker repository
-
-`WhatsappBridge/` is the source of truth for the adapter; the repository
-`vincenzosco/docker-whatsappforwp` holds a **copy** of it in `server/`, plus the
-`Dockerfile` that puts GOWA and the adapter in one image. That image is what most
-people run, so an adapter change that stops at this repository is a change half
-the users never get. **Every commit that touches `WhatsappBridge/` ends with the
-same commit mirrored into the Docker repository.**
-
-The mirror is not a patch. `tools/sync.js` **in the Docker repository** reads the
-list of adapter files out of this checkout (its `adapterFiles`), so a new module
-cannot be forgotten, and writes `server/SOURCE_COMMIT` with the commit the copy
-came from.
-
-```bash
-# 1. here: the adapter change, its tests, the commit, the push
-cd WhatsappBridge && npm test
-git push
-
-# 2. in a checkout of the Docker repository
-#    (git clone https://github.com/vincenzosco/docker-whatsappforwp /tmp/docker-whatsappforwp)
-cd /tmp/docker-whatsappforwp
-git pull
-node tools/sync.js --from /Users/vincenzo/Documents/WhatsappForWP
-node tools/sync.js --check --from /Users/vincenzo/Documents/WhatsappForWP  # OK: server/ matches ...
-(cd server && npm test)                                                    # same count as step 1
-git add -A && git commit -m "fix: ..." && git push
-```
-
-What makes it *pass*: the `sync` job of `.github/workflows/image.yml` checks this
-repository out at the commit `server/SOURCE_COMMIT` names, runs
-`node tools/sync.js --check --from ../app`, and fails the build if the copy no
-longer matches. A mirrored commit that missed a file therefore turns the image
-build red instead of shipping an old adapter. After the push, the workflow builds
-linux/amd64 and linux/arm64 and publishes
-`ghcr.io/vincenzosco/docker-whatsappforwp:latest`.
-
-Two things the copy cannot carry, because they belong to the container and not to
-the adapter:
-
-- **An external program.** The runtime stage of the `Dockerfile` installs
-  `ffmpeg`, which the adapter calls for Ogg/Opus voice notes; the Node.js path in
-  the Docker README tells the reader to install it by hand. Anything new the
-  adapter starts executing needs the same treatment, or it is present when run
-  from a checkout and missing in the image most people use.
-- **A new environment variable**, in `.env.example` and in **both** Docker README
-  tables, or it is an option nobody can set. Both compose files pass `.env`
-  through with `env_file`, so there is nothing else to wire.
-
 ## Known gotchas
 
-- **A reinstall empties the app's storage on WP8.1**, so the phone loses its
-  frame key and its token at once. The server puts them back by itself, with no
-  pairing: the frame key is derived from the device id (`framePassphraseFor`, the
-  compiled passphrase plus the id) and that id is a hardware token that survives
-  the uninstall, so the phone recomputes the same key, and a `hello` without a
-  token is answered with the same token the store derives for that id. Never
-  "fix" a phone that cannot connect by asking the operator for a key or a code:
-  the derivation in `crypto-helper.js` and the re-issue in the `hello` case of
-  `server.js` (`decodeWithKnownKeys`) are the whole mechanism.
-- **The re-issue is not gated by `AUTH_REGISTER`.** That flag says whether the
-  service creates an account for a device it has *never* seen; a device the store
-  already knows is always handed its derived token back, whatever the flag says.
-  Tying the branch to `authRegister` is what made a reinstalled phone stay out for
-  good on `AUTH_REGISTER=off` + `AUTH_STRICT_DEVICE=on` (fixed in `ae09dc1`, with
-  the test *un device noto rientra anche con AUTH_REGISTER spento, uno sconosciuto
-  no*). A refusal reading `refused a handshake: missing token` with **no**
-  `unknown device without a token` line beside it means the branch was never
-  reached - check the guard before touching the derivation.
+- **A reinstall empties the app's storage on WP8.1, and this phone holds its own
+  account.** The login is the app's own files - `FileSessionStorage` keeps them in
+  `LocalFolder/protocol`, read and written through `CredentialStore` - so an
+  uninstall takes the account with it. The next launch finds nothing stored,
+  `StartDecision.Decide` sends the phone to the pairing page, and the account is
+  linked again by scanning a new code. There is no key to ask anyone for and no
+  server that can hand one back: a phone that cannot connect is a phone that has to
+  be paired again. A session that WhatsApp *refused* is the other case - it parses
+  perfectly and would open on a chat list that can never fill - which is what
+  `SessionState.Expired` remembers between runs.
 
 - The app cannot be built on macOS: there is no WP8.1 toolchain. The build gate
   runs on the Windows/Parallels machine.
@@ -360,39 +303,11 @@ the adapter:
   length prefix in front of the other's payload, and the peer reads a frame that
   does not exist; two `FileIO` writes on one file lose one of the two.
   `Services/SerialQueue.cs` is the answer: `_writes.RunAsync(...)` in
-  `CommunicationService`, and the same queue in `IncomingMediaStore` and
-  `ChatPreferences`. Put the *decision* (the encrypted payload, the JSON
-  snapshot) on the caller's thread and only the write in the queue, or the queue
-  touches state that another thread is still changing.
-- **On the shared service the token is authentication, not isolation; the device is.**
-  `createBridge` in `WhatsappBridge/server.js` keeps one *session* per GOWA device
-  (the empty key is the private instance), and every cache, unread count, login
-  state and socket set lives in it. A command must take its session from
-  `handleCommand(session, msg, socket)`; reaching for the module-level `anonymous`
-  from a new command would answer the wrong account. A webhook is routed by the
-  top-level `device_id` GOWA puts on every event (`sessionForEvent`), so a new
-  event type must route the same way or it goes nowhere on a shared server.  A user's device is created on the first valid handshake and remembered in
-  `users.json`; `gowa.withDevice(id)` is the client bound to it. **The token is
-  derived, not random**: `HMAC-SHA256(secret, deviceId)` with a secret the store
-  keeps in `users.json`, and the device id is the phone's persisted
-  `SettingsService.DeviceId`, sent as `SenderId` in `hello`. A phone that
-  reconnects is therefore the same user with the same token, and a device the
-  service knows is never registered twice; only a device it has never seen gets a
-  `registered` frame. The secret is a credential - a copy of the file can derive
-  every device's token.  `gowa.ensureDevice()` binds to the device that is
-  `logged_in`, not `devices[0]`: the list is in creation order, and picking the
-  oldest is how a linked account came to be reported `disconnected`. **But one
-  reading is not enough on a cold start.** GOWA runs in the same container as the
-  adapter and answers a few seconds later, and it restores its login state from
-  `/data/storages` a few seconds after that, so the first
-  reading sees every device `disconnected` (or nothing at all, with a
-  `GOWA not reachable` line). `main()` therefore awaits
-  `gowa.waitUntilReady()` (polls `GET /devices` until the API answers, throws
-  after 60s) before `ensureDevice()`, and `ensureDevice` re-reads once a second
-  until a `logged_in` device appears or its `linkedWaitMs` (constructor option,
-  default 15s) expires, falling back to `devices[0]`. A zero wait still reads
-  once. The fallback has to stay: a server with no session must still start so
-  it can serve the QR login.
+  `NativeConnection` (the session store and the pre-key store share it), and the
+  same queue in `IncomingMediaStore`, `ChatPreferences` and `Diag`. Put the
+  *decision* (the serialized record, the snapshot) on the caller's thread and only
+  the write in the queue, or the queue touches state that another thread is still
+  changing.
 - **On WP8.1 a theme minimum overrides the size you declare.** The default
   `Button` style sets `MinWidth = PhoneButtonMinWidth = 109` and
   `MinHeight = PhoneButtonMinHeight = 57.5` (the phone kit's `generic.xaml` and
@@ -407,23 +322,22 @@ the adapter:
   `TargetType="Button"` that declares a `Width` or a `Height` (a style holds for
   every button that uses it, so it cannot know which column they land in and must
   be safe on both axes; `NavIconButtonStyle` in `SectionNav.xaml` is the one that
-  exists). A style with `BasedOn` is left alone, because the base holds the
-  setters and may live in another file. Buttons that declare only a `Height` in
-  their own markup (the connection page Connect/Disconnect/login buttons) are
-  outside the rule on purpose: they are full width and nothing sits next to them,
-  so the extra height costs nothing.
-- **`CommunicationService.IsConnected` can be true on a dead socket.** Nothing
-  observes a socket that the OS closed, so a suspended-then-resumed app looks
-  connected and is mute. `LastInboundUtc` plus `ConnectionWatchdog` are the only
-  things that notice. If you add a way to reconnect, remember that
-  `AutoConnector.TryConnectAsync` returns immediately while `IsConnected` is true:
-  a dead connection has to be `Disconnect()`ed before it will be retried.
+  exists). A style with `BasedOn` is left alone, because the base holdsthe setters and may live in another file. Buttons that declare only a `Height` in
+  their own markup (the buttons of the account screen, and the ones on `PairPage`)
+  are outside the rule on purpose: they are full width and nothing sits next to
+  them, so the extra height costs nothing.
+- **`NativeConnection.IsConnected` can be true on a dead socket.** Nothing observes
+  a socket the OS closed, so a suspended-then-resumed app looks connected and is
+  mute. `SessionKeepAlive.IsStale` (a session silent for 30 s) is what notices, and
+  the connection loop is what closes it and logs in again; the app sends
+  `presence`/`available` on resume for the case where the socket did survive the
+  freeze.
 - **A suspended app keeps looking online.** WP8.1 freezes the process without
   closing the socket, so a backgrounded phone is still counted as watching and
   WhatsApp keeps showing the account online. The app sends a control frame
   `presence`/`paused` in `App.OnSuspending` (inside the deferral) and
-  `presence`/`active` in `App.OnResuming`; the adapter keeps a per-socket
-  `paused` flag that `watchingCount` honours, and a fresh handshake clears it.
+  `presence`/`active` in `App.OnResuming`; the other side keeps that flag per
+  socket, and a fresh login clears it.
   Any other path that puts the app in the background has to say the same thing.
 - **A media bubble shows only what the server sent.** The size of a document and
   the name of the file come out of `IncomingMediaStore` (`FileName`, `SizeBytes`)
@@ -445,9 +359,6 @@ the adapter:
   through `AddContact` when you can.
 - `ChatMessage.LoadMediaImageAsync` is a no-op once `MediaImage` is set; do not
   "fix" that by forcing a re-decode.
-- Nothing under `.tools/` is committed, and the GOWA login flow **restarts** every
-  time `GET /app/login` is called: see `run-the-login-server` before touching
-  `tools/start-login.js` or the login frames of the adapter.
 - **A silent `catch` is a bug.** Every failure the app decides to survive goes
   through `Diag.Failed("<call site>", ex)` before it is handled: the WP8.1
   projection can refuse a call at run time that compiled fine, and "The operation
@@ -462,57 +373,53 @@ the adapter:
 - **Do not retry a lookup that has already failed.** `Loc.Loader` and
   `GetUiDispatcher` each remember their failure; without that flag one failure
   becomes one exception per string, or per received message. What they need
-  instead is to be resolved once at start-up on the UI thread: `Loc.Prewarm()` and
-  `CommunicationService.Instance.Prewarm()`, both called from `OnLaunched`.
-- **A connection is owned by the attempt that opened it.** `ConnectToServerAsync`
-  takes the next `_connectionId`, keeps its socket/reader/writer in locals,
-  publishes them only while that id is still current, and hands the reader to
-  `ListenForMessagesAsync(attempt, reader)`. Never read `_reader` from a loop and
-  never let a failing attempt call cleanup on the published fields: two readers on
-  one `DataReader` desync it, and the next length read is a slice of JSON.
-- **A frame length is not trusted, and its byte order is never left to a
-  default.** The whole frame contract - the 4-byte prefix, its byte order, the
-  ceiling and the whole-frame read - lives in one file,
-  `WhatsappApp/Services/FrameCodec.cs`. `FrameCodec.ReadFrameAsync` fills the
-  prefix fully (`InputStreamOptions.Partial` can split it) and rejects anything
-  outside `1..MaxFrameLength` (8 MiB). The length is little-endian on the wire
-  (`writeUInt32LE`/`readUInt32LE`), but WinRT's `DataReader`/`DataWriter` do not
-  default to that: build them only through `FrameCodec.CreateFrameReader`/
-  `FrameCodec.CreateFrameWriter`, so a new frame site has nowhere else to choose
-  them and `check-framing.js` can see every one. A byte-swapped length does not
-  throw - it reads a number that looks like a corrupt frame (`0x00000121` came
-  back as `0x21010000`, 553713664) and closes the connection right after a
-  successful connect. The adapter's `MAX_FRAME_LENGTH` is the same 8 MiB: change
-  one and you must change the other. Gate: `node tools/check-framing.js`.
+  instead is to be resolved once at start-up on the UI thread: `Loc.Prewarm()`,
+  called from `OnLaunched`.
+- **A connection is owned by the loop that opened it.** `NativeConnection` keeps
+  one login at a time: the wait, the login and the reading that follows it are the
+  same loop, and when the connection ends for a reason that is not the account's
+  death that loop is what closes it and logs in again. Never read from a second
+  place: `WebSocketTransport.ReceiveAsync` keeps one waiting reader at a time (its
+  `_waiting`, under the socket's own gate), so two readers on one connection steal
+  each other's messages.
+- **A frame length is not trusted, and a short read is never mistaken for the
+  end of a frame.** The node framing lives in `Protocol/WABinary/NodeReader.cs`
+  and `NodeWriter.cs`. `NodeReader.Decode` takes a frame with its compression
+  prefix, refuses a compressed one (prefix bit `0x02`) instead of reading
+  compressed bytes as if they were plain, and throws `ProtocolException` on a
+  length that runs past the buffer: a short read desynchronizes the stream, and
+  every node after it parses as garbage that still looks valid
+  (`ProtocolTests/WABinaryTests.cs` pins a truncated frame). The transport above
+  it is `Protocol/Transport/WebSocketTransport.cs`, one `MessageWebSocket` message
+  per node, and its message type is set through `Control` because WP8.1's
+  projection has no `MessageType` of its own - the default is text, which would
+  put every byte above `0x7f` through a UTF-8 encoder.
 - **`0x8007274C` is `WSAETIMEDOUT`, not a crypto or login failure.** It means
-  `ConnectAsync` never got an answer; the handshake and the QR never ran. Check the
-  address first: `AutoConnector` tries `SettingsService.ServerAddress` before
-  discovery, so a stale IP shows up here. `StreamSocket` has no timeout, which is
-  why `ConnectWithDeadlineAsync` closes the socket after 6 seconds.
+  `WebSocketTransport.ConnectAsync` never got an answer to
+  `wss://web.whatsapp.com/ws/chat` (`WhatsAppSocket.DefaultUrl`), so the handshake
+  and the pairing never ran. That connect carries no deadline of its own: what
+  follows one is `NativeConnection`'s wait and next login, which is why a run that
+  shows this failure and then a fresh attempt is behaving as designed.
 - **`Window.Current` is null off the UI thread**, so it cannot be a fallback for
   anything that may run on a network thread: use `CoreApplication.MainView` there,
   or capture the object while you are on the UI thread.
-- **The app's memory is not the conversation.** Opening a chat used to show only
-  what had arrived while the app was running, because nothing ever asked the
-  adapter for what was already on the server: a receive path is not a read path.
-  `ChatPage.OnNavigatedTo` asks (`messages`, with the chat JID in `Text`, the same
-  field `login.code` carries its number in) once per chat per process -
-  `DataService.MarkHistoryRequested` - and the adapter answers with ordinary
-  message frames carrying `IsHistory`. The flag matters: without it every old
-  message would count as unread and raise a toast. The frames are inserted by
-  date, not appended, because the adapter does not promise an order (see
-  `newestMessage` in `WhatsappBridge/chats.js`). Dedup is by WhatsApp's own
-  message id, so a chat can be requested again without duplicating what is already
-  on screen, and a message the server has no id for is dropped rather than risked
-  twice. History media has no bytes - it is not among what the webhook delivered -
-  so it travels as text (`[Image]`, `[Video]`): a frame of type Image with no
-  `MediaData` would draw an empty bubble.
+- **The app's memory is not the conversation.** A login brings the history with it
+  (`HistorySyncNotification` -> `HistorySync.Decode`), and the rows go through the
+  same path a live message does, marked `IsHistory`. The flag matters: without it
+  every old message would count as unread and raise a toast. The rows are inserted
+  by date, not appended, because the payload promises no order between one sync and
+  the next. Dedup is by WhatsApp's own message id, so a sync that re-sends a chunk
+  cannot duplicate what is already on screen. Nothing asks for a chat's older
+  history on demand (that is the limit the README pair states), and there is no
+  request to retry: `DataService.HistoryComplete` is the one thing a page reads, and
+  a page that opened before the sync binds from the phone's copy and waits for the
+  burst (`HistoryCompleted`) instead.
 - **A `[DataMember]` with a strict type is a whole-frame failure waiting to happen.**
   One unexpected string in one field makes `DataContractJsonSerializer` throw
   `SerializationException 0x8013150C` for the entire object, and `ChatMessage.FromJson`
   returns `null`: the message disappears with no visible cause. `Timestamp` is the field
-  that bit us (the adapter wrote a backslash-escaped `\/Date(ms)\/` instead of
-  `/Date(ms)/`), so it is a `string` on the wire and a leniently parsed `DateTime` in
+  that bit us (a backslash-escaped `\/Date(ms)\/` where the value is `/Date(ms)/`),
+  so it is a `string` on the wire and a leniently parsed `DateTime` in
   the app. When adding a field, ask what the deserializer does with a value it did not
   expect.
 - **On WP8.1 a file picker is not awaited, it is continued.**
@@ -535,14 +442,15 @@ the adapter:
   (`appx/2014/manifest`). With `m3:` the build answers `APPX3030` ("must be a valid
   application extension category") and `APPX3002` (unrecognized element), which
   reads like an unsupported feature and is only a namespace mistake.
-- **GOWA's `/user/avatar` returns an address, not an image.** `AvatarResponse` is
-  `{url, id, type}`, so the picture is a second request to the CDN URL. Encoding
-  the first response as if it were a bitmap produces base64 that no decoder
-  accepts, and the failure is silent: every row falls back to initials. The same
-  shape of trap is in `/user/my/groups`: whatsmeow's `types.GroupInfo` has no json
-  tags and embeds `GroupName`, so `encoding/json` promotes the fields and the
-  subject arrives as a top-level `Name`. GOWA's own chat list has no usable name
-  for a group and answers `Group <number>`.
+- **The profile picture is a URL before it is a picture.** The `iq` that asks for
+  one answers an `url` attribute (`ProfilePictures`, the reference's
+  `query="url"`), and the JPEG is a second request to that address, which expires:
+  it is fetched by `WinRtMediaFetcher` and the bytes are kept in `AvatarCache`,
+  because the next question would be answered with a different address. Treating the
+  answer as if it were already a bitmap produces base64 no decoder accepts, and the
+  failure is silent: every row falls back to initials. The same trap is in the group
+  metadata query: the subject is not the chat list's name for the group, which is
+  why `GroupDirectory` asks for it at all.
 - **The tile takes its image from the payload, not from the manifest.** An
   update whose `image/@src` is empty renders an iconless tile and raises nothing
   at all - no exception, no log, nothing in the Output window. `SetImage` writes
@@ -575,17 +483,12 @@ the adapter:
   buttons keep a gap between them and carry `AutomationProperties.SetName` (the
   same key as their tooltip), so the device can answer which is which. Gate:
   `node tools/check-actions.js`.
-- **A screen that is shown before the socket is up cannot ask for its data.**
-  `ChatsPage.OnNavigatedTo` used to request the list only when
-  `IsConnected && Contacts.Count == 0`; on a cold start neither is true, so the list
-  stayed empty until the user walked through the settings page. The request now happens
-  in `RequestChats()` - called on navigation, on every `state` frame, and after the page
-  asks the adapter for the state (`status`) - and it waits for
-  `WhatsAppState == "connected"`, because the adapter answers "not connected" until the
-  WhatsApp login is done. There is no Continue button any more: a configured app opens
-  on the chats and never on the settings. `ChatCache` keeps the last list on the phone so the
-  screen is not empty while that happens: it is a photograph, replaced row by row by
-  `ApplyChat`, and it holds no avatar bytes.
+- **A screen that is shown before the socket is up binds from the phone's own
+  copy.** A configured app opens on the chats and never on the settings, so there is
+  no moment where a page can wait for a "connected" answer before it has something to
+  show: `ChatsPage.OnNavigatedTo` builds the list from `ChatCache` (a photograph,
+  replaced row by row by `ApplyChat`, and holding no avatar bytes) and the page then
+  follows the sync burst that follows a login (`DataService.HistoryCompleted`).
 - **`ShareOperation` has an order, and on WP8.1 it has no `GetDeferral()`.** Report
   `ReportStarted()` first, `ReportDataRetrieved()` once the bytes are in, and
   `ReportCompleted()` at the end (or `ReportError()` in the catch); calling
@@ -597,41 +500,38 @@ the adapter:
   `tools/check-csharp5.js` flags both `.GetDeferral(` and `Windows.Foundation.Deferral`,
   so the guard catches the reintroduction. A share target's file types are declared in the manifest's default namespace;
   a video type missing there means the app is not offered for it at all.
-- **A frame is capped at 8 MiB and base64 adds a third.** An attachment therefore
-  travels as `media.begin` / `media.chunk` / `media.end`, with each chunk a multiple of
-  4 base64 characters so the bytes can be concatenated without re-encoding. The adapter
-  picks GOWA's door from the MIME type (or the extension): `/send/image`, `/send/video`,
-  `/send/file`. Before this, every attachment went through `sendImage`, so a video
-  arrived as a broken image.
-- **GOWA's `/message/:id/download` answers with an address, not bytes.** Like
-  `/user/avatar`, it is two requests: `results.file_url` is the static file, fetched
-  after. An empty `file_url` means the file is not under `statics`, which for the app is
-  "no longer available", not a fault. The bytes go back in `media` control frames tied
-  to the existing message by `RelatedMessageId` - a message frame would count as new and
-  raise a toast.
-- **Incoming media is chunked too, and a video goes to disk.** The same 8 MiB ceiling
-  applies to what the adapter sends back, so `sendMediaChunks` splits the base64 into
-  `MEDIA_CHUNK_CHARS` (700000) characters - the same number as `ChatPage.MediaChunkChars`
-  - one `media` frame each, with `MediaChunkIndex` / `MediaChunkTotal` / `MediaType`. The
-  webhook path uses it as well: a message with an id is announced first and its bytes
-  follow, so nothing large rides inside a message frame. On the phone
-  `IncomingMediaStore` reassembles by `RelatedMessageId`: a photo into `MediaData`, a
-  video streamed into a file in `LocalFolder` (never whole in memory - that is what the
-  512 MB budget buys) and referenced by `ChatMessage.MediaFilePath`, a client-only field.
+- **A media message is an address and a key, not bytes.** Sending: `MediaUpload`
+  encrypts the file, POSTs it to the host WhatsApp answers with (`MediaConn`) and the
+  stanza that follows names where it went. Receiving: the encoded `Message` carries the
+  media key and the direct path, and `MediaDownload` fetches and decrypts it - one path,
+  used by a live message, a history row, an avatar and a status alike. A download that
+  fails leaves the bubble without its picture and a tap asks again; it is not a reason
+  to discard the message.
+- **An upload is whole in memory, and a video is not.** The ciphertext carries its own
+  ten-byte signature at the end, so a sender that streamed the file could not compute
+  the MAC before the last block either. What comes back is the other way round: a video
+  is written to a file as its bytes arrive (`IncomingMediaStore`) and never held whole,
+  which is what the 512 MB budget buys.
+- **Incoming media arrives in pieces, and a video goes to disk.** `IncomingMediaStore`
+  reassembles them by `RelatedMessageId` and checks each piece's `MediaChunkIndex`
+  against the number already received (the count `MediaChunkTotal` carries is what
+  tells a short stream from a complete one): a photo lands in `MediaData`, and a
+  video, an audio or a document is written to a file in `LocalFolder` as it arrives
+  (never whole in memory - that is what the 512 MB budget buys) and referenced by
+  `ChatMessage.MediaFilePath`, a client-only field.
   A `MediaElement` in `ChatPage` plays it from the `ms-appdata` file URI with
   `AreTransportControlsEnabled`. The play box shows on `ChatMessage.IsVideo`, which is
   true from `MediaType` alone, so it is tappable before the bytes arrive - the first tap
   downloads them, and `ChatMessage.IsMediaLoading` turns the ring in the bubble while
   they do.
-- **WP8.1 has no Opus decoder.** WhatsApp voice notes are Ogg/Opus, and Opus only
-  arrived on Windows 10: the phone can play MP3, AAC/M4A, AMR and WAV, and cannot
-  play what WhatsApp actually sends. The adapter therefore detects `ffmpeg` once
-  at startup (`WhatsappBridge/ffmpeg.js`, `bridge.probeFfmpeg()`) and converts an
-  Ogg/Opus payload to mono 16 kHz 32 kbit/s MP3 before chunking it to the app.
-  `ffmpeg` is an external program, not an npm dependency, and the adapter must
-  work without it: `toPlayable` returns `null`, the original bytes are sent, and
-  the app shows that the note cannot be played. `FFMPEG_ENABLED` and `FFMPEG_PATH`
-  change it. Audio and documents are `MediaType` values, not `MessageType` values:
+- **WP8.1 has no Opus codec at all.** WhatsApp voice notes are Ogg/Opus, and Opus
+  only arrived on Windows 10: the phone can play MP3, AAC/M4A, AMR and WAV, so a note
+  that arrives cannot be decoded here, and one recorded here is M4A. There used to be
+  a server in the middle that converted both ways with `ffmpeg`; it is gone, and the
+  README pair's Limiti/Limitations section is where that is written down rather than
+  quietly dropped. Anything that converts audio in the future has to do it **on the
+  phone**, against a platform with no Opus. Audio and documents are `MediaType` values,
+  not `MessageType` values:
   `MessageType` has no `Document` and adding one would change what every older
   frame deserializes to, so `ChatMessage.IsAudio` and `ChatMessage.IsDocument`
   derive from `MediaType` the way `IsVideo` does. A downloaded document is opened
@@ -640,15 +540,15 @@ the adapter:
 - **A recorded voice note is M4A, and it leaves through `/send/audio`.**
   `Services/AudioRecorder.cs` records AAC in an M4A container
   (`MediaEncodingProfile.CreateM4a`) because it is the format this phone records
-  and decodes without help; WP8.1 has no Opus encoder, and the adapter converts
-  only in the receiving direction. The M4A file goes into `LocalFolder` and then
+  and decodes without help; WP8.1 has no Opus encoder. The M4A file goes into `LocalFolder` and then
   through the same `AttachmentInbox` slot as a picked photo, so
   `ChatPage.SendAttachmentAsync` streams it with the existing frames.
   `AttachmentInbox.KindName` must answer `audio` for an audio MIME type or
-  extension: without that branch a voice note is a document, and the adapter
-  cannot tell the two apart. On the adapter side an `audio` payload goes to
-  `GowaClient.sendAudio` (`POST /send/audio`, field `audio`); `sendFile` is only
-  the fallback, and a voice note sent through it arrives as a file.
+  extension: without that branch a voice note is sent as a document, and the
+  receiver sees a file to download instead of a note to play. That word is the one
+  `Protocol/Media/MediaUpload.cs` derives the keys with (`image`, `video`, `audio`,
+  `document`) and the one the message carries, so the two sides of the wire have to
+  agree on it.
 - **The microphone is a `DeviceCapability`.** `MediaCapture.InitializeAsync`
   answers access denied without `<DeviceCapability Name="microphone" />` in
   `Package.appxmanifest`. Visual Studio rewrites that file on every build: after
@@ -708,19 +608,21 @@ the adapter:
   not a failure: `MessageCache.LoadAsync` catches `FileNotFoundException` without a
   `Diag` line and logs only a copy it could not parse, so a missing file never hides
   the real fault in the log again. When a history burst is on its way, the bind also
-  waits for the adapter's `history.done`, or twenty seconds, whichever comes first:
-  the burst is one frame per message, and a bind while it is still inserting re-lays
-  out the list on every frame. That wait must not be shorter than the adapter's own
-  read of the account - the first read is an HTTP round trip through GOWA and was
-  measured at about 15 s on 2026-10-07 - because the wait that expires first is the
-  one that binds the list before its burst and hands it fifty inserts it never asked
-  for. `check-diagnostics.js` pins the floor, so the value cannot drift back.
+  waits for `HistoryCompleted`, or twenty seconds, whichever comes first: the burst is
+  one row per message, and a bind while it is still inserting re-lays out the list on
+  every frame. That wait must not be shorter than the sync it waits for - the payload
+  is pushed after the login and was measured at about 15 s on 2026-10-07 - because the
+  wait that expires first is the one that binds the list before its burst and hands it
+  fifty inserts it never asked for. `check-diagnostics.js` pins the floor, so the value
+  cannot drift back.
 - **The diagnostics outlive the run.** `Diag` appends every line to `diag.log` through
   a `SerialQueue`, cuts the file to its last 64 KB, writes a run-start and a run-end
   marker, and keeps a `diag-run.marker` file while the run is alive. A marker still
   there at the next startup is what a crash is; the tail it left becomes
-  `Diag.PendingCrashTail` and the next connection sends it to the adapter as a `diag`
-  frame, so the crash is read in the container log. The marker is a file and not a
+  `Diag.PendingCrashTail`, and the run that follows writes it into its own log
+  (`CrashReport.Start`, called from `App.StartServicesOnce` right after the marker is
+  read), so the crash is read on the diagnostics page and off the phone's `diag.log`.
+  The marker is a file and not a
   line in the log because `OnSuspending` is the normal end of a run here: a log with
   no end marker is normal too, and a crash after a resume would slip past anything
   that only read the log. `OnResuming` puts the marker back, and `Diag.Flush(true)`
@@ -747,9 +649,9 @@ the adapter:
   (`ChatPage.HeaderAvatar_Tapped` uses `Contact.AvatarDecodePixels`): the viewer
   copy is held while the conversation behind it is still laying out.
 - **A pin, a silence and a deletion are this phone's, and the file that holds them
-  is not the chat cache.** `ChatCache` is a photograph the server replaces row by
-  row, so a decision kept there would be gone at the next `chats` reply and a chat
-  that `CHATS_LIMIT` no longer lists would lose it. `ChatPreferences` is the other
+  is not the chat cache.** `ChatCache` is a photograph of the list that the next
+  sync writes over, so a decision kept there would not survive it.
+  `ChatPreferences` is the other
   thing: `chat-preferences.json` in `LocalFolder`, read once at start-up (before
   the first row is built, in `DataService.LoadCachedChatsAsync`) and written by the
   caller that changes it. `Hidden` keeps a deleted chat out of `ApplyChat` and
@@ -757,12 +659,11 @@ the adapter:
   chat deleted by mistake come back - and is why nothing here is a one-way door.
   Muting suppresses the toast only: the unread count is still true.
 - **A channel and the status broadcast are not conversations.** Neither can be
-  answered, and each takes the place of a person in the list, so `chats.js`
-  (`isNotAConversation`) skips both before it spends a request on their last message.
-  `message-format.js` refuses a `status@broadcast` message for the same reason. The
-  phone answers the same JID too (`DataService.IsNotAConversation`, in `ApplyChat` and
-  `ApplyContact`), because the row can also arrive from the copy already on disk; the
-  statuses themselves live in the app's Status section.
+  answered, and each takes the place of a person in the list, so
+  `DataService.IsNotAConversation` filters both out where a row is applied - the row
+  can arrive from the history sync or from the copy already on disk, and that one
+  place is where both are stopped. The statuses themselves live in the app's Status
+  section (`Protocol/Client/StatusFeed.cs`).
 - **The pictures have a cache of their own, and it is read before the rows.** The row
   cache (`ChatCache`, `chats.json`) leaves `AvatarData` out on purpose: it is the file the
   app reads before the connection exists, and one picture per chat would multiply it.
@@ -772,21 +673,18 @@ the adapter:
   waiting, can land out of order - that bug was already fixed once in
   `ChatPreferences`). `DataService.LoadCachedChatsAsync` awaits `AvatarCache.LoadAsync()`
   before the first `ApplyChat`, because `ApplyChat` asks the cache for the picture of a
-  row that carries none, and a restart then shows the faces before the adapter answers.
+  row that carries none, and a restart then shows the faces before WhatsApp answers.
   `MemoryWatcher` drops only the decoded bitmap, never the bytes, and
   `DataService.RestoreAvatars` (called by `ChatsPage.OnNavigatedTo`) redraws them.
   `tools/check-memory.js` fails on all three of these.
-- **The profile information is composed by the adapter, not on the phone.** The chat
-  header and `ContactInfoPage` need a profile, a business profile and the members of a
-  group, which live on three GOWA routes the phone cannot reach (`/user/info`,
-  `/user/business-profile`, `/group/participants` plus `/group/info` for the
-  description). The adapter answers one `contact.info` command with one JSON frame
-  (`server.js`, `sendContactInfo`), and it always answers, even when WhatsApp is down:
-  a page that waits forever is worse than a page that says nothing is available. The
-  picture rides inside that JSON (`AvatarData`), from the adapter avatar cache, so the
-  big photo exists even for a chat whose row never carried one. Adding a field means
-  changing the adapter JSON, `WhatsappApp/Models/ContactInfo.cs` and
-  `ContactInfoPage` in the same push: the two ends are case-sensitive.
+- **The profile details have no reader yet, and the page says so.** `ContactInfoPage`
+  fills the name and the number from the contact this phone already has, and asks
+  WhatsApp itself for the picture (`RequestAvatarAsync`). The about line, the business
+  profile and a group's members are what the retired server used to compose out of
+  three routes of its own; nothing here reads them yet, and `ContactInfoPage_NoInfo` is
+  the sentence that states the limit instead of drawing headings with nothing under
+  them. Whoever wires a native reader fills `Models/ContactInfo.cs` and calls
+  `ContactInfoPage.Apply` - the page is already built around that one shape.
 - **A pinned chat is moved, not sorted.** `DataService.ResortContacts` walks the
   collection and moves each pinned row in front of the first row that is not
   pinned, so the rows keep the recency order the collection already had. Every
@@ -802,11 +700,9 @@ the adapter:
   over the values the menu was built from instead of reading `contact` again. The
   loops that apply a pin snapshot `DataService.Contacts` first
   (`SnapshotContacts`): `SetPinned` moves rows inside that same collection.
-- **A group has a picture like anyone else.** `GET /user/avatar` accepts a group
-  JID: `SanitizePhone` only appends a suffix when the value has no `@`, and
-  `GetProfilePictureInfo` takes the JID as it comes. So `chats.js` asks for a
-  group's picture too, and `gowa-client.js.avatar()` keeps the whole JID (cutting
-  `:device` off the front of the local part, not the `@g.us` off the end). Skipping
-  `@g.us`, or cutting the JID to its digits, is what made groups show initials.
-  `POST /group/photo` is the other direction - it sets a group's picture, it does
-  not read one.
+- **A group has a picture like anyone else.** The picture is a query of its own
+  (`Protocol/Client/ProfilePictures.cs`): a `type="get"` with `query="url"` sent to
+  the JID, answered with a signed, expiring address that the app then downloads
+  (`NativeConnection` asks for `image`, and for `preview` when a row only needs a
+  small copy). The JID goes in whole, a group's included: skipping `@g.us`, or
+  cutting the JID down to its digits, is what made groups show initials.

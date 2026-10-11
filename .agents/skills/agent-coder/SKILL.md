@@ -35,8 +35,8 @@ and no note.
 ## The gate it runs
 
 The fast gate from [`test-the-app`](../test-the-app/SKILL.md), plus
-`node --test "tools/test/**/*.test.js"` and `cd WhatsappBridge && npm test`.
-Not the ARM build: that is the publisher's, on the Windows VM.
+`node --test "tools/test/**/*.test.js"`. Not the ARM build: that is the
+publisher's, on the Windows VM.
 
 ## What it must not do
 

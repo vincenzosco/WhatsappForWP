@@ -1,6 +1,6 @@
 ---
 name: agent-publisher
-description: Use to finish a change: run the full gate and the ARM build, commit with the project's message rules, push origin/master, sync and push the Docker mirror when WhatsappBridge changed, update the bilingual docs and the plan, and keep the agent skills themselves pushed.
+description: Use to finish a change: run the full gate and the ARM build, commit with the project's message rules, push origin/master, update the bilingual docs and the plan, and keep the agent skills themselves pushed.
 ---
 
 # The publisher
@@ -29,19 +29,6 @@ commits, not one large one.
 
 `git push origin master`. Push is the rule, not a question: a change is finished
 only when it is on the remote. Confirm the remote and the branch before pushing.
-
-## The mirror
-
-Only when the change touches `WhatsappBridge/`. From
-`/Users/vincenzo/Documents/docker-whatsappforwp`:
-
-```bash
-node tools/sync.js --from /Users/vincenzo/Documents/WhatsappForWP
-node tools/sync.js --check --from /Users/vincenzo/Documents/WhatsappForWP
-```
-
-until it prints `OK: server/ matches the adapter (28 file(s))`, then
-`cd server && npm test`, commit, and `git push origin main`.
 
 ## The documents
 

@@ -70,10 +70,9 @@ Developer Mode.
 ## Checklist before calling it a release
 
 - [ ] The four guards pass (`check-csharp5`, `check-icons`, `check-resw --strict`, `check-docs`).
-- [ ] `cd WhatsappBridge && npm test` is 70/70.
+- [ ] `node tools/test-protocol.js` reports its full suite green.
 - [ ] `msbuild` reports `0 Error(s)`.
 - [ ] Version bumped in `Package.appxmanifest` **and** `Properties/AssemblyInfo.cs`.
-- [ ] A new control command or frame is additive and is ignored gracefully by an older app, and both adapter READMEs list it in the same commit.
-- [ ] README sections that describe the changed behaviour are updated **in both languages** (`README.md` + `README.it.md`, same for `WhatsappBridge/`), and `## Disclosure` is still the last section of the project READMEs.
+- [ ] README sections that describe the changed behaviour are updated **in both languages** (`README.md` + `README.it.md`), and `## Disclosure` is still the last section of the project READMEs.
 - [ ] The on-device checklist in `test-the-app` has been walked through.
 - [ ] `git status` clean and pushed.
