@@ -248,7 +248,15 @@ to "why is the screen empty".
 13. After linking, the chat list shows the conversations that exist in WhatsApp -
     not the empty address book - most recent first, with the last message as the
     preview and a profile picture where the person has one (rows without a picture
-    keep their coloured initials).
+    keep their coloured initials). **Within a minute of the pairing**, with no empty
+    state left on screen, and the history arrives behind a media download as often
+    as inline: the run's `DIAG` lines name it either way - `native: ... byte(s) of
+    downloaded history`, then `native: history sync type N carried K
+    conversation(s), M row(s) now`, then `native: the history is complete, ...`. A
+    list that stays empty is named too: `carries neither an inline payload nor a
+    mediaKey/directPath` is a server that sent no history, and `DIAG failed:
+    NativeConnection/history` is a blob that refused, with its address in the
+    sentence.
 14. Receive a message in a chat that is not open: a toast appears with the sender
     and the text, and the tile badge counts it. Open that chat: the badge goes
     down. Turn the notifications switch off in the settings: no toast, no badge.

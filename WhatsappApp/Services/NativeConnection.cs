@@ -409,7 +409,7 @@ namespace WhatsappApp.Services
             HistorySyncNotification history = HistorySyncNotification.From(incoming.Content);
             if (history != null)
             {
-                ApplyHistory(history);
+                await ApplyHistoryAsync(history);
                 return;
             }
 
@@ -1061,21 +1061,57 @@ namespace WhatsappApp.Services
         ///
         /// Two shapes, both the reference's: a bootstrap carries the compressed payload
         /// inline, and every later chunk is a download behind the media path (the notification
-        /// carries a mediaKey and a directPath, and the bytes are decrypted like any other
-        /// media). The download half is not written yet, and it says so instead of pretending
-        /// the history was empty.
+        /// carries a mediaKey and a directPath, and `HistoryBlob` decrypts and inflates it
+        /// like any other media). A notification that names neither is named in the log - a
+        /// field that is missing must not look like a history that was empty.
+        ///
+        /// The download is awaited: the acknowledgement went out before this point, so a slow
+        /// blob cannot delay it, and this waits for exactly as long as the message media path
+        /// already makes the stanza reader wait.
         /// </summary>
-        private void ApplyHistory(HistorySyncNotification notification)
+        private async Task ApplyHistoryAsync(HistorySyncNotification notification)
         {
-            if (notification.InlinePayload == null)
+            HistorySync sync;
+
+            try
             {
-                Diag.Ok("native: history sync type " + notification.SyncType
-                    + " is behind a media download, which this build cannot fetch yet");
+                if (notification.InlinePayload != null)
+                {
+                    sync = HistorySync.Decode(Zlib.Inflate(notification.InlinePayload));
+                }
+                else if (notification.MediaKey != null && !string.IsNullOrEmpty(notification.DirectPath))
+                {
+                    byte[] blob = await HistoryBlob.FetchAsync(new WinRtMediaFetcher(), notification);
+                    sync = HistorySync.Decode(blob);
+                    Diag.Ok("native: " + blob.Length + " byte(s) of downloaded history");
+                }
+                else
+                {
+                    Diag.Ok("native: history sync type " + notification.SyncType
+                        + " carries neither an inline payload nor a mediaKey/directPath");
+                    return;
+                }
+            }
+            catch (Exception error)
+            {
+                // A blob that will not download, or will not open, must not end the login:
+                // this runs on the socket loop every message arrives on, and the rest of the
+                // sync still has a chat list to fill. The failure is named with its address,
+                // so the phone's log says which blob to look at.
+                Diag.Failed("NativeConnection/history", error);
                 return;
             }
 
-            HistorySync sync = HistorySync.Decode(Zlib.Inflate(notification.InlinePayload));
+            ApplySync(sync);
+        }
 
+        /// <summary>
+        /// A decoded sync into the pages, in the order they expect: the calls and the statuses
+        /// first (each is a list of its own), then the chat rows, then whoever is listening.
+        /// Both shapes above end here, so neither one has its own version of this.
+        /// </summary>
+        private void ApplySync(HistorySync sync)
+        {
             ApplyCalls(sync);
             ApplyStatuses(sync);
 
