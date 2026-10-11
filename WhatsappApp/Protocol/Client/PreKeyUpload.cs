@@ -48,7 +48,17 @@ namespace WhatsappApp.Protocol.Client
         {
             if (store == null) throw new ProtocolException("the pre-key store is where the keys live");
 
-            return store.Remaining < floor;
+            return NeedsUpload(store.Remaining, floor);
+        }
+
+        /// <summary>
+        /// The same question over a count rather than a store, so a caller that owns a loop
+        /// (`Services/NativeConnection`, through `ConnectionPolicy.NeedsPreKeys`) asks this
+        /// floor instead of restating the comparison and drifting from it.
+        /// </summary>
+        public static bool NeedsUpload(int remaining, int floor)
+        {
+            return remaining < floor;
         }
 
         /// <summary>
