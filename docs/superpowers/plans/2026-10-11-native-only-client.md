@@ -1145,7 +1145,8 @@ the form `Ruling: <what> - <why> - <cost if wrong>`.
 | 6 | `12b610e` | done: `Conversation` (typing + receipts), the send path with its waiter table, receipts into `SetMessageStatus`, `ChatPage` send/typing and `DataService`'s read off the adapter. 169 |
 | 7 | (this commit) | done: `MediaKeys`, `MediaDownload`, `IMediaFetcher`, `WinRtMediaFetcher`, the four media protobufs in `Message`, the row + the bytes in `NativeConnection`, the bytes into `IncomingMediaStore.StoreAsync` and `DataService`, the tap into `NativeConnection.DownloadMediaAsync`. 178 protocol tests |
 | 8 | (this commit) | done: `MediaConn` + `MediaUpload`, `IMediaFetcher.PostAsync` (and its WinRT half), `NativeConnection.SendMediaAsync` (device list, media connection, upload, message), `ChatPage`'s attachment path, `OutgoingMessage`'s media stanza. 190 protocol tests |
-| 9-13 | - | not started |
+| 9 | (this commit) | **partly done**: `SenderKeyRecord` + `SenderKeyMessage` + `SenderKeyDistribution`, `SenderKeys`, `GroupDirectory`, sender keys on disk in `SessionStore`, 15 tests incl. the reference's own distribution and ciphertext. The group **send** and the `skmsg` **receive** wiring, `GroupDirectory.FanOut` and the `DataService` half are not written yet - see the notes below |
+| 10-13 | - | not started |
 
 What Task 7 changed about the tree the tasks before it left:
 
@@ -1170,6 +1171,34 @@ What Task 7 changed about the tree the tasks before it left:
 
 Every platform rebuilt: x86 and ARM `MSBuild -t:Rebuild` both ended with `Your package has
 been successfully created.`
+
+What Task 9 has and has not, as of this commit:
+
+- **Done and pinned by the reference**: the whole sender-key schedule - `HMAC(chainKey, 0x01)` for
+  the message key seed, `HMAC(chainKey, 0x02)` for the next chain key, `HKDF(seed, salt = 32
+  zero bytes, info = "WhisperGroup", 48 bytes)` split into iv 0..16 and cipher key 16..48 - the
+  two serialized forms (distribution and `SenderKeyMessage`, version byte `0x33`, 64-byte
+  signature at the end), the XEdDSA signature check *before* the decrypt, skipped iterations
+  for out-of-order messages, the record's own disk framing, and the group metadata query and
+  its reader. `ProtocolTests/SenderKeyTests.cs` opens the reference's own ciphertext (two
+  iterations of it) and `ProtocolTests/GroupDirectoryTests.cs` reads an answer in the shape
+  `groups.js` parses.
+- **Two things the reference corrected here, and both were wrong from memory**: the iv is the
+  first sixteen bytes of the HKDF **expansion** (not of the extract), and the first message off
+  a chain uses `HMAC(chainKey, 0x01)` and not the chain key itself. Each was caught by the
+  fixture and by nothing else.
+- **Not done, and the feature does not work without it**: `OutgoingMessage`'s group branch
+  (stanza `type="media"`/`text` with `participants` holding one `to[device]` per member that
+  has no sender key, plus the one `enc type="skmsg"`), `IncomingMessage`'s `skmsg` shape, the
+  distribution a member processes on arrival, `GroupDirectory.FanOut` (which needs the
+  per-participant device lists), and `DataService`'s group rows and participant names. The
+  plan's Task 9 steps 3 and 4 are exactly those, and they are untouched.
+- The record keeps **one** state where the reference keeps five: WhatsApp rotates a sender key
+  by starting a new `keyId`, so a client with the current state treats a retired key's messages
+  as unreadable - which is what the reference does too once it has rotated five times.
+  `Ruling:` one state, and a rotation to follow in the wiring step. Cost if wrong: a member who
+  rotated four times without this client noticing can be read by the reference and not here,
+  and the log would show a `keyId` mismatch rather than a decrypt failure.
 
 What Task 8 changed about the tree, and the one deliberate deviation:
 

@@ -147,6 +147,7 @@
     <Compile Include="Protocol\Client\Credentials.cs" />
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
     <Compile Include="Protocol\Client\InboundRouter.cs" />
+    <Compile Include="Protocol\Client\GroupDirectory.cs" />
     <Compile Include="Protocol\Client\IncomingMessage.cs" />
     <Compile Include="Protocol\Client\MediaConn.cs" />
     <Compile Include="Protocol\Client\NativeChats.cs" />
@@ -164,6 +165,8 @@
     <Compile Include="Protocol\Signal\Keys.cs" />
     <Compile Include="Protocol\Signal\PreKeyBundle.cs" />
     <Compile Include="Protocol\Signal\SessionRecord.cs" />
+    <Compile Include="Protocol\Signal\SenderKeyRecord.cs" />
+    <Compile Include="Protocol\Signal\SenderKeys.cs" />
     <Compile Include="Protocol\Signal\SessionStore.cs" />
     <Compile Include="Protocol\Signal\SignalConstants.cs" />
     <Compile Include="Protocol\Signal\WhisperMessage.cs" />
