@@ -152,6 +152,7 @@
     <Compile Include="Protocol\Client\PairingSession.cs" />
     <Compile Include="Protocol\Client\PreKeyUpload.cs" />
     <Compile Include="Protocol\Client\SessionKeepAlive.cs" />
+    <Compile Include="Protocol\Client\Zlib.cs" />
     <Compile Include="Protocol\Client\WhatsAppSocket.cs" />
     <Compile Include="Protocol\Diagnostics.cs" />
     <Compile Include="Protocol\Noise\NoiseHandshake.cs" />
@@ -172,6 +173,7 @@
     <Compile Include="Protocol\WaProto\ClientPayload.cs" />
     <Compile Include="Protocol\WaProto\DeviceProps.cs" />
     <Compile Include="Protocol\WaProto\HandshakeMessage.cs" />
+    <Compile Include="Protocol\WaProto\HistorySync.cs" />
     <Compile Include="Protocol\WaProto\Message.cs" />
     <Compile Include="Protocol\WaProto\Proto.cs" />
     <Compile Include="Protocol\Crypto\Aes.cs" />
