@@ -101,21 +101,7 @@ namespace WhatsappApp.Protocol.Signal
         {
             if (distributionMessage == null) return null;
 
-            Message message = Message.Decode(distributionMessage);
-            if (message.SenderKeyDistributionMessage == null) return null;
-
-            var reader = new ProtoReader(message.SenderKeyDistributionMessage);
-
-            while (reader.HasMore)
-            {
-                ProtoField field = reader.ReadField();
-
-                if (field.Number == 1) return Utf8(reader.ReadBytes());
-
-                reader.SkipField(field.WireType);
-            }
-
-            return null;
+            return GroupIdOfField(Message.Decode(distributionMessage).SenderKeyDistributionMessage);
         }
 
         /// <summary>The sender key bytes inside a distribution `Message`.</summary>
@@ -123,18 +109,45 @@ namespace WhatsappApp.Protocol.Signal
         {
             if (distributionMessage == null) return null;
 
-            Message message = Message.Decode(distributionMessage);
-            if (message.SenderKeyDistributionMessage == null) return null;
+            return DistributionOfField(Message.Decode(distributionMessage).SenderKeyDistributionMessage);
+        }
 
-            var reader = new ProtoReader(message.SenderKeyDistributionMessage);
+        /// <summary>
+        /// The same two readers for the field itself, without the message around it - which
+        /// is what a reader that has already decoded the message holds.
+        /// </summary>
+        public static string GroupIdOfField(byte[] field)
+        {
+            if (field == null) return null;
+
+            var reader = new ProtoReader(field);
 
             while (reader.HasMore)
             {
-                ProtoField field = reader.ReadField();
+                ProtoField one = reader.ReadField();
 
-                if (field.Number == 2) return reader.ReadBytes();
+                if (one.Number == 1) return Utf8(reader.ReadBytes());
 
-                reader.SkipField(field.WireType);
+                reader.SkipField(one.WireType);
+            }
+
+            return null;
+        }
+
+        /// <summary>The `axolotlSenderKeyDistributionMessage` inside the field.</summary>
+        public static byte[] DistributionOfField(byte[] field)
+        {
+            if (field == null) return null;
+
+            var reader = new ProtoReader(field);
+
+            while (reader.HasMore)
+            {
+                ProtoField one = reader.ReadField();
+
+                if (one.Number == 2) return reader.ReadBytes();
+
+                reader.SkipField(one.WireType);
             }
 
             return null;

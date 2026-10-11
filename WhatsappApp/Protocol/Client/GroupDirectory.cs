@@ -19,6 +19,15 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The members, in the order the server named them.</summary>
         public IList<string> Participants = new List<string>();
 
+        /// <summary>
+        /// `addressing_mode`, when the group has one: `lid` means the group addresses its
+        /// members by their LID and not by their phone number, and it has to be echoed on
+        /// every message sent into the group (`whatsmeow`, `send.go`,
+        /// `attrs["addressing_mode"]`). Empty when the answer says nothing, and then no
+        /// attribute is sent: a guess here is a message the group cannot attribute.
+        /// </summary>
+        public string AddressingMode;
+
         /// <summary>What a chat list row shows: the subject, or the JID when it has none.</summary>
         public string DisplayName
         {
@@ -105,6 +114,7 @@ namespace WhatsappApp.Protocol.Client
             else info.Jid = id + GroupServer;
             info.Subject = group.Attrs["subject"];
             info.OwnerJid = group.Attrs["creator"];
+            info.AddressingMode = group.Attrs["addressing_mode"];
 
             IList<BinaryNode> children = group.Children();
             if (children != null)

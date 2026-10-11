@@ -31,6 +31,19 @@ namespace WhatsappApp.Protocol.Client
         public static BinaryNode Query(string jid, IRandomSource random)
         {
             if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a device query asks about somebody");
+
+            return Query(new List<string> { jid }, random);
+        }
+
+        /// <summary>
+        /// The same query for several JIDs at once, which is what a group send needs: one
+        /// `usync` carries a `user` per member, and the answer comes back as one `list`
+        /// (`Socket/messages-send.js`, `getUSyncDevices(participantsList, ...)`), so a group
+        /// of twenty members costs one round trip rather than twenty.
+        /// </summary>
+        public static BinaryNode Query(IList<string> jids, IRandomSource random)
+        {
+            if (jids == null || jids.Count == 0) throw new ProtocolException("a device query asks about somebody");
             if (random == null) throw new ProtocolException("a device query needs randomness for its two ids");
 
             var query = new BinaryNode("query");
@@ -38,10 +51,20 @@ namespace WhatsappApp.Protocol.Client
             devices.Attrs.Add("version", "2");
             query.Content = new List<BinaryNode> { devices };
 
-            var user = new BinaryNode("user");
-            user.Attrs.Add("jid", jid);
+            var users = new List<BinaryNode>();
+            for (int i = 0; i < jids.Count; i++)
+            {
+                if (string.IsNullOrEmpty(jids[i])) continue;
+
+                var user = new BinaryNode("user");
+                user.Attrs.Add("jid", jids[i]);
+                users.Add(user);
+            }
+
+            if (users.Count == 0) throw new ProtocolException("a device query asks about somebody");
+
             var list = new BinaryNode("list");
-            list.Content = new List<BinaryNode> { user };
+            list.Content = users;
 
             var usync = new BinaryNode("usync");
             usync.Attrs.Add("sid", Hex(random.Bytes(8)));

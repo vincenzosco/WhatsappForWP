@@ -349,6 +349,15 @@ namespace WhatsappApp.Services
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
             if (incoming.IsOurEcho) return;
 
+            if (incoming.Content == null && incoming.Text == null)
+            {
+                // A group stanza that carried nothing but a member's sender key: it was
+                // stored on the way in, and there is nothing to show. Saying so keeps it out
+                // of the media path, which would report it as a message it cannot read.
+                Diag.Ok("native: a sender key arrived for " + incoming.From);
+                return;
+            }
+
             if (incoming.Text == null)
             {
                 await ReadMediaAsync(incoming);
@@ -361,6 +370,9 @@ namespace WhatsappApp.Services
             message.Text = incoming.Text;
             message.Timestamp = incoming.Timestamp;
             message.IsFromMe = false;
+            // Who wrote it, for a group: the row's chat is the group, so the sender has to
+            // travel with the message or the bubble would say the group wrote it.
+            message.Sender = incoming.Sender;
 
             if (!_chats.AddIncoming(message)) return;
 
@@ -467,6 +479,12 @@ namespace WhatsappApp.Services
             if (string.IsNullOrEmpty(body)) throw new ProtocolException("there is nothing to send");
 
             NativeSession session = OpenSession();
+
+            if (OutgoingMessage.IsGroup(jid))
+            {
+                return await SendGroupAsync(session, jid, Message.Text(body), OutgoingMessage.TextType, null, body);
+            }
+
             IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
 
             string id = OutgoingMessage.Id(_random);
@@ -501,7 +519,6 @@ namespace WhatsappApp.Services
             if (string.IsNullOrEmpty(mediaType)) throw new ProtocolException("a file needs its media type");
 
             NativeSession session = OpenSession();
-            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
 
             BinaryNode answer = await RequestAsync(session, MediaConn.Query(OutgoingMessage.Id(_random)));
             MediaConnInfo conn = MediaConn.Read(answer);
@@ -510,17 +527,226 @@ namespace WhatsappApp.Services
                 mediaType, mimeType, fileName, _random);
 
             Message payload = MessageFor(uploaded, caption, seconds, voiceNote);
+            string mediaWord = MediaWord(mediaType, voiceNote);
+            string rowText = RowText(uploaded, caption);
+
+            // The upload comes first and the routing after it: a group message is the same
+            // file on the same host, and only the stanza that names it differs.
+            if (OutgoingMessage.IsGroup(jid))
+            {
+                return await SendGroupAsync(session, jid, payload, OutgoingMessage.MediaType, mediaWord, rowText);
+            }
+
+            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
             await session.SendAsync(OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
-                MediaWord(mediaType, voiceNote), devices, timestamp));
+                mediaWord, devices, timestamp));
 
-            _chats.AddOutgoing(jid, id, RowText(uploaded, caption), timestamp);
+            _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + jid
                 + " over " + devices.Count + " device(s)");
 
             return id;
+        }
+
+        /// <summary>
+        /// The group devices this phone has not handed its sender key to yet, per group and
+        /// per run.
+        ///
+        /// Why a memory at all: the distribution has to reach every member device once, and
+        /// a phone that re-sent twenty small encrypted nodes with every message would spend
+        /// its battery on the group's membership. Why it is only in memory: after a restart
+        /// every device gets the key once more, which costs one message and cannot leave
+        /// anybody unable to read - the alternative is a file that can disagree with the
+        /// server's own idea of who is in the group.
+        /// </summary>
+        private readonly Dictionary<string, HashSet<string>> _senderKeysSent =
+            new Dictionary<string, HashSet<string>>();
+
+        /// <summary>
+        /// One message into a group: the metadata, this device's sender key, one device list
+        /// for every member at once, one distribution per device that has not had it, and
+        /// one group ciphertext for all of them.
+        /// </summary>
+        private async Task<string> SendGroupAsync(NativeSession session, string jid, Message payload,
+            string type, string mediaType, string rowText)
+        {
+            GroupInfo group = GroupDirectory.Read(jid,
+                await RequestAsync(session, GroupDirectory.Query(OutgoingMessage.Id(_random), jid)));
+
+            SenderKeyRecord record = await SenderKeyAsync(jid);
+            IList<string> devices = await MemberDevicesAsync(session, group);
+
+            SessionStore store = await SessionsAsync();
+
+            HashSet<string> handed;
+            lock (_senderKeysSent)
+            {
+                if (!_senderKeysSent.TryGetValue(jid, out handed))
+                {
+                    handed = new HashSet<string>();
+                    _senderKeysSent.Add(jid, handed);
+                }
+            }
+
+            var targets = new List<string>();
+            for (int i = 0; i < devices.Count; i++)
+            {
+                lock (_senderKeysSent)
+                {
+                    if (handed.Contains(devices[i])) continue;
+                }
+
+                targets.Add(devices[i]);
+            }
+
+            // The sessions for the devices that need the key, and a bundle asked for in one
+            // request for the ones this phone has never talked to. A device the server has no
+            // bundle for is skipped, named: a group message must not be abandoned because one
+            // member cannot be reached (`AGroupWithAMemberWeCannotReachStillSends`).
+            var distributions = new List<KeyValuePair<string, SessionRecord>>();
+
+            if (targets.Count > 0)
+            {
+                var missing = new List<string>();
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    SessionRecord existing = store.Load(targets[i]);
+                    if (existing == null || !existing.HasSession) missing.Add(targets[i]);
+                }
+
+                IList<KeyValuePair<string, PreKeyBundle>> bundles = null;
+                if (missing.Count > 0)
+                {
+                    bundles = DeviceDirectory.Bundles(await RequestAsync(session,
+                        DeviceDirectory.BundleQuery(missing, _random)));
+                }
+
+                for (int i = 0; i < targets.Count; i++)
+                {
+                    PreKeyBundle bundle = Find(bundles, targets[i]);
+
+                    if (store.Load(targets[i]) == null && bundle == null)
+                    {
+                        Diag.Ok("native: no bundle for " + targets[i] + ", so it is not handed the key");
+                        continue;
+                    }
+
+                    distributions.Add(new KeyValuePair<string, SessionRecord>(targets[i],
+                        DeviceDirectory.Session(targets[i], bundle, _account, store, _random)));
+                }
+            }
+
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            await session.SendAsync(OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
+                group.AddressingMode, distributions, timestamp));
+
+            lock (_senderKeysSent)
+            {
+                for (int i = 0; i < distributions.Count; i++) handed.Add(distributions[i].Key);
+            }
+
+            _chats.AddOutgoing(jid, id, rowText, timestamp);
+            Diag.Ok("native: " + id + " to group " + group.DisplayName + " (" + devices.Count
+                + " device(s), " + distributions.Count + " key(s) handed out)");
+
+            return id;
+        }
+
+        /// <summary>
+        /// This device's sender key for a group: the one on disk when there is one, and a
+        /// new chain otherwise - a chain that then keeps its `keyId` for as long as the file
+        /// lives, which is what lets a member read message 400 the way it read message 1.
+        /// </summary>
+        private async Task<SenderKeyRecord> SenderKeyAsync(string groupJid)
+        {
+            SessionStore store = await SessionsAsync();
+            string name = SenderKeyName(groupJid, _account == null ? null : _account.Jid);
+
+            SenderKeyRecord record = store.LoadSenderKey(name);
+            if (record != null) return record;
+
+            record = SenderKeyRecord.Create(groupJid, _random);
+            store.SaveSenderKey(name, record);
+
+            return record;
+        }
+
+        /// <summary>
+        /// Where a member's sender key lives: the group and **the device that wrote it**.
+        ///
+        /// The device and not the phone number, because sender keys are per device - a
+        /// contact with a phone and a tablet writes with two chains - and a name that stopped
+        /// at the number would have the second device's messages read with the first's chain
+        /// and refused for an iteration that never existed.
+        /// </summary>
+        private static string SenderKeyName(string groupJid, string deviceJid)
+        {
+            return groupJid + "/" + deviceJid;
+        }
+
+        /// <summary>
+        /// Every device of every member, and of this account's own other devices, minus the
+        /// one this code is running on.
+        ///
+        /// One `usync` for the whole group: the device list is asked for per member in one
+        /// request, which is the reference's own way (`getUSyncDevices(participantsList, ...)`).
+        /// A hosted device (WhatsApp's own server-side ones) is skipped, and so is device 99,
+        /// which is not a device but a placeholder the server puts in a list.
+        /// </summary>
+        private async Task<IList<string>> MemberDevicesAsync(NativeSession session, GroupInfo group)
+        {
+            IList<string> listed = DeviceDirectory.Devices(
+                await RequestAsync(session, DeviceDirectory.Query(group.Participants, _random)));
+
+            var devices = new List<string>();
+            for (int i = 0; i < listed.Count; i++)
+            {
+                if (IsOurDevice(listed[i])) continue;
+                if (IsHosted(listed[i])) continue;
+
+                devices.Add(listed[i]);
+            }
+
+            return devices;
+        }
+
+        /// <summary>Whether a device JID is this phone: nobody sends a message to themselves.</summary>
+        private bool IsOurDevice(string deviceJid)
+        {
+            return _account != null && (deviceJid == _account.Jid || deviceJid == _account.Lid);
+        }
+
+        /// <summary>
+        /// WhatsApp's server-side devices (`@hosted` and `@hosted.lid`) and the placeholder
+        /// device 99: the reference leaves all three out of a group fan-out
+        /// (`messages-send.js`: `isHostedLidUser`, `isHostedPnUser`, `device !== 99`).
+        /// </summary>
+        private static bool IsHosted(string deviceJid)
+        {
+            if (string.IsNullOrEmpty(deviceJid)) return true;
+            if (deviceJid.EndsWith("@hosted", StringComparison.OrdinalIgnoreCase)) return true;
+            if (deviceJid.EndsWith("@hosted.lid", StringComparison.OrdinalIgnoreCase)) return true;
+
+            return deviceJid.StartsWith("99:", StringComparison.OrdinalIgnoreCase);
+        }
+
+        /// <summary>The bundle of a device out of a bundle answer, or null.</summary>
+        private static PreKeyBundle Find(IList<KeyValuePair<string, PreKeyBundle>> bundles, string deviceJid)
+        {
+            if (bundles == null) return null;
+
+            for (int i = 0; i < bundles.Count; i++)
+            {
+                if (bundles[i].Key == deviceJid) return bundles[i].Value;
+            }
+
+            return null;
         }
 
         /// <summary>The message shape that matches the file: the four builders, chosen once.</summary>

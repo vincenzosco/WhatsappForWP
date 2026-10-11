@@ -27,8 +27,18 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The stanza's id, which is what a receipt answers.</summary>
         public string Id;
 
-        /// <summary>Who it came from, the device JID as the stanza spells it.</summary>
+        /// <summary>
+        /// Who it came from, as the stanza spells it: the device JID of the sender, or the
+        /// **group** when the message is a group's. A group message's `from` is the group
+        /// and the sender is a `participant` attribute, which is why both are here.
+        /// </summary>
         public string From;
+
+        /// <summary>
+        /// The member who wrote it, for a group message; null for a 1:1 one, where `From`
+        /// already names them.
+        /// </summary>
+        public string Sender;
 
         /// <summary>The words, or null when this message is not words this client shows.</summary>
         public string Text;
@@ -75,6 +85,15 @@ namespace WhatsappApp.Protocol.Client
             if (string.IsNullOrEmpty(from)) throw new ProtocolException("message " + id + " names nobody as its sender");
 
             if (seen != null && !seen.IsNew(id)) return null;
+
+            // A group's message: one `skmsg` for everybody, and - while a member's key is
+            // new to this phone - also one pairwise copy of that member's sender key. The
+            // group ciphertext is the message; where it came from for the session's purposes
+            // is the participant, not the group.
+            if (GroupDirectory.IsGroup(from))
+            {
+                return ReadGroup(message, credentials, sessions, preKeys, random, id, from);
+            }
 
             BinaryNode enc = EncFor(message, credentials);
             if (enc == null) throw new ProtocolException("no enc for this device in message " + id);
@@ -129,6 +148,215 @@ namespace WhatsappApp.Protocol.Client
             incoming.Text = incoming.Content.Body();
 
             return incoming;
+        }
+
+        /// <summary>
+        /// A message in a group.
+        ///
+        /// Two encs can be in the stanza and the order they are read in is the whole thing:
+        ///
+        /// - the **pairwise** one (`pkmsg`/`msg`, at the top when the server narrowed it down
+        ///   to this device and inside `to[jid]` otherwise) is the sender's **sender key**, if
+        ///   this is the first message since they made one. It is decrypted first because the
+        ///   group ciphertext cannot be opened without the key it carries;
+        /// - the **`skmsg`** is the message itself, encrypted once for the whole group.
+        ///
+        /// What is read out of it is the same as any other message - the words, the id, the
+        /// time - plus the participant, because the group's chat row has to say who wrote it.
+        /// A stanza that carries nothing but a sender key has no words and no media: it is a
+        /// protocol part, and the caller sees a message with a null `Text` and a `Content`
+        /// that says so (`IncomingMessage.Content.SenderKeyDistributionMessage`).
+        /// </summary>
+        private static IncomingMessage ReadGroup(BinaryNode message, Credentials credentials,
+            SessionStore sessions, PreKeyStore preKeys, IRandomSource random,
+            string id, string groupJid)
+        {
+            string participant = message.Attrs["participant"];
+            if (string.IsNullOrEmpty(participant))
+            {
+                throw new ProtocolException("the group message " + id + " names no participant");
+            }
+
+            BinaryNode distribution = PairwiseEnc(message);
+            if (distribution != null) TakeSenderKey(distribution, participant, groupJid, credentials, preKeys, sessions, random);
+
+            BinaryNode cipher = CipherEnc(message);
+            if (cipher == null)
+            {
+                // A stanza that only brought a sender key: there is a message to hand back
+                // (the key is stored) but there is nothing to show, and saying so is the
+                // caller's job.
+                var keyOnly = new IncomingMessage();
+                keyOnly.Id = id;
+                keyOnly.From = groupJid;
+                keyOnly.Sender = participant;
+                keyOnly.Timestamp = Seconds(message.Attrs["t"]);
+
+                return keyOnly;
+            }
+
+            byte[] wire = cipher.Bytes();
+            if (wire == null || wire.Length == 0) throw new ProtocolException("message " + id + " carries no ciphertext");
+
+            string name = groupJid + "/" + participant;
+            Message read;
+
+            try
+            {
+                SenderKeyRecord record = sessions.LoadSenderKey(name);
+                if (record == null)
+                {
+                    throw new ProtocolException("this phone holds no sender key for " + participant
+                        + " in " + groupJid + ": the message that carries one has not arrived");
+                }
+
+                read = SenderKeys.DecodePadded(record.Decrypt(groupJid, SenderKeyMessage.Parse(wire)));
+
+                // The chain moved: what the next message from them needs is the record as it
+                // is now, and an iteration that is not stored is an iteration that is lost.
+                sessions.SaveSenderKey(name, record);
+            }
+            catch (ProtocolException failed)
+            {
+                throw new ProtocolException("message " + id + " in " + groupJid + " from " + participant
+                    + " did not read: " + failed.Message);
+            }
+
+            var incoming = new IncomingMessage();
+            incoming.Id = id;
+            incoming.From = groupJid;
+            incoming.Sender = participant;
+            incoming.Timestamp = Seconds(message.Attrs["t"]);
+            incoming.IsOurEcho = IsMine(participant, credentials);
+
+            if (read.DeviceSentMessage == null)
+            {
+                incoming.Content = read;
+                incoming.Text = read.Body();
+
+                return incoming;
+            }
+
+            incoming.Content = Message.Inner(read.DeviceSentMessage);
+            incoming.Text = incoming.Content.Body();
+
+            return incoming;
+        }
+
+        /// <summary>
+        /// The sender key a member just handed this phone, decrypted over the session this
+        /// device already has with them and stored under the group and their device.
+        ///
+        /// A pairwise `enc` that turns out to carry something else is left alone: a member
+        /// writing to this phone in the same stanza as a group message is unusual but not an
+        /// error, and refusing the stanza over it would lose the group message.
+        /// </summary>
+        private static void TakeSenderKey(BinaryNode enc, string participant, string groupJid,
+            Credentials credentials, PreKeyStore preKeys, SessionStore sessions, IRandomSource random)
+        {
+            bool preKey = enc.Attrs["type"] == OutgoingMessage.PreKeyType;
+            byte[] wire = enc.Bytes();
+            if (wire == null || wire.Length == 0) return;
+
+            Message read;
+
+            try
+            {
+                SessionRecord session = sessions.Load(participant);
+                if (session == null || !session.HasSession)
+                {
+                    if (!preKey)
+                    {
+                        throw new ProtocolException("it is not a pre-key message and there is no session with " + participant);
+                    }
+
+                    session = StartResponder(wire, participant, credentials, preKeys, sessions, random);
+                }
+
+                read = Message.Decode(session.Decrypt(wire, preKey));
+                sessions.Save(participant, session);
+            }
+            catch (ProtocolException)
+            {
+                // Nothing that came with a group message is worth losing the message for.
+                return;
+            }
+
+            byte[] field = read.SenderKeyDistributionMessage;
+            if (field == null) return;
+
+            string group = SenderKeys.GroupIdOfField(field);
+            if (!string.IsNullOrEmpty(group) && group != groupJid)
+            {
+                // The key was minted for another group: using it here would encrypt (or
+                // decrypt) with the wrong chain, so it is refused where it is named.
+                throw new ProtocolException("a sender key for " + group + " arrived in " + groupJid);
+            }
+
+            byte[] distribution = SenderKeys.DistributionOfField(field);
+            if (distribution == null) return;
+
+            sessions.SaveSenderKey(groupJid + "/" + participant,
+                SenderKeyRecord.StartAsReceiver(groupJid, distribution));
+        }
+
+        /// <summary>
+        /// The pairwise ciphertext of a group stanza: a top-level `enc` that is not an
+        /// `skmsg`, a `to[jid]` child, or a `to[jid]` **inside a `participants` node**.
+        ///
+        /// All three shapes exist in the wild and both are the reference's: the newest clients
+        /// wrap the per-device nodes in `participants` (`whatsmeow`, `send.go`,
+        /// `sendGroupMessage`), older ones put them straight under the stanza
+        /// (`Socket/messages-send.js`, where `binaryNodeContent` holds the `to` nodes and then
+        /// the `skmsg`). A reader that knew only one of them would read every group message
+        /// except the ones that carry a new member's key - which is exactly the bug this test
+        /// caught.
+        /// </summary>
+        private static BinaryNode PairwiseEnc(BinaryNode message)
+        {
+            BinaryNode direct = message.Child("enc");
+            if (direct != null && direct.Attrs["type"] != SenderKeys.CipherType) return direct;
+
+            BinaryNode found = DeviceEnc(message.Children());
+            if (found != null) return found;
+
+            BinaryNode participants = message.Child("participants");
+
+            return participants == null ? null : DeviceEnc(participants.Children());
+        }
+
+        /// <summary>The first `to[jid]` in a list, whatever the OS/device order is.</summary>
+        private static BinaryNode DeviceEnc(IList<BinaryNode> children)
+        {
+            if (children == null) return null;
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                if (children[i].Tag != "to") continue;
+
+                BinaryNode enc = children[i].Child("enc");
+                if (enc != null) return enc;
+            }
+
+            return null;
+        }
+
+        /// <summary>The group ciphertext of the stanza: the `enc` whose type is `skmsg`.</summary>
+        private static BinaryNode CipherEnc(BinaryNode message)
+        {
+            BinaryNode direct = message.Child("enc");
+            if (direct != null && direct.Attrs["type"] == SenderKeys.CipherType) return direct;
+
+            IList<BinaryNode> children = message.Children();
+            if (children == null) return null;
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                BinaryNode enc = children[i].Tag == "enc" ? children[i] : null;
+                if (enc != null && enc.Attrs["type"] == SenderKeys.CipherType) return enc;
+            }
+
+            return null;
         }
 
         /// <summary>
