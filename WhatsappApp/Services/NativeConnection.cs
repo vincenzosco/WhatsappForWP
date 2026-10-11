@@ -4,6 +4,7 @@ using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Signal;
 using WhatsappApp.Protocol.Transport;
+using WhatsappApp.Protocol.WaProto;
 using WhatsappApp.Protocol.WABinary;
 
 namespace WhatsappApp.Services
@@ -44,9 +45,13 @@ namespace WhatsappApp.Services
 
         private readonly CredentialStore _store = new CredentialStore(new NativeCredentialStorage());
         private readonly IRandomSource _random = new DeviceRandomSource();
+        private readonly SeenMessages _seen = new SeenMessages(NativeChats.SeenLimit);
+        private readonly NativeChats _chats = new NativeChats();
 
         private NativeSession _session;
+        private ISessionStorage _storage;
         private PreKeyStore _preKeys;
+        private SessionStore _sessions;
         private bool _running;
         private DateTime _lastNode;
 
@@ -67,6 +72,27 @@ namespace WhatsappApp.Services
 
         /// <summary>The last thing that happened, for the Diagnostics page.</summary>
         public string Status { get; private set; }
+
+        /// <summary>
+        /// The chats this client knows about, already ordered and de-duplicated. The store the
+        /// pages bind reads it; nothing else should be a second source of the same list.
+        /// </summary>
+        public NativeChats Chats
+        {
+            get { return _chats; }
+        }
+
+        /// <summary>A chat row is new or has changed: the history brought it, or a message did.</summary>
+        public event EventHandler<HistoryConversation> ChatArrived;
+
+        /// <summary>A message that has just arrived and is worth showing.</summary>
+        public event EventHandler<HistoryMessage> MessageArrived;
+
+        /// <summary>The server said the history is all here (`NativeChats.IsSyncComplete`).</summary>
+        public event EventHandler<HistorySync> HistoryFinished;
+
+        /// <summary>The status line changed, for the screens that show it.</summary>
+        public event EventHandler<string> ConnectionStatusChanged;
 
         /// <summary>
         /// Opens the stored account, if there is one, and starts reading.
@@ -145,7 +171,7 @@ namespace WhatsappApp.Services
                     // second again, not the half minute an hour of retrying had reached.
                     attempt = 0;
 
-                    await ReadAsync(session);
+                    await ReadAsync(session, account);
                 }
                 catch (SessionRefusedException refused)
                 {
@@ -195,40 +221,143 @@ namespace WhatsappApp.Services
         /// it (the classifier, the history sync, the message path); this loop owns only the
         /// two answers that stop it.
         /// </summary>
-        private async Task ReadAsync(NativeSession session)
+        private async Task ReadAsync(NativeSession session, Credentials account)
         {
             while (true)
             {
                 BinaryNode node = await session.ReadNodeAsync();
                 _lastNode = DateTime.UtcNow;
 
-                if (SessionKeepAlive.IsPing(node))
+                InboundKind kind = InboundRouter.Classify(node);
+
+                if (kind == InboundKind.Probe)
                 {
                     Diag.Ok("native: the server asked whether this connection is alive");
                     await session.AnswerProbeAsync(node);
                     continue;
                 }
 
-                string ended = NativeSession.Refusal(node);
-                if (ended == null)
+                if (kind == InboundKind.Refusal)
                 {
-                    // Nothing reads the rest yet. Naming what arrived is what makes the next
-                    // device run's log worth reading: the run of 2026-10-10 ended at
-                    // `paired as ...` with no line after it, and the nodes that followed the
-                    // login were exactly what nobody had written down.
-                    Diag.Ok("native: " + InboundRouter.Classify(node) + " (" + node.Tag
-                        + ") arrived, and nothing reads it yet");
+                    string ended = NativeSession.Refusal(node);
 
+                    if (ConnectionPolicy.AccountIsGone(node))
+                    {
+                        throw new SessionRefusedException("WhatsApp ended this account: " + ended);
+                    }
+
+                    throw new ProtocolException("the connection ended: " + ended);
+                }
+
+                try
+                {
+                    if (kind == InboundKind.Message)
+                    {
+                        await ReadMessageAsync(session, account, node);
+                        continue;
+                    }
+                }
+                catch (Exception error)
+                {
+                    // One stanza that cannot be read is one stanza: a session dropped over a
+                    // message nobody can decrypt would turn a single bad frame into a phone
+                    // that cannot stay online. The failure is named with the id it carries.
+                    Diag.Failed("NativeConnection/message", error);
                     continue;
                 }
 
-                if (ConnectionPolicy.AccountIsGone(node))
-                {
-                    throw new SessionRefusedException("WhatsApp ended this account: " + ended);
-                }
-
-                throw new ProtocolException("the connection ended: " + ended);
+                // The rest is named and not read yet: naming what arrived is what makes the
+                // next device run's log worth reading, which is exactly what the run of
+                // 2026-10-10 lacked.
+                Diag.Ok("native: " + kind + " (" + node.Tag + ") arrived, and nothing reads it yet");
             }
+        }
+
+        /// <summary>
+        /// One `message` stanza: acknowledged, opened, and - depending on what it carries -
+        /// counted as a chat row, turned into the history, or left for the media path.
+        ///
+        /// The acknowledgement comes first and on purpose: the server re-sends a stanza
+        /// nobody acknowledged, so a message answered after a long decrypt is a message a
+        /// slow phone receives twice.
+        /// </summary>
+        private async Task ReadMessageAsync(NativeSession session, Credentials account, BinaryNode node)
+        {
+            IncomingMessage incoming = IncomingMessage.Read(node, account,
+                await SessionsAsync(), await PreKeysAsync(), _seen, _random);
+
+            await session.SendAsync(IncomingMessage.Ack(node));
+
+            if (incoming == null) return;
+
+            HistorySyncNotification history = HistorySyncNotification.From(incoming.Content);
+            if (history != null)
+            {
+                ApplyHistory(history);
+                return;
+            }
+
+            // A copy of something this account sent from another device: shown by the phone
+            // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
+            if (incoming.IsOurEcho) return;
+
+            if (incoming.Text == null)
+            {
+                Diag.Ok("native: message " + incoming.Id + " carries no words (media arrives with the media path)");
+                return;
+            }
+
+            var message = new HistoryMessage();
+            message.Id = incoming.Id;
+            message.Jid = incoming.From;
+            message.Text = incoming.Text;
+            message.Timestamp = incoming.Timestamp;
+            message.IsFromMe = false;
+
+            if (!_chats.AddIncoming(message)) return;
+
+            Diag.Ok("native: " + incoming.Id + " from " + incoming.From);
+
+            HistoryConversation row = _chats.Find(incoming.From);
+            if (row != null && ChatArrived != null) ChatArrived(this, row);
+            if (MessageArrived != null) MessageArrived(this, message);
+
+            // A pre-key message spent one of this device's one-time keys, and a server with
+            // none left stops handing this phone out to peers.
+            await PublishPreKeysAsync(session, account);
+        }
+
+        /// <summary>
+        /// The history the server just sent, into the chat list.
+        ///
+        /// Two shapes, both the reference's: a bootstrap carries the compressed payload
+        /// inline, and every later chunk is a download behind the media path (the notification
+        /// carries a mediaKey and a directPath, and the bytes are decrypted like any other
+        /// media). The download half is not written yet, and it says so instead of pretending
+        /// the history was empty.
+        /// </summary>
+        private void ApplyHistory(HistorySyncNotification notification)
+        {
+            if (notification.InlinePayload == null)
+            {
+                Diag.Ok("native: history sync type " + notification.SyncType
+                    + " is behind a media download, which this build cannot fetch yet");
+                return;
+            }
+
+            HistorySync sync = HistorySync.Decode(Zlib.Inflate(notification.InlinePayload));
+
+            _chats.ApplyHistory(sync);
+            Diag.Ok("native: history sync type " + sync.SyncType + " carried "
+                + sync.Conversations.Count + " conversation(s), " + _chats.Rows.Count + " row(s) now");
+
+            for (int i = 0; i < sync.Conversations.Count; i++)
+            {
+                HistoryConversation row = _chats.Find(sync.Conversations[i].Jid);
+                if (row != null && ChatArrived != null) ChatArrived(this, row);
+            }
+
+            if (_chats.IsSyncComplete && HistoryFinished != null) HistoryFinished(this, sync);
         }
 
         /// <summary>
@@ -265,10 +394,30 @@ namespace WhatsappApp.Services
         {
             if (_preKeys != null) return _preKeys;
 
-            ISessionStorage storage = await FileSessionStorage.OpenAsync();
-            _preKeys = new PreKeyStore(storage);
+            _preKeys = new PreKeyStore(await StorageAsync());
 
             return _preKeys;
+        }
+
+        /// <summary>
+        /// Where sessions and pre-keys live: the phone's own folder, opened once. Both stores
+        /// read every blob when they open, so a second copy would double the bytes in memory
+        /// and could drift from the first.
+        /// </summary>
+        private async Task<SessionStore> SessionsAsync()
+        {
+            if (_sessions != null) return _sessions;
+
+            _sessions = new SessionStore(await StorageAsync(), _random);
+
+            return _sessions;
+        }
+
+        private async Task<ISessionStorage> StorageAsync()
+        {
+            if (_storage == null) _storage = await FileSessionStorage.OpenAsync();
+
+            return _storage;
         }
 
         /// <summary>

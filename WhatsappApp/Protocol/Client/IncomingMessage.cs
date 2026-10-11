@@ -48,6 +48,18 @@ namespace WhatsappApp.Protocol.Client
         public bool IsOurEcho;
 
         /// <summary>
+        /// The decoded message itself, or null when there was nothing to decode.
+        ///
+        /// It is here because the words are not all a message carries: the history
+        /// bootstrap arrives as a `protocolMessage` inside an ordinary message stanza (the
+        /// reference reads it out of `protocolMessage.historySyncNotification`), and a caller
+        /// that only ever saw `Text` could not tell that the chat list was in the same
+        /// stanza. For a device-sent form this is the *inner* message, which is the one whose
+        /// protocol message is meant for this device.
+        /// </summary>
+        public Message Content;
+
+        /// <summary>
         /// One message, or null when this id has already been read. Throws, with the id in
         /// the sentence, when the stanza cannot be opened at all.
         /// </summary>
@@ -107,12 +119,14 @@ namespace WhatsappApp.Protocol.Client
 
             if (read.DeviceSentMessage == null)
             {
+                incoming.Content = read;
                 incoming.Text = read.Body();
                 return incoming;
             }
 
             incoming.IsOurEcho = IsMine(from, credentials);
-            incoming.Text = Message.Inner(read.DeviceSentMessage).Body();
+            incoming.Content = Message.Inner(read.DeviceSentMessage);
+            incoming.Text = incoming.Content.Body();
 
             return incoming;
         }

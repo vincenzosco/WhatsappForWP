@@ -42,6 +42,26 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void TheDecodedMessageIsHandedToTheCallerAndNotOnlyItsWords()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("Hello, WhatsApp!", "77AA88BB99CC0011");
+
+            IncomingMessage incoming = IncomingMessage.Read(sent.Node, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            // The words are not all a message carries: the history bootstrap arrives as a
+            // protocol message inside an ordinary stanza, and a read path that threw the
+            // decoded message away would leave the chat list unreachable.
+            Assert.IsTrue(incoming.Content != null, "the caller gets the message, not only its text");
+            Assert.IsTrue("Hello, WhatsApp!" == incoming.Content.Conversation,
+                "and it is the message the peer wrote, inner form unwrapped: <"
+                + incoming.Content.Conversation + ">");
+            Assert.IsTrue(incoming.Content.ProtocolMessage == null,
+                "an ordinary text carries no protocol message");
+        }
+
+        [Test]
         public static void TheFirstMessageFromANewPeerStartsTheSessionAndSpendsTheKey()
         {
             var world = new World();
