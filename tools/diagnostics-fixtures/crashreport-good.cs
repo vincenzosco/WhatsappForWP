@@ -1,18 +1,20 @@
-// Estratto di CrashReport.cs: la coda della corsa che non e' finita parte verso
-// l adapter come frame diag, appena la connessione esiste.
+// Estratto di CrashReport.cs: la coda della corsa che non e' finita viene letta
+// all'avvio e scritta nel log di questa corsa, senza aspettare una connessione.
 
-        private static void OnConnectionEstablished(object sender, EventArgs e)
+        public static void Start()
         {
-            if (_sent) return;
+            if (_started) return;
+            _started = true;
 
-            string tail = Diag.PendingCrashTail;
+            string tail = Diag.PendingCrashTail.Replace("\r\n", "\n");
             if (string.IsNullOrEmpty(tail)) return;
 
-            _sent = true;
-            Diag.Ok("crash report sent");
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("CrashReport/send",
-                CommunicationService.Instance.SendControlAsync("diag",
-                    "previous run did not end\r\n" + tail));
-#pragma warning restore 4014
+            Diag.Ok("the previous run did not end");
+            string[] lines = tail.Split('\n');
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].Length == 0) continue;
+                Diag.Ok("  " + lines[i]);
+            }
+            Diag.Flush(true);
         }

@@ -38,7 +38,8 @@
  *   D. `ChatPage.xaml.cs` waits for the history at least as long as the
  *      adapter's cold read (20000 ms, measured at about 15 s);
  *   E. the crash of the previous run reaches the adapter by itself
- *      (`CrashReport.cs` sends it, reading `Diag.PendingCrashTail`);
+ *      (`CrashReport.cs` reads `Diag.PendingCrashTail` and writes it into this
+ *      run's own log, which is what `ISETool` pulls off the phone);
  *   F. every diag line reaches the debugger too, through the single
  *      `EmitToDebugger` sink that both the frame sink and the line sink call -
  *      that is what puts the app's log in the Visual Studio 2013 Output window;
@@ -210,24 +211,31 @@ function problemsFor(input) {
   }
 
   // -------------------------------------------------------------------------
-  // E. the crash goes to the adapter by itself
+  // E. the crash of the previous run reaches the reader by itself
+  //
+  // It used to be a `diag` frame to the adapter. There is no adapter any more,
+  // and the report now goes into this run's own log, which is the file the phone
+  // hands over (`ISETool`) and what the diagnostics page shows. The two things
+  // that still matter: the tail has to be read at all, and the report must not
+  // wait for a connection - a phone that cannot connect is the phone whose crash
+  // is most worth reading.
   // -------------------------------------------------------------------------
   const crashReport = input.crashReport;
   if (typeof crashReport === 'string') {
     if (crashReport === '') {
       problems.push(CRASH_REPORT_REL + ': not found - the crash of the previous run' +
-        ' is sent nowhere, so it is only ever visible on the phone screen the user' +
-        ' is holding');
+        ' is reported nowhere, so it is only ever visible on the phone screen the' +
+        ' user is holding');
     } else {
-      if (!/SendControlAsync\("diag"/.test(crashReport)) {
-        problems.push(CRASH_REPORT_REL + ': the previous run is not sent to the' +
-          ' adapter (no SendControlAsync("diag")) - the tail it left is the only' +
-          ' copy of what it was doing when it died');
-      }
       if (!/Diag\.PendingCrashTail/.test(crashReport)) {
         problems.push(CRASH_REPORT_REL + ': CrashReport does not read' +
-          ' Diag.PendingCrashTail - the service would send nothing, which looks' +
+          ' Diag.PendingCrashTail - the report would say nothing, which looks' +
           ' exactly like a run that ended properly');
+      }
+      if (/SendControlAsync/.test(crashReport)) {
+        problems.push(CRASH_REPORT_REL + ': CrashReport still sends the tail over' +
+          ' the wire - the report has to reach the phone log on its own, or a run' +
+          ' that cannot connect reports nothing at all');
       }
     }
   }

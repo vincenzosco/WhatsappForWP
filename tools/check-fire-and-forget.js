@@ -123,33 +123,37 @@ function handlesItsOwnFault(body) {
 }
 
 /**
- * L'answer dell'adapter per un allegato deve essere osservata, o e' un fault che
- * nessuno vede: `attachment.sent` porta il messaggio a Sent, `error` con un
- * RelatedMessageId lo porta a Failed. Senza questo la bolla teneva la spunta
- * perche' la connessione era su, e un invio rifiutato restava invisibile.
+ * La risposta del server sullo stato di un messaggio deve arrivare alla bolla.
+ *
+ * La forma vecchia erano i frame dell'adattatore: `attachment.sent` portava il
+ * messaggio a Sent, `error` con un RelatedMessageId lo portava a Failed. Con
+ * l'adattatore fuori, la risposta e' quella di WhatsApp: un ack (consegnato /
+ * letto) arriva come `MessageStatusChanged` e deve finire nella bolla con
+ * `SetMessageStatus`, o un messaggio consegnato resta con la spunta sola. Un
+ * invio rifiutato lo decide chi spedisce e non questo servizio (un'eccezione
+ * nell'invio, in `ChatPage`), quindi qui non c'e' piu' niente da controllare per
+ * quel caso.
  */
 function statusAnswerProblems(source, file) {
   const problems = [];
   if (file !== DATA_SERVICE) return problems;
   const code = stripComments(source);
 
-  const sent = code.indexOf('case "attachment.sent":');
-  if (sent < 0) {
-    problems.push(`${file}: no case "attachment.sent": the adapter's answer for a sent ` +
-      'attachment is dropped, and the bubble keeps whatever status it guessed');
-  } else if (code.slice(sent, sent + 300).indexOf('SetMessageStatus(') < 0) {
-    problems.push(`${file}: case "attachment.sent" does not call SetMessageStatus: the ` +
-      'answer is read and then ignored');
+  if (code.indexOf('MessageStatusChanged') < 0) {
+    problems.push(`${file}: nothing subscribes to MessageStatusChanged - the ack ` +
+      'WhatsApp sends for a message this phone sent arrives and is dropped, so the ' +
+      'bubble keeps whatever status it guessed');
   }
 
-  const err = code.indexOf('case "error":');
-  if (err >= 0) {
-    const body = code.slice(err, err + 500);
-    if (body.indexOf('MessageStatus.Failed') < 0 || body.indexOf('RelatedMessageId') < 0) {
-      problems.push(`${file}: case "error" does not put Failed on the bubble it names: a ` +
-        'refused attachment keeps its checkmark');
-    }
+  const handled = code.indexOf('MessageStatusUpdate update');
+  if (handled < 0) {
+    problems.push(`${file}: no handler takes a MessageStatusUpdate - the ack is read ` +
+      'and then ignored');
+  } else if (code.slice(handled, handled + 400).indexOf('SetMessageStatus(') < 0) {
+    problems.push(`${file}: the MessageStatusUpdate handler does not call ` +
+      'SetMessageStatus: the ack never reaches the bubble');
   }
+
   return problems;
 }
 

@@ -98,8 +98,30 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>The last thing that happened, for the Diagnostics page.</summary>
-        public string Status { get; private set; }
+        private string _status = "";
+
+        /// <summary>
+        /// The last thing that happened, in the client's own words: the Diagnostics page
+        /// shows it, the account screen shows it, and the bar on the chat list reads it to
+        /// know whether the socket is up.
+        ///
+        /// Every assignment goes through this setter, because those screens are **told**
+        /// when it changes. It used to be an auto-property with an event nobody raised: a
+        /// page that showed it would keep saying "connecting" for as long as it stayed
+        /// open, however connected the client was.
+        /// </summary>
+        public string Status
+        {
+            get { return _status; }
+            private set
+            {
+                if (_status == value) return;
+                _status = value;
+
+                var handler = ConnectionStatusChanged;
+                if (handler != null) handler(this, value);
+            }
+        }
 
         /// <summary>
         /// This account's own JID, once it is open. It is what a message this phone sends is
@@ -187,7 +209,14 @@ namespace WhatsappApp.Services
             }
 
             _running = true;
+
+            // The loop runs for the life of the process, and it answers for its own
+            // fault: `Guarded` records what it cannot survive, so nobody has to await
+            // it here - which is what the pragma is for (C# 5 will not let a `void`
+            // method express this).
+#pragma warning disable 4014
             Guarded.RunGuardedAsync("NativeConnection/start", RunAsync());
+#pragma warning restore 4014
         }
 
         /// <summary>

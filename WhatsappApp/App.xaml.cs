@@ -225,36 +225,37 @@ namespace WhatsappApp
             // suspension is not an exit - OnResuming puts the marker back.
             Diag.EndRun();
 
-            // The socket is not closed here: the OS closes it on its own while
-            // the app is suspended, and closing it ourselves would leave the app
-            // marked as disconnected with nobody retrying. OnResuming handles
-            // that, finding a silent connection and redoing it.
-            //
-            // But the OS freezes the process, and while it is frozen the socket
-            // can stay open: the server would keep counting this phone as a
-            // watching client and WhatsApp would keep showing the account
-            // online. This frame is sent now, within the deferral, so the
-            // contacts see the last access time instead. OnResuming takes it
-            // back.
+            // The socket is not closed here: the OS closes it on its own while the
+            // app is suspended, and WhatsApp's own client is what reconnects when
+            // the process comes back (see NativeConnection). The one thing that has
+            // to be sent within the deferral is the presence change, so the account
+            // stops being shown as online while this phone is frozen - the OS freezes
+            // the process without closing the socket, so nothing else would.
 #pragma warning disable 4014
             LeaveWatchingAsync(deferral);
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// Sends the "I am going away" frame and then completes the suspension.
+        /// Says "this phone is going away" and then completes the suspension.
         ///
-        /// The wait is bounded on purpose: a suspended app is not given
-        /// unlimited time, and a server that does not answer must not hold the
-        /// app in the foreground. The deferral is completed in a finally, so a
-        /// failure releases the app too.
+        /// The wait is bounded on purpose: a suspended app is not given unlimited
+        /// time, and a socket that does not answer must not hold the app in the
+        /// foreground. The deferral is completed in a finally, so a failure releases
+        /// the app too. A phone with no session at all has nothing to say and leaves
+        /// at once.
         /// </summary>
         private async void LeaveWatchingAsync(SuspendingDeferral deferral)
         {
             try
             {
-                System.Threading.Tasks.Task sending = CommunicationService.Instance.SendWatchingAsync(false);
-                await System.Threading.Tasks.Task.WhenAny(sending, System.Threading.Tasks.Task.Delay(2000));
+                if (NativeConnection.Instance.IsConnected)
+                {
+                    System.Threading.Tasks.Task sending =
+                        NativeConnection.Instance.SendPresenceAsync("unavailable");
+                    await System.Threading.Tasks.Task.WhenAny(sending,
+                        System.Threading.Tasks.Task.Delay(2000));
+                }
             }
             catch (Exception ex)
             {
@@ -267,14 +268,10 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// The app comes back to the foreground. The socket it had is almost
-        /// always already dead - the OS closes it when suspending the process -
-        /// but `CommunicationService.IsConnected` is still true, because a socket
-        /// closed from the outside raises no event until it is used.
-        ///
-        /// We check right away instead of waiting for the watchdog tick: those
-        /// twenty seconds would be twenty seconds of an app that looks connected
-        /// and receives nothing.
+        /// The app comes back to the foreground. The socket it had is usually already
+        /// dead - the OS closes it when suspending the process - and nothing observes
+        /// a socket closed from the outside, so the client is told to look rather than
+        /// waiting for its own next keep-alive (see `NativeConnection`).
         /// </summary>
         private void OnResuming(object sender, object e)
         {
@@ -282,26 +279,12 @@ namespace WhatsappApp
             // or a crash after this point would look like a run that ended cleanly.
             Diag.MarkAlive();
 
-            ConnectionWatchdog.Instance.CheckNow();
-
-            // The other half of the suspension frame. If the watchdog found the
-            // socket dead it reconnects, and the handshake is what marks the
-            // phone as watching again; if the socket survived the freeze, this
-            // is the frame that puts the account back online.
+            // The other half of the suspension frame: this is what puts the account
+            // back online if the socket survived the freeze.
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("App/OnResuming",
-                CommunicationService.Instance.SendWatchingAsync(true));
+                NativeConnection.Instance.SendPresenceAsync("available"));
 #pragma warning restore 4014
-        }
-
-        /// <summary>
-        /// Tries to reconnect in the background. Deliberately silent: any message
-        /// is written by the settings page, which is also the only place where the
-        /// language is already ready.
-        /// </summary>
-        private async void StartAutoConnect()
-        {
-            await AutoConnector.Instance.TryConnectAsync(SettingsService.Username, 6);
         }
 
         /// <summary>Section of the foreground page (a chat lives inside the chats).</summary>
@@ -332,24 +315,19 @@ namespace WhatsappApp
             // in the same piece of work: the marker file it left is what says whether
             // it ended on purpose. Reading and writing go through one writer in this
             // order, so this run cannot find its own marker (see Diag).
+            //
+            // The crash report is the second half and it waits for the first: the tail
+            // it writes is what `Diag.StartRunAsync` has just read off the marker, and a
+            // report asked for before that read would find nothing to report and look
+            // like a run that ended properly.
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("Diag/StartRun", Diag.StartRunAsync());
+            Guarded.RunGuardedAsync("Diag/StartRun", StartDiagnosticsAsync());
 #pragma warning restore 4014
-
-            // The crash of the previous run leaves the phone here: on the first
-            // connection it goes to the adapter as a `diag` frame, which is what
-            // puts it in the container log (see CrashReport).
-            CrashReport.Start();
 
             // The hardware Back button is not wired to the frame by the platform
             // on a Runtime app: without this the press leaves the app from the
             // first page (see BackNavigator).
             BackNavigator.Start();
-
-            // Same reason as the loader: the dispatcher is reliably available
-            // only here, on the UI thread. Resolving it later, from a network
-            // thread, left the service without a dispatcher for the whole session.
-            CommunicationService.Instance.Prewarm();
 
             // The data service is hooked up here: it used to be created at the
             // first page that touched it, and the messages that arrived
@@ -361,28 +339,22 @@ namespace WhatsappApp
             // free early what can be rebuilt.
             MemoryWatcher.Instance.Start();
 
-#if DEBUG
-            // Debug only: it says in three lines what this phone can really do,
-            // instead of letting a silent catch discover it. It does not exist in
-            // release, so it costs nothing at startup.
-            SelfCheck.RunAsync();
-#endif
-
-            // Automatic reconnection: the app does not retry by itself after a
-            // restart, and without this the chat list stays empty until the user
-            // opens the settings.
-            if (SettingsService.HasSavedSettings) StartAutoConnect();
-
-            // And then it keeps the connection alive: WP8.1 closes the socket
-            // when suspending the app, and on resume the connection looks active
-            // but nothing gets through anymore (see ConnectionWatchdog).
-            ConnectionWatchdog.Instance.Start();
-
-            // The account this phone is linked as, brought online. It is not the adapter's
-            // connection: it is the login WhatsApp needs after a pairing, and without it a
-            // device pairs and never appears as linked (see NativeConnection). A start with
-            // no account stored does nothing here, and the QR is the page.
+            // The account this phone is linked as, brought online. This is the only
+            // connection there is: the login WhatsApp needs after a pairing, the
+            // client that keeps it, and the one that brings it back after a suspend
+            // (see NativeConnection). A start with no account stored does nothing
+            // here, and the QR of PairPage is the page.
             NativeConnection.Instance.Start();
+        }
+
+        /// <summary>
+        /// The log the run leaves behind, begun, and the crash of the previous run put
+        /// into it. One method because the order of the two is the whole point.
+        /// </summary>
+        private static async System.Threading.Tasks.Task StartDiagnosticsAsync()
+        {
+            await Diag.StartRunAsync();
+            CrashReport.Start();
         }
 
         /// <summary>

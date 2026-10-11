@@ -1,11 +1,7 @@
 using System;
-using System.Threading.Tasks;
-using Windows.Storage.Streams;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
-using WhatsappApp.Models;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
@@ -13,26 +9,20 @@ using WhatsappApp.Services;
 namespace WhatsappApp.Pages
 {
     /// <summary>
-    /// The account screen: the number this phone is linked as, and the way back to the
-    /// code that linked it.
+    /// The account screen: the number this phone is linked as, what the client is
+    /// doing, and the way to link a different account.
     ///
-    /// It used to be the server settings page - address, port, name, token, the list of
-    /// adapters found on the network, connect and disconnect. None of that belongs on a
-    /// screen a person opens to see which account they are on: the app finds its own way
-    /// to the service (AutoConnector, at start-up and from the watchdog), and what is
-    /// worth showing here is the number and the QR code that produced it.
-    ///
-    /// The number comes from the credential store first, because the native client is
-    /// what holds the account now; the service's own answer is the fallback, so a phone
-    /// linked through the adapter still shows something true.
+    /// It used to be the server settings page - address, port, name, token, the list
+    /// of adapters found on the network, connect and disconnect - and then an account
+    /// page that asked a server for a QR code. Both are gone with the server: the
+    /// number comes from the protocol's own credential store (this phone is the
+    /// client, so it holds its own account), the state line comes from
+    /// `NativeConnection`, and the only thing this page can still do is hand the
+    /// screen to `PairPage`, which is where a code that links a device is drawn.
     /// </summary>
     public sealed partial class ConnectionPage : Page
     {
         private readonly CredentialStore _store = new CredentialStore(new NativeCredentialStorage());
-
-        private Windows.System.Display.DisplayRequest _displayRequest;
-        private bool _displayRequestActive;
-        private Windows.UI.Xaml.DispatcherTimer _qrTimer;
 
         public ConnectionPage()
         {
@@ -46,36 +36,27 @@ namespace WhatsappApp.Pages
 
             PageTitleText.Text = Loc.Get("ConnectionPage_AccountTitle", "Account");
             ShowNumber();
-            CommunicationService.Instance.ControlMessageReceived += OnControlMessageReceived;
+            ShowStatus();
 
-            // The code is asked of the service, so a phone that is not connected says
-            // so instead of offering a button that cannot do anything.
-            if (!CommunicationService.Instance.IsConnected)
-            {
-                QrStatusText.Text = Loc.Get("ConnectionPage_QrUnavailable", "QR code not available.");
-            }
+            // The state line is live: a page that shows what the client is doing has
+            // to follow it, or it says "connecting" for as long as it stays open.
+            NativeConnection.Instance.ConnectionStatusChanged += OnStatusChanged;
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
-            CommunicationService.Instance.ControlMessageReceived -= OnControlMessageReceived;
-            CloseQrOverlay();
+            NativeConnection.Instance.ConnectionStatusChanged -= OnStatusChanged;
         }
 
         /// <summary>
-        /// The number, from the store when there is one and from the service when there
-        /// is not. A phone with neither is not linked, and the screen says that rather
-        /// than showing an empty card where a number should be.
+        /// The number of the account this phone holds. A phone with none is not
+        /// linked, and the screen says that rather than showing an empty card where
+        /// a number should be.
         /// </summary>
         private void ShowNumber()
         {
             string number = StoredNumber();
-            if (string.IsNullOrEmpty(number))
-            {
-                number = DisplayNumber(CommunicationService.Instance.AccountJid);
-            }
-
             bool known = !string.IsNullOrEmpty(number);
 
             NumberPanel.Visibility = known ? Visibility.Visible : Visibility.Collapsed;
@@ -121,206 +102,30 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// The code, on demand - and only on demand. Asking the service for a login code
-        /// restarts its login, so a page that did it by itself could take a working
-        /// account offline just by being opened.
+        /// The client's own line about what it is doing (see `NativeConnection.Status`).
+        /// It is English and it is not translated on purpose: it is a diagnostic, the
+        /// same sentence the log carries, not a sentence written for a person.
         /// </summary>
-        private async void ShowQrButton_Click(object sender, RoutedEventArgs e)
+        private void ShowStatus()
         {
-            if (!CommunicationService.Instance.IsConnected)
-            {
-                QrStatusText.Text = Loc.Get("ConnectionPage_QrUnavailable", "QR code not available.");
-                return;
-            }
-
-            if (CommunicationService.Instance.WhatsAppState == "connected")
-            {
-                // The same reason, for the case the service already says it is linked:
-                // there is nothing to scan, and the request would restart the login it
-                // is working with.
-                QrStatusText.Text = Loc.Get("ConnectionPage_AlreadyLinked",
-                    "This phone is already linked to WhatsApp.");
-                return;
-            }
-
-            QrStatusText.Text = Loc.Get("ConnectionPage_RequestingQr", "Requesting the QR code...");
-
-            try
-            {
-                await CommunicationService.Instance.SendControlAsync("login.qr");
-            }
-            catch (Exception error)
-            {
-                Diag.Failed("ConnectionPage/login.qr", error);
-                QrStatusText.Text = string.Format(
-                    Loc.Get("ConnectionPage_QrError", "Could not show the QR code: {0}"), error.Message);
-            }
+            string status = NativeConnection.Instance.Status;
+            StatusText.Text = string.IsNullOrEmpty(status)
+                ? Loc.Get("ConnectionPage_ClientIdle", "Not connected.")
+                : status;
         }
 
-        private void OnControlMessageReceived(object sender, ChatMessage message)
+        private void OnStatusChanged(object sender, string status)
         {
-            if (message == null) return;
-
-            switch (message.Command)
-            {
-                case "state":
-                    // Two things the answer can change: a number the phone has not
-                    // stored yet (a phone linked through the service), and a code that
-                    // has just been used - once the service says the account is
-                    // connected, the code on screen is spent.
-                    ShowNumber();
-                    if (message.State == "connected") CloseQrOverlay();
-                    break;
-
-                case "qr":
-                    ShowQrCode(message.QrImageData, message.QrDuration);
-                    break;
-            }
-        }
-
-        private async void ShowQrCode(string base64, int duration)
-        {
-            if (string.IsNullOrEmpty(base64))
-            {
-                QrStatusText.Text = Loc.Get("ConnectionPage_QrUnavailable", "QR code not available.");
-                return;
-            }
-
-            try
-            {
-                QrOverlayImage.Source = await BitmapFromBase64Async(base64);
-
-                QrOverlayHintText.Text = Loc.Get("ConnectionPage_QrOverlayHint",
-                    "WhatsApp, Linked devices, Link a device, then scan. The screen stays on while this page is open.");
-                QrStatusText.Text = duration > 0
-                    ? string.Format(Loc.Get("ConnectionPage_QrHintDuration",
-                        "Open WhatsApp, open Linked devices and tap Link a device, then scan the code (valid for about {0} seconds)."),
-                        duration)
-                    : Loc.Get("ConnectionPage_QrHint",
-                        "Open WhatsApp, open Linked devices and tap Link a device, then scan the code.");
-
-                OpenQrOverlay();
-                ScheduleQrRefresh(duration);
-            }
-            catch (Exception error)
-            {
-                Diag.Failed("ShowQrCode", error);
-                QrStatusText.Text = string.Format(
-                    Loc.Get("ConnectionPage_QrError", "Could not show the QR code: {0}"), error.Message);
-            }
-        }
-
-        private void OpenQrOverlay()
-        {
-            QrOverlay.Visibility = Visibility.Visible;
-            KeepScreenOn();
+            ShowStatus();
         }
 
         /// <summary>
-        /// Takes the code off the screen, and the refresh with it: a code nobody is
-        /// looking at is not worth re-asking for, and the ask restarts the login.
+        /// Links a different account. The code is drawn by PairPage, which owns the
+        /// rotation and the end of an attempt; this page only hands over the screen.
         /// </summary>
-        private void CloseQrOverlay()
+        private void LinkDeviceButton_Click(object sender, RoutedEventArgs e)
         {
-            StopQrTimer();
-            QrOverlay.Visibility = Visibility.Collapsed;
-            ReleaseScreenOn();
-        }
-
-        /// <summary>
-        /// The screen stays on: if it turns off or dims while the code is on screen, the
-        /// code becomes unreadable and the scan fails with no error message at all.
-        ///
-        /// All inside the try, construction included: creating the request can fail on
-        /// the platform, and a convenience must never stop the code from being shown.
-        /// </summary>
-        private void KeepScreenOn()
-        {
-            if (_displayRequestActive) return;
-            try
-            {
-                if (_displayRequest == null) _displayRequest = new Windows.System.Display.DisplayRequest();
-                _displayRequest.RequestActive();
-                _displayRequestActive = true;
-            }
-            catch (Exception error)
-            {
-                // Active-request limit reached, or member not implemented on this
-                // phone: we carry on without.
-                Diag.Failed("KeepScreenOn", error);
-            }
-        }
-
-        private void ReleaseScreenOn()
-        {
-            if (!_displayRequestActive || _displayRequest == null) return;
-            try { _displayRequest.RequestRelease(); }
-            catch (Exception error) { Diag.Failed("ReleaseScreenOn", error); }
-            _displayRequestActive = false;
-        }
-
-        /// <summary>
-        /// Asks for a new code shortly before it expires, because the old one is no
-        /// longer valid and the app would otherwise keep it on screen forever.
-        /// </summary>
-        private void ScheduleQrRefresh(int duration)
-        {
-            StopQrTimer();
-
-            int seconds = duration > 10 ? duration - 5 : 10;
-            _qrTimer = new Windows.UI.Xaml.DispatcherTimer();
-            _qrTimer.Interval = TimeSpan.FromSeconds(seconds);
-            _qrTimer.Tick += OnQrTimerTick;
-            _qrTimer.Start();
-        }
-
-        private void StopQrTimer()
-        {
-            if (_qrTimer == null) return;
-
-            _qrTimer.Stop();
-            _qrTimer.Tick -= OnQrTimerTick;
-            _qrTimer = null;
-        }
-
-        private async void OnQrTimerTick(object sender, object e)
-        {
-            StopQrTimer();
-            if (!CommunicationService.Instance.IsConnected) return;
-            if (CommunicationService.Instance.WhatsAppState == "connected") return;
-
-            QrOverlayHintText.Text = Loc.Get("ConnectionPage_QrOverlayRefreshing", "Refreshing the code...");
-
-            try
-            {
-                await CommunicationService.Instance.SendControlAsync("login.qr");
-            }
-            catch (Exception error)
-            {
-                Diag.Failed("ConnectionPage/qr refresh", error);
-            }
-        }
-
-        private void QrOverlayCloseButton_Click(object sender, RoutedEventArgs e)
-        {
-            CloseQrOverlay();
-        }
-
-        private static async Task<BitmapImage> BitmapFromBase64Async(string base64)
-        {
-            byte[] bytes = Convert.FromBase64String(base64);
-            using (var stream = new InMemoryRandomAccessStream())
-            {
-                using (var writer = new DataWriter(stream.GetOutputStreamAt(0)))
-                {
-                    writer.WriteBytes(bytes);
-                    await writer.StoreAsync();
-                }
-                var bitmap = new BitmapImage();
-                stream.Seek(0);
-                await bitmap.SetSourceAsync(stream);
-                return bitmap;
-            }
+            Frame.Navigate(typeof(PairPage));
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)

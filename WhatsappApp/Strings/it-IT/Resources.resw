@@ -121,9 +121,6 @@
   <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
     <value>Nuova chat</value>
   </data>
-  <data name="ChatsPage_AdapterError" xml:space="preserve">
-    <value>Il server ha risposto:</value>
-  </data>
   <data name="ChatsPage_SettingsTooltip" xml:space="preserve">
     <value>Impostazioni</value>
   </data>
@@ -220,78 +217,6 @@
   <data name="ChatMessage_Yesterday" xml:space="preserve">
     <value>Ieri</value>
   </data>
-  <data name="EndpointService_PublicName" xml:space="preserve">
-    <value>Server pubblico</value>
-  </data>
-  <data name="ConnectionPage_RequestingQr" xml:space="preserve">
-    <value>Richiesta del QR code in corso...</value>
-  </data>
-  <data name="ConnectionPage_QrUnavailable" xml:space="preserve">
-    <value>QR code non disponibile.</value>
-  </data>
-  <data name="ConnectionPage_QrHint" xml:space="preserve">
-    <value>Apri WhatsApp, apri Dispositivi collegati e tocca Collega un dispositivo, poi inquadra il codice.</value>
-  </data>
-  <data name="ConnectionPage_QrHintDuration" xml:space="preserve">
-    <value>Apri WhatsApp, apri Dispositivi collegati e tocca Collega un dispositivo, poi inquadra il codice (valido circa {0} secondi).</value>
-  </data>
-  <data name="ConnectionPage_QrError" xml:space="preserve">
-    <value>Impossibile mostrare il QR code: {0}</value>
-  </data>
-  <data name="CommService_Connecting" xml:space="preserve">
-    <value>Connessione in corso...</value>
-  </data>
-  <data name="CommService_PlatformMissing" xml:space="preserve">
-    <value>Questo telefono non implementa una funzione di Windows necessaria ({0}: {1})</value>
-  </data>
-  <data name="CommService_Connected" xml:space="preserve">
-    <value>Connesso al server</value>
-  </data>
-  <data name="CommService_ConnectError" xml:space="preserve">
-    <value>Errore connessione: {0}</value>
-  </data>
-  <data name="CommService_NoAnswer" xml:space="preserve">
-    <value>Il server non ha risposto: questo telefono e il server non usano la stessa chiave.</value>
-  </data>
-  <data name="CommService_ConnectionLost" xml:space="preserve">
-    <value>Connessione persa: {0}</value>
-  </data>
-  <data name="CommService_Disconnected" xml:space="preserve">
-    <value>Disconnesso</value>
-  </data>
-  <data name="CommService_NotConnected" xml:space="preserve">
-    <value>Non connesso</value>
-  </data>
-  <data name="CommService_SendError" xml:space="preserve">
-    <value>Errore invio: {0}</value>
-  </data>
-  <data name="CommService_DecryptError" xml:space="preserve">
-    <value>Errore decifratura messaggio: {0}</value>
-  </data>
-  <data name="CommService_Me" xml:space="preserve">
-    <value>Io</value>
-  </data>
-  <data name="CommService_ClientConnected" xml:space="preserve">
-    <value>Nuovo client connesso ({0} connessi)</value>
-  </data>
-  <data name="CommService_ClientDisconnected" xml:space="preserve">
-    <value>Client disconnesso: {0}</value>
-  </data>
-  <data name="CommService_ClientRemoved" xml:space="preserve">
-    <value>Client rimosso ({0} connessi)</value>
-  </data>
-  <data name="CommService_ConnectTimeout" xml:space="preserve">
-    <value>Il server {0} non ha risposto. Controlla che il PC sia acceso, sulla stessa rete, e che la porta sia aperta.</value>
-  </data>
-  <data name="CommService_ConnectRefused" xml:space="preserve">
-    <value>Il server {0} ha rifiutato la connessione. Controlla che l'adapter sia avviato.</value>
-  </data>
-  <data name="CommService_ConnectUnreachable" xml:space="preserve">
-    <value>Il server {0} non e' raggiungibile su questa rete.</value>
-  </data>
-  <data name="CommService_InvalidAddress" xml:space="preserve">
-    <value>Inserisci un indirizzo valido (nome host o IP, porta 1-65535): {0}</value>
-  </data>
   <data name="DataService_Group" xml:space="preserve">
     <value>Gruppo {0}</value>
   </data>
@@ -302,25 +227,7 @@
     <value>Numero collegato</value>
   </data>
   <data name="ConnectionPage_NotLinked.Text" xml:space="preserve">
-    <value>Questo telefono non e' collegato. Mostra il QR code per collegarlo.</value>
-  </data>
-  <data name="ConnectionPage_ShowQr.Content" xml:space="preserve">
-    <value>Mostra il QR code</value>
-  </data>
-  <data name="ConnectionPage_AlreadyLinked" xml:space="preserve">
-    <value>Questo telefono e' gia' collegato a WhatsApp.</value>
-  </data>
-  <data name="ConnectionPage_QrOverlayTitle.Text" xml:space="preserve">
-    <value>Inquadra questo codice con WhatsApp</value>
-  </data>
-  <data name="ConnectionPage_QrOverlayHint" xml:space="preserve">
-    <value>WhatsApp &gt; Dispositivi collegati &gt; Collega un dispositivo, poi inquadra. Lo schermo resta acceso finché resti qui.</value>
-  </data>
-  <data name="ConnectionPage_QrOverlayClose.Content" xml:space="preserve">
-    <value>Chiudi</value>
-  </data>
-  <data name="ConnectionPage_QrOverlayRefreshing" xml:space="preserve">
-    <value>Aggiorno il codice...</value>
+    <value>Questo telefono non e' collegato. Tocca sotto per mostrare il codice QR.</value>
   </data>
   <data name="ChatsPage_PendingImage.Text" xml:space="preserve">
     <value>Un'immagine e' pronta: apri una chat per inviarla</value>
@@ -413,7 +320,7 @@
     <value>Amministratore principale</value>
   </data>
   <data name="ContactInfoPage_NoInfo" xml:space="preserve">
-    <value>Nessuna informazione dal server.</value>
+    <value>Il nome, il numero e la foto sono quello che questo telefono sa. La sezione "info", il profilo business e i dettagli di un gruppo non sono ancora letti da questo client.</value>
   </data>
   <data name="ChatPage_ProfilePhotoTooltip" xml:space="preserve">
     <value>Mostra la foto del profilo</value>
@@ -423,15 +330,6 @@
   </data>
   <data name="ChatPage_JumpToRecentTooltip" xml:space="preserve">
     <value>Vai ai messaggi recenti</value>
-  </data>
-  <data name="CommService_ServerUnavailable" xml:space="preserve">
-    <value>Server non disponibile, riprova tra qualche minuto :)</value>
-  </data>
-  <data name="CommService_Registered" xml:space="preserve">
-    <value>Registrato sul server: questo dispositivo ha un suo account.</value>
-  </data>
-  <data name="CommService_NotAuthorized" xml:space="preserve">
-    <value>Questo server non riconosce il dispositivo. Controlla il token nelle impostazioni.</value>
   </data>
   <data name="TileUnreadOne" xml:space="preserve">
     <value>1 messaggio non letto</value>
@@ -447,15 +345,6 @@
   </data>
   <data name="DiagnosticsPage_Clear.Content" xml:space="preserve">
     <value>Pulisci</value>
-  </data>
-  <data name="DiagnosticsPage_Send.Content" xml:space="preserve">
-    <value>Invia al server</value>
-  </data>
-  <data name="DiagnosticsPage_Sent" xml:space="preserve">
-    <value>Report inviato al server.</value>
-  </data>
-  <data name="DiagnosticsPage_SendOffline" xml:space="preserve">
-    <value>Non connesso: il report non e' stato inviato.</value>
   </data>
   <data name="DiagnosticsPage_SelectAll.Content" xml:space="preserve">
     <value>Seleziona tutto</value>
@@ -476,7 +365,7 @@
     <value>Diagnostica WhatsApp</value>
   </data>
   <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
-    <value>Cosa ha fatto l app, e dove ha provato a collegarsi. Tieni premuto sul testo per selezionarlo e copiarlo, selezionalo tutto, condividilo con un'altra app, oppure invia il report al server per leggerlo nel log del container.</value>
+    <value>Cosa ha fatto l'app e dove ha provato a connettersi. Tieni premuto sul testo per selezionarlo e copiarlo, selezionalo tutto, o condividilo con un'altra app. Le stesse righe sono in diag.log nella cartella dell'app.</value>
   </data>
   <data name="PairPage_Title.Text" xml:space="preserve">
     <value>Collega questo telefono</value>
@@ -495,6 +384,21 @@
   </data>
   <data name="PairPage_Retry.Content" xml:space="preserve">
     <value>Riprova</value>
+  </data>
+  <data name="ConnectionPage_StatusLabel.Text" xml:space="preserve">
+    <value>Connessione</value>
+  </data>
+  <data name="ConnectionPage_LinkDevice.Content" xml:space="preserve">
+    <value>Collega un dispositivo</value>
+  </data>
+  <data name="ConnectionPage_LinkDeviceHint.Text" xml:space="preserve">
+    <value>Collegare un dispositivo sostituisce l'account di questo telefono.</value>
+  </data>
+  <data name="ConnectionPage_ClientIdle" xml:space="preserve">
+    <value>Non collegato.</value>
+  </data>
+  <data name="ChatsPage_NotConnected" xml:space="preserve">
+    <value>Connessione a WhatsApp...</value>
   </data>
 </root>
 

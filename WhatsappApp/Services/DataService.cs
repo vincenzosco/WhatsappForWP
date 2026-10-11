@@ -42,11 +42,9 @@ namespace WhatsappApp.Services
         // 512 MB phone.
         private const int MaxMessagesPerChat = 200;
 
-        // The chats whose history this session has already requested: once per
-        // chat, not on every opening.
+        // The chats whose history burst this session has already waited for: once
+        // per chat, not on every opening.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
-        // The chats that already spent their one extra history request.
-        private readonly HashSet<string> _historyRetried = new HashSet<string>();
 
         // The chats whose history burst has already been seen in this session: the
         // first row of a burst is logged once, so the log tells "the history never
@@ -74,14 +72,6 @@ namespace WhatsappApp.Services
         private bool _isServerRunning;
         private string _activeChatId;
         private bool _listening;
-
-        /// <summary>
-        /// How many bytes of history frames have arrived for each chat, for the
-        /// `history.done` line: the message count alone cannot tell a burst of fifty
-        /// small frames from one carrying a few megabytes of media.
-        /// </summary>
-        private readonly Dictionary<string, int> _historyBytes =
-            new Dictionary<string, int>();
 
         /// <summary>
         /// Currently open chat. It serves one purpose only: not to raise an alert
@@ -363,6 +353,12 @@ namespace WhatsappApp.Services
         {
             if (row == null || string.IsNullOrEmpty(row.Jid)) return;
 
+            // The first row of a batch opens it: the rows of the cached snapshot went
+            // through ApplyChat at startup and registered themselves, and without this
+            // the batch - and so the file written back at the end - would be the
+            // previous session rather than the one WhatsApp just sent.
+            if (_freshChatRows.Count == 0) BeginChatList();
+
             var message = new ChatMessage();
             message.ChatId = row.Jid;
             message.SenderName = row.Name;
@@ -376,10 +372,38 @@ namespace WhatsappApp.Services
             ApplyChat(message);
         }
 
+        /// <summary>
+        /// WhatsApp says the history is all here. Two things follow from it: the list
+        /// that just arrived becomes the copy on the phone, and every chat whose rows
+        /// came in this burst is told the burst has closed - which is what a
+        /// conversation bound before it was waiting for (see ChatPage.OnHistoryCompleted).
+        /// </summary>
         private void OnNativeHistoryFinished(object sender, WhatsappApp.Protocol.WaProto.HistorySync sync)
         {
-            Diag.Ok("native: the history is complete, " + _contacts.Count + " row(s) in the list");
+            HistoryComplete = true;
+
+            int chatRows = _freshChatRows.Count;
+            RememberChatList();
+            RaiseChatListCompleted(chatRows);
+
+            // One event per chat that received rows: the page of a chat that got none
+            // has nothing to move to.
+            foreach (string chatId in _historyArrived)
+            {
+                RaiseHistoryCompleted(chatId);
+            }
+
+            Diag.Ok("native: the history is complete, " + chatRows + " row(s) in the batch, "
+                + _contacts.Count + " in the list");
         }
+
+        /// <summary>
+        /// Whether WhatsApp has sent the history it means to send. Until it has, a
+        /// conversation opened now binds from the phone's copy and waits for the burst;
+        /// after it, a conversation is opened with everything the account has and
+        /// binds at once. It is one login's worth: a fresh connection brings a new sync.
+        /// </summary>
+        public bool HistoryComplete { get; private set; }
 
         /// <summary>
         /// The call log, as the history brought it.
@@ -664,11 +688,6 @@ namespace WhatsappApp.Services
                     Diag.Ok("history arrived for " + message.ChatId);
                 }
 
-                // The cost of the burst, for the line history.done writes.
-                int seen;
-                _historyBytes.TryGetValue(message.ChatId, out seen);
-                _historyBytes[message.ChatId] = seen + message.WireBytes;
-
                 AddHistoryMessage(message);
                 return;
             }
@@ -760,87 +779,25 @@ namespace WhatsappApp.Services
 
             NotificationService.SetUnread(TotalUnread());
 
+            // The page of this chat, if it is the one in front: it scrolls and tells
+            // the server the message has been read only while the reader was already
+            // at the bottom (see ChatPage.OnMessageArrived). It is raised here and not
+            // by the native client, because a page cares about a row that is already
+            // in the collection it binds.
+            var arrived = MessageArrived;
+            if (arrived != null) arrived(this, message);
+
             // Asynchronous decoding of the image: the XAML binding follows MediaImage
             if (message.Type == MessageType.Image)
                 await message.LoadMediaImageAsync();
         }
 
         /// <summary>
-        /// Control frames from the adapter: contacts, call log, revocations and
-        /// edits. They all arrive on the UI thread, so here what is bound to the
-        /// lists can be touched directly.
+        /// A message that arrived now, for the chat it belongs to. It is not the
+        /// collection: that is `GetMessages`, which the conversation is bound to. This
+        /// is the moment, and one page acts on it.
         /// </summary>
-        private void OnControlMessageReceived(object sender, ChatMessage message)
-        {
-            if (message == null || string.IsNullOrEmpty(message.Command)) return;
-
-            switch (message.Command)
-            {
-                case "contact":
-                    ApplyContact(message);
-                    break;
-                case "call":
-                    AddCall(message);
-                    break;
-                case "calls.done":
-                    RaiseCallsScanCompleted();
-                    break;
-                case "chat":
-                    ApplyChat(message);
-                    break;
-                case "chats.done":
-                    // The count before the batch is consumed: RememberChatList
-                    // clears it, and the number of rows the server answered is
-                    // what tells an empty list from a refused one.
-                    int chatRows = _freshChatRows.Count;
-                    RememberChatList();
-                    Diag.Ok("chats.done: " + chatRows + " row(s)");
-                    RaiseChatListCompleted(chatRows);
-                    break;
-                case "media":
-                    ApplyMediaFrame(message);
-                    break;
-                case "attachment.sent":
-                    // The adapter took the attachment for this bubble: the guess
-                    // about the socket is replaced by the answer.
-                    SetMessageStatus(message.ChatId, message.RelatedMessageId, MessageStatus.Sent);
-                    break;
-                case "error":
-                    ClearMediaLoading(message);
-                    // A refusal that names a bubble is that bubble's failure:
-                    // without this the message kept the checkmark while the file
-                    // never left the phone.
-                    if (!string.IsNullOrEmpty(message.RelatedMessageId))
-                        SetMessageStatus(message.ChatId, message.RelatedMessageId, MessageStatus.Failed);
-                    // The adapter's own words, for whichever page is listening: an
-                    // error frame is the only explanation a refused request gets,
-                    // and dropping it here is what kept it out of sight.
-                    if (!string.IsNullOrEmpty(message.Text)) RaiseAdapterError(message.Text);
-                    break;
-                case "revoked":
-                    RemoveMessage(message.ChatId, message.RelatedMessageId);
-                    break;
-                case "edited":
-                    ApplyEdit(message.ChatId, message.RelatedMessageId, message.Text);
-                    break;
-                case "typing":
-                    RaiseTypingChanged(message);
-                    break;
-                case "history.done":
-                    // The count is what tells a burst that arrived from a chat whose
-                    // history never came: the frame itself carries no number, and
-                    // "history arrived" on its own cannot tell one message from none.
-                    int bytes;
-                    _historyBytes.TryGetValue(message.ChatId, out bytes);
-                    // On disk at once: the chat page binds right after this line,
-                    // and a run that dies in the bind has to leave it behind.
-                    Diag.OkNow("history done for " + message.ChatId + ": "
-                        + GetMessages(message.ChatId).Count + " message(s), "
-                        + bytes + " bytes");
-                    RaiseHistoryCompleted(message.ChatId);
-                    break;
-            }
-        }
+        public event EventHandler<ChatMessage> MessageArrived;
 
         /// <summary>
         /// Someone in a chat is writing, or has stopped. It is the only thing the
@@ -888,56 +845,12 @@ namespace WhatsappApp.Services
             if (handler != null) handler(this, chatId);
         }
 
-        /// <summary>A new contact (or the updated name) from the adapter.</summary>
-        private void ApplyContact(ChatMessage message)
-        {
-            if (string.IsNullOrEmpty(message.ChatId)) return;
-            if (IsNotAConversation(message.ChatId)) return;
-
-            // It counts as for the chat list: a chat deleted from this phone does not
-            // come back because the server sends its name again.
-            if (ChatPreferences.IsHidden(message.ChatId)) return;
-
-            var contact = FindContact(message.ChatId);
-            string name = string.IsNullOrEmpty(message.SenderName)
-                ? DisplayNameForJid(message.ChatId)
-                : message.SenderName;
-
-            if (contact == null)
-            {
-                var added = new Contact
-                {
-                    Id = message.ChatId,
-                    Name = name,
-                    Initials = InitialsFor(name),
-                    UnreadCount = 0
-                };
-                _contacts.Add(added);
-                _contactIndex[added.Id] = added;
-            }
-            else
-            {
-                contact.Name = name;
-                contact.Initials = InitialsFor(name);
-            }
-
-            var target = FindContact(message.ChatId);
-            if (target != null)
-            {
-                target.IsPinned = ChatPreferences.IsPinned(message.ChatId);
-                target.IsMuted = ChatPreferences.IsMuted(message.ChatId);
-                ResortContacts();
-            }
-        }
-
         /// <summary>
         /// The status broadcast and a channel are not conversations: WhatsApp keeps
-        /// status updates in the Status section, and neither can be answered, yet
-        /// GOWA lists both among the chats. Drawing one as a row put a conversation
-        /// called "Status" next to the people. The adapter skips the same two JIDs
-        /// (isNotAConversation); this is here because the row can also come from the
-        /// copy already on the phone. The predicate must stay the same two cases on
-        /// both ends, or a channel already on disk survives here.
+        /// status updates in the Status section, and neither can be answered, so a row
+        /// for one of them puts a conversation called "Status" next to the people.
+        /// The row can arrive from the history sync or come from the copy already on
+        /// the phone, and this is the one place both are filtered.
         /// </summary>
         private static bool IsNotAConversation(string chatId)
         {
@@ -1090,48 +1003,6 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
         }
 
-        /// <summary>
-        /// One piece of a media byte stream. An image fits in one frame, a video does
-        /// not: the adapter splits it and the pieces accumulate here until they are
-        /// all there (see IncomingMediaStore). The message already exists - it was a
-        /// history row with only the word - and receives the bytes at the end.
-        /// </summary>
-        private async void ApplyMediaFrame(ChatMessage message)
-        {
-            if (message == null || string.IsNullOrEmpty(message.RelatedMessageId)) return;
-
-            try
-            {
-                IncomingMediaResult result = await IncomingMediaStore.AddChunkAsync(message);
-                if (result == null) return;
-                await ApplyMedia(message, result);
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("DataService.ApplyMediaFrame", ex);
-            }
-        }
-
-        /// <summary>
-        /// The server says that media is gone: the indicator stops spinning,
-        /// otherwise the bubble waits forever.
-        /// </summary>
-        private void ClearMediaLoading(ChatMessage message)
-        {
-            if (message == null || string.IsNullOrEmpty(message.RelatedMessageId)) return;
-
-            var list = GetMessages(message.ChatId);
-            for (int i = 0; i < list.Count; i++)
-            {
-                var target = list[i];
-                if (target != null && target.Id == message.RelatedMessageId)
-                {
-                    target.IsMediaLoading = false;
-                    return;
-                }
-            }
-        }
-
         private async Task ApplyMedia(ChatMessage message, IncomingMediaResult result)
         {
             var list = GetMessages(message.ChatId);
@@ -1201,21 +1072,6 @@ namespace WhatsappApp.Services
             if (handler != null) handler(this, rows);
         }
 
-        /// <summary>
-        /// The adapter answered a command with `error`: its own sentence about why
-        /// something was refused. The Chats page listens and shows it, so an empty
-        /// list says which side refused it instead of staying silent - an adapter
-        /// that cannot read the phone's frames answers here, and that is the line
-        /// that used to be invisible.
-        /// </summary>
-        public event EventHandler<string> AdapterError;
-
-        private void RaiseAdapterError(string text)
-        {
-            var handler = AdapterError;
-            if (handler != null) handler(this, text);
-        }
-
         /// <summary>A call-log entry.</summary>
         private void AddCall(ChatMessage message)
         {
@@ -1245,44 +1101,6 @@ namespace WhatsappApp.Services
         {
             var handler = CallsScanCompleted;
             if (handler != null) handler(this, EventArgs.Empty);
-        }
-
-        /// <summary>
-        /// Removes a message revoked on WhatsApp. The id of an incoming message is
-        /// the WhatsApp one, so the comparison is exact; if we do not find it (our
-        /// own message, or one that arrived before subscribing) nothing is touched.
-        /// </summary>
-        private void RemoveMessage(string chatId, string messageId)
-        {
-            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
-
-            ObservableCollection<ChatMessage> messages;
-            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
-
-            for (int i = 0; i < messages.Count; i++)
-            {
-                if (messages[i].Id != messageId) continue;
-                messages.RemoveAt(i);
-                RefreshPreview(chatId);
-                return;
-            }
-        }
-
-        /// <summary>Applies an edit that arrived from WhatsApp (same id as before).</summary>
-        private void ApplyEdit(string chatId, string messageId, string text)
-        {
-            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId) || text == null) return;
-
-            ObservableCollection<ChatMessage> messages;
-            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
-
-            foreach (var message in messages)
-            {
-                if (message.Id != messageId) continue;
-                message.Text = text;
-                RefreshPreview(chatId);
-                return;
-            }
         }
 
         /// <summary>
@@ -1430,19 +1248,6 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(chatId)) return false;
             return _historyRequested.Add(chatId);
-        }
-
-        /// <summary>
-        /// Whether this chat may ask for its history one more time. It is the
-        /// second and last answer for a chat whose burst came back empty: the
-        /// request was made, the adapter answered, and the conversation is still
-        /// empty - so the first request was too early, and exactly one more is
-        /// allowed per chat per session.
-        /// </summary>
-        public bool MarkHistoryRetried(string chatId)
-        {
-            if (string.IsNullOrEmpty(chatId)) return false;
-            return _historyRetried.Add(chatId);
         }
 
         /// <summary>
@@ -1659,7 +1464,6 @@ namespace WhatsappApp.Services
             foreach (var chatId in emptied)
             {
                 _historyRequested.Remove(chatId);
-                _historyRetried.Remove(chatId);
             }
         }
 
@@ -1740,7 +1544,6 @@ namespace WhatsappApp.Services
 
             _chatMessages.Remove(chatId);
             _historyRequested.Remove(chatId);
-            _historyRetried.Remove(chatId);
 
             ChatPreferences.Hide(chatId);
             NotificationService.SetUnread(TotalUnread());
