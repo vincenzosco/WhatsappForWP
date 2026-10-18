@@ -107,6 +107,33 @@ namespace WhatsappApp.Services
             return new FileSessionStorage(folder, blobs);
         }
 
+        /// <summary>
+        /// Forgets every protocol blob: the sessions, the pre-keys and any half-written file a
+        /// run that did not finish left behind.
+        ///
+        /// The caller is a pairing, and the reason is that an identity cannot outlive the state
+        /// it was used to build: every session on disk was computed with the old identity key,
+        /// and a Signal MAC is computed over **both** identities (`Cipher.Input`), so a phone
+        /// that mints a new one at pairing and keeps the old sessions can read nothing from
+        /// anybody - which is what the run of 2026-10-18 logged, message after message, from
+        /// the account's own phone and from a contact alike.
+        ///
+        /// The pre-keys go for the same reason and one more: the new account's signed pre-key
+        /// has the same **id** (1) as the old one and a different key, and a responder session
+        /// checks the id - so leaving the old private key there would build the agreement with
+        /// the wrong half of it and fail every MAC of the session it just created.
+        ///
+        /// Not wrapped in a try: a wipe that failed and was swallowed would leave exactly the
+        /// state this exists to prevent, so the pairing reports it and the person scans again.
+        /// </summary>
+        public static async Task DeleteAllAsync()
+        {
+            StorageFolder folder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(
+                FolderName, CreationCollisionOption.OpenIfExists);
+
+            await folder.DeleteAsync(StorageDeleteOption.PermanentDelete);
+        }
+
         public bool TryRead(string key, out byte[] value)
         {
             if (key == null) throw new ArgumentNullException("key");

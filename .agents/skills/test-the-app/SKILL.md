@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app - the static guard
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 245 protocol tests, 114 keys in each `.resw`, 116 tests in
+Current expected counts: 250 protocol tests, 114 keys in each `.resw`, 123 tests in
 `tools/test`, 26 buttons and 1 button style. The counts printed by the guards
 themselves are the source of truth; these are what to expect when nothing is out of
 step.
@@ -27,10 +27,11 @@ node tools/check-project-files.js  # every .cs and .xaml is listed in the csproj
 node tools/check-chat-list-source.js  # the conversation ListView has no ItemsSource in XAML, only ConversationView.Bind
 node tools/check-chat-scroll.js  # a chat follows the history burst, and the arrow back to the newest message is wired
 node tools/check-history-sync.js  # the sync's messages reach the app marked as history, and only this account's sync is applied
+node tools/check-client-state.js  # the login is completed with the active iq, and the notification channel is read instead of dropped
 node tools/check-diagnostics.js   # the run is on disk, the crash report reads the marker, and the history wait is not shorter than the read
 node tools/check-xaml-names.js  # a x:Name is used once in one namescope
 node tools/check-attachment-file.js  # each attachment copies to its own name, and the player reloads the bubble it was asked for
-node --test "tools/test/**/*.test.js"  # the tools' own tests (112)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (123)
 ```
 
 Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
@@ -60,6 +61,7 @@ Two lessons the gates taught:
 | `check-chat-list-source.js` | A second writer for `MessagesListView.ItemsSource`. The list is bound in code by `ConversationView.Bind`; an `ItemsSource="{Binding}"` left in XAML is resolved against `DataContext`, which on this page is a `Contact` and not a collection, so it fights the code-set source and the conversation opens empty with a run of first chance `SYSTEM.NI.DLL` exceptions and no `DIAG` line. |
 | `check-chat-scroll.js` | A chat that opens on its old messages: the page not subscribed to `HistoryCompleted` (so the burst that lands after the bind moves nothing and the reader stays at the oldest row), a handler that does not ask `ActiveChatId` (a burst for a chat no longer in front would move another page's list), and the arrow back to the newest message - missing its `RecentMessagesButton_Click` wiring, `Grid.Row="1"`, `Visibility="Collapsed"` or `<!-- IconArrowDown -->` - plus the page holding its own `ScrollableHeight`, a second opinion about the bottom that goes stale. |
 | `check-history-sync.js` | The two cables of the history sync that the protocol suite cannot see, because they live in the app: a `NativeConnection.ApplySync` that keeps `_chats.ApplyHistory`'s answer to itself - the sync then fills only the list, every chat opens empty, and the page waits for a burst that never closes because `HistoryCompleted` is raised per chat that received rows - and a `DataService.OnNativeMessage` that drops `incoming.IsHistory`, so every old message arrives as new, with a toast each and a chat row counted once more per sync. It also refuses a sync applied from a stanza that is not this account's: `historySyncNotification` is a self-only protocol message, and the reference drops it from anybody else ("an attacker could otherwise spoof any of these to manipulate local state"), which on this phone would hand a contact the chat list, the call log and the status feed. |
+| `check-client-state.js` | The sentences a companion owes the server after its login, and the channel that can refuse it. `ClientPayload.Login` asks to be brought up **passively** (`passive` and `pull` are 1) and the reference completes that login with `sendPassiveIq('active')` on `success`: a client that logs in and then says nothing is the passive half of its own login, which on the phone of 2026-10-17 was a login, two `ib` nodes and a dead connection two seconds later, four runs in a row. It also refuses a `NativeConnection` that only **names** the notification (`nothing reads it yet`) instead of reading its child - the child is what the reference dispatches on, and `downgrade_webclient` is the one that refuses the client - and a `WhatsAppSocket` whose failed read does not name the bytes of the frame it interrupted, which is the only evidence of where the server stopped talking. Two more cables are pinned there: a login (`NativeSession.LoginAsync`) that reads one node instead of up to `success` and drops what arrived before it (the bootstrap's `ib` is exactly that frame), and a message path that acknowledges a stanza before opening it - the ack stops the server re-sending, so a failed open must answer with `IncomingMessage.RetryReceipt` instead. The sixth is the one the run of 2026-10-18 needed: `PairPage` must call `FileSessionStorage.DeleteAllAsync()` **before** it stores the new account, because a Signal MAC covers both identity keys and the sessions written by the previous pairing cannot read a single stanza of the new one (`the message's MAC does not verify`, from the account's own phone and from a contact alike). The seventh is the same failure one step further in: the login must call `NativeConnection.AdoptSignedPreKeyAsync`, because the store's signed pre-key can carry the account's own id over the previous identity's private key, and the responder path has nothing but the id to compare. |
 | `check-diagnostics.js` | The diagnostics that never reach the disk: a log written without a `SerialQueue`, a file with no byte ceiling or no name, no marker file to tell a crash from a suspension, the unhandled-exception handler leaving the line in memory, and a history wait shorter than WhatsApp's cold read of the account (a 2 s wait binds the list before the sync that follows a login arrives, and hands fifty inserts to a list already watching the collection). |
 | `check-attachment-file.js` | An outgoing attachment copied to the shared name `outgoing_attachment` (every recording then replaces the one before it, and every bubble that points at that name plays the last file), and a `ToggleVoice` that trusts the file name alone instead of reloading when the bubble changes (`bool anotherMessage = _voiceMessage != message`). |
 | `check-xaml-names.js` | Two elements in one namescope with the same `x:Name`. A `DataTemplate` registers its names when a row is realized, so the second one answers `XamlParseException 0x802B000A` at run time and the screen that holds it closes instead of opening - it was the play button of the incoming bubble and the one of the outgoing bubble, both called `PlayAudioButton`, and the chat that closed the moment it was opened. The same name in two different templates is legal and is not flagged, and neither is a name inside a comment. |
@@ -105,7 +107,7 @@ for (const dir of ['Pages','Controls']) for (const f of fs.readdirSync('Whatsapp
 node tools/test-protocol.js
 ```
 
-Expected `OK: 234 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
+Expected `OK: 250 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
 the app's own sources and runs them: the binary node reader and writer, the Noise
 handshake, the Signal sessions (X3DH, the double ratchet, the sender key of a
 group), the media key schedule and the four media protobufs, the credential store,

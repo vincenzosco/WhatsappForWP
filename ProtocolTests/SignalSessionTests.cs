@@ -299,6 +299,56 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A message whose ratchet key is new and whose `previousCounter` claims thousands of
+        /// missed messages is refused, not walked to.
+        ///
+        /// `previousCounter` is a number the peer writes: it says how long its last sending
+        /// chain was, and the receiver closes the old chain by deriving and keeping that many
+        /// keys. Walking to any number a peer likes is a phone that stops answering while it
+        /// derives message keys nobody asked for - on the phone of 2026-10-18 that was the
+        /// watchdog's `last step: native: reading message 3A4C6D98C138B33C1DAF` and sixty
+        /// seconds of a ui thread that never moved. The reference caps the same walk at 2000 and
+        /// refuses beyond it (`libsignal`, `fillMessageKeys`: "Over 2000 messages into the
+        /// future!").
+        /// </summary>
+        [Test]
+        public static void AMessageClaimingThousandsOfMissedStepsIsRefused()
+        {
+            SessionRecord session = SignalSessions.Bob(new SignalSessions.CounterRandom());
+
+            // The reference's own first message: it leaves the session with a receiving chain
+            // and with a ratchet key of the peer's that the next step would close.
+            session.Decrypt(SignalSessions.FirstMessage(), true);
+
+            byte[] unseen = X3dh.TypedPublicKey(Filled(0x42));
+            byte[] sealedMessage = SignalMessage.Seal(unseen, 0, 5000, new byte[] { 1, 2, 3 },
+                Filled(0x11), session.TheirIdentityPublic, session.OurIdentityPublic);
+
+            string failed = null;
+            try
+            {
+                session.Decrypt(sealedMessage, false);
+            }
+            catch (ProtocolException error)
+            {
+                failed = error.Message;
+            }
+
+            Assert.IsTrue(failed != null, "a chain claimed to be 5000 messages long does not read");
+            Assert.IsTrue(failed.Contains("2000"),
+                "and the refusal says how far it was asked to walk: " + failed);
+        }
+
+        /// <summary>32 bytes of one value, for the keys this test makes up.</summary>
+        private static byte[] Filled(byte value)
+        {
+            var bytes = new byte[32];
+            for (int i = 0; i < bytes.Length; i++) bytes[i] = value;
+
+            return bytes;
+        }
+
+        /// <summary>
         /// One message, delivered the way the client does it: the sender's session says
         /// which shape the message has (`PreKeyPending`), the stanza carries that as its
         /// `enc` type, and the receiver is told by it which path to take.

@@ -133,6 +133,7 @@ always good to merge.
      && node tools/check-project-files.js \
      && node tools/check-chat-list-source.js \
      && node tools/check-history-sync.js \
+     && node tools/check-client-state.js \
      && node tools/check-diagnostics.js \
      && node tools/check-handshake-answer.js \
      && node tools/check-xaml-names.js \

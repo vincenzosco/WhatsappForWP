@@ -17,6 +17,9 @@ namespace ProtocolTests
     /// </summary>
     public static class OutgoingMessageTests
     {
+        /// <summary>The source for everything a send draws: a ratchet key and the padding's bytes.</summary>
+        private static readonly SignalSessions.CounterRandom Random = new SignalSessions.CounterRandom();
+
         [Test]
         public static void TheNodeCarriesOneEncPerDevice()
         {
@@ -29,7 +32,7 @@ namespace ProtocolTests
                 "0123456789ABCDEF",
                 "Hello, WhatsApp!",
                 TwoSessions(us, peer, store),
-                1760000000);
+                1760000000, Random);
 
             Assert.AreEqual("message", node.Tag);
             Assert.AreEqual(PeerBundleFixture.Peer, node.Attrs["to"]);
@@ -60,7 +63,7 @@ namespace ProtocolTests
 
             BinaryNode node = OutgoingMessage.Node(
                 PeerBundleFixture.Peer, "ABCDEF0123456789", "Hello, WhatsApp!",
-                TwoSessions(us, peer, store), 1760000000);
+                TwoSessions(us, peer, store), 1760000000, Random);
 
             IList<BinaryNode> devices = node.Children();
             for (int i = 0; i < devices.Count; i++)
@@ -85,7 +88,10 @@ namespace ProtocolTests
                 // Decrypt takes the whole `enc`, not the sealed message inside it: the
                 // wrapper is what it unwraps to find the fields the agreement was run on.
                 byte[] plaintext = responder.Decrypt(enc, true);
-                Message read = Message.Decode(plaintext);
+
+                // The plaintext carries the WhatsApp padding the sender appended
+                // (`OutgoingMessage.Pad`), so the receiver strips it the way a phone does.
+                Message read = Message.DecodePadded(plaintext);
 
                 string destination = Message.Destination(read.DeviceSentMessage);
                 Assert.IsTrue(PeerBundleFixture.Peer == destination,
@@ -125,7 +131,7 @@ namespace ProtocolTests
             Assert.Throws<ProtocolException>(delegate
             {
                 OutgoingMessage.Node(PeerBundleFixture.Peer, "AABB", "hello",
-                    new List<KeyValuePair<string, SessionRecord>>(), 1);
+                    new List<KeyValuePair<string, SessionRecord>>(), 1, Random);
             });
         }
 

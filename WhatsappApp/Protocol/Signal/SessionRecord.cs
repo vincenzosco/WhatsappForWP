@@ -57,6 +57,19 @@ namespace WhatsappApp.Protocol.Signal
         /// </summary>
         private const byte FileVersion = 1;
 
+        /// <summary>
+        /// How far a chain may be walked past before the message is refused.
+        ///
+        /// The reference's ceiling is the same number and the same refusal (`libsignal`,
+        /// `fillMessageKeys`: "Over 2000 messages into the future!"): a message whose counter
+        /// claims to be millions ahead is not a message that arrived early, it is a message
+        /// this session cannot read - and walking to it is a phone that stops answering while
+        /// it derives keys nobody asked for. That is the shape of the run of 2026-10-18: the
+        /// watchdog named `native: reading message 3A4C6D98C138B33C1DAF` as the last step of a
+        /// ui thread that had not moved for sixty seconds.
+        /// </summary>
+        private const int MaxSkipped = 2000;
+
         private readonly IRandomSource _random;
 
         private byte[] _ourIdentityPrivate;
@@ -71,6 +84,12 @@ namespace WhatsappApp.Protocol.Signal
 
         private Chain _sending;
         private readonly List<Chain> _chains = new List<Chain>();
+
+        /// <summary>
+        /// The base key of the agreement this record was started by, 33 bytes; null for a record
+        /// written by a build that did not keep it, and for a session this device started itself.
+        /// </summary>
+        private byte[] _theirBaseKey;
 
         /// <summary>The pre-key the first messages carry until the peer answers; cleared once they do.</summary>
         private uint _theirPreKeyId;
@@ -103,6 +122,31 @@ namespace WhatsappApp.Protocol.Signal
         public byte[] TheirIdentityPublic
         {
             get { return _theirIdentityPublic; }
+        }
+
+        /// <summary>
+        /// Whether this record was started by a pre-key message carrying this base key.
+        ///
+        /// It is the question a pre-key message has to be read with, and it is not the same as
+        /// "is there a session": the reference keeps the session per base key and replaces the
+        /// open one when the key is new (`libsignal`, `session_builder.initIncoming`, which
+        /// returns early for `record.getSession(message.baseKey)` and otherwise closes the open
+        /// session and sets the new one). Answering "is there a session" instead is what left
+        /// every message of the phone of 2026-10-18 unreadable: a re-pair minted a new identity,
+        /// the stored sessions had been built with the old one, and the pre-key message that
+        /// would have rebuilt them was opened with the stale record.
+        /// </summary>
+        public bool KnowsTheirBaseKey(byte[] baseKey)
+        {
+            if (baseKey == null) return false;
+
+            return Same(_theirBaseKey, baseKey);
+        }
+
+        /// <summary>Remembers the base key of the agreement this record was started by.</summary>
+        private void RememberTheirBaseKey(byte[] baseKey)
+        {
+            if (baseKey != null) _theirBaseKey = baseKey;
         }
 
         /// <summary>
@@ -222,6 +266,18 @@ namespace WhatsappApp.Protocol.Signal
 
             if (message == null) throw new ProtocolException("a responder session starts from the message that opened it");
 
+            // A wrapper that names a one-time pre-key describes a five-part agreement. With
+            // the key missing the only honest answer is a refusal: deriving the three-part
+            // one anyway gives a root the sender never had, and every message of the session
+            // fails its MAC afterwards. This is the check that keeps the silent four-chunk
+            // path in X3dh unreachable (device log, 2026-10-17).
+            if (message.HasPreKey && (ourOneTimePreKeyPrivate == null || ourOneTimePreKeyPrivate.Length != 32))
+            {
+                throw new ProtocolException("the pre-key message names one-time pre-key "
+                    + message.PreKeyId + " and its private half is missing: a session cannot be "
+                    + "started from three Diffie-Hellmans when the sender computed four");
+            }
+
             var session = new SessionRecord(random);
 
             session._ourIdentityPrivate = ourIdentityPrivate;
@@ -242,6 +298,11 @@ namespace WhatsappApp.Protocol.Signal
             // His ratchet starts on the sender's ephemeral key: the reference makes
             // `lastRemoteEphemeralKey` the base key the message carries.
             session._theirRatchetPublic = X3dh.Typed(message.BaseKey);
+
+            // The key of the agreement, kept so that the same message delivered twice is
+            // opened with this session instead of re-running an agreement whose one-time
+            // pre-key has already been spent.
+            session.RememberTheirBaseKey(message.BaseKey);
 
             return session;
         }
@@ -331,7 +392,11 @@ namespace WhatsappApp.Protocol.Signal
 
             if (!Same(message.EphemeralKey, _theirRatchetPublic)) StepReceiving(message.EphemeralKey, message.PreviousCounter);
 
-            byte[] messageKey = TakeMessageKey(message.EphemeralKey, message.Counter);
+            // The key is *found* first and *spent* only after the MAC has verified. Taking it
+            // before the check burns the key on a message that never authenticated - a
+            // corrupt frame, or a peer whose session this phone got wrong - so the retry the
+            // server sends could never be opened ("the message key for N was already used").
+            byte[] messageKey = PeekMessageKey(message.EphemeralKey, message.Counter);
             MessageKeys keys = Keys.MessageKeys(messageKey);
 
             // The MAC is checked before anything is decrypted. It covers the two
@@ -341,6 +406,10 @@ namespace WhatsappApp.Protocol.Signal
             // when it does not verify, so reaching the next line means the message is the
             // one the sender signed, field for field.
             SignalEnvelope.Open(sealedMessage, keys.MacKey, _theirIdentityPublic, _ourIdentityPublic);
+
+            // Authenticated: now the key is spent and the chain moves, exactly as
+            // `TakeMessageKey` has always done it.
+            TakeMessageKey(message.EphemeralKey, message.Counter);
 
             byte[] plaintext = Cipher.Decrypt(keys.CipherKey, keys.Iv, message.Ciphertext);
 
@@ -495,9 +564,10 @@ namespace WhatsappApp.Protocol.Signal
             if (chain == null) throw new ProtocolException("no chain for the message's ratchet key");
 
             int index = (int)counter;
-            if (index < 0 || index > chain.Counter + 2000)
+            if (index < 0 || index > chain.Counter + MaxSkipped)
             {
-                throw new ProtocolException("message " + index + " is more than a chain ahead");
+                throw new ProtocolException("message " + index + " is more than " + MaxSkipped
+                    + " messages into the future of its chain");
             }
 
             byte[] kept;
@@ -525,9 +595,67 @@ namespace WhatsappApp.Protocol.Signal
             throw new ProtocolException("the chain did not reach " + index);
         }
 
-        /// <summary>Advances a closed chain to its end and keeps every key it still might need.</summary>
+        /// <summary>
+        /// The key at an index, without spending it: the same walk <see cref="TakeMessageKey"/>
+        /// makes, on copies of the chain's state.
+        ///
+        /// Why it exists: the MAC is verified with this key before the message is allowed to
+        /// move the ratchet. A key taken for a message that then fails authentication is a
+        /// key the retry can never use, and the server does retry.
+        /// </summary>
+        private byte[] PeekMessageKey(byte[] ratchetKey, uint counter)
+        {
+            Chain chain = Find(ratchetKey);
+            if (chain == null) throw new ProtocolException("no chain for the message's ratchet key");
+
+            int index = (int)counter;
+            if (index < 0 || index > chain.Counter + MaxSkipped)
+            {
+                throw new ProtocolException("message " + index + " is more than " + MaxSkipped
+                    + " messages into the future of its chain");
+            }
+
+            byte[] kept;
+            if (chain.Skipped.TryGetValue(index, out kept)) return kept;
+
+            if (index <= chain.Counter)
+            {
+                throw new ProtocolException("the message key for " + index + " was already used");
+            }
+
+            byte[] chainKey = chain.ChainKey;
+            int at = chain.Counter;
+            while (at < index)
+            {
+                at++;
+                byte[] key = Keys.MessageKey(chainKey);
+                chainKey = Keys.NextChainKey(chainKey);
+
+                if (at == index) return key;
+            }
+
+            throw new ProtocolException("the chain did not reach " + index);
+        }
+
+        /// <summary>
+        /// Advances a closed chain to the length the peer says it reached, and keeps every key
+        /// it still might need.
+        ///
+        /// The length is the message's `previousCounter`, which is a number a peer writes and
+        /// this phone has to trust only as far as it can afford to: the reference caps the walk
+        /// at the same 2000 and refuses beyond it (`libsignal`, `fillMessageKeys`), because the
+        /// alternative is a loop that derives a message key per iteration for a number somebody
+        /// else chose - which on this phone is a ui thread that stops answering for a minute and
+        /// a connection the server then drops.
+        /// </summary>
         private static void SkipTo(Chain chain, int counter)
         {
+            if (counter - chain.Counter > MaxSkipped)
+            {
+                throw new ProtocolException("the previous chain is claimed to be " + counter
+                    + " messages long and this phone keeps " + MaxSkipped);
+            }
+
             while (chain.Counter < counter)
             {
                 chain.Counter++;
@@ -582,6 +710,7 @@ namespace WhatsappApp.Protocol.Signal
             }
 
             foreach (Chain chain in _chains) writer.Bytes(17, Body(chain));
+            if (_theirBaseKey != null) writer.Bytes(18, _theirBaseKey);
 
             return writer.ToArray();
         }
@@ -664,6 +793,7 @@ namespace WhatsappApp.Protocol.Signal
                 else if (field.Number == 15 && field.WireType == 0) session._pendingPreKey = reader.ReadVarint() != 0;
                 else if (field.Number == 16 && field.WireType == 2) hasSending = ReadSending(reader.ReadBytes(), sending);
                 else if (field.Number == 17 && field.WireType == 2) session._chains.Add(ReadChain(reader.ReadBytes()));
+                else if (field.Number == 18 && field.WireType == 2) session._theirBaseKey = reader.ReadBytes();
                 else reader.SkipField(field.WireType);
             }
 

@@ -57,39 +57,20 @@ namespace WhatsappApp.Protocol.Signal
         /// The message inside an `skmsg`, and the one place a WhatsApp group message is not
         /// quite a protobuf.
         ///
-        /// Every Signal client pads the plaintext before encrypting it - whatsmeow appends
-        /// between 1 and 15 bytes whose value is their own count (`message.go`,
-        /// `padMessage`) - and the receiver strips that padding. Our sender does not add it
-        /// (`SenderKeyRecord.Encrypt` relies on the cipher's own block padding, which is what
-        /// the same receiver strips), but a phone's message arrives with it, and a protobuf
-        /// reader that stopped at the trailing bytes would refuse the whole message.
-        ///
-        /// So: decode, and if that fails, drop one byte off the end and try again, up to the
-        /// longest pad there can be. A message that is genuinely damaged fails all sixteen
-        /// and keeps its failure.
+        /// Every Signal client pads the plaintext before encrypting it - between 1 and 15 bytes
+        /// whose last one is their own count (`baileys`, `writeRandomPadMax16`; `whatsmeow`,
+        /// `padMessage`) - and the receiver strips that padding. The rule is one rule, so it
+        /// lives in one place now (`Message.DecodePadded`): the pairwise path needed it too and
+        /// did without it.
         /// </summary>
         public static Message DecodePadded(byte[] plaintext)
         {
             if (plaintext == null) throw new ProtocolException("a group message carries no bytes");
 
-            ProtocolException failed = null;
-
-            for (int trimmed = 0; trimmed <= 15 && trimmed < plaintext.Length; trimmed++)
-            {
-                byte[] candidate = trimmed == 0 ? plaintext : Head(plaintext, plaintext.Length - trimmed);
-
-                try
-                {
-                    return Message.Decode(candidate);
-                }
-                catch (ProtocolException error)
-                {
-                    if (failed == null) failed = error;
-                }
-            }
-
-            throw new ProtocolException("the group message does not read as a protobuf: "
-                + (failed == null ? "it is empty" : failed.Message));
+            // One rule for the whole app now: the pairwise path had the same padding to strip
+            // and did not strip it, which is why a status this phone had decrypted correctly
+            // failed to read (`Message.DecodePadded`).
+            return Message.DecodePadded(plaintext);
         }
 
         /// <summary>
@@ -158,12 +139,5 @@ namespace WhatsappApp.Protocol.Signal
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
 
-        private static byte[] Head(byte[] source, int count)
-        {
-            var head = new byte[count];
-            System.Buffer.BlockCopy(source, 0, head, 0, count);
-
-            return head;
-        }
     }
 }

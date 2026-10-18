@@ -120,6 +120,33 @@ namespace ProtocolTests
             Assert.AreEqual(0, accumulator.PendingLength);
         }
 
+        /// <summary>
+        /// A connection that ends in the middle of a frame: the bytes still on their way are
+        /// the only thing that says where it stopped, and the phone saw exactly this shape on
+        /// 2026-10-17 - four bytes, then `0x80072EFE`, on every start.
+        /// </summary>
+        [Test]
+        public static void The_pending_bytes_are_named_when_a_frame_is_interrupted()
+        {
+            var accumulator = new FrameAccumulator();
+            Assert.AreEqual(string.Empty, accumulator.PendingHex(16), "nothing on its way says nothing");
+
+            // A length prefix that promises three bytes and one of them arrived.
+            accumulator.Append(new byte[] { 0x00, 0x00, 0x03, 0xaa });
+            Assert.AreEqual(4, accumulator.PendingLength);
+            Assert.AreEqual("000003AA", accumulator.PendingHex(16));
+
+            // The same four, asked for two: clipped, and the clip is visible.
+            Assert.AreEqual("0000...", accumulator.PendingHex(2));
+
+            // A whole frame leaves nothing behind, so the line is written only for the case
+            // it is there for.
+            var whole = new FrameAccumulator();
+            Assert.AreEqual(1, whole.Append(new byte[] { 0x00, 0x00, 0x01, 0xdd }).Count);
+            Assert.AreEqual(0, whole.PendingLength);
+            Assert.AreEqual(string.Empty, whole.PendingHex(16));
+        }
+
         [Test]
         public static void The_intro_is_written_once_and_only_on_the_first_frame()
         {

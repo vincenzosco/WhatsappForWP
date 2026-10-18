@@ -257,13 +257,16 @@ namespace WhatsappApp.Services
                     _session = session;
                     Status = "logging in as " + account.Jid;
 
-                    await session.LoginAsync(account, WhatsAppSocket.DefaultUrl);
+                    BinaryNode welcome = await session.LoginAsync(account, WhatsAppSocket.DefaultUrl);
+                    RememberServerLid(account, welcome);
 
                     _account = account;
                     _lastNode = DateTime.UtcNow;
                     Status = "logged in as " + account.Jid;
                     Diag.Ok("native: logged in as " + account.Jid);
 
+                    await AnnounceClientStateAsync(session);
+                    await AdoptSignedPreKeyAsync(account);
                     await PublishPreKeysAsync(session, account);
                     await session.GoAvailableAsync(account.PushName);
 
@@ -329,14 +332,25 @@ namespace WhatsappApp.Services
         {
             while (true)
             {
+                // The loop shares the ui thread with the pages - the socket was opened
+                // from it and every continuation comes back to it - so it hands the
+                // thread back once per node. Without this line a burst the server sends
+                // in one message (the backlog it answers `offline_batch` with) is one
+                // uninterrupted piece of work, and the phone stops answering for as long
+                // as the server keeps talking.
+                await Task.Yield();
+
+                Diag.Step("native: waiting for a frame");
                 BinaryNode node = await session.ReadNodeAsync();
                 _lastNode = DateTime.UtcNow;
 
                 InboundKind kind = InboundRouter.Classify(node);
+                Diag.Step("native: a " + kind + " frame (" + (node == null ? "no node" : node.Tag) + ")");
 
                 if (kind == InboundKind.Probe)
                 {
                     Diag.Ok("native: the server asked whether this connection is alive");
+                    Diag.Step("native: answering the probe");
                     await session.AnswerProbeAsync(node);
                     continue;
                 }
@@ -369,6 +383,7 @@ namespace WhatsappApp.Services
                 {
                     if (kind == InboundKind.Message)
                     {
+                        Diag.Step("native: reading message " + node.Attrs["id"]);
                         await ReadMessageAsync(session, account, node);
                         continue;
                     }
@@ -378,7 +393,33 @@ namespace WhatsappApp.Services
                     // One stanza that cannot be read is one stanza: a session dropped over a
                     // message nobody can decrypt would turn a single bad frame into a phone
                     // that cannot stay online. The failure is named with the id it carries.
+                    // The answer to it - a retry receipt - is sent by ReadMessageAsync, where
+                    // C# 5 allows the await (a catch block may not contain one).
                     Diag.Failed("NativeConnection/message", error);
+                    continue;
+                }
+
+                if (kind == InboundKind.Notification)
+                {
+                    Diag.Step("native: reading a notification");
+
+                    // The notification path is read for the same reason the message path is
+                    // survived, with one exception: the refusal of this client is a version
+                    // problem, and retrying it as a network one is a reconnect loop that never
+                    // says why.
+                    try
+                    {
+                        await ReadNotificationAsync(session, node);
+                    }
+                    catch (ClientRefusedException)
+                    {
+                        throw;
+                    }
+                    catch (Exception error)
+                    {
+                        Diag.Failed("NativeConnection/notification", error);
+                    }
+
                     continue;
                 }
 
@@ -390,18 +431,199 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// One `message` stanza: acknowledged, opened, and - depending on what it carries -
+        /// One `ib`/`notification` off the wire: the channel the server's bootstrap, its
+        /// routing addresses and the two commands that decide whether this login continues
+        /// all arrive on.
+        ///
+        /// Why it is read now and not only named: every start of the app on 2026-10-17
+        /// logged `native: Notification (ib) arrived, and nothing reads it yet` and then lost
+        /// the connection about two seconds later, four runs in a row - so the one frame that
+        /// could say why was the frame the log did not name. The child's tag is what the
+        /// reference dispatches on (`encrypt`, `mediaretry`, `server_sync`, `offline`,
+        /// `edge_routing`, `downgrade_webclient` and the rest), so it is what this log names
+        /// now, together with the node itself.
+        ///
+        /// No acknowledgement goes out for these: the reference acks the stanzas that carry a
+        /// message and leaves `ib` to its own handlers, which either answer with a node (the
+        /// backlog preview) or with nothing at all.
+        /// </summary>
+        private async Task ReadNotificationAsync(NativeSession session, BinaryNode node)
+        {
+            string type = InboundRouter.NotificationType(node);
+            string text = node == null ? "" : node.ToString();
+            if (text.Length > 240) text = text.Substring(0, 240) + "...";
+
+            Diag.Ok("native: a notification arrived (" + (type == null ? "no child" : type) + "): " + text);
+
+            if (ClientState.IsClientRefusal(node))
+            {
+                // The server is refusing the *client*, not the account: the reference ends the
+                // connection here with a multi-device mismatch. It is thrown so the loop's own
+                // failure line carries the sentence - a retry on its own reads as a network
+                // problem, and this is a version problem.
+                throw new ClientRefusedException("the server refused this client: the multi-device " +
+                    "upgrade is not available to the version this app announces (" + ClientState.Downgrade + ")");
+            }
+
+            if (type == ClientState.OfflinePreview)
+            {
+                // The server asks how much backlog this client wants; a client that answers
+                // nothing is a client it has no size for.
+                await session.SendAsync(ClientState.OfflineBatch());
+                Diag.Ok("native: asked the server for " + ClientState.OfflineBatchCount + " message(s) of the backlog");
+                return;
+            }
+
+            if (type == ClientState.Offline)
+            {
+                // The reference flushes its buffered events here: this is the last frame of
+                // the bootstrap, so everything before it is this account's state.
+                Diag.Ok("native: the server's backlog is over");
+
+                // And if it is over with nothing in it, that is the answer to "why is the
+                // screen empty": WhatsApp sends the history when the device is linked and
+                // never again, so an account whose first sync was missed has to be linked
+                // again to get it. The line exists so the next device run says which of the
+                // two it is instead of showing a blank list.
+                if (_chats.Rows.Count == 0 && !_chats.IsSyncComplete)
+                {
+                    Diag.Ok("native: the backlog ended with no chat and no history: this device has "
+                        + "to be linked again to receive the history (WhatsApp sends it once, at the pairing)");
+                }
+
+                return;
+            }
+
+            if (type == ClientState.EdgeRouting)
+            {
+                // The reference keeps these addresses in its credentials. This client has no
+                // field for them yet, and the line is what makes that a decision rather than
+                // an omission.
+                Diag.Ok("native: the server sent the edge routing for this client, which is not stored yet");
+                return;
+            }
+        }
+
+        /// <summary>
+        /// The account the server says it opened, when it says more than this phone stored.
+        ///
+        /// `success` carries the account's `lid`, and the reference writes it into its own
+        /// credentials on every login (`@whiskeysockets/baileys`, `Socket/socket.js`, the
+        /// `CB:success` handler: `creds.update`, `me.lid`). This client decides whether a
+        /// stanza is this account's own copy by comparing its user against the number *and*
+        /// the LID (`IncomingMessage.IsMine`), and the history sync is applied only when that
+        /// answer is yes - so a LID the server hands out and this phone keeps the older one of
+        /// would make the account's own sync look like a contact's and drop it.
+        ///
+        /// A save that fails is undone and named: a better LID is not worth the connection.
+        /// </summary>
+        private void RememberServerLid(Credentials account, BinaryNode welcome)
+        {
+            if (account == null || welcome == null) return;
+
+            string lid = welcome.Attrs["lid"];
+            if (string.IsNullOrEmpty(lid) || lid == account.Lid) return;
+
+            string before = account.Lid;
+            account.Lid = lid;
+
+            try
+            {
+                _store.Save(account);
+                Diag.Ok("native: the server's LID replaced " + (before == null ? "(none)" : before));
+            }
+            catch (Exception error)
+            {
+                account.Lid = before;
+                Diag.Failed("NativeConnection/lid", error);
+            }
+        }
+
+        /// <summary>
+        /// The two sentences a companion owes the server the moment its login is answered:
+        /// that it is active, and which session it is.
+        ///
+        /// Why the first one is not optional: `ClientPayload.Login` asks to be brought up
+        /// **passively** (`passive` and `pull` are 1 in the payload this app sends), and the
+        /// reference completes that login with `sendPassiveIq('active')` on the `success` node
+        /// (`@whiskeysockets/baileys`, `Socket/socket.js`). A device that logs in and then says
+        /// nothing stays the passive half of its own login - which is what the phone shows:
+        /// the login, two `ib` nodes, and the server hanging up about two seconds later, at
+        /// every start.
+        ///
+        /// A failure here is named and survived: a sentence the server did not get is worth a
+        /// log line, and it is not worth ending a connection that may still carry the history.
+        /// </summary>
+        private async Task AnnounceClientStateAsync(NativeSession session)
+        {
+            try
+            {
+                await session.SendAsync(ClientState.PassiveIq(ClientState.Active, _random));
+                Diag.Ok("native: the client is active (the passive iq went out)");
+
+                DateTime now = DateTime.UtcNow;
+                await session.SendAsync(ClientState.UnifiedSession(now));
+                Diag.Ok("native: unified session " + ClientState.UnifiedSessionId(now));
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("NativeConnection/client state", error);
+            }
+        }
+
+        /// <summary>
+        /// One `message` stanza: opened, acknowledged, and - depending on what it carries -
         /// counted as a chat row, turned into the history, or left for the media path.
         ///
-        /// The acknowledgement comes first and on purpose: the server re-sends a stanza
-        /// nobody acknowledged, so a message answered after a long decrypt is a message a
-        /// slow phone receives twice.
+        /// The order is the whole point: the read comes first and the acknowledgement after
+        /// it. The ack is what stops the server re-sending, so acked-before-read would turn
+        /// any failed open into a permanent loss - and when the stanza was the history sync,
+        /// the chat list would never come back. A stanza that did not open is answered with
+        /// `IncomingMessage.RetryReceipt`, which asks the sender to encrypt it again.
         /// </summary>
         private async Task ReadMessageAsync(NativeSession session, Credentials account, BinaryNode node)
         {
-            IncomingMessage incoming = IncomingMessage.Read(node, account,
-                await SessionsAsync(), await PreKeysAsync(), _seen, _random);
+            IncomingMessage incoming = null;
+            Exception failure = null;
 
+            try
+            {
+                incoming = IncomingMessage.Read(node, account,
+                    await SessionsAsync(), await PreKeysAsync(), _seen, _random);
+            }
+            catch (Exception error)
+            {
+                // C# 5 refuses an await inside a catch, so the failure is carried out of it
+                // and answered below: one message that did not open must not take the
+                // connection, and it must not be acknowledged as if it had.
+                failure = error;
+            }
+
+            if (failure != null)
+            {
+                Diag.Failed("NativeConnection/message", failure);
+
+                // The answer is a retry, not an acknowledgement: the server re-sends what it
+                // was not told was read, while an `ack` here tells it the message arrived and
+                // the message is then gone for good - which is how a failed open could lose
+                // the one history sync this account will ever get.
+                try
+                {
+                    await session.SendAsync(IncomingMessage.RetryReceipt(node, NowSeconds(),
+                        account == null ? 0 : account.RegistrationId));
+                    Diag.Ok("native: asked " + node.Attrs["from"] + " to send " + node.Attrs["id"] + " again");
+                }
+                catch (Exception again)
+                {
+                    Diag.Failed("NativeConnection/retry receipt", again);
+                }
+
+                return;
+            }
+
+            // The acknowledgement comes after the read, and it is what proves the read.
+            // A duplicate is acknowledged too: it was read once already, and the second copy
+            // is what proves the first ack was lost.
             await session.SendAsync(IncomingMessage.Ack(node));
 
             if (incoming == null) return;
@@ -583,7 +805,7 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await session.SendAsync(OutgoingMessage.Node(jid, id, body, devices, timestamp));
+            await session.SendAsync(OutgoingMessage.Node(jid, id, body, devices, timestamp, _random));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
@@ -636,7 +858,7 @@ namespace WhatsappApp.Services
             uint timestamp = NowSeconds();
 
             await session.SendAsync(OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
-                mediaWord, devices, timestamp));
+                mediaWord, devices, timestamp, _random));
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + jid
@@ -737,7 +959,7 @@ namespace WhatsappApp.Services
             uint timestamp = NowSeconds();
 
             await session.SendAsync(OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
-                group.AddressingMode, distributions, timestamp));
+                group.AddressingMode, distributions, timestamp, _random));
 
             lock (_senderKeysSent)
             {
@@ -1349,6 +1571,34 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Makes the signed pre-key in the store the account's, and says so when it had to.
+        ///
+        /// Why it is not left to the upload: the upload only runs when the one-time pre-keys are
+        /// running out, so a store that still has plenty would never be looked at - and a store
+        /// left from a previous pairing holds this account's own signed pre-key id over the
+        /// previous identity's private key. The responder path compares the id a message names
+        /// and nothing else, so that pair agrees on paper and half the agreement is the wrong
+        /// key: the sender's root is not this phone's root, and every message fails its MAC
+        /// (the phone of 2026-10-18, message after message, with no line saying why).
+        /// </summary>
+        private async Task AdoptSignedPreKeyAsync(Credentials account)
+        {
+            try
+            {
+                PreKeyStore store = await PreKeysAsync();
+                if (!PreKeyUpload.AdoptSignedPreKey(account, store)) return;
+
+                Diag.Ok("native: the signed pre-key in the store was not this account's "
+                    + "(same id, another key), so it was replaced - sessions started against the "
+                    + "published key were failing every MAC");
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("NativeConnection/signed-pre-key", error);
+            }
+        }
+
+        /// <summary>
         /// Publishes one-time pre-keys when the server is running low on them, once per
         /// login.
         ///
@@ -1420,11 +1670,13 @@ namespace WhatsappApp.Services
         {
             while (session.IsOpen)
             {
+                Diag.Step("native: keepalive waiting");
                 await Task.Delay(TimeSpan.FromSeconds(SessionKeepAlive.PingSeconds));
 
                 if (!session.IsOpen) return;
                 if (!ConnectionPolicy.ConnectionIsStale(_lastNode, DateTime.UtcNow)) continue;
 
+                Diag.Step("native: sending a ping");
                 await session.PingAsync();
             }
         }

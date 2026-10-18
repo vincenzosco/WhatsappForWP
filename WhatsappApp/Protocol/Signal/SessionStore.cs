@@ -184,6 +184,24 @@ namespace WhatsappApp.Protocol.Signal
         }
 
         /// <summary>
+        /// The private half of a one-time pre-key, read and not spent.
+        ///
+        /// Why the read and the spending are two calls: a message that names a pre-key is
+        /// not authenticated by naming it. Spending it before the ciphertext has opened
+        /// would delete the only key a retry could ever need - the server re-delivers what
+        /// nobody acknowledged - so a run that failed half way through a session would make
+        /// that conversation unreadable forever. The caller reads it, opens the message and
+        /// only then calls <see cref="Consume"/>.
+        /// </summary>
+        public byte[] Find(uint id)
+        {
+            byte[] key;
+            if (!_storage.TryRead(Private(id), out key)) return null;
+
+            return key;
+        }
+
+        /// <summary>
         /// The private half of a one-time pre-key the peer's message names, and the key is
         /// spent by reading it: null when it was already used, and null when it was never
         /// published, which the caller answers the same way.

@@ -163,6 +163,17 @@ namespace WhatsappApp.Pages
                     return;
                 }
 
+                // The identity is new, so nothing the previous one wrote can be read: the
+                // sessions on disk were built with the old identity key and a Signal MAC covers
+                // both identities (`Cipher.Input`), which turns keeping them into every message
+                // of every chat failing with "the message's MAC does not verify" - the run of
+                // 2026-10-18, where not one stanza, from the account's own phone or from a
+                // contact, could be opened. It goes before the save: a wipe that throws leaves
+                // no account stored either, so the page shows the error and not a link that
+                // cannot read.
+                await FileSessionStorage.DeleteAllAsync();
+                Diag.Ok("whatsapp: the protocol state of the previous identity is forgotten");
+
                 // Written whole, before the app leaves this page: a session that is not
                 // stored is a session the next start does not have, and the QR would come
                 // back for a phone that is already linked.

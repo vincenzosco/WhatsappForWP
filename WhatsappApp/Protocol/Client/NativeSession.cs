@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol.Transport;
 using WhatsappApp.Protocol.WABinary;
@@ -26,6 +27,25 @@ namespace WhatsappApp.Protocol.Client
     /// </summary>
     public sealed class NativeSession
     {
+        /// <summary>
+        /// How many nodes the server may say before it answers the login and still be read.
+        /// A login is answered by `success`; the bootstrap travels on `ib`, and some of those
+        /// frames arrive before the answer. Twelve is a ceiling, not an expectation: a server
+        /// that never says `success` must end as a named failure, not as a reader that waits.
+        /// </summary>
+        public const int LoginFrameLimit = 12;
+
+        /// <summary>
+        /// The nodes that arrived before the login was answered, in the order they came.
+        ///
+        /// Why they are kept instead of dropped: `ib` carries `offline_preview` (the question
+        /// "how much backlog do you want?"), `offline`, and the edge routing - and the loop
+        /// that answers them starts only after this class has returned. Dropping them is how a
+        /// login ends with a healthy socket and no backlog, which on the phone looks exactly
+        /// like an app that logs in and then shows nothing.
+        /// </summary>
+        private readonly Queue<BinaryNode> _beforeLogin = new Queue<BinaryNode>();
+
         private readonly WhatsAppSocket _socket;
         private readonly ILog _log;
         private readonly IRandomSource _random;
@@ -64,23 +84,50 @@ namespace WhatsappApp.Protocol.Client
             IsOpen = true;
             Jid = account.Jid;
 
-            BinaryNode answer = await ReadNodeAsync();
-
-            string refusal = Refusal(answer);
-            if (refusal != null)
+            // The answer is `success`, and it is not assumed to be the first node: the
+            // bootstrap can speak first (see `_beforeLogin`). Everything that is not the
+            // answer is kept for the reader the caller starts, so no frame is lost in the
+            // one moment where nothing is reading yet.
+            for (int read = 0; read < LoginFrameLimit; read++)
             {
-                IsOpen = false;
-                throw new SessionRefusedException("the server refused the login: " + refusal);
+                BinaryNode answer = await _socket.ReadNodeAsync();
+
+                string refusal = Refusal(answer);
+                if (refusal != null)
+                {
+                    IsOpen = false;
+                    throw new SessionRefusedException("the server refused the login: " + refusal);
+                }
+
+                if (answer != null && answer.Tag == "success")
+                {
+                    _log.Info("whatsapp: logged in as " + account.Jid);
+                    return answer;
+                }
+
+                if (answer != null)
+                {
+                    _beforeLogin.Enqueue(answer);
+                    _log.Info("whatsapp: <" + answer.Tag + "> arrived before the login was answered, and is read after it");
+                }
             }
 
-            _log.Info("whatsapp: logged in as " + account.Jid);
-            return answer;
+            IsOpen = false;
+            throw new ProtocolException("the server did not answer the login in " + LoginFrameLimit + " node(s)");
         }
 
-        /// <summary>Reads one node the server sent. The socket writes the line that names it.</summary>
+        /// <summary>
+        /// Reads one node the server sent. The socket writes the line that names it.
+        ///
+        /// What arrived before `success` is handed back first, in the order it came: the
+        /// bootstrap's `ib` is a frame like any other to the loop that reads this, and a
+        /// queue is what lets the login read ahead without stealing it.
+        /// </summary>
         public Task<BinaryNode> ReadNodeAsync()
         {
             if (!IsOpen) throw new ProtocolException("there is no open session to read from");
+            if (_beforeLogin.Count > 0) return Answered(_beforeLogin.Dequeue());
+
             return _socket.ReadNodeAsync();
         }
 
@@ -167,6 +214,14 @@ namespace WhatsappApp.Protocol.Client
             completion.SetResult(true);
             return completion.Task;
         }
+
+        /// <summary>A node that was already read, as the task the caller awaits.</summary>
+        private static Task<BinaryNode> Answered(BinaryNode node)
+        {
+            var completion = new TaskCompletionSource<BinaryNode>();
+            completion.SetResult(node);
+            return completion.Task;
+        }
     }
 
     /// <summary>
@@ -179,6 +234,22 @@ namespace WhatsappApp.Protocol.Client
     public sealed class SessionRefusedException : ProtocolException
     {
         public SessionRefusedException(string message) : base(message)
+        {
+        }
+    }
+
+    /// <summary>
+    /// The server refuses this **client**, not the account: `downgrade_webclient` means the
+    /// version this app announces is older than the multi-device floor, and the reference
+    /// ends the connection on it (see `ClientState.IsClientRefusal`).
+    ///
+    /// It is its own type so the notification path can survive a malformed `ib` while still
+    /// letting this one end the connection: a refusal retried as if it were a network problem
+    /// is a phone that reconnects forever and never says why.
+    /// </summary>
+    public sealed class ClientRefusedException : ProtocolException
+    {
+        public ClientRefusedException(string message) : base(message)
         {
         }
     }

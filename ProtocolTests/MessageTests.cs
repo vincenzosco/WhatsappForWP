@@ -105,6 +105,33 @@ namespace ProtocolTests
             Assert.AreEqual(MessageFixture.TextBody, Message.Decode(newer).Conversation);
         }
 
+        /// <summary>
+        /// A plaintext as a phone sends it: the protobuf with WhatsApp's padding behind it,
+        /// whose **last byte is how many bytes of it there are**.
+        ///
+        /// This is not the cipher's block padding, and it is not a detail: the reference strips
+        /// it from every decrypted message (`unpadRandomMax16`, `unpadMessage`), and a reader
+        /// that hands the padded bytes to the protobuf parser reads a length field out of its
+        /// tail - the `a protobuf field announces 12095 bytes with 52 left` the phone logged on
+        /// a status it had decrypted correctly.
+        /// </summary>
+        [Test]
+        public static void ThePaddingAPhoneAppendsIsStrippedBeforeTheProtobufIsRead()
+        {
+            byte[] message = Message.Text(MessageFixture.TextBody).Encode();
+
+            var padded = new byte[message.Length + 6];
+            Buffer.BlockCopy(message, 0, padded, 0, message.Length);
+            for (int i = message.Length; i < padded.Length; i++) padded[i] = (byte)(0x51 + i);
+            padded[padded.Length - 1] = 6;
+
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(padded).Conversation,
+                "the words are in front of the padding, and the padding is not part of them");
+
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(message).Conversation,
+                "and a plaintext that carries no padding still reads");
+        }
+
         private static byte[] Hex(string text)
         {
             var bytes = new byte[text.Length / 2];
