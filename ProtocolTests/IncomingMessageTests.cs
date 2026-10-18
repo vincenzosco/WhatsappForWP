@@ -178,6 +178,146 @@ namespace ProtocolTests
             Assert.AreEqual("1122334455667788", ack.Attrs["id"]);
             Assert.AreEqual(PeerDevice, ack.Attrs["to"]);
             Assert.AreEqual("message", ack.Attrs["class"]);
+        }        /// <summary>
+        /// A message that could not be opened is answered with a retry, not an ack.
+        ///
+        /// The two are not interchangeable: the ack tells the server the stanza arrived, and
+        /// the server then stops sending it - so an ack on a failed open is the one line that
+        /// makes a transient failure permanent, and it is how the initial history sync could
+        /// be lost for good. The reference asks for the stanza again (`sendRetryReceipt`), and
+        /// the shape is pinned here so a later tidy-up cannot turn it back into an ack.
+        ///
+        /// The `<registration>` child is the difference between "send it again" and "start
+        /// over": the sending side compares it with the id inside the session it holds and
+        /// throws that session away when the two disagree (`baileys`, `sendMessagesAgain`, `reg
+        /// id mismatch on retry without bundle, deleting session`) - which is what a phone whose
+        /// identity changed at pairing needs it to do.
+        /// </summary>
+        [Test]
+        public static void AMessageThatDidNotReadIsAskedForAgain()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("hello", "AABBCCDDEEFF0011");
+
+            BinaryNode retry = IncomingMessage.RetryReceipt(sent.Node, 1760000000, 4321);
+
+            Assert.AreEqual("receipt", retry.Tag);
+            Assert.AreEqual("AABBCCDDEEFF0011", retry.Attrs["id"]);
+            Assert.AreEqual(PeerDevice, retry.Attrs["to"]);
+            Assert.AreEqual("retry", retry.Attrs["type"],
+                "the receipt is a retry, not the ack that tells the server it was read");
+
+            BinaryNode asked = retry.Child("retry");
+            Assert.IsTrue(asked != null, "the retry travels as the receipt's child");
+
+            Assert.AreEqual("AABBCCDDEEFF0011", asked.Attrs["id"]);
+            Assert.AreEqual("1", asked.Attrs["count"]);
+            Assert.AreEqual("1", asked.Attrs["v"]);
+            Assert.AreEqual("1760000000", asked.Attrs["t"]);
+
+            BinaryNode registration = retry.Child("registration");
+            Assert.IsTrue(registration != null,
+                "the retry carries this device's registration id, or the sender cannot tell that "
+                + "the session it holds was built with an identity this phone no longer has");
+            Assert.ByteArraysEqual(new byte[] { 0x00, 0x00, 0x10, 0xE1 }, registration.Bytes());
+        }
+
+        /// <summary>
+        /// A pre-key message that starts a *new* session replaces the one on disk.
+        ///
+        /// This is the bug the run of 2026-10-18 logged: a pairing minted a new identity, the
+        /// old sessions stayed, and because a session existed the peer's pre-key message was
+        /// opened with it - so every message failed its MAC, and the message that would have
+        /// rebuilt the session was the one that could not be read. The reference keeps the
+        /// session per base key and replaces the open one for a key it has not answered
+        /// (`libsignal`, `session_builder.initIncoming`).
+        /// </summary>
+        [Test]
+        public static void AFreshPreKeyMessageReplacesTheSessionItFinds()
+        {
+            var world = new World();
+            Sent first = world.PeerSends("primo", "1000000000000001");
+
+            IncomingMessage.Read(first.Node, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            SessionRecord before = world.Sessions.Load(PeerDevice);
+            Assert.IsTrue(before != null, "the first message left a session behind");
+
+            // The peer starts over with a new agreement - the base key is new, the identity
+            // is the same, and the words travel in a pre-key message again.
+            Sent second = world.PeerSends("secondo", "1000000000000002", true);
+
+            IncomingMessage incoming = IncomingMessage.Read(second.Node, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.IsTrue("secondo" == incoming.Text,
+                "the words of a session that started over have to read, and it read <" + incoming.Text + ">");
+            Assert.IsTrue(world.Sessions.Load(PeerDevice) != before,
+                "and the record on disk is the new session, not the one it replaced");
+        }
+
+        /// <summary>
+        /// A store whose signed pre-key has the account's **id** but another key cannot read,
+        /// and adopting the account's key is what fixes it.
+        ///
+        /// This is the phone of 2026-10-18, in one test: signed pre-keys are numbered from one,
+        /// so a store left by a previous pairing has the same id over a private key whose public
+        /// half nobody has - and the responder path can only compare the id, because a pre-key
+        /// wrapper carries nothing else. The agreement then runs on the wrong half, the root is
+        /// not the sender's, and every message of the session fails `the message's MAC does not
+        /// verify` - which is what the log said, for four senders and a hundred stanzas, with no
+        /// line pointing at the store.
+        /// </summary>
+        [Test]
+        public static void AStoreWithAnotherKeyUnderTheSameIdCannotReadUntilItIsAdopted()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("ciao", "1000000000000004");
+
+            // Precisely what survives from a previous identity: the account's own id, over
+            // another key pair.
+            world.PreKeys.SetSignedPreKey(world.Us.SignedPreKeyId,
+                world.Other.SignedPreKeyPrivate, world.Other.SignedPreKeySignature);
+
+            string failed = Failed(delegate { Read(world, sent); });
+            Assert.IsTrue(failed != null && failed.Contains("MAC"),
+                "the wrong half of the agreement is a MAC that does not verify, and it said: " + failed);
+
+            Assert.IsTrue(PreKeyUpload.AdoptSignedPreKey(world.Us, world.PreKeys),
+                "the account's own signed pre-key is the one that has to be in the store");
+
+            IncomingMessage incoming = Read(world, sent);
+            Assert.IsTrue("ciao" == incoming.Text,
+                "and with it the same stanza reads, and read <" + incoming.Text + ">");
+        }
+
+        /// <summary>
+        /// The record on disk remembers which agreement started it.
+        ///
+        /// That base key is the whole answer to "open this pre-key message with the session I
+        /// have, or start a new one", so it has to survive `Encode`/`Decode`: a record that
+        /// lost it would rebuild the session on every re-delivery - with a one-time pre-key
+        /// that was spent the first time, so the rebuild is a refusal.
+        /// </summary>
+        [Test]
+        public static void TheStoredSessionRemembersTheAgreementThatStartedIt()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("ciao", "1000000000000003");
+
+            IncomingMessage.Read(sent.Node, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            BinaryNode enc = sent.Node.Child("to").Child("enc");
+            Assert.AreEqual(OutgoingMessage.PreKeyType, enc.Attrs["type"],
+                "the first message of a conversation is a pre-key message");
+
+            PreKeySignalMessage wrapper = PreKeySignalMessage.Decode(SignalEnvelope.Unwrap(enc.Bytes()));
+            SessionRecord stored = world.Sessions.Load(PeerDevice);
+
+            Assert.IsTrue(stored.KnowsTheirBaseKey(wrapper.BaseKey),
+                "the session read back from the store knows the agreement it was started by");
         }
 
         [Test]
@@ -246,28 +386,69 @@ namespace ProtocolTests
         /// </summary>
         private sealed class World
         {
-            public readonly Credentials Us = Credentials.Create(new SignalSessions.CounterRandom());
-            public readonly Credentials Other = Credentials.Create(new SignalSessions.CounterRandom());
+            public readonly Credentials Us;
+            public readonly Credentials Other;
             public readonly PreKeyStore PreKeys = new PreKeyStore(new Memory());
             public readonly SessionStore Sessions = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
             public readonly SessionStore OtherSessions = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
 
-            private readonly uint _oneTimePreKeyId;
-            private readonly byte[] _oneTimePreKeyPublic;
+            private readonly IList<BinaryNode> _oneTimeKeys;
+            private readonly IRandomSource _random = new SignalSessions.CounterRandom();
+
+            /// <summary>
+            /// The peer's source, kept across messages: a fresh one per send would draw the same
+            /// bytes every time and hand the second agreement the first one's base key, which is
+            /// exactly the thing a re-negotiation has to differ in.
+            /// </summary>
+            private readonly IRandomSource _peerRandom = new SignalSessions.CounterRandom();
+            private int _nextKey;
 
             public World()
             {
+                // One source for both, so the two identities are two: a fresh `CounterRandom`
+                // per account hands out the same bytes twice, and an "other identity" whose
+                // keys are this device's would make every stale-key test pass for the wrong
+                // reason.
+                Us = Credentials.Create(_random);
+                Other = Credentials.Create(_random);
+
                 Us.Jid = OurDevice;
 
                 BinaryNode upload = PreKeyUpload.Node(Us, PreKeys, new SignalSessions.CounterRandom(), 5);
-                BinaryNode oneTime = upload.Child("list").Children()[0];
-                _oneTimePreKeyId = Number(oneTime.Child("id").Bytes());
-                _oneTimePreKeyPublic = oneTime.Child("value").Bytes();
+                _oneTimeKeys = upload.Child("list").Children();
+            }
+
+            /// <summary>The one-time pre-key the server hands out for the next agreement.</summary>
+            private uint OneTimePreKeyId
+            {
+                get { return Number(_oneTimeKeys[_nextKey].Child("id").Bytes()); }
+            }
+
+            private byte[] OneTimePreKeyPublic
+            {
+                get { return _oneTimeKeys[_nextKey].Child("value").Bytes(); }
             }
 
             /// <summary>What the other phone sends to this one.</summary>
             public Sent PeerSends(string body, string id)
             {
+                return SomeoneSends(OurDevice, PeerDevice, body, id);
+            }
+
+            /// <summary>
+            /// The same, but a *new* agreement: the peer throws its session away first, which is
+            /// what a peer does after a retry receipt it could not satisfy.
+            /// </summary>
+            public Sent PeerSends(string body, string id, bool newSession)
+            {
+                if (newSession)
+                {
+                    OtherSessions.Remove(OurDevice);
+
+                    // And it asks the server for a bundle again, which hands out the next key.
+                    _nextKey++;
+                }
+
                 return SomeoneSends(OurDevice, PeerDevice, body, id);
             }
 
@@ -277,15 +458,15 @@ namespace ProtocolTests
                 PreKeyBundle ours = DeviceDirectory.Bundles(OurBundleAnswer())[0].Value;
 
                 SessionRecord theirSide = DeviceDirectory.Session(to, ours, Other,
-                    OtherSessions, new SignalSessions.CounterRandom());
+                    OtherSessions, _peerRandom);
 
                 var devices = new List<KeyValuePair<string, SessionRecord>>();
                 devices.Add(new KeyValuePair<string, SessionRecord>(to, theirSide));
 
-                BinaryNode node = OutgoingMessage.Node(to, id, body, devices, 1760000000);
+                BinaryNode node = OutgoingMessage.Node(to, id, body, devices, 1760000000, _random);
                 node.Attrs.Add("from", from);
 
-                return new Sent(node, _oneTimePreKeyId);
+                return new Sent(node, OneTimePreKeyId);
             }
 
             /// <summary>This device's bundle answer, built out of the keys it just published.</summary>
@@ -308,9 +489,9 @@ namespace ProtocolTests
 
                 var oneTime = new BinaryNode("key");
                 var oneTimeId = new BinaryNode("id");
-                oneTimeId.Content = BigEndian(_oneTimePreKeyId, 3);
+                oneTimeId.Content = BigEndian(OneTimePreKeyId, 3);
                 var oneTimeValue = new BinaryNode("value");
-                oneTimeValue.Content = _oneTimePreKeyPublic;
+                oneTimeValue.Content = OneTimePreKeyPublic;
                 oneTime.Content = new List<BinaryNode> { oneTimeId, oneTimeValue };
 
                 var user = new BinaryNode("user");
@@ -345,6 +526,13 @@ namespace ProtocolTests
                 Node = node;
                 OneTimePreKeyId = oneTimePreKeyId;
             }
+        }
+
+        /// <summary>One read with this test's stores and a fresh set of seen ids.</summary>
+        private static IncomingMessage Read(World world, Sent sent)
+        {
+            return IncomingMessage.Read(sent.Node, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
         }
 
         private static uint Number(byte[] bigEndian)

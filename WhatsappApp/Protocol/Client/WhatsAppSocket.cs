@@ -143,12 +143,35 @@ namespace WhatsappApp.Protocol.Client
         /// A WebSocket message is not a frame: it can carry a piece of one, a whole one
         /// or several, which is why every read goes through the accumulator. A closed
         /// connection is a <see cref="ProtocolException"/> rather than an empty frame.
+        ///
+        /// A read that fails names what was still on its way. The server hanging up on this
+        /// phone has looked the same every time - a short message, then `0x80072EFE` - and
+        /// the bytes of the frame it interrupted are the only place that says whether it
+        /// stopped in the middle of a node or between two of them. Without the line, the
+        /// log of a run that died at the bootstrap is a login and an exception.
         /// </summary>
         public async Task<byte[]> ReadFrameAsync()
         {
             while (_frames.Count == 0)
             {
-                byte[] message = await _transport.ReceiveAsync();
+                byte[] message;
+                try
+                {
+                    message = await _transport.ReceiveAsync();
+                }
+                catch (Exception error)
+                {
+                    if (_accumulator.PendingLength > 0)
+                    {
+                        _log.Info("whatsapp: the connection ended with " + _accumulator.PendingLength
+                            + " byte(s) of a frame still arriving: " + _accumulator.PendingHex(16));
+                    }
+
+                    _log.Info("whatsapp: the connection ended while waiting for a frame ("
+                        + error.Message + ")");
+                    throw;
+                }
+
                 if (message == null || message.Length == 0)
                 {
                     throw new ProtocolException("the server closed the connection");

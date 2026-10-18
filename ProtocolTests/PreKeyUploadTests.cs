@@ -128,6 +128,36 @@ namespace ProtocolTests
             Assert.IsTrue(PreKeyUpload.NeedsUpload(store));
         }
 
+        /// <summary>
+        /// A store left by another identity is recognised by the key, not by the id - and the
+        /// second call changes nothing.
+        /// </summary>
+        [Test]
+        public static void TheAccountsSignedPreKeyReplacesOneWithTheSameIdAndAnotherKey()
+        {
+            var random = new SignalSessions.CounterRandom();
+            Credentials previous = Credentials.Create(random);
+            Credentials account = Credentials.Create(random);
+
+            var store = new PreKeyStore(new Memory());
+            store.SetSignedPreKey(previous.SignedPreKeyId, previous.SignedPreKeyPrivate,
+                previous.SignedPreKeySignature);
+
+            Assert.AreEqual(previous.SignedPreKeyId, account.SignedPreKeyId,
+                "a fresh pairing numbers its signed pre-key one again, which is why the id cannot decide this");
+
+            Assert.IsTrue(PreKeyUpload.SignedPreKeyIsStale(account, store),
+                "the stored key is not the account's, and the public half of it was never published");
+            Assert.IsTrue(PreKeyUpload.AdoptSignedPreKey(account, store),
+                "so it is replaced before anything is published against it");
+
+            Assert.ByteArraysEqual(account.SignedPreKeyPrivate, store.SignedPreKeyPrivate);
+            Assert.ByteArraysEqual(account.SignedPreKeySignature, store.SignedPreKeySignature);
+            Assert.IsFalse(PreKeyUpload.SignedPreKeyIsStale(account, store));
+            Assert.IsFalse(PreKeyUpload.AdoptSignedPreKey(account, store),
+                "and asking again writes nothing");
+        }
+
         private static uint Number(byte[] bigEndian)
         {
             uint value = 0;

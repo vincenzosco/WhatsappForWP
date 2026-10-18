@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using WhatsappApp.Protocol.Signal;
 using WhatsappApp.Protocol.WABinary;
@@ -41,6 +42,33 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>How many random bytes a message id is: sixteen hex characters.</summary>
         public const int IdBytes = 8;
 
+        /// <summary>
+        /// A plaintext as a phone sends it: the message's protobuf with 1 to 15 bytes of the
+        /// WhatsApp padding behind it, the last of which is the count.
+        ///
+        /// Why our own messages need it even though nobody complains: the receiving phone strips
+        /// a number of bytes read from the **last byte** of the decrypted plaintext
+        /// (`baileys`, `unpadRandomMax16`), so a message whose protobuf happens to end in a byte
+        /// between 1 and 15 - a text that ends in a newline is enough - loses that many bytes on
+        /// the other side. Padding is what makes the last byte mean what it says.
+        /// </summary>
+        public static byte[] Pad(byte[] plaintext, IRandomSource random)
+        {
+            if (plaintext == null) throw new ProtocolException("there is nothing to pad");
+            if (random == null) throw new ProtocolException("padding needs randomness for its bytes");
+
+            int pad = 1 + (random.Bytes(1)[0] % Message.MaxPadding);
+
+            var padded = new byte[plaintext.Length + pad];
+            Buffer.BlockCopy(plaintext, 0, padded, 0, plaintext.Length);
+
+            byte[] noise = random.Bytes(pad);
+            Buffer.BlockCopy(noise, 0, padded, plaintext.Length, pad);
+            padded[padded.Length - 1] = (byte)pad;
+
+            return padded;
+        }
+
         /// <summary>A fresh message id, upper-case hex.</summary>
         public static string Id(IRandomSource random)
         {
@@ -59,11 +87,11 @@ namespace WhatsappApp.Protocol.Client
         /// stored under.
         /// </summary>
         public static BinaryNode Node(string to, string id, string body,
-            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp)
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random)
         {
             if (body == null) throw new ProtocolException("a text message needs words");
 
-            return Node(to, id, Message.Text(body), TextType, null, devices, timestamp);
+            return Node(to, id, Message.Text(body), TextType, null, devices, timestamp, random);
         }
 
         /// <summary>A group's JID, which is what decides the shape of a send.</summary>
@@ -100,7 +128,7 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static BinaryNode Group(string to, string id, Message message, string type, string mediaType,
             SenderKeyRecord record, string addressingMode,
-            IList<KeyValuePair<string, SessionRecord>> distributions, uint timestamp)
+            IList<KeyValuePair<string, SessionRecord>> distributions, uint timestamp, IRandomSource random)
         {
             if (!GroupDirectory.IsGroup(to)) throw new ProtocolException("not a group: " + to);
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
@@ -126,7 +154,7 @@ namespace WhatsappApp.Protocol.Client
                     BinaryNode enc = new BinaryNode("enc");
                     enc.Attrs.Add("v", KeyVersion);
                     enc.Attrs.Add("type", session.PreKeyPending ? PreKeyType : ExistingType);
-                    enc.Content = session.Encrypt(distribution);
+                    enc.Content = session.Encrypt(Pad(distribution, random));
 
                     BinaryNode device = new BinaryNode("to");
                     device.Attrs.Add("jid", deviceJid);
@@ -144,7 +172,7 @@ namespace WhatsappApp.Protocol.Client
             group.Attrs.Add("v", KeyVersion);
             group.Attrs.Add("type", SenderKeys.CipherType);
             if (!string.IsNullOrEmpty(mediaType)) group.Attrs.Add("mediatype", mediaType);
-            group.Content = SenderKeys.Ciphertext(to, record, message.Encode());
+            group.Content = SenderKeys.Ciphertext(to, record, Pad(message.Encode(), random));
 
             content.Add(group);
 
@@ -170,7 +198,7 @@ namespace WhatsappApp.Protocol.Client
         /// anything.
         /// </summary>
         public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
-            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp)
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random)
         {
             if (string.IsNullOrEmpty(to)) throw new ProtocolException("a message needs somebody to go to");
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
@@ -181,8 +209,8 @@ namespace WhatsappApp.Protocol.Client
             }
 
             // The device-sent form, built once for every device: the same message, the same
-            // id, the same JID, in every copy.
-            byte[] plaintext = Message.DeviceSent(to, message).Encode();
+            // id, the same JID, in every copy - and the padding added once, behind all of it.
+            byte[] plaintext = Pad(Message.DeviceSent(to, message).Encode(), random);
 
             var content = new List<BinaryNode>();
             for (int i = 0; i < devices.Count; i++)

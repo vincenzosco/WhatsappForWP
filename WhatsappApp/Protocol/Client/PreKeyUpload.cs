@@ -72,7 +72,7 @@ namespace WhatsappApp.Protocol.Client
             if (random == null) throw new ProtocolException("a pre-key upload needs randomness");
             if (count < 1) throw new ProtocolException("a pre-key upload publishes at least one key");
 
-            EnsureSignedPreKey(credentials, store);
+            AdoptSignedPreKey(credentials, store);
 
             var list = new BinaryNode("list");
             var keys = new List<BinaryNode>();
@@ -118,21 +118,59 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The signed pre-key this device already has goes into the store the responder
-        /// path reads, once: a message that opened a session with it names its id, and a
-        /// store that does not know that id cannot answer.
+        /// Puts this account's signed pre-key in the store the responder path reads, and says
+        /// whether it had to.
+        ///
+        /// "Is there one" is not the question, and neither is the id. Signed pre-keys are numbered
+        /// from **one**, and a pairing numbers its fresh one one again - so a store left from the
+        /// previous identity holds the same id over a **different private key**. The responder
+        /// path can only compare the id a message names (`IncomingMessage.StartResponder`), and a
+        /// pre-key wrapper carries nothing else, so the two agree on paper and the agreement runs
+        /// on a private key whose public half was never published: the root the sender derived is
+        /// not the root this phone derives, and **every message of that session fails `the
+        /// message's MAC does not verify`**.
+        ///
+        /// That is the phone of 2026-10-18. The upload published the new identity's signed
+        /// pre-key while the store kept the previous pairing's, and a hundred stanzas from four
+        /// senders - the account's own phone, a contact, the history sync - were unreadable,
+        /// every one of them failing on the MAC and none of them saying why.
+        ///
+        /// The comparison is by public key, derived from the private half the store holds, because
+        /// the public key is what a sender was given. The signature is replaced with it: it is a
+        /// function of the same pair.
         /// </summary>
-        private static void EnsureSignedPreKey(Credentials credentials, PreKeyStore store)
+        public static bool AdoptSignedPreKey(Credentials credentials, PreKeyStore store)
         {
-            if (store.HasSignedPreKey) return;
+            if (credentials == null) throw new ProtocolException("a signed pre-key belongs to an account");
+            if (store == null) throw new ProtocolException("a signed pre-key lives in the pre-key store");
 
-            if (credentials.SignedPreKeyId == 0 || credentials.SignedPreKeyPublic == null)
+            if (!SignedPreKeyIsStale(credentials, store)) return false;
+
+            if (credentials.SignedPreKeyId == 0 || credentials.SignedPreKeyPrivate == null
+                || credentials.SignedPreKeyPublic == null)
             {
                 throw new ProtocolException("this device has no signed pre-key to publish");
             }
 
             store.SetSignedPreKey(credentials.SignedPreKeyId,
                 credentials.SignedPreKeyPrivate, credentials.SignedPreKeySignature);
+
+            return true;
+        }
+
+        /// <summary>
+        /// Whether the store's signed pre-key is not the one this account publishes - absent, of
+        /// another id, or the same id over another key.
+        /// </summary>
+        public static bool SignedPreKeyIsStale(Credentials credentials, PreKeyStore store)
+        {
+            if (credentials == null || store == null) return true;
+            if (!store.HasSignedPreKey) return true;
+            if (store.SignedPreKeyId != credentials.SignedPreKeyId) return true;
+            if (credentials.SignedPreKeyPublic == null) return true;
+
+            return !Hmac.FixedTimeEquals(Curve25519.PublicKey(store.SignedPreKeyPrivate),
+                credentials.SignedPreKeyPublic);
         }
 
         /// <summary>An id no other key in this upload has, and never zero.</summary>

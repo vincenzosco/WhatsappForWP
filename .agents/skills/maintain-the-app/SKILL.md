@@ -203,7 +203,7 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-memory.js && node tools/check-actions.js &&
    node tools/check-fire-and-forget.js && node tools/check-project-files.js &&
    node tools/check-chat-list-source.js && node tools/check-chat-scroll.js &&
-   node tools/check-history-sync.js &&
+   node tools/check-history-sync.js && node tools/check-client-state.js &&
    node tools/check-diagnostics.js &&
    node tools/check-xaml-names.js &&
    node tools/check-attachment-file.js && node tools/check-no-server.js`, plus
@@ -633,6 +633,80 @@ waiting) and the message is marked read when the reader reaches it.
   runs inside the unhandled-exception handler, before the process may die. The
   in-memory history is only a screen: it dies with the process, which is why every
   earlier crash in this repo arrived as a log that stopped at the assembly list.
+- **A login is completed, not only performed.** `ClientPayload.Login` asks to be brought
+  up **passively** (`passive` and `pull` are 1), and the reference finishes that login on
+  the `success` node with `sendPassiveIq('active')` and the unified-session telemetry
+  (`Socket/socket.js`, the `CB:success` handler). This app sends both right after the
+  login (`NativeConnection.AnnounceClientStateAsync`, the nodes themselves in
+  `Protocol/Client/ClientState.cs`): a client that logs in and then says nothing is the
+  passive half of its own login, and that is what the phone showed on 2026-10-17 - a login,
+  two `ib` nodes, and the connection gone about two seconds later, at every start. The same
+  channel is **read**, not named: the child's tag is what the reference dispatches on
+  (`InboundRouter.NotificationType`), the backlog preview is answered
+  (`ClientState.OfflineBatch`), and `downgrade_webclient` is the one child that refuses the
+  client instead of telling it something (`ClientState.IsClientRefusal`). A read that fails
+  names the bytes of the frame it interrupted (`FrameAccumulator.PendingHex`), because the
+  end of every run on this phone has the same shape - a few bytes, then `0x80072EFE` - and
+  those bytes are the only evidence of where the server stopped talking.
+  `check-client-state.js` pins all four of those cables.
+- **The login is read up to `success`, and a message is acked after it was read.**
+  `NativeSession.LoginAsync` reads nodes until the answer is `success` (or a refusal), and
+  queues everything that arrived before it in `_beforeLogin`, which `ReadNodeAsync` hands
+  back first: the bootstrap speaks on `ib` and can speak before the answer, and a login
+  that reads one node throws that frame away in the one moment when nothing else is
+  reading. On the message path the order is the other way round and just as strict: the
+  stanza is opened first, then acknowledged (`ReadMessageAsync`), because the ack is what
+  stops the server re-sending and an ack on a failed open makes a transient failure
+  permanent - it is how one lost open could lose the only history sync the account gets.
+  A failed open is answered with `IncomingMessage.RetryReceipt`, the reference's own
+  `retry` receipt (`sendRetryReceipt`), which asks the sender to encrypt the stanza again
+  and carries this device's `<registration>` - the child that tells the sender its session
+  was built with a registration this phone no longer has, which is the one thing that makes
+  it throw the session away and start over.
+- **A new identity cannot read the old sessions, and a pre-key message is how a chat
+  restarts.** A Signal MAC is computed over **both** identity keys (`Cipher.Input`), so the
+  moment `PairPage` draws a new `Credentials` every session on disk is unreadable - which is
+  why the page wipes `LocalFolder/protocol` (`FileSessionStorage.DeleteAllAsync`) before it
+  stores the account, and why the run of 2026-10-18 failed every stanza from every sender,
+  the account's own phone included, with `the message's MAC does not verify`. The way back
+  is the peer's pre-key message, and it only works because `IncomingMessage.SessionFor`
+  reads one as what it is - the start of a session, not a ciphertext for whatever session
+  happens to be there. The record keeps the base key its agreement was started by
+  (`SessionRecord.KnowsTheirBaseKey`, encoded with the rest of the record), so a
+  re-delivery uses the session and a new key replaces it; `libsignal`'s
+  `session_builder.initIncoming` is the reference for both halves. Two consequences of the
+  same read path: a `previousCounter` beyond 2000 is refused instead of walked to
+  (`SkipTo`, the reference's `fillMessageKeys` - the alternative is the sixty seconds the
+  watchdog logged), and the plaintext is unpadded before it is parsed
+  (`Message.DecodePadded`), because WhatsApp appends one to fifteen bytes behind every
+  message and a reader that skipped them reads a length field out of the tail
+  (`a protobuf field announces 12095 bytes with 52 left`). The pairing wipe is pinned by
+  `check-client-state.js`; the other four have protocol tests.
+- **The signed pre-key in the store has to be the account's, not merely *a* signed
+  pre-key.** Signed pre-keys are numbered from one, so a store left by a previous pairing
+  holds **the same id over another private key**, and the responder path has nothing but the
+  id to compare (`StartResponder`, and a pre-key wrapper carries nothing else). The upload
+  publishes the *current* identity's public key and signature, so the sender derives one root
+  and this phone derives another: every message of every session fails `the message's MAC
+  does not verify`, from every sender, with no line pointing at the store - the phone of
+  2026-10-18, after the pairing wipe was in place but with no pairing in that run.
+  `PreKeyUpload.AdoptSignedPreKey` compares the stored private half's **public key** with the
+  account's and replaces it, and `NativeConnection.AdoptSignedPreKeyAsync` runs it at every
+  login - not inside the one-time pre-key refill, which is skipped whenever the store still
+  has keys. `check-client-state.js` pins that call; `PreKeyUploadTests` and
+  `IncomingMessageTests.AStoreWithAnotherKeyUnderTheSameIdCannotReadUntilItIsAdopted` pin the
+  behaviour (the second one fails on the MAC first, then reads the same stanza once the
+  account's key is in the store).
+- **The chat list has one push, and it is not repeatable.** WhatsApp sends the history when
+  the device is linked and never again; this client has no app-state sync (`server_sync`,
+  `w:sync:app:state`) and no way to ask for the history a second time, so for an account
+  whose first sync was missed the list can only be filled by live messages and by the copy
+  on disk (`ChatCache`, which refuses to save an empty list). That is why the end of the
+  backlog names it - `NativeConnection.ReadNotificationAsync` writes a line when `offline`
+  arrives with no chat and no sync - and why "re-link the device" is the answer to an empty
+  list that stays empty on a healthy connection. App-state sync is a subsystem, not a
+  tweak: implementing it needs the app-state keys a pairing distributes and the patch
+  format, and it is the next thing to build if the list must survive a lost first sync.
 - **The conversation's view state is one module.** `Services/ConversationView.cs`
   owns the bind, the scroll queue, the viewer lookup and the "at the bottom"
   question, because all four touch the same three things and the `E_UNEXPECTED`

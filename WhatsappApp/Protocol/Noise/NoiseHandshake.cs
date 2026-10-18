@@ -299,5 +299,27 @@ namespace WhatsappApp.Protocol.Noise
         {
             get { return _pending.Length; }
         }
+
+        /// <summary>
+        /// Those bytes as hex, at most <paramref name="max"/> of them.
+        ///
+        /// Why it exists: a connection that ends with a piece of a frame in hand is the
+        /// shape the phone saw on 2026-10-10 and again on 2026-10-17 - four bytes, then
+        /// `0x80072EFE` - and the four bytes are the only evidence of where the server
+        /// stopped talking. A reader that logs the count and not the bytes cannot tell a
+        /// truncated length prefix from the beginning of a node.
+        /// </summary>
+        public string PendingHex(int max)
+        {
+            int count = _pending.Length;
+            if (max > 0 && count > max) count = max;
+
+            var text = new System.Text.StringBuilder(count * 2);
+            for (int i = 0; i < count; i++) text.Append(_pending[i].ToString("X2"));
+
+            if (count < _pending.Length) text.Append("...");
+
+            return text.ToString();
+        }
     }
 }

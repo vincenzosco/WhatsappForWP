@@ -46,6 +46,18 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>The encoded `DeviceSentMessage`: a copy for our own other devices.</summary>
         public const int DeviceSentField = 31;
 
+        /// <summary>
+        /// The longest padding a phone appends to a message's plaintext before encrypting it.
+        ///
+        /// Not the cipher's block padding - that one is the cipher's own business - but the
+        /// WhatsApp layer's: between one and fifteen bytes whose **last byte is their own
+        /// count**, appended to the serialized `Message` (`baileys`, `writeRandomPadMax16` /
+        /// `unpadRandomMax16`; `whatsmeow`, `padMessage` / `unpadMessage`). Every message a
+        /// phone sends carries it, pairwise as well as group, which is why a reader that strips
+        /// it only for groups cannot read a `status` or a `msg` it has decrypted correctly.
+        /// </summary>
+        public const int MaxPadding = 15;
+
         /// <summary>`conversation`, field 1.</summary>
         public string Conversation;
 
@@ -218,6 +230,63 @@ namespace WhatsappApp.Protocol.WaProto
             }
 
             return message;
+        }
+
+        /// <summary>
+        /// The message inside a decrypted plaintext, which is a protobuf with the WhatsApp
+        /// padding behind it.
+        ///
+        /// The rule is the reference's and it comes first: the last byte is how many bytes were
+        /// appended, so that many are dropped before the protobuf is read (`baileys`,
+        /// `unpadRandomMax16`). Then the same search the group path has always made, for a
+        /// message that was not padded at all - the reference's rule is a rule, not a promise,
+        /// and a plaintext that ends in a byte between 1 and 15 is exactly what a sender that
+        /// skips the padding produces.
+        ///
+        /// The plaintext itself is tried last, so a message that really is damaged reports the
+        /// failure its bytes produce instead of one that names a size nobody sent.
+        /// </summary>
+        public static Message DecodePadded(byte[] plaintext)
+        {
+            if (plaintext == null || plaintext.Length == 0)
+            {
+                throw new ProtocolException("a message carries no bytes; there is nothing to read");
+            }
+
+            int pad = plaintext[plaintext.Length - 1];
+            if (pad >= 1 && pad <= MaxPadding && pad < plaintext.Length)
+            {
+                try
+                {
+                    return Decode(Head(plaintext, plaintext.Length - pad));
+                }
+                catch (ProtocolException)
+                {
+                    // Not the reference's padding after all: the search below is next.
+                }
+            }
+
+            for (int trimmed = 1; trimmed <= MaxPadding && trimmed < plaintext.Length; trimmed++)
+            {
+                try
+                {
+                    return Decode(Head(plaintext, plaintext.Length - trimmed));
+                }
+                catch (ProtocolException)
+                {
+                    // Keep looking: one of the sixteen is the pad a phone appended.
+                }
+            }
+
+            return Decode(plaintext);
+        }
+
+        private static byte[] Head(byte[] bytes, int length)
+        {
+            var head = new byte[length];
+            System.Buffer.BlockCopy(bytes, 0, head, 0, length);
+
+            return head;
         }
 
         /// <summary>

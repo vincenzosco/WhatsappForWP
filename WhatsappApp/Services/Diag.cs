@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 
@@ -289,6 +290,74 @@ namespace WhatsappApp.Services
             const int MaxDetail = 48;
             if (value.Length <= MaxDetail) return value;
             return value.Substring(0, MaxDetail) + "...";
+        }
+
+        // ── the watchdog ─────────────────────────────────────────────────────────
+
+        // Why it exists: the connection loop runs on the ui thread (the page that
+        // draws a message is the thread that opened the socket), so one call that
+        // does not return takes the whole app with it - and the log stops at the
+        // line before it, which is the one line that does not say where. The
+        // watchdog runs on a thread of its own and therefore still answers when the
+        // ui thread does not: `Step` says where the loop is before each step, and
+        // this line is what a run that froze leaves behind (2026-10-17: the app sat
+        // on the chat list, unresponsive, and `diag.log` ended on a failed message).
+
+        private static int _uiTicks;
+        private static string _step = "start-up";
+        private static int _watchdogStarted;
+        private static int _watchdogLastSilence;
+
+        /// <summary>Where the ui thread is: called before each step it takes.</summary>
+        public static void Step(string step)
+        {
+            _step = step;
+            Interlocked.Exchange(ref _uiTicks, Environment.TickCount);
+        }
+
+        /// <summary>The ui thread is alive: the timer calls this once a second.</summary>
+        public static void UiTick()
+        {
+            Interlocked.Exchange(ref _uiTicks, Environment.TickCount);
+        }
+
+        /// <summary>
+        /// Starts the thread that reports a ui thread which stopped answering. Once
+        /// per process, from start-up, which is the only place that runs on the ui
+        /// thread in every activation.
+        /// </summary>
+        public static void StartWatchdog()
+        {
+            if (Interlocked.Exchange(ref _watchdogStarted, 1) != 0) return;
+
+            Step("start-up");
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("Diag/watchdog",
+                Task.Run(delegate { return WatchdogAsync(); }));
+#pragma warning restore 4014
+        }
+
+        private static async Task WatchdogAsync()
+        {
+            while (true)
+            {
+                await Task.Delay(2000).ConfigureAwait(false);
+
+                int silent = unchecked(Environment.TickCount - _uiTicks);
+                if (silent < 5000)
+                {
+                    _watchdogLastSilence = 0;
+                    continue;
+                }
+
+                // One line a minute while it lasts: a frozen app that wrote one per
+                // second would push the step it stopped at out of the 200-line buffer.
+                if (silent - _watchdogLastSilence < 60000) continue;
+                _watchdogLastSilence = silent;
+
+                OkNow("watchdog: the ui thread has not answered for " + (silent / 1000)
+                    + "s, last step: " + _step);
+            }
         }
 
         /// <summary>Forgets everything written so far: the screen has a Clear.</summary>

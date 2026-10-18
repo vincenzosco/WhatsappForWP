@@ -43,6 +43,11 @@ namespace WhatsappApp
         // an already-started app, and they must not be duplicated.
         private bool servicesStarted;
 
+        // The heartbeat the diagnostics watchdog reads: while this timer ticks, the
+        // ui thread is answering, and a run that stops ticking is written down with
+        // the step the connection loop had reached (see `Diag.StartWatchdog`).
+        private DispatcherTimer _uiHeartbeat;
+
         /// <summary>
         /// Initializes the singleton application object. This is the first line of
         /// authored code executed, and as such is the logical equivalent of main() or WinMain().
@@ -311,6 +316,15 @@ namespace WhatsappApp
             // it is created here, once, on the UI thread.
             Loc.Prewarm();
 
+            // The ui thread's own heartbeat, before anything that could stop it: a
+            // freeze is named by the thread that is still running, not by the one
+            // that stopped (see `Diag.StartWatchdog`).
+            Diag.StartWatchdog();
+            _uiHeartbeat = new DispatcherTimer();
+            _uiHeartbeat.Interval = TimeSpan.FromSeconds(1);
+            _uiHeartbeat.Tick += this.OnUiHeartbeat;
+            _uiHeartbeat.Start();
+
             // The run is recorded on disk from here on, and the previous one is read
             // in the same piece of work: the marker file it left is what says whether
             // it ended on purpose. Reading and writing go through one writer in this
@@ -345,6 +359,14 @@ namespace WhatsappApp
             // (see NativeConnection). A start with no account stored does nothing
             // here, and the QR of PairPage is the page.
             NativeConnection.Instance.Start();
+        }
+
+        /// <summary>
+        /// The ui thread answered: the watchdog's silence counter starts again.
+        /// </summary>
+        private void OnUiHeartbeat(object sender, object e)
+        {
+            Diag.UiTick();
         }
 
         /// <summary>

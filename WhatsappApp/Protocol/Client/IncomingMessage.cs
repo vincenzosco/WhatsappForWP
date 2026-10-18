@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using WhatsappApp.Protocol.Signal;
 using WhatsappApp.Protocol.WaProto;
@@ -101,6 +102,40 @@ namespace WhatsappApp.Protocol.Client
 
             if (seen != null && !seen.IsNew(id)) return null;
 
+            // The id is remembered only once the stanza has been read. A delivery that
+            // failed to open must not look like a duplicate when the server sends it
+            // again - it re-delivers what nobody acknowledged - or one transient failure
+            // would hide the message for the rest of the run, and from the log that is
+            // supposed to say what happened.
+            try
+            {
+                return ReadStanza(message, credentials, sessions, preKeys, random, id, from);
+            }
+            catch (Exception)
+            {
+                if (seen != null) seen.Forget(id);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// The stanza after its identity and its id are established, and the one place the
+        /// session source is chosen.
+        ///
+        /// `from` is the address the stanza carries. For a status that is the **broadcast
+        /// list**, while the ciphertext was written by the person who posted it: the session
+        /// is theirs, not the list's. Reading it with the list's name is what the device log
+        /// of 2026-10-17 shows - `the message's identity key is not the session's peer` on
+        /// one status, then a plaintext that is not even a protobuf on the next.
+        /// </summary>
+        private static IncomingMessage ReadStanza(BinaryNode message, Credentials credentials,
+            SessionStore sessions, PreKeyStore preKeys, IRandomSource random, string id, string from)
+        {
+            string participant = message.Attrs["participant"];
+            string source = StatusFeed.IsStatus(from) && !string.IsNullOrEmpty(participant)
+                ? participant
+                : from;
+
             // A group's message: one `skmsg` for everybody, and - while a member's key is
             // new to this phone - also one pairwise copy of that member's sender key. The
             // group ciphertext is the message; where it came from for the session's purposes
@@ -118,23 +153,19 @@ namespace WhatsappApp.Protocol.Client
             if (wire == null || wire.Length == 0) throw new ProtocolException("message " + id + " carries no ciphertext");
 
             byte[] plaintext;
+            uint usedPreKeyId = 0;
             try
             {
-                SessionRecord session = sessions.Load(from);
-                if (session == null || !session.HasSession)
-                {
-                    if (!preKey)
-                    {
-                        throw new ProtocolException("it is not a pre-key message and there is no session with " + from);
-                    }
-
-                    session = StartResponder(wire, from, credentials, preKeys, sessions, random);
-                }
+                SessionRecord session = SessionFor(wire, preKey, source, credentials, sessions, preKeys, random, out usedPreKeyId);
 
                 plaintext = session.Decrypt(wire, preKey);
 
                 // The ratchet moved: what the next message needs is the session as it is now.
-                sessions.Save(from, session);
+                sessions.Save(source, session);
+
+                // And only now is the key spent: the message has opened with it, so a
+                // retry of anything that failed before this point still finds it.
+                if (usedPreKeyId != 0) preKeys.Consume(usedPreKeyId);
             }
             catch (ProtocolException failed)
             {
@@ -142,10 +173,15 @@ namespace WhatsappApp.Protocol.Client
                 // message: a ciphertext with a byte moved corrupts the wrapper as often as
                 // the message, and "the signed pre-key does not match" with no id attached
                 // is a search, not a report.
-                throw new ProtocolException("message " + id + " from " + from + " did not read: " + failed.Message);
+                throw new ProtocolException("message " + id + " from " + source + " did not read: " + failed.Message);
             }
 
-            Message read = Message.Decode(plaintext);
+            // The plaintext is a protobuf with the WhatsApp padding behind it, not the bare
+            // message: the reference strips it for every message it opens
+            // (`decode-wa-message`, `unpadRandomMax16`), and reading it as bytes was the
+            // `a protobuf field announces 12095 bytes with 52 left` on a status this phone had
+            // decrypted correctly.
+            Message read = Message.DecodePadded(plaintext);
             var incoming = new IncomingMessage();
             incoming.Id = id;
             incoming.From = from;
@@ -165,7 +201,7 @@ namespace WhatsappApp.Protocol.Client
                 return incoming;
             }
 
-            incoming.IsOurEcho = IsMine(from, credentials);
+            incoming.IsOurEcho = IsMine(source, credentials);
             incoming.Content = Message.Inner(read.DeviceSentMessage);
             incoming.Text = incoming.Content.Body();
 
@@ -286,19 +322,12 @@ namespace WhatsappApp.Protocol.Client
 
             try
             {
-                SessionRecord session = sessions.Load(participant);
-                if (session == null || !session.HasSession)
-                {
-                    if (!preKey)
-                    {
-                        throw new ProtocolException("it is not a pre-key message and there is no session with " + participant);
-                    }
+                uint usedPreKeyId = 0;
+                SessionRecord session = SessionFor(wire, preKey, participant, credentials, sessions, preKeys, random, out usedPreKeyId);
 
-                    session = StartResponder(wire, participant, credentials, preKeys, sessions, random);
-                }
-
-                read = Message.Decode(session.Decrypt(wire, preKey));
+                read = Message.DecodePadded(session.Decrypt(wire, preKey));
                 sessions.Save(participant, session);
+                if (usedPreKeyId != 0) preKeys.Consume(usedPreKeyId);
             }
             catch (ProtocolException)
             {
@@ -406,6 +435,68 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
+        /// The answer to a stanza this device could not open: a `retry` receipt, which asks
+        /// the sender to encrypt it again - with a fresh session, when that is what was
+        /// missing - instead of the plain `ack` that tells the server the stanza was read.
+        ///
+        /// Why it matters: the acknowledgement is what stops the server re-sending, so
+        /// acknowledging a message whose open threw turned one transient failure into a
+        /// permanent loss. When the stanza was the history sync, the chat list never came
+        /// back (the reference sends a retry receipt for exactly this: `whatsmeow`,
+        /// `sendRetryReceipt`). The count is one because this client does not track the
+        /// retries of a single id; the sender is the one that does.
+        /// </summary>
+        public static BinaryNode RetryReceipt(BinaryNode received, uint timestamp, uint registrationId)
+        {
+            if (received == null) throw new ProtocolException("there is nothing to ask again for");
+
+            string id = received.Attrs["id"];
+            string from = received.Attrs["from"];
+            if (string.IsNullOrEmpty(id) || string.IsNullOrEmpty(from))
+            {
+                throw new ProtocolException("a retry receipt needs the message's id and its sender");
+            }
+
+            var retry = new BinaryNode("retry");
+            retry.Attrs.Add("count", "1");
+            retry.Attrs.Add("id", id);
+            retry.Attrs.Add("t", timestamp.ToString());
+            retry.Attrs.Add("v", "1");
+
+            var receipt = new BinaryNode("receipt");
+            receipt.Attrs.Add("id", id);
+            receipt.Attrs.Add("to", from);
+            receipt.Attrs.Add("type", "retry");
+
+            string participant = received.Attrs["participant"];
+            if (!string.IsNullOrEmpty(participant)) receipt.Attrs.Add("participant", participant);
+
+            // The registration id is what makes the sender look at its own session: the
+            // reference ships it in this node (`messages-recv`, `sendRetryRequest`) and the
+            // sending side compares it with the id inside the session it holds - a mismatch is
+            // "this device is not the one I was talking to" and the session is thrown away in
+            // favour of a fresh pre-key message (`sendMessagesAgain`, `reg id mismatch on retry
+            // without bundle, deleting session`). Without it a retry is only "send it again",
+            // which for a session built against an identity this phone no longer has is the same
+            // unreadable message over and over.
+            var registration = new BinaryNode("registration");
+            registration.Content = BigEndian(registrationId, 4);
+
+            receipt.Content = new List<BinaryNode> { retry, registration };
+
+            return receipt;
+        }
+
+        /// <summary>Four bytes, most significant first: the shape the reference writes a registration id in.</summary>
+        private static byte[] BigEndian(uint value, int bytes)
+        {
+            var result = new byte[bytes];
+            for (int i = 0; i < bytes; i++) result[bytes - 1 - i] = (byte)(value >> (8 * i));
+
+            return result;
+        }
+
+        /// <summary>
         /// A receipt: `read` is what tells the other phone its ticks turn blue, and it
         /// carries the time it happened. The reference sends the first id as the receipt's
         /// own id and the rest in children, which is the shape this keeps.
@@ -468,15 +559,75 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The responder session the first message of a conversation starts: the wrapper
-        /// names the signed pre-key and, when the sender had one, a one-time pre-key -
-        /// which is spent here, so the same message cannot be opened twice with it.
+        /// The session a stanza is opened with - and the one decision that decides whether a
+        /// message can ever be read again.
+        ///
+        /// A pre-key message is not only how a conversation starts: it is how it *restarts*. A
+        /// sender wraps one whenever it has no session it trusts (a re-pair here, a reset there,
+        /// a retry receipt it answered by rebuilding), and the wrapper carries the base key of
+        /// the agreement it ran. The reference keeps the sessions it has answered by that key
+        /// (`libsignal`, `session_builder.initIncoming`: it returns early when
+        /// `record.getSession(message.baseKey)` finds one, and otherwise closes the open session
+        /// and sets the new one), so the question is never "is there a session" but "is there a
+        /// session for *this* key".
+        ///
+        /// Reading it as "is there a session" is what the phone showed on 2026-10-18: a pairing
+        /// minted a new identity, every stored session had been built with the old one, and the
+        /// pre-key message that would have rebuilt them was opened with the stale record - so
+        /// every message from every peer, the account's own phone included, failed with "the
+        /// message's MAC does not verify", and no retry could ever succeed.
+        ///
+        /// A base key already answered is the re-delivery case, and it must keep the stored
+        /// session: the one-time pre-key that started it has been spent, and re-running the
+        /// agreement would be refused - correctly (`StartResponder`).
         /// </summary>
-        private static SessionRecord StartResponder(byte[] wire, string from, Credentials credentials,
-            PreKeyStore preKeys, SessionStore sessions, IRandomSource random)
+        private static SessionRecord SessionFor(byte[] wire, bool preKey, string from,
+            Credentials credentials, SessionStore sessions, PreKeyStore preKeys,
+            IRandomSource random, out uint usedPreKeyId)
         {
-            PreKeySignalMessage envelope = PreKeySignalMessage.Decode(SignalEnvelope.Unwrap(wire));
+            usedPreKeyId = 0;
 
+            SessionRecord stored = sessions.Load(from);
+
+            if (!preKey)
+            {
+                if (stored == null || !stored.HasSession)
+                {
+                    throw new ProtocolException("it is not a pre-key message and there is no session with " + from);
+                }
+
+                return stored;
+            }
+
+            PreKeySignalMessage envelope = PreKeySignalMessage.Decode(SignalEnvelope.Unwrap(wire));
+            if (stored != null && stored.HasSession && stored.KnowsTheirBaseKey(envelope.BaseKey))
+            {
+                return stored;
+            }
+
+            // A key this record has not answered: the peer started over, and the session it
+            // started replaces the one on disk (the caller saves it once the message opens).
+            return StartResponder(envelope, from, credentials, preKeys, random, out usedPreKeyId);
+        }
+
+        /// <summary>
+        /// The responder session the first message of a conversation starts.
+        ///
+        /// The wrapper names the signed pre-key and, when the sender had one, a one-time
+        /// pre-key. Both are looked up and **not spent**: a name is not authentication, and
+        /// spending the key before the ciphertext has opened deletes the only key a retry
+        /// could use. The caller spends it after the message has decrypted and the session
+        /// has been saved (`usedPreKeyId` is that id, zero when none was named).
+        ///
+        /// A named pre-key this device does not hold is a refusal, never a session: X3DH
+        /// without it is a different agreement - four Diffie-Hellmans instead of five - and
+        /// the peer that computed five would fail the MAC on every message of the session.
+        /// That is exactly what the phone logged on 2026-10-17, and the session was saved
+        /// before anybody noticed.
+        /// </summary>
+        private static SessionRecord StartResponder(PreKeySignalMessage envelope, string from, Credentials credentials,
+            PreKeyStore preKeys, IRandomSource random, out uint usedPreKeyId)
+        {
             byte[] signedPrivate = preKeys.SignedPreKeyPrivate;
             if (signedPrivate == null || envelope.SignedPreKeyId != preKeys.SignedPreKeyId)
             {
@@ -484,15 +635,26 @@ namespace WhatsappApp.Protocol.Client
                     + envelope.SignedPreKeyId + " and this device holds " + preKeys.SignedPreKeyId);
             }
 
-            byte[] oneTime = envelope.HasPreKey ? preKeys.Consume(envelope.PreKeyId) : null;
+            byte[] oneTime = null;
+            if (envelope.HasPreKey)
+            {
+                oneTime = preKeys.Find(envelope.PreKeyId);
+                if (oneTime == null)
+                {
+                    throw new ProtocolException("the message from " + from + " names one-time pre-key "
+                        + envelope.PreKeyId + " and this device no longer holds it: the agreement "
+                        + "it was part of cannot be repeated");
+                }
+            }
 
-            SessionRecord started = SessionRecord.StartAsResponder(
+            usedPreKeyId = envelope.HasPreKey ? envelope.PreKeyId : 0;
+
+            // Not saved here: a session is worth keeping only once it has opened the message
+            // that created it. The caller saves it after `Decrypt`, which is the difference
+            // between one unreadable delivery and a peer this phone can never read again.
+            return SessionRecord.StartAsResponder(
                 credentials.IdentityPrivateKey, signedPrivate, oneTime,
                 credentials.RegistrationId, envelope, random);
-
-            sessions.Save(from, started);
-
-            return sessions.Load(from);
         }
 
         /// <summary>
@@ -562,6 +724,18 @@ namespace WhatsappApp.Protocol.Client
             if (_ids.Count > _limit) _ids.RemoveAt(0);
 
             return true;
+        }
+
+        /// <summary>
+        /// Forgets an id. Called when the stanza it belongs to could not be read: seen is
+        /// what stops a message being shown twice, and a message that was never shown must
+        /// not be remembered as one.
+        /// </summary>
+        public void Forget(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+
+            _ids.Remove(id);
         }
     }
 }

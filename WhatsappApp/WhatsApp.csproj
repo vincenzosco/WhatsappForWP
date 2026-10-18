@@ -130,6 +130,7 @@
     <Compile Include="Services\RecordingSession.cs" />
     <Compile Include="Services\ConversationView.cs" />
     <Compile Include="Services\CrashReport.cs" />
+    <Compile Include="Protocol\Client\ClientState.cs" />
     <Compile Include="Protocol\Client\CredentialStore.cs" />
     <Compile Include="Protocol\Client\ConnectionPolicy.cs" />
     <Compile Include="Protocol\Client\Conversation.cs" />
