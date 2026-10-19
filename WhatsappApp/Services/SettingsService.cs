@@ -19,6 +19,7 @@ namespace WhatsappApp.Services
     public static class SettingsService
     {
         private const string KeyNotifications = "NotificationsEnabled";
+        private const string KeyBackgroundCheck = "BackgroundCheckEnabled";
         private const string KeyDeviceId = "DeviceId";
 
         private static ApplicationDataContainer Settings
@@ -32,6 +33,7 @@ namespace WhatsappApp.Services
         private static bool _loaded;
         private static string _deviceId;
         private static bool _notificationsEnabled;
+        private static bool _backgroundCheckEnabled = true;
 
         private static void EnsureLoaded()
         {
@@ -39,6 +41,7 @@ namespace WhatsappApp.Services
 
             _deviceId = ReadString(KeyDeviceId, "");
             _notificationsEnabled = ReadBool(KeyNotifications, true);
+            _backgroundCheckEnabled = ReadBool(KeyBackgroundCheck, true);
 
             _loaded = true;
         }
@@ -118,6 +121,22 @@ namespace WhatsappApp.Services
                 EnsureLoaded();
                 _notificationsEnabled = value;
                 Settings.Values[KeyNotifications] = value;
+            }
+        }
+
+        /// <summary>
+        /// Whether the app may wake itself every 30 minutes to check the messages
+        /// (see `BackgroundSync`). On by default: a phone whose app is closed receives
+        /// nothing otherwise, and the user can turn it off from the settings.
+        /// </summary>
+        public static bool BackgroundCheckEnabled
+        {
+            get { EnsureLoaded(); return _backgroundCheckEnabled; }
+            set
+            {
+                EnsureLoaded();
+                _backgroundCheckEnabled = value;
+                Settings.Values[KeyBackgroundCheck] = value;
             }
         }
 

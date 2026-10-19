@@ -227,6 +227,26 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Ends the connection on purpose. A background task is one check and not a
+        /// session: without this the login loop would sit in its wait and keep the
+        /// process alive until the system kills it.
+        ///
+        /// The flag is what the loop reads between attempts; closing the session is
+        /// what ends the read that is happening now, and its failure is the loop
+        /// leaving, not a fault.
+        /// </summary>
+        public void Stop()
+        {
+            _running = false;
+
+            NativeSession session = _session;
+            if (session != null) session.Close();
+
+            Status = "stopped on request";
+            Diag.Ok("native: stopped on request");
+        }
+
+        /// <summary>
         /// The account, kept open: one login, the reading that follows it, and - when the
         /// connection ends for a reason that is not the account's death - the wait and the
         /// next login.

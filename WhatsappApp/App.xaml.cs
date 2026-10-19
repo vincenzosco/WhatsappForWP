@@ -360,6 +360,12 @@ namespace WhatsappApp
             // (see NativeConnection). A start with no account stored does nothing
             // here, and the QR of PairPage is the page.
             NativeConnection.Instance.Start();
+
+            // The periodic check while the app is suspended. It is the only way a
+            // message that arrives with the app closed reaches the tile, the badge
+            // and the lock screen: the socket does not survive a suspension, and
+            // there is no push service behind this client (see BackgroundSync).
+            BackgroundSync.Start();
         }
 
         /// <summary>

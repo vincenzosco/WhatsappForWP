@@ -403,6 +403,12 @@
   <data name="Settings_ThemeHint.Text" xml:space="preserve">
     <value>Lo sfondo delle chat e dell'elenco. La scelta vale per tutta l'app.</value>
   </data>
+  <data name="Settings_BackgroundLabel.Text" xml:space="preserve">
+    <value>Controllo in background</value>
+  </data>
+  <data name="Settings_BackgroundHint.Text" xml:space="preserve">
+    <value>Ogni 30 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. Windows decide il momento esatto e puo' rimandarlo.</value>
+  </data>
   <data name="Settings_AccountLabel.Text" xml:space="preserve">
     <value>Account</value>
   </data>

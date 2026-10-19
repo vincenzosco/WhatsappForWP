@@ -18,6 +18,13 @@ namespace WhatsappApp.Pages
     /// </summary>
     public sealed partial class SettingsPage : Page
     {
+        /// <summary>
+        /// True while the page is filling itself: setting `IsOn` raises `Toggled`, and
+        /// without this the page would write the setting it just read and register the
+        /// task again every time it opens.
+        /// </summary>
+        private bool _loading;
+
         public SettingsPage()
         {
             this.InitializeComponent();
@@ -33,6 +40,28 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
             Diag.Ok("settings: " + ThemeService.Choices.Count + " theme(s), current " + ThemeService.Current);
+
+            _loading = true;
+            BackgroundToggle.IsOn = SettingsService.BackgroundCheckEnabled;
+            _loading = false;
+        }
+
+        /// <summary>
+        /// The periodic check is a registration with the system, not only a flag: the
+        /// switch writes the choice and registers or cancels the task (see
+        /// `BackgroundSync`). The first time it is turned on, Windows may ask for the
+        /// permission a background task needs.
+        /// </summary>
+        private void BackgroundToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.BackgroundCheckEnabled = BackgroundToggle.IsOn;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("SettingsPage/background",
+                BackgroundSync.SetEnabledAsync(BackgroundToggle.IsOn));
+#pragma warning restore 4014
         }
 
         /// <summary>

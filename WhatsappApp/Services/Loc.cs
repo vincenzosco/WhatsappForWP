@@ -1,5 +1,6 @@
 using System;
 using Windows.ApplicationModel.Resources;
+using Windows.Storage;
 
 namespace WhatsappApp.Services
 {
@@ -58,12 +59,61 @@ namespace WhatsappApp.Services
                 try { loader.GetString("Nav_Chats"); }
                 catch (Exception ex) { Diag.Failed("Loc.Prewarm", ex); }
             }
+
+            // The strings a background task draws on the tile are not reachable from
+            // there: a background task has no view and no ResourceLoader. They are
+            // written down here, on the UI thread, and `Get` reads the copy when the
+            // loader is unavailable.
+            RememberForBackground("TileUnreadOne", "1 unread message");
+            RememberForBackground("TileUnreadMany", "{0} unread messages");
+        }
+
+        /// <summary>
+        /// Reads a string now and keeps it in LocalSettings, so a process without a
+        /// view (the background check) can still draw it in the user's language.
+        /// </summary>
+        private static void RememberForBackground(string key, string fallback)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values["Loc." + key] = Get(key, fallback);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Loc.RememberForBackground " + key, ex);
+            }
+        }
+
+        /// <summary>The copy written by `RememberForBackground`, or null.</summary>
+        private static string RememberedForBackground(string key)
+        {
+            try
+            {
+                object value;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue("Loc." + key, out value) && value != null)
+                {
+                    string text = value.ToString();
+                    if (!string.IsNullOrEmpty(text)) return text;
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Loc.RememberedForBackground " + key, ex);
+            }
+
+            return null;
         }
 
         public static string Get(string key, string fallback)
         {
             var loader = Loader;
-            if (loader == null) return fallback;
+            if (loader == null)
+            {
+                // A background task: no view, so no ResourceLoader - the copy the
+                // UI thread wrote is the only localized source left.
+                string remembered = RememberedForBackground(key);
+                return remembered ?? fallback;
+            }
 
             try
             {

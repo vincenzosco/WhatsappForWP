@@ -953,7 +953,7 @@ namespace WhatsappApp.Services
                 string tileAvatar = contact.AvatarData;
                 if (string.IsNullOrEmpty(tileAvatar)) tileAvatar = AvatarCache.Get(message.ChatId);
 
-                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar);
+                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar, message.Text);
             }
 
             NotificationService.SetUnread(TotalUnread());
