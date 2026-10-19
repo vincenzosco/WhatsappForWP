@@ -59,13 +59,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="Nav_Chats" xml:space="preserve">
-    <value>chats</value>
+    <value>Chats</value>
   </data>
   <data name="Nav_Status" xml:space="preserve">
-    <value>status</value>
+    <value>Status</value>
   </data>
   <data name="Nav_Calls" xml:space="preserve">
-    <value>calls</value>
+    <value>Calls</value>
   </data>
   <data name="ChatsPage_EmptyTitle.Text" xml:space="preserve">
     <value>No chats yet</value>
@@ -84,9 +84,6 @@
   </data>
   <data name="CallsPage_Scanning" xml:space="preserve">
     <value>Looking for calls...</value>
-  </data>
-  <data name="CallsPage_Refresh.Content" xml:space="preserve">
-    <value>Refresh</value>
   </data>
   <data name="CallsPage_Answered" xml:space="preserve">
     <value>Answered call</value>
@@ -112,11 +109,8 @@
   <data name="CallsPage_NotConnected" xml:space="preserve">
     <value>Not connected to the server: call records are unavailable.</value>
   </data>
-  <data name="StatusPage_Title.Text" xml:space="preserve">
-    <value>Status</value>
-  </data>
-  <data name="CallsPage_Title.Text" xml:space="preserve">
-    <value>Calls</value>
+  <data name="Common_Refresh" xml:space="preserve">
+    <value>refresh</value>
   </data>
   <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
     <value>New chat</value>
@@ -399,6 +393,36 @@
   </data>
   <data name="ChatsPage_NotConnected" xml:space="preserve">
     <value>Connecting to WhatsApp...</value>
+  </data>
+  <data name="Settings_Title.Text" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_ThemeLabel.Text" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_ThemeHint.Text" xml:space="preserve">
+    <value>The background of chats and of the list. The choice applies to the whole app.</value>
+  </data>
+  <data name="Settings_AccountLabel.Text" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Settings_AccountHint.Text" xml:space="preserve">
+    <value>The linked number, the state of the connection and linking another phone.</value>
+  </data>
+  <data name="Settings_AccountButton.Content" xml:space="preserve">
+    <value>Account and connection</value>
+  </data>
+  <data name="Settings_ThemePlainSample.Text" xml:space="preserve">
+    <value>Aa</value>
+  </data>
+  <data name="Settings_ThemeClassic" xml:space="preserve">
+    <value>Classic</value>
+  </data>
+  <data name="Settings_ThemePlain" xml:space="preserve">
+    <value>White</value>
+  </data>
+  <data name="Settings_ThemeWallpaper" xml:space="preserve">
+    <value>Wallpaper</value>
   </data>
 </root>
 

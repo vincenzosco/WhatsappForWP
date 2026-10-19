@@ -8,7 +8,6 @@
     <Page.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
-        <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
     </Page.Resources>
 
     <Grid>
@@ -19,7 +18,7 @@
 
         <!-- Header: back + title. As on the other pages, the bar is drawn here
              and the handler writes the title with Loc.Get. -->
-        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
+        <Grid Grid.Row="0" Background="White" Height="72">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -31,7 +30,7 @@
                     Width="48" Height="48" Margin="0,4,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
-                <Path Stroke="White" StrokeThickness="2.4"
+                <Path Stroke="#FF333333" StrokeThickness="2.4"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                       Width="24" Height="24">
                     <!-- IconBack -->
@@ -51,7 +50,7 @@
 
             <TextBlock x:Name="TitleText" Grid.Column="1"
                        VerticalAlignment="Center" Margin="8,0,0,4"
-                       Foreground="White" FontSize="18" FontWeight="SemiBold"
+                       Foreground="#FF333333" FontSize="40" FontFamily="Segoe WP Semilight"
                        TextTrimming="WordEllipsis"/>
         </Grid>
 
@@ -81,43 +80,43 @@
                 </Border>
 
                 <TextBlock x:Name="NameText" FontSize="24" FontWeight="SemiBold"
-                           Foreground="#DE000000" HorizontalAlignment="Center"
+                           Foreground="#FF333333" HorizontalAlignment="Center"
                            TextTrimming="WordEllipsis" Margin="16,0,16,0"/>
 
-                <TextBlock x:Name="NumberLabel" FontSize="13" Foreground="#8A000000"
+                <TextBlock x:Name="NumberLabel" FontSize="13" Foreground="#FF939393"
                            HorizontalAlignment="Center" Margin="16,8,16,0"
                            Visibility="Collapsed"/>
-                <TextBlock x:Name="NumberText" FontSize="18" Foreground="#DE000000"
+                <TextBlock x:Name="NumberText" FontSize="18" Foreground="#FF333333"
                            HorizontalAlignment="Center" Margin="16,0,16,0"
                            Visibility="Collapsed"/>
 
-                <TextBlock x:Name="AboutLabel" FontSize="13" Foreground="#8A000000"
+                <TextBlock x:Name="AboutLabel" FontSize="13" Foreground="#FF939393"
                            Margin="16,20,16,0" Visibility="Collapsed"/>
-                <TextBlock x:Name="AboutText" FontSize="17" Foreground="#DE000000"
+                <TextBlock x:Name="AboutText" FontSize="17" Foreground="#FF333333"
                            TextWrapping="Wrap" Margin="16,2,16,0" Visibility="Collapsed"/>
 
                 <StackPanel x:Name="BusinessPanel" Visibility="Collapsed" Margin="16,24,16,0">
                     <TextBlock x:Name="BusinessLabel" FontSize="18" FontWeight="SemiBold"
-                               Foreground="#DE000000"/>
-                    <TextBlock x:Name="BusinessEmailLabel" FontSize="13" Foreground="#8A000000"
+                               Foreground="#FF333333"/>
+                    <TextBlock x:Name="BusinessEmailLabel" FontSize="13" Foreground="#FF939393"
                                Margin="0,10,0,0" Visibility="Collapsed"/>
-                    <TextBlock x:Name="BusinessEmailText" FontSize="16" Foreground="#DE000000"
+                    <TextBlock x:Name="BusinessEmailText" FontSize="16" Foreground="#FF333333"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
-                    <TextBlock x:Name="BusinessAddressLabel" FontSize="13" Foreground="#8A000000"
+                    <TextBlock x:Name="BusinessAddressLabel" FontSize="13" Foreground="#FF939393"
                                Margin="0,10,0,0" Visibility="Collapsed"/>
-                    <TextBlock x:Name="BusinessAddressText" FontSize="16" Foreground="#DE000000"
+                    <TextBlock x:Name="BusinessAddressText" FontSize="16" Foreground="#FF333333"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
-                    <TextBlock x:Name="BusinessCategoriesLabel" FontSize="13" Foreground="#8A000000"
+                    <TextBlock x:Name="BusinessCategoriesLabel" FontSize="13" Foreground="#FF939393"
                                Margin="0,10,0,0" Visibility="Collapsed"/>
-                    <TextBlock x:Name="BusinessCategoriesText" FontSize="16" Foreground="#DE000000"
+                    <TextBlock x:Name="BusinessCategoriesText" FontSize="16" Foreground="#FF333333"
                                TextWrapping="Wrap" Visibility="Collapsed"/>
-                    <TextBlock x:Name="BusinessHoursLabel" FontSize="13" Foreground="#8A000000"
+                    <TextBlock x:Name="BusinessHoursLabel" FontSize="13" Foreground="#FF939393"
                                Margin="0,10,0,0" Visibility="Collapsed"/>
                     <ListView x:Name="HoursList" SelectionMode="None" IsHitTestVisible="False"
                               MaxHeight="240">
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Display}" Foreground="#DE000000"
+                                <TextBlock Text="{Binding Display}" Foreground="#FF333333"
                                            FontSize="16" TextWrapping="Wrap" Margin="0,2,0,2"/>
                             </DataTemplate>
                         </ListView.ItemTemplate>
@@ -126,11 +125,11 @@
 
                 <StackPanel x:Name="GroupPanel" Visibility="Collapsed" Margin="16,24,16,0">
                     <TextBlock x:Name="GroupDescriptionLabel" FontSize="18" FontWeight="SemiBold"
-                               Foreground="#DE000000" Visibility="Collapsed"/>
-                    <TextBlock x:Name="GroupDescriptionText" FontSize="16" Foreground="#DE000000"
+                               Foreground="#FF333333" Visibility="Collapsed"/>
+                    <TextBlock x:Name="GroupDescriptionText" FontSize="16" Foreground="#FF333333"
                                TextWrapping="Wrap" Margin="0,4,0,0" Visibility="Collapsed"/>
                     <TextBlock x:Name="MembersLabel" FontSize="18" FontWeight="SemiBold"
-                               Foreground="#DE000000" Margin="0,18,0,0"/>
+                               Foreground="#FF333333" Margin="0,18,0,0"/>
                     <ListView x:Name="MembersList" SelectionMode="None" IsHitTestVisible="False"
                               MaxHeight="320">
                         <ListView.ItemTemplate>
@@ -141,10 +140,10 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Grid.Column="0" Text="{Binding Display}"
-                                               Foreground="#DE000000" FontSize="16"
+                                               Foreground="#FF333333" FontSize="16"
                                                TextTrimming="WordEllipsis"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Role}"
-                                               Foreground="#8A000000" FontSize="13"
+                                               Foreground="#FF939393" FontSize="13"
                                                Margin="8,0,0,0"
                                                Visibility="{Binding IsRoleVisible, Converter={StaticResource BoolToVisibility}}"/>
                                 </Grid>
@@ -153,7 +152,7 @@
                     </ListView>
                 </StackPanel>
 
-                <TextBlock x:Name="EmptyText" FontSize="15" Foreground="#8A000000"
+                <TextBlock x:Name="EmptyText" FontSize="15" Foreground="#FF939393"
                            TextWrapping="Wrap" Margin="16,24,16,0" Visibility="Collapsed"/>
             </StackPanel>
         </ScrollViewer>

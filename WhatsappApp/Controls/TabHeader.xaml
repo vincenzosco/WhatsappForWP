@@ -1,0 +1,106 @@
+<UserControl
+    x:Class="WhatsappApp.Controls.TabHeader"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <UserControl.Resources>
+        <!-- The tab strip of WhatsApp.ContactsPage, read out of the package:
+             labels at 32 px, the selected one in the accent, a 2 px accent
+             underline under it and a 24 px circle with a 16 px count beside
+             the words that have one (TabHeaderControl in WhatsApp.dll).
+
+             The buttons are transparent and fill their star column; the two
+             theme minimums (109 x 57.5) are zeroed or the three tabs would
+             not fit a 480 px screen. -->
+        <Style x:Key="TabButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="TabLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="32"/>
+            <Setter Property="FontFamily" Value="Segoe WP Semilight"/>
+            <Setter Property="Foreground" Value="#FF333333"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Resources>
+
+    <!-- The columns are as wide as their words, not a third each: at 32 px
+         "chiamate" is wider than a third of a 480 px screen, and an equal
+         column clipped the c off its left edge (the same reason the released
+         Pivot sizes its headers to the labels). -->
+    <!-- Transparent: the home page paints the chosen wallpaper under this strip,
+         and an opaque white band here would cut the theme in two. -->
+    <Grid Background="Transparent" Margin="12,2,12,0">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+            <ColumnDefinition Width="Auto"/>
+        </Grid.ColumnDefinitions>
+
+        <Button x:Name="ChatsTabButton" Grid.Column="0"
+                Style="{StaticResource TabButtonStyle}"
+                Margin="0,0,18,0"
+                Click="ChatsTabButton_Click">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock x:Name="ChatsTabLabel" Style="{StaticResource TabLabelStyle}"/>
+                    <Border x:Name="ChatsTabBadge" Background="{StaticResource WhatsAppAccentBrush}"
+                            Width="24" Height="24" CornerRadius="12"
+                            Margin="8,3,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="ChatsTabBadgeText" Foreground="White"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
+                <Rectangle x:Name="ChatsTabUnderline" Height="2" Margin="0,4,0,0"
+                           Fill="{StaticResource WhatsAppAccentBrush}" Visibility="Collapsed"/>
+            </StackPanel>
+        </Button>
+
+        <Button x:Name="StatusTabButton" Grid.Column="1"
+                Style="{StaticResource TabButtonStyle}"
+                Margin="0,0,18,0"
+                Click="StatusTabButton_Click">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock x:Name="StatusTabLabel" Style="{StaticResource TabLabelStyle}"/>
+                    <Border x:Name="StatusTabBadge" Background="{StaticResource WhatsAppAccentBrush}"
+                            Width="24" Height="24" CornerRadius="12"
+                            Margin="8,3,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="StatusTabBadgeText" Foreground="White"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
+                <Rectangle x:Name="StatusTabUnderline" Height="2" Margin="0,4,0,0"
+                           Fill="{StaticResource WhatsAppAccentBrush}" Visibility="Collapsed"/>
+            </StackPanel>
+        </Button>
+
+        <Button x:Name="CallsTabButton" Grid.Column="2"
+                Style="{StaticResource TabButtonStyle}"
+                Click="CallsTabButton_Click">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <TextBlock x:Name="CallsTabLabel" Style="{StaticResource TabLabelStyle}"/>
+                    <Border x:Name="CallsTabBadge" Background="{StaticResource WhatsAppAccentBrush}"
+                            Width="24" Height="24" CornerRadius="12"
+                            Margin="8,3,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="CallsTabBadgeText" Foreground="White"
+                                   FontSize="16" FontWeight="SemiBold"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </StackPanel>
+                <Rectangle x:Name="CallsTabUnderline" Height="2" Margin="0,4,0,0"
+                           Fill="{StaticResource WhatsAppAccentBrush}" Visibility="Collapsed"/>
+            </StackPanel>
+        </Button>
+    </Grid>
+</UserControl>

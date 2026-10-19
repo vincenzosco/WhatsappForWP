@@ -63,6 +63,27 @@ namespace WhatsappApp.Protocol.Client
         public uint Timestamp;
 
         /// <summary>
+        /// The name the sender goes by on WhatsApp (`notify`), or null when the stanza does
+        /// not carry one.
+        ///
+        /// It is not decoration and it is not the address book: it is what the person chose
+        /// themselves, and without it a row for somebody who has written once still shows a
+        /// phone number. A value made only of spaces or invisible fillers is not a name, so it
+        /// is answered as null here rather than at every reader.
+        /// </summary>
+        public string PushName;
+
+        /// <summary>
+        /// The phone-number JID behind a `@lid` sender (`sender_pn` on a one-to-one message,
+        /// `participant_pn` in a group), or null when the stanza does not say.
+        ///
+        /// Why the stanza and not a query: WhatsApp migrated chats to LIDs, and every message
+        /// already carries the real number beside it. A client that ignores this attribute can
+        /// only print the LID, which is not a number anybody can dial.
+        /// </summary>
+        public string PhoneNumber;
+
+        /// <summary>
         /// True when the copy is our own, sent by another device of this account: the
         /// stanza comes from one of our own JIDs and carries a device-sent form, and a chat
         /// that showed it would show every message a person sends from their own phone.
@@ -107,15 +128,30 @@ namespace WhatsappApp.Protocol.Client
             // again - it re-delivers what nobody acknowledged - or one transient failure
             // would hide the message for the rest of the run, and from the log that is
             // supposed to say what happened.
+            IncomingMessage incoming;
             try
             {
-                return ReadStanza(message, credentials, sessions, preKeys, random, id, from);
+                incoming = ReadStanza(message, credentials, sessions, preKeys, random, id, from);
             }
             catch (Exception)
             {
                 if (seen != null) seen.Forget(id);
                 throw;
             }
+
+            incoming.PushName = NameBook.Clean(message.Attrs["notify"]);
+            incoming.PhoneNumber = Jid(message.Attrs["sender_pn"]);
+            if (incoming.PhoneNumber == null) incoming.PhoneNumber = Jid(message.Attrs["participant_pn"]);
+
+            return incoming;
+        }
+
+        /// <summary>The stanza's phone-number JID, or null when it names none.</summary>
+        private static string Jid(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return null;
+
+            return value.IndexOf("@lid", StringComparison.OrdinalIgnoreCase) >= 0 ? null : value;
         }
 
         /// <summary>

@@ -2,20 +2,27 @@
 /**
  * tools/make-brand-assets.js
  *
- * Riscrive tile, icone e splash screen del marchio WhatsApp in
- * WhatsappApp/Assets/.
+ * Riscrive tile, icone, splash e sfondo di WhatsappApp/Assets/ partendo dagli
+ * asset del pacchetto ufficiale WhatsApp per WP8.1, copiati in
+ * tools/brand/official/ (Icon1.png, Images/Tile*.png, Images/Background.jpg,
+ * Images/logo.png, SplashScreenImage.jpg).
  *
- * Il marchio non e' piu' disegnato a vettori: si parte dall'immagine di
- * riferimento committata in tools/brand/logo-source.png (il logo verde su fondo
- * bianco), si toglie il fondo e lo si compone su trasparente (tile), su bianco
- * (icone quadrate e tile larga) o sul gradiente verde (splash).
+ * Perche' non si disegna piu' il marchio: il pacchetto ufficiale porta gia' il
+ * disegno giusto per ogni misura, cioe' il glifo bianco su trasparente per le
+ * tile (che il manifest mette sul verde #45D82C) e l'icona verde per la lista
+ * app. Ricomporlo a mano dava una tile diversa da quella vera.
  *
- * Non serve nessuno strumento esterno: il PNG viene letto e scritto con lo
- * zlib di Node. I PNG generati sono committati, quindi lo script gira solo
- * quando cambia la grafica.
+ * Le uniche misure che il pacchetto non ha sono le due dell'icona della tile
+ * (200 e 480), lo StoreLogo (120) e lo splash che il manifest chiede a 1152x1920:
+ * quelle si ricavano da Icon1.png e dallo splash 480x800 con un filtro
+ * triangolare, e lo splash ricavato e' committato in official/ perche' il
+ * sorgente e' un JPEG e questo script legge solo PNG.
+ *
+ * I PNG generati sono committati, quindi lo script gira solo quando cambia la
+ * grafica.
  *
  * Usage:
- *   node tools/make-brand-assets.js              # riscrive i PNG
+ *   node tools/make-brand-assets.js              # riscrive i file
  *   node tools/make-brand-assets.js --preview    # riscrive + anteprima ASCII
  */
 'use strict';
@@ -26,14 +33,8 @@ const zlib = require('zlib');
 
 const ROOT = path.resolve(__dirname, '..');
 const OUT_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
-const SOURCE = path.join(__dirname, 'brand', 'logo-source.png');
+const OFFICIAL = path.join(__dirname, 'brand', 'official');
 const PREVIEW = process.argv.includes('--preview');
-
-// Palette WhatsApp. Le icone quadrate e la tile larga sono bianche: il marchio
-// e' verde, e su un fondo verde non si distingueva.
-const WHITE = '#FFFFFF';       // sfondo di icone e tile
-const GREEN_MID = '#128C7E';   // splash, in alto
-const GREEN_DARK = '#075E54';  // splash, in basso (come l'header dell'app)
 
 // PNG -----------------------------------------------------------------------
 
@@ -66,9 +67,9 @@ function chunk(type, data) {
  * Decodifica un PNG a 8 bit, non interlacciato (RGBA, RGB o scala di grigi) in
  * un'immagine RGBA. `{ width, height, data }` con data lungo width*height*4.
  */
-function decodePNG(buf) {
+function decodePNG(buf, name) {
   if (buf.readUInt32BE(0) !== 0x89504e47) {
-    throw new Error('non e un PNG: ' + SOURCE);
+    throw new Error('non e un PNG: ' + (name || 'input'));
   }
   let off = 8;
   let width, height, bit, colorType, interlace;
@@ -161,110 +162,8 @@ function blank(w, h) {
   return { width: w, height: h, data: Buffer.alloc(w * h * 4) };
 }
 
-function hexToRgb(hex) {
-  const n = parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
 function clamp255(v) {
   return v < 0 ? 0 : v > 255 ? 255 : Math.round(v);
-}
-
-// Immagini ------------------------------------------------------------------
-
-/** Gradiente verticale dal colore in alto a quello in basso. */
-function gradient(w, h, topHex, bottomHex) {
-  const top = hexToRgb(topHex);
-  const bottom = hexToRgb(bottomHex);
-  const img = blank(w, h);
-  for (let y = 0; y < h; y++) {
-    const f = h === 1 ? 0 : y / (h - 1);
-    const r = Math.round(top[0] + (bottom[0] - top[0]) * f);
-    const g = Math.round(top[1] + (bottom[1] - top[1]) * f);
-    const b = Math.round(top[2] + (bottom[2] - top[2]) * f);
-    for (let x = 0; x < w; x++) {
-      const o = (y * w + x) * 4;
-      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = b; img.data[o + 3] = 255;
-    }
-  }
-  return img;
-}
-
-/** Un riempimento pieno: lo sfondo delle icone, che non e' piu' un gradiente. */
-function solid(w, h, hex) {
-  const c = hexToRgb(hex);
-  const img = blank(w, h);
-  for (let p = 0; p < w * h; p++) {
-    const o = p * 4;
-    img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
-  }
-  return img;
-}
-
-/**
- * Il marchio, ricavato da tools/brand/logo-source.png.
- *
- * L'immagine e' il logo verde su fondo bianco, con un'ombra grigia intorno.
- * L'alpha viene dalla "verdosita'" del pixel - g meno il maggiore fra r e b -
- * cosi' il bianco e il grigio dell'ombra, che hanno r=g=b, spariscono mentre i
- * bordi del verde restano morbidi; la cornetta bianca interna diventa il buco
- * trasparente. Il marchio e' di un verde piatto, quindi tutti i pixel opachi
- * prendono il colore pieno (il pixel piu' verde dell'immagine) invece del
- * colore mescolato col bianco sui bordi: nessun alone. Si ritaglia il riquadro
- * dei pixel opachi, cosi' l'ombra non lascia margine.
- */
-function loadMark() {
-  const img = decodePNG(fs.readFileSync(SOURCE));
-  const { width, height, data } = img;
-  const greenOf = (i) => data[i + 1] - Math.max(data[i], data[i + 2]);
-
-  let maxGreen = 0;
-  let pure = [0, 0, 0];
-  for (let p = 0; p < width * height; p++) {
-    const i = p * 4;
-    const v = greenOf(i);
-    if (v > maxGreen) {
-      maxGreen = v;
-      pure = [data[i], data[i + 1], data[i + 2]];
-    }
-  }
-  if (maxGreen <= 0) {
-    throw new Error('marchio vuoto: ' + path.relative(ROOT, SOURCE) + ' non contiene verde');
-  }
-
-  let minX = width, minY = height, maxX = -1, maxY = -1;
-  for (let y = 0; y < height; y++) {
-    for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
-      const v = greenOf(i);
-      let a = v <= 0 ? 0 : Math.min(1, v / maxGreen);
-      if (a < 0.02) a = 0;
-      if (a === 0) {
-        data[i + 3] = 0;
-        continue;
-      }
-      data[i] = pure[0];
-      data[i + 1] = pure[1];
-      data[i + 2] = pure[2];
-      data[i + 3] = clamp255(a * 255);
-      if (x < minX) minX = x;
-      if (x > maxX) maxX = x;
-      if (y < minY) minY = y;
-      if (y > maxY) maxY = y;
-    }
-  }
-  if (maxX < 0) {
-    throw new Error('marchio vuoto: ' + path.relative(ROOT, SOURCE) + ' non contiene verde');
-  }
-
-  const w = maxX - minX + 1;
-  const h = maxY - minY + 1;
-  const out = blank(w, h);
-  for (let y = 0; y < h; y++) {
-    const from = ((y + minY) * width + minX) * 4;
-    data.copy(out.data, y * w * 4, from, from + w * 4);
-  }
-  return out;
 }
 
 /**
@@ -333,38 +232,6 @@ function resample(src, dstW, dstH) {
   return out;
 }
 
-/** Compone src su dst con alpha over, nell'angolo (dx, dy). */
-function draw(dst, src, dx, dy) {
-  for (let y = 0; y < src.height; y++) {
-    const ty = y + dy;
-    if (ty < 0 || ty >= dst.height) continue;
-    for (let x = 0; x < src.width; x++) {
-      const tx = x + dx;
-      if (tx < 0 || tx >= dst.width) continue;
-      const s = (y * src.width + x) * 4;
-      const a = src.data[s + 3] / 255;
-      if (a <= 0) continue;
-      const d = (ty * dst.width + tx) * 4;
-      for (let c = 0; c < 3; c++) {
-        dst.data[d + c] = clamp255(src.data[s + c] * a + dst.data[d + c] * (1 - a));
-      }
-      dst.data[d + 3] = clamp255(a * 255 + dst.data[d + 3] * (1 - a));
-    }
-  }
-}
-
-/**
- * Compone il marchio, largo `inner` pixel, al centro di un canvas w x h
- * (trasparente, o sul gradiente passato in `background`), spostato di
- * `yOffset` dal centro verticale.
- */
-function placeMark(mark, w, h, inner, background, yOffset) {
-  const img = background || blank(w, h);
-  const m = resample(mark, Math.max(1, Math.round(inner)), Math.max(1, Math.round(inner)));
-  draw(img, m, Math.round((w - m.width) / 2), Math.round((h - m.height) / 2) + (yOffset || 0));
-  return img;
-}
-
 // Anteprima -----------------------------------------------------------------
 
 function preview(img, label, cols) {
@@ -397,62 +264,43 @@ function preview(img, label, cols) {
 
 // Main ----------------------------------------------------------------------
 
+function copy(name, from) {
+  fs.copyFileSync(path.join(OFFICIAL, from), path.join(OUT_DIR, name));
+  console.log(`${name.padEnd(32)} copied from official/${from}`);
+}
+
 function write(name, img) {
-  const file = path.join(OUT_DIR, name);
-  fs.writeFileSync(file, encodePNG(img));
-  return file;
+  fs.writeFileSync(path.join(OUT_DIR, name), encodePNG(img));
+  console.log(`${name.padEnd(32)} ${img.width}x${img.height} from official/Icon1.png`);
 }
 
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  const mark = loadMark();
 
-  // L'icona della tile (modello IconWithBadge): il marchio su sfondo
-  // trasparente, alla misura che il modello chiede (almeno 200x200) e alla sua
-  // versione al 240%. Il marchio NON va disegnato a tutta tile: a tutta tile il
-  // disegno sembra tagliato e ingrandito su una tile da 150 px. La misura
-  // interna e' la stessa proporzione dei logo del manifest (vedi `square`).
-  const TILE_MARK = 0.82;
-  const tiles = [['TileIcon.png', 200], ['TileIcon.scale-240.png', 480]];
-  for (const [name, size] of tiles) {
-    write(name, placeMark(mark, size, size, size * TILE_MARK));
-  }
+  // Le tile e le icone che il pacchetto ufficiale ha gia' alle misure che
+  // WinRT chiede al 240%: 150->360, 71->170, 44->106, 310x150->744x360.
+  copy('Logo.scale-240.png', 'Tile150x150.png');
+  copy('SmallLogo.scale-240.png', 'Tile44x44.png');
+  copy('Square71x71Logo.scale-240.png', 'Tile71x71.png');
+  copy('WideLogo.scale-240.png', 'Tile310x150.png');
+  copy('SplashScreen.scale-240.png', 'SplashScreen-1152x1920.png');
+  copy('ChatBackground.jpg', 'Background.jpg');
+  copy('WhatsAppLogo.png', 'logo.png');
 
-  // Asset qualificati al 240%, stesse misure in pixel di prima.
-  const square = [
-    ['Logo.scale-240.png', 360, 0.82],
-    ['SmallLogo.scale-240.png', 106, 0.88],
-    ['Square71x71Logo.scale-240.png', 170, 0.84],
-    ['StoreLogo.scale-240.png', 120, 0.84],
-  ];
-  for (const [name, size, frac] of square) {
-    write(name, placeMark(mark, size, size, size * frac, solid(size, size, WHITE)));
-  }
-
-  // tile larga
-  write('WideLogo.scale-240.png',
-    placeMark(mark, 744, 360, 360 * 0.84, solid(744, 360, WHITE)));
-
-  // splash: gradiente verde profondo, marchio poco sopra il centro verticale,
-  // che finisce sullo stesso #075E54 dell'header dell'app.
-  const splashMark = 530;
-  const splashCentreY = Math.round(1920 * 0.42);
-  const splash = placeMark(mark, 1152, 1920, splashMark,
-    gradient(1152, 1920, GREEN_MID, GREEN_DARK), splashCentreY - 960);
-  write('SplashScreen.scale-240.png', splash);
-
-  const written = fs.readdirSync(OUT_DIR).filter((f) => f.endsWith('.png')).sort();
-  for (const f of written) {
-    const { size } = fs.statSync(path.join(OUT_DIR, f));
-    console.log(`${f.padEnd(32)} ${String(size).padStart(7)} bytes`);
+  // L'icona della tile (modello IconWithBadge) e lo StoreLogo: ricavati
+  // dall'icona verde dell'app, che il pacchetto ha a 419x418.
+  const icon = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'Icon1.png')), 'Icon1.png');
+  for (const [name, size] of [
+    ['TileIcon.png', 200],
+    ['TileIcon.scale-240.png', 480],
+    ['StoreLogo.scale-240.png', 120],
+  ]) {
+    write(name, resample(icon, size, size));
   }
 
   if (PREVIEW) {
-    preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIcon.scale-240.png'))),
-      'TileIcon.scale-240.png (marchio su trasparente)', 46);
-    preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'Logo.scale-240.png'))),
-      'Logo.scale-240.png (marchio su bianco)', 46);
-    preview(splash, 'SplashScreen.scale-240.png', 46);
+    preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIcon.scale-240.png'))), 'TileIcon.scale-240.png', 40);
+    preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'Logo.scale-240.png'))), 'Logo.scale-240.png', 40);
   }
 }
 

@@ -33,10 +33,12 @@ const APP = path.join(ROOT, 'WhatsappApp');
  * tabella lo dice invece di lasciarlo arrivare sul telefono.
  */
 const TITLE_BAR = {
-  'Pages/ChatsPage.xaml': {
+  'Pages/HomePage.xaml': {
     MoreButton: 'IconOverflow',
     NewChatButton: 'IconNewChat',
-    SettingsButton: 'IconSettings'
+    SettingsButton: 'IconSettings',
+    RefreshStatusButton: 'IconRefreshStatus',
+    RefreshCallsButton: 'IconRefreshCalls'
   }
 };
 

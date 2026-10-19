@@ -162,19 +162,13 @@ namespace WhatsappApp
                     resumed,
                     SessionService.Section == AppSection.Chats);
 
-                Type startPage;
-                if (target == StartTarget.Pair)
-                {
-                    startPage = typeof(PairPage);
-                }
-                else if (target == StartTarget.LastSection)
-                {
-                    startPage = SectionNav.PageFor(SessionService.Section);
-                }
-                else
-                {
-                    startPage = typeof(ChatsPage);
-                }
+                // One page hosts all three sections now (HomePage draws the tab
+                // strip and the panes); which tab it opens is read from
+                // SessionService in its OnNavigatedTo, so "the last section" and
+                // "the chats" are the same page with a different starting tab.
+                Type startPage = target == StartTarget.Pair
+                    ? typeof(PairPage)
+                    : typeof(HomePage);
                 if (!rootFrame.Navigate(startPage, e.Arguments))
                 {
                     // The page name and the real exception, not just the template
@@ -297,8 +291,10 @@ namespace WhatsappApp
         {
             var frame = Window.Current.Content as Frame;
             if (frame == null) return AppSection.Chats;
-            if (frame.Content is StatusPage) return AppSection.Status;
-            if (frame.Content is CallsPage) return AppSection.Calls;
+
+            var home = frame.Content as HomePage;
+            if (home != null) return home.CurrentSection;
+
             return AppSection.Chats;
         }
 
@@ -315,6 +311,11 @@ namespace WhatsappApp
             // The resource loader cannot be created from a background thread:
             // it is created here, once, on the UI thread.
             Loc.Prewarm();
+
+            // The phone's accent, before the first page resolves the brushes:
+            // app bar, selected tab, badges and sent bubble all use it, which is
+            // what the official package does through PhoneAccentBrush.
+            Accent.Apply();
 
             // The ui thread's own heartbeat, before anything that could stop it: a
             // freeze is named by the thread that is still running, not by the one
@@ -453,9 +454,9 @@ namespace WhatsappApp
             // do not exist yet.
             StartServicesOnce();
             var rootFrame = EnsureFrame();
-            if (!(rootFrame.Content is ChatsPage))
+            if (!(rootFrame.Content is HomePage))
             {
-                rootFrame.Navigate(typeof(ChatsPage));
+                rootFrame.Navigate(typeof(HomePage));
             }
             Window.Current.Activate();
 

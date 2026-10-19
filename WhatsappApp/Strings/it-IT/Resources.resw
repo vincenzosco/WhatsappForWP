@@ -59,13 +59,13 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="Nav_Chats" xml:space="preserve">
-    <value>chat</value>
+    <value>Chat</value>
   </data>
   <data name="Nav_Status" xml:space="preserve">
-    <value>stato</value>
+    <value>Stato</value>
   </data>
   <data name="Nav_Calls" xml:space="preserve">
-    <value>chiamate</value>
+    <value>Chiamate</value>
   </data>
   <data name="ChatsPage_EmptyTitle.Text" xml:space="preserve">
     <value>Nessuna chat</value>
@@ -84,9 +84,6 @@
   </data>
   <data name="CallsPage_Scanning" xml:space="preserve">
     <value>Cerco le chiamate...</value>
-  </data>
-  <data name="CallsPage_Refresh.Content" xml:space="preserve">
-    <value>Aggiorna</value>
   </data>
   <data name="CallsPage_Answered" xml:space="preserve">
     <value>Chiamata risposta</value>
@@ -112,11 +109,8 @@
   <data name="CallsPage_NotConnected" xml:space="preserve">
     <value>Non connesso al server: il registro chiamate non è disponibile.</value>
   </data>
-  <data name="StatusPage_Title.Text" xml:space="preserve">
-    <value>Stato</value>
-  </data>
-  <data name="CallsPage_Title.Text" xml:space="preserve">
-    <value>Chiamate</value>
+  <data name="Common_Refresh" xml:space="preserve">
+    <value>aggiorna</value>
   </data>
   <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
     <value>Nuova chat</value>
@@ -399,6 +393,36 @@
   </data>
   <data name="ChatsPage_NotConnected" xml:space="preserve">
     <value>Connessione a WhatsApp...</value>
+  </data>
+  <data name="Settings_Title.Text" xml:space="preserve">
+    <value>Impostazioni</value>
+  </data>
+  <data name="Settings_ThemeLabel.Text" xml:space="preserve">
+    <value>Tema</value>
+  </data>
+  <data name="Settings_ThemeHint.Text" xml:space="preserve">
+    <value>Lo sfondo delle chat e dell'elenco. La scelta vale per tutta l'app.</value>
+  </data>
+  <data name="Settings_AccountLabel.Text" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Settings_AccountHint.Text" xml:space="preserve">
+    <value>Il numero collegato, lo stato della connessione e il collegamento di un altro telefono.</value>
+  </data>
+  <data name="Settings_AccountButton.Content" xml:space="preserve">
+    <value>Account e connessione</value>
+  </data>
+  <data name="Settings_ThemePlainSample.Text" xml:space="preserve">
+    <value>Aa</value>
+  </data>
+  <data name="Settings_ThemeClassic" xml:space="preserve">
+    <value>Classico</value>
+  </data>
+  <data name="Settings_ThemePlain" xml:space="preserve">
+    <value>Bianco</value>
+  </data>
+  <data name="Settings_ThemeWallpaper" xml:space="preserve">
+    <value>Sfondo</value>
   </data>
 </root>
 

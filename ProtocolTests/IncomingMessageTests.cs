@@ -42,6 +42,47 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// The two attributes the chat list needs and nothing read: the name the sender goes
+        /// by (`notify`) and the phone number behind a LID (`sender_pn`).
+        ///
+        /// They are on the stanza, not behind a query - every message carries them - so a
+        /// client that ignored them had to draw a number for somebody it had just been named.
+        /// </summary>
+        [Test]
+        public static void TheStanzaNamesItsSenderAndTheNumberBehindALid()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("ciao", "ABCDEF0123456789");
+
+            sent.Node.Attrs["notify"] = "Emanuela";
+            sent.Node.Attrs["sender_pn"] = "393492556507@s.whatsapp.net";
+
+            IncomingMessage incoming = Read(world, sent);
+
+            Assert.AreEqual("Emanuela", incoming.PushName, "notify is the name to show");
+            Assert.AreEqual("393492556507@s.whatsapp.net", incoming.PhoneNumber,
+                "sender_pn is the number the LID stands for");
+        }
+
+        /// <summary>
+        /// The placeholder WhatsApp uses for a profile with no name is a character, not an
+        /// absence: `\u3164` is a letter to Unicode, and a row whose only text is a filler is a
+        /// row that looks blank.
+        /// </summary>
+        [Test]
+        public static void TheInvisiblePlaceholderIsNotReadAsAName()
+        {
+            var world = new World();
+            Sent sent = world.PeerSends("ciao", "ABCDEF0123456788");
+
+            sent.Node.Attrs["notify"] = "\u3164";
+
+            IncomingMessage incoming = Read(world, sent);
+
+            Assert.AreEqual(null, incoming.PushName, "there is no name in an invisible filler");
+        }
+
+        /// <summary>
         /// The address it came from and the chat it belongs to are two different JIDs.
         ///
         /// A message written from a linked device arrives with the sender's device in `from`

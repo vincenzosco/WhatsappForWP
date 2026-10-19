@@ -147,6 +147,31 @@ namespace WhatsappApp.Services
             Save();
         }
 
+        /// <summary>
+        /// The same conversation under a new address: a `@lid` that turned out to have a
+        /// phone number. A pin made on the old address is a pin on the chat, so it follows;
+        /// the old entry goes, because a row that no longer exists cannot be asked about.
+        /// </summary>
+        public static void Rename(string from, string to)
+        {
+            if (string.IsNullOrEmpty(from) || string.IsNullOrEmpty(to) || from == to) return;
+
+            ChatPreference entry = Find(from);
+            if (entry == null) return;
+
+            ChatPreference into = EntryFor(to);
+            if (into != null)
+            {
+                into.Pinned = into.Pinned || entry.Pinned;
+                into.Muted = into.Muted || entry.Muted;
+                into.Hidden = into.Hidden || entry.Hidden;
+            }
+
+            Known.Remove(from);
+            Forget(to, into);
+            Save();
+        }
+
         /// <summary>The chat returns to the list. Pin and mute stay as they were.</summary>
         public static void Reveal(string chatId)
         {

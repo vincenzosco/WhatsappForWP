@@ -1,31 +1,31 @@
 using System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Navigation;
-using WhatsappApp.Controls;
 using WhatsappApp.Services;
 
-namespace WhatsappApp.Pages
+namespace WhatsappApp.Controls
 {
     /// <summary>
-    /// Call log. There is nothing to ask a server for: WhatsApp puts the call log in the
-    /// history sync (`HistorySync.callLogRecords`), so the rows arrive on their own and this
-    /// page is a view over what the client already holds (`DataService.Calls`).
+    /// The call log, the body of the Calls tab. The rows arrive with WhatsApp's
+    /// history sync, so this pane asks the client to re-tell them and draws what
+    /// comes back - it is not a page of its own any more (the official app keeps
+    /// the three sections on one Pivot).
     /// </summary>
-    public sealed partial class CallsPage : Page
+    public sealed partial class CallsPane : UserControl
     {
-        public CallsPage()
+        private bool _active;
+
+        public CallsPane()
         {
             this.InitializeComponent();
-            this.NavigationCacheMode = NavigationCacheMode.Enabled;
-
             CallsListView.ItemsSource = DataService.Instance.Calls;
         }
 
-        protected override void OnNavigatedTo(NavigationEventArgs e)
+        /// <summary>Called when this tab comes to the front.</summary>
+        public void Activate()
         {
-            base.OnNavigatedTo(e);
-            Nav.Current = AppSection.Calls;
+            if (_active) return;
+            _active = true;
 
             DataService.Instance.CallsScanCompleted -= OnCallsScanCompleted;
             DataService.Instance.CallsScanCompleted += OnCallsScanCompleted;
@@ -33,13 +33,16 @@ namespace WhatsappApp.Pages
             RefreshCalls();
         }
 
-        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        /// <summary>Called when this tab leaves the front.</summary>
+        public void Deactivate()
         {
-            base.OnNavigatedFrom(e);
+            if (!_active) return;
+            _active = false;
             DataService.Instance.CallsScanCompleted -= OnCallsScanCompleted;
         }
 
-        private void RefreshButton_Click(object sender, RoutedEventArgs e)
+        /// <summary>The app bar's refresh button.</summary>
+        public void Refresh()
         {
             RefreshCalls();
         }
@@ -71,7 +74,6 @@ namespace WhatsappApp.Pages
             StatusText.Visibility = Visibility.Collapsed;
         }
 
-        /// <summary>Shows a status line instead of (or above) the empty list.</summary>
         private void ShowMessage(string text)
         {
             StatusText.Text = text;

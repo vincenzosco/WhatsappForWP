@@ -192,7 +192,7 @@ namespace WhatsappApp.Pages
 
                 Diag.Ok("whatsapp: linked as " + paired.Jid);
 
-                Frame.Navigate(typeof(ChatsPage));
+                Frame.Navigate(typeof(HomePage));
             }
             catch (Exception error)
             {

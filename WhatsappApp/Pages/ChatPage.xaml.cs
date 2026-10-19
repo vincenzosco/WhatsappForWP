@@ -6,6 +6,7 @@ using System.IO;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.System;
+using Windows.UI;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -86,6 +87,8 @@ namespace WhatsappApp.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            ApplyTheme();
 
             var contact = e.Parameter as Contact;
             if (contact != null)
@@ -179,11 +182,28 @@ namespace WhatsappApp.Pages
                 AttachmentInbox.Ready += OnAttachmentReady;
                 ShowPendingAttachment();
             }
+        }        /// <summary>
+        /// Paints the wallpaper chosen on the settings page. Plain white is the
+        /// brush replaced by a solid one: an ImageBrush with no source draws nothing,
+        /// and the page behind it would be whatever the frame paints.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
+            if (image == null)
+            {
+                Background = new SolidColorBrush(Colors.White);
+                return;
+            }
+
+            ChatWallpaper.ImageSource = image;
+            Background = ChatWallpaper;
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+
             DataService.Instance.MessageArrived -= OnMessageArrived;
             DataService.Instance.TypingChanged -= OnTypingChanged;
             DataService.Instance.AudioArrived -= OnAudioArrived;
@@ -1126,6 +1146,16 @@ namespace WhatsappApp.Pages
 
         private async void SendMessage()
         {
+            // A voice note is being recorded: Send is the end of it. The file goes
+            // through the same slot the stop button fills, and the send continues
+            // below, so one tap both stops and sends (the official input bar does
+            // exactly this: while recording, the send button is the stop button).
+            if (_recording.IsRecording)
+            {
+                await StopRecordingAsync();
+                if (string.IsNullOrEmpty(_selectedLocalFileName)) return;
+            }
+
             string text = (MessageTextBox.Text ?? "").Trim();
 
             // If we have a selected image or video, send it as an attachment
@@ -1238,6 +1268,8 @@ namespace WhatsappApp.Pages
             try
             {
                 byte[] file = await ReadWholeFileAsync(localFileName);
+                Diag.Ok("send attachment: " + kind + " " + fileName + " "
+                    + (file == null ? 0 : file.Length) + " bytes");
 
                 if (file == null || file.Length == 0)
                 {
@@ -1430,6 +1462,11 @@ namespace WhatsappApp.Pages
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
                 await AttachmentInbox.PutAsync(file, null);
+
+                // The slot is taken here and not only by the Ready handler: Send
+                // keeps going in the same tap that stopped the recording, and the
+                // handler may not have run yet when it looks for the file.
+                ShowPendingAttachment();
             }
             catch (Exception ex)
             {

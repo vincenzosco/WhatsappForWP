@@ -1,0 +1,480 @@
+<Page
+    x:Class="WhatsappApp.Pages.HomePage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:conv="using:WhatsappApp.Converters"
+    xmlns:controls="using:WhatsappApp.Controls"
+    Background="White">
+
+    <Page.Resources>
+        <conv:UnreadCountToVisibilityConverter x:Key="UnreadToVisibility"/>
+        <conv:InitialToColorConverter x:Key="InitialToColor"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+
+        <!-- Containers without padding/animations: less work per item while
+             scrolling (low-end WP8.1 phones). -->
+        <Style x:Key="ChatItemContainerStyle" TargetType="ListViewItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="IsTabStop" Value="False"/>
+        </Style>
+
+        <!-- The WP8 app bar: 72 px of accent, 48 px icon buttons with a 12 px
+             label under each, right-aligned. It is the bar the official app gets
+             from the system; in a Runtime app the system does not draw one, so it
+             is drawn here. The buttons zero the theme minimums or the 109 x 57.5
+             button would not fit three in a row (tools/check-actions.js). -->
+        <Style x:Key="AppBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Width" Value="96"/>
+            <Setter Property="Height" Value="72"/>
+            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="AppBarLabelStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+    </Page.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- The chosen wallpaper, behind every section and under a white veil: the
+             list keeps reading as white paper, and the same image the conversation
+             carries is still there. Collapsed for the plain white theme, where the
+             page background is the whole answer. -->
+        <Image x:Name="HomeWallpaper" Grid.RowSpan="3"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <Rectangle Grid.RowSpan="3"
+                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+
+        <!-- The tab strip, fixed while the content swipes: the official Pivot
+             header does exactly this. -->
+        <controls:TabHeader x:Name="Header" Grid.Row="0"/>
+
+        <FlipView x:Name="Sections" Grid.Row="1"
+                  Background="Transparent"
+                  SelectionChanged="Sections_SelectionChanged">
+            <!-- Chats -->
+            <Grid Background="Transparent">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- An image picked with the chooser or shared from another app is
+                     waiting for a chat. -->
+                <Border x:Name="PendingAttachmentBar" Grid.Row="0"
+                        Background="#FFFFF3CD" Padding="12,8" Visibility="Collapsed">
+                    <TextBlock x:Uid="ChatsPage_PendingImage"
+                               Text="An image is ready: open a chat to send it"
+                               Foreground="#FF7A5B00" FontSize="13" TextWrapping="Wrap"/>
+                </Border>
+
+                <Grid Grid.Row="1" Background="Transparent">
+                    <ListView x:Name="ChatListView"
+                              ItemsSource="{Binding}"
+                              ItemContainerStyle="{StaticResource ChatItemContainerStyle}"
+                              Background="Transparent"
+                              SelectionMode="Single"
+                              SelectionChanged="ChatListView_SelectionChanged">
+                        <ListView.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ListView.ItemsPanel>
+                        <ListView.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Height="76" Background="Transparent" Holding="ChatRow_Holding">
+                                    <Grid.ColumnDefinitions>
+                                        <!-- 24 + the 62 px avatar + a 12 px gap: the
+                                             word starts clear of the picture, as in
+                                             the released row (ChatItemControl). -->
+                                        <ColumnDefinition Width="98"/>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Avatar circle with initials. 62 px and a 24 px
+                                         leading margin: the official row's numbers. -->
+                                    <Grid Grid.Column="0" Width="62" Height="62"
+                                          Margin="24,7,0,7" VerticalAlignment="Center">
+                                        <Ellipse Width="62" Height="62"
+                                                 Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                                        <Border Width="62" Height="62" CornerRadius="31"
+                                                Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                            <Border.Background>
+                                                <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                                            </Border.Background>
+                                        </Border>
+                                        <TextBlock Text="{Binding Initials}"
+                                                   Foreground="White" FontSize="22" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center" HorizontalAlignment="Center"
+                                                   Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+                                    </Grid>
+
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding Name}" Foreground="#FF333333" FontSize="20" FontWeight="SemiBold"
+                                                   TextTrimming="WordEllipsis" Margin="0,0,0,2"/>
+                                        <!-- The preview is the same 20 px as the name, in the
+                                             secondary grey: the released row reads as two
+                                             lines of one size, not a title and a caption. -->
+                                        <TextBlock Text="{Binding LastMessage}" Foreground="#FF939393" FontSize="20"
+                                                   TextTrimming="WordEllipsis" MaxHeight="26"/>
+                                    </StackPanel>
+
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,24,0">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                            <Path Width="12" Height="12" Margin="0,0,3,0"
+                                                  VerticalAlignment="Center"
+                                                  Stroke="#FF939393" StrokeThickness="1.5"
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}">
+                                                <!-- IconPin -->
+                                                <Path.Data>
+                                                    <PathGeometry>
+                                                        <PathGeometry.Figures>
+                                                            <PathFigure StartPoint="6,1.5" IsClosed="True">
+                                                                <PathFigure.Segments>
+                                                                    <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
+                                                                                SweepDirection="Clockwise" Point="6,7.5"/>
+                                                                    <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
+                                                                                SweepDirection="Clockwise" Point="6,1.5"/>
+                                                                </PathFigure.Segments>
+                                                            </PathFigure>
+                                                            <PathFigure StartPoint="6,7.5">
+                                                                <PathFigure.Segments>
+                                                                    <LineSegment Point="6,11"/>
+                                                                </PathFigure.Segments>
+                                                            </PathFigure>
+                                                        </PathGeometry.Figures>
+                                                    </PathGeometry>
+                                                </Path.Data>
+                                            </Path>
+                                            <Path Width="12" Height="12" Margin="0,0,3,0"
+                                                  VerticalAlignment="Center"
+                                                  Stroke="#FF939393" StrokeThickness="1.5"
+                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Visibility="{Binding IsMuted, Converter={StaticResource BoolToVisibility}}">
+                                                <!-- IconMute -->
+                                                <Path.Data>
+                                                    <PathGeometry>
+                                                        <PathGeometry.Figures>
+                                                            <PathFigure StartPoint="1,4.5" IsClosed="True">
+                                                                <PathFigure.Segments>
+                                                                    <PolyLineSegment Points="3.5,4.5 6,2 6,10 3.5,7.5 1,7.5"/>
+                                                                </PathFigure.Segments>
+                                                            </PathFigure>
+                                                            <PathFigure StartPoint="7.5,3.5">
+                                                                <PathFigure.Segments>
+                                                                    <LineSegment Point="11,8.5"/>
+                                                                </PathFigure.Segments>
+                                                            </PathFigure>
+                                                        </PathGeometry.Figures>
+                                                    </PathGeometry>
+                                                </Path.Data>
+                                            </Path>
+                                            <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF939393" FontSize="20"
+                                                       VerticalAlignment="Center"
+                                                       HorizontalAlignment="Right"/>
+                                        </StackPanel>
+                                        <Border MinWidth="25" Height="18"
+                                                CornerRadius="9"
+                                                Background="{StaticResource WhatsAppAccentBrush}"
+                                                HorizontalAlignment="Right"
+                                                Margin="0,4,0,0"
+                                                Visibility="{Binding UnreadCount, Converter={StaticResource UnreadToVisibility}}">
+                                            <TextBlock Text="{Binding UnreadCount}" Foreground="White" FontSize="11"
+                                                       FontWeight="Bold" HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"/>
+                                        </Border>
+                                    </StackPanel>
+
+                                    <Rectangle Grid.Column="1" Grid.ColumnSpan="2" Height="1" Fill="#14000000"
+                                               VerticalAlignment="Bottom" Margin="0,0,24,0"/>
+                                </Grid>
+                            </DataTemplate>
+                        </ListView.ItemTemplate>
+                    </ListView>
+
+                    <!-- The client is not connected yet: a strip at the top. -->
+                    <Border x:Name="ConnectionBar"
+                            Background="#FFB26A00"
+                            VerticalAlignment="Top"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="ConnectionBarText"
+                                   Foreground="White" FontSize="13" TextWrapping="Wrap"
+                                   Margin="12,8,12,8"/>
+                    </Border>
+
+                    <!-- Empty state -->
+                    <StackPanel x:Name="EmptyStatePanel" Visibility="Collapsed"
+                                VerticalAlignment="Center" HorizontalAlignment="Center">
+                        <Path Stroke="#FFBDBDBD" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center">
+                            <!-- IconChats -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="4,5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Uid="ChatsPage_EmptyTitle" Text="No chats yet"
+                                   Foreground="#FF9E9E9E" FontSize="16"
+                                   HorizontalAlignment="Center" Margin="0,10,0,0"/>
+                        <TextBlock x:Uid="ChatsPage_EmptyHint" Text="Tap new chat to start"
+                                   Foreground="#FFBDBDBD" FontSize="13"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0"/>
+
+                        <Button x:Name="DiagnosticsButton" x:Uid="ChatsPage_Diagnostics"
+                                Content="Why is it empty?"
+                                Background="#FFE0E0E0" Foreground="#FF333333" FontSize="14"
+                                Height="40" BorderThickness="0" Margin="0,14,0,0"
+                                HorizontalAlignment="Center"
+                                Click="DiagnosticsButton_Click"/>
+                    </StackPanel>
+                </Grid>
+            </Grid>
+
+            <!-- Status -->
+            <controls:StatusPane x:Name="StatusView"/>
+
+            <!-- Calls -->
+            <controls:CallsPane x:Name="CallsView"/>
+        </FlipView>
+
+        <!-- The app bar. One bar, three sets of actions: the panel follows the tab.
+             It is a *minimum* 72 px, not a fixed height: the WP bar is 72, and a bar
+             that grows with its content can never cut the icons when the label font
+             on a device is taller than the one this was measured with. The content
+             sits vertically centred, so no part of a button can hang above the bar
+             and be clipped by the frame. -->
+        <Grid Grid.Row="2" Background="{StaticResource WhatsAppAppBarBrush}" MinHeight="72">
+            <Rectangle Height="1" VerticalAlignment="Top" Fill="{StaticResource WhatsAppAccentDarkBrush}"/>
+            <StackPanel x:Name="ChatsBar" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch">
+                <Button x:Name="NewChatButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="NewChatButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconNewChat -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="4,5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="12,7.6">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="12,13"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="9.3,10.3">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="14.7,10.3"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="NewChatLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="MoreButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="MoreButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconOverflow -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="6,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="6,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="6,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="12,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="12,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="12,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="18,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="18,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="18,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="MoreLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="SettingsButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="SettingsButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconSettings -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="4,6.5">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="20,6.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="4,12">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="20,12"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="4,17.5">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="20,17.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="9,4.5">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="9,8.5"/>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="9,4.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="15,10">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="15,14"/>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="15,10"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="9,15.5">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="9,19.5"/>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="9,15.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="SettingsLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <StackPanel x:Name="StatusBar" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch" Visibility="Collapsed">
+                <Button x:Name="RefreshStatusButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="RefreshStatusButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconRefreshStatus -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="19,12">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="5,12"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="5,8">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="5,12 9,12"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="RefreshStatusLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+
+            <StackPanel x:Name="CallsBar" Orientation="Horizontal" HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch" Visibility="Collapsed">
+                <Button x:Name="RefreshCallsButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="RefreshCallsButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconRefreshCalls -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="19,12">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="5,12"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="5,8">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="5,12 9,12"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="RefreshCallsLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Page>
