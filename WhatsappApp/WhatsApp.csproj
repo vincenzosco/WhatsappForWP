@@ -118,6 +118,7 @@
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\StartDecision.cs" />
     <Compile Include="Services\ThemeService.cs" />
+    <Compile Include="Services\ContactDirectory.cs" />
     <Compile Include="Services\NotificationService.cs" />
     <Compile Include="Services\ProtocolLog.cs" />
     <Compile Include="Services\AttachmentInbox.cs" />
@@ -211,6 +212,7 @@
     <Compile Include="Protocol\WABinary\JidUtils.cs" />
     <Compile Include="Protocol\WABinary\NodeReader.cs" />
     <Compile Include="Protocol\WABinary\NodeWriter.cs" />
+    <Compile Include="Protocol\WABinary\PhoneNumbers.cs" />
     <Compile Include="Protocol\WABinary\Tags.cs" />
     <Compile Include="Protocol\WABinary\Tokens.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">

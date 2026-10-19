@@ -152,6 +152,11 @@ namespace WhatsappApp.Services
             // turns a LID into a phone number is in this file.
             await NameCache.LoadAsync();
 
+            // The phone's own address book, in the background: the sync names groups and
+            // push names but not the contacts saved on the primary, so without this every
+            // person is a number. The rows below are renamed when it answers.
+            ContactDirectory.Start();
+
             // And also before the rows, for the same reason: the local copy does not
             // have the image bytes (ChatCache leaves them out), and ApplyChat asks
             // for them here.
@@ -160,6 +165,10 @@ namespace WhatsappApp.Services
             var cached = await ChatCache.LoadAsync();
             for (int i = 0; i < cached.Count; i++) ApplyChat(cached[i]);
             SortContacts();
+
+            // The address book may have answered before there were rows to rename: the
+            // other order (rows first) is covered by ContactDirectory calling this too.
+            ApplyAddressBook();
             NotificationService.SetUnread(TotalUnread());
             Diag.OkNow("order after the cached list: " + OrderSample());
         }
@@ -866,9 +875,9 @@ namespace WhatsappApp.Services
             var contact = FindContact(message.ChatId);
             if (contact == null)
             {
-                string name = string.IsNullOrEmpty(message.SenderName)
-                    ? DisplayNameForJid(message.ChatId)
-                    : message.SenderName;
+                string name = SavedNameFor(message.ChatId);
+                if (string.IsNullOrEmpty(name)) name = message.SenderName;
+                if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(message.ChatId);
 
                 contact = new Contact
                 {
@@ -896,7 +905,10 @@ namespace WhatsappApp.Services
                 // A live message is also a name: `notify` is what the person calls
                 // themselves, and a row that was a number until now becomes their name. A
                 // group's message carries the participant's name, which is not the group's.
-                if (!message.IsGroup && !string.IsNullOrEmpty(message.SenderName))
+                // It does not beat the address book: the name saved on this phone is the
+                // one the person chose, and the push name must not overwrite it.
+                if (!message.IsGroup && !string.IsNullOrEmpty(message.SenderName)
+                    && SavedNameFor(message.ChatId) == null)
                 {
                     if (contact.Name != message.SenderName)
                     {
@@ -1042,7 +1054,11 @@ namespace WhatsappApp.Services
             if (ChatPreferences.IsHidden(message.ChatId)) return;
 
             var contact = FindContact(message.ChatId);
-            string name = message.SenderName;
+
+            // The name saved on this phone wins, then what the row carries (the sync's
+            // name or the push name), then the number.
+            string name = SavedNameFor(message.ChatId);
+            if (string.IsNullOrEmpty(name)) name = message.SenderName;
             if (string.IsNullOrEmpty(name)) name = NameCache.Book.NameFor(message.ChatId);
             if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(message.ChatId);
 
@@ -1115,6 +1131,37 @@ namespace WhatsappApp.Services
             PlaceContact(contact);
 
             RememberChatRow(message);
+        }
+
+        /// <summary>
+        /// Renames the rows already in the list from the phone's address book. Called
+        /// when that book answers, and once after the cached rows are applied: the two
+        /// run in either order, and the name has to land whichever finishes second.
+        ///
+        /// The order of the list is not touched. It is by activity, and a name does not
+        /// change when a conversation happened.
+        /// </summary>
+        public void ApplyAddressBook()
+        {
+            int renamed = 0;
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+
+                string name = SavedNameFor(contact.Id);
+                if (name == null || contact.Name == name) continue;
+
+                contact.Name = name;
+                contact.Initials = InitialsFor(name);
+                renamed++;
+            }
+
+            if (renamed > 0)
+            {
+                Diag.Ok("contacts: " + renamed + " chat(s) renamed from the address book");
+            }
         }
 
         /// <summary>This update row, kept aside for the cache.</summary>
@@ -1246,9 +1293,9 @@ namespace WhatsappApp.Services
             _calls.Add(new CallLogEntry
             {
                 ChatId = message.ChatId,
-                Name = string.IsNullOrEmpty(message.SenderName)
+                Name = SavedNameFor(message.ChatId) ?? (string.IsNullOrEmpty(message.SenderName)
                     ? DisplayNameForJid(message.ChatId)
-                    : message.SenderName,
+                    : message.SenderName),
                 Timestamp = message.Timestamp,
                 CallId = message.CallId,
                 Reason = message.CallReason,
@@ -1312,6 +1359,24 @@ namespace WhatsappApp.Services
             contact.LastMessage = last.Text;
             contact.LastMessageTime = last.FormattedTime;
             contact.LastMessageAt = last.Timestamp;
+        }
+
+        /// <summary>
+        /// The name saved in the phone's address book for a chat, or null. It is the
+        /// first source every caller tries: it is the name the person chose for that
+        /// contact, and the one WhatsApp itself shows.
+        ///
+        /// The answer is also written into `NameBook` as a saved name, so the precedence
+        /// the rest of the app applies (saved over push) holds and `NameCache` keeps it
+        /// on the phone for the next launch, before the address book answers again.
+        /// </summary>
+        private static string SavedNameFor(string jid)
+        {
+            string name = ContactDirectory.NameForJid(jid);
+            if (string.IsNullOrEmpty(name)) return null;
+
+            NameCache.RememberSavedName(jid, name);
+            return name;
         }
 
         /// <summary>Name shown for a JID when we do not know its name.</summary>
