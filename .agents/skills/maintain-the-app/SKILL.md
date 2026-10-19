@@ -141,14 +141,18 @@ established the hard way:
   picture are the app's own; the about line, the business profile and a group's
   members are what the old server used to compose, and `ContactInfoPage` says so
   instead of drawing headings with nothing under them.
-- **Notifications can only be raised while the app runs.** WP8.1 suspends the
-  app, which closes the socket, and this project has no cloud service to push
-  through, so a toast can only be raised for a message that arrives while the app
-  is in the foreground. The README pair's Limiti/Limitations section says so.
-- **The contact picker is the user's consent.** `ContactPicker` shows the system
-  UI and returns what the user taps; the app never enumerates the address book,
-  which would need the `contacts` capability and a privacy story this project does
-  not want.
+- **Notifications come from the app, not from a push service.** WP8.1 closes
+  the socket when the app is suspended, so a message that arrives while the app
+  is closed is announced by `BackgroundSync`: a timer task declared in the
+  manifest that wakes about every 30 minutes, connects, reads what is waiting,
+  updates the tile, the badge and the lock screen, and closes. The interval is a
+  request (the minimum is 15 minutes and the exact moment is the system's), the
+  user can turn it off in the settings, and the README pair says so.
+- **The address book is read for names, and nowhere else.** `ContactDirectory`
+  reads the phone's saved contacts once per launch (the `contacts` capability is
+  in the manifest) only to match a number to a name; nothing is uploaded and the
+  picker (`ContactPicker`) is still the consent for starting a chat with a
+  contact.
 
 The rule that follows: when a source has a limit, the screen and the README pair
 state it, and **no screen invents state that nothing sends** - "online" and

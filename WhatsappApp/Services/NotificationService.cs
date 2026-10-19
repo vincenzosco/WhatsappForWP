@@ -31,15 +31,58 @@ namespace WhatsappApp.Services
         /// just received the message), so the update starts and carries on by
         /// itself.
         /// </summary>
-        public static void RememberSender(string chatId, string name, string avatarData)
+        public static void RememberSender(string chatId, string name, string avatarData, string body)
         {
             if (!SettingsService.NotificationsEnabled) return;
             if (string.IsNullOrEmpty(chatId)) return;
             if (chatId.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase)) return;
 
 #pragma warning disable 4014
-            RememberSenderAsync(chatId, name, avatarData);
+            RememberSenderAsync(chatId, name, avatarData, body);
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// What the lock screen's detailed status shows: the sender and the message.
+        /// It is written to LocalSettings too, because a background check is a new
+        /// process: the fields above would be empty and the tile would read a count
+        /// twice instead of naming who wrote.
+        /// </summary>
+        private static void RememberLastMessage(string name, string body)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeySender] = name ?? "";
+                ApplicationData.Current.LocalSettings.Values[KeyBody] = body ?? "";
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/RememberLastMessage", ex);
+            }
+        }
+
+        /// <summary>
+        /// Puts the last sender and message back into this process, from the copy the
+        /// previous run wrote. Called at the start of a background check.
+        /// </summary>
+        public static void RestoreLastMessage()
+        {
+            try
+            {
+                object value;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeySender, out value) && value != null)
+                {
+                    _senderName = value.ToString();
+                }
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyBody, out value) && value != null)
+                {
+                    _senderBody = value.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/RestoreLastMessage", ex);
+            }
         }
 
         /// <summary>
@@ -50,11 +93,13 @@ namespace WhatsappApp.Services
         /// they are. Over the system ceiling the picture is left alone and the tile
         /// falls back to the app icon: better an icon than a tile the phone rejects.
         /// </summary>
-        private static async Task RememberSenderAsync(string chatId, string name, string avatarData)
+        private static async Task RememberSenderAsync(string chatId, string name, string avatarData, string body)
         {
             try
             {
                 _senderName = name;
+                _senderBody = body;
+                RememberLastMessage(name, body);
                 _senderImage = await StoreTileImageAsync(chatId, avatarData);
                 RenderTile();
             }
@@ -227,10 +272,10 @@ namespace WhatsappApp.Services
         {
             try
             {
-                var binding = ImportBinding(xml, visual, TileTemplateType.TileWide310x150PeekImageAndText02);
+                var binding = ImportBinding(xml, visual, TileWideTemplate);
                 if (binding == null) return;
 
-                FillBinding(xml, binding);
+                FillWide(xml, binding);
             }
             catch (Exception ex)
             {
@@ -266,6 +311,32 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The wide tile is the lock screen's detailed status: it says **who** and
+        /// **what**, and the number is left to the badge (the quick status). That is
+        /// the pair Windows offers in Settings -> Lock screen, and the reason the two
+        /// bindings say different things.
+        /// </summary>
+        private static void FillWide(XmlDocument xml, XmlElement binding)
+        {
+            if (binding == null) return;
+
+            var texts = binding.SelectNodes("text");
+
+            // With nothing to name - a count restored from the cache before any
+            // message in this process - the count is the only true line.
+            string sender = Cut(_senderName, 30);
+            if (sender.Length == 0) sender = UnreadText(_unread);
+
+            string body = Cut(_senderBody, 160);
+            if (body.Length == 0) body = UnreadText(_unread);
+
+            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(sender));
+            if (texts.Length > 1) texts[1].AppendChild(xml.CreateTextNode(body));
+
+            SetImage(xml, binding, _senderImage ?? TileIconUri);
+        }
+
+        /// <summary>
         /// How many are waiting, as the tile says it. One message is not "1
         /// messages": the two forms are two keys, so whoever translates writes both
         /// instead of guessing a plural rule.
@@ -283,6 +354,22 @@ namespace WhatsappApp.Services
         /// </summary>
         private static string _senderName;
         private static string _senderImage;
+
+        /// <summary>The last thing that was written, for the lock screen text.</summary>
+        private static string _senderBody;
+
+        /// <summary>Where the last sender and message survive a process: see RestoreLastMessage.</summary>
+        private const string KeySender = "Tile.Sender";
+        private const string KeyBody = "Tile.Body";
+
+        /// <summary>
+        /// The wide template. WP8.1 has `PeekImageAndText01` and `02`, and only the
+        /// second carries two lines: a name and a message. There is no wide template
+        /// with a peek image and three lines, which is why the count is not on the
+        /// wide tile at all.
+        /// </summary>
+        private static readonly TileTemplateType TileWideTemplate =
+            TileTemplateType.TileWide310x150PeekImageAndText02;
 
         /// <summary>The count the tile is showing, and the one the badge shows.</summary>
         private static int _unread;

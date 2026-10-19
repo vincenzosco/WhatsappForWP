@@ -403,6 +403,12 @@
   <data name="Settings_ThemeHint.Text" xml:space="preserve">
     <value>The background of chats and of the list. The choice applies to the whole app.</value>
   </data>
+  <data name="Settings_BackgroundLabel.Text" xml:space="preserve">
+    <value>Background check</value>
+  </data>
+  <data name="Settings_BackgroundHint.Text" xml:space="preserve">
+    <value>Every 30 minutes the app wakes, checks the messages and updates the tile and the lock screen. Windows decides the exact moment and can delay it.</value>
+  </data>
   <data name="Settings_AccountLabel.Text" xml:space="preserve">
     <value>Account</value>
   </data>

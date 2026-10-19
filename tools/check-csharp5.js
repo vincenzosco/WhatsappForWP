@@ -61,8 +61,10 @@ const API_RULES = [
   // is a CS1061 and `Windows.Foundation.Deferral` is a CS0234. A share target does
   // not need one - its app is in the foreground, so the operation stays valid;
   // just call ReportStarted() -> ReportDataRetrieved() -> ReportCompleted().
-  // SuspendingOperation.GetDeferral() is the one WP8.1 does have, so it is allowed.
-  { name: 'ShareOperation.GetDeferral() (WP8.1 has no deferral on a share)', re: /(?<!SuspendingOperation)\.GetDeferral\s*\(/ },
+  // SuspendingOperation.GetDeferral() is the one WP8.1 does have, so it is allowed,
+  // and so is IBackgroundTaskInstance.GetDeferral() - a background task needs it to
+  // keep the process alive while it reads, and it is part of the WP8.1 API.
+  { name: 'ShareOperation.GetDeferral() (WP8.1 has no deferral on a share)', re: /(?<!(SuspendingOperation|taskInstance|TaskInstance))\.GetDeferral\s*\(/ },
   { name: 'Windows.Foundation.Deferral (does not exist in the WP8.1 projection)', re: /\bWindows\.Foundation\.Deferral\b/ }
 ];
 

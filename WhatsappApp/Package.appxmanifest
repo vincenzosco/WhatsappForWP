@@ -24,8 +24,26 @@
         <m3:DefaultTile Wide310x150Logo="Assets\WideLogo.png" Square71x71Logo="Assets\Square71x71Logo.png">
         </m3:DefaultTile>
         <m3:SplashScreen Image="Assets\SplashScreen.png" />
+
+        <!-- Lo schermo di blocco: Windows mostra il badge (stato rapido, con
+             l'icona dell'app) oppure il tile largo (stato dettagliato, con il
+             testo dei messaggi). Quale dei due l'utente sceglie in Impostazioni
+             > Schermo di blocco; l'app deve solo dichiararsi qui e tenere
+             aggiornati badge e tile. Senza il background task qui sotto Windows
+             non elenca l'app in quelle impostazioni. -->
+        <m3:LockScreen Notification="badgeAndTileText"
+                       BadgeLogo="Assets\LockScreenBadge.png" />
       </m3:VisualElements>
       <Extensions>
+        <!-- Il controllo periodico dei messaggi mentre l'app e' sospesa. Il
+             tipo e' timer: il sistema lo sveglia ogni circa 30 minuti (il
+             minimo e' 15 e l'ora esatta non e' garantita). -->
+        <Extension Category="windows.backgroundTasks"
+                   EntryPoint="WhatsappApp.BackgroundSyncTask">
+          <BackgroundTasks>
+            <Task Type="timer" />
+          </BackgroundTasks>
+        </Extension>
         <Extension Category="windows.shareTarget" Executable="$targetnametoken$.exe" EntryPoint="WhatsappApp.App">
           <ShareTarget>
             <SupportedFileTypes>

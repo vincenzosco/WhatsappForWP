@@ -89,6 +89,7 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
+    <Compile Include="BackgroundSyncTask.cs" />
     <Compile Include="Controls\AppSection.cs" />
     <Compile Include="Controls\TabHeader.xaml.cs">
       <DependentUpon>TabHeader.xaml</DependentUpon>
@@ -119,6 +120,7 @@
     <Compile Include="Services\StartDecision.cs" />
     <Compile Include="Services\ThemeService.cs" />
     <Compile Include="Services\ContactDirectory.cs" />
+    <Compile Include="Services\BackgroundSync.cs" />
     <Compile Include="Services\NotificationService.cs" />
     <Compile Include="Services\ProtocolLog.cs" />
     <Compile Include="Services\AttachmentInbox.cs" />
@@ -253,6 +255,8 @@
     <Content Include="Assets\ChatBackground.jpg" />
     <Content Include="Assets\WhatsAppLogo.png" />
     <Content Include="Assets\Logo.scale-240.png" />
+    <Content Include="Assets\LockScreenBadge.scale-100.png" />
+    <Content Include="Assets\LockScreenBadge.scale-240.png" />
     <Content Include="Assets\SmallLogo.scale-240.png" />
     <Content Include="Assets\SplashScreen.scale-240.png" />
     <Content Include="Assets\Square71x71Logo.scale-240.png" />

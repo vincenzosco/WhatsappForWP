@@ -150,6 +150,20 @@
 
             <GridView.Footer>
                 <StackPanel Margin="4,8,4,24">
+                    <!-- The periodic check while the app is suspended. The switch is
+                         bare: the two lines above it carry the words, so there is no
+                         Header or On/Off Content to translate twice. -->
+                    <TextBlock x:Uid="Settings_BackgroundLabel" Text="Controllo in background"
+                               Foreground="{StaticResource WhatsAppAccentBrush}"
+                               FontSize="15" FontWeight="SemiBold"/>
+                    <TextBlock x:Uid="Settings_BackgroundHint"
+                               Text="Ogni 30 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. Windows decide il momento esatto e puo' rimandarlo."
+                               Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
+                               Margin="0,2,0,4"/>
+                    <ToggleSwitch x:Name="BackgroundToggle"
+                                  Margin="0,4,0,12"
+                                  Toggled="BackgroundToggle_Toggled"/>
+
                     <TextBlock x:Uid="Settings_AccountLabel" Text="Account"
                                Foreground="{StaticResource WhatsAppAccentBrush}"
                                FontSize="15" FontWeight="SemiBold"/>

@@ -15,6 +15,8 @@ The main client app with an authentic WhatsApp user interface.
 - Theme picker in the settings: the package's own wallpapers (plus the doodle and plain white) paint the conversation and the home list
 - Chat list with avatars and unread badges
 - Live tile with how many messages are waiting, the last sender's picture and their name
+- Background check about every 30 minutes (can be turned off): messages that arrive with the app closed update the tile, the badge and the lock screen
+- Lock screen status: detailed (sender and message text) or quick (the number of messages), chosen in the Windows lock screen settings
 - Message bubbles with timestamps and sent/delivered/read status
 - Text messaging with Enter-to-send
 - Image attachment: pick photos from the gallery and send them to WhatsApp's own uploader
@@ -427,7 +429,8 @@ node tools/check-docs.js
 - A voice note that arrives as Ogg/Opus cannot be played here: WhatsApp's own voice notes are Ogg/Opus and WP8.1 has no Opus decoder, and the server that used to convert them to MP3 (with `ffmpeg`) is gone. A note **sent** from this phone goes out as the M4A/AAC this device records, so a receiving client may draw it as an audio file rather than a voice note.
 - Older messages are only the ones WhatsApp pushed after the login: this client does not ask for a conversation's older history on demand, so a chat shows what the last sync carried and what has arrived since.
 - Message deletions and edits made on another device are not read yet: a message revoked elsewhere stays on screen until the conversation is fetched again on a fresh login.
-- Notifications are raised while the app is running: WP8.1 suspends it in the background, which closes the socket, and this project has no cloud service to push through. A message that arrives while the app is suspended is delivered on resume, when the app reconnects by itself - it is not announced at the moment it arrives.
+- A message that arrives with the app closed is announced by a background check, not in real time: WP8.1 closes the socket when it suspends the app, and this project has no cloud service to push through. `BackgroundSync` wakes about every 30 minutes, connects, reads what is waiting, updates the tile, the badge and the lock screen, and closes. The interval is a request - the system decides the exact moment and can delay it - and the check can be turned off in the settings.
+- On the lock screen Windows shows what the user picks in Settings: the app as **detailed status** draws the wide tile (sender and message text), and as **quick status** it draws the badge with the number of messages. The app keeps both updated; which one appears is the system's choice, not the app's.
 - Pinning, muting and deleting live on this phone only, in `chat-preferences.json` in the app's folder. Nothing about them is sent to WhatsApp, so another device does not see them, and they are lost when the app's data is cleared.
 - A chat's unread number comes from WhatsApp with the history sync and is cleared when the conversation is opened in the app: the count is told to the server, and messages that arrive while the app is closed are counted when the next sync brings them.
 - A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
