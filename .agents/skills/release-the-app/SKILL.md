@@ -7,21 +7,21 @@ description: How to produce the icons, tiles and splash screen, check the packag
 
 ## Brand assets
 
-The logo (green bubble with the handset cut out) comes from the raster reference
-`tools/brand/logo-source.png` (the green WhatsApp mark on a white background):
+The tiles, the launcher icon and the splash are the official WhatsApp WP8.1
+artwork, kept in `tools/brand/official/` (`Icon1.png`, `Images/Tile*.png`,
+`Images/logo.png`, `Images/Background.jpg`, the 480×800 splash):
 
 ```bash
-node tools/make-brand-assets.js             # rewrites the PNGs in WhatsappApp/Assets
+node tools/make-brand-assets.js             # rewrites the files in WhatsappApp/Assets
 node tools/make-brand-assets.js --preview   # + ASCII preview, check before committing
 ```
 
-The script keys the white background out of that image and needs no external
-tool: the PNG is decoded and encoded with Node's `zlib`. Sizes and colours are
-constants at the top of the script; the square icons and the wide tile are white
-(`#FFFFFF`, so the green mark can be told apart) and the splash keeps the green
-gradient ending on `#075E54`, the colour of the app header, so it blends into the
-first page. To change the mark, replace `tools/brand/logo-source.png` with the
-new artwork on a white background and rerun the script.
+The script copies the artwork at the sizes the manifest asks for at 240% and
+derives only the three that the package does not ship (the live-tile icon at 200
+and 480 px, the 120 px `StoreLogo`, the 1152×1920 splash). It needs no external
+tool: the PNG is decoded, resampled with a triangular kernel and encoded with
+Node's `zlib`. To change the mark, replace the files in
+`tools/brand/official/` with the new artwork and rerun the script.
 
 ## Manifest
 
@@ -32,7 +32,7 @@ new artwork on a white background and rerun the script.
 | `Identity / Version` | bump on every release (`1.0.1.0` → `1.0.2.0`) |
 | `Properties / DisplayName` | `WhatsApp` |
 | `m3:VisualElements / DisplayName` | `WhatsApp` |
-| `m3:VisualElements / BackgroundColor` | `#FFFFFF` - le icone e la tile sono bianche, il marchio e' verde e cosi' si distingue; con `ForegroundText="dark"`, perche' testo chiaro su bianco non si vede |
+| `m3:VisualElements / BackgroundColor` | `#45D82C` - il verde dell'icona ufficiale; le tile sono il glifo bianco su trasparente, quindi il verde traspare; con `ForegroundText="light"`, perche' testo scuro su quel verde non si legge. Solo 6 cifre esadecimali: `APPX1404` rifiuta `#FF45D82C` |
 | `Resources` | `<Resource Language="x-generate"/>` - the languages come from `Strings\*\Resources.resw` |
 
 The manifest is intentionally **not** localized: the only translatable value is

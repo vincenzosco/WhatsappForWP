@@ -2,8 +2,17 @@
     x:Class="WhatsappApp.Pages.ChatPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:conv="using:WhatsappApp.Converters"
-    Background="#FFECE5DD">
+    xmlns:conv="using:WhatsappApp.Converters">
+
+    <!-- The wallpaper, as the settings page chose it (Services/ThemeService): by
+         default the doodle the released app ships in Images/Background.jpg, or one
+         of the package's own Images/Wallpapers. It is the page background, so the
+         bubbles scroll over it and both the list and the typing bubble see it. -->
+    <Page.Background>
+        <ImageBrush x:Name="ChatWallpaper"
+                    ImageSource="ms-appx:///Assets/ChatBackground.jpg"
+                    Stretch="UniformToFill"/>
+    </Page.Background>
 
     <Page.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
@@ -12,13 +21,9 @@
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
 
-        <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF075E54"/>
-        <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
-        <SolidColorBrush x:Key="WhatsAppSentBubbleBrush" Color="#FFDCF8C6"/>
-        <SolidColorBrush x:Key="WhatsAppReceivedBubbleBrush" Color="#FFFFFFFF"/>
-        <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
-        <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#DE000000"/>
-        <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#8A000000"/>
+        <!-- The brushes are the application's (App.xaml), not this page's: a copy
+             here did not follow the phone accent, and its light-green sent bubble
+             left the white text of an outgoing message unreadable. -->
 
         <!-- The three dots of "someone is writing": each one rises and comes back,
              one after the other, and the whole thing repeats for as long as the
@@ -74,7 +79,7 @@
         <!-- Header: back + picture + name/status. The picture is a thing of its
              own apart from the name row: tapping it opens it full screen,
              tapping the name opens the contact info. -->
-        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="56">
+        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="60">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -131,10 +136,10 @@
                   Tapped="ContactHeader_Tapped">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
-                               Foreground="White" FontSize="18" FontWeight="SemiBold"
+                               Foreground="White" FontSize="23"
                                TextTrimming="WordEllipsis"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
-                               Foreground="#B0FFFFFF" FontSize="12" Margin="0,-2,0,0"/>
+                               Foreground="#B0FFFFFF" FontSize="13" Margin="0,-2,0,0"/>
                 </StackPanel>
             </Grid>
         </Grid>
@@ -157,10 +162,17 @@
             <ListView.ItemTemplate>
                 <DataTemplate>
                     <Grid Margin="4,2,4,2" HorizontalAlignment="Stretch">
-                        <!-- Incoming bubble -->
+                        <!-- Incoming bubble. Radius 3 and the little tail are the
+                             shape of the official MessageBubble: a corner that is
+                             barely rounded, not the pill of the phone's chat. -->
+                        <Polygon Points="0,0 7,0 0,7" Fill="{StaticResource WhatsAppReceivedBubbleBrush}"
+                                 HorizontalAlignment="Left" VerticalAlignment="Top"
+                                 Margin="4,10,0,0"
+                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}"/>
                         <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
-                                CornerRadius="8"
+                                CornerRadius="3"
                                 MaxWidth="400"
+                                Margin="11,2,4,2"
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
@@ -352,10 +364,16 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Outgoing bubble -->
+                        <!-- Outgoing bubble: the accent colour, white text, and the
+                             same 3 px corner as the received one. -->
+                        <Polygon Points="0,0 7,0 7,7" Fill="{StaticResource WhatsAppSentBubbleBrush}"
+                                 HorizontalAlignment="Right" VerticalAlignment="Top"
+                                 Margin="0,10,4,0"
+                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}"/>
                         <Border Background="{StaticResource WhatsAppSentBubbleBrush}"
-                                CornerRadius="8"
+                                CornerRadius="3"
                                 MaxWidth="400"
+                                Margin="4,2,11,2"
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
@@ -538,14 +556,19 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
+                                <!-- The text follows the accent too: white when the accent is
+                                     dark (the usual case), #333 when it is light, which is what
+                                     Accent.Apply puts in WhatsAppAccentTextBrush. A fixed white
+                                     was unreadable on a light accent. -->
                                 <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0">
+                                           Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="16"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0"
+                                            Opacity="0.7">
                                     <TextBlock Text="{Binding FormattedTime}"
-                                               Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="11"/>
+                                               Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="11"/>
                                     <TextBlock Text="{Binding Status, Converter={StaticResource MsgStatusToString}}"
-                                               Foreground="{Binding Status, Converter={StaticResource MsgStatusToColor}}"
+                                               Foreground="{StaticResource WhatsAppAccentTextBrush}"
                                                FontSize="11" Margin="4,0,0,0"/>
                                 </StackPanel>
                             </StackPanel>
@@ -627,8 +650,9 @@
             </Border>
         </Grid>
 
-        <!-- Input area -->
-        <Grid Grid.Row="3" Background="#FFF0F0F0">
+        <!-- Input area: the white strip of the official app, with the box a
+             shade darker so the field reads as a field. -->
+        <Grid Grid.Row="3" Background="White">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="56"/>
@@ -824,7 +848,7 @@
                          VerticalAlignment="Center"
                          Height="40"
                          FontSize="16"
-                         Background="White"
+                         Background="#FFF2F2F2"
                          BorderThickness="0"
                          KeyDown="MessageTextBox_KeyDown"
                          TextChanged="MessageTextBox_TextChanged"

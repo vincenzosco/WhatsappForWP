@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -89,8 +89,15 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Controls\SectionNav.xaml.cs">
-      <DependentUpon>SectionNav.xaml</DependentUpon>
+    <Compile Include="Controls\AppSection.cs" />
+    <Compile Include="Controls\TabHeader.xaml.cs">
+      <DependentUpon>TabHeader.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\StatusPane.xaml.cs">
+      <DependentUpon>StatusPane.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Controls\CallsPane.xaml.cs">
+      <DependentUpon>CallsPane.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Models\CallLogEntry.cs" />
@@ -98,6 +105,7 @@
     <Compile Include="Models\Contact.cs" />
     <Compile Include="Models\ContactInfo.cs" />
     <Compile Include="Converters\Converters.cs" />
+    <Compile Include="Services\Accent.cs" />
     <Compile Include="Services\BackNavigator.cs" />
     <Compile Include="Services\DataService.cs" />
     <Compile Include="Services\DeviceRandomSource.cs" />
@@ -109,15 +117,18 @@
     <Compile Include="Services\SessionState.cs" />
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\StartDecision.cs" />
+    <Compile Include="Services\ThemeService.cs" />
     <Compile Include="Services\NotificationService.cs" />
     <Compile Include="Services\ProtocolLog.cs" />
     <Compile Include="Services\AttachmentInbox.cs" />
     <Compile Include="Services\AvatarCache.cs" />
+    <Compile Include="Services\AvatarEnricher.cs" />
     <Compile Include="Services\ChatCache.cs" />
     <Compile Include="Services\ChatPreferences.cs" />
     <Compile Include="Services\IncomingMediaStore.cs" />
     <Compile Include="Services\WinRtMediaFetcher.cs" />
     <Compile Include="Services\MessageCache.cs" />
+    <Compile Include="Services\NameCache.cs" />
     <Compile Include="Services\NativeConnection.cs" />
     <Compile Include="Services\NativeCredentialStorage.cs" />
     <Compile Include="Services\ImagePickerService.cs" />
@@ -135,12 +146,14 @@
     <Compile Include="Protocol\Client\ConnectionPolicy.cs" />
     <Compile Include="Protocol\Client\Conversation.cs" />
     <Compile Include="Protocol\Client\Calls.cs" />
+    <Compile Include="Protocol\Client\ChatMerge.cs" />
     <Compile Include="Protocol\Client\Credentials.cs" />
     <Compile Include="Protocol\Client\DeviceDirectory.cs" />
     <Compile Include="Protocol\Client\InboundRouter.cs" />
     <Compile Include="Protocol\Client\GroupDirectory.cs" />
     <Compile Include="Protocol\Client\IncomingMessage.cs" />
     <Compile Include="Protocol\Client\MediaConn.cs" />
+    <Compile Include="Protocol\Client\NameBook.cs" />
     <Compile Include="Protocol\Client\NativeChats.cs" />
     <Compile Include="Protocol\Client\NativeSession.cs" />
     <Compile Include="Protocol\Client\OutgoingMessage.cs" />
@@ -209,20 +222,17 @@
     <Compile Include="Pages\PairPage.xaml.cs">
       <DependentUpon>PairPage.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Pages\ChatsPage.xaml.cs">
-      <DependentUpon>ChatsPage.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\StatusPage.xaml.cs">
-      <DependentUpon>StatusPage.xaml</DependentUpon>
-    </Compile>
-    <Compile Include="Pages\CallsPage.xaml.cs">
-      <DependentUpon>CallsPage.xaml</DependentUpon>
+    <Compile Include="Pages\HomePage.xaml.cs">
+      <DependentUpon>HomePage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\ContactInfoPage.xaml.cs">
       <DependentUpon>ContactInfoPage.xaml</DependentUpon>
     </Compile>
     <Compile Include="Pages\DiagnosticsPage.xaml.cs">
       <DependentUpon>DiagnosticsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\SettingsPage.xaml.cs">
+      <DependentUpon>SettingsPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
   <ItemGroup>
@@ -238,6 +248,8 @@
     <PRIResource Include="Strings\it-IT\Resources.resw" />
   </ItemGroup>
   <ItemGroup>
+    <Content Include="Assets\ChatBackground.jpg" />
+    <Content Include="Assets\WhatsAppLogo.png" />
     <Content Include="Assets\Logo.scale-240.png" />
     <Content Include="Assets\SmallLogo.scale-240.png" />
     <Content Include="Assets\SplashScreen.scale-240.png" />
@@ -246,13 +258,103 @@
     <Content Include="Assets\WideLogo.scale-240.png" />
     <Content Include="Assets\TileIcon.png" />
     <Content Include="Assets\TileIcon.scale-240.png" />
+    <Content Include="Assets\Wallpapers\1.jpg" />
+    <Content Include="Assets\Wallpapers\10.jpg" />
+    <Content Include="Assets\Wallpapers\11.jpg" />
+    <Content Include="Assets\Wallpapers\12.jpg" />
+    <Content Include="Assets\Wallpapers\13.jpg" />
+    <Content Include="Assets\Wallpapers\14.jpg" />
+    <Content Include="Assets\Wallpapers\15.jpg" />
+    <Content Include="Assets\Wallpapers\16.jpg" />
+    <Content Include="Assets\Wallpapers\17.jpg" />
+    <Content Include="Assets\Wallpapers\18.jpg" />
+    <Content Include="Assets\Wallpapers\19.jpg" />
+    <Content Include="Assets\Wallpapers\2.jpg" />
+    <Content Include="Assets\Wallpapers\20.jpg" />
+    <Content Include="Assets\Wallpapers\21.jpg" />
+    <Content Include="Assets\Wallpapers\22.jpg" />
+    <Content Include="Assets\Wallpapers\23.jpg" />
+    <Content Include="Assets\Wallpapers\24.jpg" />
+    <Content Include="Assets\Wallpapers\25.jpg" />
+    <Content Include="Assets\Wallpapers\26.jpg" />
+    <Content Include="Assets\Wallpapers\27.png" />
+    <Content Include="Assets\Wallpapers\28.jpg" />
+    <Content Include="Assets\Wallpapers\29.jpg" />
+    <Content Include="Assets\Wallpapers\3.jpg" />
+    <Content Include="Assets\Wallpapers\30.jpg" />
+    <Content Include="Assets\Wallpapers\31.png" />
+    <Content Include="Assets\Wallpapers\32.jpg" />
+    <Content Include="Assets\Wallpapers\33.jpg" />
+    <Content Include="Assets\Wallpapers\34.png" />
+    <Content Include="Assets\Wallpapers\35.jpg" />
+    <Content Include="Assets\Wallpapers\36.png" />
+    <Content Include="Assets\Wallpapers\37.jpg" />
+    <Content Include="Assets\Wallpapers\38.png" />
+    <Content Include="Assets\Wallpapers\39.jpg" />
+    <Content Include="Assets\Wallpapers\4.jpg" />
+    <Content Include="Assets\Wallpapers\40.jpg" />
+    <Content Include="Assets\Wallpapers\41.jpg" />
+    <Content Include="Assets\Wallpapers\5.jpg" />
+    <Content Include="Assets\Wallpapers\6.jpg" />
+    <Content Include="Assets\Wallpapers\7.jpg" />
+    <Content Include="Assets\Wallpapers\8.jpg" />
+    <Content Include="Assets\Wallpapers\9.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\1.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\10.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\11.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\12.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\13.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\14.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\15.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\16.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\17.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\18.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\19.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\2.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\20.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\21.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\22.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\23.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\24.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\25.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\26.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\27.png" />
+    <Content Include="Assets\Wallpapers\thumbs\28.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\29.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\3.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\30.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\31.png" />
+    <Content Include="Assets\Wallpapers\thumbs\32.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\33.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\34.png" />
+    <Content Include="Assets\Wallpapers\thumbs\35.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\36.png" />
+    <Content Include="Assets\Wallpapers\thumbs\37.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\38.png" />
+    <Content Include="Assets\Wallpapers\thumbs\39.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\4.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\40.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\41.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\5.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\6.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\7.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\8.jpg" />
+    <Content Include="Assets\Wallpapers\thumbs\9.jpg" />
   </ItemGroup>
   <ItemGroup>
     <ApplicationDefinition Include="App.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </ApplicationDefinition>
-    <Page Include="Controls\SectionNav.xaml">
+    <Page Include="Controls\TabHeader.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Controls\StatusPane.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Controls\CallsPane.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -260,15 +362,7 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
-    <Page Include="Pages\ChatsPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Pages\StatusPage.xaml">
-      <Generator>MSBuild:Compile</Generator>
-      <SubType>Designer</SubType>
-    </Page>
-    <Page Include="Pages\CallsPage.xaml">
+    <Page Include="Pages\HomePage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
@@ -285,6 +379,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\DiagnosticsPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\SettingsPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

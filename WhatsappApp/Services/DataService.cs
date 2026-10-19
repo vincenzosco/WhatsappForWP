@@ -121,6 +121,7 @@ namespace WhatsappApp.Services
             // every message arrives twice.
             NativeConnection.Instance.MessageArrived += OnNativeMessage;
             NativeConnection.Instance.ChatArrived += OnNativeChat;
+            NativeConnection.Instance.ChatMerged += OnChatMerged;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
             NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
             NativeConnection.Instance.MediaArrived += OnNativeMedia;
@@ -146,6 +147,11 @@ namespace WhatsappApp.Services
             // deleted, and a file not yet read would answer no to all three.
             await ChatPreferences.LoadAsync();
 
+            // And before them too: a row read from the local copy may carry no name at all
+            // (a person whose chat was never named while it was written), and the pair that
+            // turns a LID into a phone number is in this file.
+            await NameCache.LoadAsync();
+
             // And also before the rows, for the same reason: the local copy does not
             // have the image bytes (ChatCache leaves them out), and ApplyChat asks
             // for them here.
@@ -153,7 +159,9 @@ namespace WhatsappApp.Services
 
             var cached = await ChatCache.LoadAsync();
             for (int i = 0; i < cached.Count; i++) ApplyChat(cached[i]);
+            SortContacts();
             NotificationService.SetUnread(TotalUnread());
+            Diag.OkNow("order after the cached list: " + OrderSample());
         }
 
         /// <summary>Call log, filled by a scan of WhatsApp's own log.</summary>
@@ -371,7 +379,18 @@ namespace WhatsappApp.Services
             message.UnreadCount = row.UnreadCount;
             message.IsGroup = row.IsGroup;
             message.Type = MessageType.Text;
-            message.Timestamp = Moment(row.LastMessageTimestamp > 0 ? row.LastMessageTimestamp : row.ConversationTimestamp);
+
+            // A conversation the sync named with no time at all is not "now":
+            // stamping it now lifted every such row to the top of the list and tied
+            // them together, which is why the chats came out in the order the sync
+            // listed them (all the groups first) and not by activity. `Moment(0)`
+            // answers `DateTime.Now` on purpose for a *live* message; a row has no
+            // such excuse, so it keeps the time it already had.
+            // The last activity is the newest of the two the sync names; when it
+            // names neither, the row's own messages are the clock (`NativeChats`
+            // raises ConversationTimestamp with every message it adds).
+            long at = Math.Max(row.LastMessageTimestamp, row.ConversationTimestamp);
+            message.Timestamp = at > 0 ? Moment(at) : DateTime.MinValue;
 
             if (row.Messages.Count > 0) message.Text = row.Messages[row.Messages.Count - 1].Text;
 
@@ -388,6 +407,11 @@ namespace WhatsappApp.Services
         {
             HistoryComplete = true;
 
+            // The sync may have taught a pair that makes a cached row obsolete: the row was
+            // keyed on a LID and its number is now known. The rows of this sync are already
+            // canonical (`NativeChats`), so this is the copy read from disk that is folded.
+            FoldMappedContacts();
+
             int chatRows = _freshChatRows.Count;
             RememberChatList();
             RaiseChatListCompleted(chatRows);
@@ -401,6 +425,134 @@ namespace WhatsappApp.Services
 
             Diag.Ok("native: the history is complete, " + chatRows + " row(s) in the batch, "
                 + _contacts.Count + " in the list");
+        }
+
+        /// <summary>
+        /// A chat that moved from a `@lid` to its phone number.
+        ///
+        /// Everything in this service keys a conversation on its JID: the row, the unread
+        /// count, the messages, the pin and the mute. A merge done only in the protocol layer
+        /// would leave the old row on screen beside the new one - the same person twice, which
+        /// is the defect the pair exists to end - so the pages' copy is moved here.
+        /// </summary>
+        private void OnChatMerged(object sender, ChatMerge merge)
+        {
+            if (merge == null || string.IsNullOrEmpty(merge.From) || string.IsNullOrEmpty(merge.To)) return;
+            if (merge.From == merge.To) return;
+
+            MergeMessages(merge.From, merge.To);
+            ChatPreferences.Rename(merge.From, merge.To);
+
+            Contact gone = FindContact(merge.From);
+            if (gone != null)
+            {
+                Contact keep = FindContact(merge.To);
+
+                if (keep == null)
+                {
+                    // Only one row exists: re-key it rather than drop it. The messages are
+                    // already under the new address (MergeMessages).
+                    _contactIndex.Remove(gone.Id);
+                    gone.Id = merge.To;
+
+                    string name = NameCache.Book.NameFor(merge.To);
+                    if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(merge.To);
+                    gone.Name = name;
+                    gone.Initials = InitialsFor(name);
+                    gone.IsPinned = ChatPreferences.IsPinned(merge.To);
+                    gone.IsMuted = ChatPreferences.IsMuted(merge.To);
+
+                    _contactIndex[gone.Id] = gone;
+                }
+                else
+                {
+                    // Two rows, one person: the newer preview and the unread count are the
+                    // two things the person would notice going missing.
+                    if (gone.LastMessageAt > keep.LastMessageAt)
+                    {
+                        keep.LastMessage = gone.LastMessage;
+                        keep.LastMessageTime = gone.LastMessageTime;
+                        keep.LastMessageAt = gone.LastMessageAt;
+                    }
+
+                    keep.UnreadCount += gone.UnreadCount;
+
+                    if (string.IsNullOrEmpty(keep.AvatarData) && !string.IsNullOrEmpty(gone.AvatarData))
+                    {
+                        keep.AvatarData = gone.AvatarData;
+#pragma warning disable 4014
+                        keep.LoadAvatarAsync();
+#pragma warning restore 4014
+                    }
+
+                    _contacts.Remove(gone);
+                    _contactIndex.Remove(merge.From);
+                }
+            }
+
+            if (_activeChatId == merge.From) _activeChatId = merge.To;
+
+            NotificationService.SetUnread(TotalUnread());
+            ResortContacts();
+        }
+
+        /// <summary>
+        /// The messages of a chat under its new address. The list is re-sorted: the two halves
+        /// were written by different keys and appending one to the other would put a newer
+        /// message above an older one.
+        /// </summary>
+        private void MergeMessages(string from, string to)
+        {
+            ObservableCollection<ChatMessage> gone;
+            if (!_chatMessages.TryGetValue(from, out gone)) return;
+
+            _chatMessages.Remove(from);
+
+            ObservableCollection<ChatMessage> keep;
+            if (!_chatMessages.TryGetValue(to, out keep))
+            {
+                for (int i = 0; i < gone.Count; i++) gone[i].ChatId = to;
+                _chatMessages[to] = gone;
+                return;
+            }
+
+            var merged = new List<ChatMessage>(keep);
+            for (int i = 0; i < gone.Count; i++)
+            {
+                gone[i].ChatId = to;
+                merged.Add(gone[i]);
+            }
+
+            merged.Sort(delegate(ChatMessage left, ChatMessage right)
+            {
+                return left.Timestamp.CompareTo(right.Timestamp);
+            });
+
+            keep.Clear();
+            for (int i = 0; i < merged.Count; i++) keep.Add(merged[i]);
+
+            TrimToCeiling(keep);
+        }
+
+        /// <summary>
+        /// Folds the rows read from the local copy whose LID is now known to be a phone
+        /// number. The rows of a sync are already canonical (`NativeChats`); this is the
+        /// snapshot on disk, written before the pair was known.
+        /// </summary>
+        private void FoldMappedContacts()
+        {
+            var snapshot = new List<Contact>(_contacts);
+
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                Contact contact = snapshot[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+
+                string canonical = NameCache.Book.Canonical(contact.Id);
+                if (canonical == null || canonical == contact.Id) continue;
+
+                OnChatMerged(this, new ChatMerge(contact.Id, canonical));
+            }
         }
 
         /// <summary>
@@ -741,6 +893,18 @@ namespace WhatsappApp.Services
             }
             else
             {
+                // A live message is also a name: `notify` is what the person calls
+                // themselves, and a row that was a number until now becomes their name. A
+                // group's message carries the participant's name, which is not the group's.
+                if (!message.IsGroup && !string.IsNullOrEmpty(message.SenderName))
+                {
+                    if (contact.Name != message.SenderName)
+                    {
+                        contact.Name = message.SenderName;
+                        contact.Initials = InitialsFor(contact.Name);
+                    }
+                }
+
                 // Update the contact preview and move to top
                 contact.LastMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
@@ -751,13 +915,10 @@ namespace WhatsappApp.Services
                     NotificationService.SetUnread(TotalUnread());
                 }
 
-                var idx = _contacts.IndexOf(contact);
-                if (idx > 0)
-                    _contacts.Move(idx, 0);
-
-                // A message in a non-pinned chat must not jump the pinned ones: they
-                // go back to the top, and this one stays right below.
-                ResortContacts();
+                // The row goes where its new time says, not to the top: the pinned
+                // chats stay above it and every other chat keeps its chronological
+                // place, as on WhatsApp (the newest conversation first).
+                PlaceContact(contact);
             }
 
             // An alert only for a chat we are not watching and that is not muted:
@@ -881,9 +1042,9 @@ namespace WhatsappApp.Services
             if (ChatPreferences.IsHidden(message.ChatId)) return;
 
             var contact = FindContact(message.ChatId);
-            string name = string.IsNullOrEmpty(message.SenderName)
-                ? DisplayNameForJid(message.ChatId)
-                : message.SenderName;
+            string name = message.SenderName;
+            if (string.IsNullOrEmpty(name)) name = NameCache.Book.NameFor(message.ChatId);
+            if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(message.ChatId);
 
             if (contact == null)
             {
@@ -908,11 +1069,17 @@ namespace WhatsappApp.Services
             // the row is taken only when it is not older than what is already
             // there - a message that arrived in this session while the phone was
             // on must not go backwards.
-            if (!string.IsNullOrEmpty(message.Text) && message.Timestamp >= contact.LastMessageAt)
+            if (message.Timestamp >= contact.LastMessageAt)
             {
-                contact.LastMessage = message.Text;
-                contact.LastMessageTime = message.FormattedTime;
+                // The time orders the list even when the row carries no words (a
+                // conversation whose last message is a media the sync did not
+                // include): only the preview needs a text to replace.
                 contact.LastMessageAt = message.Timestamp;
+                if (!string.IsNullOrEmpty(message.Text))
+                {
+                    contact.LastMessage = message.Text;
+                    contact.LastMessageTime = message.FormattedTime;
+                }
             }
 
             // The profile picture. When the row carries it, the bytes are also kept
@@ -945,7 +1112,7 @@ namespace WhatsappApp.Services
             contact.UnreadCount = message.ChatId == _activeChatId ? 0 : message.UnreadCount;
             contact.IsPinned = ChatPreferences.IsPinned(message.ChatId);
             contact.IsMuted = ChatPreferences.IsMuted(message.ChatId);
-            ResortContacts();
+            PlaceContact(contact);
 
             RememberChatRow(message);
         }
@@ -985,20 +1152,13 @@ namespace WhatsappApp.Services
         {
             if (_freshChatRows.Count == 0) return;
 
-            // The server sends the conversations most recent first, and that is the
-            // order the list has to show. A conversation that wrote while the phone
-            // was off would otherwise keep the position it had in the cached
-            // snapshot, and a brand new one would sit at the bottom, off screen.
-            for (int i = 0; i < _freshChatRows.Count; i++)
-            {
-                if (i >= _contacts.Count) break;
-                Contact contact = FindContact(_freshChatRows[i].ChatId);
-                if (contact == null) continue;
-                int at = _contacts.IndexOf(contact);
-                if (at < 0 || at == i) continue;
-                _contacts.Move(at, i);
-            }
-            ResortContacts();
+            // The rows are already in the order the phone shows: every ApplyChat
+            // placed its row by its last activity (`PlaceContact`), and the batch
+            // order of the sync is NOT that order - it lists all the groups, then
+            // all the people. This used to move each row to the index it had in the
+            // batch, which put the old order back a moment after the sort.
+            SortContacts();
+            Diag.OkNow("order after the sync: " + OrderSample());
 
             _chatRows.Clear();
             _chatRows.AddRange(_freshChatRows);
@@ -1164,9 +1324,22 @@ namespace WhatsappApp.Services
             // one nobody can read (`JidUtils.Normalize`).
             jid = JidUtils.Normalize(jid);
 
+            // What the sync and the messages taught: the address book first, then the name the
+            // contact uses, and - for a LID whose pair is known - the real phone number.
+            string known = NameCache.Book.NameFor(jid);
+            if (!string.IsNullOrEmpty(known)) return known;
+
+            string phone = NameCache.Book.PhoneNumberFor(jid);
+            if (phone != null) jid = phone;
+
             string user = jid.Split('@')[0];
             if (jid.EndsWith("@g.us")) return string.Format(Loc.Get("DataService_Group", "Group {0}"), user);
             if (user.Length >= 8 && user.All(char.IsDigit)) return "+" + user;
+
+            // A `@lid` with no known number is not a number: its digits are an identifier, and
+            // printing them as `+...` is exactly the wrong phone number the user saw.
+            if (jid.EndsWith("@lid")) return user;
+
             return string.IsNullOrEmpty(user) ? "?" : user;
         }
 
@@ -1323,9 +1496,10 @@ namespace WhatsappApp.Services
                     NotificationService.SetUnread(TotalUnread());
                 }
 
-                // Move contact to top
-                _contacts.Move(_contacts.IndexOf(contact), 0);
-                ResortContacts();
+                // The row goes where its time says: a history message is not news,
+                // and putting it at the top would lift an old conversation above
+                // the recent ones (the sort is PlaceContact's).
+                PlaceContact(contact);
             }
         }
 
@@ -1559,6 +1733,39 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
         }
 
+        /// <summary>
+        /// The three counts the home tab strip shows as badges, read out of the same
+        /// collections the lists bind: unread messages, statuses not watched yet, and
+        /// missed calls in the log. They are answers about the present, so they are
+        /// counted when asked instead of kept in a field that could drift.
+        /// </summary>
+        public int UnreadChats()
+        {
+            return TotalUnread();
+        }
+
+        public int UnseenStatuses()
+        {
+            int total = 0;
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                ChatMessage row = _statuses[i];
+                if (row != null && !row.IsStatusViewed) total++;
+            }
+            return total;
+        }
+
+        public int MissedCalls()
+        {
+            int total = 0;
+            for (int i = 0; i < _calls.Count; i++)
+            {
+                CallLogEntry row = _calls[i];
+                if (row != null && string.Equals(row.Reason, "timeout", StringComparison.OrdinalIgnoreCase)) total++;
+            }
+            return total;
+        }
+
         /// <summary>Sum of the unread: it is the number that goes on the icon.</summary>
         private int TotalUnread()
         {
@@ -1573,8 +1780,8 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Brings the pinned chats to the top leaving the others where they are (the
         /// most recent first): each one is moved in front of the first non-pinned one,
-        /// so the relative order of the others does not change. It is not a sort: a
-        /// date key would only redo an order the collection already has.
+        /// so the relative order of the others does not change. It only moves the pin:
+        /// the date order is what `PlaceContact` keeps (see there).
         /// </summary>
         private void ResortContacts()
         {
@@ -1585,6 +1792,81 @@ namespace WhatsappApp.Services
                 if (i != target) _contacts.Move(i, target);
                 target++;
             }
+        }
+
+        /// <summary>
+        /// Puts a row where the list as WhatsApp shows it has it: the pinned chats first,
+        /// then every conversation by its last activity, newest above oldest.
+        ///
+        /// Why not `Insert(0)` and a pinned pass as before: the chat list arrives in the
+        /// order of WhatsApp's history sync, which groups conversations by type - all the
+        /// groups, then all the people - and that is not the order the phone shows. The
+        /// row is moved to the count of rows that belong above it, and because every
+        /// other row is already in that order one move is enough (`ResortContacts` keeps
+        /// that invariant when a pin changes).
+        /// </summary>
+        private void PlaceContact(Contact contact)
+        {
+            int at = _contacts.IndexOf(contact);
+            if (at < 0) return;
+
+            int target = 0;
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact other = _contacts[i];
+                if (other == null || other == contact) continue;
+                if (ComesBefore(other, contact)) target++;
+            }
+
+            if (at != target) _contacts.Move(at, target);
+        }
+
+        /// <summary>
+        /// Orders the whole list once, by activity, pinned first. `PlaceContact` keeps
+        /// that order while rows arrive; this is the guard at the end of a batch, where
+        /// one row that never answered with a time is enough to leave the list in the
+        /// order the sync sent it (all the groups, then all the people). A stable
+        /// selection sort over the collection: equal times keep their relative place.
+        /// </summary>
+        private void SortContacts()
+        {
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                int best = i;
+                for (int j = i + 1; j < _contacts.Count; j++)
+                {
+                    if (ComesBefore(_contacts[j], _contacts[best])) best = j;
+                }
+
+                if (best != i) _contacts.Move(best, i);
+            }
+        }
+
+        /// <summary>
+        /// Whether `left` belongs above `right` in the list: a pinned row above an
+        /// unpinned one, and otherwise the most recent activity above the oldest. A tie
+        /// keeps the order the rows already have, so a batch does not shuffle equal
+        /// times (a conversation with no message has `DateTime.MinValue`).
+        /// </summary>
+        private static bool ComesBefore(Contact left, Contact right)
+        {
+            if (left.IsPinned != right.IsPinned) return left.IsPinned;
+            return left.LastMessageAt > right.LastMessageAt;
+        }
+
+        /// <summary>The head of the list, for the log: it says whether the order the
+        /// phone paints is the order this service built.</summary>
+        private string OrderSample()
+        {
+            string text = "";
+            for (int i = 0; i < _contacts.Count && i < 6; i++)
+            {
+                Contact row = _contacts[i];
+                if (row == null) continue;
+                if (text.Length > 0) text += " | ";
+                text += row.Name + "@" + row.LastMessageAt.ToString("dd/MM HH:mm");
+            }
+            return text;
         }
 
         public void AddContact(Contact contact)

@@ -48,7 +48,7 @@ namespace WhatsappApp.Services
         private readonly CredentialStore _store = new CredentialStore(new NativeCredentialStorage());
         private readonly IRandomSource _random = new DeviceRandomSource();
         private readonly SeenMessages _seen = new SeenMessages(NativeChats.SeenLimit);
-        private readonly NativeChats _chats = new NativeChats();
+        private readonly NativeChats _chats = new NativeChats(NameCache.Book);
 
         /// <summary>The answers this client is waiting for, by the id of the query it sent.</summary>
         private readonly Dictionary<string, TaskCompletionSource<BinaryNode>> _waiters =
@@ -147,6 +147,13 @@ namespace WhatsappApp.Services
 
         /// <summary>A chat row is new or has changed: the history brought it, or a message did.</summary>
         public event EventHandler<HistoryConversation> ChatArrived;
+
+        /// <summary>
+        /// A chat that was keyed on a `@lid` is now keyed on its phone number. The pages that
+        /// keep a row per JID (`DataService`, with its preferences and message collections)
+        /// move theirs on this event.
+        /// </summary>
+        public event EventHandler<ChatMerge> ChatMerged;
 
         /// <summary>A message that has just arrived and is worth showing.</summary>
         public event EventHandler<HistoryMessage> MessageArrived;
@@ -651,6 +658,12 @@ namespace WhatsappApp.Services
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
             if (incoming.IsOurEcho) return;
 
+            // Who wrote it, before it is shown: the name the stanza carries (`notify`) and the
+            // phone number behind a LID (`sender_pn`/`participant_pn`). Both are on every
+            // message and neither was read anywhere, which is why a chat list full of people
+            // who had written looked like a list of phone numbers.
+            LearnFrom(incoming);
+
             if (StatusFeed.IsStatus(incoming.From))
             {
                 // A status is not a chat: a row for `status@broadcast` would sit at the top of
@@ -686,14 +699,19 @@ namespace WhatsappApp.Services
             message.IsFromMe = false;
             // Who wrote it, for a group: the row's chat is the group, so the sender has to
             // travel with the message or the bubble would say the group wrote it. Without
-            // its device, because this one is shown to a person.
-            message.Sender = JidUtils.Normalize(incoming.Sender);
+            // its device, because this one is shown to a person, and on the canonical
+            // address, so a bubble and a contact row key on the same JID.
+            message.Sender = NameCache.Book.Canonical(incoming.Sender);
+            // And what they call themselves, which is the only name a one-to-one chat has:
+            // the history carries no name for a person (`ApplyChat` falls back to it).
+            message.SenderName = incoming.PushName;
 
             if (!_chats.AddIncoming(message)) return;
 
             Diag.Ok("native: " + incoming.Id + " from " + incoming.From);
 
             HistoryConversation row = _chats.Find(message.Jid);
+            if (row != null) _chats.RefreshName(row);
             if (row != null && ChatArrived != null) ChatArrived(this, row);
             if (MessageArrived != null) MessageArrived(this, message);
 
@@ -1193,7 +1211,8 @@ namespace WhatsappApp.Services
             message.Jid = incoming.Chat;
             message.Id = incoming.Id;
             message.Timestamp = incoming.Timestamp;
-            message.Sender = JidUtils.Normalize(incoming.Sender);
+            message.Sender = NameCache.Book.Canonical(incoming.Sender);
+            message.SenderName = incoming.PushName;
             message.Encoded = incoming.Content.Encode();
 
             if (_chats.AddIncoming(message))
@@ -1201,6 +1220,7 @@ namespace WhatsappApp.Services
                 Diag.Ok("native: " + info.Type + " " + incoming.Id + " from " + incoming.From);
 
                 HistoryConversation row = _chats.Find(message.Jid);
+                if (row != null) _chats.RefreshName(row);
                 if (row != null && ChatArrived != null) ChatArrived(this, row);
                 if (MessageArrived != null) MessageArrived(this, message);
             }
@@ -1354,6 +1374,7 @@ namespace WhatsappApp.Services
         {
             ApplyCalls(sync);
             ApplyStatuses(sync);
+            PersistNames(sync);
 
             IList<HistoryMessage> fromTheSync = _chats.ApplyHistory(sync);
             Diag.Ok("native: history sync type " + sync.SyncType + " carried "
@@ -1373,6 +1394,107 @@ namespace WhatsappApp.Services
             Diag.Ok("native: " + fromTheSync.Count + " message(s) of the sync are in the chats");
 
             if (_chats.IsSyncComplete && HistoryFinished != null) HistoryFinished(this, sync);
+        }
+
+        /// <summary>
+        /// What a sync said about names, written down even before the rows are: the LID pairs
+        /// (field 15), the address book the primary shared (field 20) and the push names
+        /// (field 7).
+        ///
+        /// Why here and not only inside `NativeChats`: the books are one (`NameCache.Book`),
+        /// but the file that survives a restart is written by this layer. A sync that named a
+        /// contact and was not persisted is forgotten at the next launch, and the contact goes
+        /// back to being a number until it writes.
+        /// </summary>
+        private static void PersistNames(HistorySync sync)
+        {
+            int mappings = 0;
+            int saved = 0;
+
+            for (int i = 0; i < sync.LidMappings.Count; i++)
+            {
+                LidMapping mapping = sync.LidMappings[i];
+                if (mapping == null) continue;
+
+                NameCache.RememberMapping(mapping.Lid, mapping.PhoneNumber);
+                mappings++;
+            }
+
+            for (int i = 0; i < sync.InlineContacts.Count; i++)
+            {
+                InlineContact contact = sync.InlineContacts[i];
+                if (contact == null) continue;
+
+                NameCache.RememberMapping(contact.LidJid, contact.PnJid);
+
+                string name = contact.FullName;
+                if (string.IsNullOrEmpty(name)) name = contact.FirstName;
+                if (string.IsNullOrEmpty(name)) continue;
+
+                NameCache.RememberSavedName(contact.PnJid, name);
+                NameCache.RememberSavedName(contact.LidJid, name);
+                saved++;
+            }
+
+            for (int i = 0; i < sync.Conversations.Count; i++)
+            {
+                HistoryConversation conversation = sync.Conversations[i];
+                if (conversation == null) continue;
+
+                NameCache.RememberMapping(conversation.LidJid, conversation.PnJid);
+            }
+
+            for (int i = 0; i < sync.PushNames.Count; i++)
+            {
+                HistoryPushName push = sync.PushNames[i];
+                if (push == null) continue;
+
+                NameCache.RememberPushName(push.Jid, push.Name);
+            }
+
+            if (mappings > 0 || saved > 0 || sync.PushNames.Count > 0)
+            {
+                Diag.Ok("native: the sync named " + mappings + " LID pair(s), "
+                    + saved + " saved contact(s), " + sync.PushNames.Count + " push name(s)");
+            }
+        }
+
+        /// <summary>
+        /// One live message, before it is shown: the name the stanza carries and the phone
+        /// number behind a LID.
+        ///
+        /// Why the message and not a query: `notify` and `sender_pn`/`participant_pn` are on
+        /// every stanza, and a client that ignores them has to draw a number for somebody whose
+        /// name it was just told. A LID whose pair is learned here folds its row into the
+        /// number's (`NativeChats.LearnMapping`) and the pages are told (`ChatMerged`).
+        /// </summary>
+        private void LearnFrom(IncomingMessage incoming)
+        {
+            if (incoming == null) return;
+
+            string sender = string.IsNullOrEmpty(incoming.Sender) ? incoming.Chat : incoming.Sender;
+            sender = _chats.Names.Canonical(JidUtils.Normalize(sender));
+            if (sender == null) return;
+
+            if (!string.IsNullOrEmpty(incoming.PhoneNumber))
+            {
+                string phone = JidUtils.Normalize(incoming.PhoneNumber);
+
+                NameCache.RememberMapping(sender, phone);
+
+                if (_chats.LearnMapping(sender, phone))
+                {
+                    string to = _chats.Names.Canonical(sender);
+                    Diag.Ok("native: " + sender + " is " + to + ", one chat");
+
+                    if (ChatMerged != null) ChatMerged(this, new ChatMerge(sender, to));
+                }
+            }
+
+            if (!string.IsNullOrEmpty(incoming.PushName))
+            {
+                NameCache.RememberPushName(sender, incoming.PushName);
+            }
         }
 
         /// <summary>

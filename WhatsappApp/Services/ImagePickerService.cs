@@ -44,6 +44,18 @@ namespace WhatsappApp.Services
             picker.FileTypeFilter.Add(".mkv");
             picker.FileTypeFilter.Add(".webm");
 
+            // Audio. A voice note is recorded in the chat, but a music file or a
+            // recording saved by another app has no other way in: without these the
+            // picker simply does not show it, and the attach button looks like it
+            // cannot send audio at all.
+            picker.FileTypeFilter.Add(".m4a");
+            picker.FileTypeFilter.Add(".mp3");
+            picker.FileTypeFilter.Add(".aac");
+            picker.FileTypeFilter.Add(".wav");
+            picker.FileTypeFilter.Add(".amr");
+            picker.FileTypeFilter.Add(".ogg");
+            picker.FileTypeFilter.Add(".opus");
+
             // Documents. The file name is kept, so the type badge of the card
             // comes from the real extension.
             picker.FileTypeFilter.Add(".pdf");

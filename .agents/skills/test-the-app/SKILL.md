@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app - the static guard
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 250 protocol tests, 114 keys in each `.resw`, 123 tests in
+Current expected counts: 267 protocol tests, 114 keys in each `.resw`, 130 tests in
 `tools/test`, 26 buttons and 1 button style. The counts printed by the guards
 themselves are the source of truth; these are what to expect when nothing is out of
 step.
@@ -31,7 +31,7 @@ node tools/check-client-state.js  # the login is completed with the active iq, a
 node tools/check-diagnostics.js   # the run is on disk, the crash report reads the marker, and the history wait is not shorter than the read
 node tools/check-xaml-names.js  # a x:Name is used once in one namescope
 node tools/check-attachment-file.js  # each attachment copies to its own name, and the player reloads the bubble it was asked for
-node --test "tools/test/**/*.test.js"  # the tools' own tests (123)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (130)
 ```
 
 Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
@@ -107,7 +107,7 @@ for (const dir of ['Pages','Controls']) for (const f of fs.readdirSync('Whatsapp
 node tools/test-protocol.js
 ```
 
-Expected `OK: 250 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
+Expected `OK: 267 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
 the app's own sources and runs them: the binary node reader and writer, the Noise
 handshake, the Signal sessions (X3DH, the double ratchet, the sender key of a
 group), the media key schedule and the four media protobufs, the credential store,

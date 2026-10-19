@@ -11,7 +11,8 @@ A community-maintained WhatsApp client for Windows Phone 8.1 (Universal Windows 
 The main client app with an authentic WhatsApp user interface.
 
 **Features:**
-- WhatsApp green theme (header #075E54, accent #25D366, chat bubbles)
+- WhatsApp theme throughout (accent on the header, the tabs, the app bar and the bubbles)
+- Theme picker in the settings: the package's own wallpapers (plus the doodle and plain white) paint the conversation and the home list
 - Chat list with avatars and unread badges
 - Live tile with how many messages are waiting, the last sender's picture and their name
 - Message bubbles with timestamps and sent/delivered/read status
@@ -89,22 +90,24 @@ ways (with `ffmpeg`) is gone with the rest of it.
 
 ## App structure
 
-The app is split into one page per section, with a shared navigation bar
-(`WhatsappApp/Controls/SectionNav.xaml`):
+The home is one surface with the three sections under a fixed tab strip and the
+WP8 app bar, plus a page per conversation:
 
-| Page | Section |
+| Page | What it is |
 | --- | --- |
-| `Pages/ChatsPage.xaml` | chat list, new chat, access to the settings |
-| `Pages/StatusPage.xaml` | status |
-| `Pages/CallsPage.xaml` | calls |
+| `Pages/HomePage.xaml` | chats, status and calls, swiped under `Controls/TabHeader.xaml` |
+| `Controls/StatusPane.xaml` | the status feed |
+| `Controls/CallsPane.xaml` | the call log |
 | `Pages/ChatPage.xaml` | conversation |
-| `Pages/ConnectionPage.xaml` | server configuration and WhatsApp login |
+| `Pages/SettingsPage.xaml` | theme (the chat wallpaper) and the way to the account |
+| `Pages/ConnectionPage.xaml` | the linked number and the connection state |
+| `Pages/PairPage.xaml` | the QR code that links a device |
 
-Changing section navigates the root `Frame` and removes from the stack the section
-it leaves, so the **Back** button exits the app from any section instead of
-walking back through the ones already seen. The three section pages are cached
-(`Frame.CacheSize = 3`): moving from one to another does not rebuild the page and
-the chat list keeps its scroll position.
+The home page is cached: moving to a chat and back does not rebuild it, and the
+chat list keeps its scroll position. The theme is chosen on the settings page
+from the wallpapers the released package ships in `Images/Wallpapers` (plus the
+doodle and plain white), is stored in `LocalSettings`, and paints both the
+conversation and the home list.
 
 ## Project skills
 
@@ -247,12 +250,17 @@ for members **missing from the Windows Phone 8.1 WinRT projection** (e.g.
 
 ### Icons, tiles and splash screen
 
-The WhatsApp logo (a green bubble with the handset cut out) comes from the raster
-reference `tools/brand/logo-source.png` (the mark on a white background).
-`tools/make-brand-assets.js` keys that white background out and rewrites the PNGs
-in `WhatsappApp/Assets/` — already committed, so the script is only needed when
-the artwork changes. It is plain Node (no ImageMagick): the PNG is decoded and
-encoded with `zlib`.
+The tiles, the launcher icon and the splash screen are the **official** WhatsApp
+artwork for WP8.1, not a redrawing: `tools/brand/official/` holds the files the
+released package ships (`Icon1.png`, `Images/Tile*.png`, `Images/logo.png`, the
+chat wallpaper `Images/Background.jpg` and the 480×800 splash), and
+`tools/make-brand-assets.js` copies them into `WhatsappApp/Assets/` at the sizes
+the manifest asks for at the 240% scale (150→360, 71→170, 44→106,
+310×150→744×360). Only the live-tile icon (200 and 480 px), the `StoreLogo`
+(120 px) and the 1152×1920 splash are derived, from `Icon1.png` and the shipped
+splash; they are committed too, so the script only runs when the artwork changes.
+It is plain Node (no ImageMagick): the PNG is decoded, resampled with a
+triangular kernel and encoded with `zlib`.
 
 ```bash
 node tools/make-brand-assets.js            # rewrites the PNGs
@@ -304,16 +312,15 @@ node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
 ```
 
 The live tile has an asset of its own, `Assets/TileIcon.png` plus its 240% version
-`TileIcon.scale-240.png` (480×480): a transparent PNG written by the same
-`make-brand-assets.js`, with the mark drawn inside the tile at the same inner
-proportion as the manifest logos. It is not a duplicate of `Logo.png`: the iconic
-tile template draws the image itself, so a mark that fills the whole asset looks
-zoomed and cut on a 150 px tile.
+`TileIcon.scale-240.png` (480×480): the official green app icon, resized by the
+same `make-brand-assets.js`. It is not a duplicate of `Logo.png`: the iconic tile
+template draws the image itself, so a mark that fills the whole asset looks zoomed
+and cut on a 150 px tile.
 
-The manifest sets `BackgroundColor="#FFFFFF"` together with
-`ForegroundText="dark"`. The icons and the tile are white and the mark is green,
-so the two can be told apart; `dark` is the other half of the pair, because
-light text on a white tile is invisible.
+The manifest sets `BackgroundColor="#45D82C"` together with
+`ForegroundText="light"`. The official square and wide tiles are the white
+handset on a transparent background, so the green shows through them, and light
+is the other half of the pair, because dark tile text on that green is unreadable.
 
 `tools/check-tile.js` guards it, because the failure it catches is invisible. A tile
 template does **not** take the icon from the manifest: it wants `<image src="..."/>`
@@ -329,7 +336,7 @@ its siblings have no memory element at all — so this is runtime work, in two h
 
 - **decode at the size you draw**: `ImageHelper` takes the width the image is shown
   at and sets `DecodePixelWidth` before `SetSourceAsync`. A 640×640 profile picture
-  drawn as a 52 px circle costs a few tens of KB instead of almost 2 MB, times one
+  drawn as a 56 px circle costs a few tens of KB instead of almost 2 MB, times one
   per conversation;
 - **let go when asked**: `MemoryWatcher` listens to
   `MemoryManager.AppMemoryUsageIncreased` and, at `High`, drops the decoded avatars

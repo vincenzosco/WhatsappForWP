@@ -133,7 +133,7 @@ namespace WhatsappApp.Pages
             if (Frame.CanGoBack)
                 Frame.GoBack();
             else
-                Frame.Navigate(typeof(ChatsPage));
+                Frame.Navigate(typeof(HomePage));
         }
     }
 }

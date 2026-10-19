@@ -6,13 +6,41 @@
 
     <Application.Resources>
         <ResourceDictionary>
-            <!-- WhatsApp Global Colors -->
+            <!-- WhatsApp Global Colors.
+
+                 These are the values the WP8.1 Silverlight app carries in
+                 `themes/generic.xaml` and in its item templates, read out of the
+                 official package: the header is the dark teal of the app bar, the
+                 accent is the green of the sent bubble and of the selected
+                 section, the received bubble is the #EFEFEF of the light theme,
+                 and the list is white while the conversation carries the doodle
+                 wallpaper (Assets/ChatBackground.jpg). -->
             <SolidColorBrush x:Key="WhatsAppDarkTealBrush" Color="#FF075E54"/>
             <SolidColorBrush x:Key="WhatsAppTealBrush" Color="#FF128C7E"/>
             <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF25D366"/>
             <SolidColorBrush x:Key="WhatsAppLightGreenBrush" Color="#FFDCF8C6"/>
-            <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFECE5DD"/>
+            <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFFFFFFF"/>
+
+            <!-- The veil the home list puts over the chosen wallpaper: the image
+                 keeps the page on the same theme as the conversation, and 72% white
+                 keeps a busy photo from turning the two lines of a chat row grey. -->
+            <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#B8FFFFFF"/>
             <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF34A7ED"/>
+
+            <!-- The accent-driven brushes. Their Color is replaced at start with
+                 the phone's accent (Services/Accent.cs), the way the official
+                 package asks the theme for PhoneAccentBrush: app bar, selected
+                 tab, underline, badges and the sent bubble all follow it. -->
+            <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="WhatsAppAccentDarkBrush" Color="#FF1FAD54"/>
+            <SolidColorBrush x:Key="WhatsAppAccentTextBrush" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="WhatsAppAppBarBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="WhatsAppSentBubbleBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="WhatsAppReceivedBubbleBrush" Color="#FFEFEFEF"/>
+            <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#FF333333"/>
+            <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#FF939393"/>
+            <SolidColorBrush x:Key="WhatsAppSeparatorBrush" Color="#14000000"/>
 
             <!-- No icon geometries live here on purpose.
 
@@ -47,8 +75,10 @@
 
                  tools/check-icons.js enforces all three rules. -->
 
-            <!-- Override the default app background -->
-            <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#FFECE5DD"/>
+            <!-- Override the default app background: the official list is white;
+                 the conversation paints the wallpaper over it, and the home list the
+                 chosen one under its veil. -->
+            <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#FFFFFFFF"/>
         </ResourceDictionary>
     </Application.Resources>
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using WhatsappApp.Protocol.WaProto;
 
@@ -25,6 +26,34 @@ namespace WhatsappApp.Protocol.Client
 
         private readonly SeenMessages _seen = new SeenMessages(SeenLimit);
         private readonly List<HistoryConversation> _rows = new List<HistoryConversation>();
+        private readonly NameBook _names;
+
+        /// <summary>
+        /// A chat list with nobody's names: the shape a test wants when it is about the order
+        /// of the rows and not about what they are called.
+        /// </summary>
+        public NativeChats()
+            : this(new NameBook())
+        {
+        }
+
+        /// <summary>
+        /// The same, with the names and the LID pairs it has to apply. One book is shared with
+        /// the connection and the cache, so a name learned from a live message is the name the
+        /// cached rows are drawn with after the next restart (see `Services/NameCache`).
+        /// </summary>
+        public NativeChats(NameBook names)
+        {
+            if (names == null) throw new ProtocolException("a chat list needs a place to keep names");
+
+            _names = names;
+        }
+
+        /// <summary>The names and LID pairs behind the rows.</summary>
+        public NameBook Names
+        {
+            get { return _names; }
+        }
 
         /// <summary>The rows, newest conversation first.</summary>
         public IList<HistoryConversation> Rows
@@ -62,9 +91,18 @@ namespace WhatsappApp.Protocol.Client
             var applied = new List<HistoryMessage>();
             if (sync == null) return applied;
 
+            Learn(sync);
+            FoldMappedRows();
+
             for (int i = 0; i < sync.Conversations.Count; i++)
             {
                 HistoryConversation chunk = sync.Conversations[i];
+                if (chunk.Jid == null) continue;
+
+                // The chat is keyed on its canonical address: a `@lid` whose phone number this
+                // sync named is the same conversation as that number, and two rows for one
+                // person is what the canonical address exists to prevent (NameBook.Canonical).
+                chunk.Jid = _names.Canonical(chunk.Jid);
                 if (chunk.Jid == null) continue;
 
                 // The history carries a `status@broadcast` conversation with every status of
@@ -76,6 +114,7 @@ namespace WhatsappApp.Protocol.Client
                 row.UnreadCount = chunk.UnreadCount;
                 row.Archived = row.Archived || chunk.Archived;
                 if (chunk.Name != null) row.Name = chunk.Name;
+                if (string.IsNullOrEmpty(row.Name)) row.Name = _names.NameFor(chunk.Jid);
                 if (chunk.LastMessageTimestamp > row.LastMessageTimestamp) row.LastMessageTimestamp = chunk.LastMessageTimestamp;
                 if (chunk.ConversationTimestamp > row.ConversationTimestamp) row.ConversationTimestamp = chunk.ConversationTimestamp;
 
@@ -87,6 +126,7 @@ namespace WhatsappApp.Protocol.Client
                     // message with no chat of its own would reach the app as a conversation of
                     // its own, next to the person it belongs to.
                     if (string.IsNullOrEmpty(message.Jid)) message.Jid = chunk.Jid;
+                    message.Jid = _names.Canonical(message.Jid);
 
                     if (!AddMessage(row, message)) continue;
 
@@ -99,7 +139,14 @@ namespace WhatsappApp.Protocol.Client
             {
                 HistoryPushName name = sync.PushNames[i];
                 HistoryConversation row = Find(name.Jid);
-                if (row != null && name.Name != null) row.Name = name.Name;
+                if (row == null) continue;
+
+                // A push name never overwrites a saved one: the address book is the person's
+                // own word for the contact and the push name is the contact's word for
+                // themselves. The book already resolves that order, so the row asks it.
+                string known = _names.NameFor(row.Jid);
+                if (known != null) row.Name = known;
+                else if (name.Name != null) row.Name = name.Name;
             }
 
             if (sync.SyncType == HistorySync.InitialBootstrap || sync.Progress >= 100) IsSyncComplete = true;
@@ -141,7 +188,11 @@ namespace WhatsappApp.Protocol.Client
             // (`StatusFeed.IsStatus`; Review Focus 5).
             if (StatusFeed.IsStatus(message.Jid)) return false;
 
+            message.Jid = _names.Canonical(message.Jid);
+            if (message.Jid == null) return false;
+
             HistoryConversation row = EnsureRow(message.Jid);
+            if (string.IsNullOrEmpty(row.Name)) row.Name = _names.NameFor(message.Jid);
             if (!AddMessage(row, message)) return false;
 
             // An incoming message is unread until someone reads it, and the row is the newest
@@ -159,6 +210,9 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public bool AddOutgoing(string jid, string id, string text, long timestamp)
         {
+            if (jid == null) return false;
+
+            jid = _names.Canonical(jid);
             if (jid == null) return false;
 
             var message = new HistoryMessage();
@@ -179,6 +233,7 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The row for a chat, or null when the chat list has never heard of it.</summary>
         public HistoryConversation Find(string jid)
         {
+            jid = _names.Canonical(jid);
             if (jid == null) return null;
 
             for (int i = 0; i < _rows.Count; i++)
@@ -189,16 +244,183 @@ namespace WhatsappApp.Protocol.Client
             return null;
         }
 
+        /// <summary>
+        /// Teaches the chat list that a `@lid` and a phone number are one account, and folds
+        /// the row the LID already had into the number's row.
+        ///
+        /// Why the fold and not only the mapping: a message that arrives before the history
+        /// does not know the pair yet, so the row it creates is keyed on the LID. Learning the
+        /// pair afterwards has to move that conversation to the number, or every such contact
+        /// keeps a row under an address nothing will ever be sent to again.
+        ///
+        /// Returns true when a row was folded - the caller has a visible chat to merge in the
+        /// pages - and false when the pair was already known or is not a pair.
+        /// </summary>
+        public bool LearnMapping(string lid, string phone)
+        {
+            // The pair may already be in the book (the caller persisted it first): the fold is
+            // still owed to a row that was created before it was known.
+            _names.RememberMapping(lid, phone);
+
+            return FoldMappedRows();
+        }
+
+        /// <summary>
+        /// Gives a row the best name the book has. Called after a live message taught a name
+        /// to a row that was created by the history without one.
+        /// </summary>
+        public void RefreshName(HistoryConversation row)
+        {
+            if (row == null) return;
+
+            string name = _names.NameFor(row.Jid);
+            if (name != null) row.Name = name;
+        }
+
         private HistoryConversation EnsureRow(string jid)
         {
             HistoryConversation row = Find(jid);
             if (row != null) return row;
 
+            jid = _names.Canonical(jid);
+            if (jid == null) return null;
+
             row = new HistoryConversation();
             row.Jid = jid;
+            row.Name = _names.NameFor(jid);
             _rows.Add(row);
 
             return row;
+        }
+
+        /// <summary>
+        /// The addresses this sync knows about, learned before its conversations are read.
+        ///
+        /// The order is what makes the fold unnecessary for a sync: the pairs and the saved
+        /// names are in hand before the first row is created, so a conversation that arrives
+        /// as a LID is keyed on its number from the start.
+        /// </summary>
+        private void Learn(HistorySync sync)
+        {
+            for (int i = 0; i < sync.LidMappings.Count; i++)
+            {
+                LidMapping mapping = sync.LidMappings[i];
+                if (mapping == null) continue;
+
+                _names.RememberMapping(mapping.Lid, mapping.PhoneNumber);
+            }
+
+            for (int i = 0; i < sync.InlineContacts.Count; i++)
+            {
+                InlineContact contact = sync.InlineContacts[i];
+                if (contact == null) continue;
+
+                if (!string.IsNullOrEmpty(contact.LidJid) && !string.IsNullOrEmpty(contact.PnJid))
+                {
+                    _names.RememberMapping(contact.LidJid, contact.PnJid);
+                }
+
+                string name = contact.FullName;
+                if (string.IsNullOrEmpty(name)) name = contact.FirstName;
+                if (string.IsNullOrEmpty(name)) continue;
+
+                // The name is written under both addresses: the address book names the pair,
+                // and a row that is still keyed on the LID (a sync that carried no pair) has
+                // to find it too.
+                if (!string.IsNullOrEmpty(contact.PnJid)) _names.RememberSavedName(contact.PnJid, name);
+                if (!string.IsNullOrEmpty(contact.LidJid)) _names.RememberSavedName(contact.LidJid, name);
+            }
+
+            for (int i = 0; i < sync.Conversations.Count; i++)
+            {
+                HistoryConversation conversation = sync.Conversations[i];
+                if (conversation == null) continue;
+
+                if (!string.IsNullOrEmpty(conversation.LidJid) && !string.IsNullOrEmpty(conversation.PnJid))
+                {
+                    _names.RememberMapping(conversation.LidJid, conversation.PnJid);
+                }
+            }
+
+            for (int i = 0; i < sync.PushNames.Count; i++)
+            {
+                HistoryPushName push = sync.PushNames[i];
+                if (push == null) continue;
+
+                _names.RememberPushName(push.Jid, push.Name);
+            }
+        }
+
+        /// <summary>
+        /// Folds every row that a pair learned since the last sync has just made redundant.
+        /// A chunk can carry the pair only in a later chunk than the conversation, so the row
+        /// exists under the LID before the mapping arrives.
+        /// </summary>
+        private bool FoldMappedRows()
+        {
+            var snapshot = new List<HistoryConversation>(_rows);
+            bool folded = false;
+
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                string jid = snapshot[i].Jid;
+                string canonical = _names.Canonical(jid);
+                if (canonical == null || canonical == jid) continue;
+
+                if (Fold(jid, canonical)) folded = true;
+            }
+
+            return folded;
+        }
+
+        /// <summary>
+        /// The row under exactly this address, canonicalising nothing: the fold looks for the
+        /// row at the address it is leaving, and `Find` would send it to the one it is joining.
+        /// </summary>
+        private HistoryConversation FindExact(string jid)
+        {
+            if (jid == null) return null;
+
+            for (int i = 0; i < _rows.Count; i++)
+            {
+                if (_rows[i].Jid == jid) return _rows[i];
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Moves everything a row knew to another row and removes it. False when there was
+        /// nothing to fold.
+        /// </summary>
+        private bool Fold(string from, string into)
+        {
+            if (from == into) return false;
+
+            HistoryConversation gone = FindExact(from);
+            if (gone == null) return false;
+
+            HistoryConversation keep = EnsureRow(into);
+
+            for (int i = 0; i < gone.Messages.Count; i++)
+            {
+                HistoryMessage message = gone.Messages[i];
+                message.Jid = into;
+                keep.Messages.Add(message);
+            }
+
+            keep.UnreadCount = Math.Max(keep.UnreadCount, gone.UnreadCount);
+            keep.Archived = keep.Archived || gone.Archived;
+
+            if (gone.LastMessageTimestamp > keep.LastMessageTimestamp) keep.LastMessageTimestamp = gone.LastMessageTimestamp;
+            if (gone.ConversationTimestamp > keep.ConversationTimestamp) keep.ConversationTimestamp = gone.ConversationTimestamp;
+
+            if (string.IsNullOrEmpty(keep.Name)) keep.Name = gone.Name;
+
+            _rows.Remove(gone);
+            Order();
+
+            return true;
         }
 
         /// <summary>

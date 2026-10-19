@@ -29,7 +29,8 @@ WhatsappApp/            WP8.1 XAML app (C# 5)
                         SessionService (last section),
                         Diag (every failure we survive, with its HRESULT)
   Strings/<lang>/       Resources.resw - every user-visible string
-  Assets/               generated PNGs (tiles, logos, splash)
+  Assets/               official tiles, logos, splash, chat wallpaper
+                        (rewritten by tools/make-brand-assets.js)
 ProtocolTests/          the protocol's own tests, run by tools/test-protocol.js
 tools/                  static guards - run them, they are the real gate
   test-protocol.js      builds and runs ProtocolTests
@@ -52,7 +53,16 @@ README.md / README.it.md                project docs, English + Italian
    Gate: `node tools/check-csharp5.js` (it also flags WP8.1-missing WinRT APIs
    such as `CryptographicBuffer.CreateFromByteArray(byte[], uint, uint)` and
    `ContentDialog.CloseButtonText`).
-2. **No icon font.** WP8.1 predates `Segoe MDL2 Assets`; an icon button using it
+2. **The look is the official one.** Colours and shapes come from the released
+   WP8.1 package, not from taste: header `#075E54`, sent bubble `#DCF8C6`,
+   received bubble `#EFEFEF`, primary text `#333333`, secondary `#939393`,
+   selected section `#25D366` on white, the chat painted with
+   `Assets/ChatBackground.jpg` and the list rows white. `App.xaml` holds the
+   palette, each page brings the wallpaper if it needs it, and `SectionNav`
+   draws the icon-plus-label bar. Changing a colour is a change to the palette,
+   not a literal in one page.
+
+3. **No icon font.** WP8.1 predates `Segoe MDL2 Assets`; an icon button using it
    renders blank. Icons are `Path` elements with the geometry **inlined** as
    `<Path.Data><PathGeometry>...</PathGeometry></Path.Data>`, each named by an
    `<!-- IconX -->` comment above its `Path.Data`.
@@ -66,39 +76,40 @@ README.md / README.it.md                project docs, English + Italian
    The live tile is the one place where the icon is **not** a `Path`: a tile
    model wants its image in the payload, as `<image src="..."/>`, and does
    **not** fall back to the manifest logo. The asset is `Assets/TileIcon.png`
-   (+ its `.scale-240`), a transparent PNG with no padding.
+   (+ its `.scale-240`), the official green app icon with no padding, which is
+   why the manifest's `BackgroundColor` is that same green.
    Gate: `node tools/check-tile.js`.
-3. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
+4. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
    that matches the element (`TextBlock`→`.Text`, `Button`→`.Content`,
    `TextBox`→`.PlaceholderText`); C# uses `Loc.Get("Key", "fallback")`. Icon-only
    buttons get their label from `ToolTipService.SetToolTip(button, Loc.Get(...))`
    in the constructor - an `x:Uid` on them would overwrite the `Path`.
    Gate: `node tools/check-resw.js --strict`.
-4. **Never create a `ResourceLoader` off the UI thread.** Strings arrive from the
+5. **Never create a `ResourceLoader` off the UI thread.** Strings arrive from the
    socket on a background thread; `Loc.Prewarm()` runs on the UI thread at
    startup and `Loc.Get` falls back to its literal instead of throwing.
-5. **Back navigation.** A Windows Phone 8.1 Runtime app is **not** given the
+6. **Back navigation.** A Windows Phone 8.1 Runtime app is **not** given the
    Back button: the platform leaves the app from the first page, unlike
    Silverlight. `Services/BackNavigator.cs` subscribes
    `HardwareButtons.BackPressed` once at startup, sets `Handled` and pops the
    root `Frame` while it can; at a section root it leaves the event alone, so
    the system suspends the app. `SectionNav` trims the section page it leaves,
    so Back from any section root still exits.
-6. **The protocol core is not the app.** Everything under `WhatsappApp/Protocol/`
+7. **The protocol core is not the app.** Everything under `WhatsappApp/Protocol/`
    is the wire - the node format, the handshake, the Signal sessions, the media
    keys - and it is pinned against the reference implementations, not against a
    guess. A change there is a change to `ProtocolTests/` too, in the same commit.
-7. **One page per section.** A new screen means a new file under `Pages/`, not
+8. **One page per section.** A new screen means a new file under `Pages/`, not
    another block inside an existing page, and it must be registered in the
    `.csproj` (a page that is not listed does not exist at build time).
-8. **Runtime text is English.** Everything a person reads *outside the app UI* is
+9. **Runtime text is English.** Everything a person reads *outside the app UI* is
    English: the app's `Diag` lines (with every message inside an exception that can
    reach them), the guards and the tooling under `tools/`. Someone reading a
    debugger window or a phone log needs no second language. Only the app UI is
    localized, through the `.resw` pairs; source comments are English too, while the
    test names and the guard-script diagnostics under `tools/` stay Italian, because
    nobody reads them at run time.
-9. **The docs are written in pairs, English and Italian.** `README.md` and
+10. **The docs are written in pairs, English and Italian.** `README.md` and
    `README.it.md` are versions of each other: a section is
    added, moved or renamed in **both**, in the same commit, with the same heading
    depth and order, and each links to the other. `## Disclosure` (open source,

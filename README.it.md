@@ -15,7 +15,8 @@ avviare e niente da configurare.
 L'app principale, con un'interfaccia utente autentica di WhatsApp.
 
 **Funzioni:**
-- tema verde WhatsApp (intestazione #075E54, accento #25D366, fumetti dei messaggi)
+- tema WhatsApp in tutta l'app (accento su intestazione, tab, barra e fumetti)
+- selettore del tema nelle impostazioni: gli sfondi del pacchetto ufficiale (piu' il doodle e il bianco) dipingono la conversazione e l'elenco della home
 - elenco chat con avatar e contatori dei non letti
 - tile live con quanti messaggi aspettano, la foto di chi ha scritto per ultimo e il suo nome
 - fumetti con orario e stato inviato/consegnato/letto
@@ -95,22 +96,24 @@ due sensi (con `ffmpeg`) se n'e' andato con tutto il resto.
 
 ## Struttura dell'app
 
-L'app e' divisa in una pagina per sezione, con una barra di navigazione
-condivisa (`WhatsappApp/Controls/SectionNav.xaml`):
+La home e' una sola superficie con le tre sezioni sotto una striscia di tab
+fissa e la barra dell'app WP8, piu' una pagina per conversazione:
 
-| Pagina | Sezione |
+| Pagina | Che cos'e' |
 | --- | --- |
-| `Pages/ChatsPage.xaml` | elenco chat, nuova chat, accesso alle impostazioni |
-| `Pages/StatusPage.xaml` | stati |
-| `Pages/CallsPage.xaml` | chiamate |
+| `Pages/HomePage.xaml` | chat, stati e chiamate, sfogliati sotto `Controls/TabHeader.xaml` |
+| `Controls/StatusPane.xaml` | il feed degli stati |
+| `Controls/CallsPane.xaml` | il registro delle chiamate |
 | `Pages/ChatPage.xaml` | conversazione |
-| `Pages/ConnectionPage.xaml` | configurazione server e accesso WhatsApp |
+| `Pages/SettingsPage.xaml` | tema (lo sfondo delle chat) e accesso all'account |
+| `Pages/ConnectionPage.xaml` | il numero collegato e lo stato della connessione |
+| `Pages/PairPage.xaml` | il codice QR che collega un dispositivo |
 
-Il cambio di sezione naviga sul `Frame` radice e rimuove dallo stack la sezione
-lasciata, quindi il tasto **Indietro** esce dall'app da qualunque sezione invece
-di ripassare tra quelle viste. Le tre pagine di sezione sono in cache
-(`Frame.CacheSize = 3`): passare da una all'altra non ricostruisce la pagina e
-l'elenco chat conserva la posizione di scorrimento.
+La home e' in cache: andare in una chat e tornare non la ricostruisce, e l'elenco
+conserva la posizione di scorrimento. Il tema si sceglie nelle impostazioni tra
+gli sfondi che il pacchetto ufficiale porta in `Images/Wallpapers` (piu' il
+doodle e il bianco), e' salvato in `LocalSettings` e dipinge sia la conversazione
+sia l'elenco della home.
 
 ## Skill del progetto
 
@@ -256,11 +259,17 @@ controlla anche i membri **assenti dalla proiezione WinRT di Windows Phone 8.1**
 
 ### Icone, tile e splash screen
 
-Il logo WhatsApp (bolla verde con la cornetta ritagliata) parte dall'immagine di
-riferimento `tools/brand/logo-source.png` (il marchio su fondo bianco).
-`tools/make-brand-assets.js` toglie quel fondo bianco e riscrive i PNG in
-`WhatsappApp/Assets/` — gia' committati, quindi lo script serve solo se cambia la
-grafica. E' Node puro, senza ImageMagick: il PNG viene letto e scritto con `zlib`.
+Le tile, l'icona di avvio e lo splash screen sono la grafica **ufficiale** di
+WhatsApp per WP8.1, non un ridisegno: `tools/brand/official/` tiene i file del
+pacchetto rilasciato (`Icon1.png`, `Images/Tile*.png`, `Images/logo.png`, lo
+sfondo delle chat `Images/Background.jpg` e lo splash 480×800), e
+`tools/make-brand-assets.js` li copia in `WhatsappApp/Assets/` alle misure che il
+manifest chiede al 240% (150→360, 71→170, 44→106, 310×150→744×360). Solo l'icona
+della tile live (200 e 480 px), lo `StoreLogo` (120 px) e lo splash 1152×1920
+sono ricavati, da `Icon1.png` e dallo splash del pacchetto; anche loro sono
+committati, quindi lo script gira solo se cambia la grafica. E' Node puro, senza
+ImageMagick: il PNG viene letto, ridimensionato con un kernel triangolare e
+scritto con `zlib`.
 
 ```bash
 node tools/make-brand-assets.js            # riscrive i PNG
@@ -313,16 +322,16 @@ node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
 ```
 
 La tile live ha un asset suo, `Assets/TileIcon.png` piu' la sua versione al 240%,
-`TileIcon.scale-240.png` (480×480): un PNG trasparente scritto dallo stesso
-`make-brand-assets.js`, con il marchio disegnato dentro la tile nella stessa
-proporzione interna dei logo del manifest. Non e' un doppione di `Logo.png`: il
-modello della tile iconica disegna l'immagine cosi' com'e', quindi un marchio che
-riempie tutto l'asset su una tile da 150 px sembra ingrandito e tagliato.
+`TileIcon.scale-240.png` (480×480): l'icona ufficiale verde dell'app,
+ridimensionata dallo stesso `make-brand-assets.js`. Non e' un doppione di
+`Logo.png`: il modello della tile iconica disegna l'immagine cosi' com'e', quindi
+un marchio che riempie tutto l'asset su una tile da 150 px sembra ingrandito e
+tagliato.
 
-Il manifest imposta `BackgroundColor="#FFFFFF"` insieme a
-`ForegroundText="dark"`. Le icone e la tile sono bianche e il marchio e' verde,
-quindi si distinguono; `dark` e' l'altra meta' della coppia, perche' testo chiaro
-su una tile bianca non si vede.
+Il manifest imposta `BackgroundColor="#45D82C"` insieme a
+`ForegroundText="light"`. Le tile quadrate e quella larga ufficiali sono la
+cornetta bianca su fondo trasparente, quindi il verde traspare; `light` e'
+l'altra meta' della coppia, perche' testo scuro su quel verde non si legge.
 
 `tools/check-tile.js` la custodisce, perche' il guasto che intercetta e' invisibile.
 Un modello di tile **non** prende l'icona dal manifest: la vuole nel payload, in un
@@ -339,7 +348,7 @@ memoria - quindi il lavoro e' a runtime, in due meta':
 
 - **decodifica alla misura che disegni**: `ImageHelper` riceve la larghezza a cui
   l'immagine viene mostrata e imposta `DecodePixelWidth` prima di `SetSourceAsync`.
-  Un'immagine del profilo da 640×640 disegnata in un cerchio da 52 px costa qualche
+  Un'immagine del profilo da 640×640 disegnata in un cerchio da 56 px costa qualche
   decina di KB invece di quasi 2 MB, moltiplicato per una conversazione;
 - **molla la presa quando te lo chiede**: `MemoryWatcher` ascolta
   `MemoryManager.AppMemoryUsageIncreased` e, al livello `High`, butta le bitmap

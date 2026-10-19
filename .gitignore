@@ -75,3 +75,6 @@ WhatsappApp/BundleArtifacts/
 
 # Piano in esecuzione (executing-plans): scratch, mai committato.
 .superpowers/
+
+# Il file di risorse che il compilatore XAML scrive nella radice a ogni build.
+/WhatsApp.g.resources

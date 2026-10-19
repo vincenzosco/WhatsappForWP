@@ -50,6 +50,35 @@ namespace WhatsappApp.Protocol.WaProto
         public IList<CallLogRecord> CallLogRecords = new List<CallLogRecord>();
 
         /// <summary>
+        /// Which phone number each `@lid` stands for (`phoneNumberToLidMappings`, field 15).
+        ///
+        /// Why a sync of its own: WhatsApp addresses a growing number of chats by an opaque
+        /// `@lid`, and without this table a row for one of them shows the LID as if it were a
+        /// phone number ("+85891192225850") when the person's real number is elsewhere. It is
+        /// the only place the pair is written down for a chat that has no message yet, because
+        /// a message carries `sender_pn`/`participant_pn` but a conversation does not.
+        /// </summary>
+        public IList<LidMapping> LidMappings = new List<LidMapping>();
+
+        /// <summary>
+        /// The address book the primary phone shared (`inlineContacts`, field 20): the name
+        /// saved for a contact, with the LID and the phone number it belongs to.
+        ///
+        /// This is the answer to "the name as saved in the phone's contacts": WhatsApp sends
+        /// it with the history when the primary shares it (`inlineContactsProvided`, field 21),
+        /// and it is not the same name as the push name - a contact saved as "Mamma" is
+        /// "Mamma" here even when she calls herself something else.
+        /// </summary>
+        public IList<InlineContact> InlineContacts = new List<InlineContact>();
+
+        /// <summary>
+        /// Whether the sync says anything about the address book at all. False on a primary
+        /// that shares no contacts, and the difference matters: an empty list that was not
+        /// sent is not an empty address book, so it must not clear the names already learned.
+        /// </summary>
+        public bool InlineContactsProvided;
+
+        /// <summary>
         /// The statuses a sync brought (`statusV3Messages`, field 3).
         ///
         /// This is where they are: a status sync has `syncType == InitialStatusV3` and its
@@ -100,6 +129,18 @@ namespace WhatsappApp.Protocol.WaProto
                         sync.CallLogRecords.Add(CallLogRecord.Decode(reader.ReadBytes()));
                         break;
 
+                    case 15:
+                        sync.LidMappings.Add(LidMapping.Decode(reader.ReadBytes()));
+                        break;
+
+                    case 20:
+                        sync.InlineContacts.Add(InlineContact.Decode(reader.ReadBytes()));
+                        break;
+
+                    case 21:
+                        sync.InlineContactsProvided = reader.ReadVarint() != 0;
+                        break;
+
                     default:
                         reader.SkipField(field.WireType);
                         break;
@@ -122,6 +163,12 @@ namespace WhatsappApp.Protocol.WaProto
         public long ConversationTimestamp;
         public long LastMessageTimestamp;
         public bool Archived;
+
+        /// <summary>The phone number behind an `@lid` chat (`pnJID`, field 39), when the sync says it.</summary>
+        public string PnJid;
+
+        /// <summary>The `@lid` of a chat addressed by phone number (`lidJID`, field 42), when it says it.</summary>
+        public string LidJid;
 
         public IList<HistoryMessage> Messages = new List<HistoryMessage>();
 
@@ -182,6 +229,14 @@ namespace WhatsappApp.Protocol.WaProto
                             if (conversation.Name == null) conversation.Name = display;
                             break;
                         }
+
+                    case 39:
+                        conversation.PnJid = Utf8(reader.ReadBytes());
+                        break;
+
+                    case 42:
+                        conversation.LidJid = Utf8(reader.ReadBytes());
+                        break;
 
                     default:
                         reader.SkipField(field.WireType);
@@ -349,6 +404,114 @@ namespace WhatsappApp.Protocol.WaProto
                         break;
                 }
             }
+        }
+
+        private static string Utf8(byte[] bytes)
+        {
+            return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+        }
+    }
+
+    /// <summary>
+    /// A phone number and the `@lid` WhatsApp also knows it by (`PhoneNumberToLIDMapping`,
+    /// fields 1 and 2).
+    ///
+    /// Both sides are stored as they arrive; which of the two is the address and which is the
+    /// alias is the client's decision, not the sync's.
+    /// </summary>
+    public sealed class LidMapping
+    {
+        public string PhoneNumber;
+        public string Lid;
+
+        public static LidMapping Decode(byte[] bytes)
+        {
+            var mapping = new LidMapping();
+            var reader = new ProtoReader(bytes);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                switch (field.Number)
+                {
+                    case 1:
+                        mapping.PhoneNumber = Utf8(reader.ReadBytes());
+                        break;
+
+                    case 2:
+                        mapping.Lid = Utf8(reader.ReadBytes());
+                        break;
+
+                    default:
+                        reader.SkipField(field.WireType);
+                        break;
+                }
+            }
+
+            return mapping;
+        }
+
+        private static string Utf8(byte[] bytes)
+        {
+            return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+        }
+    }
+
+    /// <summary>
+    /// One name from the primary phone's address book (`InlineContact`): the LID, the phone
+    /// number, and the name saved for them.
+    ///
+    /// `FullName` is what the chat list shows; `FirstName` is the fallback when the address
+    /// book had no surname. `Username` is WhatsApp's own handle and not a name, so it is read
+    /// but never used as one.
+    /// </summary>
+    public sealed class InlineContact
+    {
+        public string PnJid;
+        public string LidJid;
+        public string FullName;
+        public string FirstName;
+        public string Username;
+
+        public static InlineContact Decode(byte[] bytes)
+        {
+            var contact = new InlineContact();
+            var reader = new ProtoReader(bytes);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                switch (field.Number)
+                {
+                    case 1:
+                        contact.PnJid = Utf8(reader.ReadBytes());
+                        break;
+
+                    case 2:
+                        contact.LidJid = Utf8(reader.ReadBytes());
+                        break;
+
+                    case 3:
+                        contact.FullName = Utf8(reader.ReadBytes());
+                        break;
+
+                    case 4:
+                        contact.FirstName = Utf8(reader.ReadBytes());
+                        break;
+
+                    case 5:
+                        contact.Username = Utf8(reader.ReadBytes());
+                        break;
+
+                    default:
+                        reader.SkipField(field.WireType);
+                        break;
+                }
+            }
+
+            return contact;
         }
 
         private static string Utf8(byte[] bytes)

@@ -32,13 +32,17 @@ node tools/check-csharp5.js && node tools/check-icons.js && node tools/check-res
 ## Add a section to the navigation bar
 
 1. `Controls/SectionNav.xaml`: add a column to the `Grid` and a `Button` with a
-   `Path` bound to an `IconX` geometry.
+   `StackPanel` holding a `Path` (`IconX` geometry) and the `TextBlock` label,
+   e.g. `XxxLabel`. The bar is icon **and** name, the way the official WP8 app
+   draws it; the style already gives the button its 56 px and zero minimums.
 2. `Controls/SectionNav.xaml.cs`: add the value to `enum AppSection`, a case in
-   `PageFor`, the type in `IsSectionPage`, a `Click` handler, a tooltip in the
-   constructor and a line in `UpdateColors`.
+   `PageFor`, the type in `IsSectionPage`, a `Click` handler, the label's text in
+   the constructor with `Loc.Get` and a line in `UpdateColors`.
 3. Create the page (recipe above) with `Nav.Current = AppSection.Xxx;` in
    `OnNavigatedTo`.
-4. Add `Nav_Xxx` to both `.resw` files for the tooltip.
+4. Add `Nav_Xxx` to both `.resw` files: `Loc.Get` reads the bare key, so no
+   `.Text` suffix and no `x:Uid` on the label (a literal `Text` in XAML would
+   need an `x:Uid` and trip `check-resw`).
 5. Why the back-stack line exists: `Go()` removes the page it leaves so Back
    exits the app from a section root instead of walking through visited
    sections. Keep that behaviour when you add a section.

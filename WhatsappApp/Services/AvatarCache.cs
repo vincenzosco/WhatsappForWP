@@ -54,8 +54,15 @@ namespace WhatsappApp.Services
     {
         private const string FileName = "avatar-cache.json";
 
-        /// <summary>How many chats are kept.</summary>
-        public const int MaxChats = 40;
+        /// <summary>
+        /// How many chats are kept.
+        ///
+        /// It was 40, which was the adapter's limit on the rows it sent pictures for. The
+        /// native client sends none and `AvatarEnricher` fetches one per chat, so the ceiling
+        /// has to cover the list a person can scroll: 200 previews are about a megabyte of
+        /// base64, under `MaxTotalChars`, and the rest is evicted from the oldest.
+        /// </summary>
+        public const int MaxChats = 200;
 
         /// <summary>The ceiling of a single picture, in base64 characters (~110 KB).</summary>
         public const int MaxEntryChars = 150000;

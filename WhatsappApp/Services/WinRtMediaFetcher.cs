@@ -49,7 +49,19 @@ namespace WhatsappApp.Services
                     {
                         for (int i = 0; i < headers.Count; i++)
                         {
-                            content.Headers.TryAppendWithoutValidation(headers[i].Key, headers[i].Value);
+                            // Content headers and request headers are two collections on
+                            // this API, and the WP8.1 projection has no SendAsync to put
+                            // a request together with: `Origin` is a request header, so it
+                            // goes on the client's defaults (the content one collects
+                            // only the Content-* names).
+                            if (headers[i].Key.StartsWith("Content-", StringComparison.OrdinalIgnoreCase))
+                            {
+                                content.Headers.TryAppendWithoutValidation(headers[i].Key, headers[i].Value);
+                            }
+                            else
+                            {
+                                client.DefaultRequestHeaders.TryAppendWithoutValidation(headers[i].Key, headers[i].Value);
+                            }
                         }
                     }
 
@@ -58,8 +70,23 @@ namespace WhatsappApp.Services
 
                     if (!response.IsSuccessStatusCode)
                     {
+                        // The body is WhatsApp's own sentence (a JSON error or a line
+                        // of text): without it the log says "403" and the next person
+                        // has no way to know whether it is the token, the host or the
+                        // bytes.
+                        string why = "";
+                        try
+                        {
+                            why = await response.Content.ReadAsStringAsync().AsTask(patience.Token);
+                        }
+                        catch (Exception)
+                        {
+                            why = "";
+                        }
+
                         throw new ProtocolException("the upload to " + url + " answered "
-                            + (int)response.StatusCode);
+                            + (int)response.StatusCode
+                            + (string.IsNullOrEmpty(why) ? "" : ": " + why));
                     }
 
                     Windows.Storage.Streams.IBuffer buffer =
