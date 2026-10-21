@@ -323,12 +323,16 @@ node tools/check-icons.js            # regole + coerenza + font vietati
 node tools/check-icons.js --preview  # + anteprima ASCII (richiede ImageMagick)
 ```
 
-La tile live ha un asset suo, `Assets/TileIcon.png` piu' la sua versione al 240%,
-`TileIcon.scale-240.png` (480×480): l'icona ufficiale verde dell'app,
-ridimensionata dallo stesso `make-brand-assets.js`. Non e' un doppione di
-`Logo.png`: il modello della tile iconica disegna l'immagine cosi' com'e', quindi
-un marchio che riempie tutto l'asset su una tile da 150 px sembra ingrandito e
-tagliato.
+La tile live ha asset suoi, ricavati dall'icona ufficiale verde dell'app dallo
+stesso `make-brand-assets.js`. `Assets/TileIcon.png` piu' la sua versione al 240%,
+`TileIcon.scale-240.png` (480×480), sono la tile quadrata; `TileIconWide.png`
+piu' `TileIconWide.scale-240.png` (744×360) sono quella larga. Non e' un doppione
+di `Logo.png`: il modello della tile disegna l'immagine cosi' com'e', a piena
+superficie. Per questo il marchio sta **dentro** il suo asset con un margine -
+78% del lato, 80% dell'altezza sulla larga - ed e' quel respiro a non farlo
+sembrare zoommato. La tile larga ha un file suo per la stessa ragione:
+un'immagine quadrata viene scalata per riempire 310×150 e il sistema ne taglia
+sopra e sotto, cioe' taglia il marchio.
 
 Il manifest imposta `BackgroundColor="#45D82C"` insieme a
 `ForegroundText="light"`. Le tile quadrate e quella larga ufficiali sono la
@@ -338,7 +342,9 @@ l'altra meta' della coppia, perche' testo scuro su quel verde non si legge.
 `tools/check-tile.js` la custodisce, perche' il guasto che intercetta e' invisibile.
 Un modello di tile **non** prende l'icona dal manifest: la vuole nel payload, in un
 `<image src="..."/>`, e con `src` vuoto la tile si disegna senza icona e non solleva
-nessuna eccezione.
+nessuna eccezione. La guardia controlla anche la misura di ogni asset contro il
+modello che lo disegna: almeno 200×200 per l'icona quadrata, 310×150 con la
+proporzione della tile per quella larga.
 
 ### Memoria su un telefono da 512 MB
 

@@ -154,16 +154,23 @@ namespace WhatsappApp.Services
                     {
                         // No socket yet (or none any more): the first rows arrive from the
                         // local copy before the login, and asking now would be one exception
-                        // per row. Wait for the connection, and give up if it does not come.
+                        // per row. Wait for the connection instead of giving up on it - the
+                        // loop that broke here left every row with initials until the tab was
+                        // left and entered again, because a login that finished a second
+                        // later had nobody to tell.
                         noSession++;
                         Forget(id);
 
-                        if (noSession >= NoSessionRetries)
+                        if (noSession == NoSessionRetries)
                         {
-                            Diag.Ok("avatar: no session to ask on, " + error.Message);
-                            break;
+                            Diag.Ok("avatar: no session to ask on, the pass waits for the login: "
+                                + error.Message);
                         }
 
+                        // From the first row: the ones this pass stepped over are the ones
+                        // that still have no picture, and a completed list would otherwise
+                        // make the loop end as if there was nothing left to ask.
+                        index = 0;
                         wait = NoSessionDelayMs;
                     }
                     catch (Exception error)

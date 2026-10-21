@@ -167,13 +167,24 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public Task GoAvailableAsync(string pushName)
         {
+            return GoPresenceAsync(pushName, SessionKeepAlive.Available);
+        }
+
+        /// <summary>
+        /// Says this phone is `available` or `unavailable`, whichever the caller means.
+        ///
+        /// The second one is the suspension: WP8.1 freezes the process without closing the
+        /// socket, so nothing else would take this phone off the account's online list.
+        /// </summary>
+        public Task GoPresenceAsync(string pushName, string type)
+        {
             if (string.IsNullOrEmpty(pushName))
             {
                 _log.Info("whatsapp: no push name yet, so presence is not sent");
                 return Done();
             }
 
-            return SendAsync(SessionKeepAlive.Presence(pushName, SessionKeepAlive.Available));
+            return SendAsync(SessionKeepAlive.Presence(pushName, type));
         }
 
         public void Close()

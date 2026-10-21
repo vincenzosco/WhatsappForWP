@@ -313,11 +313,15 @@ node tools/check-icons.js            # rules + consistency + banned fonts
 node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
 ```
 
-The live tile has an asset of its own, `Assets/TileIcon.png` plus its 240% version
-`TileIcon.scale-240.png` (480×480): the official green app icon, resized by the
-same `make-brand-assets.js`. It is not a duplicate of `Logo.png`: the iconic tile
-template draws the image itself, so a mark that fills the whole asset looks zoomed
-and cut on a 150 px tile.
+The live tile has assets of its own, made by the same `make-brand-assets.js`
+from the official green app icon. `Assets/TileIcon.png` plus its 240% version
+`TileIcon.scale-240.png` (480×480) are the square tile, and `TileIconWide.png`
+plus `TileIconWide.scale-240.png` (744×360) are the wide one. It is not a
+duplicate of `Logo.png`: the tile template draws the image itself, at full size.
+So the mark is **inset** in its asset - 78% of the side, 80% of the height on the
+wide one - and the space around it is what keeps it from looking zoomed. The wide
+tile needs its own file for the same reason: a square image is scaled to fill
+310×150 and the system crops its top and bottom, which cut the mark.
 
 The manifest sets `BackgroundColor="#45D82C"` together with
 `ForegroundText="light"`. The official square and wide tiles are the white
@@ -327,7 +331,9 @@ is the other half of the pair, because dark tile text on that green is unreadabl
 `tools/check-tile.js` guards it, because the failure it catches is invisible. A tile
 template does **not** take the icon from the manifest: it wants `<image src="..."/>`
 in the payload, and with an empty `src` the tile renders without an icon and raises
-no exception at all.
+no exception at all. The guard also checks the size of each asset against the
+template that draws it: at least 200×200 for the square icon, 310×150 with the
+tile's proportion for the wide one.
 
 ### Memory on a 512 MB device
 

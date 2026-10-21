@@ -264,6 +264,8 @@
     <Content Include="Assets\WideLogo.scale-240.png" />
     <Content Include="Assets\TileIcon.png" />
     <Content Include="Assets\TileIcon.scale-240.png" />
+    <Content Include="Assets\TileIconWide.png" />
+    <Content Include="Assets\TileIconWide.scale-240.png" />
     <Content Include="Assets\Wallpapers\1.jpg" />
     <Content Include="Assets\Wallpapers\10.jpg" />
     <Content Include="Assets\Wallpapers\11.jpg" />

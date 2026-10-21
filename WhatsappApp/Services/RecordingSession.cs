@@ -22,6 +22,25 @@ namespace WhatsappApp.Services
         private bool _starting;
         private bool _recording;
 
+        /// <summary>
+        /// A cancel that arrived while the microphone was still opening. It cannot stop a
+        /// capture that does not exist yet, so the start reads it when it returns and
+        /// stops the one it just made - otherwise leaving the chat mid-start left the
+        /// microphone recording for a page that was gone.
+        /// </summary>
+        private bool _cancelled;
+
+        /// <summary>
+        /// True from the tap to the end, including the moment the microphone is still
+        /// opening. Why it exists: `StartAsync` refuses a second start while `_starting`,
+        /// and a page that only asked `IsRecording` saw that refusal as the platform's and
+        /// showed "could not start the recording" over a recording that was starting fine.
+        /// </summary>
+        public bool IsBusy
+        {
+            get { return _recording || _starting; }
+        }
+
         /// <summary>Whether the microphone is capturing.</summary>
         public bool IsRecording
         {
@@ -45,6 +64,7 @@ namespace WhatsappApp.Services
         {
             if (_recording || _starting) return false;
 
+            _cancelled = false;
             _starting = true;
             bool started;
             try
@@ -67,6 +87,15 @@ namespace WhatsappApp.Services
             }
 
             if (!started) return false;
+
+            if (_cancelled)
+            {
+                // Cancel landed while AudioRecorder was opening the capture: the
+                // recording it just made belongs to nobody.
+                _cancelled = false;
+                await AudioRecorder.CancelAsync();
+                return false;
+            }
 
             _recording = true;
             StartedAt = DateTime.Now;
@@ -106,6 +135,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task CancelAsync()
         {
+            // Read by a start that is still waiting for the microphone (see StartAsync).
+            _cancelled = true;
             _starting = false;
             _recording = false;
 

@@ -14,8 +14,9 @@
  *  1. il codice della tile deve impostare src su ogni image che prende da un
  *     modello;
  *  2. l'immagine referenziata deve esistere in Assets/, essere un PNG dentro i
- *     limiti che il sistema accetta (<=1024x1024 px, <=200 KB) e avere almeno
- *     la misura minima dell'icona (200x200);
+ *     limiti che il sistema accetta (<=1024 px per lato, <=200 KB) e avere
+ *     almeno la misura del modello che la disegna: 200x200 per l'icona
+ *     quadrata, 310x150 per la tile larga, che ha una proporzione sua;
  *  3. il modello TileWide310x150IconWithBadge non esiste su WP8.1: se compare,
  *     e' un errore di compilazione che vale la pena spiegare qui.
  *
@@ -34,6 +35,10 @@ const ASSETS_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
 
 const IMAGE_PREFIX = 'ms-appx:///Assets/';
 const MIN_SIDE = 200;
+const WIDE_MIN_WIDTH = 310;
+const WIDE_MIN_HEIGHT = 150;
+const WIDE_RATIO = 310 / 150;
+const WIDE_RATIO_SLACK = 0.25;
 const MAX_SIDE = 1024;
 const MAX_BYTES = 200 * 1024;
 const ABSENT_ON_WP81 = 'TileWide310x150IconWithBadge';
@@ -99,7 +104,20 @@ function assetProblems(asset) {
     problems.push(`${where}: not a PNG`);
     return problems;
   }
-  if (asset.width < MIN_SIDE || asset.height < MIN_SIDE) {
+  // Una tile larga non e' un'icona quadrata: il modello 310x150 disegna
+  // l'immagine cosi' com'e', e un'immagine quadrata viene scalata e ritagliata.
+  if (asset.width > asset.height) {
+    if (asset.width < WIDE_MIN_WIDTH || asset.height < WIDE_MIN_HEIGHT) {
+      problems.push(`${where}: ${asset.width}x${asset.height}, the wide tile needs at ` +
+        `least ${WIDE_MIN_WIDTH}x${WIDE_MIN_HEIGHT}`);
+    }
+    const ratio = asset.width / asset.height;
+    if (Math.abs(ratio - WIDE_RATIO) > WIDE_RATIO_SLACK) {
+      problems.push(`${where}: ${asset.width}x${asset.height}, the wide tile is ` +
+        `${WIDE_MIN_WIDTH}x${WIDE_MIN_HEIGHT} (about ${WIDE_RATIO.toFixed(2)}:1) and ` +
+        `this is ${ratio.toFixed(2)}:1`);
+    }
+  } else if (asset.width < MIN_SIDE || asset.height < MIN_SIDE) {
     problems.push(`${where}: ${asset.width}x${asset.height}, the iconic template needs at ` +
       `least ${MIN_SIDE}x${MIN_SIDE}`);
   }

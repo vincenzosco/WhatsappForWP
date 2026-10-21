@@ -183,21 +183,26 @@ namespace WhatsappApp.Protocol.Client
                     throw new ProtocolException("the server answered an error for " + jid);
                 }
 
+                // Every node is named before it is read. `Child` answers null for a
+                // tag that is not there, and a `.Bytes()` on it is a
+                // NullReferenceException that escapes the caller's `catch
+                // (ProtocolException)` - a failure with no name and no device on it,
+                // for an answer that is simply incomplete.
                 var bundle = new PreKeyBundle();
-                bundle.RegistrationId = Number(user.Child("registration").Bytes());
-                bundle.IdentityKey = user.Child("identity").Bytes();
+                bundle.RegistrationId = Number(Required(jid, user, "registration").Bytes());
+                bundle.IdentityKey = Required(jid, user, "identity").Bytes();
 
-                BinaryNode signedPreKey = user.Child("skey");
-                bundle.SignedPreKeyId = Number(signedPreKey.Child("id").Bytes());
-                bundle.SignedPreKeyPublic = signedPreKey.Child("value").Bytes();
-                bundle.SignedPreKeySignature = signedPreKey.Child("signature").Bytes();
+                BinaryNode signedPreKey = Required(jid, user, "skey");
+                bundle.SignedPreKeyId = Number(Required(jid, signedPreKey, "id").Bytes());
+                bundle.SignedPreKeyPublic = Required(jid, signedPreKey, "value").Bytes();
+                bundle.SignedPreKeySignature = Required(jid, signedPreKey, "signature").Bytes();
                 bundle.HasSignedPreKey = bundle.SignedPreKeyId != 0;
 
                 BinaryNode oneTime = user.Child("key");
                 if (oneTime != null)
                 {
-                    bundle.PreKeyId = Number(oneTime.Child("id").Bytes());
-                    bundle.PreKeyPublic = oneTime.Child("value").Bytes();
+                    bundle.PreKeyId = Number(Required(jid, oneTime, "id").Bytes());
+                    bundle.PreKeyPublic = Required(jid, oneTime, "value").Bytes();
                     bundle.HasPreKey = bundle.PreKeyPublic != null;
                 }
 
@@ -208,6 +213,21 @@ namespace WhatsappApp.Protocol.Client
             }
 
             return bundles;
+        }
+
+        /// <summary>
+        /// A node a bundle cannot be read without, or the refusal that says which one is
+        /// missing and for which device.
+        /// </summary>
+        private static BinaryNode Required(string jid, BinaryNode parent, string tag)
+        {
+            BinaryNode node = parent.Child(tag);
+            if (node == null)
+            {
+                throw new ProtocolException("the bundle of " + jid + " has no " + tag);
+            }
+
+            return node;
         }
 
         /// <summary>

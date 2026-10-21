@@ -63,7 +63,11 @@ namespace WhatsappApp.Models
                 string kind;
                 switch ((Reason ?? "").Trim().ToLowerInvariant())
                 {
+                    // `missed` is the native client's word for a call nobody answered;
+                    // `timeout` is the old server's. Both are the same row on screen.
+                    case "missed":
                     case "timeout": kind = Loc.Get("CallsPage_Missed", "Missed call"); break;
+                    case "outgoing": kind = Loc.Get("CallsPage_Outgoing", "Outgoing call"); break;
                     case "reject": kind = Loc.Get("CallsPage_Declined", "Declined call"); break;
                     case "busy": kind = Loc.Get("CallsPage_Busy", "Call, line busy"); break;
                     case "cancel": kind = Loc.Get("CallsPage_Cancelled", "Cancelled call"); break;

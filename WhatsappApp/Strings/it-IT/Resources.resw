@@ -103,6 +103,9 @@
   <data name="CallsPage_Incoming" xml:space="preserve">
     <value>Chiamata in entrata</value>
   </data>
+  <data name="CallsPage_Outgoing" xml:space="preserve">
+    <value>Chiamata in uscita</value>
+  </data>
   <data name="CallsPage_Video" xml:space="preserve">
     <value>Video</value>
   </data>
