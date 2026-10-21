@@ -333,7 +333,10 @@ namespace WhatsappApp.Services
             if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(sender));
             if (texts.Length > 1) texts[1].AppendChild(xml.CreateTextNode(body));
 
-            SetImage(xml, binding, _senderImage ?? TileIconUri);
+            // The wide tile has its own asset: the square one is scaled to fill
+            // 310x150 and loses its top and bottom, which cut the mark. This one is
+            // drawn at the tile's proportion, so the mark is whole.
+            SetImage(xml, binding, _senderImage ?? TileWideIconUri);
         }
 
         /// <summary>
@@ -464,6 +467,13 @@ namespace WhatsappApp.Services
         /// that padding eats the drawing.
         /// </summary>
         private const string TileIconUri = "ms-appx:///Assets/TileIcon.png";
+
+        /// <summary>
+        /// The same mark, drawn at the wide tile's proportion (310x150 and its 240%
+        /// version). The square asset is not reused here on purpose: the system
+        /// scales it to fill the wide tile and crops it, and the mark came out cut.
+        /// </summary>
+        private const string TileWideIconUri = "ms-appx:///Assets/TileIconWide.png";
 
         private static string Cut(string value, int max)
         {

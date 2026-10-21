@@ -42,6 +42,16 @@ namespace WhatsappApp.Services
         /// <summary>The writes, in the order they were asked for. See `SerialQueue`.</summary>
         private static readonly SerialQueue Writes = new SerialQueue();
 
+        /// <summary>The gate of the two fields below: the wipe runs off the UI thread.</summary>
+        private static readonly object Gate = new object();
+
+        /// <summary>
+        /// Every storage this process has opened. The wipe has to reach them: each one
+        /// answers `TryRead` from the copy it read at open time, so deleting the files
+        /// alone leaves the old identity's sessions in memory.
+        /// </summary>
+        private static readonly List<FileSessionStorage> Opened = new List<FileSessionStorage>();
+
         private readonly StorageFolder _folder;
         private readonly Dictionary<string, byte[]> _blobs;
 
@@ -49,6 +59,11 @@ namespace WhatsappApp.Services
         {
             _folder = folder;
             _blobs = blobs;
+
+            lock (Gate)
+            {
+                Opened.Add(this);
+            }
         }
 
         /// <summary>
@@ -128,6 +143,20 @@ namespace WhatsappApp.Services
         /// </summary>
         public static async Task DeleteAllAsync()
         {
+            // The writes already asked for finish first. `Persist` is a temporary file
+            // and then a rename, and a rename that landed after the delete would put the
+            // previous identity's record back into a folder the pairing just wiped.
+            await Writes.RunAsync(delegate { return Task.Delay(0); });
+
+            // And every open storage forgets what it read: the connection holds one of
+            // these, and a wipe that only touched the disk left it answering the new
+            // identity with the old identity's sessions - the exact state this exists to
+            // prevent, one layer up.
+            lock (Gate)
+            {
+                for (int i = 0; i < Opened.Count; i++) Opened[i]._blobs.Clear();
+            }
+
             StorageFolder folder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(
                 FolderName, CreationCollisionOption.OpenIfExists);
 

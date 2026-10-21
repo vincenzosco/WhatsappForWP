@@ -6,6 +6,11 @@ const actions = require('../check-actions');
 
 const FILE = 'Pages/ChatsPage.xaml';
 
+// La barra del titolo vive in HomePage: dopo che le tre sezioni sono diventate
+// una pagina sola, ChatsPage non ha piu' pulsanti da confrontare e il test
+// passava senza controllare niente.
+const TITLE_BAR_FILE = 'Pages/HomePage.xaml';
+
 test('un gestore che non porta il nome del pulsante si segnala', () => {
   const xaml = '<Button x:Name="NewChatButton" Click="SettingsButton_Click">\n</Button>';
   const problems = actions.buttonProblems(xaml, FILE);
@@ -32,7 +37,7 @@ test("l'icona scambiata sulla barra del titolo si segnala", () => {
   const xaml = '<Button x:Name="NewChatButton" MinWidth="0" MinHeight="0" ' +
     'Click="NewChatButton_Click">\n' +
     '  <!-- IconSettings -->\n</Button>';
-  const problems = actions.titleBarProblems(xaml, FILE);
+  const problems = actions.titleBarProblems(xaml, TITLE_BAR_FILE);
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /IconNewChat/);
 });

@@ -171,6 +171,10 @@ namespace WhatsappApp.Pages
                 // contact, could be opened. It goes before the save: a wipe that throws leaves
                 // no account stored either, so the page shows the error and not a link that
                 // cannot read.
+                // The account that was open is closed first: its loop must not write the
+                // old identity's sessions into the folder this is about to delete.
+                NativeConnection.Instance.Stop();
+
                 await FileSessionStorage.DeleteAllAsync();
                 Diag.Ok("whatsapp: the protocol state of the previous identity is forgotten");
 
@@ -188,7 +192,12 @@ namespace WhatsappApp.Pages
                 // `expectDisconnect`), and a device that stops here is a device WhatsApp's
                 // own side reports as failed to link - which is what the phone showed on
                 // 2026-10-10 (see NativeConnection).
-                NativeConnection.Instance.Start();
+                //
+                // `Start` is not enough: when this phone was already linked the loop is
+                // still running with the credentials it read at its own start, and the
+                // new account would never be logged in. A restart closes that loop and
+                // opens the stored account it has just saved.
+                await NativeConnection.Instance.RestartAsync();
 
                 Diag.Ok("whatsapp: linked as " + paired.Jid);
 

@@ -60,6 +60,19 @@ namespace WhatsappApp.Pages
         private readonly RecordingSession _recording;
         private DispatcherTimer _recordTimer;
 
+        /// <summary>
+        /// True while a tap's send is running. The attachment slot is cleared only
+        /// after the local decode, and a second tap in that window added a second
+        /// bubble for the same file.
+        /// </summary>
+        private bool _sending;
+
+        /// <summary>
+        /// True once the page has been left. A start or a capture that finishes after
+        /// this paints nothing and deposits nothing: the page it belonged to is gone.
+        /// </summary>
+        private bool _left;
+
         public ChatPage()
         {
             this.InitializeComponent();
@@ -88,6 +101,7 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
+            _left = false;
             ApplyTheme();
 
             var contact = e.Parameter as Contact;
@@ -203,6 +217,8 @@ namespace WhatsappApp.Pages
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+
+            _left = true;
 
             DataService.Instance.MessageArrived -= OnMessageArrived;
             DataService.Instance.TypingChanged -= OnTypingChanged;
@@ -1146,6 +1162,23 @@ namespace WhatsappApp.Pages
 
         private async void SendMessage()
         {
+            // One send at a time: the attachment slot stays filled until the local
+            // decode is done, so a double tap used to add two bubbles for one file.
+            if (_sending) return;
+
+            _sending = true;
+            try
+            {
+                await SendMessageCoreAsync();
+            }
+            finally
+            {
+                _sending = false;
+            }
+        }
+
+        private async System.Threading.Tasks.Task SendMessageCoreAsync()
+        {
             // A voice note is being recorded: Send is the end of it. The file goes
             // through the same slot the stop button fills, and the send continues
             // below, so one tap both stops and sends (the official input bar does
@@ -1392,7 +1425,11 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void RecordButton_Click(object sender, RoutedEventArgs e)
         {
-            if (_recording.IsRecording) return;
+            // `IsBusy`, not `IsRecording`: the second tap of a double tap arrives while
+            // the microphone is still opening, and `StartAsync` refuses that one - which
+            // used to be drawn as "could not start the recording" over a start that was
+            // going to succeed.
+            if (_recording.IsBusy) return;
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("ChatPage/StartRecording", StartRecordingAsync());
 #pragma warning restore 4014
@@ -1407,7 +1444,15 @@ namespace WhatsappApp.Pages
         {
             if (!await _recording.StartAsync())
             {
-                await ShowRecordErrorAsync();
+                // A page that is gone shows nothing: this false is the cancel that
+                // leaving asked for, not the microphone's refusal.
+                if (!_left) await ShowRecordErrorAsync();
+                return;
+            }
+
+            if (_left)
+            {
+                await _recording.CancelAsync();
                 return;
             }
 
@@ -1457,6 +1502,10 @@ namespace WhatsappApp.Pages
             EndRecordingState();
 
             if (string.IsNullOrEmpty(fileName)) return;
+
+            // The capture ended after the chat was left: the file is not put in the
+            // waiting slot, because the next chat would show it as its attachment.
+            if (_left) return;
 
             try
             {

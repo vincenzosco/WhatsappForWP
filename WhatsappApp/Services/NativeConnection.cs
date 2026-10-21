@@ -81,6 +81,13 @@ namespace WhatsappApp.Services
         private PreKeyStore _preKeys;
         private SessionStore _sessions;
         private bool _running;
+
+        /// <summary>
+        /// Which run of the loop is the current one. A restart bumps it so the loop that
+        /// is still leaving knows it has been replaced and stops instead of retrying
+        /// beside the new one (see <see cref="RestartAsync"/>).
+        /// </summary>
+        private int _generation;
         private DateTime _lastNode;
 
         private NativeConnection()
@@ -216,14 +223,35 @@ namespace WhatsappApp.Services
             }
 
             _running = true;
+            int generation = ++_generation;
 
             // The loop runs for the life of the process, and it answers for its own
             // fault: `Guarded` records what it cannot survive, so nobody has to await
             // it here - which is what the pragma is for (C# 5 will not let a `void`
             // method express this).
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("NativeConnection/start", RunAsync());
+            Guarded.RunGuardedAsync("NativeConnection/start", RunAsync(generation));
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Closes whatever account is open and opens the stored one again: the
+        /// "link a different account" path, where the credentials on disk have just
+        /// changed under a loop that read them once.
+        ///
+        /// Why the generation: `Stop` only sets a flag, and the loop that is inside a
+        /// `ReadAsync` reaches its end a moment later. Starting the next loop beside it
+        /// would leave two logins on one account - the old one retrying on a socket it
+        /// no longer has. A loop whose generation is no longer the current one stops
+        /// instead of retrying, and does not touch `_running` on its way out.
+        /// </summary>
+        public async Task RestartAsync()
+        {
+            Stop();
+
+            for (int i = 0; i < 100 && _running; i++) await Task.Delay(50);
+
+            Start();
         }
 
         /// <summary>
@@ -238,6 +266,10 @@ namespace WhatsappApp.Services
         public void Stop()
         {
             _running = false;
+
+            // A loop that is between attempts must not come back: the generation is what
+            // it compares itself to (see RestartAsync).
+            _generation++;
 
             NativeSession session = _session;
             if (session != null) session.Close();
@@ -256,7 +288,7 @@ namespace WhatsappApp.Services
         /// presence) has to happen again on a new socket, and the only thing that must not
         /// happen twice is clearing the account.
         /// </summary>
-        private async Task RunAsync()
+        private async Task RunAsync(int generation)
         {
             Credentials account;
             try
@@ -275,7 +307,7 @@ namespace WhatsappApp.Services
 
             int attempt = 0;
 
-            while (_running)
+            while (_running && generation == _generation)
             {
                 NativeSession session = null;
                 try
@@ -307,6 +339,17 @@ namespace WhatsappApp.Services
 
                     await ReadAsync(session, account);
                 }
+                catch (ClientRefusedException refused)
+                {
+                    // The server refuses the *client*, not the account: this loop that
+                    // retried it every second was the "reconnect loop that never says
+                    // why" its own comment warns about. There is nothing to retry until
+                    // the client announces a version the server accepts, so the run stops
+                    // and the sentence is the status.
+                    Diag.Ok("native: " + refused.Message);
+                    Status = refused.Message;
+                    break;
+                }
                 catch (SessionRefusedException refused)
                 {
                     // WhatsApp took this account away: the phone was unlinked from another
@@ -332,7 +375,7 @@ namespace WhatsappApp.Services
                     if (ReferenceEquals(_session, session)) _session = null;
                 }
 
-                if (!_running) break;
+                if (!_running || generation != _generation) break;
 
                 attempt++;
                 int delay = ConnectionPolicy.ReconnectDelaySeconds(attempt);
@@ -342,7 +385,9 @@ namespace WhatsappApp.Services
                 await Task.Delay(TimeSpan.FromSeconds(delay));
             }
 
-            _running = false;
+            // Only the loop that is still the current one clears the flag: a restart
+            // that already started another loop must not be stopped by this tail.
+            if (generation == _generation) _running = false;
             Diag.Ok("native: the account is closed (" + Status + ")");
         }
 
@@ -1149,17 +1194,64 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task<IList<KeyValuePair<string, SessionRecord>>> DevicesAsync(NativeSession session, string jid)
         {
-            BinaryNode answer = await RequestAsync(session, DeviceDirectory.Query(jid, _random));
-            IList<KeyValuePair<string, PreKeyBundle>> bundles = DeviceDirectory.Bundles(answer);
-            if (bundles.Count == 0) throw new ProtocolException("the server knows no device of " + jid);
+            // Two questions, and they are two different answers. `Query` is the `usync`
+            // device list (`user > devices > device-list > device[id]`); only
+            // `BundleQuery` is answered with the keys (`registration`, `identity`,
+            // `skey`, `key`). This used to hand the device list to `Bundles`, which is
+            // the group path's second answer read as if it were the first: the first
+            // `user.Child("registration")` is null there, so a text to one person ended
+            // in a NullReferenceException before a stanza existed.
+            IList<string> listed = DeviceDirectory.Devices(
+                await RequestAsync(session, DeviceDirectory.Query(jid, _random)));
+
+            var targets = new List<string>();
+            for (int i = 0; i < listed.Count; i++)
+            {
+                if (IsOurDevice(listed[i])) continue;
+                if (IsHosted(listed[i])) continue;
+
+                targets.Add(listed[i]);
+            }
+
+            if (targets.Count == 0) throw new ProtocolException("the server knows no device of " + jid);
 
             SessionStore store = await SessionsAsync();
-            var devices = new List<KeyValuePair<string, SessionRecord>>();
-            for (int i = 0; i < bundles.Count; i++)
+
+            // A bundle is only needed by a device this phone has never talked to: an
+            // established session is the ratchet, and asking for its keys again is a
+            // round trip nobody reads.
+            var missing = new List<string>();
+            for (int i = 0; i < targets.Count; i++)
             {
-                devices.Add(new KeyValuePair<string, SessionRecord>(bundles[i].Key,
-                    DeviceDirectory.Session(bundles[i].Key, bundles[i].Value, _account, store, _random)));
+                SessionRecord existing = store.Load(targets[i]);
+                if (existing == null || !existing.HasSession) missing.Add(targets[i]);
             }
+
+            IList<KeyValuePair<string, PreKeyBundle>> bundles = null;
+            if (missing.Count > 0)
+            {
+                bundles = DeviceDirectory.Bundles(await RequestAsync(session,
+                    DeviceDirectory.BundleQuery(missing, _random)));
+            }
+
+            var devices = new List<KeyValuePair<string, SessionRecord>>();
+            for (int i = 0; i < targets.Count; i++)
+            {
+                PreKeyBundle bundle = Find(bundles, targets[i]);
+
+                // A device the server hands no key for is skipped and named, exactly as
+                // the group path does: one unreachable device must not take the message.
+                if (store.Load(targets[i]) == null && bundle == null)
+                {
+                    Diag.Ok("native: no bundle for " + targets[i] + ", so it is not written to");
+                    continue;
+                }
+
+                devices.Add(new KeyValuePair<string, SessionRecord>(targets[i],
+                    DeviceDirectory.Session(targets[i], bundle, _account, store, _random)));
+            }
+
+            if (devices.Count == 0) throw new ProtocolException("the server handed no key for " + jid);
 
             return devices;
         }
@@ -1186,13 +1278,24 @@ namespace WhatsappApp.Services
                 typing ? Conversation.Composing : Conversation.Paused));
         }
 
-        /// <summary>Says this phone is here. The push name is what the server passes on.</summary>
+        /// <summary>
+        /// Says where this phone is: `available`, or `unavailable` when the app is going
+        /// away. The push name is what the server passes on.
+        ///
+        /// Why the state is read and not assumed: the suspension sends `unavailable`, and
+        /// this method used to answer every call with `available` - so the one moment the
+        /// phone was frozen also told WhatsApp it was still there.
+        /// </summary>
         public async Task SendPresenceAsync(string state)
         {
             NativeSession session = _session;
             if (session == null || !session.IsOpen) return;
 
-            await session.GoAvailableAsync(_account == null ? null : _account.PushName);
+            string type = state == SessionKeepAlive.Unavailable
+                ? SessionKeepAlive.Unavailable
+                : SessionKeepAlive.Available;
+
+            await session.GoPresenceAsync(_account == null ? null : _account.PushName, type);
         }
 
         private static uint NowSeconds()

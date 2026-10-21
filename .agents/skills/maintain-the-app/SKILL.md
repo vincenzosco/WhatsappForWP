@@ -75,10 +75,15 @@ README.md / README.it.md                project docs, English + Italian
    Gate: `node tools/check-icons.js` (add `--preview` for an ASCII render).
    The live tile is the one place where the icon is **not** a `Path`: a tile
    model wants its image in the payload, as `<image src="..."/>`, and does
-   **not** fall back to the manifest logo. The asset is `Assets/TileIcon.png`
-   (+ its `.scale-240`), the official green app icon with no padding, which is
-   why the manifest's `BackgroundColor` is that same green.
-   Gate: `node tools/check-tile.js`.
+   **not** fall back to the manifest logo. The assets are `Assets/TileIcon.png`
+   (+ its `.scale-240`) for the square tile and `TileIconWide.png` (+ its
+   `.scale-240`, 744×360) for the wide one, made by `make-brand-assets.js` from
+   the official green app icon. The template draws its image at full size, so
+   the mark is **inset** (78% of the side, 80% of the height when wide): a mark
+   that fills the asset looks zoomed, and a square asset on the wide tile is
+   scaled to fill 310×150 and cropped. The manifest's `BackgroundColor` is that
+   same green, which is why the margin disappears into the tile.
+   Gate: `node tools/check-tile.js` (square >= 200×200, wide >= 310×150).
 4. **No hardcoded user-visible strings.** XAML uses `x:Uid` with the property
    that matches the element (`TextBlock`→`.Text`, `Button`→`.Content`,
    `TextBox`→`.PlaceholderText`); C# uses `Loc.Get("Key", "fallback")`. Icon-only
@@ -300,6 +305,21 @@ waiting) and the message is marked read when the reader reaches it.
   draw leaves a tile with no number at all - which is what the phone showed:
   the app icon and nothing else. `SetUnread` therefore posts the tile first and
   the badge second, because clearing the tile can take the badge with it.
+- **A send to one person asks two questions, not one.** `DeviceDirectory.Query`
+  is the `usync` device list (`user > devices > device-list > device[id]`) and
+  only `BundleQuery` carries the keys (`registration`, `identity`, `skey`,
+  `key`). Handing the device list to `Bundles` reads a `user` with no `skey` and
+  the send dies in a `NullReferenceException` before a stanza exists - which is
+  what the one-to-one path did while the group path already did the two in
+  order. `DevicesAsync` now asks the list, drops this phone and hosted devices,
+  asks bundles only for devices with no session, and names a device the server
+  hands no key for.
+- **Presence carries the state it was asked for.** `SendPresenceAsync("unavailable")`
+  used to send `available`, so the suspension that exists to take this phone off
+  the account's online list said the opposite. The type goes through
+  `NativeSession.GoPresenceAsync(pushName, type)`; anything that is not
+  `unavailable` is `available`, and `SessionKeepAlive.Presence` is the one that
+  validates it.
 - **The tile has to say one true thing, so it is one notification.** The unread
   total changes on its own - a chat is read, another message arrives - and a tile
   only replaces the tile's content. With the notification queue on, every message

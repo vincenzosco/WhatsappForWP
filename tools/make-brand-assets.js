@@ -36,6 +36,12 @@ const OUT_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
 const OFFICIAL = path.join(__dirname, 'brand', 'official');
 const PREVIEW = process.argv.includes('--preview');
 
+/** Quanto del lato della tile occupa il marchio: il resto e' respiro. */
+const TileInset = 0.78;
+
+/** Lo stesso, in altezza, per la tile larga. */
+const WideInset = 0.8;
+
 // PNG -----------------------------------------------------------------------
 
 const CRC_TABLE = (() => {
@@ -160,6 +166,55 @@ function encodePNG(img) {
 
 function blank(w, h) {
   return { width: w, height: h, data: Buffer.alloc(w * h * 4) };
+}
+
+/**
+ * L'icona rimpicciolita dentro una cornice quadrata trasparente: `fraction` e'
+ * la parte del lato che l'icona occupa (0.78 = 11% di respiro per lato).
+ *
+ * Perche' non basta l'icona intera: il modello della tile disegna l'immagine a
+ * piena superficie, quindi un marchio che riempie l'asset sembra zoommato e,
+ * sulla tile larga, tagliato. Con la cornice il marchio resta grande ma intero.
+ */
+function inset(img, size, fraction) {
+  const side = Math.max(1, Math.round(size * fraction));
+  const canvas = blank(size, size);
+  const scaled = resample(img, side, side);
+  const at = Math.round((size - side) / 2);
+  for (let y = 0; y < side; y++) {
+    scaled.data.copy(canvas.data, ((y + at) * size + at) * 4, y * side * 4, (y + 1) * side * 4);
+  }
+  return canvas;
+}
+
+/** Il verde del marchio: il `BackgroundColor` della tile nel manifest. */
+const BRAND_GREEN = [0x45, 0xd8, 0x2c];
+
+/**
+ * L'icona in una cornice larga della misura della tile larga.
+ *
+ * Perche' non la stessa immagine quadrata: il sistema la scala per riempire
+ * 310x150 e ne taglia sopra e sotto, che e' il taglio che si vedeva. Qui il
+ * marchio e' intero al centro, sul verde del marchio, e la cornice ha gia' la
+ * proporzione della tile.
+ */
+function banner(img, width, height, fraction) {
+  const canvas = blank(width, height);
+  for (let p = 0; p < width * height; p++) {
+    canvas.data[p * 4] = BRAND_GREEN[0];
+    canvas.data[p * 4 + 1] = BRAND_GREEN[1];
+    canvas.data[p * 4 + 2] = BRAND_GREEN[2];
+    canvas.data[p * 4 + 3] = 255;
+  }
+
+  const side = Math.max(1, Math.round(height * fraction));
+  const scaled = resample(img, side, side);
+  const atX = Math.round((width - side) / 2);
+  const atY = Math.round((height - side) / 2);
+  for (let y = 0; y < side; y++) {
+    scaled.data.copy(canvas.data, ((y + atY) * width + atX) * 4, y * side * 4, (y + 1) * side * 4);
+  }
+  return canvas;
 }
 
 function clamp255(v) {
@@ -290,16 +345,19 @@ function main() {
   // L'icona della tile (modello IconWithBadge) e lo StoreLogo: ricavati
   // dall'icona verde dell'app, che il pacchetto ha a 419x418.
   const icon = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'Icon1.png')), 'Icon1.png');
-  for (const [name, size] of [
-    ['TileIcon.png', 200],
-    ['TileIcon.scale-240.png', 480],
-    ['StoreLogo.scale-240.png', 120],
-  ]) {
-    write(name, resample(icon, size, size));
-  }
+
+  // La tile: il marchio dentro una cornice, cosi' non sembra zoommato. La
+  // cornice della tile larga ha la proporzione della tile, altrimenti il
+  // sistema la ritaglia.
+  write('TileIcon.png', inset(icon, 200, TileInset));
+  write('TileIcon.scale-240.png', inset(icon, 480, TileInset));
+  write('TileIconWide.png', banner(icon, 310, 150, WideInset));
+  write('TileIconWide.scale-240.png', banner(icon, 744, 360, WideInset));
+  write('StoreLogo.scale-240.png', resample(icon, 120, 120));
 
   if (PREVIEW) {
     preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIcon.scale-240.png'))), 'TileIcon.scale-240.png', 40);
+    preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIconWide.scale-240.png'))), 'TileIconWide.scale-240.png', 60);
     preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'Logo.scale-240.png'))), 'Logo.scale-240.png', 40);
   }
 }

@@ -8,6 +8,7 @@ const tile = require('../check-tile');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const ASSET = path.join(ROOT, 'WhatsappApp', 'Assets', 'TileIcon.scale-240.png');
+const WIDE_ASSET = path.join(ROOT, 'WhatsappApp', 'Assets', 'TileIconWide.scale-240.png');
 
 test('pngSize legge le dimensioni vere del PNG committato', () => {
   const size = tile.pngSize(fs.readFileSync(ASSET));
@@ -25,6 +26,29 @@ test('un asset sotto la misura minima si segnala', () => {
   assert.match(problems[0], /at least 200x200/);
 });
 
+test('la tile larga ha un asset suo, della proporzione della tile', () => {
+  const size = tile.pngSize(fs.readFileSync(WIDE_ASSET));
+  assert.deepStrictEqual(size, { width: 744, height: 360 });
+  assert.deepStrictEqual(
+    tile.assetProblems({ name: 'Assets/TileIconWide.scale-240.png', ...size, bytes: 30000 }), []);
+});
+
+test('un immagine quadrata non va bene per la tile larga', () => {
+  const problems = tile.assetProblems(
+    { name: 'Assets/TileIcon.scale-240.png', width: 480, height: 480, bytes: 30000 });
+  assert.strictEqual(problems.length, 0);
+  const wrong = tile.assetProblems(
+    { name: 'Assets/FintaWide.png', width: 480, height: 200, bytes: 30000 });
+  assert.ok(wrong.some((p) => /the wide tile is 310x150/.test(p)));
+});
+
+test('un asset largo sotto la misura minima si segnala', () => {
+  const problems = tile.assetProblems(
+    { name: 'Assets/FintaWide.png', width: 200, height: 100, bytes: 1024 });
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /at least 310x150/);
+});
+
 test('un asset oltre i limiti del sistema si segnala due volte', () => {
   const problems = tile.assetProblems(
     { name: 'Assets/Finto.png', width: 2048, height: 2048, bytes: 300 * 1024 });
@@ -37,6 +61,14 @@ test('un payload di tile senza src si segnala', () => {
   const problems = tile.bindingProblems(
     'var xml = TileUpdateManager.GetTemplateContent(TileTemplateType.TileSquare150x150IconWithBadge);');
   assert.ok(problems.some((p) => /no binding sets src/.test(p)));
+});
+
+test('le due immagini della tile sono dichiarate nel servizio', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs'), 'utf8');
+  const images = tile.declaredImages(source);
+  assert.ok(images.includes('ms-appx:///Assets/TileIcon.png'));
+  assert.ok(images.includes('ms-appx:///Assets/TileIconWide.png'));
 });
 
 test('un commento che cita il modello largo non e codice', () => {

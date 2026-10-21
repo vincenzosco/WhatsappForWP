@@ -158,6 +158,50 @@ namespace ProtocolTests
             Assert.AreEqual(PeerBundleFixture.Peer, usync.Child("list").Child("user").Attrs["jid"]);
         }
 
+        [Test]
+        public static void ABundleMissingAKeyIsRefusedByName()
+        {
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            BinaryNode answer = PeerBundleFixture.BundleAnswer(peer, PeerBundleFixture.PeerTablet, true);
+
+            // The server left the registration out: an answer is data from outside, and
+            // the reader has to name what it cannot find instead of throwing the one
+            // exception nobody can read and no caller can catch by contract.
+            BinaryNode user = answer.Child("list").Children()[0];
+            var children = (IList<BinaryNode>)user.Content;
+            for (int i = children.Count - 1; i >= 0; i--)
+            {
+                if (children[i].Tag == "registration") children.RemoveAt(i);
+            }
+
+            string named = Failed(delegate { DeviceDirectory.Bundles(answer); });
+
+            Assert.IsTrue(named != null, "a bundle without its registration has to be refused");
+            Assert.IsTrue(named.Contains(PeerBundleFixture.PeerTablet),
+                "the refusal names the device, and it said: " + named);
+            Assert.IsTrue(named.Contains("registration"),
+                "and the node it could not find, and it said: " + named);
+        }
+
+        [Test]
+        public static void ABundleWithoutItsSignedPreKeyIsRefusedByName()
+        {
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            BinaryNode answer = PeerBundleFixture.BundleAnswer(peer, PeerBundleFixture.PeerTablet, true);
+
+            BinaryNode user = answer.Child("list").Children()[0];
+            var children = (IList<BinaryNode>)user.Content;
+            for (int i = children.Count - 1; i >= 0; i--)
+            {
+                if (children[i].Tag == "skey") children.RemoveAt(i);
+            }
+
+            string named = Failed(delegate { DeviceDirectory.Bundles(answer); });
+
+            Assert.IsTrue(named != null, "a bundle without its signed pre-key has to be refused");
+            Assert.IsTrue(named.Contains("skey"), "and it has to name it: " + named);
+        }
+
         /// <summary>One answer carrying two devices, which is what a contact with a phone and a tablet gets.</summary>
         private static BinaryNode TwoDevices(Credentials peer, bool withOneTimePreKey)
         {

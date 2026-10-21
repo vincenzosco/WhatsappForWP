@@ -129,6 +129,11 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.StatusArrived += OnNativeStatusPost;
             NativeConnection.Instance.StatusMediaArrived += OnNativeStatusMedia;
 
+            // The reads that could not go out while the account was closed wait here,
+            // and nothing else drains them: without this line they waited forever, which
+            // is a chat the other side keeps showing as unread.
+            NativeConnection.Instance.ConnectionStatusChanged += OnNativeConnectionStatus;
+
             // The copy of the last session: it is shown now, before the connection
             // exists. The server will replace it with the real one.
 #pragma warning disable 4014
@@ -1664,6 +1669,13 @@ namespace WhatsappApp.Services
         /// A live connection exists: every read that could not be sent goes out
         /// now, in the order it was made.
         /// </summary>
+        private void OnNativeConnectionStatus(object sender, string status)
+        {
+            if (!NativeConnection.Instance.IsConnected) return;
+
+            OnConnectionEstablished(sender, EventArgs.Empty);
+        }
+
         private void OnConnectionEstablished(object sender, EventArgs e)
         {
             if (_pendingReads.Count == 0) return;
@@ -1826,7 +1838,11 @@ namespace WhatsappApp.Services
             for (int i = 0; i < _calls.Count; i++)
             {
                 CallLogEntry row = _calls[i];
-                if (row != null && string.Equals(row.Reason, "timeout", StringComparison.OrdinalIgnoreCase)) total++;
+                // Two vocabularies meet here: the old server said `timeout`, the native
+                // client says `missed`. A badge that only knew the first was a badge that
+                // never counted a missed call.
+                if (row != null && (string.Equals(row.Reason, "timeout", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(row.Reason, "missed", StringComparison.OrdinalIgnoreCase))) total++;
             }
             return total;
         }
