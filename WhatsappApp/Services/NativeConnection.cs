@@ -55,6 +55,26 @@ namespace WhatsappApp.Services
             new Dictionary<string, TaskCompletionSource<BinaryNode>>();
 
         /// <summary>
+        /// The messages this phone has written to the socket and the server has not yet
+        /// acknowledged, by id.
+        ///
+        /// Why it is kept at all: an `<ack>` is the only thing on the wire that says the
+        /// server has the message. Without this set the ack arrived, matched nothing and was
+        /// dropped, so the bubble had to answer from the state of the socket - and on
+        /// 2026-10-22 an operator watched a message that never left the phone sit there with
+        /// a tick next to it. The id is what tells an ack for our message apart from an ack
+        /// for one of our queries, which travels through the same branch.
+        /// </summary>
+        private readonly HashSet<string> _awaitingAck = new HashSet<string>();
+
+        /// <summary>
+        /// How many unanswered ids are remembered before the set is emptied. A phone sends
+        /// a handful of messages per minute; this is the ceiling that keeps a phone that
+        /// sent thousands into a server that never answered from growing a set forever.
+        /// </summary>
+        private const int MaxAwaitingAck = 200;
+
+        /// <summary>
         /// The calls the history has brought, since the app opened.
         ///
         /// They are not asked for and they cannot be: WhatsApp puts the call log in the
@@ -442,6 +462,11 @@ namespace WhatsappApp.Services
                 if (kind == InboundKind.Ack || (kind == InboundKind.Ignored && node.Tag == "iq"))
                 {
                     CompleteWaiter(node);
+
+                    // The same `ack` that answers a query also answers a message this phone
+                    // sent. It is offered to the messages first: an id nobody is waiting on
+                    // is not a message of this run, and nothing happens.
+                    if (kind == InboundKind.Ack) AnnounceAck(node);
                     continue;
                 }
 
@@ -843,6 +868,94 @@ namespace WhatsappApp.Services
             completion.TrySetResult(node);
         }
 
+        /// <summary>
+        /// Keeps an id until the server acks it, so the ack can be recognised as ours.
+        /// Registered before the stanza is written: the answer can only come after the
+        /// write, but it can come before the write's `await` has returned.
+        /// </summary>
+        private void AwaitAck(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+
+            lock (_awaitingAck)
+            {
+                if (_awaitingAck.Count >= MaxAwaitingAck) _awaitingAck.Clear();
+                _awaitingAck.Add(id);
+            }
+        }
+
+        /// <summary>An id the server will never ack, because the write that carried it failed.</summary>
+        private void ForgetAck(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return;
+
+            lock (_awaitingAck) _awaitingAck.Remove(id);
+        }
+
+        /// <summary>
+        /// One message written to the socket, with its id remembered until the server says
+        /// it has it. The write failing and the server refusing are two different things, and
+        /// both end with the bubble saying so; what used to happen was neither being said.
+        /// </summary>
+        private async Task WriteAsync(NativeSession session, string id, BinaryNode node)
+        {
+            AwaitAck(id);
+
+            try
+            {
+                await session.SendAsync(node);
+            }
+            catch (Exception)
+            {
+                ForgetAck(id);
+                throw;
+            }
+        }
+
+        /// <summary>
+        /// The server's answer for a message this phone sent: accepted (Sent), or refused
+        /// with a code (Failed). Anything else it acks - a query, a read receipt of its own -
+        /// is not in the set and is left to whoever asked for it.
+        /// </summary>
+        private void AnnounceAck(BinaryNode node)
+        {
+            string id = node == null ? null : node.Attrs["id"];
+            if (string.IsNullOrEmpty(id)) return;
+
+            bool ours;
+            lock (_awaitingAck)
+            {
+                ours = _awaitingAck.Remove(id);
+            }
+
+            if (!ours) return;
+
+            bool refused = node.Attrs["type"] == "error";
+
+            if (refused)
+            {
+                string code = node.Attrs["error"];
+                if (string.IsNullOrEmpty(code)) code = node.Attrs["code"];
+                if (string.IsNullOrEmpty(code)) code = "no code";
+
+                Diag.Failed("native: the server refused message " + id,
+                    new ProtocolException("the server would not take it (" + code + ")"));
+            }
+            else
+            {
+                Diag.Ok("native: the server has message " + id);
+            }
+
+            if (MessageStatusChanged == null) return;
+
+            var update = new MessageStatusUpdate();
+            update.Id = id;
+            update.IsAck = true;
+            update.IsRefused = refused;
+
+            MessageStatusChanged(this, update);
+        }
+
         /// <summary>A receipt off the wire, as the status of the messages it names.</summary>
         private void AnnounceReceipt(BinaryNode node)
         {
@@ -888,7 +1001,7 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await session.SendAsync(OutgoingMessage.Node(jid, id, body, devices, timestamp, _random));
+            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, body, devices, timestamp, _random));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
@@ -940,7 +1053,7 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await session.SendAsync(OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
+            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
                 mediaWord, devices, timestamp, _random));
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
@@ -1041,7 +1154,7 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await session.SendAsync(OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
+            await WriteAsync(session, id, OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
                 group.AddressingMode, distributions, timestamp, _random));
 
             lock (_senderKeysSent)
@@ -1201,59 +1314,37 @@ namespace WhatsappApp.Services
             // the group path's second answer read as if it were the first: the first
             // `user.Child("registration")` is null there, so a text to one person ended
             // in a NullReferenceException before a stanza existed.
-            IList<string> listed = DeviceDirectory.Devices(
-                await RequestAsync(session, DeviceDirectory.Query(jid, _random)));
+            //
+            // The rule itself is `DirectSend`, in the protocol core: the desktop runner
+            // tests it end to end, because this service needs the Windows Phone runtime
+            // and the runner cannot build it.
+            BinaryNode devicesAnswer = await RequestAsync(session, DeviceDirectory.Query(jid, _random));
 
-            var targets = new List<string>();
-            for (int i = 0; i < listed.Count; i++)
-            {
-                if (IsOurDevice(listed[i])) continue;
-                if (IsHosted(listed[i])) continue;
-
-                targets.Add(listed[i]);
-            }
-
-            if (targets.Count == 0) throw new ProtocolException("the server knows no device of " + jid);
+            string ourJid = _account == null ? null : _account.Jid;
+            string ourLid = _account == null ? null : _account.Lid;
+            IList<string> targets = DirectSend.Targets(devicesAnswer, ourJid, ourLid);
 
             SessionStore store = await SessionsAsync();
+            IList<string> missing = DirectSend.WithoutSession(targets, store);
 
-            // A bundle is only needed by a device this phone has never talked to: an
-            // established session is the ratchet, and asking for its keys again is a
-            // round trip nobody reads.
-            var missing = new List<string>();
-            for (int i = 0; i < targets.Count; i++)
-            {
-                SessionRecord existing = store.Load(targets[i]);
-                if (existing == null || !existing.HasSession) missing.Add(targets[i]);
-            }
-
-            IList<KeyValuePair<string, PreKeyBundle>> bundles = null;
+            BinaryNode bundleAnswer = null;
             if (missing.Count > 0)
             {
-                bundles = DeviceDirectory.Bundles(await RequestAsync(session,
-                    DeviceDirectory.BundleQuery(missing, _random)));
+                bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
             }
 
-            var devices = new List<KeyValuePair<string, SessionRecord>>();
-            for (int i = 0; i < targets.Count; i++)
+            DirectSendPlan plan = DirectSend.Plan(targets, bundleAnswer, _account, store, _random);
+
+            // A device the server hands no key for is skipped and named, exactly as the
+            // group path does: one unreachable device must not take the message.
+            for (int i = 0; i < plan.Skipped.Count; i++)
             {
-                PreKeyBundle bundle = Find(bundles, targets[i]);
-
-                // A device the server hands no key for is skipped and named, exactly as
-                // the group path does: one unreachable device must not take the message.
-                if (store.Load(targets[i]) == null && bundle == null)
-                {
-                    Diag.Ok("native: no bundle for " + targets[i] + ", so it is not written to");
-                    continue;
-                }
-
-                devices.Add(new KeyValuePair<string, SessionRecord>(targets[i],
-                    DeviceDirectory.Session(targets[i], bundle, _account, store, _random)));
+                Diag.Ok("native: no bundle for " + plan.Skipped[i] + ", so it is not written to");
             }
 
-            if (devices.Count == 0) throw new ProtocolException("the server handed no key for " + jid);
+            if (plan.Devices.Count == 0) throw new ProtocolException("the server handed no key for " + jid);
 
-            return devices;
+            return plan.Devices;
         }
 
         /// <summary>Marks a chat's messages read: the receipt is what stops the peer's phone showing them unread.</summary>
@@ -1296,6 +1387,76 @@ namespace WhatsappApp.Services
                 : SessionKeepAlive.Available;
 
             await session.GoPresenceAsync(_account == null ? null : _account.PushName, type);
+        }
+
+        /// <summary>
+        /// How long a resume waits for the answer to its ping. Shorter than the keep-alive's
+        /// ceiling: the app has just come back and a person is looking at a list that has not
+        /// changed, so a connection that does not answer promptly is one to replace rather
+        /// than one to wait on.
+        /// </summary>
+        private const int ResumeAnswerSeconds = 8;
+
+        /// <summary>
+        /// The app has come back to the foreground: is this connection still a connection?
+        ///
+        /// Why it is not left to the keep-alive: WP8.1 freezes the process while the app is
+        /// suspended, and the socket is usually gone by the time it resumes - closed by the OS
+        /// or dropped by the server for being silent. Nothing observes a socket closed from
+        /// the outside, so the read sits in a frame that will never come and the app keeps
+        /// drawing the list it had: "it does not update", which looks like a broken app and
+        /// is a connection nobody checked.
+        ///
+        /// True when the server answered, which is also when it is worth telling it that this
+        /// phone is here again.
+        /// </summary>
+        public async Task<bool> CheckAsync()
+        {
+            NativeSession session = _session;
+
+            if (!_running)
+            {
+                Start();
+                return false;
+            }
+
+            if (session == null || !session.IsOpen) return false;
+
+            DateTime sent = DateTime.UtcNow;
+
+            try
+            {
+                await session.PingAsync();
+            }
+            catch (Exception error)
+            {
+                // The send itself failed: the read that is waiting on this socket is about to
+                // fail too, and the loop above takes it from there.
+                Diag.Failed("NativeConnection/check", error);
+                return false;
+            }
+
+            for (int waited = 0; waited < ResumeAnswerSeconds; waited++)
+            {
+                if (!session.IsOpen) return false;
+
+                if (_lastNode > sent)
+                {
+                    Diag.Ok("native: the connection answered after the resume");
+                    return true;
+                }
+
+                await Task.Delay(1000);
+            }
+
+            Diag.Ok("native: nothing came back after the resume - dialling again");
+            Status = "the connection was lost while suspended - dialling again";
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("NativeConnection/restart", RestartAsync());
+#pragma warning restore 4014
+
+            return false;
         }
 
         private static uint NowSeconds()
@@ -1922,7 +2083,31 @@ namespace WhatsappApp.Services
                 if (!ConnectionPolicy.ConnectionIsStale(_lastNode, DateTime.UtcNow)) continue;
 
                 Diag.Step("native: sending a ping");
+                DateTime sent = DateTime.UtcNow;
                 await session.PingAsync();
+
+                // And then wait for something to come back. Sending into a socket the
+                // other end has already dropped works: the bytes go out and nothing ever
+                // answers, which is why "the ping was sent" was never the same as "the
+                // connection is alive" and why this loop could sit on a dead connection
+                // for hours while the app showed nothing new.
+                while (session.IsOpen
+                    && _lastNode <= sent
+                    && !ConnectionPolicy.PingUnanswered(sent, _lastNode, DateTime.UtcNow))
+                {
+                    await Task.Delay(1000);
+                }
+
+                if (session.IsOpen && ConnectionPolicy.PingUnanswered(sent, _lastNode, DateTime.UtcNow))
+                {
+                    // Closing is what ends the read the other task is waiting in; the loop
+                    // above takes that as the connection to be made again.
+                    Diag.Ok("native: the ping went unanswered for " + ConnectionPolicy.AnswerSeconds
+                        + " s - the connection is gone");
+                    Status = "the server stopped answering - dialling again";
+                    session.Close();
+                    return;
+                }
             }
         }
     }
@@ -1965,5 +2150,15 @@ namespace WhatsappApp.Services
 
         /// <summary>True when it says read and not merely delivered.</summary>
         public bool IsRead;
+
+        /// <summary>
+        /// True when this is the server's answer for a message this phone sent, and not a
+        /// receipt about a peer's. An ack names no chat (it is about our own stanza), so the
+        /// handler finds the bubble by the id alone.
+        /// </summary>
+        public bool IsAck;
+
+        /// <summary>True when that answer is a refusal: the server would not take it.</summary>
+        public bool IsRefused;
     }
 }

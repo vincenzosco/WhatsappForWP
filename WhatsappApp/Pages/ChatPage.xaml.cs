@@ -1324,7 +1324,10 @@ namespace WhatsappApp.Pages
                 // The wire id becomes the bubble's: a receipt names the message by it, and
                 // a bubble with a random id of its own never sees its ticks turn blue.
                 message.Id = id;
-                message.Status = MessageStatus.Sent;
+
+                // Written is not sent. The circle stays until the server's ack for this id
+                // arrives, or the wait below turns it into a failure.
+                WaitForAck(message);
             }
             catch (WhatsappApp.Protocol.ProtocolException refused)
             {
@@ -1385,13 +1388,57 @@ namespace WhatsappApp.Pages
             {
                 // The wire id becomes the bubble's: a receipt names the message by it.
                 message.Id = await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text);
-                message.Status = MessageStatus.Sent;
+
+                // Written is not sent: the tick is the server's answer, and it has not
+                // arrived yet. See WaitForAck for what happens when it never does.
+                WaitForAck(message);
             }
             catch (WhatsappApp.Protocol.ProtocolException failed)
             {
                 Diag.Failed("ChatPage/send", failed);
                 message.Status = MessageStatus.Failed;
             }
+        }
+
+        /// <summary>
+        /// How long a message waits for the server's ack before the bubble says it did not
+        /// go. Twenty seconds is `NativeConnection.AnswerSeconds`: a query and a message wait
+        /// the same time for the same server, and a message declared failed while the phone
+        /// was merely slow is a second copy sent by hand.
+        /// </summary>
+        private const int AckSeconds = 20;
+
+        /// <summary>
+        /// The bubble keeps its circle until the server answers, and says "failed" when it
+        /// does not.
+        ///
+        /// What this replaces: the page used to write `MessageStatus.Sent` the moment the
+        /// bytes were handed to the socket. That is a statement about this phone, not about
+        /// WhatsApp - a connection that dies mid-write, or a stanza the server refuses,
+        /// leaves a tick on a message nobody ever received, which is what the operator saw on
+        /// 2026-10-22. The ack now comes off the wire (`NativeConnection.AnnounceAck`) and
+        /// `DataService` writes Sent for it; this is the other half, so that a message with no
+        /// answer stops pretending instead of waiting forever.
+        /// </summary>
+        private static async System.Threading.Tasks.Task WaitForAckAsync(ChatMessage message)
+        {
+            await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(AckSeconds));
+
+            // Answered meanwhile - Sent, Delivered, Read - or failed on the way out.
+            if (message.Status != MessageStatus.Sending) return;
+
+            Diag.Failed("ChatPage/send-no-ack", new WhatsappApp.Protocol.ProtocolException(
+                "the server did not acknowledge " + message.Id + " within " + AckSeconds + " s"));
+
+            message.Status = MessageStatus.Failed;
+        }
+
+        /// <summary>Sends the wait above on its way and keeps its failure named.</summary>
+        private static void WaitForAck(ChatMessage message)
+        {
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("ChatPage/wait for ack", WaitForAckAsync(message));
+#pragma warning restore 4014
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)

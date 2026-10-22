@@ -788,8 +788,12 @@ namespace WhatsappApp.Services
             row.IsStatusViewed = true;
 
 #pragma warning disable 4014
+            // The delegate and not the task: a `ViewStatusAsync` that throws while it is
+            // being *called* - no open session, a chat id that is not a JID - already threw
+            // before `RunGuardedAsync` was entered, and that exception left this method on
+            // the tap's own thread. This overload catches it where it happens.
             Guarded.RunGuardedAsync("DataService/view status",
-                NativeConnection.Instance.ViewStatusAsync(row.ChatId, row.Id));
+                delegate { return NativeConnection.Instance.ViewStatusAsync(row.ChatId, row.Id); });
 #pragma warning restore 4014
         }
 
@@ -828,6 +832,17 @@ namespace WhatsappApp.Services
         private void OnNativeStatus(object sender, MessageStatusUpdate update)
         {
             if (update == null || string.IsNullOrEmpty(update.Id)) return;
+
+            // The ack of a message this phone sent: it is the only thing that makes a
+            // bubble say "sent", and a refusal is the one thing that makes it say
+            // "failed" without the page having seen an exception. It carries no chat, so
+            // the message is found by its id across the conversations in memory.
+            if (update.IsAck)
+            {
+                SetMessageStatusEverywhere(update.Id,
+                    update.IsRefused ? MessageStatus.Failed : MessageStatus.Sent);
+                return;
+            }
 
             SetMessageStatus(update.Jid, update.Id,
                 update.IsRead ? MessageStatus.Read : MessageStatus.Delivered);
@@ -904,6 +919,7 @@ namespace WhatsappApp.Services
                 };
                 _contacts.Insert(0, contact);
                 _contactIndex[contact.Id] = contact;
+                PublishUnread(contact);
             }
             else
             {
@@ -930,6 +946,7 @@ namespace WhatsappApp.Services
                 {
                     contact.UnreadCount++;
                     NotificationService.SetUnread(TotalUnread());
+                    PublishUnread(contact);
                 }
 
                 // The row goes where its new time says, not to the top: the pinned
@@ -1134,6 +1151,8 @@ namespace WhatsappApp.Services
             contact.IsPinned = ChatPreferences.IsPinned(message.ChatId);
             contact.IsMuted = ChatPreferences.IsMuted(message.ChatId);
             PlaceContact(contact);
+
+            PublishUnread(contact);
 
             RememberChatRow(message);
         }
@@ -1346,6 +1365,26 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>
+        /// The same, for a message whose chat the caller does not know - which is what an ack
+        /// is: the server answers our stanza, not a conversation, and the id is the only name
+        /// it carries. Ids are minted by this device, so one match is the whole search.
+        /// </summary>
+        private void SetMessageStatusEverywhere(string messageId, MessageStatus status)
+        {
+            if (string.IsNullOrEmpty(messageId)) return;
+
+            foreach (var chat in _chatMessages)
+            {
+                foreach (var message in chat.Value)
+                {
+                    if (message.Id != messageId) continue;
+                    message.Status = status;
+                    return;
+                }
+            }
+        }
+
         private void RefreshPreview(string chatId)
         {
             var contact = FindContact(chatId);
@@ -1442,6 +1481,59 @@ namespace WhatsappApp.Services
 
             Contact found;
             return _contactIndex.TryGetValue(id, out found) ? found : null;
+        }
+
+        /// <summary>
+        /// The row of a chat, made when the list does not have it yet.
+        ///
+        /// Why it exists: a tile on the Start screen is tapped from outside the app, and a
+        /// cold start opens the chat before the list has been filled - from the cache or
+        /// from WhatsApp. A chat opened that way has to be a row like any other, or the page
+        /// it opens on has nothing to name it by. The name carried in the tile's arguments
+        /// is used when the chat's own is not known yet; the sync renames it like every row.
+        /// </summary>
+        public Contact ContactFor(string chatId, string name)
+        {
+            if (string.IsNullOrEmpty(chatId)) return null;
+
+            Contact contact = FindContact(chatId);
+            if (contact != null) return contact;
+
+            string known = SavedNameFor(chatId);
+            if (string.IsNullOrEmpty(known)) known = NameCache.Book.NameFor(chatId);
+            if (string.IsNullOrEmpty(known)) known = name;
+            if (string.IsNullOrEmpty(known)) known = DisplayNameForJid(chatId);
+
+            contact = new Contact
+            {
+                Id = chatId,
+                Name = known,
+                Initials = InitialsFor(known),
+                IsPinned = ChatPreferences.IsPinned(chatId),
+                IsMuted = ChatPreferences.IsMuted(chatId)
+            };
+
+            _contacts.Insert(0, contact);
+            _contactIndex[chatId] = contact;
+
+            return contact;
+        }
+
+        /// <summary>
+        /// The row's unread count changed: its pinned tile says so, if the chat has one.
+        ///
+        /// One place, because the count is written from several: a message into a new row, a
+        /// message into an existing one, the sync's own number, the two read paths and a
+        /// deletion. A tile that missed one of them keeps a number nobody can clear.
+        /// </summary>
+        private static void PublishUnread(Contact contact)
+        {
+            if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
+
+            string avatar = contact.AvatarData;
+            if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(contact.Id);
+
+            PinnedTile.Update(contact.Id, contact.Name, contact.UnreadCount, avatar);
         }
 
         private void RebuildContactIndex()
@@ -1564,6 +1656,7 @@ namespace WhatsappApp.Services
                 {
                     contact.UnreadCount++;
                     NotificationService.SetUnread(TotalUnread());
+                    PublishUnread(contact);
                 }
 
                 // The row goes where its time says: a history message is not news,
@@ -1583,6 +1676,13 @@ namespace WhatsappApp.Services
         {
             var contact = FindContact(chatId);
             if (contact != null) contact.UnreadCount = 0;
+
+            // The tile stops giving this chat a turn: its message is read, and a queue
+            // that kept it would keep showing a conversation nobody is waiting for.
+            if (!string.IsNullOrEmpty(chatId)) NotificationService.Forget(chatId);
+
+            // And the chat's own tile says the number is gone.
+            PublishUnread(contact);
 
             SendRead(chatId);
             NotificationService.SetUnread(TotalUnread());
@@ -1608,7 +1708,12 @@ namespace WhatsappApp.Services
 
             // The counts go to zero together and the badge is rewritten once:
             // ClearUnread on its own would recompute the total for every row.
-            for (int i = 0; i < rows.Count; i++) rows[i].UnreadCount = 0;
+            for (int i = 0; i < rows.Count; i++)
+            {
+                rows[i].UnreadCount = 0;
+                PublishUnread(rows[i]);
+            }
+            NotificationService.ForgetAll();
             NotificationService.SetUnread(TotalUnread());
             for (int i = 0; i < rows.Count; i++) SendRead(rows[i].Id);
 
@@ -1803,6 +1908,7 @@ namespace WhatsappApp.Services
             _historyRequested.Remove(chatId);
 
             ChatPreferences.Hide(chatId);
+            NotificationService.Forget(chatId);
             NotificationService.SetUnread(TotalUnread());
 
 #pragma warning disable 4014
