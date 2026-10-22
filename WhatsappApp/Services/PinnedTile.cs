@@ -41,9 +41,6 @@ namespace WhatsappApp.Services
         /// </summary>
         private const char ArgumentSeparator = '|';
 
-        /// <summary>The ceiling the system accepts for a tile image; over it the update is rejected.</summary>
-        private const int MaxImageBytes = 200 * 1024;
-
         /// <summary>WP8.1 refuses a tile id over this length, and one with other characters.</summary>
         private const int MaxTileIdLength = 64;
 
@@ -56,15 +53,6 @@ namespace WhatsappApp.Services
 
         /// <summary>The same mark at the wide tile's proportion: a square one is cropped.</summary>
         private const string AppWideIcon = "ms-appx:///Assets/TileIconWide.png";
-
-        /// <summary>
-        /// The picture last written for a chat, in this process. Writing a few kilobytes to
-        /// the phone on every message would be waste; the file is rewritten only when the
-        /// bytes changed, and once per process whatever they are (the file on disk survives
-        /// a restart, and only the copy in memory does not).
-        /// </summary>
-        private static readonly Dictionary<string, string> Written =
-            new Dictionary<string, string>(StringComparer.Ordinal);
 
         /// <summary>
         /// The tile id of a chat: stable across runs (a second pin of the same chat is the
@@ -361,38 +349,18 @@ namespace WhatsappApp.Services
         /// The chat's picture as a file the tile can point at, or null when there is none:
         /// a tile wants a path, not the bytes.
         ///
-        /// It is written under a name of its own (`pin-…`), so it cannot collide with the
-        /// picture the app's own tile keeps for the same chat and the two cannot take each
-        /// other's file away.
+        /// It is a *card*, not the 96x96 preview: `TileImage` draws the picture into the
+        /// middle of a tile-sized teal square, because a template with an image paints it
+        /// over the whole tile and a small face blown up to 150 or 310 pixels is a magnified
+        /// face, not a portrait. A chat with no picture gets the app mark inside the same
+        /// card, so both tiles look deliberate rather than zoomed.
+        ///
+        /// The name is `pin-…`, of its own, so it cannot collide with the picture the app's
+        /// own tile keeps for the same chat and the two cannot take each other's file away.
         /// </summary>
-        private static async Task<string> StoreImageAsync(string chatId, string avatarData)
+        private static Task<string> StoreImageAsync(string chatId, string avatarData)
         {
-            if (string.IsNullOrEmpty(avatarData)) return null;
-
-            string fileName = ImageFileName(chatId);
-            string stored;
-            if (Written.TryGetValue(chatId, out stored) && stored == avatarData)
-            {
-                return "ms-appdata:///local/" + fileName;
-            }
-
-            try
-            {
-                byte[] bytes = Convert.FromBase64String(avatarData);
-                if (bytes.Length == 0 || bytes.Length > MaxImageBytes) return null;
-
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBytesAsync(file, bytes);
-
-                Written[chatId] = avatarData;
-                return "ms-appdata:///local/" + fileName;
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("PinnedTile/StoreImage", ex);
-                return null;
-            }
+            return TileImage.StoreAsync(ImageFileName(chatId), avatarData);
         }
 
         private static string ImageFileName(string chatId)

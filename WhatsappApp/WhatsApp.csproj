@@ -119,6 +119,7 @@
     <Compile Include="Services\SettingsService.cs" />
     <Compile Include="Services\StartDecision.cs" />
     <Compile Include="Services\ThemeService.cs" />
+    <Compile Include="Services\TileImage.cs" />
     <Compile Include="Services\ContactDirectory.cs" />
     <Compile Include="Services\BackgroundSync.cs" />
     <Compile Include="Services\NotificationService.cs" />
@@ -146,6 +147,7 @@
     <Compile Include="Services\RecordingSession.cs" />
     <Compile Include="Services\ConversationView.cs" />
     <Compile Include="Services\CrashReport.cs" />
+    <Compile Include="Protocol\Client\ActivityTime.cs" />
     <Compile Include="Protocol\Client\ClientState.cs" />
     <Compile Include="Protocol\Client\CredentialStore.cs" />
     <Compile Include="Protocol\Client\ConnectionPolicy.cs" />
@@ -189,6 +191,7 @@
     <Compile Include="Protocol\Media\MediaDownload.cs" />
     <Compile Include="Protocol\Media\MediaKeys.cs" />
     <Compile Include="Protocol\Media\MediaUpload.cs" />
+    <Compile Include="Protocol\Media\TileCanvas.cs" />
     <Compile Include="Protocol\Transport\IMediaFetcher.cs" />
     <Compile Include="Protocol\Transport\ITransport.cs" />
     <Compile Include="Protocol\Transport\WebSocketTransport.cs" />

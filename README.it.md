@@ -279,6 +279,18 @@ node tools/make-brand-assets.js            # riscrive i PNG
 node tools/make-brand-assets.js --preview  # + anteprima ASCII per controllare il logo
 ```
 
+Quelle immagini sono il ripiego: quello che una tile disegna normalmente non e' un
+file, e' una **card**. Il template di una tile dipinge la sua immagine su tutta la
+tile, e la foto che WhatsApp manda e' 96×96 - la dimensione dell'anteprima - quindi
+stirata su 150 o 310 pixel diventa una faccia ingrandita, mentre il marchio
+dell'app disegnato da bordo a bordo sembra un logo zoomato e tagliato. E' quello
+che si vedeva il 22/10/2026. Allora `Services/TileImage.cs` decodifica l'immagine,
+la scala una volta e la disegna al centro di una card del verde scuro dell'app, con
+la foto a meta' della tile (`Protocol/Media/TileCanvas.cs`: la composizione e' pura
+e sta nel core del protocollo, dove `TileCanvasTests` la controlla, perche' un
+margine sbagliato non si vede finche' non e' su un telefono). Cosi' il sistema non
+ha niente da ingrandire, e lo stesso file va bene a 150, 310 e 71 pixel.
+
 Le icone dell'interfaccia (ricerca, impostazioni, tab, allegati, invio…)
 **non** usano un font di icone: Windows Phone 8.1 non ha `Segoe MDL2 Assets`
 (e' arrivato con Windows 10), quindi i pulsanti restavano vuoti. Sono `Path`
