@@ -78,6 +78,17 @@ namespace ProtocolTests
 
         public static void ByteArraysEqual(byte[] expected, byte[] actual)
         {
+            ByteArraysEqual(expected, actual, null);
+        }
+
+        /// <summary>
+        /// The same, with the reason: two arrays of bytes rarely say which of them was the
+        /// one being asked about, and a canvas of pixels says nothing at all.
+        /// </summary>
+        public static void ByteArraysEqual(byte[] expected, byte[] actual, string because)
+        {
+            if (because != null) because = ": " + because; else because = "";
+
             if (expected == null || actual == null)
             {
                 throw new AssertionException("expected two byte arrays, got "
@@ -87,7 +98,7 @@ namespace ProtocolTests
             if (expected.Length != actual.Length)
             {
                 throw new AssertionException("byte array length " + expected.Length
-                    + " != " + actual.Length + "\n  expected " + Hex(expected)
+                    + " != " + actual.Length + because + "\n  expected " + Hex(expected)
                     + "\n  actual   " + Hex(actual));
             }
 
@@ -95,7 +106,7 @@ namespace ProtocolTests
             {
                 if (expected[i] != actual[i])
                 {
-                    throw new AssertionException("byte " + i + " differs\n  expected "
+                    throw new AssertionException("byte " + i + " differs" + because + "\n  expected "
                         + Hex(expected) + "\n  actual   " + Hex(actual));
                 }
             }
@@ -103,6 +114,14 @@ namespace ProtocolTests
 
         public static void Throws<T>(Action action) where T : Exception
         {
+            Throws<T>(action, null);
+        }
+
+        /// <summary>The same, with the reason the caller expected it to be refused.</summary>
+        public static void Throws<T>(Action action, string because) where T : Exception
+        {
+            if (because != null) because = ": " + because; else because = "";
+
             try
             {
                 action();
@@ -114,10 +133,10 @@ namespace ProtocolTests
             catch (Exception other)
             {
                 throw new AssertionException("expected " + typeof(T).Name + " but got "
-                    + other.GetType().Name + ": " + other.Message);
+                    + other.GetType().Name + ": " + other.Message + because);
             }
 
-            throw new AssertionException("expected " + typeof(T).Name + " but nothing was thrown");
+            throw new AssertionException("expected " + typeof(T).Name + " but nothing was thrown" + because);
         }
 
         public static string Hex(byte[] bytes)
