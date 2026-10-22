@@ -317,12 +317,19 @@ node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
 The live tile has assets of its own, made by the same `make-brand-assets.js`
 from the official green app icon. `Assets/TileIcon.png` plus its 240% version
 `TileIcon.scale-240.png` (480×480) are the square tile, and `TileIconWide.png`
-plus `TileIconWide.scale-240.png` (744×360) are the wide one. It is not a
-duplicate of `Logo.png`: the tile template draws the image itself, at full size.
-So the mark is **inset** in its asset - 78% of the side, 80% of the height on the
-wide one - and the space around it is what keeps it from looking zoomed. The wide
-tile needs its own file for the same reason: a square image is scaled to fill
-310×150 and the system crops its top and bottom, which cut the mark.
+plus `TileIconWide.scale-240.png` (744×360) are the wide one. They are the
+fallback: what a tile normally draws is not those files but a card.
+
+A tile template draws its image over the **whole** tile. A profile picture from
+WhatsApp is 96×96 - that is the size its preview comes in - so stretching it across
+150 or 310 pixels is a magnified face, and the app mark laid edge to edge reads as
+a logo zoomed until it is cropped. Neither is a portrait; both are what the Start
+screen showed on 2026-10-22. So `Services/TileImage.cs` decodes the picture,
+scales it once, and draws it into the middle of a card of the app's teal with the
+picture at half the tile (`Protocol/Media/TileCanvas.cs` - the compositing is pure
+and sits in the protocol core, where `TileCanvasTests` covers it, because a wrong
+margin is invisible until it is on a phone). The shell then has nothing to
+enlarge, and the same file is right at 150, 310 and 71 pixels.
 
 The manifest sets `BackgroundColor="#45D82C"` together with
 `ForegroundText="light"`. The official square and wide tiles are the white

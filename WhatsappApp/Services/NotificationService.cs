@@ -165,29 +165,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The sender picture in an app file, and the path to put in the tile. Null
-        /// when there is no picture or when it is too large.
+        /// The sender's picture as the tile draws it: a card the size of the tile, with the
+        /// picture at half of it (`TileImage`), and not the 96x96 preview stretched over the
+        /// whole tile - which is what a magnified face on the Start screen was.
+        ///
+        /// Null when nothing could be written, and the caller then keeps the app mark.
         /// </summary>
-        private static async Task<string> StoreTileImageAsync(string chatId, string avatarData)
+        private static Task<string> StoreTileImageAsync(string chatId, string avatarData)
         {
-            if (string.IsNullOrEmpty(avatarData)) return null;
-
-            try
-            {
-                byte[] bytes = Convert.FromBase64String(avatarData);
-                if (bytes.Length == 0 || bytes.Length > MaxTileImageBytes) return null;
-
-                string fileName = TileFileName(chatId);
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBytesAsync(file, bytes);
-                return "ms-appdata:///local/" + fileName;
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("NotificationService.StoreTileImageAsync", ex);
-                return null;
-            }
+            return TileImage.StoreAsync(TileFileName(chatId), avatarData);
         }
 
         /// <summary>
@@ -205,12 +191,6 @@ namespace WhatsappApp.Services
             builder.Append(".jpg");
             return builder.ToString();
         }
-
-        /// <summary>
-        /// The ceiling the system accepts for a tile image. Above it the update is
-        /// rejected: the tile is drawn without it.
-        /// </summary>
-        private const int MaxTileImageBytes = 200 * 1024;
 
         /// <summary>
         /// The tile: how many messages are waiting, then one turn per conversation - who
