@@ -129,10 +129,14 @@ function handlesItsOwnFault(body) {
  * messaggio a Sent, `error` con un RelatedMessageId lo portava a Failed. Con
  * l'adattatore fuori, la risposta e' quella di WhatsApp: un ack (consegnato /
  * letto) arriva come `MessageStatusChanged` e deve finire nella bolla con
- * `SetMessageStatus`, o un messaggio consegnato resta con la spunta sola. Un
- * invio rifiutato lo decide chi spedisce e non questo servizio (un'eccezione
- * nell'invio, in `ChatPage`), quindi qui non c'e' piu' niente da controllare per
- * quel caso.
+ * `SetMessageStatus`, o un messaggio consegnato resta con la spunta sola.
+ *
+ * Dal 2026-10-22 l'ack e' anche quello del server per un messaggio che questa
+ * phone ha mandato, e quello non porta la chat: lo scrive
+ * `SetMessageStatusEverywhere`, che cerca la bolla per id. Il gestore quindi
+ * puo' chiamare l'uno o l'altro, e il controllo guarda il corpo intero invece
+ * dei primi caratteri: un gestore che si allunga per un caso in piu' non e' un
+ * gestore che ha smesso di scrivere nella bolla.
  */
 function statusAnswerProblems(source, file) {
   const problems = [];
@@ -149,9 +153,16 @@ function statusAnswerProblems(source, file) {
   if (handled < 0) {
     problems.push(`${file}: no handler takes a MessageStatusUpdate - the ack is read ` +
       'and then ignored');
-  } else if (code.slice(handled, handled + 400).indexOf('SetMessageStatus(') < 0) {
-    problems.push(`${file}: the MessageStatusUpdate handler does not call ` +
-      'SetMessageStatus: the ack never reaches the bubble');
+  } else {
+    const rest = code.slice(handled);
+    const end = rest.indexOf('\n        }');
+    const body = end < 0 ? rest : rest.slice(0, end);
+
+    if (body.indexOf('SetMessageStatus(') < 0
+      && body.indexOf('SetMessageStatusEverywhere(') < 0) {
+      problems.push(`${file}: the MessageStatusUpdate handler does not call ` +
+        'SetMessageStatus or SetMessageStatusEverywhere: the ack never reaches the bubble');
+    }
   }
 
   return problems;
