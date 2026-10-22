@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Transport;
 using WhatsappApp.Protocol.WaProto;
+using WhatsappApp.Protocol.WABinary;
 
 namespace WhatsappApp.Protocol.Media
 {

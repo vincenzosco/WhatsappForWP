@@ -157,7 +157,7 @@
                                Foreground="{StaticResource WhatsAppAccentBrush}"
                                FontSize="15" FontWeight="SemiBold"/>
                     <TextBlock x:Uid="Settings_BackgroundHint"
-                               Text="Ogni 30 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. Windows decide il momento esatto e puo' rimandarlo."
+                               Text="Ogni 15 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. 15 minuti e' l'intervallo piu' breve che Windows permette: il momento esatto lo decide lui e puo' rimandarlo."
                                Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
                                Margin="0,2,0,4"/>
                     <ToggleSwitch x:Name="BackgroundToggle"

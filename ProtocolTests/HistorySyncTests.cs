@@ -5,6 +5,7 @@ using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Crypto;
 using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WaProto;
+using WhatsappApp.Protocol.WABinary;
 using ProtocolTests.Vectors;
 
 namespace ProtocolTests

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <root>
   <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
     <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
@@ -259,6 +259,12 @@
   <data name="ChatsPage_Unpin" xml:space="preserve">
     <value>Unpin</value>
   </data>
+  <data name="ChatsPage_AddTile" xml:space="preserve">
+    <value>Add to Start</value>
+  </data>
+  <data name="ChatsPage_RemoveTile" xml:space="preserve">
+    <value>Remove from Start</value>
+  </data>
   <data name="ChatsPage_Mute" xml:space="preserve">
     <value>Mute</value>
   </data>
@@ -410,7 +416,7 @@
     <value>Background check</value>
   </data>
   <data name="Settings_BackgroundHint.Text" xml:space="preserve">
-    <value>Every 30 minutes the app wakes, checks the messages and updates the tile and the lock screen. Windows decides the exact moment and can delay it.</value>
+    <value>Every 15 minutes the app wakes, checks the messages and updates the tile and the lock screen. 15 minutes is the shortest interval Windows allows, and it decides the exact moment and can delay it on top.</value>
   </data>
   <data name="Settings_AccountLabel.Text" xml:space="preserve">
     <value>Account</value>

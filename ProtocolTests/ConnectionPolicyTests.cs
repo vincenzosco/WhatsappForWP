@@ -105,6 +105,21 @@ namespace ProtocolTests
                 "a clock that moved backwards is not a stale connection");
         }
 
+        [Test]
+        public static void APingNobodyAnswersIsADeadConnection()
+        {
+            var sent = new DateTime(2026, 10, 22, 9, 0, 0, DateTimeKind.Utc);
+
+            Assert.IsFalse(ConnectionPolicy.PingUnanswered(sent, sent, sent.AddSeconds(20)),
+                "exactly the ceiling is still a connection worth waiting on");
+            Assert.IsTrue(ConnectionPolicy.PingUnanswered(sent, sent, sent.AddSeconds(21)),
+                "past it nothing is coming back and the socket is gone");
+            Assert.IsFalse(ConnectionPolicy.PingUnanswered(sent, sent.AddSeconds(3), sent.AddSeconds(21)),
+                "a node that arrived after the ping is the answer, whatever else is happening");
+            Assert.IsFalse(ConnectionPolicy.PingUnanswered(sent, sent, sent.AddSeconds(-5)),
+                "a clock that moved backwards is not a dead connection");
+        }
+
         private static BinaryNode Failure(string reason)
         {
             var node = new BinaryNode("failure");

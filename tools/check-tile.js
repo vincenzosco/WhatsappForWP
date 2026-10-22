@@ -18,7 +18,11 @@
  *     almeno la misura del modello che la disegna: 200x200 per l'icona
  *     quadrata, 310x150 per la tile larga, che ha una proporzione sua;
  *  3. il modello TileWide310x150IconWithBadge non esiste su WP8.1: se compare,
- *     e' un errore di compilazione che vale la pena spiegare qui.
+ *     e' un errore di compilazione che vale la pena spiegare qui;
+ *  4. la coda delle notifiche della tile deve restare accesa. E' quello che fa
+ *     ruotare la tile fra i messaggi in attesa: con la coda spenta una sola
+ *     notifica resta in vetrina e il messaggio cambia solo quando ne arriva un
+ *     altro - il difetto visto sul telefono.
  *
  * Usage:
  *   node tools/check-tile.js
@@ -69,6 +73,11 @@ function bindingProblems(source) {
   if (code.indexOf(ABSENT_ON_WP81) >= 0) {
     problems.push(`NotificationService.cs: ${ABSENT_ON_WP81} non esiste su WP8.1 ` +
       '(CS0117): la tile larga resta quella del manifest');
+  }
+
+  if (/EnableNotificationQueue\s*\(\s*false\s*\)/.test(code)) {
+    problems.push('NotificationService.cs: EnableNotificationQueue(false) - a tile with no ' +
+      'queue shows one conversation until another message arrives, it does not rotate');
   }
 
   const images = (code.match(/SelectSingleNode\([^;]*image"/g) || []).length;

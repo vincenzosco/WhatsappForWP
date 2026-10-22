@@ -60,11 +60,27 @@ namespace WhatsappApp.Controls
             var row = e.ClickedItem as ChatMessage;
             if (row == null) return;
 
-            DataService.Instance.MarkStatusViewed(row);
+            // The tap is written down **first**, before anything can go wrong. A status row
+            // asks for a picture, sends a receipt and marks itself seen, and the run of
+            // 2026-10-22 ended with no line at all and no guided crash report: whichever of
+            // those took the app down has to name itself here, and the next tap will say
+            // which one it was.
+            Diag.Ok("status: tapped " + row.Id + " by " + row.ChatId);
 
-            if (row.Type == MessageType.Image && row.MediaImage == null)
+            try
             {
-                DataService.Instance.RequestStatusMedia(row);
+                DataService.Instance.MarkStatusViewed(row);
+
+                if (row.Type == MessageType.Image && row.MediaImage == null)
+                {
+                    DataService.Instance.RequestStatusMedia(row);
+                }
+            }
+            catch (Exception ex)
+            {
+                // A status that cannot be opened is one row, not a process: what is caught
+                // here is what used to leave the event handler and close the app.
+                Diag.Failed("StatusPane/Status_Click", ex);
             }
         }
     }

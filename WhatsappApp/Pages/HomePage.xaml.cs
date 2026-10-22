@@ -186,6 +186,11 @@ namespace WhatsappApp.Pages
             DataService.Instance.StatusesChanged += OnStatusesChanged;
             DataService.Instance.CallsScanCompleted -= OnCallsScanCompleted;
             DataService.Instance.CallsScanCompleted += OnCallsScanCompleted;
+
+            // A tile on the Start screen asked for a chat before this page existed: the
+            // arguments are read by `App`, and this is the first moment there is a page to
+            // open it on.
+            OpenPinnedChat();
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -534,11 +539,82 @@ namespace WhatsappApp.Pages
             mute.Click += delegate { DataService.Instance.SetMuted(id, !muted); };
             flyout.Items.Add(mute);
 
+            // The chat's own tile on the Start screen: its picture, its name and how many
+            // of its messages are waiting, and a tap that opens this conversation. It is
+            // decided here, by the long press, and it is about one chat - unlike the pin
+            // above, which only orders this list.
+            bool tiled = PinnedTile.IsPinned(id);
+            var tile = new MenuFlyoutItem
+            {
+                Text = tiled
+                    ? Loc.Get("ChatsPage_RemoveTile", "Remove from Start")
+                    : Loc.Get("ChatsPage_AddTile", "Add to Start")
+            };
+            tile.Click += async (s, a) => { await TogglePinnedTileAsync(id, contact.Name); };
+            flyout.Items.Add(tile);
+
             var remove = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_Delete", "Delete chat") };
             remove.Click += async (s, a) => { await ConfirmDeleteAsync(id); };
             flyout.Items.Add(remove);
 
             flyout.ShowAt(row);
+        }
+
+        /// <summary>
+        /// Pins the chat to the Start screen, or takes its tile away.
+        ///
+        /// No question is asked first: `SecondaryTile.RequestCreateAsync` shows Windows' own
+        /// sheet, which is the confirmation and where the tile gets its name. A failure is
+        /// written down and nothing else happens - a menu that did nothing is still better
+        /// than a dialog over a system sheet that was just dismissed.
+        /// </summary>
+        private static async Task TogglePinnedTileAsync(string chatId, string name)
+        {
+            try
+            {
+                await PinnedTile.ToggleAsync(chatId, name, AvatarOf(chatId));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("HomePage/TogglePinnedTile", ex);
+            }
+        }
+
+        /// <summary>The picture of a chat, from the row or from the copy kept on the phone.</summary>
+        private static string AvatarOf(string chatId)
+        {
+            var row = DataService.Instance.FindContact(chatId);
+            if (row != null && !string.IsNullOrEmpty(row.AvatarData)) return row.AvatarData;
+
+            return AvatarCache.Get(chatId);
+        }
+
+        /// <summary>
+        /// A tile on the Start screen was tapped: open that chat.
+        ///
+        /// Called from here (`OnNavigatedTo`, which is the cold start: the page is built
+        /// after the launch arguments arrived) and from `App.OnLaunched`, which is the launch
+        /// that finds the page already alive. The pending chat is taken once, so coming back
+        /// to this page does not reopen it.
+        /// </summary>
+        public void OpenPinnedChat()
+        {
+            string chatId = SessionService.PendingChatId;
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            string name = SessionService.PendingChatName;
+            SessionService.ClearPendingChat();
+
+            var contact = DataService.Instance.ContactFor(chatId, name);
+            if (contact == null) return;
+
+            Frame frame = RootFrame;
+            if (frame == null) return;
+
+            if (!frame.Navigate(typeof(ChatPage), contact))
+            {
+                Diag.Ok("pinned tile: the chat " + chatId + " could not be opened");
+            }
         }
 
         private async Task ConfirmDeleteAsync(string chatId)
