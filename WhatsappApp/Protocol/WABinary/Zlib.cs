@@ -2,10 +2,11 @@ using System;
 using System.IO;
 using System.IO.Compression;
 
-namespace WhatsappApp.Protocol.Client
+namespace WhatsappApp.Protocol.WABinary
 {
     /// <summary>
-    /// The inflate the inline history bootstrap arrives compressed with.
+    /// The inflate for the bytes that arrive deflated: the history bootstrap, and - since
+    /// `0x02` frames are read instead of refused - the big nodes of the sync.
     ///
     /// Why by hand: the payload is deflate inside a zlib wrapper (`0x78 ...`, the two-byte
     /// header a `zlib.deflate` writes, with a four-byte Adler-32 trailer), and the .NET
@@ -17,6 +18,10 @@ namespace WhatsappApp.Protocol.Client
     /// (the low nibble of the first byte is the compression method, and 8 is deflate), so
     /// the same call also takes a payload that turns out to be raw deflate after all,
     /// instead of refusing a payload that would have worked.
+    ///
+    /// It lives here, next to the codec, because both the frame reader and the history
+    /// bootstrap inflate: a `WABinary` class reaching into `Client` for a byte utility
+    /// would put the two layers the wrong way round.
     /// </summary>
     public static class Zlib
     {

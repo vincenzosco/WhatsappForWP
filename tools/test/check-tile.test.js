@@ -83,6 +83,22 @@ test('il percorso dell immagine sopravvive al taglio dei commenti', () => {
   assert.deepStrictEqual(tile.declaredImages(code), ['ms-appx:///Assets/TileIcon.png']);
 });
 
+test('una tile senza coda non ruota i messaggi e si segnala', () => {
+  const problems = tile.bindingProblems(
+    'updater.EnableNotificationQueue(false);\n' +
+    'var image = binding.SelectSingleNode("image") as XmlElement;\n' +
+    'image.SetAttribute("src", "ms-appx:///Assets/TileIcon.png");');
+  assert.ok(problems.some((p) => /EnableNotificationQueue\(false\)/.test(p)));
+});
+
+test('il servizio accende la coda, o la tile resta su un messaggio solo', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs'), 'utf8');
+  assert.ok(!tile.bindingProblems(source).some((p) => /EnableNotificationQueue/.test(p)),
+    'nessuna regola della coda deve scattare sul servizio vero');
+  assert.match(tile.stripComments(source), /EnableNotificationQueue\s*\(\s*true\s*\)/);
+});
+
 test('il modello largo che WP8.1 non ha si segnala', () => {
   const problems = tile.bindingProblems(
     'var t = TileTemplateType.TileWide310x150IconWithBadge;');

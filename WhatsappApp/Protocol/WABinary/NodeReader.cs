@@ -26,15 +26,20 @@ namespace WhatsappApp.Protocol.WABinary
                 throw new ProtocolException("an empty frame cannot be decoded");
             }
 
+            byte[] payload = Slice(frame, 1, frame.Length - 1);
+
+            // 0x02 says the rest is zlib, and WhatsApp uses it for the big nodes: the
+            // history sync and the chat list that comes with it. Refusing it, which this
+            // did, took the whole connection down on one compressed frame - and since the
+            // sync restarts from the beginning when the socket is remade, the phone sat on
+            // a chat list that never finished loading. The reference inflates and then
+            // decodes (`decodeBinaryNode`, `inflateSync`), and so does this.
             if ((frame[0] & 2) != 0)
             {
-                // 0x02 says the rest is zlib. The phone has no inflate in the core
-                // and every frame this spike reads is uncompressed, so this is a
-                // refusal rather than a silent misread of compressed bytes.
-                throw new ProtocolException("compressed frames are not supported yet");
+                payload = Zlib.Inflate(payload);
             }
 
-            return DecodePayload(Slice(frame, 1, frame.Length - 1));
+            return DecodePayload(payload);
         }
 
         /// <summary>Reads one node from bytes that already had their prefix removed.</summary>

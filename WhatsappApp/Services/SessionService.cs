@@ -24,6 +24,26 @@ namespace WhatsappApp.Services
             get { return ApplicationData.Current.LocalSettings; }
         }
 
+        /// <summary>
+        /// The chat a tile on the Start screen asked for, until the home page has opened it.
+        ///
+        /// It is in memory only, and it does not need more: the arguments arrive with the
+        /// launch and the page that acts on them is built in the same run. A start with no
+        /// session opens the QR instead, and the request is dropped with it - there is no
+        /// account to open a chat on.
+        /// </summary>
+        public static string PendingChatId;
+
+        /// <summary>The name the tile carried, for a cold start that has no list yet.</summary>
+        public static string PendingChatName;
+
+        /// <summary>Takes the request away, so a return to the page does not reopen it.</summary>
+        public static void ClearPendingChat()
+        {
+            PendingChatId = null;
+            PendingChatName = null;
+        }
+
         /// <summary>Section to show at startup after a termination.</summary>
         public static AppSection Section
         {

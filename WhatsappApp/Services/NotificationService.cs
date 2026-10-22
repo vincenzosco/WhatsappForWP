@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Data.Xml.Dom;
@@ -16,6 +17,15 @@ namespace WhatsappApp.Services
     ///
     /// Every call is guarded: a phone that rejects the toast must not bring down
     /// the message reception.
+    ///
+    /// The tile is a queue and not one notification: Windows rotates a tile through
+    /// the notifications it holds, and the reference client uses that - with four
+    /// people waiting, the tile is four turns. What it must not be is one turn per
+    /// **message**, which is what the queue was used for once and why it was taken out:
+    /// the count written on each was the count of its own moment, and the tile on
+    /// screen kept showing a number nobody had verified since. Here the queue holds one
+    /// entry per **conversation** (see `TileCycle`) and the number comes from the live
+    /// total on every render.
     /// </summary>
     public static class NotificationService
     {
@@ -48,12 +58,13 @@ namespace WhatsappApp.Services
         /// process: the fields above would be empty and the tile would read a count
         /// twice instead of naming who wrote.
         /// </summary>
-        private static void RememberLastMessage(string name, string body)
+        private static void RememberLastMessage(string name, string body, string image)
         {
             try
             {
                 ApplicationData.Current.LocalSettings.Values[KeySender] = name ?? "";
                 ApplicationData.Current.LocalSettings.Values[KeyBody] = body ?? "";
+                ApplicationData.Current.LocalSettings.Values[KeyImage] = image ?? "";
             }
             catch (Exception ex)
             {
@@ -62,10 +73,11 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Puts the last sender and message back into this process, from the copy the
-        /// previous run wrote. Called at the start of a background check.
+        /// Puts the last sender, the last message, their picture and the count back into
+        /// this process, from the copy the previous run wrote. Called at the start of a
+        /// background check.
         /// </summary>
-        public static void RestoreLastMessage()
+        private static void RestoreLastMessage()
         {
             try
             {
@@ -78,11 +90,44 @@ namespace WhatsappApp.Services
                 {
                     _senderBody = value.ToString();
                 }
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyImage, out value) && value != null)
+                {
+                    string image = value.ToString();
+                    _senderImage = image.Length == 0 ? null : image;
+                }
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyUnread, out value)
+                    && value is int)
+                {
+                    _unread = (int)value;
+                }
             }
             catch (Exception ex)
             {
                 Diag.Failed("NotificationService/RestoreLastMessage", ex);
             }
+        }
+
+        /// <summary>
+        /// The start of a background check, which is a new process with nothing in memory.
+        ///
+        /// Why the last state is read back: the check runs while the app is closed, and
+        /// the tile it is about to draw has to name who wrote even when this run saw no
+        /// new message. And why the count may not go down for the length of it: a check
+        /// **reads nothing**, so a zero it computes is the local copy having no counts in
+        /// it (`ChatCache` leaves them out), not the messages having been read. Taking
+        /// that zero is what cleared the tile and the badge at every wake - the check ran
+        /// and the phone showed no change at all.
+        /// </summary>
+        public static void BeginBackgroundCheck()
+        {
+            _backgroundCheck = true;
+            RestoreLastMessage();
+        }
+
+        /// <summary>The check is over: the foreground's rules apply again.</summary>
+        public static void EndBackgroundCheck()
+        {
+            _backgroundCheck = false;
         }
 
         /// <summary>
@@ -99,8 +144,18 @@ namespace WhatsappApp.Services
             {
                 _senderName = name;
                 _senderBody = body;
-                RememberLastMessage(name, body);
-                _senderImage = await StoreTileImageAsync(chatId, avatarData);
+
+                string image = await StoreTileImageAsync(chatId, avatarData);
+                _senderImage = image;
+                RememberLastMessage(name, body, image);
+
+                var entry = new TileEntry();
+                entry.ChatId = chatId;
+                entry.Sender = name;
+                entry.Body = body;
+                entry.Image = image;
+
+                _waiting = TileCycle.Remember(_waiting, entry);
                 RenderTile();
             }
             catch (Exception ex)
@@ -158,8 +213,8 @@ namespace WhatsappApp.Services
         private const int MaxTileImageBytes = 200 * 1024;
 
         /// <summary>
-        /// The tile, in one place and one notification: how many messages are
-        /// waiting, then who the last one was, over their picture.
+        /// The tile: how many messages are waiting, then one turn per conversation - who
+        /// wrote and what they said, over their picture.
         ///
         /// The number is written here, and not left to the badge alone. On WP8.1 the
         /// badge is the only thing that draws a count on the tile, and a badge that
@@ -167,11 +222,10 @@ namespace WhatsappApp.Services
         /// what happened on the phone this was fixed on: the tile showed the app
         /// icon and nothing else.
         ///
-        /// One notification, replaced in place, and **no notification queue**. The
-        /// queue kept one tile per message, and each of them counted the number of
-        /// its own moment: the tile on screen went on showing the count of a message
-        /// that had already been read. A queue of tiles can hold many faces, but not
-        /// one true total, and the total is the thing the tile is for.
+        /// Every notification carries the **same, live** total: the queue rotates, the
+        /// number does not belong to a moment. That is the difference between this and
+        /// the per-message queue that was taken out - a tile could then be showing the
+        /// count of a message that had already been read.
         /// </summary>
         private static void RenderTile()
         {
@@ -179,39 +233,67 @@ namespace WhatsappApp.Services
             {
                 var updater = TileUpdateManager.CreateTileUpdaterForApplication();
 
-                // The queue belongs to the device, not to this run: a version of the
-                // app that used it leaves it on, and a tile posted now would be added
-                // to the old ones instead of replacing them. It is turned off once,
-                // and its own failure cannot take the tile away: the old tiles are
-                // cleared the first time everything has been read.
-                if (!_queueDisabled)
+                // The queue is the whole point: it is what makes the tile rotate through
+                // the people who are waiting instead of staying on the last one. It is a
+                // property of the device and it survives this run, so it is set once.
+                if (!_queueEnabled)
                 {
-                    try { updater.EnableNotificationQueue(false); }
+                    try { updater.EnableNotificationQueue(true); }
                     catch (Exception ex) { Diag.Failed("NotificationService.RenderTile/queue", ex); }
-                    _queueDisabled = true;
+                    _queueEnabled = true;
                 }
 
-                if (_unread <= 0)
+                // Cleared and drawn again, because the queue is a set and not a log: a
+                // message that has just been read must not keep its turn, and one Update
+                // per message would fill the five slots with copies of the same thing.
+                try { updater.Clear(); }
+                catch (Exception ex) { Diag.Failed("NotificationService.RenderTile/clear", ex); }
+
+                if (_unread <= 0) return;
+
+                IList<TileEntry> waiting = _waiting;
+                if (waiting == null || waiting.Count == 0)
                 {
-                    updater.Clear();
+                    // Nobody named in this process - a count read back from the local copy
+                    // before any message: one notification with the last person the phone
+                    // knows, which is what the lock screen shows too.
+                    Post(updater, _senderName, _senderBody, _senderImage);
                     return;
                 }
 
-                var xml = TileUpdateManager.GetTemplateContent(
-                    TileTemplateType.TileSquare150x150PeekImageAndText02);
-                var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
-                if (visual == null) return;
+                for (int i = 0; i < waiting.Count; i++)
+                {
+                    TileEntry entry = waiting[i];
+                    if (entry == null) continue;
 
-                FillBinding(xml, visual.SelectSingleNode("binding") as XmlElement);
-                AddWideBinding(xml, visual);
-                AddSmallBinding(xml, visual);
-
-                updater.Update(new TileNotification(xml));
+                    Post(updater, entry.Sender, entry.Body, entry.Image);
+                }
             }
             catch (Exception ex)
             {
                 Diag.Failed("NotificationService.RenderTile", ex);
             }
+        }
+
+        /// <summary>
+        /// One notification: a turn in the queue, for one conversation.
+        ///
+        /// The three sizes are one notification on purpose (see `ImportBinding`): the
+        /// medium and the wide one say the same person, and a size that disagrees with
+        /// the other about who wrote would be two tiles in one.
+        /// </summary>
+        private static void Post(TileUpdater updater, string sender, string body, string image)
+        {
+            var xml = TileUpdateManager.GetTemplateContent(
+                TileTemplateType.TileSquare150x150PeekImageAndText02);
+            var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
+            if (visual == null) return;
+
+            FillBinding(xml, visual.SelectSingleNode("binding") as XmlElement, sender, image);
+            AddWideBinding(xml, visual, sender, body, image);
+            AddSmallBinding(xml, visual);
+
+            updater.Update(new TileNotification(xml));
         }
 
         /// <summary>
@@ -221,7 +303,7 @@ namespace WhatsappApp.Services
         /// One helper for both sizes. The medium tile and the wide one say the same
         /// thing, so a change here cannot arrive on one of them and not on the other.
         /// </summary>
-        private static void FillBinding(XmlDocument xml, XmlElement binding)
+        private static void FillBinding(XmlDocument xml, XmlElement binding, string senderName, string image)
         {
             if (binding == null) return;
 
@@ -230,10 +312,10 @@ namespace WhatsappApp.Services
             // Nobody wrote yet - a count read back from the local copy at startup,
             // before any message: the line stays empty instead of holding an empty
             // node.
-            string sender = Cut(_senderName, 30);
+            string sender = Cut(senderName, 30);
             if (texts.Length > 1 && sender.Length > 0) texts[1].AppendChild(xml.CreateTextNode(sender));
 
-            SetImage(xml, binding, _senderImage ?? TileIconUri);
+            SetImage(xml, binding, image ?? TileIconUri);
         }
 
         /// <summary>
@@ -268,14 +350,14 @@ namespace WhatsappApp.Services
         /// A wide template that the phone refuses cannot take the medium tile away
         /// with it, so this one is guarded on its own.
         /// </summary>
-        private static void AddWideBinding(XmlDocument xml, XmlElement visual)
+        private static void AddWideBinding(XmlDocument xml, XmlElement visual, string sender, string body, string image)
         {
             try
             {
                 var binding = ImportBinding(xml, visual, TileWideTemplate);
                 if (binding == null) return;
 
-                FillWide(xml, binding);
+                FillWide(xml, binding, sender, body, image);
             }
             catch (Exception ex)
             {
@@ -316,7 +398,7 @@ namespace WhatsappApp.Services
         /// the pair Windows offers in Settings -> Lock screen, and the reason the two
         /// bindings say different things.
         /// </summary>
-        private static void FillWide(XmlDocument xml, XmlElement binding)
+        private static void FillWide(XmlDocument xml, XmlElement binding, string senderName, string bodyText, string image)
         {
             if (binding == null) return;
 
@@ -324,10 +406,10 @@ namespace WhatsappApp.Services
 
             // With nothing to name - a count restored from the cache before any
             // message in this process - the count is the only true line.
-            string sender = Cut(_senderName, 30);
+            string sender = Cut(senderName, 30);
             if (sender.Length == 0) sender = UnreadText(_unread);
 
-            string body = Cut(_senderBody, 160);
+            string body = Cut(bodyText, 160);
             if (body.Length == 0) body = UnreadText(_unread);
 
             if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(sender));
@@ -336,7 +418,7 @@ namespace WhatsappApp.Services
             // The wide tile has its own asset: the square one is scaled to fill
             // 310x150 and loses its top and bottom, which cut the mark. This one is
             // drawn at the tile's proportion, so the mark is whole.
-            SetImage(xml, binding, _senderImage ?? TileWideIconUri);
+            SetImage(xml, binding, image ?? TileWideIconUri);
         }
 
         /// <summary>
@@ -344,7 +426,7 @@ namespace WhatsappApp.Services
         /// messages": the two forms are two keys, so whoever translates writes both
         /// instead of guessing a plural rule.
         /// </summary>
-        private static string UnreadText(int count)
+        public static string UnreadText(int count)
         {
             if (count == 1) return Loc.Get("TileUnreadOne", "1 unread message");
             return string.Format(Loc.Get("TileUnreadMany", "{0} unread messages"), count);
@@ -361,9 +443,24 @@ namespace WhatsappApp.Services
         /// <summary>The last thing that was written, for the lock screen text.</summary>
         private static string _senderBody;
 
-        /// <summary>Where the last sender and message survive a process: see RestoreLastMessage.</summary>
+        /// <summary>
+        /// The conversations the tile rotates through, newest first. One entry per
+        /// conversation, never one per message: see `TileCycle`.
+        /// </summary>
+        private static IList<TileEntry> _waiting = new List<TileEntry>();
+
+        /// <summary>
+        /// True for the length of a background check. It is what makes a zero from that
+        /// run a fact about the local copy and not about the messages: see
+        /// <see cref="BeginBackgroundCheck"/>.
+        /// </summary>
+        private static bool _backgroundCheck;
+
+        /// <summary>Where the last sender, message, picture and count survive a process.</summary>
         private const string KeySender = "Tile.Sender";
         private const string KeyBody = "Tile.Body";
+        private const string KeyImage = "Tile.Image";
+        private const string KeyUnread = "Tile.Unread";
 
         /// <summary>
         /// The wide template. WP8.1 has `PeekImageAndText01` and `02`, and only the
@@ -378,11 +475,11 @@ namespace WhatsappApp.Services
         private static int _unread;
 
         /// <summary>
-        /// True after the notification queue has been turned off. It is a property
-        /// of the updater, not of the single update, and the tile it belongs to is
-        /// read again on every message.
+        /// True after the notification queue has been turned on. It is a property of the
+        /// updater, not of a single update, and the tile it belongs to is drawn again on
+        /// every change.
         /// </summary>
-        private static bool _queueDisabled;
+        private static bool _queueEnabled;
 
         /// <summary>An alert for a message that arrived in a closed chat.</summary>
         public static void ShowMessage(string title, string body)
@@ -415,9 +512,51 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void SetUnread(int count)
         {
-            _unread = count < 0 ? 0 : count;
+            count = count < 0 ? 0 : count;
+
+            // A background check reads nothing, so a number below what the tile already
+            // shows is that run reading the local copy - which carries no unread counts
+            // at all (`ChatCache` leaves them out) - and not the messages being read. It
+            // is the count that may not go down, or the tile goes blank at every wake.
+            if (_backgroundCheck && count < _unread) count = _unread;
+
+            _unread = count;
+            RememberUnread(count);
+
             RenderTile();
             SetBadge(_unread);
+        }
+
+        /// <summary>
+        /// A conversation was read: its message leaves the tile's queue. The count that
+        /// follows comes from the caller, which is what draws the tile again.
+        /// </summary>
+        public static void Forget(string chatId)
+        {
+            _waiting = TileCycle.Forget(_waiting, chatId);
+        }
+
+        /// <summary>Everything was read: no conversation is waiting for a turn.</summary>
+        public static void ForgetAll()
+        {
+            _waiting = new List<TileEntry>();
+        }
+
+        /// <summary>
+        /// The count as the next process will find it. Written on every change for the same
+        /// reason the last sender is: a background check starts with nothing in memory, and
+        /// a number it has to invent is a number it gets wrong.
+        /// </summary>
+        private static void RememberUnread(int count)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeyUnread] = count;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/RememberUnread", ex);
+            }
         }
 
         /// <summary>The number on the icon: 0 removes it.</summary>

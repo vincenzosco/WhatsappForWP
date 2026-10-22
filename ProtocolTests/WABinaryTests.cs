@@ -252,10 +252,71 @@ namespace ProtocolTests
         }
 
         [Test]
-        public static void A_compressed_frame_is_refused()
+        public static void A_compressed_frame_is_read()
         {
+            // Why this replaced "a compressed frame is refused": WhatsApp sends the big
+            // nodes - the history sync and its chat list - as 0x02 frames. Refusing one
+            // ended the connection, and the sync started again from the beginning every
+            // time, which on the phone is a chat list that never finishes loading (the
+            // diag log of 2026-10-22 reads "compressed frames are not supported yet"
+            // right before "retrying in 1s").
+            var node = new BinaryNode("message");
+            node.Attrs.Add("to", "393491234567@s.whatsapp.net");
+            node.Attrs.Add("type", "text");
+            node.Attrs.Add("id", "3AF1A2B3C4D5");
+            node.Content = "ciao";
+
+            byte[] frame = NodeWriter.Encode(node);
+            byte[] payload = new byte[frame.Length - 1];
+            System.Buffer.BlockCopy(frame, 1, payload, 0, payload.Length);
+
+            byte[] compressed = CompressedFrame(payload);
+
+            Assert.AreEqual((byte)0x02, compressed[0], "the frame says it is compressed");
+            Assert.AreEqual((byte)0x78, compressed[1], "and carries a zlib header");
+
+            BinaryNode back = NodeReader.Decode(compressed);
+
+            Assert.AreEqual("message", back.Tag);
+            Assert.AreEqual("393491234567@s.whatsapp.net", back.Attrs["to"]);
+            Assert.AreEqual("3AF1A2B3C4D5", back.Attrs["id"]);
+            // The decoder hands content back as bytes whatever tag carried it (the same
+            // asymmetry `Long_text_content_comes_back_as_its_utf8_bytes` records): what
+            // this asserts is that the words survived the inflate unchanged.
+            Assert.ByteArraysEqual(System.Text.Encoding.UTF8.GetBytes("ciao"), back.Bytes());
+        }
+
+        [Test]
+        public static void A_compressed_frame_that_is_not_zlib_is_still_refused()
+        {
+            // The flag says zlib; the bytes are not. That is a broken frame, and it has to
+            // end as a named exception rather than as a node decoded from garbage.
             Assert.Throws<ProtocolException>(delegate { NodeReader.Decode(new byte[] { 0x02, 0x00 }); });
         }
+
+        /// <summary>
+        /// The bytes WhatsApp sends for a compressed frame: `0x02`, then the payload as a
+        /// zlib stream - a two-byte header and raw deflate, which is what `zlib.deflate`
+        /// writes and what <see cref="Zlib.Inflate"/> reads.
+        /// </summary>
+        private static byte[] CompressedFrame(byte[] payload)
+        {
+            using (var output = new System.IO.MemoryStream())
+            {
+                output.WriteByte(0x02);
+                output.WriteByte(0x78);
+                output.WriteByte(0x9c);
+
+                using (var deflate = new System.IO.Compression.DeflateStream(output,
+                    System.IO.Compression.CompressionMode.Compress, true))
+                {
+                    deflate.Write(payload, 0, payload.Length);
+                }
+
+                return output.ToArray();
+            }
+        }
+
 
         private static bool Contains(byte[] bytes, byte value)
         {

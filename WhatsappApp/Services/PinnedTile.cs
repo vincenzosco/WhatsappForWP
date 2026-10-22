@@ -1,0 +1,428 @@
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Text;
+using System.Threading.Tasks;
+using Windows.Data.Xml.Dom;
+using Windows.Storage;
+using Windows.UI.Notifications;
+using Windows.UI.StartScreen;
+
+namespace WhatsappApp.Services
+{
+    /// <summary>
+    /// The tile of one chat on the Start screen.
+    ///
+    /// Why it exists: a conversation worth reaching in one tap is worth a tile of its own.
+    /// The official client lets a chat be pinned and the tile carries that person's picture
+    /// and how many of their messages are waiting; a tap opens the chat.
+    ///
+    /// **Every size shows the picture and the number**, which is what the request asked and
+    /// what the four bindings below are for: 71x71 (the picture, and the count in the badge,
+    /// because that size has no line of text), 150x150, 310x150 wide and 310x310. They all
+    /// travel in **one** notification, so a change cannot arrive on one size and not on the
+    /// others - the same rule `NotificationService` uses for the app's own tile.
+    ///
+    /// The count is the chat's **unread** messages, not a lifetime total: it goes down when
+    /// the chat is opened, which is what makes the tile a thing to act on rather than a
+    /// receipt. `DataService` publishes it from the one place that changes it.
+    ///
+    /// What the tile is not: a copy of the app's tile. That one says "somebody is waiting";
+    /// this one says "this person is, and this is their chat".
+    /// </summary>
+    public static class PinnedTile
+    {
+        /// <summary>The argument prefix a tile carries, which is how a tap finds its chat.</summary>
+        public const string ArgumentPrefix = "chat:";
+
+        /// <summary>
+        /// What separates the chat from the name in the arguments. A `|` cannot be part of a
+        /// JID or of a name short enough to be a tile's title, so the two cannot be confused.
+        /// </summary>
+        private const char ArgumentSeparator = '|';
+
+        /// <summary>The ceiling the system accepts for a tile image; over it the update is rejected.</summary>
+        private const int MaxImageBytes = 200 * 1024;
+
+        /// <summary>WP8.1 refuses a tile id over this length, and one with other characters.</summary>
+        private const int MaxTileIdLength = 64;
+
+        private const string SmallLogo = "ms-appx:///Assets/Square71x71Logo.png";
+        private const string MediumLogo = "ms-appx:///Assets/Logo.png";
+        private const string WideLogo = "ms-appx:///Assets/WideLogo.png";
+
+        /// <summary>The app mark, for a chat whose picture has not arrived.</summary>
+        private const string AppIcon = "ms-appx:///Assets/TileIcon.png";
+
+        /// <summary>The same mark at the wide tile's proportion: a square one is cropped.</summary>
+        private const string AppWideIcon = "ms-appx:///Assets/TileIconWide.png";
+
+        /// <summary>
+        /// The picture last written for a chat, in this process. Writing a few kilobytes to
+        /// the phone on every message would be waste; the file is rewritten only when the
+        /// bytes changed, and once per process whatever they are (the file on disk survives
+        /// a restart, and only the copy in memory does not).
+        /// </summary>
+        private static readonly Dictionary<string, string> Written =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The tile id of a chat: stable across runs (a second pin of the same chat is the
+        /// same tile), and made only of what the platform accepts - letters, digits and
+        /// underscores, at most 64 of them.
+        /// </summary>
+        public static string TileIdFor(string chatId)
+        {
+            var builder = new StringBuilder("chat-");
+
+            for (int i = 0; i < chatId.Length && builder.Length < MaxTileIdLength; i++)
+            {
+                char c = chatId[i];
+                builder.Append(char.IsLetterOrDigit(c) ? c : '_');
+            }
+
+            return builder.ToString();
+        }
+
+        /// <summary>Whether this chat already has a tile on the Start screen.</summary>
+        public static bool IsPinned(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return false;
+
+            try
+            {
+                return SecondaryTile.Exists(TileIdFor(chatId));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("PinnedTile/IsPinned", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Pins the chat, or takes its tile away when it has one. True when a tile is on the
+        /// Start screen at the end.
+        ///
+        /// `RequestCreateAsync` shows the system's own sheet, which asks the person to
+        /// confirm and lets them rename the tile: the app does not ask twice.
+        /// </summary>
+        public static async Task<bool> ToggleAsync(string chatId, string name, string avatarData)
+        {
+            if (string.IsNullOrEmpty(chatId)) return false;
+
+            string display = string.IsNullOrEmpty(name) ? chatId : Cut(name, 40);
+
+            try
+            {
+                if (IsPinned(chatId))
+                {
+                    bool removed = await new SecondaryTile(TileIdFor(chatId)).RequestDeleteAsync();
+                    Diag.Ok("pinned tile: " + chatId + (removed ? " removed" : " kept"));
+                    return !removed;
+                }
+
+                // The short name and the display name are the person's name; the logo is the
+                // square one until the picture arrives. The `TileOptions` constructor is the
+                // obsolete one on this platform (CS0618): the name is put on the sizes it
+                // fits by `VisualElements`, which is the shape that replaced it.
+                var tile = new SecondaryTile(
+                    TileIdFor(chatId),
+                    display,
+                    ArgumentPrefix + chatId + ArgumentSeparator + display,
+                    new Uri(MediumLogo),
+                    TileSize.Default);
+
+                tile.DisplayName = display;
+                tile.VisualElements.ShowNameOnSquare150x150Logo = true;
+                tile.VisualElements.ShowNameOnWide310x150Logo = true;
+
+                // The sizes the Start screen can draw this tile at. Each one is given the
+                // asset it needs before the tile exists: a size left out falls back to the
+                // square logo and loses its proportion.
+                tile.VisualElements.Square71x71Logo = new Uri(SmallLogo);
+                tile.VisualElements.Wide310x150Logo = new Uri(WideLogo);
+                tile.VisualElements.Square310x310Logo = new Uri(MediumLogo);
+
+                bool created = await tile.RequestCreateAsync();
+                if (!created) return false;
+
+                // The tile exists with the package's logos; the picture and the count come
+                // on a notification, which is the only thing a running app may change.
+                await RenderAsync(chatId, display, 0, avatarData);
+
+                Diag.Ok("pinned tile: " + chatId + " added");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("PinnedTile/Toggle", ex);
+                return IsPinned(chatId);
+            }
+        }
+
+        /// <summary>
+        /// The chat's count changed: its tile says so. Called from the one place that changes
+        /// a row's unread count, and safe on a chat with no tile - it does nothing.
+        /// </summary>
+        public static void Update(string chatId, string name, int count, string avatarData)
+        {
+            if (string.IsNullOrEmpty(chatId)) return;
+            if (!IsPinned(chatId)) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("PinnedTile/update",
+                RenderAsync(chatId, name, count, avatarData));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The chat a tile's arguments name, or null when the launch did not come from one.
+        /// </summary>
+        public static string ChatFromArguments(string arguments)
+        {
+            return PartOfArguments(arguments, true);
+        }
+
+        /// <summary>
+        /// The name the tile was created with, carried in its arguments so a first start from
+        /// a tile can name the chat before the list has loaded.
+        /// </summary>
+        public static string NameFromArguments(string arguments)
+        {
+            return PartOfArguments(arguments, false);
+        }
+
+        private static string PartOfArguments(string arguments, bool chat)
+        {
+            if (string.IsNullOrEmpty(arguments)) return null;
+            if (!arguments.StartsWith(ArgumentPrefix, StringComparison.Ordinal)) return null;
+
+            string rest = arguments.Substring(ArgumentPrefix.Length);
+            int split = rest.IndexOf(ArgumentSeparator);
+
+            if (chat) return split < 0 ? rest : rest.Substring(0, split);
+            return split < 0 ? null : rest.Substring(split + 1);
+        }
+
+        /// <summary>
+        /// Draws the tile in every size the Start screen can ask for, and puts the count on
+        /// the badge as well: at 71x71 there is no line to write a number in, so the badge is
+        /// what carries it there.
+        /// </summary>
+        private static async Task RenderAsync(string chatId, string name, int count, string avatarData)
+        {
+            string tileId = TileIdFor(chatId);
+            string image = await StoreImageAsync(chatId, avatarData);
+            string sender = string.IsNullOrEmpty(name) ? chatId : name;
+
+            var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
+            updater.Clear();
+
+            var xml = TileUpdateManager.GetTemplateContent(
+                TileTemplateType.TileSquare150x150PeekImageAndText02);
+            var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
+            if (visual == null) return;
+
+            // The medium tile: the number is the big line, the name under it - the same
+            // order the app's own tile uses, so the two are read the same way. With nothing
+            // waiting there is no number to draw, and a "0" over the picture would be a
+            // number about something that is not happening: the name takes the big line.
+            var medium = visual.SelectSingleNode("binding") as XmlElement;
+            if (count > 0)
+            {
+                Fill(xml, medium, Unicode(count), Cut(sender, 30), image ?? AppIcon);
+            }
+            else
+            {
+                Fill(xml, medium, Cut(sender, 30), "", image ?? AppIcon);
+            }
+
+            // The wide tile and the large one have room for the name first: what the tile is
+            // about, then how much of it is waiting.
+            Add(xml, visual, TileTemplateType.TileWide310x150PeekImageAndText02,
+                Cut(sender, 30), CountText(count), image ?? AppWideIcon);
+            Add(xml, visual, TileTemplateType.TileSquare310x310ImageAndText02,
+                Cut(sender, 30), CountText(count), image ?? AppIcon);
+
+            // 71x71: the picture, and nothing else fits. The number travels on the badge.
+            AddSmall(xml, visual, image ?? AppIcon);
+
+            updater.Update(new TileNotification(xml));
+
+            SetBadge(tileId, count);
+        }
+
+        /// <summary>One binding for another size, imported from that size's own template.</summary>
+        private static void Add(XmlDocument xml, XmlElement visual, TileTemplateType template,
+            string first, string second, string image)
+        {
+            try
+            {
+                var other = TileUpdateManager.GetTemplateContent(template);
+                var binding = other.SelectSingleNode("/tile/visual/binding");
+                if (binding == null) return;
+
+                var imported = xml.ImportNode(binding, true) as XmlElement;
+                if (imported == null) return;
+
+                visual.AppendChild(imported);
+                Fill(xml, imported, first, second, image);
+            }
+            catch (Exception ex)
+            {
+                // A size the phone refuses cannot take the others with it.
+                Diag.Failed("PinnedTile/Add", ex);
+            }
+        }
+
+        /// <summary>
+        /// The small tile: one picture and no text. Its template ships without an `image`
+        /// element, so one is created - with the notification's document, not with the
+        /// template's, or inserting it raises.
+        /// </summary>
+        private static void AddSmall(XmlDocument xml, XmlElement visual, string image)
+        {
+            try
+            {
+                var other = TileUpdateManager.GetTemplateContent(TileTemplateType.TileSquare71x71Image);
+                var binding = other.SelectSingleNode("/tile/visual/binding");
+                if (binding == null) return;
+
+                var imported = xml.ImportNode(binding, true) as XmlElement;
+                if (imported == null) return;
+
+                visual.AppendChild(imported);
+
+                var element = imported.SelectSingleNode("image") as XmlElement;
+                if (element == null)
+                {
+                    element = xml.CreateElement("image");
+                    element.SetAttribute("id", "1");
+                    imported.AppendChild(element);
+                }
+
+                element.SetAttribute("src", image);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("PinnedTile/AddSmall", ex);
+            }
+        }
+
+        /// <summary>What one binding says: two lines and the picture.</summary>
+        private static void Fill(XmlDocument xml, XmlElement binding, string first, string second, string image)
+        {
+            if (binding == null) return;
+
+            var texts = binding.SelectNodes("text");
+            if (texts.Length > 0 && first.Length > 0) texts[0].AppendChild(xml.CreateTextNode(first));
+            if (texts.Length > 1 && second.Length > 0) texts[1].AppendChild(xml.CreateTextNode(second));
+
+            var element = binding.SelectSingleNode("image") as XmlElement;
+            if (element == null)
+            {
+                element = xml.CreateElement("image");
+                element.SetAttribute("id", "1");
+                binding.AppendChild(element);
+            }
+
+            element.SetAttribute("src", image);
+        }
+
+        /// <summary>
+        /// The number on the tile's badge: 0 removes it. It is what says the count at 71x71,
+        /// and the only shape of it the shell draws over the picture.
+        /// </summary>
+        private static void SetBadge(string tileId, int count)
+        {
+            try
+            {
+                var updater = BadgeUpdateManager.CreateBadgeUpdaterForSecondaryTile(tileId);
+
+                if (count <= 0)
+                {
+                    updater.Clear();
+                    return;
+                }
+
+                var xml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
+                var badge = (XmlElement)xml.SelectSingleNode("/badge");
+                badge.SetAttribute("value", Math.Min(count, 99).ToString(CultureInfo.InvariantCulture));
+                updater.Update(new BadgeNotification(xml));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("PinnedTile/SetBadge", ex);
+            }
+        }
+
+        /// <summary>
+        /// The chat's picture as a file the tile can point at, or null when there is none:
+        /// a tile wants a path, not the bytes.
+        ///
+        /// It is written under a name of its own (`pin-…`), so it cannot collide with the
+        /// picture the app's own tile keeps for the same chat and the two cannot take each
+        /// other's file away.
+        /// </summary>
+        private static async Task<string> StoreImageAsync(string chatId, string avatarData)
+        {
+            if (string.IsNullOrEmpty(avatarData)) return null;
+
+            string fileName = ImageFileName(chatId);
+            string stored;
+            if (Written.TryGetValue(chatId, out stored) && stored == avatarData)
+            {
+                return "ms-appdata:///local/" + fileName;
+            }
+
+            try
+            {
+                byte[] bytes = Convert.FromBase64String(avatarData);
+                if (bytes.Length == 0 || bytes.Length > MaxImageBytes) return null;
+
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    fileName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteBytesAsync(file, bytes);
+
+                Written[chatId] = avatarData;
+                return "ms-appdata:///local/" + fileName;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("PinnedTile/StoreImage", ex);
+                return null;
+            }
+        }
+
+        private static string ImageFileName(string chatId)
+        {
+            var builder = new StringBuilder("pin-");
+            for (int i = 0; i < chatId.Length; i++)
+            {
+                char c = chatId[i];
+                builder.Append(char.IsLetterOrDigit(c) ? c : '_');
+            }
+            builder.Append(".jpg");
+
+            return builder.ToString();
+        }
+
+        /// <summary>The number as a word, or empty when nothing is waiting.</summary>
+        private static string CountText(int count)
+        {
+            return count > 0 ? NotificationService.UnreadText(count) : "";
+        }
+
+        private static string Unicode(int count)
+        {
+            return count.ToString(CultureInfo.InvariantCulture);
+        }
+
+        private static string Cut(string value, int max)
+        {
+            string text = value ?? "";
+            return text.Length <= max ? text : text.Substring(0, max - 1) + "\u2026";
+        }
+    }
+}

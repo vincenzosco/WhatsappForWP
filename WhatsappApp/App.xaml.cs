@@ -127,6 +127,18 @@ namespace WhatsappApp
 
             StartServicesOnce();
 
+            // A tile on the Start screen names the chat it opens, and it arrives here as the
+            // launch arguments: the same launch entry point, with a reason attached. The page
+            // that can act on it is the home page, which is built below on a cold start and
+            // already alive on a launch from a running app.
+            string tileChat = PinnedTile.ChatFromArguments(e.Arguments);
+            if (!string.IsNullOrEmpty(tileChat))
+            {
+                SessionService.PendingChatId = tileChat;
+                SessionService.PendingChatName = PinnedTile.NameFromArguments(e.Arguments);
+                Diag.Ok("pinned tile: launching into " + tileChat);
+            }
+
             Frame rootFrame = EnsureFrame();
 
             if (rootFrame.Content == null)
@@ -178,6 +190,11 @@ namespace WhatsappApp
                         this.navigationFailure);
                 }
             }
+
+            // The page is there now: a cold start has already consumed the request in its own
+            // OnNavigatedTo, and this is the launch that found the app already running.
+            var home = rootFrame.Content as HomePage;
+            if (home != null) home.OpenPinnedChat();
 
             Window.Current.Activate();
         }
@@ -278,12 +295,28 @@ namespace WhatsappApp
             // or a crash after this point would look like a run that ended cleanly.
             Diag.MarkAlive();
 
-            // The other half of the suspension frame: this is what puts the account
-            // back online if the socket survived the freeze.
+            // The other half of the suspension frame: the socket is asked whether it is
+            // still there **before** the phone says it is here. WP8.1 freezes the process
+            // and the connection is usually gone by the time it resumes, so a presence sent
+            // without looking first is a sentence about a socket nobody checked - and the app
+            // went on showing the list it had while nothing new arrived (see
+            // `NativeConnection.CheckAsync`).
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("App/OnResuming",
-                NativeConnection.Instance.SendPresenceAsync("available"));
+            Guarded.RunGuardedAsync("App/OnResuming", ResumeAsync());
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The app is in front again: the connection is checked, and the account goes back
+        /// online only when the check found one to say it on. A check that fails is not a
+        /// failure here: the client dials again on its own, and this run has nothing left to
+        /// say.
+        /// </summary>
+        private static async System.Threading.Tasks.Task ResumeAsync()
+        {
+            if (!await NativeConnection.Instance.CheckAsync()) return;
+
+            await NativeConnection.Instance.SendPresenceAsync("available");
         }
 
         /// <summary>Section of the foreground page (a chat lives inside the chats).</summary>

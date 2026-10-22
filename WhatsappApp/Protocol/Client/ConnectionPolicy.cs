@@ -87,6 +87,36 @@ namespace WhatsappApp.Protocol.Client
             return SessionKeepAlive.IsStale(lastNodeUtc, nowUtc);
         }
 
+        /// <summary>
+        /// How long the server may take to answer a keep-alive ping.
+        ///
+        /// It is generous on purpose - a node is answered in a moment on a working link,
+        /// and the number is only there to put a ceiling on a socket that has stopped
+        /// answering at all.
+        /// </summary>
+        public const int AnswerSeconds = 20;
+
+        /// <summary>
+        /// Whether a ping that went out has been left unanswered for too long.
+        ///
+        /// Why this exists: the loop used to **send** the keep-alive and never check that
+        /// anything came back, so a socket the server had quietly dropped - the state a
+        /// phone comes back to after being suspended for a while, with the process frozen
+        /// and the connection gone at the other end - stayed "open" forever. The app showed
+        /// nothing new and nothing said why: the socket looked fine because nothing had said
+        /// otherwise.
+        ///
+        /// A node of any kind is an answer (`lastNodeUtc` is updated on every one), because
+        /// what is being measured is whether the peer is still there at all.
+        /// </summary>
+        public static bool PingUnanswered(DateTime pingSentUtc, DateTime lastNodeUtc, DateTime nowUtc)
+        {
+            DateTime newest = lastNodeUtc > pingSentUtc ? lastNodeUtc : pingSentUtc;
+            if (nowUtc < newest) return false;
+
+            return (nowUtc - newest) > TimeSpan.FromSeconds(AnswerSeconds);
+        }
+
         private static bool IsLogoutReason(string reason)
         {
             return reason == ReasonLoggedOut || reason == ReasonPrimaryDeviceGone || reason == ReasonBanned;

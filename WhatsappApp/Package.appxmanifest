@@ -58,8 +58,9 @@
           </ShareTarget>
         </Extension>
         <!-- Il controllo periodico dei messaggi mentre l'app e' sospesa. Il
-             tipo e' timer: il sistema lo sveglia ogni circa 30 minuti (il
-             minimo e' 15 e l'ora esatta non e' garantita). -->
+             tipo e' timer: il sistema lo sveglia ogni 15 minuti, che e' il
+             minimo che accetta (un numero piu' basso non registra niente) e
+             l'ora esatta non e' garantita. -->
         <!-- Riceve immagini e video condivisi da un'altra app (Galleria,
                  Foto, browser). Va dichiarato qui: senza questa estensione
                  WP8.1 non elenca l'app nel pannello di condivisione, e senza i

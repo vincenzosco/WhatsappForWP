@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Background;
+using Windows.Storage;
 using WhatsappApp.Protocol.Client;
 
 namespace WhatsappApp.Services
@@ -17,10 +18,16 @@ namespace WhatsappApp.Services
     /// is a background task that wakes, connects, reads what is waiting, updates the
     /// tile and the badge, and closes again.
     ///
-    /// What it is not: a real-time client. A `TimeTrigger` has a minimum of 15
-    /// minutes and no promise about the exact moment; 30 is the interval this asks
-    /// for, and the system decides when it happens (battery saver can refuse it).
-    /// The log line at the end of a run is the record of how long it took.
+    /// What it is not: a real-time client. A `TimeTrigger` on WP8.1 has a **floor of
+    /// 15 minutes** - ten is not an interval the system accepts, and asking for it
+    /// registers nothing - and no promise about the exact moment; 15 is the interval
+    /// this asks for, and the system decides when it happens (battery saver can refuse
+    /// it). The log line at the end of a run is the record of how long it took.
+    ///
+    /// The interval is also **registered**, not just asked for: a task the phone already
+    /// has keeps the trigger it was created with, so a new build that asks for a different
+    /// interval changes nothing until the old registration is taken out. That is why the
+    /// interval is remembered next to the task and compared on every start.
     /// </summary>
     public static class BackgroundSync
     {
@@ -30,14 +37,28 @@ namespace WhatsappApp.Services
         /// <summary>The class the manifest declares; it must be the full name.</summary>
         public const string EntryPoint = "WhatsappApp.BackgroundSyncTask";
 
-        /// <summary>How often the system is asked to wake the task.</summary>
-        public const int IntervalMinutes = 30;
+        /// <summary>
+        /// How often the system is asked to wake the task.
+        ///
+        /// 15 is the smallest a `TimeTrigger` accepts on WP8.1 (ten throws, and the
+        /// catch below turns that into "the check never runs" with a line in the log
+        /// that says the system refused it), so this is as close to "every ten minutes"
+        /// as the platform allows. The system adds its own delay on top.
+        /// </summary>
+        public const int IntervalMinutes = 15;
+
+        /// <summary>
+        /// The interval the registration on this phone was made with. A task keeps its
+        /// own trigger, so this is what decides whether the one on the phone is still
+        /// the one this build asks for.
+        /// </summary>
+        private const string KeyInterval = "BackgroundCheck.IntervalMinutes";
 
         /// <summary>How long a run waits for the login before it gives up.</summary>
-        private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(10);
+        private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(12);
 
         /// <summary>How long a run lets the backlog arrive before it reports.</summary>
-        private static readonly TimeSpan ReadWindow = TimeSpan.FromSeconds(7);
+        private static readonly TimeSpan ReadWindow = TimeSpan.FromSeconds(6);
 
         private static readonly object Gate = new object();
         private static bool _running;
@@ -61,7 +82,7 @@ namespace WhatsappApp.Services
         public static void Start()
         {
             if (!SettingsService.BackgroundCheckEnabled) return;
-            if (IsRegistered()) return;
+            if (IsRegistered() && RegisteredInterval() == IntervalMinutes) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("BackgroundSync/register", SetEnabledAsync(true));
@@ -85,7 +106,16 @@ namespace WhatsappApp.Services
                     return;
                 }
 
-                if (IsRegistered()) return;
+                // The task the phone has was made with some interval, and a task keeps
+                // the trigger it was registered with. Without this the build that asked
+                // for a shorter check would keep the old one forever - which is a phone
+                // that keeps waking every half hour whatever the source says.
+                if (IsRegistered() && RegisteredInterval() == IntervalMinutes) return;
+                if (IsRegistered())
+                {
+                    Unregister();
+                    Diag.Ok("background: the interval changed, registering again");
+                }
 
                 BackgroundAccessStatus access = await BackgroundExecutionManager.RequestAccessAsync();
                 if (access == BackgroundAccessStatus.Denied)
@@ -100,6 +130,8 @@ namespace WhatsappApp.Services
                 builder.SetTrigger(new TimeTrigger(IntervalMinutes, false));
                 builder.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
                 builder.Register();
+
+                ApplicationData.Current.LocalSettings.Values[KeyInterval] = IntervalMinutes;
 
                 Diag.Ok("background: the check runs every " + IntervalMinutes + " minute(s)");
             }
@@ -131,19 +163,23 @@ namespace WhatsappApp.Services
             {
                 Diag.Ok("background: woke");
 
-                // The last message the app showed, so a count read from the cache has
-                // a face and a line if nothing new has arrived yet.
-                NotificationService.RestoreLastMessage();
+                // What the last run left on the tile is read back first: this process
+                // starts with nothing in memory, and a check that drew a tile without it
+                // would either name nobody or clear what the phone was showing (see
+                // NotificationService.BeginBackgroundCheck).
+                NotificationService.BeginBackgroundCheck();
 
                 DataService.Instance.Start();
                 NativeConnection.Instance.Start();
 
-                WaitForConnection(ConnectLimit);
-
-                // Not Thread.Sleep: the WP8.1 Runtime profile the app compiles
-                // against does not carry that type (CS0103). Waiting on a task is
-                // the same pause without the missing reference.
-                Task.Delay(ReadWindow).Wait();
+                // The wait for the backlog only makes sense once the login is up: a run
+                // that never connected has nothing to read, and waiting anyway is a
+                // background task spending its budget on a socket that is not there.
+                //
+                // Not Thread.Sleep: the WP8.1 Runtime profile the app compiles against
+                // does not carry that type (CS0103). Waiting on a task is the same pause
+                // without the missing reference.
+                if (WaitForConnection(ConnectLimit)) Task.Delay(ReadWindow).Wait();
 
                 int unread = DataService.Instance.UnreadChats();
                 NotificationService.SetUnread(unread);
@@ -157,6 +193,8 @@ namespace WhatsappApp.Services
             }
             finally
             {
+                NotificationService.EndBackgroundCheck();
+
                 try { NativeConnection.Instance.Stop(); }
                 catch (Exception ex) { Diag.Failed("BackgroundSync/Stop", ex); }
 
@@ -165,6 +203,30 @@ namespace WhatsappApp.Services
                     _running = false;
                 }
             }
+        }
+
+        /// <summary>
+        /// The interval the task on this phone was registered with, or 0 when this phone
+        /// has never written one - which is a registration made by an older build, and one
+        /// that has to be made again.
+        /// </summary>
+        private static int RegisteredInterval()
+        {
+            try
+            {
+                object value;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyInterval, out value)
+                    && value is int)
+                {
+                    return (int)value;
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/RegisteredInterval", ex);
+            }
+
+            return 0;
         }
 
         /// <summary>True when this app already has the task registered.</summary>
@@ -196,6 +258,9 @@ namespace WhatsappApp.Services
                 }
 
                 for (int i = 0; i < found.Count; i++) found[i].Unregister(true);
+
+                // Nothing is registered now, so nothing remembers an interval either.
+                ApplicationData.Current.LocalSettings.Values[KeyInterval] = 0;
             }
             catch (Exception ex)
             {
@@ -203,16 +268,29 @@ namespace WhatsappApp.Services
             }
         }
 
-        private static void WaitForConnection(TimeSpan limit)
+        /// <summary>
+        /// Waits for the login, and says whether it came. False is why the run skips the
+        /// read window: there is nothing to read from, and the tile it is about to draw is
+        /// the one the last run left - which is the point, a wake that changed nothing on
+        /// screen is a check nobody can see.
+        /// </summary>
+        private static bool WaitForConnection(TimeSpan limit)
         {
             DateTime end = DateTime.UtcNow + limit;
             while (DateTime.UtcNow < end)
             {
-                if (NativeConnection.Instance.IsConnected) return;
+                if (NativeConnection.Instance.IsConnected) return true;
                 Task.Delay(200).Wait();
             }
 
-            Diag.Ok("background: not connected within " + (int)limit.TotalSeconds + " s");
+            bool connected = NativeConnection.Instance.IsConnected;
+            if (!connected)
+            {
+                Diag.Ok("background: not connected within " + (int)limit.TotalSeconds
+                    + " s, the tile keeps what the last run left");
+            }
+
+            return connected;
         }
     }
 }
