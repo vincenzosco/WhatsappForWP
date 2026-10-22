@@ -406,6 +406,10 @@ namespace WhatsappApp.Services
             long at = Math.Max(row.LastMessageTimestamp, row.ConversationTimestamp);
             message.Timestamp = at > 0 ? Moment(at) : DateTime.MinValue;
 
+            // A moment that cannot be one is no moment: the row goes to the bottom of the
+            // list and the copy written back to disk does not carry the wrong date forward.
+            if (!ActivityTime.IsSane(message.Timestamp, DateTime.Now)) message.Timestamp = DateTime.MinValue;
+
             if (row.Messages.Count > 0) message.Text = row.Messages[row.Messages.Count - 1].Text;
 
             ApplyChat(message);
@@ -1107,7 +1111,15 @@ namespace WhatsappApp.Services
             // the row is taken only when it is not older than what is already
             // there - a message that arrived in this session while the phone was
             // on must not go backwards.
-            if (message.Timestamp >= contact.LastMessageAt)
+            //
+            // And only when the time it brings can be one. A row dated in the future
+            // (the copy on disk that opened the list on 2026-10-22 carried several, a
+            // day/month swap of the real dates) is not newer than anything: it keeps
+            // the time the row already had, and a row with no believable time at all
+            // stays at the bottom until the server sends one that can be true.
+            bool believable = ActivityTime.IsSane(message.Timestamp, DateTime.Now);
+
+            if (believable && message.Timestamp >= contact.LastMessageAt)
             {
                 // The time orders the list even when the row carries no words (a
                 // conversation whose last message is a media the sync did not
@@ -1118,6 +1130,13 @@ namespace WhatsappApp.Services
                     contact.LastMessage = message.Text;
                     contact.LastMessageTime = message.FormattedTime;
                 }
+            }
+            else if (!believable && string.IsNullOrEmpty(contact.LastMessage)
+                && !string.IsNullOrEmpty(message.Text))
+            {
+                // It cannot say when, but it can say what: the row shows the words and
+                // no date, which is honest, instead of a date that is not one.
+                contact.LastMessage = message.Text;
             }
 
             // The profile picture. When the row carries it, the bytes are also kept
@@ -1644,6 +1663,11 @@ namespace WhatsappApp.Services
             }
             _chatMessages[chatId].Add(message);
             TrimToCeiling(_chatMessages[chatId]);
+
+            // A message this phone is adding has just happened: when its own time is not
+            // one that can be true (a corrupt `t`, a clock that jumped), it happened now, and
+            // saying so keeps both the bubble and the row out of the future.
+            if (!ActivityTime.IsSane(message.Timestamp, DateTime.Now)) message.Timestamp = DateTime.Now;
 
             // Update the contact's last message
             var contact = FindContact(chatId);
