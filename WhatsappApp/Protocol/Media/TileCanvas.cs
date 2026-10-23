@@ -58,6 +58,15 @@ namespace WhatsappApp.Protocol.Media
         public const int Inset = (Size - Picture) / 2;
 
         /// <summary>
+        /// The wide tile, in pixels: 310x150 dp at the 240% scale this phone reports. It is
+        /// the card's own size and not the square scaled: a square image in a 2.07:1 tile is
+        /// scaled by the longer side and cropped, which magnifies the face by more than twice
+        /// and takes the top and the chin off it.
+        /// </summary>
+        public const int WideWidth = 744;
+        public const int WideHeight = 360;
+
+        /// <summary>
         /// The card's colour, as BGRA: `#075E54`, the dark teal the app's own header uses.
         /// Dark because the shell writes the tile's two lines in white over the picture, and
         /// a bright card would fight them.
@@ -108,6 +117,49 @@ namespace WhatsappApp.Protocol.Media
             }
 
             return canvas;
+        }
+
+        /// <summary>
+        /// The wide card: the tile's teal, with the square card in the middle of it, 1:1.
+        ///
+        /// Why not hand the square card to the wide binding: the shell fills the tile with
+        /// the image it is given - scaled by the wider side, cropped top and bottom - so a
+        /// 336 square becomes 744 wide by 744 tall and the middle 360 rows of it are all that
+        /// is left: a face magnified more than twice, with its forehead and its chin gone.
+        /// The phone of 23 October 2026 showed exactly that ("le foto vengono zoommate nella
+        /// tile grande"). Here the picture keeps the size it was composed at, and the card
+        /// grows around it, which is also where the template's two lines have room.
+        /// </summary>
+        public static byte[] WideCard(byte[] square)
+        {
+            if (square == null) throw new ArgumentNullException("square");
+
+            int side = SideOf(square.Length);
+            if (side == 0 || side > WideHeight || side > WideWidth)
+            {
+                throw new ProtocolException("a picture of " + square.Length + " byte(s) is not "
+                    + "a square that fits the wide card: " + WideWidth + "x" + WideHeight);
+            }
+
+            var wide = new byte[WideWidth * WideHeight * 4];
+
+            for (int i = 0; i < wide.Length; i += 4)
+            {
+                wide[i] = CardBlue;
+                wide[i + 1] = CardGreen;
+                wide[i + 2] = CardRed;
+                wide[i + 3] = 255;
+            }
+
+            int left = (WideWidth - side) / 2;
+            int top = (WideHeight - side) / 2;
+
+            for (int y = 0; y < side; y++)
+            {
+                Buffer.BlockCopy(square, y * side * 4, wide, ((top + y) * WideWidth + left) * 4, side * 4);
+            }
+
+            return wide;
         }
 
         /// <summary>

@@ -62,6 +62,7 @@
          because Services/ is otherwise WinRT code this project cannot compile. -->
     <Compile Include="..\WhatsappApp\Services\StartDecision.cs" />
     <Compile Include="..\WhatsappApp\Services\TileCycle.cs" />
+    <Compile Include="..\WhatsappApp\Services\TileText.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

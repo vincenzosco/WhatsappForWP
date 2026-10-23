@@ -574,7 +574,7 @@ namespace WhatsappApp.Pages
                     ? Loc.Get("ChatsPage_RemoveTile", "Remove from Start")
                     : Loc.Get("ChatsPage_AddTile", "Add to Start")
             };
-            tile.Click += async (s, a) => { await TogglePinnedTileAsync(id, contact.Name); };
+            tile.Click += async (s, a) => { await TogglePinnedTileAsync(id, contact.Name, contact.LastMessage); };
             flyout.Items.Add(tile);
 
             var remove = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_Delete", "Delete chat") };
@@ -592,11 +592,11 @@ namespace WhatsappApp.Pages
         /// written down and nothing else happens - a menu that did nothing is still better
         /// than a dialog over a system sheet that was just dismissed.
         /// </summary>
-        private static async Task TogglePinnedTileAsync(string chatId, string name)
+        private static async Task TogglePinnedTileAsync(string chatId, string name, string body)
         {
             try
             {
-                await PinnedTile.ToggleAsync(chatId, name, AvatarOf(chatId));
+                await PinnedTile.ToggleAsync(chatId, name, AvatarOf(chatId), body);
             }
             catch (Exception ex)
             {

@@ -123,7 +123,9 @@ Per il telefono compila `Release` su `ARM` e usa **Build > Deploy**.
 Consigli:
 
 - Una chat si fissa alla schermata Start dal menu della pressione prolungata. La tile porta la
-  foto della persona, il suo nome e quanti suoi messaggi aspettano.
+  foto della persona con il nome nella riga grande e il suo ultimo messaggio sotto, e il numero
+  dei messaggi in attesa sul badge. Anche la tile dell'app si legge così, e fra un messaggio e
+  l'altro mostra la sola foto di chi aspetta una risposta.
 - Il controllo in background è attivo di default. Spegnilo nelle impostazioni se il telefono deve
   stare zitto.
 - Se l'app apre un elenco vuoto e resta lì, apri la pagina Diagnostics dallo stato vuoto: mostra le

@@ -122,7 +122,9 @@ For the phone, build `Release` on `ARM` instead and use **Build > Deploy**.
 Tips:
 
 - A chat can be pinned to the Start screen from its long press menu. The tile carries the
-  person's picture, their name and how many of their messages are waiting.
+  person's picture with their name in the large line and their last message under it, and the
+  number of waiting messages on the badge. The app's own tile reads the same way, and between
+  one message and the next it shows the face alone of somebody who is waiting for an answer.
 - The background check is on by default. Turn it off in Settings if the phone should stay quiet.
 - If the app opens an empty list and stays there, open the Diagnostics page from the empty state:
   it shows the last `DIAG` lines.
