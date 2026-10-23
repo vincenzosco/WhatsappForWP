@@ -23,6 +23,13 @@
  *     ruotare la tile fra i messaggi in attesa: con la coda spenta una sola
  *     notifica resta in vetrina e il messaggio cambia solo quando ne arriva un
  *     altro - il difetto visto sul telefono.
+ *  5. i pixel che il decoder restituisce si MISURANO e si portano alla misura
+ *     del disegno, non si prendono per quelli chiesti. Il 23 ottobre 2026 il log
+ *     del telefono si e' fermato con `IndexOutOfRangeException` in
+ *     `TileCanvas.Draw`: `Draw` legge `width` pixel per riga, e il chiamante gli
+ *     passava i byte del decoder dichiarandoli della misura chiesta. Qui il
+ *     decoder risponde al crop con la misura del crop (96x96) e non con quella
+ *     chiesta (336x336), quindi la lettura usciva dal buffer.
  *
  * Usage:
  *   node tools/check-tile.js
@@ -35,6 +42,7 @@ const { stripComments } = require('./csharp');
 
 const ROOT = path.resolve(__dirname, '..');
 const SERVICE = path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs');
+const TILE_IMAGE = path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs');
 const ASSETS_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
 
 const IMAGE_PREFIX = 'ms-appx:///Assets/';
@@ -94,6 +102,41 @@ function bindingProblems(source) {
 
   if (srcs > 0 && declaredImages(code).length === 0) {
     problems.push(`NotificationService.cs: the tile references no image under ${IMAGE_PREFIX}`);
+  }
+
+  return problems;
+}
+
+/**
+ * Problemi della decodifica: la misura del buffer e' quella che conta.
+ *
+ * Perche' esiste: `TileCanvas.Draw` legge `width` pixel per riga, quindi il
+ * buffer del disegno deve essere almeno `width * height * 4`. Il decoder invece
+ * risponde alla richiesta di scala con il crop alla sua misura, e chi lo chiama
+ * non puo' saperlo se non misura: e' il difetto del 23 ottobre 2026, un
+ * `IndexOutOfRangeException` dentro `Draw` con un buffer da 96x96 disegnato come
+ * 336x336. Le due regole qui sotto sono le due meta' della risposta: misurare
+ * (`SideOf`) e ridimensionare (`ResizeSquare`).
+ */
+function decodeProblems(source) {
+  const problems = [];
+  const code = stripComments(source);
+
+  if (!/DetachPixelData\s*\(/.test(code)) {
+    problems.push('WhatsappApp/Services/TileImage.cs: no DetachPixelData - the card has no pixels ' +
+      'to compose');
+    return problems;
+  }
+
+  if (!/TileCanvas\.SideOf\s*\(/.test(code)) {
+    problems.push('WhatsappApp/Services/TileImage.cs: the decoded buffer is never measured - ' +
+      'the side it was asked for is not always the side it has (the IndexOutOfRangeException ' +
+      'in TileCanvas.Draw)');
+  }
+
+  if (!/TileCanvas\.ResizeSquare\s*\(/.test(code)) {
+    problems.push('WhatsappApp/Services/TileImage.cs: the decoded buffer is never scaled to the ' +
+      'side the card is drawn at - TileCanvas.Draw then reads past the end of it');
   }
 
   return problems;
@@ -162,6 +205,8 @@ function main() {
   const source = fs.readFileSync(SERVICE, 'utf8');
   const problems = bindingProblems(source);
 
+  problems.push(...decodeProblems(fs.readFileSync(TILE_IMAGE, 'utf8')));
+
   const images = declaredImages(source);
   if (images.length === 0) {
     problems.push(`NotificationService.cs: the tile declares no image under ${IMAGE_PREFIX}`);
@@ -189,4 +234,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { pngSize, declaredImages, bindingProblems, assetProblems, stripComments };
+module.exports = { pngSize, declaredImages, bindingProblems, decodeProblems, assetProblems, stripComments };

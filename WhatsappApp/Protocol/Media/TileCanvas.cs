@@ -111,6 +111,140 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
+        /// The side a square BGRA buffer holds, or 0 when it is not a square of pixels.
+        ///
+        /// Why it exists: a decoder is *asked* for a side, and the tile of 23 October 2026
+        /// found that the answer to that request is not always the answer - a 96x96 buffer
+        /// went to `Draw` as 336x336 and the read ran past its end
+        /// (`IndexOutOfRangeException`, `TileCanvas.Draw`). A byte count is not a wish: it
+        /// can be measured, so the card measures it instead of trusting the request.
+        /// </summary>
+        public static int SideOf(int byteCount)
+        {
+            if (byteCount <= 0 || byteCount % 4 != 0) return 0;
+
+            int pixels = byteCount / 4;
+            int side = (int)Math.Sqrt(pixels);
+
+            while (side > 0 && (long)side * side > pixels) side--;
+            while ((long)(side + 1) * (side + 1) <= pixels) side++;
+
+            return side * side == pixels ? side : 0;
+        }
+
+        /// <summary>
+        /// A square picture at another side, by bilinear interpolation over premultiplied
+        /// alpha.
+        ///
+        /// Why it is here and not left to the decoder: the decoder is the only resampler on
+        /// this phone worth using, and it is also the component whose answer the tile of
+        /// 23 October 2026 could not trust - asked for a scaled picture it returned the crop
+        /// at its own size. The card is composed from a buffer whose side is known, so what
+        /// reaches `Draw` is always exactly the side it is drawn at.
+        ///
+        /// Premultiplied because the app mark is a glyph on transparency: averaging straight
+        /// alpha across a transparent neighbour darkens every edge into a halo.
+        /// </summary>
+        public static byte[] ResizeSquare(byte[] picture, int from, int to)
+        {
+            if (picture == null) throw new ArgumentNullException("picture");
+            if (to <= 0) throw new ProtocolException("a picture with no side is no picture: " + to);
+
+            if (from <= 0)
+            {
+                throw new ProtocolException("a picture of " + picture.Length + " byte(s) is "
+                    + "not a square of pixels, so it cannot be scaled to " + to + "x" + to);
+            }
+
+            if ((long)from * from * 4 > picture.Length)
+            {
+                throw new ProtocolException("a picture of " + picture.Length + " byte(s) is not "
+                    + from + "x" + from + " pixels, so it cannot be scaled to " + to + "x" + to);
+            }
+
+            var scaled = new byte[to * to * 4];
+
+            for (int y = 0; y < to; y++)
+            {
+                // Half a pixel in, so the first and last output rows are not sampled from
+                // exactly the edge and the grid stays centred on the source.
+                double sourceY = (y + 0.5) * from / to - 0.5;
+                if (sourceY < 0) sourceY = 0;
+                if (sourceY > from - 1) sourceY = from - 1;
+
+                int top = (int)sourceY;
+                int bottom = top < from - 1 ? top + 1 : top;
+                double fy = sourceY - top;
+
+                for (int x = 0; x < to; x++)
+                {
+                    double sourceX = (x + 0.5) * from / to - 0.5;
+                    if (sourceX < 0) sourceX = 0;
+                    if (sourceX > from - 1) sourceX = from - 1;
+
+                    int left = (int)sourceX;
+                    int right = left < from - 1 ? left + 1 : left;
+                    double fx = sourceX - left;
+
+                    int atTopLeft = (top * from + left) * 4;
+                    int atTopRight = (top * from + right) * 4;
+                    int atBottomLeft = (bottom * from + left) * 4;
+                    int atBottomRight = (bottom * from + right) * 4;
+
+                    double wTopLeft = (1 - fx) * (1 - fy);
+                    double wTopRight = fx * (1 - fy);
+                    double wBottomLeft = (1 - fx) * fy;
+                    double wBottomRight = fx * fy;
+
+                    // Premultiplied, so a transparent corner cannot pull the colour of the
+                    // opaque one towards black: the weight is the alpha as well.
+                    double alpha = picture[atTopLeft + 3] * wTopLeft
+                        + picture[atTopRight + 3] * wTopRight
+                        + picture[atBottomLeft + 3] * wBottomLeft
+                        + picture[atBottomRight + 3] * wBottomRight;
+
+                    int at = (y * to + x) * 4;
+                    if (alpha <= 0)
+                    {
+                        scaled[at + 3] = 0;
+                        continue;
+                    }
+
+                    double blue = picture[atTopLeft] * picture[atTopLeft + 3] * wTopLeft
+                        + picture[atTopRight] * picture[atTopRight + 3] * wTopRight
+                        + picture[atBottomLeft] * picture[atBottomLeft + 3] * wBottomLeft
+                        + picture[atBottomRight] * picture[atBottomRight + 3] * wBottomRight;
+
+                    double green = picture[atTopLeft + 1] * picture[atTopLeft + 3] * wTopLeft
+                        + picture[atTopRight + 1] * picture[atTopRight + 3] * wTopRight
+                        + picture[atBottomLeft + 1] * picture[atBottomLeft + 3] * wBottomLeft
+                        + picture[atBottomRight + 1] * picture[atBottomRight + 3] * wBottomRight;
+
+                    double red = picture[atTopLeft + 2] * picture[atTopLeft + 3] * wTopLeft
+                        + picture[atTopRight + 2] * picture[atTopRight + 3] * wTopRight
+                        + picture[atBottomLeft + 2] * picture[atBottomLeft + 3] * wBottomLeft
+                        + picture[atBottomRight + 2] * picture[atBottomRight + 3] * wBottomRight;
+
+                    scaled[at] = Channel(blue / alpha);
+                    scaled[at + 1] = Channel(green / alpha);
+                    scaled[at + 2] = Channel(red / alpha);
+                    scaled[at + 3] = Channel(alpha);
+                }
+            }
+
+            return scaled;
+        }
+
+        /// <summary>One channel, rounded and held inside the range a byte has.</summary>
+        private static byte Channel(double value)
+        {
+            if (value <= 0) return 0;
+            if (value >= 255) return 255;
+
+            return (byte)Math.Round(value);
+        }
+
+        /// <summary>
         /// The picture drawn into the card, centred: a picture of the whole tile covers it edge
         /// to edge, and the app mark - half the tile across - is the one that keeps a margin.
         ///
@@ -129,6 +263,17 @@ namespace WhatsappApp.Protocol.Media
             if (canvas == null) throw new ArgumentNullException("canvas");
             if (picture == null) throw new ArgumentNullException("picture");
             if (width <= 0 || height <= 0) throw new ProtocolException("a picture with no side is no picture");
+
+            // The buffer is read `width` pixels per row, so it has to be at least that big.
+            // The tile of 23 October 2026 handed this method 96x96 bytes as 336x336 and the
+            // read ran off the end: an IndexOutOfRangeException with nothing in it that
+            // names the picture. A short buffer is a protocol error with a number in it.
+            if (picture.Length < width * height * 4)
+            {
+                throw new ProtocolException("a picture of " + width + "x" + height + " is "
+                    + (width * height * 4) + " byte(s) and this one is " + picture.Length
+                    + ": the side it is drawn at is not the side it has");
+            }
 
             if (left < 0 || top < 0 || left + width > Size || top + height > Size)
             {

@@ -99,6 +99,22 @@ test('il servizio accende la coda, o la tile resta su un messaggio solo', () => 
   assert.match(tile.stripComments(source), /EnableNotificationQueue\s*\(\s*true\s*\)/);
 });
 
+test('i byte del decoder senza misura si segnalano', () => {
+  const problems = tile.decodeProblems(
+    'var picture = new TilePicture();\n' +
+    'picture.Bytes = data.DetachPixelData();\n' +
+    'picture.Side = side;');
+  assert.strictEqual(problems.length, 2);
+  assert.ok(problems.some((p) => /never measured/.test(p)));
+  assert.ok(problems.some((p) => /never scaled/.test(p)));
+});
+
+test('la decodifica vera misura il buffer e lo riporta alla misura del disegno', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs'), 'utf8');
+  assert.deepStrictEqual(tile.decodeProblems(source), []);
+});
+
 test('il modello largo che WP8.1 non ha si segnala', () => {
   const problems = tile.bindingProblems(
     'var t = TileTemplateType.TileWide310x150IconWithBadge;');
