@@ -288,10 +288,23 @@ namespace WhatsappApp.Services
             return -1;
         }
 
-        /// <summary>Adds a line, dropping the oldest if the buffer is full.</summary>
+        /// <summary>
+        /// Adds a line, dropping the oldest if the buffer is full.
+        ///
+        /// The dropped line takes its mark with it: `_written` is an index into this buffer, and
+        /// a line it still counts that is no longer here stops `Flush` dead at
+        /// `_written >= History.Count`. Once the buffer had filled - two hundred distinct lines
+        /// into a run - nothing else reached `diag.log`: no failing frame, no crash tail, none
+        /// of the tail the file exists for.
+        /// </summary>
         private static void AppendLine(string line)
         {
-            if (History.Count >= HistoryLimit) History.RemoveAt(0);
+            if (History.Count >= HistoryLimit)
+            {
+                History.RemoveAt(0);
+                if (_written > 0) _written--;
+            }
+
             History.Add(line);
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace WhatsappApp.Protocol.Media
 {
@@ -67,6 +68,30 @@ namespace WhatsappApp.Protocol.Media
         public const int WideHeight = 360;
 
         /// <summary>
+        /// The small tile, in pixels: 71x71 dp at the 240% scale this phone reports, so 170.
+        ///
+        /// Why it has a card of its own: a binding fills the tile with the image it is given
+        /// and crops what does not fit, so the 336 card in the 71x71 tile showed the centre of
+        /// the face at about twice its size ("l'immagine troppo zoommata e non si adatta alla
+        /// dimensione tile", 23 October 2026). The card handed to that binding is composed at
+        /// the tile's own size, so there is nothing left to crop.
+        /// </summary>
+        public const int SmallSize = 170;
+
+        /// <summary>
+        /// The rules this card is composed by. It is part of the file name, because the name
+        /// is how the shell caches a tile image: a card drawn by the rules of an older build
+        /// (a stretched preview, a magnified mark) must not be served from the file that
+        /// build left behind. Bump it when `Card`, `WideCard` or what is drawn into them
+        /// changes.
+        ///
+        /// 4: the card is composed from the chat's full-size picture instead of the 96x96
+        /// preview (`PinnedTile.AskForPicture`). The rules did not move, the source did -
+        /// and a `v3` card is a soft one that the shell would keep drawing.
+        /// </summary>
+        public const int CardVersion = 4;
+
+        /// <summary>
         /// The card's colour, as BGRA: `#075E54`, the dark teal the app's own header uses.
         /// Dark because the shell writes the tile's two lines in white over the picture, and
         /// a bright card would fight them.
@@ -100,13 +125,101 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
+        /// The file a card is written to: the caller's name, the rules it was composed by,
+        /// and a fingerprint of the picture it was composed from.
+        ///
+        /// Why the picture is in the name. A WP8.1 tile caches an image by its URI, so a card
+        /// rewritten at the same path stays the old picture on the Start screen; and two
+        /// updates of one chat - which is what a burst of messages is - both open that one
+        /// file, the second `OpenAsync(ReadWrite)` on a file already open being the
+        /// `UnauthorizedAccessException` (E_ACCESSDENIED) the phone showed on 23 October 2026.
+        /// A name that changes with the bytes is a name nothing can be holding: no replace of
+        /// a file the shell is drawing, and no stale cache. The same picture under the same
+        /// rules is the same name, so nothing is written twice.
+        /// </summary>
+        public static string CardFileName(string fileName, string picture)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ProtocolException("a card needs a file name");
+            }
+
+            int dot = fileName.LastIndexOf('.');
+            string stem = dot < 0 ? fileName : fileName.Substring(0, dot);
+            string extension = dot < 0 ? ".jpg" : fileName.Substring(dot);
+
+            return stem + "-v" + CardVersion.ToString(CultureInfo.InvariantCulture)
+                + "-" + Fingerprint(picture) + extension;
+        }
+
+        /// <summary>The wide card that belongs to a square one: the same name, plus `-wide`.</summary>
+        public static string WideFileName(string cardName)
+        {
+            return VariantFileName(cardName, "-wide");
+        }
+
+        /// <summary>The 71x71 card that belongs to a square one: the same name, plus `-small`.</summary>
+        public static string SmallFileName(string cardName)
+        {
+            return VariantFileName(cardName, "-small");
+        }
+
+        /// <summary>
+        /// One card of another shape under the same name: the marker goes before the extension,
+        /// so `pin-1-v2-ab12.jpg` has a `pin-1-v2-ab12-wide.jpg` beside it.
+        /// </summary>
+        private static string VariantFileName(string cardName, string marker)
+        {
+            if (string.IsNullOrEmpty(cardName))
+            {
+                throw new ProtocolException("a card needs a file name");
+            }
+
+            int dot = cardName.LastIndexOf('.');
+            return dot < 0
+                ? cardName + marker
+                : cardName.Substring(0, dot) + marker + cardName.Substring(dot);
+        }
+
+        /// <summary>
+        /// Eight hexadecimal digits of FNV-1a over the picture's own characters: stable across
+        /// processes and runs, unlike `string.GetHashCode`, because the name it takes part in
+        /// is written in one process - the app or its background task - and read by the shell.
+        /// </summary>
+        public static string Fingerprint(string picture)
+        {
+            string text = picture ?? "";
+
+            unchecked
+            {
+                uint hash = 2166136261u;
+
+                for (int i = 0; i < text.Length; i++)
+                {
+                    hash ^= (uint)text[i];
+                    hash *= 16777619u;
+                }
+
+                return hash.ToString("x8", CultureInfo.InvariantCulture);
+            }
+        }
+
+        /// <summary>
         /// A card with nothing on it yet: `Size` x `Size` BGRA pixels of the card's colour,
         /// fully opaque. Opaque matters: the file is written as JPEG, and a JPEG of a
         /// transparent canvas is a black one.
         /// </summary>
         public static byte[] Card()
         {
-            var canvas = new byte[Size * Size * 4];
+            return Card(Size);
+        }
+
+        /// <summary>The same card at another side: the 71x71 tile is composed at its own size.</summary>
+        public static byte[] Card(int side)
+        {
+            if (side <= 0) throw new ProtocolException("a card with no side is no card: " + side);
+
+            var canvas = new byte[side * side * 4];
 
             for (int i = 0; i < canvas.Length; i += 4)
             {
@@ -312,6 +425,18 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>The same, at a place of the caller's choosing. Used by the tests.</summary>
         public static void Draw(byte[] canvas, byte[] picture, int width, int height, int left, int top)
         {
+            DrawInto(canvas, Size, picture, width, height, left, top);
+        }
+
+        /// <summary>
+        /// The same, into a card of another side - the 71x71 tile's.
+        ///
+        /// The card's side is a parameter and not `Size`, because the buffer is walked with the
+        /// canvas's own stride: a 170 card read as 336 is the same out-of-bounds read the
+        /// picture side was.
+        /// </summary>
+        public static void DrawInto(byte[] canvas, int canvasSide, byte[] picture, int width, int height, int left, int top)
+        {
             if (canvas == null) throw new ArgumentNullException("canvas");
             if (picture == null) throw new ArgumentNullException("picture");
             if (width <= 0 || height <= 0) throw new ProtocolException("a picture with no side is no picture");
@@ -327,10 +452,17 @@ namespace WhatsappApp.Protocol.Media
                     + ": the side it is drawn at is not the side it has");
             }
 
-            if (left < 0 || top < 0 || left + width > Size || top + height > Size)
+            if (canvasSide <= 0) throw new ProtocolException("a card with no side is no card: " + canvasSide);
+            if (canvas.Length < canvasSide * canvasSide * 4)
+            {
+                throw new ProtocolException("a card of " + canvasSide + "x" + canvasSide + " is "
+                    + (canvasSide * canvasSide * 4) + " byte(s) and this one is " + canvas.Length);
+            }
+
+            if (left < 0 || top < 0 || left + width > canvasSide || top + height > canvasSide)
             {
                 throw new ProtocolException("the picture does not fit the card: " + width + "x" + height
-                    + " at " + left + "," + top);
+                    + " at " + left + "," + top + " in " + canvasSide + "x" + canvasSide);
             }
 
             for (int y = 0; y < height; y++)
@@ -338,7 +470,7 @@ namespace WhatsappApp.Protocol.Media
                 for (int x = 0; x < width; x++)
                 {
                     int from = (y * width + x) * 4;
-                    int to = ((top + y) * Size + (left + x)) * 4;
+                    int to = ((top + y) * canvasSide + (left + x)) * 4;
 
                     int alpha = picture[from + 3];
                     if (alpha == 255)

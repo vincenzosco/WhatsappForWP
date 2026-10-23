@@ -231,6 +231,14 @@ namespace WhatsappApp.Services
             // other order (rows first) is covered by ContactDirectory calling this too.
             ApplyAddressBook();
             NotificationService.SetUnread(TotalUnread());
+
+            // And the tiles this phone has on Start are drawn again from what the copy says.
+            // Without this a pinned tile kept the card the build that composed it left
+            // behind, and a change to how the card is drawn reached the phone only when the
+            // next message happened to arrive in that chat - which is why the fix of
+            // 23 October 2026 could ship and leave the Start screen exactly as it was.
+            PublishPinnedTiles();
+
             Diag.OkNow("order after the cached list: " + OrderSample());
         }
 
@@ -505,6 +513,10 @@ namespace WhatsappApp.Services
             Diag.Ok("native: the history is complete, " + chatRows + " row(s) in the batch, "
                 + _contacts.Count + " in the list");
 
+            // The sync is the other way a chat becomes a row with a count: a tile pinned on
+            // a chat the copy did not have yet gets its picture now, not at the next message.
+            PublishPinnedTiles();
+
             // What the sync brought, now that it has nothing left to send: see
             // SaveSnapshotAsync for why this is not left to the pages.
 #pragma warning disable 4014
@@ -627,6 +639,11 @@ namespace WhatsappApp.Services
                     }
 
                     keep.UnreadCount += gone.UnreadCount;
+
+                    // The merged row has a new number and the tile of the chat is the one
+                    // place that had not heard: the count went up here and the badge kept
+                    // the old one until somebody wrote in that chat again.
+                    PublishUnread(keep);
 
                     if (string.IsNullOrEmpty(keep.AvatarData) && !string.IsNullOrEmpty(gone.AvatarData))
                     {
@@ -794,7 +811,15 @@ namespace WhatsappApp.Services
             if (!string.IsNullOrEmpty(post.Text)) row.Text = post.Text;
 
             ApplyNativeMedia(row, post.Encoded);
-            if (row.Media != null && row.Media.IsFetchable) row.IsMediaLoading = true;
+
+            // The spinner says the photo is on its way, and a row that already draws one is not
+            // waiting for anything: the sync repeats the same status in every chunk, so this
+            // line put a photo that had already arrived back under a spinner - and the viewer,
+            // which asks for what is missing, asked again.
+            bool waiting = row != null
+                && string.IsNullOrEmpty(row.MediaData)
+                && string.IsNullOrEmpty(row.MediaFilePath);
+            if (waiting && row.Media != null && row.Media.IsFetchable) row.IsMediaLoading = true;
 
             Diag.Ok("native: status " + post.Id + " from " + post.Author);
             RaiseStatusesChanged();
@@ -1546,11 +1571,22 @@ namespace WhatsappApp.Services
 
         private async Task ApplyMedia(ChatMessage message, IncomingMediaResult result)
         {
+            // Which row the bytes belong to. Two callers mean two different answers: the push
+            // path builds a stand-in whose `RelatedMessageId` is the id in the stanza, and a
+            // tap hands the bubble itself, whose `RelatedMessageId` is empty because it is a
+            // field of revoke and edit. Reading only the second is why a photo asked for by a
+            // tap downloaded, stored, and left its bubble spinning: no row ever matched.
+            string want = string.IsNullOrEmpty(message.RelatedMessageId)
+                ? message.Id
+                : message.RelatedMessageId;
+
+            if (string.IsNullOrEmpty(want)) return;
+
             var list = GetMessages(message.ChatId);
             for (int i = 0; i < list.Count; i++)
             {
                 var target = list[i];
-                if (target == null || target.Id != message.RelatedMessageId) continue;
+                if (target == null || target.Id != want) continue;
 
                 // The bytes have arrived: the spinner in the bubble stops.
                 target.IsMediaLoading = false;
@@ -1840,6 +1876,40 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Every pinned chat is published once: its tile is composed from the picture and the
+        /// count this phone knows now.
+        ///
+        /// Why it is a sweep and not only the message path: `PinnedTile.Update` is called
+        /// when a count changes, and a start changes no count - so a tile composed by an older
+        /// build stayed on the Start screen until somebody wrote in that chat. The shell keeps
+        /// its own copy of the tile, which is why the code had to be told to draw it again.
+        ///
+        /// A chat whose tile was removed from Start is skipped: the pin in the preferences can
+        /// outlive the tile, and drawing one that is not there is a tile the platform refuses.
+        /// </summary>
+        private void PublishPinnedTiles()
+        {
+            int drawn = 0;
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                var contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+                if (!contact.IsPinned) continue;
+                if (!PinnedTile.IsPinned(contact.Id)) continue;
+
+                // The count is not known here and is not invented: the copy on the phone has
+                // no unread numbers (`ChatCache.Slim` drops them on purpose), so a zero would
+                // not be "nobody is waiting", it would be "this start does not know" - and
+                // publishing it cleared the badge of every pinned chat at every start.
+                PublishUnread(contact, false);
+                drawn++;
+            }
+
+            if (drawn > 0) Diag.Ok("pinned tiles: " + drawn + " drawn again from this phone's copy");
+        }
+
+        /// <summary>
         /// The row's unread count changed: its pinned tile says so, if the chat has one.
         ///
         /// One place, because the count is written from several: a message into a new row, a
@@ -1848,12 +1918,30 @@ namespace WhatsappApp.Services
         /// </summary>
         private static void PublishUnread(Contact contact)
         {
+            PublishUnread(contact, true);
+        }
+
+        /// <summary>
+        /// The same, saying whether the count is one this phone knows. The badge is only
+        /// rewritten by a caller that knows it.
+        /// </summary>
+        private static void PublishUnread(Contact contact, bool countKnown)
+        {
             if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
+
+            // La foto grande della tile, una volta per chat: la riga porta `AvatarData`, che e'
+            // la preview 96x96 della lista, e una tile composta da quella e' una faccia
+            // ingrandita 3,5 volte (vedi `PinnedTile.AskForPicture`). Ogni publish la chiede,
+            // e la chat che l'ha gia' ricevuta risponde dal suo dizionario senza toccare la
+            // rete; il budget delle richieste e' dentro `AskForPicture`.
+            PinnedTile.AskForPicture(contact.Id, contact.Name, contact.UnreadCount,
+                contact.LastMessage, countKnown);
 
             string avatar = contact.AvatarData;
             if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(contact.Id);
 
-            PinnedTile.Update(contact.Id, contact.Name, contact.UnreadCount, avatar, contact.LastMessage);
+            PinnedTile.Update(contact.Id, contact.Name, contact.UnreadCount, avatar,
+                contact.LastMessage, countKnown);
         }
 
         private void RebuildContactIndex()
@@ -2252,8 +2340,21 @@ namespace WhatsappApp.Services
                 _contactIndex.Remove(chatId);
             }
 
+            // Taken before it is removed: the files of a video, a note or a document are on
+            // the phone and nothing else knows which ones belonged to this conversation.
+            ObservableCollection<ChatMessage> goneMessages = null;
+            _chatMessages.TryGetValue(chatId, out goneMessages);
+
             _chatMessages.Remove(chatId);
             _historyRequested.Remove(chatId);
+
+            if (goneMessages != null)
+            {
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("DataService/delete media",
+                    IncomingMediaStore.DeleteAsync(goneMessages));
+#pragma warning restore 4014
+            }
 
             ChatPreferences.Hide(chatId);
             NotificationService.Forget(chatId);
@@ -2370,6 +2471,10 @@ namespace WhatsappApp.Services
                 int best = i;
                 for (int j = i + 1; j < _contacts.Count; j++)
                 {
+                    // `Contacts` is a public collection, so a row nobody inserted through
+                    // `AddContact` can be a null, and the sort of the whole list died on it.
+                    if (_contacts[j] == null || _contacts[best] == null) continue;
+
                     if (ComesBefore(_contacts[j], _contacts[best])) best = j;
                 }
 

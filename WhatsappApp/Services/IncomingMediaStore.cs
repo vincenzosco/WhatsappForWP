@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -139,6 +141,47 @@ namespace WhatsappApp.Services
             return builder.ToString();
         }
 
+        /// <summary>
+        /// The files of the messages of a chat that was deleted.
+        ///
+        /// Why it exists: the bytes of a video, a voice note or a document are a file in the
+        /// phone's folder, and nothing ever removed one. A conversation deleted from the list
+        /// left its megabytes behind; on a 512 MB phone that is the storage the session, the
+        /// caches and the tile cards all write into, and when it fills every one of them fails.
+        ///
+        /// A file that is not there is not a failure: an image never went to disk at all, and a
+        /// row whose file failed to write has nothing to drop.
+        /// </summary>
+        public static async Task DeleteAsync(IList<ChatMessage> messages)
+        {
+            if (messages == null) return;
+
+            int dropped = 0;
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                ChatMessage message = messages[i];
+                if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) continue;
+
+                try
+                {
+                    StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(message.MediaFilePath);
+                    await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                    dropped++;
+                }
+                catch (FileNotFoundException)
+                {
+                    // Nothing to drop.
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("IncomingMediaStore/delete", ex);
+                }
+            }
+
+            if (dropped > 0) Diag.Ok("media: " + dropped + " file(s) of a deleted chat dropped");
+        }
+
         /// <summary>The file extension, from the name or the MIME type.</summary>
         private static string ExtensionFor(string mimeType, string fileName)
         {
@@ -147,6 +190,10 @@ namespace WhatsappApp.Services
             if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot).ToLower();
 
             string mime = (mimeType ?? "").ToLower();
+            // A video first, and by its own name: `video/mp4` matched no rule at all - the
+            // `audio/mp4`/`mp4a` line below asks for that exact word - so a nameless video was
+            // saved as `.bin`, a file the gallery and the player refuse.
+            if (mime.IndexOf("video/mp4") >= 0) return ".mp4";
             if (mime.IndexOf("3gp") >= 0) return ".3gp";
             if (mime.IndexOf("quicktime") >= 0) return ".mov";
             if (mime.IndexOf("webm") >= 0) return ".webm";

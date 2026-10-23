@@ -68,9 +68,19 @@ namespace WhatsappApp.Services
         private readonly HashSet<string> _awaitingAck = new HashSet<string>();
 
         /// <summary>
-        /// How many unanswered ids are remembered before the set is emptied. A phone sends
-        /// a handful of messages per minute; this is the ceiling that keeps a phone that
-        /// sent thousands into a server that never answered from growing a set forever.
+        /// The same ids in the order they were written, so an overflow forgets the oldest
+        /// one instead of the whole table: emptying it dropped the ids of messages still
+        /// waiting for their ack, and their ack then matched nothing - the bubble went to
+        /// "failed" after twenty seconds for a message the server had taken. Entries left
+        /// behind by an ack are dropped at the next send, so this does not grow on its own.
+        /// </summary>
+        private readonly Queue<string> _ackOrder = new Queue<string>();
+
+        /// <summary>
+        /// How many unanswered ids are remembered before the oldest one is forgotten. A
+        /// phone sends a handful of messages per minute; this is the ceiling that keeps a
+        /// phone that sent thousands into a server that never answered from growing a set
+        /// forever.
         /// </summary>
         private const int MaxAwaitingAck = 200;
 
@@ -732,28 +742,11 @@ namespace WhatsappApp.Services
                 // was not told was read, while an `ack` here tells it the message arrived and
                 // the message is then gone for good - which is how a failed open could lose
                 // the one history sync this account will ever get.
-                try
-                {
-                    await session.SendAsync(IncomingMessage.RetryReceipt(node, NowSeconds(),
-                        account == null ? 0 : account.RegistrationId));
-                    Diag.Ok("native: asked " + node.Attrs["from"] + " to send " + node.Attrs["id"] + " again");
-                }
-                catch (Exception again)
-                {
-                    Diag.Failed("NativeConnection/retry receipt", again);
-                }
-
+                await AskAgainAsync(session, node, account);
                 return;
             }
 
-            // The acknowledgement comes after the read, and it is what proves the read.
-            // A duplicate is acknowledged too: it was read once already, and the second copy
-            // is what proves the first ack was lost.
-            await session.SendAsync(IncomingMessage.Ack(node));
-
-            if (incoming == null) return;
-
-            HistorySyncNotification history = HistorySyncNotification.From(incoming.Content);
+            HistorySyncNotification history = incoming == null ? null : HistorySyncNotification.From(incoming.Content);
             if (history != null)
             {
                 // The sync is this account's own: it is a peer-routed self stanza, sent by
@@ -765,12 +758,35 @@ namespace WhatsappApp.Services
                 {
                     Diag.Ok("native: a history sync from " + incoming.From
                         + " is not this account's, so it is left alone");
+                    await session.SendAsync(IncomingMessage.Ack(node));
                     return;
                 }
 
-                await ApplyHistoryAsync(history);
+                // The acknowledgement of a sync comes **after** the sync is in the list, and
+                // never before. The ack is what tells the server the stanza is delivered, and
+                // WhatsApp pushes the story of a device once per link: an ack sent at the top
+                // threw the rest of the chat list away the moment the blob behind it did not
+                // download (or the process ended before it did). That is the phone of
+                // 2026-10-23, where the bootstrap's five conversations were acked, the chunk
+                // after them never arrived, and no reconnection ever brought it back.
+                //
+                // A sync that did not land is asked for again instead, like any stanza this
+                // phone could not read: the server re-sends what nobody acknowledged.
+                if (await ApplyHistoryAsync(history)) await session.SendAsync(IncomingMessage.Ack(node));
+                else await AskAgainAsync(session, node, account);
+
                 return;
             }
+
+            // The acknowledgement comes after the read, and it is what proves the read.
+            // A duplicate is acknowledged too: it was read once already, and the second copy
+            // is what proves the first ack was lost. This line is below the history sync on
+            // purpose, and not only because a sync is answered above: whoever moves it up is
+            // one `if` away from acking a sync that never landed, and the guard
+            // (`tools/check-history-sync.js`) reads that order.
+            await session.SendAsync(IncomingMessage.Ack(node));
+
+            if (incoming == null) return;
 
             // A copy of something this account sent from another device: shown by the phone
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
@@ -907,8 +923,17 @@ namespace WhatsappApp.Services
 
             lock (_awaitingAck)
             {
-                if (_awaitingAck.Count >= MaxAwaitingAck) _awaitingAck.Clear();
+                // An id that has been acked is gone from the set and its place in the
+                // order is stale; dropping those first keeps the queue bounded.
+                while (_ackOrder.Count > 0 && !_awaitingAck.Contains(_ackOrder.Peek())) _ackOrder.Dequeue();
+
+                while (_awaitingAck.Count >= MaxAwaitingAck && _ackOrder.Count > 0)
+                {
+                    _awaitingAck.Remove(_ackOrder.Dequeue());
+                }
+
                 _awaitingAck.Add(id);
+                _ackOrder.Enqueue(id);
             }
         }
 
@@ -1523,6 +1548,30 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The answer to a stanza this phone could not take: a `retry` receipt, which asks the
+        /// sender to send it again, instead of the `ack` that would throw it away.
+        ///
+        /// Why it is one method and not two copies: the two callers are the stanza that did
+        /// not open and the history sync that did not land, and both of them must leave the
+        /// stanza unacknowledged for the same reason (the server re-sends what nobody
+        /// acknowledged). A failure of the receipt itself is named and survived: the stanza is
+        /// still unacknowledged, which is the answer that matters.
+        /// </summary>
+        private async Task AskAgainAsync(NativeSession session, BinaryNode node, Credentials account)
+        {
+            try
+            {
+                await session.SendAsync(IncomingMessage.RetryReceipt(node, NowSeconds(),
+                    account == null ? 0 : account.RegistrationId));
+                Diag.Ok("native: asked " + node.Attrs["from"] + " to send " + node.Attrs["id"] + " again");
+            }
+            catch (Exception again)
+            {
+                Diag.Failed("NativeConnection/retry receipt", again);
+            }
+        }
+
+        /// <summary>
         /// A message whose payload is media: the row first, then the bytes.
         ///
         /// The row goes out before the download is even started, because the bubble - a photo
@@ -1545,6 +1594,13 @@ namespace WhatsappApp.Services
             MediaInfo info = MediaMessages.Of(incoming.Content);
             if (info == null)
             {
+                // The chat is still a chat. A sticker, a poll, an edit, a contact card or a
+                // media this build has no reader for says the conversation exists and just
+                // moved, and dropping the row with the message left a group able to write
+                // without ever appearing in the list (the phone of 2026-10-23). No bubble is
+                // added: the row takes the time and the place, and says nothing else.
+                NoteChatOf(incoming);
+
                 Diag.Ok("native: message " + incoming.Id + " carries nothing this client reads yet");
                 return;
             }
@@ -1591,6 +1647,26 @@ namespace WhatsappApp.Services
             Diag.Ok("native: " + bytes.Length + " byte(s) of " + info.Type + " for " + incoming.Id);
 
             AnnounceMedia(message.Jid, incoming.Id, info, bytes);
+        }
+
+        /// <summary>
+        /// A chat that arrived with a message this build cannot draw: the row, and no bubble.
+        ///
+        /// False cases are the addresses that are not conversations - `status@broadcast`, a
+        /// channel and the placeholder the server writes for "no account" - so this never puts
+        /// a row on the list that WhatsApp itself would not show.
+        /// </summary>
+        private void NoteChatOf(IncomingMessage incoming)
+        {
+            if (incoming == null || incoming.Chat == null) return;
+            if (!JidUtils.IsConversation(incoming.Chat)) return;
+            if (!_chats.NoteIncoming(incoming.Chat, incoming.Timestamp)) return;
+
+            HistoryConversation row = _chats.Find(incoming.Chat);
+            if (row != null) _chats.RefreshName(row);
+            if (row != null && ChatArrived != null) ChatArrived(this, row);
+
+            Diag.Ok("native: " + incoming.Chat + " is in the list from a message this build does not draw");
         }
 
         /// <summary>The bytes of a media message, for the app to put in the bubble.</summary>
@@ -1661,11 +1737,13 @@ namespace WhatsappApp.Services
         /// like any other media). A notification that names neither is named in the log - a
         /// field that is missing must not look like a history that was empty.
         ///
-        /// The download is awaited: the acknowledgement went out before this point, so a slow
-        /// blob cannot delay it, and this waits for exactly as long as the message media path
-        /// already makes the stanza reader wait.
+        /// The download is awaited, and the answer says whether it landed: the acknowledgement
+        /// of the stanza is the caller's, and it goes out only on a true. It is the one thing
+        /// the server takes as "this sync is delivered", and WhatsApp sends the story of a
+        /// device once per link - so an ack over a blob that never downloaded is the rest of
+        /// the chat list gone, with no way to ask for it again.
         /// </summary>
-        private async Task ApplyHistoryAsync(HistorySyncNotification notification)
+        private async Task<bool> ApplyHistoryAsync(HistorySyncNotification notification)
         {
             HistorySync sync;
 
@@ -1683,9 +1761,14 @@ namespace WhatsappApp.Services
                 }
                 else
                 {
+                    // Nothing to fetch: the notification names neither a payload nor a blob.
+                    // It is answered (true) and not asked for again - a retry would get the
+                    // same empty notification back at every login, which is a conversation
+                    // with the server that repairs nothing. The line is what says so in the
+                    // log instead of a list that stops at whatever was already there.
                     Diag.Ok("native: history sync type " + notification.SyncType
                         + " carries neither an inline payload nor a mediaKey/directPath");
-                    return;
+                    return true;
                 }
             }
             catch (Exception error)
@@ -1693,12 +1776,15 @@ namespace WhatsappApp.Services
                 // A blob that will not download, or will not open, must not end the login:
                 // this runs on the socket loop every message arrives on, and the rest of the
                 // sync still has a chat list to fill. The failure is named with its address,
-                // so the phone's log says which blob to look at.
+                // so the phone's log says which blob to look at - and the answer is false, so
+                // the stanza stays unacknowledged and the server offers it again.
                 Diag.Failed("NativeConnection/history", error);
-                return;
+                return false;
             }
 
             ApplySync(sync);
+
+            return true;
         }
 
         /// <summary>

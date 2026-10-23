@@ -592,14 +592,27 @@ namespace WhatsappApp.Protocol.Client
             IList<BinaryNode> children = message.Children();
             if (children == null) return null;
 
+            // The account has two addresses and a stanza may name either: the number, and the
+            // LID. `IsMine` has known that for a while; this lookup knew only the number, so a
+            // `to` addressed to `…@lid` matched nothing and the message was refused with "no
+            // enc for this device" - the line the phone logged on 23 October 2026 for a
+            // newsletter post. A message nobody can open is a message lost, and the sender
+            // retries it against the same address.
             string mine = User(credentials == null ? null : credentials.Jid);
+            string lid = User(credentials == null ? null : credentials.Lid);
+            bool known = mine != null || lid != null;
 
             for (int i = 0; i < children.Count; i++)
             {
                 if (children[i].Tag != "to") continue;
 
                 string jid = children[i].Attrs["jid"];
-                if (mine != null && User(jid) != mine) continue;
+                string user = User(jid);
+
+                // With no identity to compare - credentials that carry no JID at all - the
+                // first ciphertext is the only guess there is, which is what this did before.
+                if (known && user != null && user != mine && user != lid) continue;
+                if (known && user == null) continue;
 
                 BinaryNode enc = children[i].Child("enc");
                 if (enc != null) return enc;

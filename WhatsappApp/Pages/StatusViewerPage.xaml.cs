@@ -260,6 +260,11 @@ namespace WhatsappApp.Pages
                 : "media failed";
             Diag.Failed("StatusViewerPage/video", new InvalidOperationException(reason));
 
+            // The player gave up, so the *next* attempt has to be allowed to start: with this
+            // flag left set, Retry hid the panel, asked for the video again and `ShowVideo`
+            // returned at its own guard - a button that did nothing.
+            _videoStarted = false;
+
             StatusVideo.Visibility = Visibility.Collapsed;
             MissingPanel.Visibility = Visibility.Visible;
         }

@@ -38,6 +38,18 @@ are, but no new commit adds it back.
 `git push origin master`. Push is the rule, not a question: a change is finished
 only when it is on the remote. Confirm the remote and the branch before pushing.
 
+**Before every single push, not only the first of a session**, read the message of
+the commit that is about to go out and check that it carries no AI attribution:
+
+```bash
+git log -1 --format=%B | grep -in -e 'co-authored-by' -e 'generated with' -e 'codebuff'
+```
+
+That command must print nothing. A hit means the commit is rewritten
+(`git commit --amend --no-edit` after removing the trailer) **before** the push -
+`maintain-the-app`'s rule and the README say the same, so no commit of this
+repository ever adds the footer back.
+
 ## The documents
 
 - the two READMEs of a pair, English and Italian, in the same commit

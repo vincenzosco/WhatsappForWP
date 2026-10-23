@@ -125,6 +125,11 @@ Tips:
   person's picture with their name in the large line and their last message under it, and the
   number of waiting messages on the badge. The app's own tile reads the same way, and between
   one message and the next it shows the face alone of somebody who is waiting for an answer.
+  A pinned tile is drawn again at every start, from the picture and the count the phone has, so
+  a new version of the app does not leave the card of the previous one on the Start screen. The
+  picture it draws is the full-size profile picture it asks WhatsApp for once the chat is pinned,
+  not the small preview the chat list uses: the tile is the one place that shows a face at the
+  size of the tile.
 - The background check is on by default. Turn it off in Settings if the phone should stay quiet.
 - If the app opens an empty list and stays there, open the Diagnostics page from the empty state:
   it shows the last `DIAG` lines.

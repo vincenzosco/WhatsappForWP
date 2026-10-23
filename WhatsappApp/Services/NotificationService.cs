@@ -94,7 +94,11 @@ namespace WhatsappApp.Services
                 if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyImage, out value) && value != null)
                 {
                     string image = value.ToString();
-                    _senderImage = image.Length == 0 ? null : image;
+
+                    // A name from the composition rules of another build has no card of the
+                    // 71x71 size beside it: the binding would point at nothing, and an app
+                    // mark is better than a hole until the next message writes the three.
+                    _senderImage = TileImage.IsCurrentCard(image) ? image : null;
                 }
                 if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyUnread, out value)
                     && value is int)
@@ -306,7 +310,7 @@ namespace WhatsappApp.Services
 
             // 71x71 carries the person's picture whenever there is one - it is the only
             // thing that size has room for - and the app mark when the chat has no picture.
-            AddSmallBinding(xml, visual, entry.Image ?? TileIconUri);
+            AddSmallBinding(xml, visual, entry.Image == null ? TileIconUri : TileImage.SmallOf(entry.Image));
 
             updater.Update(new TileNotification(xml));
         }

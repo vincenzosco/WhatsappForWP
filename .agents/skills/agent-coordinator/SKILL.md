@@ -42,6 +42,14 @@ session, so "load" means load the role's skill and follow it, in order.
    The result is the changed tree plus the fast gate output.
 5. Load `agent-publisher` and carry out its rules. The result is the commits,
    the pushes and the updated documents.
+
+   **Every push, every time, carries no AI attribution.** No `Co-Authored-By`, no
+   "Generated with ..." footer, no robot emoji, no agent name in the message: the
+   commit is signed by the person whose account pushes it. This is not a style
+   preference and not a one-off - GitHub reads a `Co-Authored-By` naming an agent
+   into the contributors list, and the operator has already had to force-push
+   commits out to strip one. Before each `git push origin master`, the publisher's
+   `git log -1 --format=%B | grep ...` check must come back empty.
 6. Report to the user: what was investigated, what changed, the commit hashes,
    what was pushed, and what still needs a phone run.
 
@@ -72,6 +80,9 @@ publisher like any other file. "Push the agents on GitHub" is this rule.
 
 Stop and say so, without substituting a guess for a role:
 
+- the commit about to be pushed carries an AI trailer (or any attribution line):
+  rewrite it first; if the publisher already pushed one, say so plainly instead of
+  hiding it;
 - a role's `SKILL.md` is missing or renamed: name it and stop, do not skip it;
 - the investigator answers "not found": report what it ruled out and stop;
 - the publisher's gate, test or ARM build fails: report the output and commit

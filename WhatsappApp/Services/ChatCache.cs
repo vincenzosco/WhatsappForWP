@@ -97,10 +97,13 @@ namespace WhatsappApp.Services
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
                 await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
-            catch (Exception ex)
+            catch (FileNotFoundException)
             {
                 // A file that is not there is not a failure: the first link deletes
                 // a copy that was never written.
+            }
+            catch (Exception ex)
+            {
                 Diag.Failed("ChatCache.Delete", ex);
             }
         }

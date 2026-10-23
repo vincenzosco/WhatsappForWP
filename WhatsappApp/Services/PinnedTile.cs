@@ -44,6 +44,37 @@ namespace WhatsappApp.Services
         /// <summary>WP8.1 refuses a tile id over this length, and one with other characters.</summary>
         private const int MaxTileIdLength = 64;
 
+        /// <summary>
+        /// The full-size picture of a pinned chat, as the bytes a card is composed from.
+        ///
+        /// Why it is kept and not only fetched: the tile is redrawn on every unread change,
+        /// and the row hands it the chat's `AvatarData` - the 96x96 preview the chat list
+        /// draws. On a card of 336 that preview is a face enlarged 3.5 times, which is the
+        /// "foto troppo zoommata e non adattata" of 23 October 2026. The full picture is
+        /// asked once per chat and kept here, so the next redraw is composed from it too.
+        /// </summary>
+        private static readonly Dictionary<string, string> Sharp =
+            new Dictionary<string, string>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// How many times one chat's full picture is asked for in a run.
+        ///
+        /// Why a budget and not one attempt: the tiles are drawn at a start, before the
+        /// login, so the first answer is "no session yet" - and giving up there leaves the
+        /// tile blurry for the whole run. Why not unlimited: a chat whose picture the server
+        /// never has would be a request per message.
+        /// </summary>
+        private const int MaxPictureAttempts = 3;
+
+        private static readonly Dictionary<string, int> Attempts =
+            new Dictionary<string, int>(StringComparer.Ordinal);
+
+        /// <summary>The chats whose full picture is being fetched right now.</summary>
+        private static readonly HashSet<string> Asking = new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>The lock the three above are guarded by.</summary>
+        private static readonly object Pictures = new object();
+
         private const string SmallLogo = "ms-appx:///Assets/Square71x71Logo.png";
         private const string MediumLogo = "ms-appx:///Assets/Logo.png";
         private const string WideLogo = "ms-appx:///Assets/WideLogo.png";
@@ -137,7 +168,12 @@ namespace WhatsappApp.Services
 
                 // The tile exists with the package's logos; the picture and the count come
                 // on a notification, which is the only thing a running app may change.
-                await RenderAsync(chatId, display, 0, avatarData, body);
+                await RenderAsync(chatId, display, 0, PictureFor(chatId, avatarData), body, true);
+
+                // And the picture the tile was just composed from is the preview the list
+                // draws: the full one is asked for here, and the card is drawn again when it
+                // arrives (see `AskForPicture`).
+                AskForPicture(chatId, display, 0, body, true);
 
                 Diag.Ok("pinned tile: " + chatId + " added");
                 return true;
@@ -155,13 +191,124 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void Update(string chatId, string name, int count, string avatarData, string body)
         {
+            Update(chatId, name, count, avatarData, body, true);
+        }
+
+        /// <summary>
+        /// The same, for a caller that knows the picture but not the number.
+        ///
+        /// Why it exists: the copy of the chat list on the phone carries no unread counts on
+        /// purpose (`ChatCache.Slim`), so the startup sweep that redraws the tiles knows every
+        /// row as zero. Publishing that zero cleared the badge of every pinned chat at every
+        /// start, and the count only comes back with a message. With `countKnown` false the
+        /// tile is drawn - picture, name, message - and the badge is left exactly as the shell
+        /// had it.
+        /// </summary>
+        public static void Update(string chatId, string name, int count, string avatarData, string body, bool countKnown)
+        {
             if (string.IsNullOrEmpty(chatId)) return;
             if (!IsPinned(chatId)) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("PinnedTile/update",
-                RenderAsync(chatId, name, count, avatarData, body));
+                RenderAsync(chatId, name, count, PictureFor(chatId, avatarData), body, countKnown));
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Asks WhatsApp for the picture a pinned chat's tile should show, once per chat.
+        ///
+        /// Why the full picture and not the preview the list draws: the tile is the one place
+        /// that shows a person's face at the size of the screen's own tile, and the preview
+        /// WhatsApp sends is 96 pixels square. Composed on the 336 card that is a face
+        /// enlarged 3.5 times - soft, and at 150 dp it fills the whole tile - which is what
+        /// the phone reported on 23 October 2026 while the tile's own geometry was already
+        /// right: on WP8.1 a peek template flips and shows the square image across the tile.
+        ///
+        /// A start draws the tiles before the login, so the first answer is "no session";
+        /// that attempt is given back and the next publish tries again, up to
+        /// `MaxPictureAttempts` in a run. A chat the server answers no picture for keeps the
+        /// preview and is not asked again.
+        /// </summary>
+        public static void AskForPicture(string chatId, string name, int count, string body, bool countKnown)
+        {
+            if (string.IsNullOrEmpty(chatId)) return;
+            if (!IsPinned(chatId)) return;
+
+            lock (Pictures)
+            {
+                string sharp;
+                if (Sharp.TryGetValue(chatId, out sharp)) return;
+                if (Asking.Contains(chatId)) return;
+
+                int attempts;
+                Attempts.TryGetValue(chatId, out attempts);
+                if (attempts >= MaxPictureAttempts) return;
+
+                Attempts[chatId] = attempts + 1;
+                Asking.Add(chatId);
+            }
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("PinnedTile/picture",
+                FetchPictureAsync(chatId, name, count, body, countKnown));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The picture a card is composed from: the chat's full-size one once it is here, and
+        /// the caller's (the preview the list draws) until then.
+        /// </summary>
+        private static string PictureFor(string chatId, string given)
+        {
+            lock (Pictures)
+            {
+                string sharp;
+                return Sharp.TryGetValue(chatId, out sharp) ? sharp : given;
+            }
+        }
+
+        /// <summary>
+        /// One chat's full picture, and the tile redrawn from it.
+        ///
+        /// Every failure is named and survived: a phone with no session, or a contact whose
+        /// picture is private, is a tile that keeps the preview - not a tile that disappears.
+        /// </summary>
+        private static async Task FetchPictureAsync(string chatId, string name, int count, string body,
+            bool countKnown)
+        {
+            try
+            {
+                byte[] jpeg = await NativeConnection.Instance.RequestAvatarAsync(chatId, false);
+
+                if (jpeg == null || jpeg.Length == 0)
+                {
+                    // An answer, not a failure: this chat has no picture to give, and the
+                    // preview the list drew is the best this tile is going to have. The
+                    // budget is spent, so it is not asked again in this run.
+                    lock (Pictures) Attempts[chatId] = MaxPictureAttempts;
+                    Diag.Ok("pinned tile: " + chatId + " has no picture to give");
+                    return;
+                }
+
+                string sharp = Convert.ToBase64String(jpeg);
+                lock (Pictures) Sharp[chatId] = sharp;
+
+                Diag.Ok("pinned tile: " + jpeg.Length + " byte(s) of picture for " + chatId
+                    + ", composed again from it");
+
+                await RenderAsync(chatId, name, count, sharp, body, countKnown);
+            }
+            catch (Exception error)
+            {
+                // No session yet, or none any more: the attempt is spent, the preview stays,
+                // and the next publish (a message, a count) tries again.
+                Diag.Failed("PinnedTile/picture " + chatId, error);
+            }
+            finally
+            {
+                lock (Pictures) Asking.Remove(chatId);
+            }
         }
 
         /// <summary>
@@ -203,7 +350,8 @@ namespace WhatsappApp.Services
         /// when there is no message to quote. The request of 23 October 2026 was that the two
         /// tiles read the same way.
         /// </summary>
-        private static async Task RenderAsync(string chatId, string name, int count, string avatarData, string body)
+        private static async Task RenderAsync(string chatId, string name, int count, string avatarData, string body,
+            bool countKnown)
         {
             string tileId = TileIdFor(chatId);
 
@@ -212,7 +360,11 @@ namespace WhatsappApp.Services
             string wide = image == null ? AppWideIcon : TileImage.WideOf(image);
 
             string sender = string.IsNullOrEmpty(name) ? chatId : name;
-            TileLines lines = TileText.For(sender, body, NotificationService.UnreadText(count));
+
+            // An unknown count is not zero: with no message to quote, the second line stays
+            // empty rather than saying nobody is waiting.
+            string unread = countKnown ? NotificationService.UnreadText(count) : "";
+            TileLines lines = TileText.For(sender, body, unread);
 
             var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
 
@@ -241,11 +393,14 @@ namespace WhatsappApp.Services
                 lines.First, lines.Second, image ?? AppIcon);
 
             // 71x71: the picture, and nothing else fits. The number travels on the badge.
-            AddSmall(xml, visual, image ?? AppIcon);
+            // The card of that size and not the square one: a binding fills the tile with the
+            // image it is given and crops the rest, so the 336 card here showed the middle of
+            // the face, magnified (23 October 2026).
+            AddSmall(xml, visual, card == null ? AppIcon : card.Small);
 
             updater.Update(new TileNotification(xml));
 
-            SetBadge(tileId, count);
+            if (countKnown) SetBadge(tileId, count);
         }
 
         /// <summary>One binding for another size, imported from that size's own template.</summary>
@@ -272,9 +427,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The small tile: one picture and no text. Its template ships without an `image`
-        /// element, so one is created - with the notification's document, not with the
-        /// template's, or inserting it raises.
+        /// The small tile: one picture and no text, composed at that tile's own side. Its
+        /// template ships without an `image` element, so one is created - with the
+        /// notification's document, not with the template's, or inserting it raises.
         /// </summary>
         private static void AddSmall(XmlDocument xml, XmlElement visual, string image)
         {
