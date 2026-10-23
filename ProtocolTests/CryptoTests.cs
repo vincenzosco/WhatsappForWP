@@ -203,6 +203,36 @@ namespace ProtocolTests
             Assert.ByteArraysEqual(aliceShared, bobShared);
         }
 
+        /// <summary>
+        /// RFC 8032 section 5.1.3: a y at or above the field's prime is not a canonical
+        /// encoding and decoding fails. Reducing it instead accepted two encodings for one
+        /// point - a key the reference clients refuse - and the check is what makes a peer
+        /// key mean one thing.
+        /// </summary>
+        [Test]
+        public static void AnEd25519PointWhoseYIsNotCanonicalIsRefused()
+        {
+            // y = 2^255 - 1, sign bit clear: above 2^255 - 19.
+            var encoded = new byte[32];
+            for (int i = 0; i < 31; i++) encoded[i] = 0xff;
+            encoded[31] = 0x7f;
+
+            Assert.Throws<ProtocolException>(delegate { Edwards25519.Decode(encoded); },
+                "a y at or above the prime is not a point's encoding");
+        }
+
+        /// <summary>The valid encodings still decode, and the point they name is on the curve.</summary>
+        [Test]
+        public static void ACanonicalEd25519PointStillDecodes()
+        {
+            Edwards25519 basePoint = Edwards25519.BasePoint();
+
+            Assert.IsTrue(basePoint.IsOnCurve(), "the generator decodes onto the curve");
+            Assert.ByteArraysEqual(
+                Hex("5866666666666666666666666666666666666666666666666666666666666666"),
+                basePoint.Encode());
+        }
+
         private static byte[] Hex(string text)
         {
             var bytes = new byte[text.Length / 2];

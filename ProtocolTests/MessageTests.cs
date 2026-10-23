@@ -1,4 +1,5 @@
 using System;
+using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.WaProto;
 
 namespace ProtocolTests
@@ -15,6 +16,24 @@ namespace ProtocolTests
     /// </summary>
     public static class MessageTests
     {
+        /// <summary>
+        /// A tag whose field number does not fit 29 bits is not protobuf. Truncating it to
+        /// `int` made a corrupt frame read as a real field with a meaning nobody sent, so it
+        /// is refused like every other malformed value in the reader.
+        /// </summary>
+        [Test]
+        public static void AProtobufFieldNumberThatDoesNotFitIsRefused()
+        {
+            // field = 2^29, wire type 0: one past the format's own ceiling.
+            byte[] tooBig = { 0x80, 0x80, 0x80, 0x80, 0x10 };
+            Assert.Throws<ProtocolException>(delegate { new ProtoReader(tooBig).ReadField(); },
+                "a field number over 2^29-1 is not a field");
+
+            byte[] zero = { 0x00 };
+            Assert.Throws<ProtocolException>(delegate { new ProtoReader(zero).ReadField(); },
+                "and field zero does not exist in protobuf");
+        }
+
         [Test]
         public static void TheReferenceTextMessageIsReproducedByteForByte()
         {

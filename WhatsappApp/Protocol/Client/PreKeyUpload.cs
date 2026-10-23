@@ -67,6 +67,20 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static BinaryNode Node(Credentials credentials, PreKeyStore store, IRandomSource random, int count)
         {
+            return Node(credentials, store, random, count, null);
+        }
+
+        /// <summary>
+        /// The same upload, naming the ids it published.
+        ///
+        /// Why the caller is told: the keys go into the store before the node can be sent,
+        /// and a send that fails leaves them counted as keys the server has. The caller is
+        /// the one that learns the upload failed and is therefore the one that can take them
+        /// back (`PreKeyStore.Unpublish`).
+        /// </summary>
+        public static BinaryNode Node(Credentials credentials, PreKeyStore store, IRandomSource random, int count,
+            IList<uint> published)
+        {
             if (credentials == null) throw new ProtocolException("a pre-key upload needs this device's credentials");
             if (store == null) throw new ProtocolException("a pre-key upload needs the store its private keys go in");
             if (random == null) throw new ProtocolException("a pre-key upload needs randomness");
@@ -86,6 +100,7 @@ namespace WhatsappApp.Protocol.Client
                 // Stored before it is published: a key the server has handed out and this
                 // phone cannot find is a message nobody can read.
                 store.Publish(id, privateKey);
+                if (published != null) published.Add(id);
 
                 keys.Add(Pair("key", BigEndian(id, 3), Curve25519.PublicKey(privateKey)));
             }

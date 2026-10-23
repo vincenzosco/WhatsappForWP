@@ -117,6 +117,10 @@ namespace WhatsappApp.Protocol.Signal
         /// </summary>
         public static byte[] Bare(byte[] key)
         {
+            // Named before it is read: a null key is a refusal with a sentence, which is
+            // what every caller of this file catches, not a NullReferenceException.
+            Require(key, "a key");
+
             if (key.Length == SignalConstants.TypedKeyLength)
             {
                 if (key[0] != SignalConstants.KeyTypeByte)
@@ -136,6 +140,8 @@ namespace WhatsappApp.Protocol.Signal
         /// <summary>A 32-byte key in the form the reference's messages carry it.</summary>
         public static byte[] Typed(byte[] key)
         {
+            Require(key, "a key");
+
             if (key.Length == SignalConstants.TypedKeyLength) return key;
 
             var typed = new byte[SignalConstants.TypedKeyLength];

@@ -210,7 +210,9 @@ namespace WhatsappApp.Protocol.WABinary
                 int device = ReadInt(2);
                 string server = ReadString(ReadByte());
 
-                return user + ":" + device.ToString() + "@" + server;
+                // Encoded and not pasted together: a device of zero is not written out
+                // (`user@server`), exactly as the other JID forms and the reference do.
+                return JidUtils.Encode(user, server, device);
             }
 
             private string ReadInteropJid()
@@ -232,7 +234,7 @@ namespace WhatsappApp.Protocol.WABinary
                     _index = beforeServer;
                 }
 
-                return integrator.ToString() + "-" + user + ":" + device.ToString() + "@" + server;
+                return integrator.ToString() + "-" + JidUtils.Encode(user, server, device);
             }
 
             private string ReadPacked8(int tag)

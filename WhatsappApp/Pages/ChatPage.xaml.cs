@@ -196,7 +196,9 @@ namespace WhatsappApp.Pages
                 AttachmentInbox.Ready += OnAttachmentReady;
                 ShowPendingAttachment();
             }
-        }        /// <summary>
+        }
+
+        /// <summary>
         /// Paints the wallpaper chosen on the settings page. Plain white is the
         /// brush replaced by a solid one: an ImageBrush with no source draws nothing,
         /// and the page behind it would be whatever the frame paints.
@@ -255,11 +257,19 @@ namespace WhatsappApp.Pages
 
         /// <summary>
         /// Readable number of a JID (e.g. +393401234567 for people). Empty for
-        /// groups and for everything that is not a number.
+        /// groups, for a LID, and for everything that is not a number.
+        ///
+        /// A LID is the case that used to go wrong here: its user part is a long run of
+        /// digits, so the digits test below accepted it and the header printed
+        /// `+258212345678901` - a phone number that belongs to nobody. A LID whose number
+        /// is known never reaches this point; one whose number is not has no number to show.
         /// </summary>
         private static string DisplayNumber(string jid)
         {
-            if (string.IsNullOrEmpty(jid) || jid.EndsWith("@g.us")) return "";
+            if (string.IsNullOrEmpty(jid)) return "";
+            if (jid.EndsWith("@g.us")) return "";
+            if (WhatsappApp.Protocol.WABinary.JidUtils.IsLid(jid)) return "";
+
             string user = jid.Split('@')[0];
             if (user.Length < 8) return "";
             for (int i = 0; i < user.Length; i++)
@@ -870,10 +880,14 @@ namespace WhatsappApp.Pages
                     _playOnOpen = true;
                     VoicePlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                     _voiceLoadedFile = message.MediaFilePath;
+
+                    // Only a source that was just opened starts at the beginning. The tap
+                    // that resumes a paused note goes on from where it stopped, which is
+                    // what PauseVoice promises; seeking here restarted it instead.
+                    VoicePlayer.Position = TimeSpan.Zero;
                 }
                 message.AudioFailed = false;
                 _voiceMessage = message;
-                VoicePlayer.Position = TimeSpan.Zero;
                 VoicePlayer.Play();
                 message.IsPlaying = true;
                 StartPlaybackTimer();
@@ -1396,6 +1410,16 @@ namespace WhatsappApp.Pages
             catch (WhatsappApp.Protocol.ProtocolException failed)
             {
                 Diag.Failed("ChatPage/send", failed);
+                message.Status = MessageStatus.Failed;
+            }
+            catch (Exception ex)
+            {
+                // A send can fail with something that is not a refusal of the protocol - a
+                // socket the OS closed between the check and the write, a session store that
+                // could not be read - and this handler is `async void`: an exception that
+                // leaves it is the app closing with the bubble stuck on its circle. The
+                // attachment path right above has always caught both.
+                Diag.Failed("ChatPage/send", ex);
                 message.Status = MessageStatus.Failed;
             }
         }

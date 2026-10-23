@@ -539,6 +539,18 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static BinaryNode Receipt(string to, IList<string> ids, string type, uint timestamp)
         {
+            return Receipt(to, ids, type, timestamp, null);
+        }
+
+        /// <summary>
+        /// The same, with the `participant` a broadcast list needs: a status is not a chat,
+        /// its message lives in `status@broadcast` and the person who posted it is an
+        /// attribute, exactly as it is on the stanza that brought it (`IncomingMessage.Read`
+        /// reads `participant` for the same reason). Without it the receipt names a status
+        /// the list cannot place, and the author's ring does not fill.
+        /// </summary>
+        public static BinaryNode Receipt(string to, IList<string> ids, string type, uint timestamp, string participant)
+        {
             if (string.IsNullOrEmpty(to)) throw new ProtocolException("a receipt needs somebody to go to");
             if (ids == null || ids.Count == 0) throw new ProtocolException("a receipt answers at least one message");
 
@@ -548,6 +560,8 @@ namespace WhatsappApp.Protocol.Client
             receipt.Attrs.Add("type", type);
 
             if (type == "read" || type == "read-self") receipt.Attrs.Add("t", timestamp.ToString());
+
+            if (!string.IsNullOrEmpty(participant)) receipt.Attrs.Add("participant", participant);
 
             if (ids.Count == 1) return receipt;
 

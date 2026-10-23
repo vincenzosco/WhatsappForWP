@@ -1,0 +1,121 @@
+<Page
+    x:Class="WhatsappApp.Pages.StatusViewerPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    Background="Black">
+
+    <!-- One status, full screen: what the author posted, who posted it and when.
+         The update is the screen; the two bars are only what a person needs to
+         know whose it is and a way out. Black is the ground the released app
+         puts a status on, and it is also what makes a photo read at a glance. -->
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- Whose update it is: the name the row already carries (a contact's
+             saved name, a push name, or the number) and the time it was posted.
+             The number is not repeated under the name: the pane had no name to
+             give when it built the row, and a second line of digits says less
+             than the first. -->
+        <Grid Grid.Row="0" Margin="16,8,8,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                <TextBlock x:Name="AuthorText" Text=""
+                           Foreground="White" FontSize="20" FontWeight="SemiBold"
+                           TextTrimming="WordEllipsis"/>
+                <TextBlock x:Name="TimeText" Text=""
+                           Foreground="#FFB0B0B0" FontSize="14"/>
+            </StackPanel>
+
+            <!-- The way out that does not need the hardware key. 48 px and no
+                 theme minimums, like every other icon button in the app. -->
+            <Button x:Name="CloseButton" Grid.Column="1"
+                    Background="Transparent" BorderThickness="0"
+                    MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
+                    Click="CloseButton_Click">
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24">
+                    <!-- IconClose -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="6,6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="18,18"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="18,6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="6,18"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
+        </Grid>
+
+        <!-- The update itself. Only one of these five is ever shown: the photo,
+             the video, the words of a status that is words alone, the spinner
+             while the bytes are on their way, and the line that says they did
+             not come. -->
+        <Grid Grid.Row="1">
+            <Image x:Name="StatusImage" Stretch="Uniform" Visibility="Collapsed"/>
+
+            <MediaElement x:Name="StatusVideo"
+                          AreTransportControlsEnabled="True"
+                          AutoPlay="True"
+                          Stretch="Uniform"
+                          Visibility="Collapsed"
+                          MediaFailed="StatusVideo_MediaFailed"/>
+
+            <TextBlock x:Name="StatusText" Text=""
+                       Foreground="White" FontSize="28" FontFamily="Segoe WP Semilight"
+                       TextWrapping="Wrap" TextAlignment="Center"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"
+                       Margin="32,0,32,0" Visibility="Collapsed"/>
+
+            <ProgressRing x:Name="Loading" IsActive="False"
+                          Width="48" Height="48" Foreground="White"
+                          HorizontalAlignment="Center" VerticalAlignment="Center"
+                          Visibility="Collapsed"/>
+
+            <!-- The download failed: the words say so and the button asks again. A row
+                 whose photo is gone is still an update, and one tap should not be the
+                 only chance to see it. -->
+            <StackPanel x:Name="MissingPanel" Visibility="Collapsed"
+                        VerticalAlignment="Center" HorizontalAlignment="Center"
+                        MaxWidth="360" Margin="24,0,24,0">
+                <TextBlock x:Name="MissingText" x:Uid="StatusViewer_Missing"
+                           Text="This update could not be loaded."
+                           Foreground="#FFB0B0B0" FontSize="16" TextWrapping="Wrap"
+                           TextAlignment="Center"/>
+                <Button x:Name="RetryButton" x:Uid="StatusViewer_Retry"
+                        Content="Try again"
+                        Background="{StaticResource WhatsAppAccentBrush}"
+                        Foreground="White" FontSize="16" FontWeight="SemiBold"
+                        Height="44" BorderThickness="0" Padding="20,0"
+                        HorizontalAlignment="Center" Margin="0,14,0,0"
+                        Click="RetryButton_Click"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- The caption of a photo or a video, on its own band so a bright
+             picture cannot swallow the words. -->
+        <Border x:Name="CaptionBar" Grid.Row="2"
+                Background="#99000000" Visibility="Collapsed">
+            <TextBlock x:Name="CaptionText" Text=""
+                       Foreground="White" FontSize="18" TextWrapping="Wrap"
+                       Margin="16,12,16,16"/>
+        </Border>
+    </Grid>
+</Page>

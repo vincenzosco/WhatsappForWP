@@ -86,6 +86,18 @@ namespace WhatsappApp.Protocol.WABinary
         }
 
         /// <summary>
+        /// The placeholder device the server puts in a device list: device 99 is not a phone,
+        /// and the reference leaves it out of every fan-out (`device !== 99`). The device sits
+        /// inside the JID (`name:99@server`), which is why a check on the front of the string
+        /// never matched one.
+        /// </summary>
+        public static bool IsPlaceholderDevice(string jid)
+        {
+            DecodedJid decoded = Decode(jid);
+            return decoded.IsJid && decoded.HasDevice && decoded.Device == 99;
+        }
+
+        /// <summary>
         /// The JID with the device taken off, which is the JID of the *chat*.
         ///
         /// The reference does exactly this before it decides which conversation a message
@@ -110,6 +122,71 @@ namespace WhatsappApp.Protocol.WABinary
             string server = decoded.Server == "c.us" ? WhatsappServer : decoded.Server;
 
             return Encode(decoded.User, server, 0);
+        }
+
+        /// <summary>
+        /// Whether a stanza's `from` names a conversation this app draws a row for.
+        ///
+        /// Why it is a rule and not a check at each caller: the chat list is built from
+        /// whatever arrives, so anything the server names becomes a row - and two of the
+        /// addresses WhatsApp uses are not people. `status@broadcast` is the status list
+        /// (its updates have their own screen), and `@newsletter` is a channel, which this
+        /// client does not read at all. `0@s.whatsapp.net` is the third and the one the
+        /// device of 2026-10-22 put on screen: it is the placeholder the server writes for
+        /// "no account" (the `from` of an offline marker), and a list with a row called
+        /// "0" in it is a list that says something WhatsApp never did.
+        ///
+        /// A group, a `@lid`, a `@bot` and a `hosted` address are all conversations: the
+        /// rule refuses shapes, never names.
+        /// </summary>
+        public static bool IsConversation(string jid)
+        {
+            DecodedJid decoded = Decode(jid);
+            if (!decoded.IsJid) return false;
+
+            if (decoded.Server == "broadcast" || decoded.Server == "newsletter") return false;
+
+            // The three addresses a person can have a chat with. Anything else that is a JID
+            // (`g.us`, `bot`, `hosted`) is a conversation; an `s.whatsapp.net` whose user part
+            // is all zeros is the placeholder and not an account.
+            if (decoded.Server == WhatsappServer || decoded.Server == "c.us" || decoded.Server == "lid")
+            {
+                return !AllZeros(decoded.User);
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Whether this address is a LID: the identifier WhatsApp uses for an account whose
+        /// phone number this phone does not know yet.
+        ///
+        /// Why it is a rule and not a check at each caller: a LID's user part is a long run
+        /// of digits, so anything that prints a JID's user as a number prints a phone number
+        /// that belongs to nobody - `+258212345678901` in the chat list, in the chat header
+        /// and on the contact page. `DisplayNameForJid` learned it the hard way: it had the
+        /// `@lid` guard written, but below the `user.Length >= 8 && all digits` branch, which
+        /// every real LID satisfies - a guard that could not fire.
+        /// </summary>
+        public static bool IsLid(string jid)
+        {
+            DecodedJid decoded = Decode(jid);
+            if (!decoded.IsJid) return false;
+
+            return decoded.DomainType == DomainLid || decoded.DomainType == DomainHostedLid;
+        }
+
+        /// <summary>True for an empty user part and for one made only of zeros.</summary>
+        private static bool AllZeros(string user)
+        {
+            if (string.IsNullOrEmpty(user)) return true;
+
+            for (int i = 0; i < user.Length; i++)
+            {
+                if (user[i] != '0') return false;
+            }
+
+            return true;
         }
 
         /// <summary>The server a domain byte names, for an AD JID on the way in.</summary>

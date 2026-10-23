@@ -184,6 +184,27 @@ namespace WhatsappApp.Protocol.Signal
         }
 
         /// <summary>
+        /// Forgets a key whose upload never reached the server.
+        ///
+        /// Why it is not just left there: `Remaining` is the number that decides whether the
+        /// next refill happens, and a batch that was published into this store and never sent
+        /// counted as keys the server has. A dropped upload then left the count above the
+        /// floor for the life of the install, the phone stopped publishing, and the real
+        /// supply on the server ran down to nothing - peers with no key to start a session
+        /// with. The keys named here are the ones this store generated for that upload and
+        /// nobody else has seen.
+        /// </summary>
+        public void Unpublish(uint id)
+        {
+            if (id == 0) return;
+
+            List<uint> ids = Published();
+            if (ids.Remove(id)) _storage.Write(Index, Body(ids));
+
+            _storage.Remove(Private(id));
+        }
+
+        /// <summary>
         /// The private half of a one-time pre-key, read and not spent.
         ///
         /// Why the read and the spending are two calls: a message that names a pre-key is

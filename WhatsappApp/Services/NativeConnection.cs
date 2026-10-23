@@ -98,9 +98,16 @@ namespace WhatsappApp.Services
         private NativeSession _session;
         private Credentials _account;
         private ISessionStorage _storage;
+        private Task<ISessionStorage> _storageOpening;
         private PreKeyStore _preKeys;
         private SessionStore _sessions;
         private bool _running;
+
+        /// <summary>
+        /// The run of the loop that is alive, so a restart can wait for it instead of
+        /// starting a second login beside it (see <see cref="RestartAsync"/>).
+        /// </summary>
+        private Task _loop;
 
         /// <summary>
         /// Which run of the loop is the current one. A restart bumps it so the loop that
@@ -248,9 +255,10 @@ namespace WhatsappApp.Services
             // The loop runs for the life of the process, and it answers for its own
             // fault: `Guarded` records what it cannot survive, so nobody has to await
             // it here - which is what the pragma is for (C# 5 will not let a `void`
-            // method express this).
+            // method express this). The task is kept anyway, because a restart has to
+            // know when the old login has actually left.
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("NativeConnection/start", RunAsync(generation));
+            _loop = Guarded.RunGuardedAsync("NativeConnection/start", RunAsync(generation));
 #pragma warning restore 4014
         }
 
@@ -269,7 +277,16 @@ namespace WhatsappApp.Services
         {
             Stop();
 
-            for (int i = 0; i < 100 && _running; i++) await Task.Delay(50);
+            // `Stop` only asks the loop to end; the old login may still be inside its read,
+            // and a second login started beside it is two sessions on one account - the
+            // stale one replacing `_session` under every send. The loop's own task is what
+            // says it has left. The wait is bounded, because a socket that does not answer
+            // must not park the pairing that asked for the restart.
+            Task loop = _loop;
+            if (loop != null)
+            {
+                await Task.WhenAny(loop, Task.Delay(TimeSpan.FromSeconds(5)));
+            }
 
             Start();
         }
@@ -459,7 +476,11 @@ namespace WhatsappApp.Services
                     throw new ProtocolException("the connection ended: " + ended);
                 }
 
-                if (kind == InboundKind.Ack || (kind == InboundKind.Ignored && node.Tag == "iq"))
+                // `node` can be null here - `InboundRouter.Classify` answers Ignored for a
+                // read that produced nothing, which is what the log line above already
+                // handles - and reading `Tag` off it tore down the connection for a frame
+                // the loop only had to skip.
+                if (kind == InboundKind.Ack || (kind == InboundKind.Ignored && node != null && node.Tag == "iq"))
                 {
                     CompleteWaiter(node);
 
@@ -523,7 +544,14 @@ namespace WhatsappApp.Services
                 // The rest is named and not read yet: naming what arrived is what makes the
                 // next device run's log worth reading, which is exactly what the run of
                 // 2026-10-10 lacked.
-                Diag.Ok("native: " + kind + " (" + node.Tag + ") arrived, and nothing reads it yet");
+                //
+                // The tag is asked for the way the line above asks for it: this is the
+                // branch a node that is *not there* falls into (`Classify` answers Ignored
+                // for it), and reading `Tag` off it here was an exception in the one place
+                // whose whole job is to survive the frame - which the loop above turns into
+                // a closed socket and a new login.
+                Diag.Ok("native: " + kind + " (" + (node == null ? "no node" : node.Tag)
+                    + ") arrived, and nothing reads it yet");
             }
         }
 
@@ -1157,6 +1185,12 @@ namespace WhatsappApp.Services
             await WriteAsync(session, id, OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
                 group.AddressingMode, distributions, timestamp, _random));
 
+            // The chain has moved: `Encrypt` advanced the iteration in memory, and this file
+            // is the only thing that says which one the next message uses. A record that is
+            // not written back leaves every later message at iteration 0 - the same key and
+            // the same IV as the first - which the other members refuse as already read.
+            store.SaveSenderKey(SenderKeyName(jid, _account == null ? null : _account.Jid), record);
+
             lock (_senderKeysSent)
             {
                 for (int i = 0; i < distributions.Count; i++) handed.Add(distributions[i].Key);
@@ -1244,7 +1278,9 @@ namespace WhatsappApp.Services
             if (deviceJid.EndsWith("@hosted", StringComparison.OrdinalIgnoreCase)) return true;
             if (deviceJid.EndsWith("@hosted.lid", StringComparison.OrdinalIgnoreCase)) return true;
 
-            return deviceJid.StartsWith("99:", StringComparison.OrdinalIgnoreCase);
+            // The device is inside the JID (`name:99@server`), so the check parses it: a
+            // prefix test on the string matched the phone number, never the device.
+            return JidUtils.IsPlaceholderDevice(deviceJid);
         }
 
         /// <summary>The bundle of a device out of a bundle answer, or null.</summary>
@@ -1345,6 +1381,28 @@ namespace WhatsappApp.Services
             if (plan.Devices.Count == 0) throw new ProtocolException("the server handed no key for " + jid);
 
             return plan.Devices;
+        }
+
+        /// <summary>
+        /// The reader has seen this chat. The chat list keeps its own count so that a message
+        /// arriving next is one, not the pile that was already read; the receipt below is the
+        /// other half of the same decision.
+        /// </summary>
+        public void MarkChatRead(string jid)
+        {
+            _chats.MarkRead(jid);
+        }
+
+        /// <summary>Every conversation at once, for "read all".</summary>
+        public void MarkAllChatsRead()
+        {
+            _chats.MarkAllRead();
+        }
+
+        /// <summary>How many messages of this chat are waiting, as the chat list counts them.</summary>
+        public int UnreadFor(string jid)
+        {
+            return _chats.UnreadFor(jid);
         }
 
         /// <summary>Marks a chat's messages read: the receipt is what stops the peer's phone showing them unread.</summary>
@@ -2019,7 +2077,24 @@ namespace WhatsappApp.Services
                 PreKeyStore store = await PreKeysAsync();
                 if (!ConnectionPolicy.NeedsPreKeys(store.Remaining)) return;
 
-                await session.SendAsync(PreKeyUpload.Node(account, store, _random, PreKeyUpload.RefillCount));
+                // The ids are taken back if the write fails: they were published into the
+                // store before the node could be sent, and counting them as keys the server
+                // has would keep `Remaining` above the floor for ever - the phone would stop
+                // refilling while the server's supply ran down.
+                var published = new List<uint>();
+                BinaryNode upload = PreKeyUpload.Node(account, store, _random, PreKeyUpload.RefillCount, published);
+
+                try
+                {
+                    await session.SendAsync(upload);
+                }
+                catch (Exception sendFailure)
+                {
+                    for (int i = 0; i < published.Count; i++) store.Unpublish(published[i]);
+
+                    Diag.Failed("NativeConnection/prekeys-send", sendFailure);
+                    return;
+                }
                 Diag.Ok("native: published " + PreKeyUpload.RefillCount + " pre-key(s), "
                     + store.Remaining + " in the store");
             }
@@ -2057,11 +2132,42 @@ namespace WhatsappApp.Services
             return _sessions;
         }
 
+        /// <summary>
+        /// The storage, opened once - and opened **once**, which is the part that needs more
+        /// than a null check: the first call leaves an `await` in the middle of the open, and
+        /// a second caller that arrives meanwhile would open a second copy over the same
+        /// folder. Two copies read every blob at their own open, so a session one writes is a
+        /// session the other never sees, and the next message starts a new ratchet for a peer
+        /// that already has one. The task is kept instead of the result so both callers await
+        /// the same open.
+        /// </summary>
         private async Task<ISessionStorage> StorageAsync()
         {
-            if (_storage == null) _storage = await FileSessionStorage.OpenAsync();
+            if (_storage != null) return _storage;
 
-            return _storage;
+            Task<ISessionStorage> opening = _storageOpening;
+            if (opening == null)
+            {
+                opening = OpenStorageAsync();
+                _storageOpening = opening;
+            }
+
+            return await opening;
+        }
+
+        /// <summary>One open, shared by every caller; a failed open is retried by the next.</summary>
+        private async Task<ISessionStorage> OpenStorageAsync()
+        {
+            try
+            {
+                ISessionStorage opened = await FileSessionStorage.OpenAsync();
+                _storage = opened;
+                return opened;
+            }
+            finally
+            {
+                _storageOpening = null;
+            }
         }
 
         /// <summary>

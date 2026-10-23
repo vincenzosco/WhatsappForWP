@@ -40,6 +40,7 @@ namespace WhatsappApp.Pages
 
             // The state line is live: a page that shows what the client is doing has
             // to follow it, or it says "connecting" for as long as it stays open.
+            NativeConnection.Instance.ConnectionStatusChanged -= OnStatusChanged;
             NativeConnection.Instance.ConnectionStatusChanged += OnStatusChanged;
         }
 

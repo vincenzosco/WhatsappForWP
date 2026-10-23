@@ -80,12 +80,19 @@ function connectionProblems(connection) {
   const problems = [];
   const code = connection;
 
-  if (!code.includes('AnnounceAck(')) {
+  // The declarations do not count. `private void AnnounceAck(...)` and
+  // `public bool IsRefused;` satisfied these checks on their own, so deleting every call
+  // site - the exact regression this guard exists for - still printed OK.
+  const calls = code
+    .replace(/private\s+void\s+(AnnounceAck|AwaitAck)\s*\([^)]*\)/g, '')
+    .replace(/public\s+bool\s+IsRefused\s*;/g, '');
+
+  if (!calls.includes('AnnounceAck(')) {
     problems.push(`${CONNECTION}: there is no AnnounceAck for a sent message - the stanza ` +
       'arrives, matches no waiter and is dropped, which is the 2026-10-22 bubble');
   }
 
-  if (!code.includes('AwaitAck(')) {
+  if (!calls.includes('AwaitAck(')) {
     problems.push(`${CONNECTION}: a sent message's id is never remembered (AwaitAck), so an ` +
       'ack cannot be told apart from the answer to a query');
   }
@@ -95,7 +102,7 @@ function connectionProblems(connection) {
       'tell an ack from a receipt');
   }
 
-  if (!/IsRefused/.test(code)) {
+  if (!/\.IsRefused\b/.test(calls)) {
     problems.push(`${CONNECTION}: a refusal (an ack with type="error") is not carried as ` +
       'IsRefused: a message the server rejected would stay on Sending until the wait ends');
   }

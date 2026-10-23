@@ -83,6 +83,11 @@ namespace WhatsappApp.Services
             if (_loaded) return;
             _loaded = true;
 
+            // What the file holds is what is already on disk. A name learned while this read
+            // is in flight bumps the version past it, and that write has to reach the file:
+            // stamping the *current* version as written swallowed it.
+            int diskVersion = _version;
+
             try
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
@@ -127,7 +132,7 @@ namespace WhatsappApp.Services
                         }
 
                         // What was read is already on disk.
-                        _written = _version;
+                        _written = diskVersion;
                     }
                 }
             }
@@ -168,7 +173,9 @@ namespace WhatsappApp.Services
             {
                 Book.Clear();
                 _version++;
-                _written = _version;
+                // `_written` is deliberately not stamped here: the file on disk still holds
+                // the previous account's names, and stamping the new version said it was
+                // already empty, so the queued write returned without writing anything.
             }
 
             Save();

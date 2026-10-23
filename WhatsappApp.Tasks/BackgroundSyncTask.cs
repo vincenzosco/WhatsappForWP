@@ -2,11 +2,16 @@ using System;
 using Windows.ApplicationModel.Background;
 using WhatsappApp.Services;
 
-namespace WhatsappApp
+namespace WhatsappApp.Tasks
 {
     /// <summary>
     /// The class the manifest names (`windows.backgroundTasks`, entry point
-    /// `WhatsappApp.BackgroundSyncTask`): one wake of the periodic message check.
+    /// `WhatsappApp.Tasks.BackgroundSyncTask`): one wake of the periodic message check.
+    ///
+    /// It lives in this component and not in the app because on WP8.1 the system
+    /// instantiates a background task in a process of its own, from a class an
+    /// activatable-class declaration names - a class in the app's own assembly is
+    /// never one it can create (see WhatsappApp.Tasks.csproj).
     ///
     /// It is deliberately thin. The work is `BackgroundSync.RunNow`, which is the
     /// same code the app uses, and this is only the contract the platform insists

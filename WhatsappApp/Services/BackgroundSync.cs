@@ -35,7 +35,7 @@ namespace WhatsappApp.Services
         public const string TaskName = "WhatsAppMessageCheck";
 
         /// <summary>The class the manifest declares; it must be the full name.</summary>
-        public const string EntryPoint = "WhatsappApp.BackgroundSyncTask";
+        public const string EntryPoint = "WhatsappApp.Tasks.BackgroundSyncTask";
 
         /// <summary>
         /// How often the system is asked to wake the task.
@@ -54,10 +54,37 @@ namespace WhatsappApp.Services
         /// </summary>
         private const string KeyInterval = "BackgroundCheck.IntervalMinutes";
 
-        /// <summary>How long a run waits for the login before it gives up.</summary>
-        private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(12);
+        /// <summary>
+        /// The class the registration on this phone was made with.
+        ///
+        /// It is remembered for the same reason the interval is: a registration stores
+        /// the entry point it was created with, and it keeps it. A build that moves the
+        /// task - it lived in the app's own assembly until the manifest stopped being
+        /// enough - would otherwise leave the phone waking a class that no longer exists,
+        /// for as long as the user does not turn the check off and on again. What is
+        /// stored here is what was asked for, and a value that does not match this build
+        /// is a registration to take out and make again.
+        /// </summary>
+        private const string KeyEntryPoint = "BackgroundCheck.EntryPoint";
 
-        /// <summary>How long a run lets the backlog arrive before it reports.</summary>
+        /// <summary>
+        /// How long a whole run may take.
+        ///
+        /// WP8.1 closes the process of a background task after about **30 seconds**, and
+        /// it closes it wherever it is: a run still saving when that happens leaves a file
+        /// half written, which is worse than a run that read less. Twenty is the part this
+        /// code can control, and the waits below stay inside it; the ten left are the load
+        /// of the process itself, which happens before the first line of the log.
+        /// </summary>
+        private static readonly TimeSpan RunBudget = TimeSpan.FromSeconds(20);
+
+        /// <summary>How long a run waits for the login before it gives up.</summary>
+        private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(8);
+
+        /// <summary>
+        /// How long a run lets the backlog arrive before it reports. Clamped to what is
+        /// left of the budget: eight for the login plus six here is over the twenty.
+        /// </summary>
         private static readonly TimeSpan ReadWindow = TimeSpan.FromSeconds(6);
 
         private static readonly object Gate = new object();
@@ -82,7 +109,7 @@ namespace WhatsappApp.Services
         public static void Start()
         {
             if (!SettingsService.BackgroundCheckEnabled) return;
-            if (IsRegistered() && RegisteredInterval() == IntervalMinutes) return;
+            if (IsRegistered() && RegisteredInterval() == IntervalMinutes && RegisteredEntryPoint() == EntryPoint) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("BackgroundSync/register", SetEnabledAsync(true));
@@ -109,12 +136,14 @@ namespace WhatsappApp.Services
                 // The task the phone has was made with some interval, and a task keeps
                 // the trigger it was registered with. Without this the build that asked
                 // for a shorter check would keep the old one forever - which is a phone
-                // that keeps waking every half hour whatever the source says.
-                if (IsRegistered() && RegisteredInterval() == IntervalMinutes) return;
+                // that keeps waking every half hour whatever the source says. The entry
+                // point is remembered for the same reason: a task keeps that too.
+                if (IsRegistered() && RegisteredInterval() == IntervalMinutes
+                    && RegisteredEntryPoint() == EntryPoint) return;
                 if (IsRegistered())
                 {
                     Unregister();
-                    Diag.Ok("background: the interval changed, registering again");
+                    Diag.Ok("background: the registration was made by another build, registering again");
                 }
 
                 BackgroundAccessStatus access = await BackgroundExecutionManager.RequestAccessAsync();
@@ -132,6 +161,7 @@ namespace WhatsappApp.Services
                 builder.Register();
 
                 ApplicationData.Current.LocalSettings.Values[KeyInterval] = IntervalMinutes;
+                ApplicationData.Current.LocalSettings.Values[KeyEntryPoint] = EntryPoint;
 
                 Diag.Ok("background: the check runs every " + IntervalMinutes + " minute(s)");
             }
@@ -179,13 +209,35 @@ namespace WhatsappApp.Services
                 // Not Thread.Sleep: the WP8.1 Runtime profile the app compiles against
                 // does not carry that type (CS0103). Waiting on a task is the same pause
                 // without the missing reference.
-                if (WaitForConnection(ConnectLimit)) Task.Delay(ReadWindow).Wait();
+                if (WaitForConnection(ConnectLimit)) WaitForBacklog(watch.Elapsed);
 
                 int unread = DataService.Instance.UnreadChats();
                 NotificationService.SetUnread(unread);
 
+                // And what it read goes to the phone before this process ends. The tile
+                // is not a record of anything: WhatsApp counts these messages as
+                // delivered when they are acknowledged, and never sends them again, so a
+                // run that drew the tile and closed left the app that opened next with no
+                // backlog and no row that mentioned the message - the count on the tile
+                // said one had arrived and the list showed nothing new.
+                //
+                // Waited for, not fired and forgotten: the process ends when this method
+                // returns, and a write still in flight would be a file half written.
+                try
+                {
+                    DataService.Instance.SaveSnapshotAsync().Wait();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("BackgroundSync/save", ex);
+                }
+
+                // One line the next run can learn from: how much of the 30 seconds this
+                // took, and whether it went over what the code budgeted for itself.
                 Diag.Ok("background: checked in " + watch.ElapsedMilliseconds + " ms, "
-                    + unread + " unread");
+                    + unread + " unread" + (watch.Elapsed > RunBudget
+                        ? " (over the " + (int)RunBudget.TotalSeconds + " s budget)"
+                        : ""));
             }
             catch (Exception ex)
             {
@@ -229,6 +281,30 @@ namespace WhatsappApp.Services
             return 0;
         }
 
+        /// <summary>
+        /// The class the task on this phone was registered for, or empty when this phone
+        /// has never written one - which is a registration made by a build that kept the
+        /// task in the app assembly, and one that has to be made again.
+        /// </summary>
+        private static string RegisteredEntryPoint()
+        {
+            try
+            {
+                object value;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyEntryPoint, out value)
+                    && value is string)
+                {
+                    return (string)value;
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/RegisteredEntryPoint", ex);
+            }
+
+            return "";
+        }
+
         /// <summary>True when this app already has the task registered.</summary>
         public static bool IsRegistered()
         {
@@ -259,13 +335,29 @@ namespace WhatsappApp.Services
 
                 for (int i = 0; i < found.Count; i++) found[i].Unregister(true);
 
-                // Nothing is registered now, so nothing remembers an interval either.
+                // Nothing is registered now, so nothing remembers what it was made with either.
                 ApplicationData.Current.LocalSettings.Values[KeyInterval] = 0;
+                ApplicationData.Current.LocalSettings.Values[KeyEntryPoint] = "";
             }
             catch (Exception ex)
             {
                 Diag.Failed("BackgroundSync/Unregister", ex);
             }
+        }
+
+        /// <summary>
+        /// Waits for the backlog to arrive, for what is left of the budget rather than for
+        /// the whole window: a login that took eight seconds has already spent the part the
+        /// read was going to use, and waiting anyway is how a run reaches the thirty with
+        /// the save still to do.
+        /// </summary>
+        private static void WaitForBacklog(TimeSpan spent)
+        {
+            TimeSpan left = RunBudget - spent;
+            TimeSpan wait = left < ReadWindow ? left : ReadWindow;
+            if (wait <= TimeSpan.Zero) return;
+
+            Task.Delay(wait).Wait();
         }
 
         /// <summary>

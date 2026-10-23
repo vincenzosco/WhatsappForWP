@@ -80,6 +80,13 @@ namespace WhatsappApp.Pages
         /// <summary>One attempt at a time: the retry button and a rotation that ran out can otherwise overlap.</summary>
         private bool _pairing;
 
+        /// <summary>
+        /// The page was left while an attempt was still in flight. The attempt keeps going -
+        /// the key it is scanning may still be accepted - but it must not navigate on behalf
+        /// of a page that is no longer in front.
+        /// </summary>
+        private bool _left;
+
         public PairPage()
         {
             this.InitializeComponent();
@@ -102,6 +109,8 @@ namespace WhatsappApp.Pages
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
+
+            _left = true;
 
             StopRotation();
             ReleaseScreenOn();
@@ -178,6 +187,23 @@ namespace WhatsappApp.Pages
                 await FileSessionStorage.DeleteAllAsync();
                 Diag.Ok("whatsapp: the protocol state of the previous identity is forgotten");
 
+                // And the copy of the previous account, which is not protocol state but is
+                // just as much its own: the list of its chats and the tail of its
+                // conversations. Left in place they do two wrong things - the home opens on
+                // the old list with a "history complete" that is no longer true, and the
+                // sync of the new link cannot be told apart from a list that is already
+                // whole. The sync writes both again (DataService, the end of the history).
+                await ChatCache.DeleteAsync();
+                await MessageCache.DeleteAllAsync();
+                // A new identity: the day of statuses the previous one saw is not this
+                // account's day, and keeping it would put somebody else's updates on the
+                // new account's list.
+                await StatusCache.DeleteAsync();
+
+                // And the answer the previous link gave: this account's history has not
+                // arrived yet.
+                DataService.Instance.BeginHistory();
+
                 // Written whole, before the app leaves this page: a session that is not
                 // stored is a session the next start does not have, and the QR would come
                 // back for a phone that is already linked.
@@ -201,7 +227,15 @@ namespace WhatsappApp.Pages
 
                 Diag.Ok("whatsapp: linked as " + paired.Jid);
 
-                Frame.Navigate(typeof(HomePage));
+                // The link is real either way; only the navigation belongs to a page that is
+                // still in front. Navigating from a page the user already left pulled them
+                // out of whatever they had opened, and a detached page answered it with a
+                // NullReferenceException that painted "the connection failed" over a success.
+                Frame frame = Frame;
+                if (!_left && frame != null)
+                {
+                    frame.Navigate(typeof(HomePage));
+                }
             }
             catch (Exception error)
             {

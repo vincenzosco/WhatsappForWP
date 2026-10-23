@@ -20,7 +20,12 @@
  *     effetto);
  *  4. la copia dell'elenco chat (ChatCache) non tiene i byte di un'immagine:
  *     quelli stanno nella cache degli avatar, che ha dei tetti ed e' letta
- *     prima che le righe salvate vengano applicate.
+ *     prima che le righe salvate vengano applicate;
+ *  5. ImageHelper costruisce la bitmap sul thread della vista: chiede
+ *     HasThreadAccess e, se non c'e', salta sul dispatcher. Una BitmapImage
+ *     costruita da un thread del pool risponde RPC_E_WRONG_THREAD (0x8001010E) e
+ *     la figura si perde - la riga resta con le iniziali e il log ha una riga
+ *     sola (la corsa del 2026-10-22).
  *
  * Usage:
  *   node tools/check-memory.js
@@ -118,6 +123,42 @@ function sourceShapeProblems(source, file) {
 }
 
 const ATTACHMENT_INBOX = 'WhatsappApp/Services/AttachmentInbox.cs';
+
+/**
+ * Problemi del thread su cui nasce una bitmap.
+ *
+ * Perche' esiste: una `BitmapImage` appartiene al thread che possiede la vista
+ * XAML. Costruirla da un thread del pool risponde `RPC_E_WRONG_THREAD`
+ * (0x8001010E): la figura non arriva e la riga resta con le iniziali. Su questa
+ * piattaforma un `await` non torna da solo sul thread della UI, quindi quasi
+ * ogni decodifica che segue una lettura di file, una lettura dal socket o un
+ * `Task.Delay` e' gia' su un thread del pool quando chiede la bitmap - e la
+ * corsa del 2026-10-22 ha lasciato una sola riga,
+ * `Contact.LoadAvatarAsync: Exception 0x8001010E`. Il salto sta in ImageHelper,
+ * una volta, e non nei dieci punti che chiamano.
+ */
+function threadProblems(source, file) {
+  const problems = [];
+  if (file !== HELPER) return problems;
+
+  const code = stripComments(source);
+  if (code.indexOf('BitmapImage') < 0) return problems;
+
+  if (!/HasThreadAccess/.test(code)) {
+    problems.push(`${file}: builds a BitmapImage without asking which thread it is on ` +
+      '(HasThreadAccess): on a pool thread the platform answers RPC_E_WRONG_THREAD ' +
+      '0x8001010E and the picture is lost - the row keeps its initials and the log ' +
+      'has one line for it');
+    return problems;
+  }
+
+  if (!/RunAsync\s*\(/.test(code)) {
+    problems.push(`${file}: checks the thread and does not hop to the dispatcher ` +
+      '(RunAsync): knowing it is the wrong thread is not enough to build a bitmap on it');
+  }
+
+  return problems;
+}
 
 /**
  * Problemi di come entra un file scelto o condiviso.
@@ -280,6 +321,7 @@ function main() {
     problems.push(...cachedRowsProblems(source, rel));
     problems.push(...historyCeilingProblems(source, rel));
     if (rel === HELPER) problems.push(...sourceShapeProblems(source, rel));
+    problems.push(...threadProblems(source, rel));
   }
 
   if (problems.length) {
@@ -287,14 +329,16 @@ function main() {
     console.log(`\n${problems.length} memory problem(s).`);
     process.exit(1);
   }
-  console.log('OK: every decoded bitmap asks for the width it is shown at, the row cache ' +
-    'stays slim, and the pictures have a bounded cache read before the rows.');
+  console.log('OK: every decoded bitmap asks for the width it is shown at and is built on ' +
+    'the thread that draws it, the row cache stays slim, and the pictures have a bounded ' +
+    'cache read before the rows.');
 }
 
 if (require.main === module) main();
 
 module.exports = {
   decodeProblems,
+  threadProblems,
   attachmentProblems,
   avatarCacheProblems,
   cachedRowsProblems,

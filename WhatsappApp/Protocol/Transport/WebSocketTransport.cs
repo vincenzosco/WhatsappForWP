@@ -38,6 +38,16 @@ namespace WhatsappApp.Protocol.Transport
         private DataWriter _writer;
 
         /// <summary>
+        /// One write at a time. `SendAsync` is called from independent tasks - the reader's
+        /// acks, the keep-alive's ping, a receipt, a presence change, and the user's own
+        /// message - and a `DataWriter` is a buffer, not a queue: a second `WriteBytes`
+        /// during the first `StoreAsync` appends its node to the message being drained, so
+        /// the server receives two stanzas glued into one frame and reads neither.
+        /// </summary>
+        private readonly System.Threading.SemaphoreSlim _sending =
+            new System.Threading.SemaphoreSlim(1, 1);
+
+        /// <summary>
         /// Opens the connection.
         ///
         /// The `Origin` header is not decoration: the server refuses a client that does
@@ -68,11 +78,21 @@ namespace WhatsappApp.Protocol.Transport
         /// <summary>Sends one encoded node as one message.</summary>
         public async Task SendAsync(byte[] payload)
         {
-            if (_writer == null) throw new ProtocolException("the connection is not open");
+            await _sending.WaitAsync();
 
-            _writer.WriteBytes(payload);
-            await _writer.StoreAsync();
-            await _writer.FlushAsync();
+            try
+            {
+                DataWriter writer = _writer;
+                if (writer == null) throw new ProtocolException("the connection is not open");
+
+                writer.WriteBytes(payload);
+                await writer.StoreAsync();
+                await writer.FlushAsync();
+            }
+            finally
+            {
+                _sending.Release();
+            }
         }
 
         /// <summary>
@@ -137,20 +157,26 @@ namespace WhatsappApp.Protocol.Transport
         {
             try
             {
-                DataReader reader = args.GetDataReader();
-                uint length = reader.UnconsumedBufferLength;
+                // Disposed with the message: the reader holds a native buffer, and a history
+                // sync alone hands over hundreds of them.
+                byte[] payload;
 
-                // An empty message is not a frame and not a close: handing it to the reader
-                // would end a session that is perfectly fine, and the server never sends
-                // one, so it is written down and stepped over.
-                if (length == 0)
+                using (DataReader reader = args.GetDataReader())
                 {
-                    Diag.Ok("WebSocketTransport: an empty message arrived and was ignored");
-                    return;
-                }
+                    uint length = reader.UnconsumedBufferLength;
 
-                var payload = new byte[length];
-                reader.ReadBytes(payload);
+                    // An empty message is not a frame and not a close: handing it to the
+                    // reader would end a session that is perfectly fine, and the server never
+                    // sends one, so it is written down and stepped over.
+                    if (length == 0)
+                    {
+                        Diag.Ok("WebSocketTransport: an empty message arrived and was ignored");
+                        return;
+                    }
+
+                    payload = new byte[length];
+                    reader.ReadBytes(payload);
+                }
 
                 lock (_gate) Release(payload);
             }

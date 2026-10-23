@@ -124,10 +124,22 @@ namespace WhatsappApp.Protocol.WaProto
         public ProtoField ReadField()
         {
             ulong tag = ReadVarint();
+            ulong number = tag >> 3;
+            int wireType = (int)(tag & 7);
+
+            // Refused instead of cast: a tag whose field number does not fit 29 bits is not
+            // protobuf, and `(int)` truncated it to a small number that can coincide with a
+            // real field - so a corrupt frame would be read as a valid one with a meaning
+            // nobody sent. Wire types above 5 do not exist either.
+            if (number == 0 || number > 536870911UL || wireType > 5)
+            {
+                throw new ProtocolException("a protobuf field is not one: number " + number
+                    + ", wire type " + wireType);
+            }
 
             var field = new ProtoField();
-            field.Number = (int)(tag >> 3);
-            field.WireType = (int)(tag & 7);
+            field.Number = (int)number;
+            field.WireType = wireType;
 
             return field;
         }

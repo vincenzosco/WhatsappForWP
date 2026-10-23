@@ -245,10 +245,10 @@
                                 </PathGeometry>
                             </Path.Data>
                         </Path>
-                        <TextBlock x:Uid="ChatsPage_EmptyTitle" Text="No chats yet"
+                        <TextBlock x:Name="EmptyTitleText" x:Uid="ChatsPage_EmptyTitle" Text="No chats yet"
                                    Foreground="#FF9E9E9E" FontSize="16"
                                    HorizontalAlignment="Center" Margin="0,10,0,0"/>
-                        <TextBlock x:Uid="ChatsPage_EmptyHint" Text="Tap new chat to start"
+                        <TextBlock x:Name="EmptyHintText" x:Uid="ChatsPage_EmptyHint" Text="Tap new chat to start"
                                    Foreground="#FFBDBDBD" FontSize="13"
                                    HorizontalAlignment="Center" Margin="0,2,0,0"/>
 

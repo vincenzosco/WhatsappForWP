@@ -111,7 +111,11 @@ namespace WhatsappApp.Protocol.Client
 
                 HistoryConversation row = EnsureRow(chunk.Jid);
 
-                row.UnreadCount = chunk.UnreadCount;
+                // The count is the server's, but only on a chunk that brought something new.
+                // WhatsApp re-delivers chunks after a reconnect (`SeenMessages` is why this
+                // is safe), and a chunk whose every message is already here must not put back
+                // a count the reader has cleared.
+                bool fresh = false;
                 row.Archived = row.Archived || chunk.Archived;
                 if (chunk.Name != null) row.Name = chunk.Name;
                 if (string.IsNullOrEmpty(row.Name)) row.Name = _names.NameFor(chunk.Jid);
@@ -130,9 +134,12 @@ namespace WhatsappApp.Protocol.Client
 
                     if (!AddMessage(row, message)) continue;
 
+                    fresh = true;
                     message.IsHistory = true;
                     if (Shows(message)) applied.Add(message);
                 }
+
+                if (fresh) row.UnreadCount = chunk.UnreadCount;
             }
 
             for (int i = 0; i < sync.PushNames.Count; i++)
@@ -228,6 +235,33 @@ namespace WhatsappApp.Protocol.Client
             Order();
 
             return true;
+        }
+
+        /// <summary>
+        /// The reader has seen this chat: its count goes back to zero, so the message that
+        /// arrives next is one and not the pile that was already read. Without this the row
+        /// hands the old count back with every later message, because `ApplyChat` copies it
+        /// onto the chat-list row.
+        /// </summary>
+        public void MarkRead(string jid)
+        {
+            HistoryConversation row = Find(jid);
+            if (row == null) return;
+
+            row.UnreadCount = 0;
+        }
+
+        /// <summary>Every conversation at once: the reader cleared the whole list.</summary>
+        public void MarkAllRead()
+        {
+            for (int i = 0; i < _rows.Count; i++) _rows[i].UnreadCount = 0;
+        }
+
+        /// <summary>How many messages of this chat are waiting, 0 for a chat never heard of.</summary>
+        public int UnreadFor(string jid)
+        {
+            HistoryConversation row = Find(jid);
+            return row == null ? 0 : row.UnreadCount;
         }
 
         /// <summary>The row for a chat, or null when the chat list has never heard of it.</summary>

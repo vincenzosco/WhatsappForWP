@@ -57,12 +57,21 @@ namespace WhatsappApp.Protocol.Client
         public const string PlatformKey = KeyPrefix + "Platform";
         public const string PushNameKey = KeyPrefix + "PushName";
 
-        /// <summary>What has to be there for a session to exist. `PushName` is deliberately not in it.</summary>
+        /// <summary>
+        /// What has to be there for a session to exist.
+        ///
+        /// `PushName`, `Lid` and `Platform` are deliberately not in it: the pairing reply
+        /// carries the first only for a business account and the other two only when the
+        /// server names them, an empty value is removed from the phone's storage, and a
+        /// session that answered "no" for want of one was an account the app refused to open
+        /// - sent back to the QR over a link that had just succeeded. `Lid` is filled by the
+        /// login that follows (`NativeConnection.RememberServerLid`).
+        /// </summary>
         private static readonly string[] RequiredKeys = new string[]
         {
             NoisePrivateKey, NoisePublicKey, IdentityPrivateKey, IdentityPublicKey, AdvSecretKey,
             RegistrationIdKey, SignedPreKeyIdKey, SignedPreKeyPublicKey, SignedPreKeyPrivateKey,
-            SignedPreKeySignatureKey, JidKey, LidKey, PlatformKey
+            SignedPreKeySignatureKey, JidKey
         };
 
         /// <summary>
@@ -136,8 +145,11 @@ namespace WhatsappApp.Protocol.Client
             credentials.SignedPreKeyPrivate = ReadKey(SignedPreKeyPrivateKey, 32);
             credentials.SignedPreKeySignature = ReadKey(SignedPreKeySignatureKey, 64);
             credentials.Jid = ReadText(JidKey);
-            credentials.Lid = ReadText(LidKey);
-            credentials.Platform = ReadText(PlatformKey);
+            // Optional for the same reason as `PushName` below: the pairing writes what the
+            // reply carried, an absent value is removed from the storage, and requiring it
+            // here turned a linked account into "no session stored".
+            credentials.Lid = ReadOptionalText(LidKey);
+            credentials.Platform = ReadOptionalText(PlatformKey);
 
             // Optional, and the one key that is: the pairing of an ordinary account carries
             // no push name (`PairingSession` only sets one for a business account), so a

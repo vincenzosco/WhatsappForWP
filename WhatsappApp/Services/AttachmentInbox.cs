@@ -35,7 +35,13 @@ namespace WhatsappApp.Services
         private static string NextCopyName(string extension)
         {
             _copySequence++;
-            return "outgoing_attachment_" + _copySequence.ToString(CultureInfo.InvariantCulture) + extension;
+
+            // The sequence alone starts again at 1 with the process, and the copy replaces an
+            // existing file: the first photo sent after a restart landed on the file the
+            // first photo of the previous run was still being read from. The moment makes the
+            // name new across restarts, the sequence keeps two copies in the same tick apart.
+            return "outgoing_attachment_" + DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture)
+                + "_" + _copySequence.ToString(CultureInfo.InvariantCulture) + extension;
         }
 
         private static string _localFileName;

@@ -115,7 +115,29 @@ namespace WhatsappApp.Models
         public string SenderName
         {
             get { return _senderName; }
-            set { _senderName = value; OnPropertyChanged(); }
+            set
+            {
+                _senderName = value;
+                OnPropertyChanged();
+                // The avatar circle is drawn from the first letter of this one.
+                OnPropertyChanged("Initials");
+            }
+        }
+
+        /// <summary>
+        /// The letter of the avatar circle, when the row has no picture.
+        ///
+        /// The status list binds this (`StatusPane.xaml`), and it asked for it before the
+        /// property existed: the XAML parser's answer was a binding error per realised row
+        /// in the Output window and an empty grey circle on the phone, with no DIAG line and
+        /// nothing that failed. The rule is `DataService.InitialsFor` and not a second one
+        /// here, because the chat list and the status list are the same circle and must not
+        /// drift apart. It is computed and not stored: it is not wire data, so it is not a
+        /// [DataMember] and the row caches do not carry it.
+        /// </summary>
+        public string Initials
+        {
+            get { return WhatsappApp.Services.DataService.InitialsFor(_senderName); }
         }
 
         [DataMember]

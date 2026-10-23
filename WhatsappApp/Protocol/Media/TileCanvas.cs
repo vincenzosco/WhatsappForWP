@@ -3,18 +3,40 @@ using System;
 namespace WhatsappApp.Protocol.Media
 {
     /// <summary>
+    /// The square a decoder crops out of a picture: its side, and where it starts.
+    ///
+    /// A struct rather than three `out` numbers because the three are one answer - the crop
+    /// that makes a picture square without stretching it - and because the C# 5 guard reads
+    /// an `out` parameter in a signature as C# 6's inline declaration.
+    /// </summary>
+    public struct TileCrop
+    {
+        /// <summary>Where the square starts, in the source's own pixels.</summary>
+        public int X;
+        public int Y;
+
+        /// <summary>How many pixels on a side: the source's shorter side.</summary>
+        public int Side;
+    }
+
+    /// <summary>
     /// The picture a tile shows, drawn at the size the tile shows it.
     ///
     /// Why it exists: a WP8.1 tile template that carries an image draws it **over the whole
-    /// tile**, and a profile picture is 96x96 - the preview WhatsApp hands out. Handing that
-    /// file to the tile is what made the phone of 2026-10-22 look like it was showing a
-    /// magnified face, and the same for the app mark: `TileIcon.png` is a glyph with a
-    /// transparent margin, so drawing it edge to edge is a logo enlarged until it is cropped.
+    /// tile**, and the file this app used to hand it was the 96x96 preview WhatsApp sends -
+    /// so the shell stretched it across 150 or 310 pixels and the phone of 2026-10-22 showed a
+    /// magnified face. The answer is an image the shell has nothing to stretch: a tile-sized
+    /// square, already composed.
     ///
-    /// The answer is not a different template - none of them draws an image in a frame - but
-    /// an image that is already a card: the tile's own background, the picture at half the
-    /// tile, centred, with a margin around it. The shell then draws it 1:1 whatever the size,
-    /// so nothing is magnified and nothing is cropped.
+    /// Two rules, because there are two pictures:
+    ///
+    /// - a **chat's own picture fills the tile**. The decoder crops it to its centre square and
+    ///   scales it once, and it is drawn edge to edge - no border, which is what a person means
+    ///   when they say the picture is not the size of the tile. The crop is why a portrait is
+    ///   not stretched into a square; the shell then draws it 1:1 at every size;
+    /// - the **app mark keeps a margin**, at half the tile: it is a glyph that goes away if it
+    ///   is cropped by the wide tile's 310x150 shape, and a logo with a border is a logo, while
+    ///   a cropped one is a mistake.
     ///
     /// It is here, in the protocol core and away from WinRT, because the arithmetic is the
     /// part that can be wrong in a way nobody sees until the phone is in a hand: `TileCanvasTests`
@@ -29,10 +51,10 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public const int Size = 336;
 
-        /// <summary>Side of the picture inside the card: half the card, so it reads as a face.</summary>
+        /// <summary>Side of the app mark: half the card, so a glyph is never cropped by the wide tile.</summary>
         public const int Picture = 168;
 
-        /// <summary>Where the picture starts: the card is symmetric around it.</summary>
+        /// <summary>Where the app mark starts: the card is symmetric around it.</summary>
         public const int Inset = (Size - Picture) / 2;
 
         /// <summary>
@@ -43,6 +65,30 @@ namespace WhatsappApp.Protocol.Media
         public const byte CardBlue = 0x54;
         public const byte CardGreen = 0x5E;
         public const byte CardRed = 0x07;
+
+        /// <summary>
+        /// The centre square of a picture: the rectangle a decoder crops to before it scales.
+        ///
+        /// The rule it encodes: a picture that is not square loses a slice of its longer side,
+        /// evenly at both ends, and is never stretched into one - a face widened to fill the
+        /// tile is the distortion this crop exists to avoid.
+        /// </summary>
+        public static TileCrop CentreSquare(int width, int height)
+        {
+            if (width <= 0 || height <= 0)
+            {
+                throw new ProtocolException("a picture with no side is no picture: " + width + "x" + height);
+            }
+
+            int side = width < height ? width : height;
+
+            var crop = new TileCrop();
+            crop.Side = side;
+            crop.X = (width - side) / 2;
+            crop.Y = (height - side) / 2;
+
+            return crop;
+        }
 
         /// <summary>
         /// A card with nothing on it yet: `Size` x `Size` BGRA pixels of the card's colour,
@@ -65,15 +111,16 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
-        /// The picture drawn into the card at (75, 75) - the centred position - over whatever
-        /// is there. `picture` is BGRA with straight (not premultiplied) alpha, which is what
-        /// the decoder is asked for: the app mark is a glyph with a transparent margin, and
-        /// compositing it over the card is what makes it a mark on a background rather than a
-        /// black square.
+        /// The picture drawn into the card, centred: a picture of the whole tile covers it edge
+        /// to edge, and the app mark - half the tile across - is the one that keeps a margin.
+        ///
+        /// `picture` is BGRA with straight (not premultiplied) alpha, which is what the decoder
+        /// is asked for: the app mark is a glyph with a transparent margin, and compositing it
+        /// over the card is what makes it a mark on a background rather than a black square.
         /// </summary>
         public static void DrawPicture(byte[] canvas, byte[] picture, int width, int height)
         {
-            Draw(canvas, picture, width, height, Inset, Inset);
+            Draw(canvas, picture, width, height, (Size - width) / 2, (Size - height) / 2);
         }
 
         /// <summary>The same, at a place of the caller's choosing. Used by the tests.</summary>

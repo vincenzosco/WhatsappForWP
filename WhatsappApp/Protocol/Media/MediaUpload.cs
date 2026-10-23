@@ -29,6 +29,14 @@ namespace WhatsappApp.Protocol.Media
         public long FileLength;
         public long MediaKeyTimestamp;
         public byte[] JpegThumbnail;
+
+        /// <summary>
+        /// The ciphertext with its mac, built once by <see cref="Prepare"/> and put on the
+        /// wire by <see cref="Body"/>. It is kept because encrypting the file twice - once
+        /// for the hashes and once for the upload - is a second full AES pass over a video
+        /// on a phone with 512 MB, for bytes that are identical by construction.
+        /// </summary>
+        public byte[] EncryptedBody;
     }
 
     /// <summary>
@@ -107,7 +115,11 @@ namespace WhatsappApp.Protocol.Media
             byte[] mac = Hmac.Compute(macKey, Concat(iv, ciphertext));
 
             media.FileSha256 = Sha256.Hash(plaintext);
-            media.FileEncSha256 = Sha256.Hash(Concat(ciphertext, Head(mac, MediaDownload.MacLength)));
+
+            // The body is built here and handed to `Body`, not built again there: the hash is
+            // over exactly these bytes, so a second encryption would be the same work twice.
+            media.EncryptedBody = Concat(ciphertext, Head(mac, MediaDownload.MacLength));
+            media.FileEncSha256 = Sha256.Hash(media.EncryptedBody);
 
             return media;
         }
@@ -120,6 +132,7 @@ namespace WhatsappApp.Protocol.Media
         public static byte[] Body(byte[] plaintext, UploadedMedia media)
         {
             if (plaintext == null || media == null) throw new ProtocolException("there is no file to upload");
+            if (media.EncryptedBody != null) return media.EncryptedBody;
 
             byte[] iv = MediaKeys.Iv(media.MediaKey, media.MediaType);
             byte[] cipherKey = MediaKeys.CipherKey(media.MediaKey, media.MediaType);

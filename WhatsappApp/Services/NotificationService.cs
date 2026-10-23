@@ -166,7 +166,7 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// The sender's picture as the tile draws it: a card the size of the tile, with the
-        /// picture at half of it (`TileImage`), and not the 96x96 preview stretched over the
+        /// picture covering it (`TileImage`), and not the 96x96 preview stretched over the
         /// whole tile - which is what a magnified face on the Start screen was.
         ///
         /// Null when nothing could be written, and the caller then keeps the app mark.

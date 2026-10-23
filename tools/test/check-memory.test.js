@@ -218,3 +218,41 @@ test('un tetto applicato con un if si segnala', () => {
   const found = memory.historyCeilingProblems(source, DATA_SERVICE).join('\n');
   assert.match(found, /while/);
 });
+
+const HELPER = 'WhatsappApp/Services/ImageHelper.cs';
+
+const HOPPING = 'var bitmap = new BitmapImage();\n' +
+  'if (decodePixelWidth > 0) bitmap.DecodePixelWidth = decodePixelWidth;\n' +
+  'await bitmap.SetSourceAsync(stream);\n' +
+  'if (dispatcher == null || dispatcher.HasThreadAccess) return await build();\n' +
+  'await dispatcher.RunAsync(CoreDispatcherPriority.Normal, handler);';
+
+test('ImageHelper del progetto costruisce la bitmap sul thread della vista', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'WhatsappApp', 'Services', 'ImageHelper.cs'), 'utf8');
+  assert.deepStrictEqual(memory.threadProblems(source, HELPER), []);
+  assert.ok(source.includes('RPC_E_WRONG_THREAD'));
+});
+
+test('una bitmap costruita senza chiedere il thread si segnala', () => {
+  const source = 'var bitmap = new BitmapImage();';
+  const found = memory.threadProblems(source, HELPER).join('\n');
+  assert.match(found, /HasThreadAccess/);
+});
+
+test('sapere di essere sul thread sbagliato non basta se non ci si salta', () => {
+  const source = 'var bitmap = new BitmapImage();\n' +
+    'if (dispatcher == null || dispatcher.HasThreadAccess) return await build();';
+  const found = memory.threadProblems(source, HELPER).join('\n');
+  assert.match(found, /RunAsync/);
+});
+
+test('una bitmap costruita sul thread della vista non e un problema', () => {
+  assert.deepStrictEqual(memory.threadProblems(HOPPING, HELPER), []);
+});
+
+test('la regola del thread vale solo per ImageHelper', () => {
+  assert.deepStrictEqual(memory.threadProblems('var bitmap = new BitmapImage();', FILE), []);
+});

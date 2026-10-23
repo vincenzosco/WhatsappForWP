@@ -231,15 +231,36 @@ namespace WhatsappApp
         {
             var deferral = e.SuspendingOperation.GetDeferral();
 
-            // If the OS terminates the process while the app is suspended,
-            // OnLaunched restarts from here.
-            SessionService.Section = CurrentSection();
+            // The deferral is completed inside LeaveWatchingAsync, and only there: if any of
+            // this throws on the way to it the OS waits out the suspension timeout and then
+            // kills the process, with the section unsaved and the run marker still saying a
+            // live run. So the two writes are guarded and the deferral is released here when
+            // the work that owns it never started.
+            bool leaving = false;
+            try
+            {
+                // If the OS terminates the process while the app is suspended,
+                // OnLaunched restarts from here.
+                SessionService.Section = CurrentSection();
 
-            // This is how a run is supposed to end, and it is the only place that
-            // says so: the marker file the run left is removed here, so the next
-            // start reads a run that never reached this line as one that died. A
-            // suspension is not an exit - OnResuming puts the marker back.
-            Diag.EndRun();
+                // This is how a run is supposed to end, and it is the only place that
+                // says so: the marker file the run left is removed here, so the next
+                // start reads a run that never reached this line as one that died. A
+                // suspension is not an exit - OnResuming puts the marker back.
+                Diag.EndRun();
+
+                leaving = true;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/suspend", ex);
+            }
+
+            if (!leaving)
+            {
+                deferral.Complete();
+                return;
+            }
 
             // The socket is not closed here: the OS closes it on its own while the
             // app is suspended, and WhatsApp's own client is what reconnects when
@@ -263,6 +284,21 @@ namespace WhatsappApp
         /// </summary>
         private async void LeaveWatchingAsync(SuspendingDeferral deferral)
         {
+            // The list and the conversations as they are now, before the socket is told
+            // anything: a suspension is allowed to be the end of this run, and a row that
+            // arrived while the app was up would otherwise be gone from the next start's
+            // list. Awaited and not raced against a timeout like the presence below: a
+            // write cut in half is a `chats.json` the next start cannot read, which is an
+            // empty list - worse than the row it was saving.
+            try
+            {
+                await DataService.Instance.SaveSnapshotAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/suspend-snapshot", ex);
+            }
+
             try
             {
                 if (NativeConnection.Instance.IsConnected)
@@ -448,6 +484,19 @@ namespace WhatsappApp
 
             if (e == null || e.Kind != ActivationKind.PickFileContinuation) return;
 
+            // This activation can be the process start: the OS may terminate a suspended app
+            // while the picker is in front, and a continuation goes through OnActivated and
+            // not OnLaunched. Without the services and the frame the file is deposited with
+            // nobody subscribed to AttachmentInbox.Ready, and the user comes back to a blank
+            // window - including the case where they cancelled the picker.
+            if (Window.Current.Content == null)
+            {
+                StartServicesOnce();
+                var frame = EnsureFrame();
+                if (!(frame.Content is HomePage)) frame.Navigate(typeof(HomePage));
+                Window.Current.Activate();
+            }
+
             var continuation = e as FileOpenPickerContinuationEventArgs;
             if (continuation == null || continuation.Files == null || continuation.Files.Count == 0)
             {
@@ -551,8 +600,13 @@ namespace WhatsappApp
                             using (var reader = new DataReader(stream))
                             {
                                 uint size = (uint)stream.Size;
-                                await reader.LoadAsync(size);
-                                var buffer = new byte[size];
+                                uint loaded = await reader.LoadAsync(size);
+
+                                // The stream can answer fewer bytes than it said it had (a
+                                // provider that is not a file): reading `size` anyway
+                                // zero-fills the tail, and the share lands as a corrupt
+                                // picture reported as sent.
+                                var buffer = new byte[loaded];
                                 reader.ReadBytes(buffer);
                                 await AttachmentInbox.PutBytesAsync(buffer, "shared.png", "image/png", null);
                             }
