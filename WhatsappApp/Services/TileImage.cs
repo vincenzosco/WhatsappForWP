@@ -195,9 +195,15 @@ namespace WhatsappApp.Services
         ///
         /// The crop is what lets a picture fill the tile without being stretched: a photo that
         /// is not square loses a slice of its longer side rather than gaining a face that is
-        /// wider than it is tall. The decoder does the two steps in one pass
+        /// wider than it is tall. The decoder does both in one pass
         /// (`BitmapTransform.Bounds` plus `ScaledWidth/Height`), which is also the only place
         /// on this phone with a resampler worth using.
+        ///
+        /// The answer is measured, not assumed: on this phone the decoder returns the crop at
+        /// its own side and leaves the scaling undone - a 96x96 avatar asked for at 336 came
+        /// back as 96, and the card read past the end of it (`IndexOutOfRangeException` in
+        /// `TileCanvas.Draw`, 23 October 2026). Whatever it hands back is scaled here to the
+        /// side the card is drawn at, so the two cannot disagree.
         /// </summary>
         private static async Task<TilePicture> PictureOfAsync(IRandomAccessStream stream, int side)
         {
@@ -229,7 +235,22 @@ namespace WhatsappApp.Services
                 ColorManagementMode.DoNotColorManage);
 
             var picture = new TilePicture();
-            picture.Bytes = data.DetachPixelData();
+
+            byte[] pixels = data.DetachPixelData();
+            int decoded = TileCanvas.SideOf(pixels.Length);
+
+            if (decoded != side)
+            {
+                // Named, because it is the difference between the picture the card was
+                // meant to draw and the one it would have read: a side, not a crash.
+                Diag.Ok("tile: the decoder answered "
+                    + (decoded > 0 ? decoded + "x" + decoded : pixels.Length + " byte(s)")
+                    + " instead of " + side + "x" + side + ", so it is scaled here");
+
+                pixels = TileCanvas.ResizeSquare(pixels, decoded, side);
+            }
+
+            picture.Bytes = pixels;
             picture.Side = side;
 
             return picture;

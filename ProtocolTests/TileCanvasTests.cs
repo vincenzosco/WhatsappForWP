@@ -162,6 +162,120 @@ namespace ProtocolTests
             Assert.AreEqual((byte)255, blended[3], "the card is a JPEG: it has no transparency to keep");
         }
 
+        /// <summary>One pixel of a square BGRA buffer of any side, not just the card's.</summary>
+        private static byte[] AtSide(byte[] picture, int side, int x, int y)
+        {
+            int i = (y * side + x) * 4;
+            return new byte[] { picture[i], picture[i + 1], picture[i + 2], picture[i + 3] };
+        }
+
+        /// <summary>
+        /// The crash of 23 October 2026, at the arithmetic level: the decoder answered 96x96
+        /// for a picture the card asked for at 336, and the read ran off the end of it.
+        ///
+        /// Why it is a test and not a comment: `Draw` reads `width` pixels per row, so a
+        /// buffer that is shorter than the side it is drawn at is an out-of-bounds read, and
+        /// the only thing that made it a silent one was that nothing measured it.
+        /// </summary>
+        [Test]
+        public static void APictureShorterThanTheSideItIsDrawnAtIsRefused()
+        {
+            byte[] card = TileCanvas.Card();
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.Draw(card, White(96), TileCanvas.Size, TileCanvas.Size, 0, 0); },
+                "96x96 bytes drawn as 336x336 read past the end of the buffer");
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.ResizeSquare(new byte[10], 2, 4); },
+                "a buffer that is not even two row's worth is not a 2x2 picture");
+        }
+
+        /// <summary>
+        /// The buffer knows its own side. This is the measurement the tile was missing: the
+        /// decoder is asked for a side, and what it returns is what the card has to compose.
+        /// </summary>
+        [Test]
+        public static void TheSideOfABufferIsMeasured()
+        {
+            Assert.AreEqual(1, TileCanvas.SideOf(4), "one pixel is one pixel");
+            Assert.AreEqual(96, TileCanvas.SideOf(96 * 96 * 4), "a 96x96 preview knows it is 96");
+            Assert.AreEqual(TileCanvas.Size, TileCanvas.SideOf(TileCanvas.Size * TileCanvas.Size * 4),
+                "and a card knows it is the card");
+
+            Assert.AreEqual(0, TileCanvas.SideOf(0), "nothing is not a square");
+            Assert.AreEqual(0, TileCanvas.SideOf(96), "nor is a run that is not a whole number of pixels");
+            Assert.AreEqual(0, TileCanvas.SideOf(40), "nor ten pixels, which are not a square");
+        }
+
+        /// <summary>
+        /// The whole path the phone takes after the fix: the decoder's answer is measured,
+        /// scaled to the card's side, and then drawn - and the tile is the picture, not a
+        /// crash and not a margin.
+        /// </summary>
+        [Test]
+        public static void ADecodedPictureReachesTheCardAtTheSideItIsDrawn()
+        {
+            byte[] decoded = White(96);
+
+            int side = TileCanvas.SideOf(decoded.Length);
+            Assert.AreEqual(96, side, "the decoder's own side");
+
+            byte[] scaled = TileCanvas.ResizeSquare(decoded, side, TileCanvas.Size);
+            Assert.AreEqual(TileCanvas.Size * TileCanvas.Size * 4, scaled.Length,
+                "the card's side, exactly what Draw reads");
+
+            byte[] card = TileCanvas.Card();
+            TileCanvas.DrawPicture(card, scaled, TileCanvas.Size, TileCanvas.Size);
+
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255), At(card, 0, 0),
+                "a white picture fills the tile from its first pixel");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255),
+                At(card, TileCanvas.Size - 1, TileCanvas.Size - 1), "to its last one");
+        }
+
+        /// <summary>
+        /// A glyph scaled up keeps its colour: the app mark is one opaque shape on a
+        /// transparent margin, and a straight-alpha average over that margin pulls every
+        /// edge towards black - a halo around the mark on the card.
+        /// </summary>
+        [Test]
+        public static void ScalingAGlyphDoesNotDarkenItsEdge()
+        {
+            // A 2x2 picture whose only opaque pixel is red; the other three are the margin.
+            var glyph = new byte[2 * 2 * 4];
+            glyph[0] = 0x00;
+            glyph[1] = 0x00;
+            glyph[2] = 0xFF;
+            glyph[3] = 0xFF;
+
+            byte[] scaled = TileCanvas.ResizeSquare(glyph, 2, 8);
+
+            Assert.ByteArraysEqual(Pixel(0x00, 0x00, 0xFF, 255), AtSide(scaled, 8, 0, 0),
+                "the corner the opaque pixel fills stays red and opaque");
+            Assert.ByteArraysEqual(Pixel(0x00, 0x00, 0x00, 0), AtSide(scaled, 8, 7, 7),
+                "the far corner is the margin, and stays transparent");
+
+            byte[] blended = AtSide(scaled, 8, 3, 0);
+            Assert.AreEqual((byte)0xFF, blended[2], "a partly covered pixel is still red, not red-turned-black");
+            Assert.IsTrue(blended[3] > 0 && blended[3] < 255,
+                "and it is partly covered, which is what upscaling between two source pixels means");
+        }
+
+        /// <summary>Shrinking is the other half: an app mark of 480 becomes the 168 the tile draws.</summary>
+        [Test]
+        public static void ShrinkingAPictureKeepsItsColour()
+        {
+            byte[] scaled = TileCanvas.ResizeSquare(White(480), 480, TileCanvas.Picture);
+
+            Assert.AreEqual(TileCanvas.Picture * TileCanvas.Picture * 4, scaled.Length, "exactly the mark's side");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255), AtSide(scaled, TileCanvas.Picture, 0, 0),
+                "white stays white");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255),
+                AtSide(scaled, TileCanvas.Picture, TileCanvas.Picture - 1, TileCanvas.Picture - 1),
+                "all the way across");
+        }
+
         [Test]
         public static void APictureThatDoesNotFitIsRefused()
         {
