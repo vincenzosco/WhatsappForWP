@@ -136,8 +136,16 @@ established the hard way:
   is pushed once, its ack goes out **after** the sync is applied and never before:
   the ack is what tells the server the history is delivered, so an ack over a blob
   that did not download is the rest of the chat list lost for good - the phone of
-  23 October 2026, with five chats and no way back. A sync that did not land is
-  asked for again with a retry receipt. Gate: `node tools/check-history-sync.js`.
+  23 October 2026, with five chats and no way back. A sync that did not land is   asked for again with a retry receipt. Gate: `node tools/check-history-sync.js`.
+- **The list of the last session is written before the conversations' tails.**
+  `DataService.SaveSnapshotAsync` is the one writer, and the order inside it is the
+  difference between a list that opens and one that does not: a tail is a read and a
+  write of its own file, one conversation at a time (about 1.8 s each on the phone of
+  23 October 2026 - 56 of them in the time between a sync and a close), so a list written
+  last is a list never written. The store of that evening had 57 `messages_*.json` and no
+  `chats.json`, and the app reopened empty until a message brought a row of its own.
+  The list is what the next start draws; a tail that is lost costs one conversation's
+  first screen. Gate: `node tools/check-chat-snapshot.js`.
 - **The call log comes from that same sync** (`HistorySync.callLogRecords`), both
   directions, with `callCreatorJID` being *this* account on a call it made - which
   is why an outgoing call is filed under the other party and not under us.
