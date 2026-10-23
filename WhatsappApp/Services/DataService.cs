@@ -576,6 +576,18 @@ namespace WhatsappApp.Services
             // stays, and the next start shows it instead of nothing.
             if (rows.Count == 0) return;
 
+            // **The list first, the conversations after it**, and the order is the whole
+            // point. Every tail is a read and a write of its own file, one at a time through
+            // `MessageCache`'s queue: on the phone of 23 October 2026 56 of them took the
+            // better part of two minutes (56 `messages_*.json` against 169 rows), and the list
+            // was written *after* them. A close - which is what closing the app is - landed in
+            // the middle, `chats.json` was never written at all, and the next start drew an
+            // empty screen until a message arrived carrying a row of its own. The list is what
+            // that screen draws; the tails are a convenience.
+            await ChatCache.SaveAsync(rows, HistoryComplete);
+
+            Diag.Ok("cache: the list written, " + rows.Count + " row(s)");
+
             for (int i = 0; i < tails.Count; i++)
             {
                 // Merged with the file and not written over it: this process may hold
@@ -584,10 +596,9 @@ namespace WhatsappApp.Services
                 await MessageCache.AppendAsync(tails[i].Key, tails[i].Value);
             }
 
-            await ChatCache.SaveAsync(rows, HistoryComplete);
-
-            Diag.Ok("cache: the list written, " + rows.Count + " row(s), "
-                + tails.Count + " conversation(s)");
+            // Named, because it is the second half of the snapshot and a close can land in
+            // the middle of it: a run whose log stops at the line above lost only the tails.
+            Diag.Ok("cache: " + tails.Count + " conversation(s) written");
         }
 
         /// <summary>
