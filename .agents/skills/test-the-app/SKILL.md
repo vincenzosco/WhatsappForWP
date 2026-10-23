@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app - the static guard
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 320 protocol tests, 131 keys in each `.resw`, 188 tests in
+Current expected counts: 327 protocol tests, 131 keys in each `.resw`, 188 tests in
 `tools/test`, 31 buttons and 2 button styles. The counts printed by the guards
 themselves are the source of truth; these are what to expect when nothing is out of
 step.
@@ -113,7 +113,7 @@ for (const dir of ['Pages','Controls']) for (const f of fs.readdirSync('Whatsapp
 node tools/test-protocol.js
 ```
 
-Expected `OK: 320 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
+Expected `OK: 327 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
 the app's own sources and runs them: the binary node reader and writer, the Noise
 handshake, the Signal sessions (X3DH, the double ratchet, the sender key of a
 group), the media key schedule and the four media protobufs, the credential store,
@@ -336,6 +336,18 @@ to "why is the screen empty".
       is what read past the buffer on 23 October 2026 (`IndexOutOfRangeException`
       in `TileCanvas.Draw`). The line is expected; a `TileImage/Store` failure is
       not.
+    - Resize the tile through all three sizes. Medium and large: the person and
+      the message over their picture. Wide (310x150): the picture is **whole** and
+      centred on teal, not a magnified band of a face cut at the chin - that band
+      is the square card filled into the wide binding, and it means
+      `TileImage.WideOf` was not used for that binding. Large (310x310): the tile
+      shows the conversation; the green logo and a number instead is the manifest
+      fallback, so the 310x310 binding was not posted.
+    - Smallest size (71x71): the sender's picture, not the app mark. The mark
+      there is a chat that has no picture at all.
+    - Pin a chat and open its tile: the name in the large line and the last
+      message under it, the picture whole at every size, and the count in the
+      badge. A count "3" as the large line is the build before 23 October 2026.
 31. Memory: the first line of the debug output is `DIAG ok: memory budget N MB`.
     On a 512 MB phone that is the limit being watched, and it is roughly half of
     what a 1 GB phone reports. Scroll a long chat list on a 512 MB phone: the app

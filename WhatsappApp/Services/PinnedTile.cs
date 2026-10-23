@@ -95,7 +95,7 @@ namespace WhatsappApp.Services
         /// `RequestCreateAsync` shows the system's own sheet, which asks the person to
         /// confirm and lets them rename the tile: the app does not ask twice.
         /// </summary>
-        public static async Task<bool> ToggleAsync(string chatId, string name, string avatarData)
+        public static async Task<bool> ToggleAsync(string chatId, string name, string avatarData, string body)
         {
             if (string.IsNullOrEmpty(chatId)) return false;
 
@@ -137,7 +137,7 @@ namespace WhatsappApp.Services
 
                 // The tile exists with the package's logos; the picture and the count come
                 // on a notification, which is the only thing a running app may change.
-                await RenderAsync(chatId, display, 0, avatarData);
+                await RenderAsync(chatId, display, 0, avatarData, body);
 
                 Diag.Ok("pinned tile: " + chatId + " added");
                 return true;
@@ -153,14 +153,14 @@ namespace WhatsappApp.Services
         /// The chat's count changed: its tile says so. Called from the one place that changes
         /// a row's unread count, and safe on a chat with no tile - it does nothing.
         /// </summary>
-        public static void Update(string chatId, string name, int count, string avatarData)
+        public static void Update(string chatId, string name, int count, string avatarData, string body)
         {
             if (string.IsNullOrEmpty(chatId)) return;
             if (!IsPinned(chatId)) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("PinnedTile/update",
-                RenderAsync(chatId, name, count, avatarData));
+                RenderAsync(chatId, name, count, avatarData, body));
 #pragma warning restore 4014
         }
 
@@ -197,12 +197,22 @@ namespace WhatsappApp.Services
         /// Draws the tile in every size the Start screen can ask for, and puts the count on
         /// the badge as well: at 71x71 there is no line to write a number in, so the badge is
         /// what carries it there.
+        ///
+        /// The two lines are the app tile's two lines (`TileText`): the name in the template's
+        /// large font and the last message under it, with the count taking the second line only
+        /// when there is no message to quote. The request of 23 October 2026 was that the two
+        /// tiles read the same way.
         /// </summary>
-        private static async Task RenderAsync(string chatId, string name, int count, string avatarData)
+        private static async Task RenderAsync(string chatId, string name, int count, string avatarData, string body)
         {
             string tileId = TileIdFor(chatId);
-            string image = await StoreImageAsync(chatId, avatarData);
+
+            TileCard card = await StoreImageAsync(chatId, avatarData);
+            string image = card == null ? null : card.Square;
+            string wide = image == null ? AppWideIcon : TileImage.WideOf(image);
+
             string sender = string.IsNullOrEmpty(name) ? chatId : name;
+            TileLines lines = TileText.For(sender, body, NotificationService.UnreadText(count));
 
             var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
 
@@ -217,26 +227,18 @@ namespace WhatsappApp.Services
 
             updater.Clear();
 
-            // The medium tile: the number is the big line, the name under it - the same
-            // order the app's own tile uses, so the two are read the same way. With nothing
-            // waiting there is no number to draw, and a "0" over the picture would be a
-            // number about something that is not happening: the name takes the big line.
+            // The medium tile: who this chat is, in the template's large font, and what they
+            // said under it - the app tile's own two lines, so the two are read the same way.
             var medium = visual.SelectSingleNode("binding") as XmlElement;
-            if (count > 0)
-            {
-                Fill(xml, medium, Unicode(count), Cut(sender, 30), image ?? AppIcon);
-            }
-            else
-            {
-                Fill(xml, medium, Cut(sender, 30), "", image ?? AppIcon);
-            }
+            Fill(xml, medium, lines.First, lines.Second, image ?? AppIcon);
 
-            // The wide tile and the large one have room for the name first: what the tile is
-            // about, then how much of it is waiting.
+            // The wide tile and the large one say the same thing. The wide one asks for the
+            // wide card: the square card in a 2.07:1 binding is filled and cropped, which
+            // magnifies the face and takes its top and chin off.
             Add(xml, visual, TileTemplateType.TileWide310x150PeekImageAndText02,
-                Cut(sender, 30), CountText(count), image ?? AppWideIcon);
+                lines.First, lines.Second, wide);
             Add(xml, visual, TileTemplateType.TileSquare310x310ImageAndText02,
-                Cut(sender, 30), CountText(count), image ?? AppIcon);
+                lines.First, lines.Second, image ?? AppIcon);
 
             // 71x71: the picture, and nothing else fits. The number travels on the badge.
             AddSmall(xml, visual, image ?? AppIcon);
@@ -364,7 +366,7 @@ namespace WhatsappApp.Services
         /// The name is `pin-…`, of its own, so it cannot collide with the picture the app's
         /// own tile keeps for the same chat and the two cannot take each other's file away.
         /// </summary>
-        private static Task<string> StoreImageAsync(string chatId, string avatarData)
+        private static Task<TileCard> StoreImageAsync(string chatId, string avatarData)
         {
             return TileImage.StoreAsync(ImageFileName(chatId), avatarData);
         }
@@ -380,17 +382,6 @@ namespace WhatsappApp.Services
             builder.Append(".jpg");
 
             return builder.ToString();
-        }
-
-        /// <summary>The number as a word, or empty when nothing is waiting.</summary>
-        private static string CountText(int count)
-        {
-            return count > 0 ? NotificationService.UnreadText(count) : "";
-        }
-
-        private static string Unicode(int count)
-        {
-            return count.ToString(CultureInfo.InvariantCulture);
         }
 
         private static string Cut(string value, int max)

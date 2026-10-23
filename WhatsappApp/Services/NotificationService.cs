@@ -146,7 +146,9 @@ namespace WhatsappApp.Services
                 _senderName = name;
                 _senderBody = body;
 
-                string image = await StoreTileImageAsync(chatId, avatarData);
+                TileCard card = await StoreTileImageAsync(chatId, avatarData);
+                string image = card == null ? null : card.Square;
+
                 _senderImage = image;
                 RememberLastMessage(name, body, image);
 
@@ -172,7 +174,7 @@ namespace WhatsappApp.Services
         ///
         /// Null when nothing could be written, and the caller then keeps the app mark.
         /// </summary>
-        private static Task<string> StoreTileImageAsync(string chatId, string avatarData)
+        private static Task<TileCard> StoreTileImageAsync(string chatId, string avatarData)
         {
             return TileImage.StoreAsync(TileFileName(chatId), avatarData);
         }
@@ -287,19 +289,24 @@ namespace WhatsappApp.Services
             if (visual == null) return;
 
             var medium = visual.SelectSingleNode("binding") as XmlElement;
+            string wide = entry.Image == null ? TileWideIconUri : TileImage.WideOf(entry.Image);
 
             if (entry.PictureOnly)
             {
                 SetImage(xml, medium, entry.Image ?? TileIconUri);
-                AddWidePicture(xml, visual, entry.Image ?? TileWideIconUri);
+                AddWidePicture(xml, visual, wide);
             }
             else
             {
                 FillBinding(xml, medium, entry.Sender, entry.Body, entry.Image);
-                AddWideBinding(xml, visual, entry.Sender, entry.Body, entry.Image);
+                AddWideBinding(xml, visual, entry.Sender, entry.Body, wide);
             }
 
-            AddSmallBinding(xml, visual);
+            AddLargeBinding(xml, visual, entry);
+
+            // 71x71 carries the person's picture whenever there is one - it is the only
+            // thing that size has room for - and the app mark when the chat has no picture.
+            AddSmallBinding(xml, visual, entry.Image ?? TileIconUri);
 
             updater.Update(new TileNotification(xml));
         }
@@ -322,30 +329,27 @@ namespace WhatsappApp.Services
         /// The count used to take the large line and the name the small one, which put the
         /// number where the eye lands and the message nowhere at all: at 150 px the two
         /// lines are all the text there is, and the one a person reads is the message. The
-        /// count is still on the tile - the badge draws it over the corner, and the wide
-        /// size says it when there is nothing else to say.
+        /// count is still on the tile - the badge draws it over the corner, and the second
+        /// line says it when there is nothing to quote.
         ///
-        /// One helper for both sizes. The medium tile and the wide one say the same
-        /// thing, so a change here cannot arrive on one of them and not on the other.
+        /// One rule for both sizes (`TileText`), so the medium tile and the wide one cannot
+        /// start disagreeing about who wrote.
         /// </summary>
         private static void FillBinding(XmlDocument xml, XmlElement binding, string senderName, string bodyText, string image)
         {
             if (binding == null) return;
 
+            FillText(xml, binding, TileText.For(senderName, bodyText, UnreadText(_unread)));
+            SetImage(xml, binding, image ?? TileIconUri);
+        }
+
+        /// <summary>The two lines of one binding, as `TileText` decided them.</summary>
+        private static void FillText(XmlDocument xml, XmlElement binding, TileLines lines)
+        {
             var texts = binding.SelectNodes("text");
 
-            // Nobody wrote yet - a count read back from the local copy at startup,
-            // before any message: the count is the only true line there is, and it takes
-            // the large one. The second line stays empty instead of saying it twice.
-            string sender = Cut(senderName, 30);
-            if (sender.Length == 0) sender = UnreadText(_unread);
-
-            string body = Cut(bodyText, SquareBodyLength);
-
-            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(sender));
-            if (texts.Length > 1 && body.Length > 0) texts[1].AppendChild(xml.CreateTextNode(body));
-
-            SetImage(xml, binding, image ?? TileIconUri);
+            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(lines.First));
+            if (texts.Length > 1 && lines.Second.Length > 0) texts[1].AppendChild(xml.CreateTextNode(lines.Second));
         }
 
         /// <summary>
@@ -396,6 +400,39 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The large tile, 310x310: the same turn at the size the Start screen draws when the
+        /// tile is made big.
+        ///
+        /// Why it exists: without a binding for this size the shell draws the tile the
+        /// manifest declares - the green logo - so a big tile showed the app mark and the
+        /// count while every other size showed the conversation. The photo is the square card
+        /// scaled up by the shell; at that size it is soft, and that is the source being a
+        /// 96 px preview, not a shape it could be composed out of.
+        /// </summary>
+        private static void AddLargeBinding(XmlDocument xml, XmlElement visual, TileEntry entry)
+        {
+            try
+            {
+                var binding = ImportBinding(xml, visual, TileLargeTemplate);
+                if (binding == null) return;
+
+                if (entry.PictureOnly)
+                {
+                    SetImage(xml, binding, entry.Image ?? TileIconUri);
+                    return;
+                }
+
+                TileLines lines = TileText.For(entry.Sender, entry.Body, UnreadText(_unread));
+                FillText(xml, binding, lines);
+                SetImage(xml, binding, entry.Image ?? TileIconUri);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService.AddLargeBinding", ex);
+            }
+        }
+
+        /// <summary>
         /// The wide tile of a picture turn: the same picture, whole, and no text - the turn
         /// before or after it is the one that says whose face it is.
         /// </summary>
@@ -426,14 +463,14 @@ namespace WhatsappApp.Services
         /// is a smear, and the size is meant to say "this app has something for
         /// you", while the medium and the wide tile next to it say what and who.
         /// </summary>
-        private static void AddSmallBinding(XmlDocument xml, XmlElement visual)
+        private static void AddSmallBinding(XmlDocument xml, XmlElement visual, string image)
         {
             try
             {
                 var binding = ImportBinding(xml, visual, TileTemplateType.TileSquare71x71IconWithBadge);
                 if (binding == null) return;
 
-                SetImage(xml, binding, TileIconUri);
+                SetImage(xml, binding, image);
             }
             catch (Exception ex)
             {
@@ -451,18 +488,7 @@ namespace WhatsappApp.Services
         {
             if (binding == null) return;
 
-            var texts = binding.SelectNodes("text");
-
-            // With nothing to name - a count restored from the cache before any
-            // message in this process - the count is the only true line.
-            string sender = Cut(senderName, 30);
-            if (sender.Length == 0) sender = UnreadText(_unread);
-
-            string body = Cut(bodyText, 160);
-            if (body.Length == 0) body = UnreadText(_unread);
-
-            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(sender));
-            if (texts.Length > 1) texts[1].AppendChild(xml.CreateTextNode(body));
+            FillText(xml, binding, TileText.For(senderName, bodyText, UnreadText(_unread)));
 
             // The wide tile has its own asset: the square one is scaled to fill
             // 310x150 and loses its top and bottom, which cut the mark. This one is
@@ -530,12 +556,18 @@ namespace WhatsappApp.Services
             TileTemplateType.TileSquare150x150PeekImageAndText02;
 
         /// <summary>
-        /// How much of a message the medium tile holds. The line wraps over three lines at
-        /// 150 px, which is about this many characters; past it the shell cuts mid-word, and
-        /// an ellipsis of our own reads better than half a word.
+        /// The large template: the same two lines over the same picture, at the size the
+        /// Start screen draws when the tile is made big. Without it that size falls back to
+        /// the logo in the manifest.
+        ///
+        /// `ImageAndText02` and not a peek one: WP8.1 has no `TileSquare310x310PeekImageAndText02`
+        /// (CS0117, the same absence as the wide badge template), and this is the template that
+        /// carries an image and two lines at this size.
         /// </summary>
-        private const int SquareBodyLength = 120;
+        private static readonly TileTemplateType TileLargeTemplate =
+            TileTemplateType.TileSquare310x310ImageAndText02;
 
+        /// <summary>
         /// <summary>The count the tile is showing, and the one the badge shows.</summary>
         private static int _unread;
 

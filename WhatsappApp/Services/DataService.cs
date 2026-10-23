@@ -1853,7 +1853,7 @@ namespace WhatsappApp.Services
             string avatar = contact.AvatarData;
             if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(contact.Id);
 
-            PinnedTile.Update(contact.Id, contact.Name, contact.UnreadCount, avatar);
+            PinnedTile.Update(contact.Id, contact.Name, contact.UnreadCount, avatar, contact.LastMessage);
         }
 
         private void RebuildContactIndex()

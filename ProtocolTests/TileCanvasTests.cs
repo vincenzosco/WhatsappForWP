@@ -276,6 +276,44 @@ namespace ProtocolTests
                 "all the way across");
         }
 
+        /// <summary>
+        /// The wide tile is the card grown around the picture, not the picture stretched into
+        /// it: a square filled into a 2.07:1 binding is scaled by the wider side and cropped,
+        /// which is the magnified face the phone of 23 October 2026 still showed.
+        /// </summary>
+        [Test]
+        public static void TheWideCardIsTheTealCardAroundThePictureAtItsOwnSize()
+        {
+            byte[] card = TileCanvas.Card();
+            TileCanvas.DrawPicture(card, White(TileCanvas.Size), TileCanvas.Size, TileCanvas.Size);
+
+            byte[] wide = TileCanvas.WideCard(card);
+
+            Assert.AreEqual(TileCanvas.WideWidth * TileCanvas.WideHeight * 4, wide.Length,
+                "the wide tile's own shape");
+
+            int left = (TileCanvas.WideWidth - TileCanvas.Size) / 2;
+            int top = (TileCanvas.WideHeight - TileCanvas.Size) / 2;
+
+            Assert.ByteArraysEqual(Pixel(0x54, 0x5E, 0x07, 255), AtSide(wide, TileCanvas.WideWidth, 0, 0),
+                "the side the picture does not reach is the card");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255),
+                AtSide(wide, TileCanvas.WideWidth, left, top), "the picture starts where it was placed");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255),
+                AtSide(wide, TileCanvas.WideWidth, left + TileCanvas.Size - 1, top + TileCanvas.Size - 1),
+                "and ends exactly its own side further on, so nothing was scaled");
+            Assert.ByteArraysEqual(Pixel(0x54, 0x5E, 0x07, 255),
+                AtSide(wide, TileCanvas.WideWidth, left + TileCanvas.Size, top), "not a pixel past it");
+        }
+
+        [Test]
+        public static void APictureThatIsNotASquareHasNoWideCard()
+        {
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.WideCard(new byte[10]); },
+                "ten bytes are not a square of pixels");
+        }
+
         [Test]
         public static void APictureThatDoesNotFitIsRefused()
         {

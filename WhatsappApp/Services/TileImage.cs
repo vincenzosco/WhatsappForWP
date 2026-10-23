@@ -30,6 +30,18 @@ namespace WhatsappApp.Services
     /// Every failure ends in `null`, and `null` is what the callers already understood:
     /// the tile falls back to the app's own asset rather than to a rejected update.
     /// </summary>
+    /// <summary>
+    /// The two files one chat's picture is written to: the square card, which the medium,
+    /// the large and the 71x71 tiles draw, and the wide card for the 310x150 one. Two
+    /// shapes because a binding fills the tile with the image it is given, and one shape
+    /// stretched into the other is a magnified, cropped face.
+    /// </summary>
+    public sealed class TileCard
+    {
+        public string Square;
+        public string Wide;
+    }
+
     public static class TileImage
     {
         /// <summary>The ceiling the system accepts for a tile image; over it the update is rejected.</summary>
@@ -46,10 +58,10 @@ namespace WhatsappApp.Services
             new Dictionary<string, string>(StringComparer.Ordinal);
 
         /// <summary>
-        /// Writes the card for one chat and answers the path to put in the tile's `src`, or
+        /// Writes the card for one chat and answers the paths to put in the tiles' `src`, or
         /// null when nothing could be written.
         /// </summary>
-        public static async Task<string> StoreAsync(string fileName, string avatarData)
+        public static async Task<TileCard> StoreAsync(string fileName, string avatarData)
         {
             if (string.IsNullOrEmpty(fileName)) return null;
 
@@ -60,7 +72,7 @@ namespace WhatsappApp.Services
                 string have;
                 if (Written.TryGetValue(fileName, out have) && have == from)
                 {
-                    return "ms-appdata:///local/" + fileName;
+                    return Card(fileName);
                 }
             }
 
@@ -74,7 +86,9 @@ namespace WhatsappApp.Services
                     byte[] card = TileCanvas.Card();
                     TileCanvas.DrawPicture(card, picture.Bytes, picture.Side, picture.Side);
 
-                    await WriteAsync(fileName, card);
+                    await WriteAsync(fileName, card, TileCanvas.Size, TileCanvas.Size);
+                    await WriteAsync(WideName(fileName), TileCanvas.WideCard(card),
+                        TileCanvas.WideWidth, TileCanvas.WideHeight);
                     composed = true;
                 }
             }
@@ -90,15 +104,60 @@ namespace WhatsappApp.Services
 
             lock (Written) Written[fileName] = from;
 
-            return "ms-appdata:///local/" + fileName;
+            return Card(fileName);
+        }
+
+        /// <summary>The two paths one file name stands for.</summary>
+        private static TileCard Card(string fileName)
+        {
+            var card = new TileCard();
+            card.Square = "ms-appdata:///local/" + fileName;
+            card.Wide = "ms-appdata:///local/" + WideName(fileName);
+
+            return card;
+        }
+
+        /// <summary>
+        /// The same picture at the wide tile's proportion: written together with the square
+        /// one, and the file a wide binding has to ask for - the square one would be filled
+        /// and cropped.
+        /// </summary>
+        private static string WideName(string fileName)
+        {
+            int dot = fileName.LastIndexOf('.');
+            return dot < 0 ? fileName + "-wide" : fileName.Substring(0, dot) + "-wide" + fileName.Substring(dot);
+        }
+
+        /// <summary>
+        /// The wide file that belongs to a square one, for the callers that carry one path in
+        /// their model and need both: a notification writes one binding per tile size.
+        /// </summary>
+        public static string WideOf(string square)
+        {
+            if (string.IsNullOrEmpty(square)) return square;
+
+            const string Local = "ms-appdata:///local/";
+            if (square.StartsWith(Local, StringComparison.Ordinal))
+            {
+                return Local + WideName(square.Substring(Local.Length));
+            }
+
+            int slash = square.LastIndexOf('/');
+            if (slash < 0) return square;
+
+            return square.Substring(0, slash + 1) + WideName(square.Substring(slash + 1));
         }
 
         /// <summary>
         /// The picture exactly as it arrived, which is what the tile drew before the card
         /// existed. Only the fallback path: `null` when there is no picture or when the bytes
         /// are over the system's ceiling.
+        ///
+        /// Written to both names, so the wide binding still has a file to point at: the shell
+        /// then fills and crops it, which is the shape this class exists to avoid - but only
+        /// after a decoder or an encoder has already refused the card.
         /// </summary>
-        private static async Task<string> RawAsync(string fileName, string avatarData)
+        private static async Task<TileCard> RawAsync(string fileName, string avatarData)
         {
             if (string.IsNullOrEmpty(avatarData)) return null;
 
@@ -111,12 +170,16 @@ namespace WhatsappApp.Services
                     fileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteBytesAsync(file, bytes);
 
+                StorageFile wide = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    WideName(fileName), CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteBytesAsync(wide, bytes);
+
                 // The file holds this avatar, raw. Recording it makes the next call for the
                 // same bytes answer with the path, and keeps a call for other bytes from
                 // being told this file is the one it asked for.
                 lock (Written) Written[fileName] = avatarData;
 
-                return "ms-appdata:///local/" + fileName;
+                return Card(fileName);
             }
             catch (Exception ex)
             {
@@ -262,7 +325,7 @@ namespace WhatsappApp.Services
         /// the bytes of the same tile as a PNG - which matters when the system refuses
         /// anything over 200 kB.
         /// </summary>
-        private static async Task WriteAsync(string fileName, byte[] card)
+        private static async Task WriteAsync(string fileName, byte[] card, int width, int height)
         {
             StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
                 fileName, CreationCollisionOption.ReplaceExisting);
@@ -274,8 +337,8 @@ namespace WhatsappApp.Services
                 encoder.SetPixelData(
                     BitmapPixelFormat.Bgra8,
                     BitmapAlphaMode.Ignore,
-                    TileCanvas.Size,
-                    TileCanvas.Size,
+                    (uint)width,
+                    (uint)height,
                     96,
                     96,
                     card);
