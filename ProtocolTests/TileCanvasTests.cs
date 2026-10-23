@@ -73,6 +73,63 @@ namespace ProtocolTests
                 delegate { TileCanvas.CentreSquare(100, 0); }, "and neither is a row of none");
         }
 
+        /// <summary>One pixel of a BGRA buffer whose row is `width` pixels long.</summary>
+        private static byte[] PictureAt(byte[] picture, int width, int x, int y)
+        {
+            int i = (y * width + x) * 4;
+            return new byte[] { picture[i], picture[i + 1], picture[i + 2], picture[i + 3] };
+        }
+
+        /// <summary>
+        /// The crop as pixels, for the decoder that refuses to crop.
+        ///
+        /// Why it is a test: on 23 October 2026 the full-size profile picture answered
+        /// `ArgumentException` (E_INVALIDARG) to the crop, and the tile then fell back to the
+        /// raw JPEG - the magnified face again. The whole picture is a request nothing
+        /// refuses, so the square is cut here, and it has to be the same square
+        /// `CentreSquare` names: the middle, never the corner, and never stretched.
+        /// </summary>
+        [Test]
+        public static void TheCentreSquareOfAPictureIsCutOutOfIt()
+        {
+            // 4x2, one distinct colour per column, so the crop can be read off the answer.
+            var wide = new byte[4 * 2 * 4];
+            for (int y = 0; y < 2; y++)
+            {
+                for (int x = 0; x < 4; x++)
+                {
+                    int i = (y * 4 + x) * 4;
+                    wide[i] = (byte)(10 + x);
+                    wide[i + 3] = 255;
+                }
+            }
+
+            byte[] square = TileCanvas.CentreSquarePixels(wide, 4, 2);
+
+            Assert.AreEqual(2 * 2 * 4, square.Length, "the shorter side, squared: nothing stretched");
+            Assert.ByteArraysEqual(Pixel(11, 0, 0, 255), PictureAt(square, 2, 0, 0),
+                "the crop starts where CentreSquare says: one column in");
+            Assert.ByteArraysEqual(Pixel(12, 0, 0, 255), PictureAt(square, 2, 1, 0),
+                "and it is two columns wide, not four");
+            Assert.ByteArraysEqual(Pixel(11, 0, 0, 255), PictureAt(square, 2, 0, 1),
+                "the second row is the second row of the picture");
+        }
+
+        [Test]
+        public static void ASquarePictureIsAlreadyItsOwnCrop()
+        {
+            byte[] picture = White(3);
+            byte[] square = TileCanvas.CentreSquarePixels(picture, 3, 3);
+
+            Assert.AreEqual(3 * 3 * 4, square.Length, "nothing is added around it");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255), PictureAt(square, 3, 2, 2),
+                "and nothing is cut off it");
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.CentreSquarePixels(White(2), 3, 3); },
+                "a buffer shorter than the picture it claims to be is refused, not read past");
+        }
+
         /// <summary>A white square of `side` pixels, fully opaque, as straight BGRA.</summary>
         private static byte[] White(int side)
         {
@@ -370,6 +427,34 @@ namespace ProtocolTests
         }
 
         /// <summary>The wide file is the same name with `-wide`: the two cannot drift apart.</summary>
+        /// <summary>
+        /// The fallback's name is not a card's name.
+        ///
+        /// Why: `ComposeAsync` skips the work when the card's name is already on the phone, so
+        /// a raw JPEG written under that name is a card that never composes again - which is
+        /// what the phone of 23 October 2026 kept drawing. The fallback is still named by the
+        /// same picture and the same rules, so a second fallback for the same bytes is the same
+        /// file, and `IsCurrentCard` accepts it (it carries `-v5-`, and its two variants exist).
+        /// </summary>
+        [Test]
+        public static void TheFallbackHasANameOfItsOwn()
+        {
+            string chat = "pin-393519096405_s_whatsapp_net.jpg";
+            string raw = TileCanvas.FallbackFileName(chat, "AAAA");
+
+            Assert.IsTrue(raw != TileCanvas.CardFileName(chat, "AAAA"),
+                "a fallback under the card's name is never composed again: " + raw);
+            Assert.IsTrue(raw.IndexOf("-raw-", System.StringComparison.Ordinal) > 0,
+                "and it says so: " + raw);
+            Assert.AreEqual(raw, TileCanvas.FallbackFileName(chat, "AAAA"),
+                "the same picture under the same rules is the same file");
+            Assert.IsTrue(raw != TileCanvas.FallbackFileName(chat, "BBBB"),
+                "a new picture is a new file");
+            Assert.IsTrue(raw.EndsWith(".jpg", System.StringComparison.Ordinal), "the extension is kept: " + raw);
+            Assert.IsTrue(raw.IndexOf("-v" + TileCanvas.CardVersion + "-", System.StringComparison.Ordinal) > 0,
+                "the rules are in it, so a file of the older ones is not reused: " + raw);
+        }
+
         [Test]
         public static void TheWideNameIsTheSquareNameWithWide()
         {

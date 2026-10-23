@@ -522,6 +522,21 @@ waiting) and the message is marked read when the reader reaches it.
   tile. Changing the rules of a card means bumping `TileCanvas.CardVersion`, or the
   shell keeps serving the card the old rules left behind - it is named by them.
   Gate: `node tools/check-tile.js` (rule 8).
+- **The decoder is asked for the crop, and nothing else.** `TileImage.PictureOfAsync`
+  gives `GetPixelDataAsync` a `BitmapTransform` with `Bounds` only - no
+  `ScaledWidth`/`ScaledHeight`, no `InterpolationMode`. The full-size profile picture
+  of 23 October 2026 answered that richer request with `System.ArgumentException` /
+  E_INVALIDARG ("Value does not fall within the expected range"), and the tile fell
+  back to the raw JPEG: the magnified face again, with a log line that did not say so.
+  There was already proof the scale was never the decoder's: the 96x96 preview, asked
+  for at 336x336, came back as 96x96. So the crop is the decoder's and the scale is
+  `TileCanvas.ResizeSquare`; a decoder that refuses even the crop is answered with the
+  whole picture and `TileCanvas.CentreSquarePixels`, so a tile is never composed from
+  an uncomposed file. A **fallback is never written under a card's name**
+  (`TileCanvas.FallbackFileName`): `ComposeAsync` skips the work when the card's name is
+  on the phone, so a raw picture under that name is a card that never composes again -
+  which is exactly what `v4` left on the phone, and why `CardVersion` is 5.
+  Gate: `node tools/check-tile.js` (rules 9 and 10).
 - **A bitmap decodes at the size you ask for, and at no other size.**
   `BitmapImage.DecodePixelWidth` must be set before `SetSourceAsync` - after, it
   does nothing - and it is the difference between a 52 px circle costing a few tens

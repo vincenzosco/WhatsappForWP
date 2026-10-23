@@ -151,11 +151,20 @@ test('i due servizi veri danno la card piccola al binding 71x71', () => {
 });
 
 test('la tile del contatto composta dalla preview si segnala', () => {
+  // (il caso della preview, aggiornato alla card v5)
   const problems = tile.pictureProblems(
     'byte[] jpeg = await NativeConnection.Instance.RequestAvatarAsync(chatId, true);',
-    'public const int CardVersion = 4;');
+    'public const int CardVersion = 5;');
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /full-size picture/);
+});
+
+test('la card v4 che il telefono ha scritto grezza si segnala', () => {
+  const problems = tile.pictureProblems(
+    'RequestAvatarAsync(chatId, false)', 'public const int CardVersion = 4;');
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /below 5/);
+  assert.match(problems[0], /raw picture/);
 });
 
 test('i file veri chiedono la foto grande e non riusano le card vecchie', () => {
@@ -168,7 +177,56 @@ test('i file veri chiedono la foto grande e non riusano le card vecchie', () => 
 test('una card delle regole vecchie si segnala', () => {
   const problems = tile.pictureProblems(
     'RequestAvatarAsync(chatId, false)', 'public const int CardVersion = 3;');
-  assert.ok(problems.some((p) => /CardVersion is below 4/.test(p)));
+  assert.ok(problems.some((p) => /CardVersion is below 5/.test(p)));
+});
+
+test('una decodifica che chiede al decoder il ritaglio scalato si segnala', () => {
+  const problems = tile.requestProblems(
+    'var transform = new BitmapTransform();\n' +
+    'transform.Bounds = bounds;\n' +
+    'transform.ScaledWidth = (uint)side;\n' +
+    'transform.ScaledHeight = (uint)side;\n' +
+    'transform.InterpolationMode = BitmapInterpolationMode.Fant;\n' +
+    'var data = await decoder.GetPixelDataAsync(BitmapPixelFormat.Bgra8, ' +
+    'BitmapAlphaMode.Straight, transform);');
+  assert.ok(problems.some((p) => /scaled crop/.test(p)),
+    'la foto grande ha risposto E_INVALIDARG alla misura scalata');
+  assert.ok(problems.some((p) => /interpolation mode/.test(p)));
+  assert.ok(problems.some((p) => /CentreSquarePixels/.test(p)),
+    'senza il secondo modo, il rifiuto del ritaglio lascia la foto grezza');
+});
+
+test('la decodifica vera chiede il solo ritaglio e sa tagliare il quadrato', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs'), 'utf8');
+  assert.deepStrictEqual(tile.requestProblems(source), []);
+});
+
+test('un ripiego scritto con il nome della card si segnala', () => {
+  const problems = tile.fallbackProblems(
+    'private static async Task<TileCard> RawAsync(string fileName, string avatarData)\n' +
+    '{\n' +
+    '    string name = TileCanvas.CardFileName(fileName, avatarData);\n' +
+    '}');
+  assert.ok(problems.some((p) => /card name/.test(p)),
+    'una card che contiene la foto grezza non si compone piu');
+  assert.ok(problems.some((p) => /no name of its own/.test(p)));
+});
+
+test('il ripiego vero ha un nome suo', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs'), 'utf8');
+  assert.deepStrictEqual(tile.fallbackProblems(source), []);
+});
+
+test('il corpo di un metodo si ferma alla sua graffa', () => {
+  const source = 'private static int A()\n        {\n            return B();\n        }\n' +
+    'private static int B()\n        {\n            return 2;\n        }';
+  const body = tile.methodBody(source, 'B');
+  assert.match(body, /private static int B/);
+  assert.match(body, /return 2/);
+  assert.match(tile.methodBody(source, 'A'), /return B\(\)/);
+  assert.doesNotMatch(tile.methodBody(source, 'A'), /return 2/);
 });
 
 test('il modello largo che WP8.1 non ha si segnala', () => {

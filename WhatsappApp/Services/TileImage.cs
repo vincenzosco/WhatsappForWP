@@ -168,7 +168,7 @@ namespace WhatsappApp.Services
                     // Named, because it is what a device log needs in order to say that the
                     // tile composed at all, and from a picture of which size.
                     Diag.Ok("tile: card v" + TileCanvas.CardVersion + " for " + fileName
-                        + " from a " + decoded.Side + "x" + decoded.Side + " picture");
+                        + " from a " + decoded.Source + "x" + decoded.Source + " picture");
                 }
             }
             catch (Exception ex)
@@ -346,8 +346,10 @@ namespace WhatsappApp.Services
                 if (bytes.Length == 0 || bytes.Length > MaxImageBytes) return null;
 
                 // The same naming as the card, for the same reasons: a picture written here
-                // is written once, and never over a file the shell may be drawing.
-                string name = TileCanvas.CardFileName(fileName, avatarData);
+                // is written once, and never over a file the shell may be drawing - and
+                // under a name of its own, because a card's name is the promise that this
+                // picture was composed (see `TileCanvas.FallbackFileName`).
+                string name = TileCanvas.FallbackFileName(fileName, avatarData);
                 string wide = TileCanvas.WideFileName(name);
 
                 if (!await ExistsAsync(name))
@@ -433,11 +435,19 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Pixels and the side they were scaled to, in one answer.</summary>
+        /// <summary>Pixels, the side they were scaled to, and the side they arrived at.</summary>
         private sealed class TilePicture
         {
             public byte[] Bytes;
+
+            /// <summary>The side the card draws: what `TileCanvas.Draw` is given.</summary>
             public int Side;
+
+            /// <summary>
+            /// The side the picture has after the crop, before it was scaled. It is what the
+            /// answer was measured at, which is the only number a log can be believed on.
+            /// </summary>
+            public int Source;
         }
 
         /// <summary>The package's own folder: where the app's assets live.</summary>
@@ -451,48 +461,46 @@ namespace WhatsappApp.Services
         ///
         /// The crop is what lets a picture fill the tile without being stretched: a photo that
         /// is not square loses a slice of its longer side rather than gaining a face that is
-        /// wider than it is tall. The decoder does both in one pass
-        /// (`BitmapTransform.Bounds` plus `ScaledWidth/Height`), which is also the only place
-        /// on this phone with a resampler worth using.
+        /// wider than it is tall.
         ///
-        /// The answer is measured, not assumed: on this phone the decoder returns the crop at
-        /// its own side and leaves the scaling undone - a 96x96 avatar asked for at 336 came
-        /// back as 96, and the card read past the end of it (`IndexOutOfRangeException` in
-        /// `TileCanvas.Draw`, 23 October 2026). Whatever it hands back is scaled here to the
-        /// side the card is drawn at, so the two cannot disagree.
+        /// The decoder is asked for **the crop and nothing else**. Not a scaled crop: on
+        /// 23 October 2026 the pinned tile composed from a full-size profile picture stopped on
+        /// `System.ArgumentException` / E_INVALIDARG ("Value does not fall within the expected
+        /// range") inside this method, and the only two WinRT calls it makes are
+        /// `BitmapDecoder.CreateAsync` and `GetPixelDataAsync` - so the two parameters it had
+        /// never been shown to accept are the suspects: `ScaledWidth`/`ScaledHeight` and
+        /// `InterpolationMode`. There is also proof the scale was never the decoder's part:
+        /// the 96x96 preview, asked for at 336x336, came back as 96x96 (the log of that run
+        /// says so in these words), and the card has always scaled it here afterwards. So the
+        /// request is the crop, and the scaling is `TileCanvas.ResizeSquare` - measured, and
+        /// pinned by the tests.
+        ///
+        /// The answer is measured, not assumed: whatever the decoder hands back is measured
+        /// with `TileCanvas.SideOf` and scaled to the side the card is drawn at, so the two
+        /// cannot disagree.
         /// </summary>
         private static async Task<TilePicture> PictureOfAsync(IRandomAccessStream stream, int side)
         {
             BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
 
+            int width = (int)decoder.PixelWidth;
+            int height = (int)decoder.PixelHeight;
+
             // The square is the rule's, not this method's: `TileCanvas.CentreSquare` is where
             // "lose a slice of the longer side, evenly" is written down and tested.
-            TileCrop crop = TileCanvas.CentreSquare((int)decoder.PixelWidth, (int)decoder.PixelHeight);
+            TileCrop crop = TileCanvas.CentreSquare(width, height);
 
-            var bounds = new BitmapBounds();
-            bounds.X = (uint)crop.X;
-            bounds.Y = (uint)crop.Y;
-            bounds.Width = (uint)crop.Side;
-            bounds.Height = (uint)crop.Side;
+            byte[] pixels = await CroppedAsync(decoder, crop);
 
-            var transform = new BitmapTransform();
-            transform.Bounds = bounds;
-            transform.ScaledWidth = (uint)side;
-            transform.ScaledHeight = (uint)side;
-            transform.InterpolationMode = BitmapInterpolationMode.Fant;
+            if (pixels == null)
+            {
+                // The decoder refused even the crop. The whole picture is the request nothing
+                // can refuse, and the square is cut out of it here, where it is arithmetic
+                // with a test instead of a parameter of a platform API.
+                byte[] whole = await PixelsAsync(decoder, new BitmapTransform());
+                pixels = TileCanvas.CentreSquarePixels(whole, width, height);
+            }
 
-            // Straight and not premultiplied: the mark's transparent margin has to blend with
-            // the card, and a premultiplied edge would arrive already darkened.
-            PixelDataProvider data = await decoder.GetPixelDataAsync(
-                BitmapPixelFormat.Bgra8,
-                BitmapAlphaMode.Straight,
-                transform,
-                ExifOrientationMode.IgnoreExifOrientation,
-                ColorManagementMode.DoNotColorManage);
-
-            var picture = new TilePicture();
-
-            byte[] pixels = data.DetachPixelData();
             int decoded = TileCanvas.SideOf(pixels.Length);
 
             if (decoded != side)
@@ -506,10 +514,65 @@ namespace WhatsappApp.Services
                 pixels = TileCanvas.ResizeSquare(pixels, decoded, side);
             }
 
+            var picture = new TilePicture();
             picture.Bytes = pixels;
             picture.Side = side;
+            picture.Source = decoded;
 
             return picture;
+        }
+
+        /// <summary>
+        /// The decoder's answer to the crop, or null when it refused it.
+        ///
+        /// Why null and not an exception: the caller has a second way to get the same picture,
+        /// and C# 5 allows no `await` inside a `catch` (CS1985, `tools/check-csharp5.js`) - the
+        /// fallback has to run after this answer, not while this method is unwinding.
+        /// E_INVALIDARG arrives as `ArgumentException`.
+        /// </summary>
+        private static async Task<byte[]> CroppedAsync(BitmapDecoder decoder, TileCrop crop)
+        {
+            var bounds = new BitmapBounds();
+            bounds.X = (uint)crop.X;
+            bounds.Y = (uint)crop.Y;
+            bounds.Width = (uint)crop.Side;
+            bounds.Height = (uint)crop.Side;
+
+            var transform = new BitmapTransform();
+            transform.Bounds = bounds;
+
+            try
+            {
+                return await PixelsAsync(decoder, transform);
+            }
+            catch (ArgumentException error)
+            {
+                Diag.Failed("TileImage/crop", error);
+            }
+            catch (System.Runtime.InteropServices.COMException error)
+            {
+                Diag.Failed("TileImage/crop", error);
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// One transform's pixels, as straight BGRA.
+        ///
+        /// Straight and not premultiplied: the mark's transparent margin has to blend with the
+        /// card, and a premultiplied edge would arrive already darkened.
+        /// </summary>
+        private static async Task<byte[]> PixelsAsync(BitmapDecoder decoder, BitmapTransform transform)
+        {
+            PixelDataProvider data = await decoder.GetPixelDataAsync(
+                BitmapPixelFormat.Bgra8,
+                BitmapAlphaMode.Straight,
+                transform,
+                ExifOrientationMode.IgnoreExifOrientation,
+                ColorManagementMode.DoNotColorManage);
+
+            return data.DetachPixelData();
         }
 
         /// <summary>

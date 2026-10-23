@@ -39,8 +39,24 @@
  *     faccia ingrandita 3,5 volte - la "foto troppo zoommata e non adattata" del
  *     23 ottobre 2026. Il template non c'entra (su WP8.1 un peek gira e mostra
  *     l'immagine quadrata a tutta tile): la sorgente si'. E `CardVersion` deve
- *     stare almeno a 4, o la shell continua a disegnare la card morbida scritta
- *     dalle regole vecchie, che ha lo stesso nome.
+ *     stare almeno a 5: la 4 ha lasciato sul telefono file il cui contenuto e' la
+ *     foto GREZZA (il ripiego del decoder), e il nome e' quello che la shell tiene
+ *     in cache.
+ *  9. al decoder si chiede il RITAGLIO, e nient'altro: ne' `ScaledWidth`/
+ *     `ScaledHeight`, ne' `InterpolationMode`. Il 23 ottobre 2026 la tile composta
+ *     dalla foto grande si e' fermata su `System.ArgumentException` (E_INVALIDARG,
+ *     "Value does not fall within the expected range") dentro
+ *     `TileImage.PictureOfAsync`: le sole due attese WinRT di quel metodo sono
+ *     `BitmapDecoder.CreateAsync` e `GetPixelDataAsync`, e i due parametri che il
+ *     telefono non aveva mai accettato sono la misura scalata e l'interpolazione.
+ *     Prova che la scala non e' del decoder: la preview 96x96, chiesta a 336x336,
+ *     e' tornata 96x96. La scala e' `TileCanvas.ResizeSquare`.
+ * 10. un ripiego non si scrive MAI con il nome di una card: un file che si chiama
+ *     come la card e' la promessa che quella foto e' gia' stata composta, e
+ *     `ComposeAsync` salta il lavoro se il nome c'e'. Sempre il 23 ottobre 2026 il
+ *     ripiego scrisse il JPEG grezzo sotto il nome di una card `v4`: ogni tentativo
+ *     successivo trovava il file e non componeva piu' - e nessun log lo diceva.
+ *     Il nome del ripiego e' `TileCanvas.FallbackFileName` (`...-raw-<foto>...`).
  *  6. la card si scrive con un nome che porta la foto e le regole con cui e'
  *     stata composta (`TileCanvas.CardFileName`), e da UN solo scrittore
  *     (`SerialQueue`). Perche': la tile del telefono tiene l'immagine per URI,
@@ -253,10 +269,99 @@ function pictureProblems(pinned, canvas) {
   }
 
   const version = /CardVersion\s*=\s*(\d+)/.exec(stripComments(String(canvas || '')));
-  if (!version || Number(version[1]) < 4) {
-    problems.push('WhatsappApp/Protocol/Media/TileCanvas.cs: CardVersion is below 4 - the ' +
-      'cards of the older rules, composed from the 96x96 preview, have the same file name ' +
-      'and the shell keeps drawing them');
+  if (!version || Number(version[1]) < 5) {
+    problems.push('WhatsappApp/Protocol/Media/TileCanvas.cs: CardVersion is below 5 - a `v4` ' +
+      'name may hold the raw picture the fallback wrote (the decoder refused the crop on ' +
+      'the full-size one), and the shell draws the file its name caches');
+  }
+
+  return problems;
+}
+
+/**
+ * Il corpo di un metodo, dalla sua dichiarazione alla graffa che lo chiude.
+ *
+ * Sulla sorgente gia' senza commenti (`stripComments`), perche' il nome cercato
+ * compare anche nei commenti e nelle chiamate: la dichiarazione e' `private`/`public`
+ * /`internal` ... `nome(`, e il corpo finisce alla prima graffa a otto spazi.
+ */
+function methodBody(source, name) {
+  const at = source.search(
+    new RegExp('(?:private|public|internal)[^;{]*\\b' + name + '\\s*\\('));
+  if (at < 0) return '';
+
+  const rest = source.slice(at);
+  const end = rest.indexOf('\n        }');
+
+  return end < 0 ? rest : rest.slice(0, end);
+}
+
+/**
+ * Problemi della richiesta al decoder, e del ripiego quando il decoder dice di no.
+ *
+ * Perche' esiste: il 23 ottobre 2026 la tile composta dalla foto grande del contatto
+ * si e' fermata su `System.ArgumentException` (E_INVALIDARG) dentro
+ * `TileImage.PictureOfAsync`, alle due sole attese WinRT che ci sono
+ * (`BitmapDecoder.CreateAsync` e `GetPixelDataAsync`). Quel `BitmapTransform`
+ * chiedeva il ritaglio E la misura scalata E `InterpolationMode.Fant`: due cose che
+ * il telefono non aveva mai mostrato di accettare. E la preview 96x96, chiesta a
+ * 336x336, era gia' tornata 96x96 - la scala il decoder non la fa. Quindi: al
+ * decoder il solo ritaglio, la scala a `TileCanvas.ResizeSquare`. Se anche il
+ * ritaglio viene rifiutato, la foto intera si decodifica e il quadrato si taglia con
+ * `TileCanvas.CentreSquarePixels` - mai il JPEG grezzo sulla tile.
+ */
+function requestProblems(source) {
+  const problems = [];
+  const code = stripComments(source);
+  const where = 'WhatsappApp/Services/TileImage.cs';
+
+  if (/ScaledWidth|ScaledHeight/.test(code)) {
+    problems.push(where + ': the decoder is asked for a scaled crop (ScaledWidth/ScaledHeight)' +
+      ' - the full-size picture answered E_INVALIDARG on that request, and the scale is' +
+      ' TileCanvas.ResizeSquare');
+  }
+
+  if (/InterpolationMode/.test(code)) {
+    problems.push(where + ': the decoder is asked for an interpolation mode - it only runs' +
+      ' when the decoder is asked to scale, which is the request that answered E_INVALIDARG;' +
+      ' the scale is TileCanvas.ResizeSquare');
+  }
+
+  if (!/TileCanvas\.CentreSquarePixels\s*\(/.test(code)) {
+    problems.push(where + ': a decoder that refuses the crop leaves the tile on the raw' +
+      ' picture - the whole picture is decoded and cut with TileCanvas.CentreSquarePixels');
+  }
+
+  return problems;
+}
+
+/**
+ * Problemi del ripiego: il nome con cui si scrive la foto non composta.
+ *
+ * Perche' esiste: `ComposeAsync` salta la composizione quando il nome della card e' gia'
+ * sul telefono. Scrivere il JPEG grezzo sotto quel nome e' una card che non si compone
+ * mai piu': il 23 ottobre 2026 la tile e' rimasta sulla faccia ingrandita per tutta la
+ * vita del file, senza una riga di log.
+ */
+function fallbackProblems(source) {
+  const problems = [];
+  const code = stripComments(source);
+  const where = 'WhatsappApp/Services/TileImage.cs';
+  const raw = methodBody(code, 'RawAsync');
+
+  if (!raw) {
+    problems.push(where + ': no RawAsync - the fallback of a decoder that refuses a picture');
+    return problems;
+  }
+
+  if (/TileCanvas\.CardFileName\s*\(/.test(raw)) {
+    problems.push(where + ': the fallback is written under a card name - a file that says' +
+      ' "composed by these rules" while it holds the raw picture, so it is never composed' +
+      ' again and the shell keeps drawing it');
+  }
+
+  if (!/TileCanvas\.FallbackFileName\s*\(/.test(raw)) {
+    problems.push(where + ': the fallback has no name of its own (TileCanvas.FallbackFileName)');
   }
 
   return problems;
@@ -334,6 +439,8 @@ function main() {
   problems.push(...pictureProblems(
     fs.readFileSync(PINNED, 'utf8'),
     fs.readFileSync(TILE_CANVAS, 'utf8')));
+  problems.push(...requestProblems(tileImage));
+  problems.push(...fallbackProblems(tileImage));
 
   const images = declaredImages(source);
   if (images.length === 0) {
@@ -364,5 +471,5 @@ if (require.main === module) main();
 
 module.exports = {
   pngSize, declaredImages, bindingProblems, decodeProblems, writeProblems, smallProblems,
-  pictureProblems, assetProblems, stripComments
+  pictureProblems, requestProblems, fallbackProblems, methodBody, assetProblems, stripComments
 };

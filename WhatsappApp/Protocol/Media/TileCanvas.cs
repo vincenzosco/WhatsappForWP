@@ -88,8 +88,15 @@ namespace WhatsappApp.Protocol.Media
         /// 4: the card is composed from the chat's full-size picture instead of the 96x96
         /// preview (`PinnedTile.AskForPicture`). The rules did not move, the source did -
         /// and a `v3` card is a soft one that the shell would keep drawing.
+        ///
+        /// 5: a `v4` name may hold the picture **uncomposed**. When the decoder refused the
+        /// crop, the fallback wrote the raw JPEG under the card's own name
+        /// (`TileImage.RawAsync`), so the phone of 23 October 2026 has `v4` files whose bytes
+        /// are the magnified face this class exists to end - and the name is what the shell
+        /// caches. The fallback has a name of its own now (`FallbackFileName`); this bump is
+        /// what makes the phone draw the composed card instead of the file it left behind.
         /// </summary>
-        public const int CardVersion = 4;
+        public const int CardVersion = 5;
 
         /// <summary>
         /// The card's colour, as BGRA: `#075E54`, the dark teal the app's own header uses.
@@ -150,6 +157,32 @@ namespace WhatsappApp.Protocol.Media
 
             return stem + "-v" + CardVersion.ToString(CultureInfo.InvariantCulture)
                 + "-" + Fingerprint(picture) + extension;
+        }
+
+        /// <summary>
+        /// The name the uncomposed picture is written under: the caller's name, the rules and
+        /// `-raw-` before the fingerprint of the picture.
+        ///
+        /// Why it is not the card's name: a file named as a card is what says "this picture
+        /// has already been composed by these rules", and `TileImage.ComposeAsync` skips the
+        /// work when that name is on the phone. On 23 October 2026 the fallback wrote the raw
+        /// JPEG under a `v4` card's name - the decoder had refused the crop - so every later
+        /// attempt found the file there and never composed it again: the magnified face stayed
+        /// for the whole life of that file, and no log line said so.
+        /// </summary>
+        public static string FallbackFileName(string fileName, string picture)
+        {
+            if (string.IsNullOrEmpty(fileName))
+            {
+                throw new ProtocolException("a card needs a file name");
+            }
+
+            int dot = fileName.LastIndexOf('.');
+            string stem = dot < 0 ? fileName : fileName.Substring(0, dot);
+            string extension = dot < 0 ? ".jpg" : fileName.Substring(dot);
+
+            return stem + "-v" + CardVersion.ToString(CultureInfo.InvariantCulture)
+                + "-raw-" + Fingerprint(picture) + extension;
         }
 
         /// <summary>The wide card that belongs to a square one: the same name, plus `-wide`.</summary>
@@ -273,6 +306,48 @@ namespace WhatsappApp.Protocol.Media
             }
 
             return wide;
+        }
+
+        /// <summary>
+        /// The centre square of a decoded picture, copied out of it - the same rectangle
+        /// `CentreSquare` describes, as pixels.
+        ///
+        /// Why it is here: the crop is a parameter of the decoder's own API, and on 23 October
+        /// 2026 a full-size profile picture answered `ArgumentException` (E_INVALIDARG) to it.
+        /// The whole picture is a request no decoder refuses, so the square can be cut out
+        /// here - and the rule (lose a slice of the longer side, evenly, never stretch) stays
+        /// the one `CentreSquare` writes down and `TileCanvasTests` pins.
+        ///
+        /// A picture that is already square is answered with itself: nothing is cut, so there
+        /// is nothing to copy.
+        /// </summary>
+        public static byte[] CentreSquarePixels(byte[] picture, int width, int height)
+        {
+            if (picture == null) throw new ArgumentNullException("picture");
+
+            TileCrop crop = CentreSquare(width, height);
+
+            if (picture.Length < width * height * 4)
+            {
+                throw new ProtocolException("a picture of " + width + "x" + height + " is "
+                    + (width * height * 4) + " byte(s) and this one is " + picture.Length
+                    + ": the side it is drawn at is not the side it has");
+            }
+
+            if (crop.X == 0 && crop.Y == 0 && crop.Side == width && crop.Side == height)
+            {
+                return picture;
+            }
+
+            var square = new byte[crop.Side * crop.Side * 4];
+
+            for (int y = 0; y < crop.Side; y++)
+            {
+                Buffer.BlockCopy(picture, ((crop.Y + y) * width + crop.X) * 4,
+                    square, y * crop.Side * 4, crop.Side * 4);
+            }
+
+            return square;
         }
 
         /// <summary>
