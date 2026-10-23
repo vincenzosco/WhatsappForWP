@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app - the static guard
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 310 protocol tests, 131 keys in each `.resw`, 186 tests in
+Current expected counts: 320 protocol tests, 131 keys in each `.resw`, 188 tests in
 `tools/test`, 31 buttons and 2 button styles. The counts printed by the guards
 themselves are the source of truth; these are what to expect when nothing is out of
 step.
@@ -19,7 +19,7 @@ node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
 node tools/check-docs.js          # the two languages of the docs are in step, no emoji
 node tools/check-no-server.js    # the retired server is out of the tree and out of the docs
-node tools/check-tile.js        # the tile payload carries its icon, asset within the limits
+node tools/check-tile.js        # the tile payload carries its icon, asset within the limits, decoded pixels measured before they are drawn
 node tools/check-memory.js      # no bitmap decoded bigger than it is drawn, every bitmap built on the thread that draws it, the picture caches bounded
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
 node tools/check-fire-and-forget.js  # a call fired without await is observed, or it loses its fault
@@ -34,7 +34,7 @@ node tools/check-attachment-file.js  # each attachment copies to its own name, a
 node tools/check-lid-names.js  # a LID is never printed as a phone number, and the rule is asked before digits
 node tools/check-status-viewer.js  # a status tap opens the update, the row binds only what its model has, the feed survives a restart
 node tools/check-background-task.js  # the manifest, the task component and the registration name the same class
-node --test "tools/test/**/*.test.js"  # the tools' own tests (186)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (188)
 ```
 
 Exit code 0 and an `OK: ...` line each. What they catch that the build does not:
@@ -113,7 +113,7 @@ for (const dir of ['Pages','Controls']) for (const f of fs.readdirSync('Whatsapp
 node tools/test-protocol.js
 ```
 
-Expected `OK: 267 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
+Expected `OK: 320 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
 the app's own sources and runs them: the binary node reader and writer, the Noise
 handshake, the Signal sessions (X3DH, the double ratchet, the sender key of a
 group), the media key schedule and the four media protobufs, the credential store,
@@ -322,6 +322,20 @@ to "why is the screen empty".
     number**; with the count back at zero it returns to the tile in the manifest.
     An icon with no number is a badge problem, a tile with no icon at all is
     `check-tile`'s bug (the payload sent no `src`).
+    - The medium tile shows the sender's **name in the large line** and the
+      message under it, and the number in the corner badge. A count in the large
+      line is the build before 23 October 2026.
+    - Wait through a few rotations with one unanswered person: the tile must
+      alternate the message and the same person's picture alone. Half a tile
+      covered by a face with no text at all is that second turn, not a bug.
+    - Two people unanswered: both names appear, and any spare rotation is a
+      picture. Five people: all five names, no picture turn - a name is never
+      traded for somebody else's face.
+    - `DIAG ok: tile: the decoder answered NxN instead of 336x336, so it is
+      scaled here` means this phone's decoder ignores the requested scale, which
+      is what read past the buffer on 23 October 2026 (`IndexOutOfRangeException`
+      in `TileCanvas.Draw`). The line is expected; a `TileImage/Store` failure is
+      not.
 31. Memory: the first line of the debug output is `DIAG ok: memory budget N MB`.
     On a 512 MB phone that is the limit being watched, and it is roughly half of
     what a 1 GB phone reports. Scroll a long chat list on a 512 MB phone: the app

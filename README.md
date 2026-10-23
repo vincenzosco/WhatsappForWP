@@ -58,7 +58,7 @@ What works today:
 - typing indicators in both directions
 - the status feed: what contacts posted, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, and an update whose photo did not arrive has a **Try again** button instead of a dead end
 - the call log, both directions, with missed calls spelled out
-- live tile, pinned-chat tile, lock screen text, and a background check about every 15 minutes
+- a live tile that rotates the people waiting - their name and their message, and between one message and the next the picture alone of somebody still unanswered - plus a pinned-chat tile, lock screen text, and a background check about every 15 minutes
 - theme picker with the wallpapers the released package ships, plus the doodle and plain white
 - English and Italian, following the phone's language
 

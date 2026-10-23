@@ -24,8 +24,9 @@ namespace WhatsappApp.Services
     /// **message**, which is what the queue was used for once and why it was taken out:
     /// the count written on each was the count of its own moment, and the tile on
     /// screen kept showing a number nobody had verified since. Here the queue holds one
-    /// entry per **conversation** (see `TileCycle`) and the number comes from the live
-    /// total on every render.
+    /// turn per **conversation** - and, where the five slots leave room, one more with
+    /// the picture alone - while the number comes from the live total on every render
+    /// (see `TileCycle.Turns`).
     /// </summary>
     public static class NotificationService
     {
@@ -193,19 +194,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The tile: how many messages are waiting, then one turn per conversation - who
-        /// wrote and what they said, over their picture.
+        /// The tile: the turns `TileCycle` makes - one per conversation, who wrote and what
+        /// they said, and a picture alone between them when the slots allow.
         ///
-        /// The number is written here, and not left to the badge alone. On WP8.1 the
-        /// badge is the only thing that draws a count on the tile, and a badge that
-        /// the shell does not draw leaves the tile with no number at all - which is
-        /// what happened on the phone this was fixed on: the tile showed the app
-        /// icon and nothing else.
+        /// The number is not written in the medium tile any more. The two lines of a 150 px
+        /// tile are the only text it has, and the request of 23 October 2026 was to spend
+        /// them on the person and the message, in the larger font, instead of on a count
+        /// the badge already draws in the corner. A count that the shell does not draw is
+        /// still visible on the wide size, which falls back to it when there is nothing to
+        /// name.
         ///
-        /// Every notification carries the **same, live** total: the queue rotates, the
-        /// number does not belong to a moment. That is the difference between this and
-        /// the per-message queue that was taken out - a tile could then be showing the
-        /// count of a message that had already been read.
+        /// Every turn is drawn from the **live** total and the live list: the queue rotates,
+        /// the truth under it does not belong to a moment. That is the difference between
+        /// this and the per-message queue that was taken out - a tile could then be showing
+        /// the count of a message that had already been read.
         /// </summary>
         private static void RenderTile()
         {
@@ -237,16 +239,23 @@ namespace WhatsappApp.Services
                     // Nobody named in this process - a count read back from the local copy
                     // before any message: one notification with the last person the phone
                     // knows, which is what the lock screen shows too.
-                    Post(updater, _senderName, _senderBody, _senderImage);
+                    Post(updater, Entry(_senderName, _senderBody, _senderImage));
                     return;
                 }
 
-                for (int i = 0; i < waiting.Count; i++)
+                // Not one notification per conversation, but the turns `TileCycle` makes of
+                // them: the message of each person, and a picture alone in the slots the
+                // messages leave over. The tile then does not say the same thing on every
+                // pass through the queue.
+                //
+                // Posted back to front: the shell shows the notification it was given last
+                // first, so the first turn of the list - the newest person's message, the
+                // one this tile has always opened with - is the last one handed over. In
+                // order, the first thing on screen would be the picture turn.
+                IList<TileEntry> turns = TileCycle.Turns(waiting, TileCycle.MaxEntries);
+                for (int i = turns.Count - 1; i >= 0; i--)
                 {
-                    TileEntry entry = waiting[i];
-                    if (entry == null) continue;
-
-                    Post(updater, entry.Sender, entry.Body, entry.Image);
+                    Post(updater, turns[i]);
                 }
             }
             catch (Exception ex)
@@ -256,44 +265,85 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// One notification: a turn in the queue, for one conversation.
+        /// One turn of the queue: either the conversation - who wrote and what they said -
+        /// or the picture alone.
         ///
         /// The three sizes are one notification on purpose (see `ImportBinding`): the
         /// medium and the wide one say the same person, and a size that disagrees with
         /// the other about who wrote would be two tiles in one.
+        ///
+        /// The picture alone is a turn of its own and not a second line: a template with no
+        /// text is the only way to get a tile that is a face and nothing else, which is what
+        /// the request of 23 October 2026 asked for between one message and the next.
         /// </summary>
-        private static void Post(TileUpdater updater, string sender, string body, string image)
+        private static void Post(TileUpdater updater, TileEntry entry)
         {
-            var xml = TileUpdateManager.GetTemplateContent(
-                TileTemplateType.TileSquare150x150PeekImageAndText02);
+            if (entry == null) return;
+
+            var xml = TileUpdateManager.GetTemplateContent(entry.PictureOnly
+                ? TileTemplateType.TileSquare150x150Image
+                : TileSquareTemplate);
             var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
             if (visual == null) return;
 
-            FillBinding(xml, visual.SelectSingleNode("binding") as XmlElement, sender, image);
-            AddWideBinding(xml, visual, sender, body, image);
+            var medium = visual.SelectSingleNode("binding") as XmlElement;
+
+            if (entry.PictureOnly)
+            {
+                SetImage(xml, medium, entry.Image ?? TileIconUri);
+                AddWidePicture(xml, visual, entry.Image ?? TileWideIconUri);
+            }
+            else
+            {
+                FillBinding(xml, medium, entry.Sender, entry.Body, entry.Image);
+                AddWideBinding(xml, visual, entry.Sender, entry.Body, entry.Image);
+            }
+
             AddSmallBinding(xml, visual);
 
             updater.Update(new TileNotification(xml));
         }
 
+        /// <summary>One entry, for the turn that is about to be drawn.</summary>
+        private static TileEntry Entry(string sender, string body, string image)
+        {
+            var entry = new TileEntry();
+            entry.Sender = sender;
+            entry.Body = body;
+            entry.Image = image;
+
+            return entry;
+        }
+
         /// <summary>
-        /// What one binding of the notification says: how many are waiting, then the
-        /// last sender over their picture.
+        /// The medium tile: who wrote on the template's large line, and what they said
+        /// wrapped under it.
+        ///
+        /// The count used to take the large line and the name the small one, which put the
+        /// number where the eye lands and the message nowhere at all: at 150 px the two
+        /// lines are all the text there is, and the one a person reads is the message. The
+        /// count is still on the tile - the badge draws it over the corner, and the wide
+        /// size says it when there is nothing else to say.
         ///
         /// One helper for both sizes. The medium tile and the wide one say the same
         /// thing, so a change here cannot arrive on one of them and not on the other.
         /// </summary>
-        private static void FillBinding(XmlDocument xml, XmlElement binding, string senderName, string image)
+        private static void FillBinding(XmlDocument xml, XmlElement binding, string senderName, string bodyText, string image)
         {
             if (binding == null) return;
 
             var texts = binding.SelectNodes("text");
-            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(UnreadText(_unread)));
+
             // Nobody wrote yet - a count read back from the local copy at startup,
-            // before any message: the line stays empty instead of holding an empty
-            // node.
+            // before any message: the count is the only true line there is, and it takes
+            // the large one. The second line stays empty instead of saying it twice.
             string sender = Cut(senderName, 30);
-            if (texts.Length > 1 && sender.Length > 0) texts[1].AppendChild(xml.CreateTextNode(sender));
+            if (sender.Length == 0) sender = UnreadText(_unread);
+
+            string body = Cut(bodyText, SquareBodyLength);
+
+            if (texts.Length > 0) texts[0].AppendChild(xml.CreateTextNode(sender));
+            if (texts.Length > 1 && body.Length > 0) texts[1].AppendChild(xml.CreateTextNode(body));
 
             SetImage(xml, binding, image ?? TileIconUri);
         }
@@ -342,6 +392,25 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("NotificationService.AddWideBinding", ex);
+            }
+        }
+
+        /// <summary>
+        /// The wide tile of a picture turn: the same picture, whole, and no text - the turn
+        /// before or after it is the one that says whose face it is.
+        /// </summary>
+        private static void AddWidePicture(XmlDocument xml, XmlElement visual, string image)
+        {
+            try
+            {
+                var binding = ImportBinding(xml, visual, TileTemplateType.TileWide310x150Image);
+                if (binding == null) return;
+
+                SetImage(xml, binding, image);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService.AddWidePicture", ex);
             }
         }
 
@@ -450,6 +519,22 @@ namespace WhatsappApp.Services
         /// </summary>
         private static readonly TileTemplateType TileWideTemplate =
             TileTemplateType.TileWide310x150PeekImageAndText02;
+
+        /// <summary>
+        /// The medium template of a message turn: one header string in larger text over one
+        /// string of regular text that wraps over up to three lines. It is the shape of the
+        /// two lines the tile has, which is why the person is in the header and the message
+        /// in the wrapping one.
+        /// </summary>
+        private static readonly TileTemplateType TileSquareTemplate =
+            TileTemplateType.TileSquare150x150PeekImageAndText02;
+
+        /// <summary>
+        /// How much of a message the medium tile holds. The line wraps over three lines at
+        /// 150 px, which is about this many characters; past it the shell cuts mid-word, and
+        /// an ellipsis of our own reads better than half a word.
+        /// </summary>
+        private const int SquareBodyLength = 120;
 
         /// <summary>The count the tile is showing, and the one the badge shows.</summary>
         private static int _unread;
@@ -569,6 +654,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private static void SetImage(XmlDocument xml, XmlElement binding, string uri)
         {
+            if (binding == null) return;
+
             var image = binding.SelectSingleNode("image") as XmlElement;
             if (image == null)
             {

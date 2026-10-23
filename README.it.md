@@ -58,7 +58,7 @@ Cosa funziona oggi:
 - indicatore "sta scrivendo" nelle due direzioni
 - il feed degli stati: quello che i contatti hanno pubblicato, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
 - il registro delle chiamate, nelle due direzioni, con le perse scritte per esteso
-- tile viva, tile di una chat fissata, testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
+- una tile viva che ruota fra le persone in attesa - nome e messaggio, e fra un messaggio e l'altro la sola foto di chi aspetta una risposta - più la tile di una chat fissata, il testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
 - selettore del tema con gli sfondi del pacchetto ufficiale, più il doodle e il bianco
 - inglese e italiano, seguendo la lingua del telefono
 

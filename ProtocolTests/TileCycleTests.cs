@@ -88,12 +88,102 @@ namespace ProtocolTests
                 "a queue that was never filled is an empty queue");
         }
 
+        /// <summary>
+        /// The turns the queue holds: the message of each person who wrote, and - every so
+        /// often - the picture alone of somebody still unanswered.
+        ///
+        /// Why: every turn used to be the same shape, a count over a name, so the tile read
+        /// the same whichever way it landed. The request of 23 October 2026 was the message
+        /// with the person, and a bare face between them.
+        /// </summary>
+        [Test]
+        public static void AMessageTurnIsFollowedByThePictureOfTheSamePerson()
+        {
+            IList<TileEntry> queue = TileCycle.Remember(null, Entry("anna@s.whatsapp.net", "Anna", "ciao", "tile-anna.jpg"));
+
+            IList<TileEntry> turns = TileCycle.Turns(queue, TileCycle.MaxEntries);
+
+            Assert.AreEqual(2, turns.Count, "one message and one picture of the same person");
+            Assert.AreEqual("ciao", turns[0].Body, "the message comes first");
+            Assert.IsTrue(!turns[0].PictureOnly);
+            Assert.AreEqual("anna@s.whatsapp.net", turns[1].ChatId, "the picture is the same conversation");
+            Assert.IsTrue(turns[1].PictureOnly, "and carries no text");
+        }
+
+        [Test]
+        public static void AConversationWithNoPictureGetsNoPictureTurn()
+        {
+            IList<TileEntry> queue = TileCycle.Remember(null, Entry("anna@s.whatsapp.net", "Anna", "ciao", null));
+
+            IList<TileEntry> turns = TileCycle.Turns(queue, TileCycle.MaxEntries);
+
+            Assert.AreEqual(1, turns.Count, "the app mark alone is not a face");
+            Assert.IsTrue(!turns[0].PictureOnly);
+        }
+
+        [Test]
+        public static void EveryMessageClaimsItsSlotBeforeAnyPicture()
+        {
+            IList<TileEntry> queue = new List<TileEntry>();
+            for (int i = 1; i <= TileCycle.MaxEntries; i++)
+            {
+                queue = TileCycle.Remember(queue, Entry("c" + i + "@s.whatsapp.net", "C" + i, "m" + i, "tile-c" + i + ".jpg"));
+            }
+
+            IList<TileEntry> turns = TileCycle.Turns(queue, TileCycle.MaxEntries);
+
+            Assert.AreEqual(TileCycle.MaxEntries, turns.Count, "five is the whole queue");
+            for (int i = 0; i < turns.Count; i++)
+            {
+                Assert.IsTrue(!turns[i].PictureOnly, "with five people waiting, every turn names one");
+            }
+        }
+
+        [Test]
+        public static void AFreeSlotBecomesAPictureAndNobodyIsDropped()
+        {
+            IList<TileEntry> queue = new List<TileEntry>();
+            for (int i = 1; i <= 4; i++)
+            {
+                queue = TileCycle.Remember(queue, Entry("c" + i + "@s.whatsapp.net", "C" + i, "m" + i, "tile-c" + i + ".jpg"));
+            }
+
+            IList<TileEntry> turns = TileCycle.Turns(queue, TileCycle.MaxEntries);
+
+            Assert.AreEqual(TileCycle.MaxEntries, turns.Count, "the queue is full");
+            Assert.IsTrue(turns[1].PictureOnly, "the newest conversation gets the spare slot, after its message");
+
+            // Four people, four messages: the picture took the fifth slot and not one of theirs.
+            var named = new List<string>();
+            for (int i = 0; i < turns.Count; i++)
+            {
+                if (!turns[i].PictureOnly && !named.Contains(turns[i].ChatId)) named.Add(turns[i].ChatId);
+            }
+            Assert.AreEqual(4, named.Count, "every conversation is still on the tile");
+        }
+
+        [Test]
+        public static void TheTurnsLeaveTheWaitingListAsItWas()
+        {
+            IList<TileEntry> queue = TileCycle.Remember(null, Entry("anna@s.whatsapp.net", "Anna", "ciao", "tile-anna.jpg"));
+
+            TileCycle.Turns(queue, TileCycle.MaxEntries);
+
+            Assert.IsTrue(!queue[0].PictureOnly, "the list holds conversations, not the turns drawn from them");
+        }
+
         private static TileEntry Entry(string chatId, string sender, string body)
+        {
+            return Entry(chatId, sender, body, null);
+        }
+
+        private static TileEntry Entry(string chatId, string sender, string body, string image)
         {
             var entry = new TileEntry();
             entry.ChatId = chatId;
             entry.Sender = sender;
             entry.Body = body;
+            entry.Image = image;
 
             return entry;
         }
