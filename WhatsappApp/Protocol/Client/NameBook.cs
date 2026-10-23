@@ -74,7 +74,22 @@ namespace WhatsappApp.Protocol.Client
             if (!phone.EndsWith("@" + JidUtils.WhatsappServer, StringComparison.OrdinalIgnoreCase)) return false;
 
             string known;
-            if (_pnByLid.TryGetValue(lid, out known)) return known != phone;
+            if (_pnByLid.TryGetValue(lid, out known))
+            {
+                if (known == phone) return false;
+
+                // The pair was known with another number - a re-registered account, or a
+                // pair learned wrong before. The correction is written in both directions:
+                // returning "learned" without storing it left `Canonical` folding that
+                // chat into the old person's row for ever.
+                _pnByLid[lid] = phone;
+
+                string oldLid;
+                if (_lidByPn.TryGetValue(known, out oldLid) && oldLid == lid) _lidByPn.Remove(known);
+
+                _lidByPn[phone] = lid;
+                return true;
+            }
 
             if (_pnByLid.Count >= MaxMappings) return false;
 

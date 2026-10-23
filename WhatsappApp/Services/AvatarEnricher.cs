@@ -132,13 +132,17 @@ namespace WhatsappApp.Services
                     string id = row == null ? null : row.Id;
                     if (!WorthAsking(id)) continue;
                     if (AvatarCache.Get(id) != null) continue;
-                    if (!FirstAsk(id)) continue;
 
+                    // Asked after the pressure check, not before: `FirstAsk` spends the one
+                    // question this row gets, and spending it on a decode that is not going
+                    // to happen left the chat on its initials for the whole run.
                     if (MemoryWatcher.Instance.IsUnderPressure)
                     {
                         await Task.Delay(1000);
                         continue;
                     }
+
+                    if (!FirstAsk(id)) continue;
 
                     // The wait is outside the catch blocks on purpose: the WP8.1 compiler
                     // answers CS1985 to an await inside one (C# 5 syntax, see

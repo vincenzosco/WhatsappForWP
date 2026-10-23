@@ -120,6 +120,11 @@ namespace WhatsappApp.Services
             if (_loaded) return;
             _loaded = true;
 
+            // The version the file represents. A picture remembered while this read is in
+            // flight bumps the version past it, and its queued write must not be swallowed by
+            // a stamp of the *current* version.
+            int diskVersion = _version;
+
             try
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
@@ -150,7 +155,7 @@ namespace WhatsappApp.Services
 
                         // What was read is already on disk: there is nothing to
                         // rewrite.
-                        _written = _version;
+                        _written = diskVersion;
                     }
                 }
             }

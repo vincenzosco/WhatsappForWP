@@ -89,8 +89,6 @@
     <Compile Include="App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
     </Compile>
-    <Compile Include="BackgroundSyncTask.cs" />
-    <Compile Include="Controls\AppSection.cs" />
     <Compile Include="Controls\TabHeader.xaml.cs">
       <DependentUpon>TabHeader.xaml</DependentUpon>
     </Compile>
@@ -101,128 +99,7 @@
       <DependentUpon>CallsPane.xaml</DependentUpon>
     </Compile>
     <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Models\CallLogEntry.cs" />
-    <Compile Include="Models\ChatMessage.cs" />
-    <Compile Include="Models\Contact.cs" />
-    <Compile Include="Models\ContactInfo.cs" />
     <Compile Include="Converters\Converters.cs" />
-    <Compile Include="Services\Accent.cs" />
-    <Compile Include="Services\BackNavigator.cs" />
-    <Compile Include="Services\DataService.cs" />
-    <Compile Include="Services\DeviceRandomSource.cs" />
-    <Compile Include="Services\Diag.cs" />
-    <Compile Include="Services\ImageHelper.cs" />
-    <Compile Include="Services\Loc.cs" />
-    <Compile Include="Services\SerialQueue.cs" />
-    <Compile Include="Services\SessionService.cs" />
-    <Compile Include="Services\SessionState.cs" />
-    <Compile Include="Services\SettingsService.cs" />
-    <Compile Include="Services\StartDecision.cs" />
-    <Compile Include="Services\ThemeService.cs" />
-    <Compile Include="Services\TileImage.cs" />
-    <Compile Include="Services\ContactDirectory.cs" />
-    <Compile Include="Services\BackgroundSync.cs" />
-    <Compile Include="Services\NotificationService.cs" />
-    <Compile Include="Services\PinnedTile.cs" />
-    <Compile Include="Services\TileCycle.cs" />
-    <Compile Include="Services\ProtocolLog.cs" />
-    <Compile Include="Services\AttachmentInbox.cs" />
-    <Compile Include="Services\AvatarCache.cs" />
-    <Compile Include="Services\AvatarEnricher.cs" />
-    <Compile Include="Services\ChatCache.cs" />
-    <Compile Include="Services\ChatPreferences.cs" />
-    <Compile Include="Services\IncomingMediaStore.cs" />
-    <Compile Include="Services\WinRtMediaFetcher.cs" />
-    <Compile Include="Services\MessageCache.cs" />
-    <Compile Include="Services\NameCache.cs" />
-    <Compile Include="Services\NativeConnection.cs" />
-    <Compile Include="Services\NativeCredentialStorage.cs" />
-    <Compile Include="Services\ImagePickerService.cs" />
-    <Compile Include="Services\FileSessionStorage.cs" />
-    <Compile Include="Services\MemoryWatcher.cs" />
-    <Compile Include="Services\VideoCompressor.cs" />
-    <Compile Include="Services\VideoThumbnail.cs" />
-    <Compile Include="Services\AudioRecorder.cs" />
-    <Compile Include="Services\Guarded.cs" />
-    <Compile Include="Services\RecordingSession.cs" />
-    <Compile Include="Services\ConversationView.cs" />
-    <Compile Include="Services\CrashReport.cs" />
-    <Compile Include="Protocol\Client\ActivityTime.cs" />
-    <Compile Include="Protocol\Client\ClientState.cs" />
-    <Compile Include="Protocol\Client\CredentialStore.cs" />
-    <Compile Include="Protocol\Client\ConnectionPolicy.cs" />
-    <Compile Include="Protocol\Client\Conversation.cs" />
-    <Compile Include="Protocol\Client\Calls.cs" />
-    <Compile Include="Protocol\Client\ChatMerge.cs" />
-    <Compile Include="Protocol\Client\Credentials.cs" />
-    <Compile Include="Protocol\Client\DeviceDirectory.cs" />
-    <Compile Include="Protocol\Client\DirectSend.cs" />
-    <Compile Include="Protocol\Client\InboundRouter.cs" />
-    <Compile Include="Protocol\Client\GroupDirectory.cs" />
-    <Compile Include="Protocol\Client\IncomingMessage.cs" />
-    <Compile Include="Protocol\Client\MediaConn.cs" />
-    <Compile Include="Protocol\Client\NameBook.cs" />
-    <Compile Include="Protocol\Client\NativeChats.cs" />
-    <Compile Include="Protocol\Client\NativeSession.cs" />
-    <Compile Include="Protocol\Client\OutgoingMessage.cs" />
-    <Compile Include="Protocol\Client\PairingQr.cs" />
-    <Compile Include="Protocol\Client\PairingSession.cs" />
-    <Compile Include="Protocol\Client\ProfilePictures.cs" />
-    <Compile Include="Protocol\Client\PreKeyUpload.cs" />
-    <Compile Include="Protocol\Client\SessionKeepAlive.cs" />
-    <Compile Include="Protocol\Client\StatusFeed.cs" />
-    <Compile Include="Protocol\WABinary\Zlib.cs" />
-    <Compile Include="Protocol\Client\WhatsAppSocket.cs" />
-    <Compile Include="Protocol\Diagnostics.cs" />
-    <Compile Include="Protocol\Noise\NoiseHandshake.cs" />
-    <Compile Include="Protocol\Signal\Cipher.cs" />
-    <Compile Include="Protocol\Signal\Keys.cs" />
-    <Compile Include="Protocol\Signal\PreKeyBundle.cs" />
-    <Compile Include="Protocol\Signal\SessionRecord.cs" />
-    <Compile Include="Protocol\Signal\SenderKeyRecord.cs" />
-    <Compile Include="Protocol\Signal\SenderKeys.cs" />
-    <Compile Include="Protocol\Signal\SessionStore.cs" />
-    <Compile Include="Protocol\Signal\SignalConstants.cs" />
-    <Compile Include="Protocol\Signal\WhisperMessage.cs" />
-    <Compile Include="Protocol\Signal\X3dh.cs" />
-    <Compile Include="Protocol\Qr\QrCode.cs" />
-    <Compile Include="Protocol\Qr\QrTables.cs" />
-    <Compile Include="Protocol\Media\HistoryBlob.cs" />
-    <Compile Include="Protocol\Media\MediaDownload.cs" />
-    <Compile Include="Protocol\Media\MediaKeys.cs" />
-    <Compile Include="Protocol\Media\MediaUpload.cs" />
-    <Compile Include="Protocol\Media\TileCanvas.cs" />
-    <Compile Include="Protocol\Transport\IMediaFetcher.cs" />
-    <Compile Include="Protocol\Transport\ITransport.cs" />
-    <Compile Include="Protocol\Transport\WebSocketTransport.cs" />
-    <Compile Include="Protocol\WaProto\AdvIdentity.cs" />
-    <Compile Include="Protocol\WaProto\CertificateVerifier.cs" />
-    <Compile Include="Protocol\WaProto\ClientPayload.cs" />
-    <Compile Include="Protocol\WaProto\DeviceProps.cs" />
-    <Compile Include="Protocol\WaProto\HandshakeMessage.cs" />
-    <Compile Include="Protocol\WaProto\HistorySync.cs" />
-    <Compile Include="Protocol\WaProto\MediaMessages.cs" />
-    <Compile Include="Protocol\WaProto\Message.cs" />
-    <Compile Include="Protocol\WaProto\Proto.cs" />
-    <Compile Include="Protocol\Crypto\Aes.cs" />
-    <Compile Include="Protocol\Crypto\AesGcm.cs" />
-    <Compile Include="Protocol\Crypto\Curve25519.cs" />
-    <Compile Include="Protocol\Crypto\Ed25519.cs" />
-    <Compile Include="Protocol\Crypto\Edwards25519.cs" />
-    <Compile Include="Protocol\Crypto\Field25519.cs" />
-    <Compile Include="Protocol\Crypto\Hkdf.cs" />
-    <Compile Include="Protocol\Crypto\Hmac.cs" />
-    <Compile Include="Protocol\Crypto\Scalar25519.cs" />
-    <Compile Include="Protocol\Crypto\Sha256.cs" />
-    <Compile Include="Protocol\Crypto\Sha512.cs" />
-    <Compile Include="Protocol\Crypto\XEdDsa.cs" />
-    <Compile Include="Protocol\WABinary\BinaryNode.cs" />
-    <Compile Include="Protocol\WABinary\JidUtils.cs" />
-    <Compile Include="Protocol\WABinary\NodeReader.cs" />
-    <Compile Include="Protocol\WABinary\NodeWriter.cs" />
-    <Compile Include="Protocol\WABinary\PhoneNumbers.cs" />
-    <Compile Include="Protocol\WABinary\Tags.cs" />
-    <Compile Include="Protocol\WABinary\Tokens.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">
       <DependentUpon>ChatPage.xaml</DependentUpon>
     </Compile>
@@ -243,6 +120,9 @@
     </Compile>
     <Compile Include="Pages\SettingsPage.xaml.cs">
       <DependentUpon>SettingsPage.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Pages\StatusViewerPage.xaml.cs">
+      <DependentUpon>StatusViewerPage.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
   <ItemGroup>
@@ -400,6 +280,24 @@
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>
+    <Page Include="Pages\StatusViewerPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The code the background task has to run (protocol, services, models) lives
+         in a library and not in this project: the task runs in a process of its own
+         and must load the same code, not a copy. See WhatsappApp.Core.csproj and
+         WhatsappApp.Tasks.csproj. -->
+    <ProjectReference Include="..\WhatsappApp.Core\WhatsappApp.Core.csproj">
+      <Project>{A7069697-1A7C-4854-84E7-EEBF1C797A0D}</Project>
+      <Name>WhatsappApp.Core</Name>
+    </ProjectReference>
+    <ProjectReference Include="..\WhatsappApp.Tasks\WhatsappApp.Tasks.csproj">
+      <Project>{79257552-0CDA-4DEB-B7C2-ACAACB4AF1A6}</Project>
+      <Name>WhatsappApp.Tasks</Name>
+    </ProjectReference>
   </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '12.0' ">
     <VisualStudioVersion>12.0</VisualStudioVersion>

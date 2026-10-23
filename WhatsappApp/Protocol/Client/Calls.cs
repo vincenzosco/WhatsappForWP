@@ -109,10 +109,14 @@ namespace WhatsappApp.Protocol.Client
             for (int i = 0; i < record.Participants.Count; i++)
             {
                 string who = record.Participants[i];
-                if (!known || !SamePerson(who, ownJid)) return who;
+
+                // Without its device, as the doc comment says: the call row is keyed on the
+                // chat's address, and `15551230000:5` is no chat's address - the list then
+                // printed the number with its device in it and found no name for it.
+                if (!known || !SamePerson(who, ownJid)) return JidUtils.Normalize(who);
             }
 
-            if (!SamePerson(record.CallCreatorJid, ownJid)) return record.CallCreatorJid;
+            if (!SamePerson(record.CallCreatorJid, ownJid)) return JidUtils.Normalize(record.CallCreatorJid);
 
             return null;
         }

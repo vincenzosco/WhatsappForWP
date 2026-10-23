@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Package xmlns="http://schemas.microsoft.com/appx/2010/manifest" xmlns:m2="http://schemas.microsoft.com/appx/2013/manifest" xmlns:m3="http://schemas.microsoft.com/appx/2014/manifest" xmlns:mp="http://schemas.microsoft.com/appx/2014/phone/manifest">
-  <Identity Name="7ccc5b77-3cf2-4020-92a7-9542b250bb49" Publisher="CN=Vincenzo" Version="1.3.12.12" />
+  <Identity Name="7ccc5b77-3cf2-4020-92a7-9542b250bb49" Publisher="CN=Vincenzo" Version="1.3.12.16" />
   <mp:PhoneIdentity PhoneProductId="7ccc5b77-3cf2-4020-92a7-9542b250bb49" PhonePublisherId="00000000-0000-0000-0000-000000000000" />
   <Properties>
     <DisplayName>WhatsApp</DisplayName>
@@ -33,7 +33,7 @@
         <m3:LockScreen Notification="badgeAndTileText" BadgeLogo="Assets\LockScreenBadge.png" />
       </m3:VisualElements>
       <Extensions>
-        <Extension Category="windows.backgroundTasks" EntryPoint="WhatsappApp.BackgroundSyncTask">
+        <Extension Category="windows.backgroundTasks" EntryPoint="WhatsappApp.Tasks.BackgroundSyncTask">
           <BackgroundTasks>
             <Task Type="timer" />
           </BackgroundTasks>
@@ -82,4 +82,28 @@
              senza di essa MediaCapture.InitializeAsync risponde accesso negato e
              la registrazione non parte mai. -->
   </Capabilities>
+  <!-- Come l'app di riferimento WP8.1 (One Live Network): il task che il
+       sistema sveglia e' una classe WinRT, dichiarata qui con il nome completo
+       del tipo.
+
+       Perche' non basta <Extension Category="windows.backgroundTasks">: quello
+       dice al sistema *quando* svegliare il task, non *come istanziarlo*. Con
+       il solo backgroundTasks il sistema accetta la registrazione (il log
+       scrive "the check runs every 15 minute(s)") e poi non attiva mai la
+       classe: nessun "background: woke" compare nel log - che e' esattamente
+       quello che e' successo per due build.
+
+       Path=CLRHost.dll e non l'eseguibile: il task e' una classe di
+       WhatsappApp.Tasks.winmd, e il processo di sfondo la carica tramite
+       l'host del CLR. Puntare l'exe dell'app (il primo tentativo) vuol dire
+       chiedere al sistema di istanziare una classe da un assembly che non ha
+       metadati WinRT: la classe non si risolve, e non succede niente. -->
+  <Extensions>
+    <Extension Category="windows.activatableClass.inProcessServer">
+      <InProcessServer>
+        <Path>CLRHost.dll</Path>
+        <ActivatableClass ActivatableClassId="WhatsappApp.Tasks.BackgroundSyncTask" ThreadingModel="both" />
+      </InProcessServer>
+    </Extension>
+  </Extensions>
 </Package>

@@ -96,7 +96,14 @@ namespace WhatsappApp.Services
 
                 var buffer = token.Id;
                 var bytes = new byte[(int)buffer.Length];
-                DataReader.FromBuffer(buffer).ReadBytes(bytes);
+
+                // The reader holds a native buffer: disposing it hands the memory back
+                // instead of leaving it to the finalizer on a phone this app is trying to
+                // keep under its budget.
+                using (DataReader reader = DataReader.FromBuffer(buffer))
+                {
+                    reader.ReadBytes(bytes);
+                }
 
                 var text = new StringBuilder(bytes.Length * 2);
                 for (int i = 0; i < bytes.Length; i++)

@@ -128,12 +128,15 @@ namespace WhatsappApp.Pages
         /// <summary>
         /// The number the way a person reads one: the user part of the JID, without the
         /// device and without the server. A group has no number at all - its JID is not
-        /// a phone - so it shows none rather than a made-up one.
+        /// a phone - so it shows none rather than a made-up one, and neither has a LID
+        /// whose number this phone does not know: its digits are an identifier, and
+        /// `+<identifier>` is a phone number nobody has.
         /// </summary>
         private static string DisplayNumber(string jid)
         {
             if (string.IsNullOrEmpty(jid)) return null;
             if (jid.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase)) return null;
+            if (WhatsappApp.Protocol.WABinary.JidUtils.IsLid(jid)) return null;
 
             int at = jid.IndexOf('@');
             string user = at < 0 ? jid : jid.Substring(0, at);

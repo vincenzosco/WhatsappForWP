@@ -236,6 +236,7 @@ namespace WhatsappApp.Pages
             // An attachment can arrive while this tab is in front (the app comes
             // back here after the picker) or before it exists (a process started by
             // a share): it is checked in both cases.
+            AttachmentInbox.Ready -= OnAttachmentReady;
             AttachmentInbox.Ready += OnAttachmentReady;
             UpdatePendingAttachment();
 
@@ -320,7 +321,26 @@ namespace WhatsappApp.Pages
         private void EvaluateChats()
         {
             bool empty = DataService.Instance.Contacts.Count == 0;
+
+            // An empty list is not "no chats" until WhatsApp has said it has sent them all.
+            // After a pairing the history lands conversation by conversation - the phone run
+            // of 2026-10-22 showed its first 16 rows a minute before the other 153 - and the
+            // screen used to answer those sixty seconds with "No chats yet", which is the
+            // sentence a person reads as "the pairing did not work". `HistoryComplete` is the
+            // one fact that tells the two states apart (`NativeChats.IsSyncComplete`), and it
+            // is what `DataService` raises `ChatListCompleted` for.
+            bool waiting = empty && !DataService.Instance.HistoryComplete;
+
             EmptyStatePanel.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+            // The two sentences the markup binds by `x:Uid` are the two `.Text` keys: the
+            // waiting pair is a plain key, because nothing in the XAML names it.
+            EmptyTitleText.Text = waiting
+                ? Loc.Get("ChatsPage_WaitingTitle", "Getting your chats")
+                : Loc.Get("ChatsPage_EmptyTitle.Text", "No chats yet");
+            EmptyHintText.Text = waiting
+                ? Loc.Get("ChatsPage_WaitingHint", "WhatsApp is sending them now")
+                : Loc.Get("ChatsPage_EmptyHint.Text", "Tap new chat to start");
+
             ShowConnectionBar();
         }
 
@@ -329,6 +349,10 @@ namespace WhatsappApp.Pages
             Diag.OkNow("chat list: " + rows + " row(s), showing "
                 + DataService.Instance.Contacts.Count + ", memory "
                 + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
+
+            // The history is over: a list that is still empty is empty for real, so the
+            // waiting sentence comes off the screen with the sync that earned it.
+            EvaluateChats();
             RefreshBadges();
         }
 

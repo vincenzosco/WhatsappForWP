@@ -124,6 +124,89 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Adds these messages to the copy already on the phone, keeping the ones that
+        /// are there.
+        ///
+        /// Why not `SaveAsync`: the caller may hold only part of a conversation. The
+        /// background check reads the backlog in a process of its own, where no page
+        /// was opened and so nothing was loaded from disk (see BackgroundSync): it
+        /// holds the two or three messages that just arrived, and writing them over
+        /// the file would replace sixty saved ones with those three.
+        /// </summary>
+        public static async Task AppendAsync(string chatId, IList<ChatMessage> messages)
+        {
+            if (string.IsNullOrEmpty(chatId) || messages == null || messages.Count == 0) return;
+
+            List<ChatMessage> existing = await LoadAsync(chatId);
+            var merged = new List<ChatMessage>(existing);
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                ChatMessage message = messages[i];
+                if (message == null) continue;
+                if (HasId(merged, message.Id)) continue;
+
+                merged.Add(message);
+            }
+
+            // In the order they happened, whatever the order they came in: a backlog is
+            // not promised to be sorted, and a file whose rows straddle the saved ones
+            // would be a conversation read out of order on the next start.
+            merged.Sort(delegate (ChatMessage left, ChatMessage right)
+            {
+                return left.Timestamp.CompareTo(right.Timestamp);
+            });
+
+            // SaveAsync keeps the last `Keep` rows and slims them, so the file stays
+            // the same size whatever this adds.
+            await SaveAsync(chatId, merged);
+        }
+
+        /// <summary>Whether this conversation already holds a message with this id.</summary>
+        private static bool HasId(List<ChatMessage> messages, string id)
+        {
+            // A message with no id is kept: only an id can tell a re-delivery from news,
+            // and a client that dropped everything unnamed would lose the messages whose
+            // shape it does not recognise yet (`NativeChats.AddMessage` decides the same).
+            if (string.IsNullOrEmpty(id)) return false;
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                if (messages[i] != null && messages[i].Id == id) return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Drops every conversation on the phone. A link is a new identity, and the
+        /// messages of the previous one are not this account's messages: the sync the
+        /// link brings writes its own copy (see DataService, the end of the history).
+        /// </summary>
+        public static async Task DeleteAllAsync()
+        {
+            try
+            {
+                IReadOnlyList<StorageFile> files =
+                    await ApplicationData.Current.LocalFolder.GetFilesAsync();
+
+                for (int i = 0; i < files.Count; i++)
+                {
+                    StorageFile file = files[i];
+                    if (file == null || string.IsNullOrEmpty(file.Name)) continue;
+                    if (!file.Name.StartsWith("messages_", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!file.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+
+                    await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("MessageCache.DeleteAll", ex);
+            }
+        }
+
+        /// <summary>
         /// The copy of a message without the media bytes: those would fill the
         /// file, and for a video they would not even fit. It marks IsHistory, so a
         /// message taken from the cache does not count as unread and raises no

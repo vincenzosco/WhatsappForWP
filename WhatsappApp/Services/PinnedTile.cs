@@ -205,12 +205,17 @@ namespace WhatsappApp.Services
             string sender = string.IsNullOrEmpty(name) ? chatId : name;
 
             var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
-            updater.Clear();
 
             var xml = TileUpdateManager.GetTemplateContent(
                 TileTemplateType.TileSquare150x150PeekImageAndText02);
             var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
+
+            // After the check and not before it: a template with no visual is a tile this
+            // method cannot draw, and clearing first left the chat's tile empty with nothing
+            // put back in its place.
             if (visual == null) return;
+
+            updater.Clear();
 
             // The medium tile: the number is the big line, the name under it - the same
             // order the app's own tile uses, so the two are read the same way. With nothing
@@ -349,11 +354,12 @@ namespace WhatsappApp.Services
         /// The chat's picture as a file the tile can point at, or null when there is none:
         /// a tile wants a path, not the bytes.
         ///
-        /// It is a *card*, not the 96x96 preview: `TileImage` draws the picture into the
-        /// middle of a tile-sized teal square, because a template with an image paints it
-        /// over the whole tile and a small face blown up to 150 or 310 pixels is a magnified
-        /// face, not a portrait. A chat with no picture gets the app mark inside the same
-        /// card, so both tiles look deliberate rather than zoomed.
+        /// It is a *card*, not the 96x96 preview: `TileImage` crops the picture to its centre
+        /// square, scales it once to the tile and lets it cover the tile, because a template
+        /// with an image paints it over the whole tile and a small face blown up to 150 or 310
+        /// pixels is a magnified face, not a portrait - and a margin around it is a border
+        /// nobody asked for. A chat with no picture gets the app mark inside the same card, at
+        /// half the tile, so the glyph keeps its air.
         ///
         /// The name is `pin-…`, of its own, so it cannot collide with the picture the app's
         /// own tile keeps for the same chat and the two cannot take each other's file away.

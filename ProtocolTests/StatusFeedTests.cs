@@ -117,17 +117,29 @@ namespace ProtocolTests
                 "a status this account wrote is not in the feed of other people's updates");
         }
 
+        /// <summary>
+        /// The receipt that fills the author's ring.
+        ///
+        /// It goes to `status@broadcast` - a status is not a chat - and it names the author
+        /// as `participant`, which is the shape the server sends us for our own statuses:
+        /// `from="status@broadcast" ... class="status" participant="..."`. Addressed to the
+        /// author instead, it named a message their chat did not have, and the receipt was
+        /// silently pointless.
+        /// </summary>
         [Test]
-        public static void AViewedReceiptNamesTheStatus()
+        public static void AViewedReceiptNamesTheStatusAndItsAuthor()
         {
-            BinaryNode receipt = StatusFeed.Viewed(StatusFeed.BroadcastJid, "STATUS01");
+            BinaryNode receipt = StatusFeed.Viewed("15551230000@s.whatsapp.net", "STATUS01");
 
             Assert.AreEqual("receipt", receipt.Tag);
             Assert.AreEqual("STATUS01", receipt.Attrs["id"]);
-            Assert.AreEqual(StatusFeed.BroadcastJid, receipt.Attrs["to"]);
+            Assert.AreEqual(StatusFeed.BroadcastJid, receipt.Attrs["to"],
+                "the list the status lives in, not the person who posted it");
+            Assert.AreEqual("15551230000@s.whatsapp.net", receipt.Attrs["participant"],
+                "and the participant says whose update was watched");
             Assert.AreEqual("read", receipt.Attrs["type"], "a watched status is a read receipt");
 
-            Assert.Throws<ProtocolException>(delegate { StatusFeed.Viewed(StatusFeed.BroadcastJid, null); });
+            Assert.Throws<ProtocolException>(delegate { StatusFeed.Viewed("15551230000@s.whatsapp.net", null); });
         }
     }
 }

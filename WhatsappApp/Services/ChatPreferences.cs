@@ -91,9 +91,18 @@ namespace WhatsappApp.Services
                     }
                 }
             }
+            catch (System.IO.FileNotFoundException)
+            {
+                // No file at all: nothing was ever pinned, muted or deleted on this phone.
+                // It is the state of every start until the first of those, not a failure -
+                // it was written as one, and a fresh install opened with
+                // "ChatPreferences.Load: FileNotFoundException 0x80070002" before it drew
+                // anything.
+                Diag.Ok("preferences: nothing stored yet");
+            }
             catch (Exception ex)
             {
-                // First run, or a file written by a different version.
+                // A file written by a different version.
                 Diag.Failed("ChatPreferences.Load", ex);
             }
         }

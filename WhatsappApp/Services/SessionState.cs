@@ -1,3 +1,4 @@
+using System;
 using Windows.Storage;
 
 namespace WhatsappApp.Services
@@ -41,8 +42,20 @@ namespace WhatsappApp.Services
                 EnsureLoaded();
 
                 _expired = value;
-                if (value) ApplicationData.Current.LocalSettings.Values[KeyExpired] = 1;
-                else ApplicationData.Current.LocalSettings.Values.Remove(KeyExpired);
+
+                // Guarded: the caller is the connection's refusal handler, which sets this on
+                // its way out of the loop. A store that refuses the write (full, locked) threw
+                // from inside that handler, so the loop never reached its tail and `_running`
+                // stayed true - a refused account and no way to try again this run.
+                try
+                {
+                    if (value) ApplicationData.Current.LocalSettings.Values[KeyExpired] = 1;
+                    else ApplicationData.Current.LocalSettings.Values.Remove(KeyExpired);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("SessionState/Expired", ex);
+                }
             }
         }
 

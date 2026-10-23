@@ -20,7 +20,10 @@ const path = require('path');
 const { stripComments } = require('./csharp');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const SCAN_ROOTS = ['WhatsappApp'];
+// WhatsappApp.Core compila gli stessi sorgenti di WhatsappApp (li linka), quindi
+// una radice basta per quelli; WhatsappApp.Tasks ha file suoi (il task di sfondo)
+// e va letto anche lui: lo compila lo stesso compilatore C# 5.
+const SCAN_ROOTS = ['WhatsappApp', 'WhatsappApp.Tasks'];
 const SKIP_DIRS = new Set(['bin', 'obj', 'node_modules', '.git', 'AppPackages']);
 
 const RULES = [

@@ -49,6 +49,27 @@ namespace ProtocolTests
             Assert.IsFalse(names.RememberMapping(Lid, Phone), "the same pair is not news twice");
         }
 
+        /// <summary>
+        /// A pair that arrives with another number replaces the one that was stored. Answering
+        /// "news" without writing it left `Canonical` folding that chat into the old person's
+        /// row for ever - the one case the method exists for.
+        /// </summary>
+        [Test]
+        public static void ACorrectedPairReplacesTheNumberItHad()
+        {
+            const string other = "393401112222@s.whatsapp.net";
+            var names = new NameBook();
+
+            Assert.IsTrue(names.RememberMapping(Lid, Phone));
+            Assert.IsTrue(names.RememberMapping(Lid, other), "a different number is news");
+
+            Assert.AreEqual(other, names.Canonical(Lid), "the LID follows the number it was corrected to");
+            Assert.AreEqual(other, names.PhoneNumberFor(Lid));
+            Assert.AreEqual(Lid, names.LidFor(other));
+            Assert.AreEqual(null, names.LidFor(Phone),
+                "and the old number is nobody's LID any more");
+        }
+
         [Test]
         public static void ANameLearnedBeforeThePairFollowsThePair()
         {

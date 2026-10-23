@@ -403,6 +403,12 @@
   <data name="ChatsPage_NotConnected" xml:space="preserve">
     <value>Connessione a WhatsApp...</value>
   </data>
+  <data name="ChatsPage_WaitingTitle" xml:space="preserve">
+    <value>Arrivano le chat</value>
+  </data>
+  <data name="ChatsPage_WaitingHint" xml:space="preserve">
+    <value>WhatsApp le sta inviando</value>
+  </data>
   <data name="Settings_Title.Text" xml:space="preserve">
     <value>Impostazioni</value>
   </data>
@@ -438,6 +444,12 @@
   </data>
   <data name="Settings_ThemeWallpaper" xml:space="preserve">
     <value>Sfondo</value>
+  </data>
+  <data name="StatusViewer_Missing.Text" xml:space="preserve">
+    <value>Questo stato non si e potuto caricare.</value>
+  </data>
+  <data name="StatusViewer_Retry.Content" xml:space="preserve">
+    <value>Riprova</value>
   </data>
 </root>
 

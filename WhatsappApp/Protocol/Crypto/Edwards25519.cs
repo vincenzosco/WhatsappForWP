@@ -64,6 +64,11 @@ namespace WhatsappApp.Protocol.Crypto
                 throw new ProtocolException("an Ed25519 point is 32 bytes");
             }
 
+            // RFC 8032 section 5.1.3: a y at or above the field's prime is not a canonical
+            // encoding and decoding fails. Reducing it instead accepts two encodings for one
+            // point - a key the reference clients refuse - so the bytes are compared first.
+            if (!IsCanonical(encoded)) throw new ProtocolException("these bytes are not a canonical Ed25519 point");
+
             bool signBit = (encoded[31] & 0x80) != 0;
             Field25519 y = Field25519.FromBytes(encoded);
 
@@ -78,8 +83,44 @@ namespace WhatsappApp.Protocol.Crypto
             if (x.IsNegative() != signBit) x = x.Negate();
             if (x.IsZero() && signBit) throw new ProtocolException("the point's x is zero but the sign bit is set");
 
-            return new Edwards25519(x, y, Field25519.One(), x.Mul(y));
+            var point = new Edwards25519(x, y, Field25519.One(), x.Mul(y));
+
+            // The square root can answer zero for a y whose denominator is zero, which is a
+            // point the curve equation does not hold for: the reference checks the recovered
+            // point against the equation and so does this, instead of handing a caller a
+            // point that verification would then evaluate outside the group.
+            if (!point.IsOnCurve()) throw new ProtocolException("these bytes are not a point on the Ed25519 curve");
+
+            return point;
         }
+
+        /// <summary>
+        /// Whether the y a point is encoded with is below the field's prime (2^255 - 19), with
+        /// the sign bit ignored. Little-endian, byte by byte from the top.
+        /// </summary>
+        private static bool IsCanonical(byte[] encoded)
+        {
+            for (int i = 31; i >= 0; i--)
+            {
+                int value = encoded[i];
+                if (i == 31) value &= 0x7f;
+
+                if (value < Prime[i]) return true;
+                if (value > Prime[i]) return false;
+            }
+
+            // Exactly the prime: not a value the field can hold, and not canonical.
+            return false;
+        }
+
+        /// <summary>2^255 - 19, little-endian: the field's prime.</summary>
+        private static readonly byte[] Prime =
+        {
+            0xed, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
+            0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f
+        };
 
         public byte[] Encode()
         {

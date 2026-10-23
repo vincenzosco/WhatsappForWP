@@ -225,6 +225,37 @@ namespace ProtocolTests
             Assert.IsFalse(empty.HasSignedPreKey);
         }
 
+        /// <summary>
+        /// A key published for an upload that never reached the server is taken back, and the
+        /// count that decides the next refill goes down with it: a batch left counted as
+        /// published kept `Remaining` above the floor for the life of the install, so the
+        /// phone stopped publishing while the server's real supply ran out.
+        /// </summary>
+        [Test]
+        public static void AnUploadThatFailsTakesItsKeysBack()
+        {
+            var storage = new Memory();
+            var store = new PreKeyStore(storage);
+
+            var key = new byte[32];
+            for (int i = 0; i < key.Length; i++) key[i] = (byte)(0x40 + i);
+
+            store.Publish(7, key);
+            store.Publish(8, key);
+            Assert.AreEqual(2, store.Remaining);
+
+            store.Unpublish(8);
+            Assert.AreEqual(1, store.Remaining, "a key the server never got is not published");
+            Assert.IsTrue(store.Find(8) == null, "and its private half is gone");
+
+            var restarted = new PreKeyStore(storage);
+            Assert.AreEqual(1, restarted.Remaining, "the rollback survives a restart too");
+            Assert.IsTrue(restarted.Find(8) == null);
+
+            store.Unpublish(99);
+            Assert.AreEqual(1, store.Remaining, "forgetting one that was never there is not an error");
+        }
+
         /// <summary>One message, delivered the way the client does it; see `SignalSessionTests.Deliver`.</summary>
         private static void Send(SessionRecord from, SessionRecord to, string text)
         {

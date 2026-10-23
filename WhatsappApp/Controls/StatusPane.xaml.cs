@@ -2,6 +2,7 @@ using System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using WhatsappApp.Models;
+using WhatsappApp.Pages;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Controls
@@ -69,11 +70,21 @@ namespace WhatsappApp.Controls
 
             try
             {
-                DataService.Instance.MarkStatusViewed(row);
-
-                if (row.Type == MessageType.Image && row.MediaImage == null)
+                // The tap opens the update. Watching it - the `read` receipt - and
+                // asking for its bytes belong to the page that shows it, so there is
+                // one place that knows what opening a status means, and the list only
+                // hands the row over. Before this, the tap sent the receipt and then
+                // nothing appeared: the status was watched but never seen.
+                var frame = Window.Current.Content as Frame;
+                if (frame == null)
                 {
-                    DataService.Instance.RequestStatusMedia(row);
+                    Diag.Ok("status: no frame to open " + row.Id + " on");
+                    return;
+                }
+
+                if (!frame.Navigate(typeof(StatusViewerPage), row))
+                {
+                    Diag.Ok("status: the frame refused to open " + row.Id);
                 }
             }
             catch (Exception ex)

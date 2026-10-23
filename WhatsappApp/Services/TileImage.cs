@@ -12,16 +12,20 @@ namespace WhatsappApp.Services
     /// The picture a tile shows, written as a file the shell can draw.
     ///
     /// The problem it solves: a tile template that carries an image draws it over the whole
-    /// tile. A profile picture from WhatsApp is 96x96 (the preview), so the shell stretched it
-    /// across the tile and the phone of 2026-10-22 showed a magnified face - and, with no
+    /// tile, and a profile picture from WhatsApp is 96x96 (the preview), so the shell stretched
+    /// it across the tile and the phone of 2026-10-22 showed a magnified face - and, with no
     /// picture at all, a magnified WhatsApp mark, because `TileIcon.png` is a glyph with a
     /// transparent margin. Every tile looked zoomed.
     ///
-    /// What happens instead: the picture - the person's, or the app mark - is decoded, scaled
-    /// once to `TileCanvas.Picture`, and drawn into the middle of a card of the app's teal.
+    /// What happens instead: the picture - the person's, or the app mark - is decoded, cropped
+    /// to its centre square, scaled once to the side it will be drawn at, and composed onto a
+    /// card of the app's teal. A chat's own picture takes the **whole** side, so the tile has no
+    /// border around it (the margin the phone of 2026-10-22 showed, and the reason a face looked
+    /// small); the app mark takes half of it, because a glyph cropped by the wide tile is a
+    /// mistake and a glyph with air around it is a mark.
+    ///
     /// The file that leaves here is a card the size of the tile, so the shell has nothing to
-    /// magnify and nothing to crop, and the same file is right for the three sizes: the
-    /// margin is part of the picture.
+    /// magnify and nothing to crop.
     ///
     /// Every failure ends in `null`, and `null` is what the callers already understood:
     /// the tile falls back to the app's own asset rather than to a rejected update.
@@ -64,11 +68,11 @@ namespace WhatsappApp.Services
 
             try
             {
-                byte[] picture = await PictureAsync(avatarData);
+                TilePicture picture = await PictureAsync(avatarData);
                 if (picture != null)
                 {
                     byte[] card = TileCanvas.Card();
-                    TileCanvas.DrawPicture(card, picture, TileCanvas.Picture, TileCanvas.Picture);
+                    TileCanvas.DrawPicture(card, picture.Bytes, picture.Side, picture.Side);
 
                     await WriteAsync(fileName, card);
                     composed = true;
@@ -107,6 +111,11 @@ namespace WhatsappApp.Services
                     fileName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteBytesAsync(file, bytes);
 
+                // The file holds this avatar, raw. Recording it makes the next call for the
+                // same bytes answer with the path, and keeps a call for other bytes from
+                // being told this file is the one it asked for.
+                lock (Written) Written[fileName] = avatarData;
+
                 return "ms-appdata:///local/" + fileName;
             }
             catch (Exception ex)
@@ -117,14 +126,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The picture as BGRA pixels of `TileCanvas.Picture` across: the chat's own when it
-        /// has one, the app mark when it does not.
+        /// The picture as BGRA pixels, with the side they were scaled to: the chat's own when it
+        /// has one - the whole tile, so nothing frames it - and the app mark when it does not,
+        /// at `TileCanvas.Picture`, so the glyph keeps its air.
         ///
         /// Scaled by the decoder and not by a loop here: the decoder has the interpolation,
-        /// and a 96x96 face enlarged to 168 with nearest neighbours is the same smear this
+        /// and a 96x96 face enlarged to 336 with nearest neighbours is the same smear this
         /// whole class exists to stop.
         /// </summary>
-        private static async Task<byte[]> PictureAsync(string avatarData)
+        private static async Task<TilePicture> PictureAsync(string avatarData)
         {
             if (!string.IsNullOrEmpty(avatarData))
             {
@@ -141,23 +151,37 @@ namespace WhatsappApp.Services
 
                 if (bytes != null && bytes.Length > 0 && bytes.Length <= MaxImageBytes)
                 {
-                    var stream = new InMemoryRandomAccessStream();
-                    var writer = new DataWriter(stream);
-                    writer.WriteBytes(bytes);
-                    await writer.StoreAsync();
-                    await writer.FlushAsync();
-                    writer.DetachStream();
-                    stream.Seek(0);
+                    // Both are held for the length of the decode and not left to the
+                    // finalizer: on a 512 MB phone the buffer behind this stream is exactly
+                    // what MemoryWatcher is trying to keep free.
+                    using (var stream = new InMemoryRandomAccessStream())
+                    {
+                        using (var writer = new DataWriter(stream))
+                        {
+                            writer.WriteBytes(bytes);
+                            await writer.StoreAsync();
+                            await writer.FlushAsync();
+                            writer.DetachStream();
+                        }
 
-                    return await PixelsAsync(stream);
+                        stream.Seek(0);
+                        return await PictureOfAsync(stream, TileCanvas.Size);
+                    }
                 }
             }
 
             StorageFile mark = await PackageFolder().GetFileAsync(AppMarkPath);
             using (IRandomAccessStream stream = await mark.OpenAsync(FileAccessMode.Read))
             {
-                return await PixelsAsync(stream);
+                return await PictureOfAsync(stream, TileCanvas.Picture);
             }
+        }
+
+        /// <summary>Pixels and the side they were scaled to, in one answer.</summary>
+        private sealed class TilePicture
+        {
+            public byte[] Bytes;
+            public int Side;
         }
 
         /// <summary>The package's own folder: where the app's assets live.</summary>
@@ -166,14 +190,33 @@ namespace WhatsappApp.Services
             return Windows.ApplicationModel.Package.Current.InstalledLocation;
         }
 
-        /// <summary>The stream decoded, resized to the card's picture, as straight BGRA.</summary>
-        private static async Task<byte[]> PixelsAsync(IRandomAccessStream stream)
+        /// <summary>
+        /// The stream, cropped to its centre square and scaled to `side` pixels.
+        ///
+        /// The crop is what lets a picture fill the tile without being stretched: a photo that
+        /// is not square loses a slice of its longer side rather than gaining a face that is
+        /// wider than it is tall. The decoder does the two steps in one pass
+        /// (`BitmapTransform.Bounds` plus `ScaledWidth/Height`), which is also the only place
+        /// on this phone with a resampler worth using.
+        /// </summary>
+        private static async Task<TilePicture> PictureOfAsync(IRandomAccessStream stream, int side)
         {
             BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
 
+            // The square is the rule's, not this method's: `TileCanvas.CentreSquare` is where
+            // "lose a slice of the longer side, evenly" is written down and tested.
+            TileCrop crop = TileCanvas.CentreSquare((int)decoder.PixelWidth, (int)decoder.PixelHeight);
+
+            var bounds = new BitmapBounds();
+            bounds.X = (uint)crop.X;
+            bounds.Y = (uint)crop.Y;
+            bounds.Width = (uint)crop.Side;
+            bounds.Height = (uint)crop.Side;
+
             var transform = new BitmapTransform();
-            transform.ScaledWidth = TileCanvas.Picture;
-            transform.ScaledHeight = TileCanvas.Picture;
+            transform.Bounds = bounds;
+            transform.ScaledWidth = (uint)side;
+            transform.ScaledHeight = (uint)side;
             transform.InterpolationMode = BitmapInterpolationMode.Fant;
 
             // Straight and not premultiplied: the mark's transparent margin has to blend with
@@ -185,7 +228,11 @@ namespace WhatsappApp.Services
                 ExifOrientationMode.IgnoreExifOrientation,
                 ColorManagementMode.DoNotColorManage);
 
-            return data.DetachPixelData();
+            var picture = new TilePicture();
+            picture.Bytes = data.DetachPixelData();
+            picture.Side = side;
+
+            return picture;
         }
 
         /// <summary>

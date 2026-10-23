@@ -44,7 +44,12 @@ function attachmentFileProblems(source, file) {
   const text = String(source || '');
 
   if (file === INBOX) {
-    if (!/NextCopyName\s*\(/.test(text)) {
+    // The declaration `private static string NextCopyName(string extension)` matched the
+    // rule on its own: a fixed name at both call sites still printed OK. What has to be
+    // there is a call.
+    const calls = text.replace(/private\s+static\s+string\s+NextCopyName\s*\([^)]*\)/g, '');
+
+    if (!/NextCopyName\s*\(/.test(calls)) {
       problems.push(`${file}: the copied attachment must be named by NextCopyName(...): ` +
         'a fixed name makes every recording replace the one before it, and every ' +
         'bubble that points at that name plays the last file');

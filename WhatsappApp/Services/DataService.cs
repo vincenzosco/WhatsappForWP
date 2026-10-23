@@ -60,8 +60,11 @@ namespace WhatsappApp.Services
 
         // The chat-list rows as the server last sent them (for the cache) and the
         // ones that are arriving now.
-        private readonly List<ChatMessage> _chatRows = new List<ChatMessage>();
         private readonly List<ChatMessage> _freshChatRows = new List<ChatMessage>();
+
+        // Whether a chat list has started and not finished. The batch cannot answer that
+        // itself: once the cached snapshot has registered its rows it is never empty again.
+        private bool _batchOpen;
 
         // Index by id: without this every incoming message scanned the whole
         // contact list (FirstOrDefault) to find the chat.
@@ -139,6 +142,41 @@ namespace WhatsappApp.Services
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("DataService/cached chats", LoadCachedChatsAsync());
 #pragma warning restore 4014
+
+            // And the status feed of the last day. Why it needs a copy of its own: the
+            // statuses arrive with the history sync, and WhatsApp sends that burst once,
+            // at the pairing - so without this every start opened the status tab empty and
+            // it stayed empty until somebody posted again.
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/cached statuses", LoadCachedStatusesAsync());
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The status feed as it was when the app was last open, minus what is older than
+        /// the day a status lives. Each row goes in only if the connection has not already
+        /// told the same one: the sync can finish before this file is read.
+        /// </summary>
+        private async System.Threading.Tasks.Task LoadCachedStatusesAsync()
+        {
+            List<ChatMessage> cached = await StatusCache.LoadAsync();
+            if (cached.Count == 0) return;
+
+            int added = 0;
+            for (int i = 0; i < cached.Count; i++)
+            {
+                ChatMessage row = cached[i];
+                if (row == null) continue;
+                if (FindStatus(row.Id) != null) continue;
+
+                InsertStatusInOrder(row);
+                added++;
+            }
+
+            if (added == 0) return;
+
+            RaiseStatusesChanged();
+            Diag.Ok("status: " + added + " status(es) of the last day are back on screen");
         }
 
         /// <summary>
@@ -168,7 +206,25 @@ namespace WhatsappApp.Services
             await AvatarCache.LoadAsync();
 
             var cached = await ChatCache.LoadAsync();
-            for (int i = 0; i < cached.Count; i++) ApplyChat(cached[i]);
+
+            // The burst of history is pushed once per link, at the pairing
+            // (`NativeConnection`: "WhatsApp sends it once, at the pairing"). A start
+            // that opens on a copy written by a sync that had finished has nothing
+            // left to wait for, and the conversation page is the one that needs to
+            // know: it waited twenty seconds for that burst before binding a chat, so
+            // every start after the first was twenty seconds of an empty screen for a
+            // burst that was never coming. The messages themselves are on the phone
+            // from this build on (the save at the end of `OnNativeHistoryFinished`).
+            if (cached.HistoryComplete) HistoryComplete = true;
+
+            for (int i = 0; i < cached.Chats.Count; i++)
+            {
+                // A copy that a torn write left with a null row is one row this app cannot
+                // draw, not a list that stops loading at it.
+                if (cached.Chats[i] == null) continue;
+
+                ApplyChat(cached.Chats[i]);
+            }
             SortContacts();
 
             // The address book may have answered before there were rows to rename: the
@@ -385,7 +441,12 @@ namespace WhatsappApp.Services
             // through ApplyChat at startup and registered themselves, and without this
             // the batch - and so the file written back at the end - would be the
             // previous session rather than the one WhatsApp just sent.
-            if (_freshChatRows.Count == 0) BeginChatList();
+            //
+            // The flag and not `_freshChatRows.Count == 0`: the cached rows are in the
+            // batch, so that test was only ever true when there was nothing to clear - a
+            // guard that could not fire, and the batch of the phone run of 2026-10-22 was
+            // the previous session's rows followed by the new ones.
+            if (!_batchOpen) BeginChatList();
 
             var message = new ChatMessage();
             message.ChatId = row.Jid;
@@ -443,6 +504,78 @@ namespace WhatsappApp.Services
 
             Diag.Ok("native: the history is complete, " + chatRows + " row(s) in the batch, "
                 + _contacts.Count + " in the list");
+
+            // What the sync brought, now that it has nothing left to send: see
+            // SaveSnapshotAsync for why this is not left to the pages.
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/save snapshot", SaveSnapshotAsync());
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The list and the conversations as they are now, written to the phone for the
+        /// next start.
+        ///
+        /// Why the app has to say it and the sync alone will not do: a run of this app
+        /// can end without a sync. `BackgroundSync` reads the backlog in a process of
+        /// its own, draws the tile and closes (a message that arrives with the app closed
+        /// is announced that way and no other), and everything it read died with that
+        /// process - while WhatsApp counts those messages as delivered and never sends
+        /// them again (`the backlog ended with no chat and no history`, the run of
+        /// 2026-10-22). The phone that opened next found neither the backlog nor a row
+        /// that mentioned it: the tile had said a message arrived and the list showed
+        /// nothing new. The same for the app itself: a suspension can be a termination.
+        ///
+        /// Written here rather than in each caller so there is one shape of the file, and
+        /// one place that decides what it holds: the rows in the order the list shows them,
+        /// and the tail of every conversation that has one.
+        /// </summary>
+        public async Task SaveSnapshotAsync()
+        {
+            var rows = new List<ChatMessage>();
+            var tails = new List<KeyValuePair<string, ChatMessage[]>>();
+
+            // Taken in one go, without an await in the middle: the rows and the messages
+            // written here have to be one instant of the list, not the list as it was
+            // before the first write and as it is after the last.
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+
+                var row = new ChatMessage();
+                row.ChatId = contact.Id;
+                row.SenderName = contact.Name;
+                row.Text = contact.LastMessage;
+                row.Timestamp = contact.LastMessageAt;
+                row.IsGroup = contact.Id.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
+                rows.Add(row);
+
+                ObservableCollection<ChatMessage> messages;
+                if (!_chatMessages.TryGetValue(contact.Id, out messages)) continue;
+                if (messages == null || messages.Count == 0) continue;
+
+                var tail = new ChatMessage[messages.Count];
+                messages.CopyTo(tail, 0);
+                tails.Add(new KeyValuePair<string, ChatMessage[]>(contact.Id, tail));
+            }
+
+            // A list with no rows is not a snapshot of anything: the copy on the phone
+            // stays, and the next start shows it instead of nothing.
+            if (rows.Count == 0) return;
+
+            for (int i = 0; i < tails.Count; i++)
+            {
+                // Merged with the file and not written over it: this process may hold
+                // only the messages that arrived while it was up, and the tail that was
+                // already on the phone is still the conversation.
+                await MessageCache.AppendAsync(tails[i].Key, tails[i].Value);
+            }
+
+            await ChatCache.SaveAsync(rows, HistoryComplete);
+
+            Diag.Ok("cache: the list written, " + rows.Count + " row(s), "
+                + tails.Count + " conversation(s)");
         }
 
         /// <summary>
@@ -598,6 +731,10 @@ namespace WhatsappApp.Services
 
             for (int i = 0; i < entries.Count; i++)
             {
+                // A null entry is a row this app cannot draw: skipping it leaves the log it
+                // came with, where throwing would leave the page on its spinner forever.
+                if (entries[i] == null) continue;
+
                 var row = new ChatMessage();
                 row.ChatId = entries[i].Jid;
                 row.Timestamp = Moment(entries[i].Timestamp);
@@ -641,6 +778,7 @@ namespace WhatsappApp.Services
             if (post == null || string.IsNullOrEmpty(post.Id) || string.IsNullOrEmpty(post.Author)) return;
 
             ChatMessage row = FindStatus(post.Id);
+            bool inserted = row == null;
             if (row == null)
             {
                 row = new ChatMessage();
@@ -649,7 +787,7 @@ namespace WhatsappApp.Services
                 row.IsIncoming = true;
                 row.Type = MessageType.Text;
                 row.Timestamp = Moment(post.Timestamp);
-                _statuses.Insert(0, row);
+                InsertStatusInOrder(row);
             }
 
             row.SenderName = DisplayNameForJid(post.Author);
@@ -660,6 +798,118 @@ namespace WhatsappApp.Services
 
             Diag.Ok("native: status " + post.Id + " from " + post.Author);
             RaiseStatusesChanged();
+
+            // A new update is the one change worth a write: the feed is what the next
+            // start draws before any connection exists, and the media keys it carries
+            // are what makes a tap on a restored status download its photo.
+            if (inserted) SaveStatusSnapshot();
+        }
+
+        /// <summary>
+        /// Puts a status where its time says: newest first.
+        ///
+        /// Why not `Insert(0)`: the feed has three arrivals and only one of them is the
+        /// newest. A live status is, the copy on the phone is older, and the history's chunk
+        /// is a whole day of them arriving at once - so inserting every arrival at the top
+        /// put an update from yesterday above the one somebody posted a minute ago. The row
+        /// is placed after every status that is at least as new, which keeps the order the
+        /// feed is read in even when the sync re-sends its chunks.
+        /// </summary>
+        private void InsertStatusInOrder(ChatMessage row)
+        {
+            int at = 0;
+            while (at < _statuses.Count)
+            {
+                ChatMessage other = _statuses[at];
+                if (other == null || other.Timestamp < row.Timestamp) break;
+                at++;
+            }
+
+            _statuses.Insert(at, row);
+        }
+
+        /// <summary>
+        /// How long the feed has to stand still before it is written.
+        ///
+        /// Why the wait: the history burst inserts one row per frame, and a write per row
+        /// rewrote the whole file dozens of times on the 512 MB phone the cache exists for -
+        /// the JSON of the day serialised once per status, on the thread that is also drawing
+        /// the feed. A second and a half is longer than the gap between two rows of the burst
+        /// and shorter than a person's patience with a value that is only a photograph of the
+        /// screen (`StatusCache`): the next connection re-tells the feed anyway.
+        /// </summary>
+        private const int StatusSnapshotQuietMilliseconds = 1500;
+
+        /// <summary>How many times the feed has changed since the file was last written.</summary>
+        private int _statusSnapshotRequested;
+
+        /// <summary>The count the file on the phone was written at.</summary>
+        private int _statusSnapshotWritten;
+
+        /// <summary>One writer at a time: two of them would race on the same temp file.</summary>
+        private bool _statusSnapshotRunning;
+
+        /// <summary>
+        /// The feed into its file on the phone, once the burst is done.
+        ///
+        /// The write is coalesced: a hundred statuses of a sync are one file write and not a
+        /// hundred, which is what a write per insert was. The list is copied on the UI thread
+        /// when the write starts, so the file is one instant of the feed and not the feed as
+        /// it was before the first write and after the last.
+        /// </summary>
+        private void SaveStatusSnapshot()
+        {
+            _statusSnapshotRequested++;
+            StartStatusSnapshotWriter();
+        }
+
+        /// <summary>Starts the writer, unless one is already waiting for the feed to settle.</summary>
+        private void StartStatusSnapshotWriter()
+        {
+            if (_statusSnapshotRunning) return;
+            _statusSnapshotRunning = true;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/status snapshot", WriteStatusSnapshotAsync());
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Waits for the feed to stand still, writes it, and writes it again only if it changed
+        /// while the file was being written.
+        /// </summary>
+        private async Task WriteStatusSnapshotAsync()
+        {
+            try
+            {
+                while (true)
+                {
+                    // One quiet window: the version is taken before the wait, so a row that
+                    // arrives while it runs makes the wait start over instead of being lost.
+                    int version;
+                    do
+                    {
+                        version = _statusSnapshotRequested;
+                        await Task.Delay(StatusSnapshotQuietMilliseconds);
+                    }
+                    while (version != _statusSnapshotRequested);
+
+                    var snapshot = new List<ChatMessage>(_statuses);
+                    await StatusCache.SaveAsync(snapshot);
+
+                    _statusSnapshotWritten = version;
+                    if (version == _statusSnapshotRequested) return;
+                }
+            }
+            finally
+            {
+                _statusSnapshotRunning = false;
+
+                // The flag is cleared after the last check, so a request that arrives in
+                // that window would have found the writer busy and returned: it is asked
+                // for again here instead of being dropped.
+                if (_statusSnapshotRequested != _statusSnapshotWritten) StartStatusSnapshotWriter();
+            }
         }
 
         /// <summary>
@@ -713,6 +963,13 @@ namespace WhatsappApp.Services
         public void RequestStatusMedia(ChatMessage row)
         {
             if (row == null) return;
+
+            // The flag is raised here and not by the page that asks: a request takes a
+            // moment to be sent, and the screen that draws the row in that moment has to
+            // find it already spinning. Without this the first look at a status whose
+            // photo is on its way is the "could not be loaded" panel with a button that
+            // is live while the download it would repeat is already running.
+            row.IsMediaLoading = true;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("DataService/status media request", RequestStatusMediaAsync(row));
@@ -791,6 +1048,11 @@ namespace WhatsappApp.Services
 
             row.IsStatusViewed = true;
 
+            // The one thing in the feed that changes without a new status: which updates
+            // were already watched. It is on the phone so a restart does not put the badge
+            // back on a status somebody already saw.
+            SaveStatusSnapshot();
+
 #pragma warning disable 4014
             // The delegate and not the task: a `ViewStatusAsync` that throws while it is
             // being *called* - no open session, a chat id that is not a JID - already threw
@@ -861,8 +1123,20 @@ namespace WhatsappApp.Services
         {
             if (seconds <= 0) return DateTime.Now;
 
-            return new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(seconds).ToLocalTime();
+            // `seconds` is an unvalidated number off the wire: in milliseconds (a value a
+            // swapped build wrote), or simply corrupt, it is past the last moment a DateTime
+            // can hold, and `AddSeconds` throws where a row should simply have no date.
+            if (seconds > LastSecond) return DateTime.MinValue;
+
+            return Epoch.AddSeconds(seconds).ToLocalTime();
         }
+
+        /// <summary>1970-01-01T00:00:00Z, the zero of a wire timestamp.</summary>
+        private static readonly DateTime Epoch =
+            new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+
+        /// <summary>The last second a DateTime can hold, in Unix seconds (9999-12-31T23:59:59Z).</summary>
+        private const long LastSecond = 253402300799L;
 
         private async void OnNetworkMessageReceived(object sender, ChatMessage message)
         {
@@ -948,7 +1222,14 @@ namespace WhatsappApp.Services
                 contact.LastMessageAt = message.Timestamp;
                 if (message.IsIncoming)
                 {
-                    contact.UnreadCount++;
+                    // The count has one owner: the native chat list increments its row as it
+                    // takes the message in, and `ApplyChat` copies that number here. Counting
+                    // again on this path is how the first message of a chat read 2, and how a
+                    // count the reader had cleared came back and grew. The chat on screen is
+                    // the exception it has always been: nothing on it is unread.
+                    contact.UnreadCount = message.ChatId == _activeChatId
+                        ? 0
+                        : NativeConnection.Instance.UnreadFor(message.ChatId);
                     NotificationService.SetUnread(TotalUnread());
                     PublishUnread(contact);
                 }
@@ -1059,10 +1340,11 @@ namespace WhatsappApp.Services
         /// </summary>
         private static bool IsNotAConversation(string chatId)
         {
-            if (string.IsNullOrEmpty(chatId)) return false;
-
-            return string.Equals(chatId, "status@broadcast", StringComparison.OrdinalIgnoreCase)
-                || chatId.EndsWith("@newsletter", StringComparison.OrdinalIgnoreCase);
+            // The rule is the protocol's (`JidUtils.IsConversation`), not a second copy of it
+            // here: a chat list keyed on anything the server names had a row called "0" in
+            // it - `0@s.whatsapp.net`, the address an offline marker comes from - next to the
+            // status list and the channels WhatsApp no longer calls chats.
+            return !JidUtils.IsConversation(chatId);
         }
 
         /// <summary>
@@ -1231,15 +1513,24 @@ namespace WhatsappApp.Services
         /// </summary>
         public void BeginChatList()
         {
+            _batchOpen = true;
             _freshChatRows.Clear();
         }
 
         /// <summary>
-        /// The list has finished arriving: what remains becomes the copy on the
-        /// phone, and the batch that just arrived restarts from scratch.
+        /// The list has finished arriving: the rows go where their time says, and the
+        /// batch that just arrived restarts from scratch.
+        ///
+        /// The copy on the phone is not written here any more. It used to be, out of the
+        /// batch, which meant the file only ever held what a sync brought - and a sync
+        /// happens at a link and then never again, so every later message, and every
+        /// message a background check read, was a row the file never heard of
+        /// (`SaveSnapshotAsync` is that writer now, and it is the only one).
         /// </summary>
         private void RememberChatList()
         {
+            _batchOpen = false;
+
             if (_freshChatRows.Count == 0) return;
 
             // The rows are already in the order the phone shows: every ApplyChat
@@ -1250,13 +1541,7 @@ namespace WhatsappApp.Services
             SortContacts();
             Diag.OkNow("order after the sync: " + OrderSample());
 
-            _chatRows.Clear();
-            _chatRows.AddRange(_freshChatRows);
             _freshChatRows.Clear();
-
-#pragma warning disable 4014
-            ChatCache.SaveAsync(_chatRows);
-#pragma warning restore 4014
         }
 
         private async Task ApplyMedia(ChatMessage message, IncomingMediaResult result)
@@ -1360,10 +1645,6 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Realigns the chat preview to the last remaining message: after a
-        /// revocation or an edit the preview would stay the old one.
-        /// </summary>
-        /// <summary>
         /// The answer for an attachment: the bubble changes from Sending
         /// to Sent or Failed. It is written on the stored message and not on a
         /// page's copy, because the answer can arrive while another chat is on
@@ -1404,6 +1685,10 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>
+        /// Realigns the chat preview to the last remaining message: after a
+        /// revocation or an edit the preview would stay the old one.
+        /// </summary>
         private void RefreshPreview(string chatId)
         {
             var contact = FindContact(chatId);
@@ -1462,19 +1747,35 @@ namespace WhatsappApp.Services
 
             string user = jid.Split('@')[0];
             if (jid.EndsWith("@g.us")) return string.Format(Loc.Get("DataService_Group", "Group {0}"), user);
-            if (user.Length >= 8 && user.All(char.IsDigit)) return "+" + user;
 
             // A `@lid` with no known number is not a number: its digits are an identifier, and
-            // printing them as `+...` is exactly the wrong phone number the user saw.
-            if (jid.EndsWith("@lid")) return user;
+            // printing them as `+...` is exactly the wrong phone number the user saw. The
+            // check comes **before** the digits one and not after it: a LID's user part is a
+            // long run of digits, so it satisfied the branch below and the guard written for
+            // it never ran (`JidUtils.IsLid`).
+            if (JidUtils.IsLid(jid)) return user;
+
+            if (user.Length >= 8 && user.All(char.IsDigit)) return "+" + user;
 
             return string.IsNullOrEmpty(user) ? "?" : user;
         }
 
-        private static string InitialsFor(string name)
+        /// <summary>
+        /// The letter of an avatar circle, from a display name.
+        ///
+        /// It serves the chat rows (`Contact.Initials`) and the status rows
+        /// (`ChatMessage.Initials`): one rule, because the two lists draw the same circle
+        /// and two rules would give the same person two letters.
+        /// </summary>
+        public static string InitialsFor(string name)
         {
             if (string.IsNullOrEmpty(name)) return "?";
             string trimmed = name.Trim();
+
+            // A push name of spaces is empty once trimmed, and `Substring(0, 1)` on it is an
+            // exception that takes the whole row - and the batch it arrived in - down.
+            if (trimmed.Length == 0) return "?";
+
             if (trimmed.StartsWith("+") && trimmed.Length > 1)
                 return trimmed.Substring(1, Math.Min(2, trimmed.Length - 1)).ToUpper();
             return trimmed.Substring(0, 1).ToUpper();
@@ -1600,6 +1901,21 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// A new link, in this same process: the history of this account has not
+        /// arrived yet, so nothing may claim it has.
+        ///
+        /// The flag is per account and not per process - it says what WhatsApp said
+        /// about the link that is open now - and a phone linked while the app runs
+        /// would otherwise keep the answer of the link before it, which lets a
+        /// conversation opened during the new sync bind to nothing.
+        /// </summary>
+        public void BeginHistory()
+        {
+            HistoryComplete = false;
+            _historyRequested.Clear();
+        }
+
+        /// <summary>
         /// Says whether this chat history must be requested now, and if so remembers
         /// it: once per chat per session. Reopening the same chat shows it right away
         /// from memory, instead of redoing the round trip on the wire.
@@ -1701,6 +2017,10 @@ namespace WhatsappApp.Services
             var contact = FindContact(chatId);
             if (contact != null) contact.UnreadCount = 0;
 
+            // And the chat list's own count, or the next message would hand back the pile
+            // that was just read: `ApplyChat` copies the row's number onto the contact.
+            NativeConnection.Instance.MarkChatRead(chatId);
+
             // The tile stops giving this chat a turn: its message is read, and a queue
             // that kept it would keep showing a conversation nobody is waiting for.
             if (!string.IsNullOrEmpty(chatId)) NotificationService.Forget(chatId);
@@ -1737,6 +2057,10 @@ namespace WhatsappApp.Services
                 rows[i].UnreadCount = 0;
                 PublishUnread(rows[i]);
             }
+            // The chat list's counts go with them: a message that arrives next is one, not
+            // the pile that was read.
+            NativeConnection.Instance.MarkAllChatsRead();
+
             NotificationService.ForgetAll();
             NotificationService.SetUnread(TotalUnread());
             for (int i = 0; i < rows.Count; i++) SendRead(rows[i].Id);

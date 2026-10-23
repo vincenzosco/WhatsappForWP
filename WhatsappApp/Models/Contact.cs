@@ -87,7 +87,17 @@ namespace WhatsappApp.Models
         public string AvatarData
         {
             get { return _avatarData; }
-            set { _avatarData = value; OnPropertyChanged(); }
+            set
+            {
+                // New bytes make the decoded picture the previous one's, and
+                // `LoadAvatarAsync` only decodes when nothing is decoded yet: without
+                // dropping it here a contact who changes their picture keeps the old face
+                // until the app restarts.
+                if (_avatarData != value && _avatar != null) Avatar = null;
+
+                _avatarData = value;
+                OnPropertyChanged();
+            }
         }
 
         /// <summary>

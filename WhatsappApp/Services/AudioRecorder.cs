@@ -32,6 +32,15 @@ namespace WhatsappApp.Services
         private static MediaCapture _capture;
 
         /// <summary>
+        /// A start that has not answered yet. `_capture` is assigned only at the end of a
+        /// successful start, so between the first call and that line a second call saw no
+        /// capture, created a second MediaCapture over the same microphone and the same file,
+        /// and overwrote the first in `_capture` - a capture nothing could release and that
+        /// went on recording.
+        /// </summary>
+        private static bool _starting;
+
+        /// <summary>
         /// How long one MediaCapture call may take before it counts as failed.
         /// Some phones leave InitializeAsync hanging after a failed or doubled
         /// start; with no ceiling the tap does nothing forever, which is the
@@ -54,6 +63,9 @@ namespace WhatsappApp.Services
         public static async Task<bool> StartAsync()
         {
             if (_capture != null) return false;
+            if (_starting) return false;
+
+            _starting = true;
 
             MediaCapture capture = null;
             try
@@ -91,6 +103,10 @@ namespace WhatsappApp.Services
                 Diag.Failed("AudioRecorder.StartAsync", ex);
                 Release(capture);
                 return false;
+            }
+            finally
+            {
+                _starting = false;
             }
         }
 

@@ -1,100 +1,45 @@
-# WhatsApp for Windows Phone 8.1
-
 **English** | [Italiano](README.it.md)
 
-A community-maintained WhatsApp client for Windows Phone 8.1 (Universal Windows Platform). The phone **is** the client: it speaks WhatsApp's own protocol itself - the Noise handshake, the binary node format, the Signal double ratchet, the media upload and download - so there is no server to run and nothing to configure.
+<p align="center">
+  <img src="WhatsappApp/Assets/WhatsAppLogo.png" width="128" alt="WhatsApp for Windows Phone 8.1 app icon">
+</p>
 
-## Projects
+<h1 align="center">WhatsApp for Windows Phone 8.1</h1>
 
-### WhatsappApp (Windows Phone 8.1 App)
+<p align="center">
+  <strong>A WhatsApp client that runs on a 2014 phone, written from the protocol up.</strong><br>
+  The phone talks to WhatsApp itself: Noise handshake, binary nodes, the Signal ratchet, media.
+  There is no server to run and nothing to configure.
+</p>
 
-The main client app with an authentic WhatsApp user interface.
+<p align="center">
+  <a href="#build-it">Build it</a> ·
+  <a href="#use-it">Use it</a> ·
+  <a href="#how-it-works">How it works</a> ·
+  <a href="#troubleshooting">Troubleshooting</a>
+</p>
 
-**Features:**
-- WhatsApp theme throughout (accent on the header, the tabs, the app bar and the bubbles)
-- Theme picker in the settings: the package's own wallpapers (plus the doodle and plain white) paint the conversation and the home list
-- Chat list with avatars and unread badges
-- Live tile with how many messages are waiting, the last sender's picture and their name
-- A chat can be pinned to the Start screen from its long press menu: that tile carries the person's picture, their name and how many of their messages are waiting in every size (71x71 with the count on the badge), and a tap opens the chat
-- Background check about every 15 minutes (can be turned off): messages that arrive with the app closed update the tile, the badge and the lock screen, and the tile rotates through the conversations that are waiting
-- Lock screen status: detailed (sender and message text) or quick (the number of messages), chosen in the Windows lock screen settings
-- Message bubbles with timestamps and sent/delivered/read status
-- Text messaging with Enter-to-send
-- Image attachment: pick photos from the gallery and send them to WhatsApp's own uploader
-- Image preview in chat bubbles
-- The first launch links the phone itself: the QR code is drawn by the app (its modules are encoded on the phone, no image comes from anywhere) and scanning it ties this device to the account
-- Typing indicator: three animated dots in the conversation while the other person writes, and the same state is sent back while you write
-- UI in the device language: English and Italian
+<p align="center">
+  <a href="#build-it"><img src="https://img.shields.io/badge/platform-Windows%20Phone%208.1-2ea44f" alt="Windows Phone 8.1"></a>
+  <a href="README.it.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano-blue" alt="English and Italian"></a>
+</p>
 
-**Architecture:**
+Windows Phone 8.1 lost its official WhatsApp client years ago. This one is open source, lives in a
+single app on the phone, and speaks WhatsApp's own WebSocket protocol instead of talking to a
+bridge on a PC. It runs on a real WP8.1 device or the x86 emulator. It is free and it needs no
+account beyond the WhatsApp number you link.
 
-The app opens WhatsApp's own WebSocket endpoint (`wss://web.whatsapp.com/ws/chat`)
-over TLS and speaks the protocol on it. `WhatsappApp/Protocol/` is the wire: the
-Noise handshake and its certificate chain check, the binary node reader and writer,
-the Signal sessions (X3DH, the double ratchet, the sender key of a group), the media
-keys and the protobuf messages. `WhatsappApp/Protocol/Client/` is the session: the
-login, the node classifier, the history sync, the send path, the receipts, the call
-log and the status feed. `WhatsappApp/Services/NativeConnection.cs` owns the socket,
-the retry and the events the pages listen to.
+There is no installer and no release: you build it from source with Visual Studio 2013.
 
-#### Calls
+## What it is
 
-The Calls tab lists the account's own call log, as WhatsApp's history sync carries
-it (`HistorySync.callLogRecords`), from both directions: a call this phone made and
-one it received are both there, and a call it never answered reads `missed`. It is
-refreshed when the tab is opened.
+One app, one process, no backend. `Protocol/` is the wire (handshake, nodes, Signal sessions,
+media keys), `Protocol/Client/` is the session (login, history sync, send path, receipts, call
+log, status feed), and `Services/NativeConnection.cs` owns the socket and the events the pages
+listen to.
 
-#### Chats and new chats
-
-The chat list is the account's real conversation list, as the history sync sends it
-after a login: each row carries the conversation, its last message, its unread count
-and its name. A group is named from WhatsApp's own metadata query, because the
-synced row has no usable name for one. The profile picture of a chat is asked of
-WhatsApp when its row is drawn (the query answers a URL and the URL answers the
-JPEG), so a group has one like anybody else, and the bytes are kept on the phone so
-a restart shows the faces before the connection is up.
-
-A new chat can be started in three ways: typing a number with country code,
-picking a contact with the system contact picker (the user's consent, so the app
-never reads the address book by itself), or tapping a conversation the server
-already knows.
-
-While someone is writing, the conversation shows a bubble with three dots, one
-rising after the other, and it goes away when they stop. It is the one thing this
-app shows that is not a message, and it comes from WhatsApp (`chatstate` and the
-`chat_presence` node), not from a guess. The other direction works the same way:
-while you type, this phone sends the same node and the contact sees the same dots.
-Both directions need the account to be present, so the client marks itself
-`available` while the app is running and `unavailable` when the OS suspends it.
-
-Attaching an image uses `PickSingleFileAndContinue`. `PickSingleFileAsync` is
-documented as unsupported on Windows Phone, and on the phone it failed silently:
-the app is deactivated while the picker is open, and the chosen file arrives at
-`App.OnActivated` as a `PickFileContinuation`.
-
-Sharing an image into the app works from any app that offers Share (Photos,
-Gallery, a browser): the manifest declares a `windows.shareTarget` extension for
-`Bitmap` and `StorageItems`, and `App.OnShareTargetActivated` puts the image in
-the same waiting slot the picker uses. The app opens on the chat list, because the
-next step is choosing who to send it to.
-
-A voice note is recorded in the app: the microphone button starts
-`Windows.Media.Capture.MediaCapture` (audio only, no camera) and writes AAC in
-an M4A file in the app folder, which is what this phone records and plays
-without a transcoder. The stop button ends the recording, and the file waits in
-the same slot a picked photo uses: the preview bar shows it and Send uploads it
-to WhatsApp's media host as a voice note.
-
-The parts of this that need saying are in **Limitations**: WhatsApp's own voice
-notes are Ogg/Opus and WP8.1 has neither an Opus encoder nor an Opus decoder, so a
-note recorded here goes out as M4A in a voice-note bubble, and an Ogg/Opus note
-that arrives cannot be played on this phone. The server that used to convert both
-ways (with `ffmpeg`) is gone with the rest of it.
-
-## App structure
-
-The home is one surface with the three sections under a fixed tab strip and the
-WP8 app bar, plus a page per conversation:
+The three tabs are the released app's: chats, status, calls, under a fixed tab strip with the
+WP8 app bar. A conversation is a page of its own.
 
 | Page | What it is |
 | --- | --- |
@@ -106,373 +51,272 @@ WP8 app bar, plus a page per conversation:
 | `Pages/ConnectionPage.xaml` | the linked number and the connection state |
 | `Pages/PairPage.xaml` | the QR code that links a device |
 
-The home page is cached: moving to a chat and back does not rebuild it, and the
-chat list keeps its scroll position. The theme is chosen on the settings page
-from the wallpapers the released package ships in `Images/Wallpapers` (plus the
-doodle and plain white), is stored in `LocalSettings`, and paints both the
-conversation and the home list.
+What works today:
 
-## Project skills
+- text messages, images and voice notes, with sent/delivered/read marks on every bubble
+- the real chat list from the history sync, avatars, unread counts, groups, saved names from the phone address book
+- typing indicators in both directions
+- the status feed: what contacts posted, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, and an update whose photo did not arrive has a **Try again** button instead of a dead end
+- the call log, both directions, with missed calls spelled out
+- live tile, pinned-chat tile, lock screen text, and a background check about every 15 minutes
+- theme picker with the wallpapers the released package ships, plus the doodle and plain white
+- English and Italian, following the phone's language
 
-In `.agents/skills/` (index in `.agents/skills/README.md`) there are the
-instructions to maintain, update, test and release the app: toolchain constraints,
-edit recipes, the verification matrix and the deploy checklist. Whoever touches the
-code should read them first: they are the project's long memory.
+## Good for, not for
 
-## Contributing
+**Good for:** keeping a WP8.1 phone usable as a second WhatsApp device; reading the protocol in
+C# 5; a phone that is not your main number.
 
-Issues and pull requests are welcome. The project is small on purpose, and the
-guards in `tools/` are the contract: a change that passes them locally is almost
-always good to merge.
+**Not for:** replacing WhatsApp on your main phone. This is an unofficial client, it breaks
+WhatsApp's Terms of Service, and the number that links it can be banned. Use a test or secondary
+number. It is also not a complete client yet: voice notes in Ogg/Opus do not play, older history
+is not fetched on demand, deletions and edits from other devices are not read.
 
-1. Fork the repository and work on a branch (`fix/...`, `feat/...`, `docs/...`).
-2. Read `.agents/skills/maintain-the-app/SKILL.md` before touching code: C# 5 only,
-   inline vector icons, no hardcoded user-visible strings, docs always in pairs.
-3. Make the change, then run the fast gate:
+## Build it
 
-   ```bash
-   node tools/check-csharp5.js && node tools/check-icons.js \
-     && node tools/check-resw.js --strict && node tools/check-docs.js \
-     && node tools/check-framing.js && node tools/check-tile.js \
-     && node tools/check-memory.js && node tools/check-actions.js \
-     && node tools/check-fire-and-forget.js \
-     && node tools/check-project-files.js \
-     && node tools/check-chat-list-source.js \
-     && node tools/check-history-sync.js \
-     && node tools/check-client-state.js \
-     && node tools/check-diagnostics.js \
-     && node tools/check-handshake-answer.js \
-     && node tools/check-xaml-names.js \
-     && node tools/check-attachment-file.js \
-     && node --test "tools/test/**/*.test.js"
-   ```
+You need **Visual Studio 2013 (v12.0) with the Windows Phone 8.1 SDK**. Newer VS versions do not
+carry that toolchain. Build from a path on a local disk, not from a shared folder or a network
+drive.
 
-4. Build the app on Windows
-   (`msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86`)
-   and say in the pull request that it reports `0 Error(s)`. There is no C# test
-   host, so the build is the gate for the app.
-5. Write the commit subject as `type: short imperative` in English, and say *why*
-   the change is needed, not only what it does: the history is the changelog.
-6. User-visible text: add the key to **both** `.resw` files, and update both
-   `README.md` and `README.it.md` in the same commit.
-
-A useful bug report has the `DIAG` lines from the Output window, which build you
-ran, and what the phone did. The same lines are in the app's own `diag.log`, which
-the Diagnostics page shows and which `ISETool.exe ts` copies off the phone.
-
-## Protocol
-
-The client speaks WhatsApp's own protocol, and none of it is invented here: every
-step is pinned against the reference implementations (`@whiskeysockets/baileys` and
-`whatsmeow`), and the tests that keep it honest live in `ProtocolTests/`.
-
-- **Transport**: a WebSocket to `wss://web.whatsapp.com/ws/chat` over TLS, and
-everything on it is a **binary node** - a tag, an attribute map, a list of children
-or bytes (`Protocol/WABinary/`). `NodeReader` and `NodeWriter` are the two halves of
-that format, and a node's length is checked against a ceiling before it is read.
-- **Handshake**: the Noise protocol handshake with the server's own certificate
-chain, checked on the phone (`Protocol/Noise/NoiseHandshake.cs`). The pairing that
-follows is a QR whose modules this app encodes itself (`Protocol/Qr/QrCode.cs`).
-- **Messages**: the Signal protocol - X3DH for a new session, the double ratchet for
-every message after it, the sender key for a group (`Protocol/Signal/`). A message
-that carries media names the keys and the address of the file, and the bytes are
-uploaded to and downloaded from WhatsApp's own media host, encrypted and decrypted
-on the phone (`Protocol/Media/`).
-- **The session**: the node classifier, the history sync, the send path with its
-receipts, the profile-picture query, the call log and the status feed
-(`Protocol/Client/`). The account is the protocol's own credential store, in the
-app's folder (`Protocol/Client/CredentialStore.cs`).
-
-Everything the app prints at run time is English: its `DIAG` lines and the exception
-messages that reach them. Source comments are English too: the code explains itself in
-one language. The exceptions are the test names and the diagnostics of the guard
-scripts under `tools/` - developer tooling that nobody runs - and the UI strings in
-`Strings/it-IT`, which are translation rather than diagnostics.
-
-A connection is owned by the attempt that opened it: only the newest attempt
-publishes its socket and its read loop, so a socket that fails cannot close the one
-that succeeded. The client reconnects by itself, with a bounded wait between
-attempts, and a session that has been silent for a while is closed and reopened
-rather than kept as a socket that looks alive and receives nothing.
-
-## Building
-
-### WP8 App
-
-Verified toolchain: **Visual Studio 2013 (v12.0) + Windows Phone 8.1 SDK**. The
-gate is
+**Command line** (from the repository root):
 
 ```bash
 msbuild WhatsappApp.sln /t:Rebuild /p:Configuration=Debug /p:Platform=x86
 ```
 
-which must close with `0 Error(s)` and produce
-`WhatsappApp\AppPackages\WhatsappApp_<version>_Debug_Test\WhatsappApp_<version>_x86_Debug.appxbundle`.
+The build must end with `0 Error(s)` and leave
+`WhatsappApp\AppPackages\WhatsApp_<version>_Debug_Test\WhatsApp_<version>_x86_Debug.appxbundle`.
+For the phone, build `Release` on `ARM` instead and use **Build > Deploy**.
 
-Every `DIAG` line the app writes is also pushed to the debugger, so **Visual
-Studio 2013** with the solution open, the configuration set to **Debug**, the
-platform to **ARM** and the phone as the target shows them in **Debug → Windows →
-Output** when the app is started with **F5** (deploy and debug). For an app that is
-already installed, use **Debug → Attach to Process** and pick it. Filter the window
-on `DIAG`. Without a debugger attached nothing appears there; `diag.log` (export
-it with `ISETool.exe ts`) and the Diagnostics page remain the channels on the
-phone.
+**From Visual Studio**: open `WhatsappApp.sln`, pick `Debug` / `x86` (emulator) or `Release` /
+`ARM` (phone), then F5.
 
-**Build from a path on a local disk, not from the shared folder.** If the project
-lives in the Mac share (`C:\Mac\Home\...`), the second pass of the XAML compiler
-*always* fails with
+<details>
+<summary><strong>What the build needs and what it refuses</strong> The toolchain is old on purpose.</summary>
+<br>
+
+- The WP8.1 toolchain compiles with the **C# 5** compiler. Interpolated strings, `?.`,
+  expression-bodied members, auto-property initializers, pattern matching and `out var` do not
+  compile here. `node tools/check-csharp5.js` lists every offending file, line and construct, and
+  also catches WinRT members that exist on Windows 10 but not in the WP8.1 projection.
+- Build inside `C:\Mac\Home\...` (the Parallels share) and the second XAML pass fails every time
+  with `Xaml Internal Error error WMC9999: The given key was not present in the dictionary`. Copy
+  the tree to a local disk (`robocopy <share> C:\wp81 /E`) and it builds.
+- The WP8.1 emulator does not start on an Apple Silicon Mac: its images are x86 and need Hyper-V.
+  Use an x86/x64 Windows machine or a phone over USB.
+
+</details>
+
+## Use it
+
+1. Open the app. The first screen is the QR code, drawn by the app itself (no image comes from
+   anywhere).
+2. On your main phone: WhatsApp > linked devices > link a device, and scan it.
+3. The app logs in, reads the history sync, and fills the chat list.
+4. Tap a chat to write. Enter sends. The paperclip attaches a photo, the microphone records a
+   voice note.
+5. Swipe to the status tab to see what your contacts posted. Tap one to open it: the photo or the
+   video, or the words, with a caption under it.
+6. The calls tab lists the call log WhatsApp sent with the sync.
+
+Tips:
+
+- A chat can be pinned to the Start screen from its long press menu. The tile carries the
+  person's picture, their name and how many of their messages are waiting.
+- The background check is on by default. Turn it off in Settings if the phone should stay quiet.
+- If the app opens an empty list and stays there, open the Diagnostics page from the empty state:
+  it shows the last `DIAG` lines.
+
+## How it works
+
+Every step is pinned against the reference implementations (`@whiskeysockets/baileys` and
+`whatsmeow`), and the tests that keep it honest live in `ProtocolTests/`.
+
+- **Transport**: a WebSocket to `wss://web.whatsapp.com/ws/chat` over TLS. Everything on it is a
+  binary node: a tag, an attribute map, children or bytes (`Protocol/WABinary/`). A node's length
+  is checked against a ceiling before it is read.
+- **Handshake**: the Noise protocol handshake with the server's certificate chain, verified on the
+  phone (`Protocol/Noise/NoiseHandshake.cs`).
+- **Pairing**: the QR is encoded by the app (`Protocol/Qr/QrCode.cs`), and linking stores the
+  account in the protocol's own credential store in the app folder.
+- **Messages**: X3DH for a new session, the double ratchet for everything after it, the sender key
+  for a group (`Protocol/Signal/`). A message with media names the keys and the address of the
+  file; the bytes go to and from WhatsApp's media host and are encrypted and decrypted on the
+  phone (`Protocol/Media/`).
+- **Session**: the login, the node classifier, the history sync, the send path with its receipts,
+  the profile-picture query, the call log and the status feed (`Protocol/Client/`).
+- **One connection, one owner**: only the newest attempt publishes its socket and read loop, so a
+  socket that fails cannot close the one that succeeded. The client reconnects by itself, and a
+  silent session is closed and reopened instead of kept as a socket that looks alive.
+
+A status is not a chat: it lives in `status@broadcast`, its author is the `participant`, and
+watching it is a `read` receipt to that list carrying the status id and the author. The feed keeps
+them out of the chat list, which is why a phone with a day of statuses does not show a row called
+"status" at the top.
+
+The interface icons are vector `Path` elements with the geometry inlined on each `Path`: WP8.1 has
+no `Segoe MDL2 Assets`, so a glyph font renders blank. `node tools/check-icons.js` enforces that,
+the geometry element form, and that the same icon is the same geometry everywhere.
+
+## Troubleshooting
+
+<details>
+<summary><strong>The build fails with WMC9999 "The given key was not present in the dictionary"</strong></summary>
+<br>
+
+The project is on the Mac share. The second XAML compiler pass always fails there. Copy the tree
+to a local disk and build again; nothing in the code needs to change.
+</details>
+
+<details>
+<summary><strong>The app opens on an empty chat list</strong></summary>
+<br>
+
+Either the phone is not linked yet (the first screen is the QR), or the connection ended before
+the history sync. Open the Diagnostics page from the empty state: the `DIAG` lines name the step
+the connection reached. The same lines are in `diag.log` in the app folder, which
+`ISETool.exe ts` copies off the phone.
+</details>
+
+<details>
+<summary><strong>Messages arrive only every 15 minutes while the app is closed</strong></summary>
+<br>
+
+That is the background check, not a bug. WP8.1 closes the socket when it suspends the app and
+there is no cloud service to push through, so `BackgroundSync` wakes on a `TimeTrigger`, connects,
+reads what is waiting, updates the tile and the lock screen, and closes. 15 minutes is the
+shortest interval a `TimeTrigger` accepts; the system decides the exact moment and can delay it.
+Turn it off in Settings if you prefer nothing in the background.
+</details>
+
+<details>
+<summary><strong>A voice note from WhatsApp does not play</strong></summary>
+<br>
+
+WhatsApp's own voice notes are Ogg/Opus, and WP8.1 has no Opus decoder. A note recorded here goes
+out as M4A/AAC, which this phone records and plays. The server that used to convert both ways is
+gone with the rest of the backend.
+</details>
+
+<details>
+<summary><strong>The chat list shows numbers instead of names</strong></summary>
+<br>
+
+Names come from the history sync's push names, the group metadata query, and the phone's own
+address book, which the app reads only after you grant it. A contact whose name nobody shared and
+who is not saved on the phone stays a number.
+</details>
+
+<details>
+<summary><strong>A photo in a chat or a status shows a word until tapped</strong></summary>
+<br>
+
+History rows carry the keys and the address of the file, not the file. The app downloads it the
+first time you tap it, then keeps it. A status photo that still does not appear after the download
+has usually expired: statuses live for a day.
+</details>
+
+## Commands
+
+Run these from the repository root before a pull request. The guards are the contract: each one
+catches a failure the build cannot see.
 
 ```
-Microsoft.Windows.UI.Xaml.Common.targets(327,9): Xaml Internal Error error WMC9999:
-The given key was not present in the dictionary.
+node tools/check-csharp5.js         C# 6/7 syntax and WinRT members WP8.1 does not have
+node tools/check-icons.js           inline vector icons, element form, same icon same geometry
+node tools/check-resw.js --strict   x:Uid, Loc.Get, both .resw files, no unused key
+node tools/check-docs.js            README pair, same headings, disclosure last, no emoji
+node tools/check-memory.js          decode width, cache caps, per-chat ceiling
+node tools/check-tile.js            tile payload and asset sizes
+node tools/check-actions.js         the app bar buttons
+node tools/check-fire-and-forget.js no task whose fault nobody observes
+node tools/check-project-files.js   every file the projects compile
+node tools/check-xaml-names.js      one x:Name per namescope
+node tools/check-client-state.js    the login's passive/active sentences and the notification channel
+node tools/check-background-task.js the task's activatable class and its 30 s budget
+node tools/check-diagnostics.js     the log that survives a crash
+node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
+     check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
 
-even on a freshly cleaned tree and whatever the pages contain: it is the share, not
-the code. Copy the project to a disk on the Windows machine and build there
-(`robocopy <share> C:\wp81 /E`): same files, `0 Error(s)`.
-
-**The WP8.1 emulator does not start on an Apple Silicon Mac.** The XDE images are
-x86 and run on Hyper-V: on an ARM64 Windows guest there is neither x86 Hyper-V nor
-those images. Running the app needs an x86/x64 Windows machine (physical or an
-Intel VM) or a WP8.1 phone attached over USB.
-
-The Windows Phone 8.1 toolchain compiles the app with the **C# 5** compiler: C# 6/7
-syntax (interpolated strings, `?.`, expression-bodied properties, automatic
-property initializers, pattern matching, `out var`) does not compile. Before every
-build, run:
+The whole gate, one line:
 
 ```bash
-node tools/check-csharp5.js
+for f in tools/check-*.js; do node "$f" || exit 1; done
+node --test tools/test/*.test.js
+node tools/test-protocol.js
 ```
 
-It exits with code 0 when every `.cs` file of the solution is C# 5 compatible,
-otherwise it lists file, line and the construct to fix. The same script also checks
-for members **missing from the Windows Phone 8.1 WinRT projection** (e.g.
-`CryptographicBuffer.CreateFromByteArray` with 3 arguments,
-`ContentDialog.CloseButtonText`): they compile on Windows 8.1/10 but not on WP8.1.
+`tools/test-protocol.js` builds and runs the 309 protocol tests in `ProtocolTests/`. The protocol
+tests are plain C# with a tiny runner, because the WP8.1 toolchain cannot host a modern test
+framework.
 
-### Icons, tiles and splash screen
+## Good to know
 
-The tiles, the launcher icon and the splash screen are the **official** WhatsApp
-artwork for WP8.1, not a redrawing: `tools/brand/official/` holds the files the
-released package ships (`Icon1.png`, `Images/Tile*.png`, `Images/logo.png`, the
-chat wallpaper `Images/Background.jpg` and the 480×800 splash), and
-`tools/make-brand-assets.js` copies them into `WhatsappApp/Assets/` at the sizes
-the manifest asks for at the 240% scale (150→360, 71→170, 44→106,
-310×150→744×360). Only the live-tile icon (200 and 480 px), the `StoreLogo`
-(120 px) and the 1152×1920 splash are derived, from `Icon1.png` and the shipped
-splash; they are committed too, so the script only runs when the artwork changes.
-It is plain Node (no ImageMagick): the PNG is decoded, resampled with a
-triangular kernel and encoded with `zlib`.
+- Older messages are only the ones WhatsApp pushed after the login: this client does not ask for a
+  conversation's older history on demand.
+- Deletions and edits made on another device are not read yet. A message revoked elsewhere stays
+  on screen until a fresh login re-syncs the conversation.
+- Pinning, muting and deleting live on this phone only, in `chat-preferences.json`. Nothing about
+  them is sent to WhatsApp, so another device does not see them and clearing the app data loses
+  them.
+- A chat's unread number comes from WhatsApp with the history sync and is cleared when you open
+  the conversation, which tells the server. Messages that arrive while the app is closed are
+  counted by the next sync.
+- A received video is written to the app's local folder and is not cleaned up when the app closes.
+- The last 60 messages of every conversation are written to the phone when the sync finishes, so a
+  chat opened after a restart shows them at once.
+- On a 512 MB phone the app gets roughly 185 MB. It decodes every picture at the size it is drawn,
+  drops decoded avatars under memory pressure, and keeps at most 200 messages per chat in memory.
+  `node tools/check-memory.js` guards all three.
+- Typing indicators need the account to be present, which is what contacts see as online. With the
+  app closed nothing is sent or received.
+- The live tile needs the app to have run since the count changed; a message that arrives while
+  the app is suspended is counted by the background check.
+- A file shared into the app from another app is read at the moment the share is handed over,
+  because the app can be terminated while the picker is open. A very large video may not fit in
+  memory on a 512 MB phone.
 
-```bash
-node tools/make-brand-assets.js            # rewrites the PNGs
-node tools/make-brand-assets.js --preview  # + ASCII preview to check the logo
-```
+## Contributing
 
-The interface icons (search, settings, tabs, attachments, send...) do **not** use an
-icon font: Windows Phone 8.1 has no `Segoe MDL2 Assets` (it arrived with Windows 10),
-so the buttons stayed blank. They are vector `Path` elements with the geometry
-**inlined on each `Path`**, preceded by a comment that names the icon:
+Issues and pull requests are welcome. Read `.agents/skills/maintain-the-app/SKILL.md` before
+touching code: C# 5 only, inline vector icons, no hardcoded user-visible strings, docs always in
+pairs. The index of the project skills is in `.agents/skills/README.md`.
 
-```xml
-<Path Stroke="White" StrokeThickness="2" Width="24" Height="24">
-    <!-- IconChats -->
-    <Path.Data>
-        <PathGeometry>
-            <PathGeometry.Figures>
-                <PathFigure StartPoint="4,5" IsClosed="True">
-                    <PathFigure.Segments>
-                        <PolyLineSegment Points="20,5 20,15.5 10.5,15.5 5.5,20 5.5,15.5 4,15.5"/>
-                    </PathFigure.Segments>
-                </PathFigure>
-            </PathGeometry.Figures>
-        </PathGeometry>
-    </Path.Data>
-</Path>
-```
+1. Fork and branch: `fix/...`, `feat/...`, `docs/...`.
+2. Make the change, then run the gate above. It must be green.
+3. Build the app on Windows and say in the pull request that it reports `0 Error(s)`. There is no
+   C# test host for the app, so the build is its gate.
+4. Write the commit subject as `type: short imperative` in English and say why the change is
+   needed, not only what it does. The history is the changelog.
+5. User-visible text goes into **both** `.resw` files, and `README.md` and `README.it.md` change in
+   the same commit.
 
-Two rules are not style preferences but toolchain requirements:
+A useful bug report has the `DIAG` lines from the Output window, the build you ran, and what the
+phone did.
 
-- the geometry **cannot** live in `App.xaml` and reach the `Path` through
-  `Data="{StaticResource Icon…}"`: it compiles, then at runtime it throws
-  `XamlParseException: Failed to assign to property
-  'Windows.UI.Xaml.Shapes.Path.Data'.` — in WinRT a `Geometry` is not shareable
-  through a `StaticResource`
-  ([microsoft-ui-xaml#1909](https://github.com/microsoft/microsoft-ui-xaml/issues/1909),
-  [#5780](https://github.com/microsoft/microsoft-ui-xaml/issues/5780));
-- the geometry must be written in element form (`PathFigure` + `LineSegment` /
-  `PolyLineSegment` / `ArcSegment`): on WP8.1 the `PathFigureCollection` converter
-  does not accept the string, so `Figures="M…"` **does not compile**
-  (`The TypeConverter for "PathFigureCollection" does not support
-  converting from a string.`).
-
-The guard checks both (plus "same icon, same geometry"):
-
-```bash
-node tools/check-icons.js            # rules + consistency + banned fonts
-node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
-```
-
-The live tile has assets of its own, made by the same `make-brand-assets.js`
-from the official green app icon. `Assets/TileIcon.png` plus its 240% version
-`TileIcon.scale-240.png` (480×480) are the square tile, and `TileIconWide.png`
-plus `TileIconWide.scale-240.png` (744×360) are the wide one. They are the
-fallback: what a tile normally draws is not those files but a card.
-
-A tile template draws its image over the **whole** tile. A profile picture from
-WhatsApp is 96×96 - that is the size its preview comes in - so stretching it across
-150 or 310 pixels is a magnified face, and the app mark laid edge to edge reads as
-a logo zoomed until it is cropped. Neither is a portrait; both are what the Start
-screen showed on 2026-10-22. So `Services/TileImage.cs` decodes the picture,
-scales it once, and draws it into the middle of a card of the app's teal with the
-picture at half the tile (`Protocol/Media/TileCanvas.cs` - the compositing is pure
-and sits in the protocol core, where `TileCanvasTests` covers it, because a wrong
-margin is invisible until it is on a phone). The shell then has nothing to
-enlarge, and the same file is right at 150, 310 and 71 pixels.
-
-The manifest sets `BackgroundColor="#45D82C"` together with
-`ForegroundText="light"`. The official square and wide tiles are the white
-handset on a transparent background, so the green shows through them, and light
-is the other half of the pair, because dark tile text on that green is unreadable.
-
-`tools/check-tile.js` guards it, because the failure it catches is invisible. A tile
-template does **not** take the icon from the manifest: it wants `<image src="..."/>`
-in the payload, and with an empty `src` the tile renders without an icon and raises
-no exception at all. The guard also checks the size of each asset against the
-template that draws it: at least 200×200 for the square icon, 310×150 with the
-tile's proportion for the wide one.
-
-### Memory on a 512 MB device
-
-A 512 MB phone gives the app a hard memory limit (roughly 185 MB; a 1 GB device
-allows about twice that) and suspends or terminates it when the app keeps growing.
-WP8.1 has **no manifest declaration for this** — `AppxManifestSchema2010_v2.xsd` and
-its siblings have no memory element at all — so this is runtime work, in two halves:
-
-- **decode at the size you draw**: `ImageHelper` takes the width the image is shown
-  at and sets `DecodePixelWidth` before `SetSourceAsync`. A 640×640 profile picture
-  drawn as a 56 px circle costs a few tens of KB instead of almost 2 MB, times one
-  per conversation;
-- **let go when asked**: `MemoryWatcher` listens to
-  `MemoryManager.AppMemoryUsageIncreased` and, at `High`, drops the decoded avatars
-  and clears the history of every chat that is not open (the open one is left alone,
-  it is the one being read). While the pressure lasts nothing new is decoded. The  limit of the phone is written once, as `DIAG ok: memory budget N MB`;
-- **and ask again from the phone**: the bytes of a picture are kept in
-  `avatar-cache.json` (at most 40 conversations, about 1 MB), so a restart shows
-  the faces before the connection is up, and a row whose decoded bitmap was dropped
-  is redrawn when the list comes back to the front. The pictures are the app's own
-  copy of what WhatsApp answered: a picture is asked for once, and the cache is what
-  keeps a chat list read twice from asking again;
-- **cap the conversation**: a chat kept in memory is bounded at 200 messages
-  (`MaxMessagesPerChat` in `DataService`); the older ones fall out and come back
-  from the server when the chat is reopened. This was the last allocation a busy
-  conversation could grow without a limit, and it is what a 512 MB phone needs most;
-
-`tools/check-memory.js` fails the build if a call site forgets the decode width, if
-one asks for more pixels than the screen can show, if `ImageHelper` sets
-`DecodePixelWidth` after the decode, if the row cache starts carrying picture bytes,
-if the avatar cache loses its caps or its serial queue, if the avatar cache is not
-read before the cached rows are applied, or if a chat's in-memory history has no
-`MaxMessagesPerChat` ceiling or does not apply it with a `while` trim.
-
-### App language
-
-The app follows the device language automatically through `.resw` resources:
-
-| Language | File | Notes |
-| --- | --- | --- |
-| English | `WhatsappApp/Strings/en-US/Resources.resw` | `<DefaultLanguage>`: fallback for every other language |
-| Italian | `WhatsappApp/Strings/it-IT/Resources.resw` | |
-
-The app UI is the **only localized surface**: everything the app and the scripts
-print (the `DIAG` lines, the guards' diagnostics, the tooling under `tools/`) is
-English only, so reading a log never needs a second language. Source comments are
-English too, so Italian survives only in the test names and the guard-script
-diagnostics, which nobody runs at run time.
-
-- Texts declared in XAML use `x:Uid`, and the property must match the type of the
-  element: `TextBlock` -> `.Text`, `Button` -> `.Content`, `TextBox` ->
-  `.PlaceholderText`. A wrong pairing is a run-time error.
-- Texts built in C# go through `Loc.Get("Key", "fallback")`
-  (`WhatsappApp/Services/Loc.cs`), which never throws: if the resource is missing it
-  uses the fallback. `Loc.Prewarm()` is called at startup on the UI thread because
-  `ResourceLoader.GetForCurrentView()` cannot be created from a background thread
-  (messages arrive from the socket on a background thread).
-- Icon-only buttons do not use `x:Uid` (it would overwrite the `Path`): their label
-  is a tooltip set with `Loc.Get` in the page constructor.
-- Before every build, or after touching a string:
-
-```bash
-node tools/check-resw.js            # keys, x:Uid, Loc.Get, PRIResource, default language
-node tools/check-resw.js --strict   # + fails on unused keys
-```
-
-The script fails if an `x:Uid` or a `Loc.Get` has no entry in **both** files, if the
-two files do not have the same keys, if a `.resw` is not registered as `PRIResource`
-in the `.csproj` (in that case it would never be included in the package) or if
-`<DefaultLanguage>` is not one of the supported languages. Without this check an
-error in the resources does **not** fail the build: the text simply stays the one
-written in the markup.
-
-To check the translations on the device it is enough to change the system language
-(Settings > Time & language): Windows restarts the app and the strings change
-accordingly. If the app stays in the previous language, close and reopen it.
-
-### Documentation
-
-The documents that explain the project exist in two languages, English and Italian,
-and are kept in step:
-
-| Document | English | Italian |
-| --- | --- | --- |
-| Project README | `README.md` | `README.it.md` |
-
-Adding, moving or renaming a section means doing it in both files, in the same
-commit, and the same goes for the `## Disclosure` section at the end of each README.
-A new explanatory document is born as a pair. The guard refuses a pair whose
-headings do not match, a document without the disclosure, and any emoji other than
-the warning sign:
-
-```bash
-node tools/check-docs.js
-```
-
-## Limitations
-
-- A voice note that arrives as Ogg/Opus cannot be played here: WhatsApp's own voice notes are Ogg/Opus and WP8.1 has no Opus decoder, and the server that used to convert them to MP3 (with `ffmpeg`) is gone. A note **sent** from this phone goes out as the M4A/AAC this device records, so a receiving client may draw it as an audio file rather than a voice note.
-- Older messages are only the ones WhatsApp pushed after the login: this client does not ask for a conversation's older history on demand, so a chat shows what the last sync carried and what has arrived since.
-- Message deletions and edits made on another device are not read yet: a message revoked elsewhere stays on screen until the conversation is fetched again on a fresh login.
-- A message that arrives with the app closed is announced by a background check, not in real time: WP8.1 closes the socket when it suspends the app, and this project has no cloud service to push through. `BackgroundSync` wakes every 15 minutes - the shortest a `TimeTrigger` accepts on WP8.1; a smaller number registers nothing - connects, reads what is waiting, updates the tile, the badge and the lock screen, and closes. The tile rotates through the waiting conversations, one turn per conversation, so it does not stay on the last person who wrote. The interval is a request - the system decides the exact moment and can delay it - and the check can be turned off in the settings.
-- On the lock screen Windows shows what the user picks in Settings: the app as **detailed status** draws the wide tile (sender and message text), and as **quick status** it draws the badge with the number of messages. The app keeps both updated; which one appears is the system's choice, not the app's.
-- Pinning, muting and deleting live on this phone only, in `chat-preferences.json` in the app's folder. Nothing about them is sent to WhatsApp, so another device does not see them, and they are lost when the app's data is cleared.
-- A chat's unread number comes from WhatsApp with the history sync and is cleared when the conversation is opened in the app: the count is told to the server, and messages that arrive while the app is closed are counted when the next sync brings them.
-- A file shared from another app is read at the moment the share is handed over, because the app can be terminated while the picker or the sharing app is open. Files that are very large are still held in memory to be sent, so a full-length video may not fit on a phone with 512 MB.
-- Typing indicators depend on the account being present, which is what the contacts also see: WhatsApp sends those events only to a client marked online, the app marks the account available while it runs and unavailable when the OS suspends it. With the app closed no presence is sent or received, so nothing is shown in the meantime.
-- A photo or a video in the history shows a word (`[Image]`, `[Video]`) until it is tapped, when the app downloads it from WhatsApp and plays or draws it. A received video's bytes are written to the app's local folder and are not cleaned up when the app closes. The last 60 messages of a conversation are cached on the phone, so the first view of a chat is a photograph the connection then replaces.
-- The live tile says how many messages are waiting, who wrote last and their picture. The app writes it, so it needs the app to have run since the count changed: a message that arrives while the app is suspended is counted when it resumes. With the count at zero the tile goes back to the one in the manifest.
-- Under memory pressure the app drops the decoded avatars; the bytes stay, and the pictures are redrawn when the chat list comes back. While the pressure lasts nothing new is decoded, so on a phone that stays under pressure the list shows initials for a while.
+The documents that explain the project exist in two languages and are kept in step. Adding,
+moving or renaming a section means doing it in both READMEs in the same commit, and the
+`## Disclosure` section stays last in both. `node tools/check-docs.js` refuses a pair whose
+headings differ, a document without the disclosure, and any emoji other than the warning sign.
 
 ## Disclaimer
 
-- This is an unofficial project not affiliated with WhatsApp or Meta.
-- This client uses unofficial methods to connect to WhatsApp, which violates WhatsApp's Terms of Service.
-- Using this bridge may result in a permanent ban of your phone number.
-- Only use with test/secondary phone numbers.
-- For production use, refer to the official WhatsApp Business API.
+- This is an unofficial project, not affiliated with WhatsApp or Meta.
+- It uses unofficial methods to connect to WhatsApp, which violates WhatsApp's Terms of Service.
+- Linking it may get your phone number permanently banned.
+- Only use a test or secondary phone number.
 
 ## License
 
-MIT - Community maintained project. Use at your own risk.
+MIT, community maintained. Use at your own risk.
 
 ## Disclosure
 
-**This project is open source, and it needs maintainers.** Issues, translations,
-reviews, documentation and pull requests are all welcome, and so is anyone who
-wants to help it grow: more hands is the only thing that makes it move faster.
+**This project is open source, and it needs maintainers.** Issues, translations, reviews,
+documentation and pull requests are all welcome, and so is anyone who wants to help it grow.
 
-
-**The author does not accept responsibility for the WhatsApp account used to sign
-in.** Linking this client means connecting an unofficial client to WhatsApp, which
-is against WhatsApp's Terms of Service, and the account can be permanently banned.
-Use a test or secondary number, and only if you accept that risk yourself.
+**The author does not accept responsibility for the WhatsApp account used to sign in.** Linking
+this client means connecting an unofficial client to WhatsApp, which is against WhatsApp's Terms
+of Service, and the account can be permanently banned. Use a test or secondary number, and only if
+you accept that risk yourself.

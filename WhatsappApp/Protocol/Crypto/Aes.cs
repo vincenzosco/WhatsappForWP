@@ -64,8 +64,10 @@ namespace WhatsappApp.Protocol.Crypto
         {
             CheckBlock(block, "plaintext");
 
-            int rounds = RoundsFor(key);
+            // Expanded first: `ExpandKey` is what refuses a key that is not one, and
+            // `RoundsFor` reading it first answered NullReferenceException instead.
             uint[] schedule = ExpandKey(key);
+            int rounds = RoundsFor(key);
 
             var state = new byte[BlockSize];
             Buffer.BlockCopy(block, 0, state, 0, BlockSize);
@@ -91,8 +93,10 @@ namespace WhatsappApp.Protocol.Crypto
         {
             CheckBlock(block, "ciphertext");
 
-            int rounds = RoundsFor(key);
+            // Expanded first: `ExpandKey` is what refuses a key that is not one, and
+            // `RoundsFor` reading it first answered NullReferenceException instead.
             uint[] schedule = ExpandKey(key);
+            int rounds = RoundsFor(key);
 
             var state = new byte[BlockSize];
             Buffer.BlockCopy(block, 0, state, 0, BlockSize);
@@ -130,8 +134,10 @@ namespace WhatsappApp.Protocol.Crypto
             Buffer.BlockCopy(plaintext, 0, padded, 0, plaintext.Length);
             for (int i = plaintext.Length; i < total; i++) padded[i] = (byte)padding;
 
-            int rounds = RoundsFor(key);
+            // Expanded first: `ExpandKey` is what refuses a key that is not one, and
+            // `RoundsFor` reading it first answered NullReferenceException instead.
             uint[] schedule = ExpandKey(key);
+            int rounds = RoundsFor(key);
 
             var output = new byte[total];
             var previous = new byte[BlockSize];
@@ -159,8 +165,10 @@ namespace WhatsappApp.Protocol.Crypto
                 throw new ProtocolException("CBC needs a whole number of 16-byte blocks");
             }
 
-            int rounds = RoundsFor(key);
+            // Expanded first: `ExpandKey` is what refuses a key that is not one, and
+            // `RoundsFor` reading it first answered NullReferenceException instead.
             uint[] schedule = ExpandKey(key);
+            int rounds = RoundsFor(key);
 
             var padded = new byte[ciphertext.Length];
             var previous = new byte[BlockSize];

@@ -138,6 +138,37 @@ namespace ProtocolTests
             Assert.AreEqual(1, chats.Rows[0].Messages.Count);
         }
 
+        /// <summary>
+        /// A chat the reader has opened does not come back with the messages it already
+        /// read: the count is cleared here, and a chunk WhatsApp re-delivers carries the old
+        /// number - it must not be applied when it brought nothing new (the failure the
+        /// copy on disk documents: "re-applying it brought back a count the reader had
+        /// already cleared").
+        /// </summary>
+        [Test]
+        public static void AReadChatDoesNotCountItsOldMessagesAgain()
+        {
+            var chats = new NativeChats();
+            HistorySync sync = HistorySync.Decode(Hex(HistoryFixture.Plain));
+            chats.ApplyHistory(sync);
+
+            string jid = chats.Rows[0].Jid;
+            Assert.AreEqual(2, chats.Rows[0].UnreadCount, "the server's own count");
+
+            chats.MarkRead(jid);
+            Assert.AreEqual(0, chats.UnreadFor(jid), "the reader has seen them");
+
+            var again = new HistorySync();
+            again.Conversations.Add(sync.Conversations[0]);
+            chats.ApplyHistory(again);
+
+            Assert.AreEqual(0, chats.Rows[0].UnreadCount,
+                "a chunk whose messages are all already here does not put the count back");
+
+            Assert.IsTrue(chats.AddIncoming(Message(jid, "3EB0ABAB0001", "di nuovo", 1791630000L)));
+            Assert.AreEqual(1, chats.UnreadFor(jid), "and the message that arrives next is one");
+        }
+
         [Test]
         public static void AnOutgoingMessageDoesNotCountAsUnread()
         {

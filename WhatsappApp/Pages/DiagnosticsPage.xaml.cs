@@ -41,6 +41,18 @@ namespace WhatsappApp.Pages
             Refresh();
         }
 
+        protected override void OnNavigatedFrom(NavigationEventArgs e)
+        {
+            base.OnNavigatedFrom(e);
+
+            // The manager is per view and outlives this page: a sheet dismissed without
+            // choosing anything never asks for the content, so the handler that removes
+            // itself in OnShareRequested is still attached. It would answer the next share
+            // from any page with this page's report, and keep the page alive with it.
+            DataTransferManager manager = DataTransferManager.GetForCurrentView();
+            manager.DataRequested -= OnShareRequested;
+        }
+
         private void Refresh()
         {
             var text = new StringBuilder();

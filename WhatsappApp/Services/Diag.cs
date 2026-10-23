@@ -44,7 +44,20 @@ namespace WhatsappApp.Services
     /// </summary>
     public static class Diag
     {
-        private static readonly List<string> Seen = new List<string>();
+        /// <summary>
+        /// Every line already written, so a line that repeats is not written twice. It is a
+        /// set and not a list because it is asked once per log line, and it is bounded because
+        /// most lines are unique - a message id, an address - and a run that lasts days would
+        /// otherwise keep every one of them, and scan them all, on a 512 MB phone.
+        /// </summary>
+        private static readonly HashSet<string> Seen = new HashSet<string>();
+
+        /// <summary>The order the lines entered in: the oldest leaves when the cap is reached.</summary>
+        private static readonly Queue<string> SeenOrder = new Queue<string>();
+
+        /// <summary>How many distinct lines are remembered. Far more than the history keeps.</summary>
+        private const int SeenLimit = 2000;
+
         private static readonly object Gate = new object();
 
         /// <summary>
@@ -250,6 +263,10 @@ namespace WhatsappApp.Services
                 }
                 else
                 {
+                    // Same reason as `Seen`: one entry per distinct frame, and every frame
+                    // carries an id. A run that lasts days must not keep them all.
+                    if (FrameRepeats.Count >= SeenLimit) FrameRepeats.Clear();
+
                     FrameRepeats[text] = 1;
                     AppendLine(text);
                 }
@@ -367,6 +384,7 @@ namespace WhatsappApp.Services
             {
                 History.Clear();
                 Seen.Clear();
+                SeenOrder.Clear();
                 FrameRepeats.Clear();
 
                 // The file keeps what it has - clearing the screen is not deleting
@@ -394,6 +412,9 @@ namespace WhatsappApp.Services
             {
                 if (Seen.Contains(line)) return;
                 Seen.Add(line);
+                SeenOrder.Enqueue(line);
+
+                while (SeenOrder.Count > SeenLimit) Seen.Remove(SeenOrder.Dequeue());
 
                 // The cap keeps the history the most recent lines: the buffer is
                 // what a report carries, and a run that fails every two seconds

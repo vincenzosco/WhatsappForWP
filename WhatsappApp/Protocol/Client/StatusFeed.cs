@@ -160,15 +160,21 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>
         /// The receipt that says a status was watched, and the only thing that makes the
-        /// author's ring fill: a `read` receipt to the broadcast list carrying the status's id.
+        /// author's ring fill: a `read` receipt **to the broadcast list** carrying the
+        /// status's id and, as `participant`, whose update it is.
+        ///
+        /// Why not to the author directly: a status is not a chat. Its message lives in
+        /// `status@broadcast`, and the receipts that come back for our own statuses have
+        /// exactly this shape - `from="status@broadcast"` plus a `participant` (the phone's
+        /// log of 2026-10-22 is full of them, `class="status"`). Addressed to the person
+        /// instead, the receipt named a message their one-to-one chat with us did not have:
+        /// the ring never filled, and nothing said so.
         /// </summary>
-        public static BinaryNode Viewed(string jid, string id)
+        public static BinaryNode Viewed(string author, string id)
         {
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a status is watched by its id");
 
-            string to = string.IsNullOrEmpty(jid) ? BroadcastJid : jid;
-
-            return IncomingMessage.Receipt(to, new List<string> { id }, "read", 0);
+            return IncomingMessage.Receipt(BroadcastJid, new List<string> { id }, "read", 0, author);
         }
     }
 }

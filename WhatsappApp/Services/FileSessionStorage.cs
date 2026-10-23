@@ -154,7 +154,13 @@ namespace WhatsappApp.Services
             // prevent, one layer up.
             lock (Gate)
             {
-                for (int i = 0; i < Opened.Count; i++) Opened[i]._blobs.Clear();
+                for (int i = 0; i < Opened.Count; i++)
+                {
+                    // The dictionary's own lock: the connection may be reading or writing a
+                    // session on another task while the wipe runs, and a `Dictionary` cleared
+                    // under an indexer write is a corrupted table, not a lost record.
+                    lock (Opened[i]._blobs) Opened[i]._blobs.Clear();
+                }
             }
 
             StorageFolder folder = await ApplicationData.Current.LocalFolder.CreateFolderAsync(
@@ -170,7 +176,7 @@ namespace WhatsappApp.Services
             // The blob is handed out as it is held: a caller that mutated it would be
             // changing what the next read returns, and the stores above treat what they
             // read as bytes they own.
-            return _blobs.TryGetValue(key, out value);
+            lock (_blobs) return _blobs.TryGetValue(key, out value);
         }
 
         public void Write(string key, byte[] value)
@@ -178,7 +184,8 @@ namespace WhatsappApp.Services
             if (key == null) throw new ArgumentNullException("key");
             if (value == null) throw new ArgumentNullException("value");
 
-            _blobs[key] = value;
+            lock (_blobs) _blobs[key] = value;
+
             Persist(key, value);
         }
 
@@ -186,7 +193,7 @@ namespace WhatsappApp.Services
         {
             if (key == null) throw new ArgumentNullException("key");
 
-            _blobs.Remove(key);
+            lock (_blobs) _blobs.Remove(key);
 
             // The file goes too, or a restart would find what was spent. The queue keeps
             // the delete behind any write of the same key that is still running, which is

@@ -403,6 +403,12 @@
   <data name="ChatsPage_NotConnected" xml:space="preserve">
     <value>Connecting to WhatsApp...</value>
   </data>
+  <data name="ChatsPage_WaitingTitle" xml:space="preserve">
+    <value>Getting your chats</value>
+  </data>
+  <data name="ChatsPage_WaitingHint" xml:space="preserve">
+    <value>WhatsApp is sending them now</value>
+  </data>
   <data name="Settings_Title.Text" xml:space="preserve">
     <value>Settings</value>
   </data>
@@ -438,6 +444,12 @@
   </data>
   <data name="Settings_ThemeWallpaper" xml:space="preserve">
     <value>Wallpaper</value>
+  </data>
+  <data name="StatusViewer_Missing.Text" xml:space="preserve">
+    <value>This update could not be loaded.</value>
+  </data>
+  <data name="StatusViewer_Retry.Content" xml:space="preserve">
+    <value>Try again</value>
   </data>
 </root>
 

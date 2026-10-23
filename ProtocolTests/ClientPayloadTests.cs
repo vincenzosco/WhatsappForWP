@@ -212,6 +212,35 @@ namespace ProtocolTests
             Assert.AreEqual(credentials.Jid, restored.Jid);
         }
 
+        /// <summary>
+        /// The same failure with the other two optional fields. A pairing reply that names no
+        /// `lid` and no `platform` wrote both as empty values - which the phone's storage
+        /// removes - and `HasSession` answered no for want of them: the user was sent back to
+        /// the QR over an account the server had just linked, and the login that fills the
+        /// LID could never run. `Lid` is filled by that login (`RememberServerLid`).
+        /// </summary>
+        [Test]
+        public static void A_session_with_no_lid_or_platform_is_still_a_session()
+        {
+            var storage = new MemoryStorage();
+            var store = new CredentialStore(storage);
+
+            Credentials credentials = Credentials.Create(new CountingRandom());
+            credentials.Jid = "393892672185:5@s.whatsapp.net";
+            credentials.Lid = null;
+            credentials.Platform = null;
+            credentials.PushName = null;
+            store.Save(credentials);
+
+            Assert.IsTrue(store.HasSession,
+                "an account the reply named without a lid is an account");
+
+            Credentials restored = store.Load();
+            Assert.IsTrue(restored.Lid == null, "and it loads with no LID rather than throwing");
+            Assert.IsTrue(restored.Platform == null);
+            Assert.AreEqual(credentials.Jid, restored.Jid);
+        }
+
         [Test]
         public static void The_pairing_QR_is_the_string_a_phone_scans()
         {

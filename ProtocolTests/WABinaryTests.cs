@@ -4,6 +4,81 @@ using WhatsappApp.Protocol.WABinary;
 
 namespace ProtocolTests
 {
+    /// <summary>The JID helpers the readers and the fan-outs share.</summary>
+    public static class JidUtilsTests
+    {
+        /// <summary>
+        /// The addresses that are not conversations stay out of the chat list, and the ones
+        /// that are stay in it.
+        ///
+        /// Why a test: a chat row is created from whatever a stanza names, and the phone of
+        /// 2026-10-22 carried a row called "0" - `0@s.whatsapp.net`, the address an offline
+        /// marker comes from - beside the conversations a person keeps. Statuses and channels
+        /// were already excluded at the row; the placeholder and the empty address were not.
+        /// </summary>
+        [Test]
+        public static void Only_a_conversation_becomes_a_chat_row()
+        {
+            Assert.IsTrue(JidUtils.IsConversation("393491234567@s.whatsapp.net"), "a person is a chat");
+            Assert.IsTrue(JidUtils.IsConversation("150375613116620@lid"), "a LID is a person too");
+            Assert.IsTrue(JidUtils.IsConversation("120363412599616890@g.us"), "a group is a chat");
+            Assert.IsTrue(JidUtils.IsConversation("867051314767696@bot"), "the bot has a chat");
+
+            Assert.IsFalse(JidUtils.IsConversation("0@s.whatsapp.net"), "the placeholder address is nobody");
+            Assert.IsFalse(JidUtils.IsConversation("000@c.us"), "all zeros are still nobody");
+            Assert.IsFalse(JidUtils.IsConversation("status@broadcast"), "statuses have their own feed");
+            Assert.IsFalse(JidUtils.IsConversation("120363412599616890@newsletter"), "a channel is not a chat");
+            Assert.IsFalse(JidUtils.IsConversation(""), "an empty address is not a chat");
+            Assert.IsFalse(JidUtils.IsConversation(null), "no address at all is not a chat");
+        }
+
+        /// <summary>
+        /// A LID is not a phone number, and its user part is a long run of digits: anything
+        /// that tests "is this all digits and long enough" before it asks what the address is
+        /// prints `+150375613116620`, a number nobody has. That is exactly what
+        /// `DisplayNameForJid` did, because its `@lid` guard sat below the digits branch.
+        /// The rule lives here so the three places that print a JID ask the same question.
+        /// </summary>
+        [Test]
+        public static void ALidIsNotAPhoneNumber()
+        {
+            Assert.IsTrue(JidUtils.IsLid("150375613116620@lid"), "a LID is a LID");
+            Assert.IsTrue(JidUtils.IsLid("150375613116620:5@lid"), "the device does not change it");
+            Assert.IsTrue(JidUtils.IsLid("150375613116620@hosted.lid"), "a hosted LID too");
+
+            Assert.IsFalse(JidUtils.IsLid("393491234567@s.whatsapp.net"), "a phone number is not a LID");
+            Assert.IsFalse(JidUtils.IsLid("393491234567:12@s.whatsapp.net"), "nor with its device");
+            Assert.IsFalse(JidUtils.IsLid("120363412599616890@g.us"), "a group is not a LID");
+            Assert.IsFalse(JidUtils.IsLid("150375613116620@hosted"), "a hosted phone number is a number");
+            Assert.IsFalse(JidUtils.IsLid("not a jid"), "not a JID, not a LID");
+            Assert.IsFalse(JidUtils.IsLid(null), "no address at all, not a LID");
+        }
+
+        /// <summary>
+        /// Device 99 is a placeholder the server puts in a device list, and the device sits
+        /// inside the JID: a check on the front of the string tested the phone number and
+        /// left the placeholder in every fan-out.
+        /// </summary>
+        [Test]
+        public static void ThePlaceholderDeviceIsRecognisedInsideTheJid()
+        {
+            Assert.IsTrue(JidUtils.IsPlaceholderDevice("15551230000:99@s.whatsapp.net"));
+            Assert.IsFalse(JidUtils.IsPlaceholderDevice("15551230000:5@s.whatsapp.net"));
+            Assert.IsFalse(JidUtils.IsPlaceholderDevice("15551230000@s.whatsapp.net"));
+            Assert.IsFalse(JidUtils.IsPlaceholderDevice(null));
+        }
+
+        /// <summary>A device of zero is not written out, so both sides name the same JID.</summary>
+        [Test]
+        public static void ADeviceOfZeroIsLeftOutOfTheJid()
+        {
+            Assert.AreEqual("15551230000@s.whatsapp.net",
+                JidUtils.Encode("15551230000", "s.whatsapp.net", 0));
+            Assert.AreEqual("15551230000:5@s.whatsapp.net",
+                JidUtils.Encode("15551230000", "s.whatsapp.net", 5));
+        }
+    }
+
     /// <summary>
     /// The binary codec: the tables, the round trips and the edges that a hand-rolled
     /// implementation gets wrong (the 20-bit length, the packed forms, the device JID).

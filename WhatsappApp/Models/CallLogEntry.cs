@@ -29,6 +29,12 @@ namespace WhatsappApp.Models
             {
                 if (string.IsNullOrEmpty(Name)) return "?";
                 string trimmed = Name.Trim();
+
+                // A name of spaces is empty once trimmed, and `Substring(0, 1)` on it throws
+                // out of a property the call row binds: one such contact took the whole Calls
+                // tab down instead of drawing its initials.
+                if (trimmed.Length == 0) return "?";
+
                 if (trimmed.StartsWith("+") && trimmed.Length > 1)
                     return trimmed.Substring(1, Math.Min(2, trimmed.Length - 1)).ToUpper();
                 return trimmed.Substring(0, 1).ToUpper();

@@ -61,7 +61,13 @@ namespace WhatsappApp.Services
                 }
                 catch (Exception ex)
                 {
-                    Diag.Failed("Accent.Apply/" + keys[i], ex);
+                    // A name this build does not have is the normal case, not a failure:
+                    // the three candidates are the three names this platform has used, and
+                    // no one of them is on every build. It was written as Diag.Failed, and
+                    // every start of 2026-10-22 opened with two "Cannot find a resource with
+                    // the given key" lines - the on-device checklist asks for a start with
+                    // no failure line, and this was the one that was always there.
+                    Diag.Ok("accent: no " + keys[i] + " on this build (" + ex.Message + ")");
                 }
             }
 
@@ -74,7 +80,8 @@ namespace WhatsappApp.Services
                 ? Color.FromArgb(255, 51, 51, 51)
                 : Color.FromArgb(255, 255, 255, 255));
 
-            Diag.OkNow("accent: #" + _color.ToString());
+            // Color.ToString() already begins with '#': the extra one printed "##FF3E65FF".
+            Diag.OkNow("accent: " + _color.ToString());
         }
 
         /// <summary>Luminance test: white text on a light accent is unreadable.</summary>

@@ -122,10 +122,13 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>WhatsApp's server-side devices and the placeholder device 99: the reference leaves all three out.</summary>
         private static bool IsHosted(string deviceJid)
         {
+            if (string.IsNullOrEmpty(deviceJid)) return true;
             if (deviceJid.EndsWith("@hosted", StringComparison.OrdinalIgnoreCase)) return true;
             if (deviceJid.EndsWith("@hosted.lid", StringComparison.OrdinalIgnoreCase)) return true;
 
-            return deviceJid.StartsWith("99:", StringComparison.OrdinalIgnoreCase);
+            // The device is inside the JID (`name:99@server`), so the check parses it: the
+            // front of the string is the phone number, never the device id.
+            return JidUtils.IsPlaceholderDevice(deviceJid);
         }
 
         private static PreKeyBundle Find(IList<KeyValuePair<string, PreKeyBundle>> bundles, string deviceJid)
