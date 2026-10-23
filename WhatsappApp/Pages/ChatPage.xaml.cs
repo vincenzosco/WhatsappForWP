@@ -623,8 +623,10 @@ namespace WhatsappApp.Pages
             message.IsMediaLoading = true;
             // A tap on the play button of a note with no bytes yet: the bytes come
             // later, and this is what makes the note play then instead of staying
-            // silent until a second tap.
-            _playWhenReady = message;
+            // silent until a second tap. Only a note: arming this for a photo left the
+            // field pointing at a message that will never be played, and the next note
+            // was then judged against an id nobody asked for.
+            if (message.Type == MessageType.Audio) _playWhenReady = message;
             DataService.Instance.RequestMedia(message);
         }
 
@@ -1556,8 +1558,12 @@ namespace WhatsappApp.Pages
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
         {
             if (!_recording.IsRecording) return;
+
+            // Guarded, like every other call this page fires without awaiting: the end of a
+            // recording touches the file system, and an unobserved failure there left the
+            // recording bar on screen with the microphone still taken.
 #pragma warning disable 4014
-            StopRecordingAsync();
+            Guarded.RunGuardedAsync("ChatPage/StopRecording", StopRecordingAsync());
 #pragma warning restore 4014
         }
 
@@ -1568,7 +1574,20 @@ namespace WhatsappApp.Pages
         /// </summary>
         private async System.Threading.Tasks.Task StopRecordingAsync()
         {
-            string fileName = await _recording.StopAsync();
+            // The guard is here and not in the two callers: this is also awaited from the
+            // middle of a send, and a capture that fails to close threw out of an `async void`
+            // handler - the whole app, with the bubble it had just created.
+            string fileName;
+            try
+            {
+                fileName = await _recording.StopAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.StopRecordingAsync", ex);
+                EndRecordingState();
+                return;
+            }
 
             EndRecordingState();
 
@@ -1761,6 +1780,9 @@ namespace WhatsappApp.Pages
             SelectedAudioPreview.Visibility = Visibility.Collapsed;
             SelectedDocumentPreview.Visibility = Visibility.Collapsed;
             SelectedDocumentPreviewText.Text = "";
+            // The video preview too: the bar is collapsed here, so the card was hidden by its
+            // parent - and would have come back with the next bar that is shown without a pick.
+            SelectedVideoPreview.Visibility = Visibility.Collapsed;
             ImagePreviewBar.Visibility = Visibility.Collapsed;
         }
     }

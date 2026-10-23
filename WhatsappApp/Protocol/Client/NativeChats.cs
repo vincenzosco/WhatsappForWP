@@ -97,6 +97,16 @@ namespace WhatsappApp.Protocol.Client
             for (int i = 0; i < sync.Conversations.Count; i++)
             {
                 HistoryConversation chunk = sync.Conversations[i];
+
+                // The address of the conversation, in the order the fields exist: `jid`
+                // (field 1) is the one the sync usually writes, and `pnJID` (39) and
+                // `lidJID` (42) name the same account from the two sides of the LID pair.
+                // A chunk that fills only the pair is a conversation all the same, and
+                // skipping it is a chat list that stops at the rows whose `jid` happened to
+                // be filled in - which is what a list that loses most of its chats looks
+                // like from the outside.
+                if (chunk.Jid == null) chunk.Jid = chunk.PnJid;
+                if (chunk.Jid == null) chunk.Jid = chunk.LidJid;
                 if (chunk.Jid == null) continue;
 
                 // The chat is keyed on its canonical address: a `@lid` whose phone number this
@@ -206,6 +216,42 @@ namespace WhatsappApp.Protocol.Client
             // one now by definition: it was just written.
             row.UnreadCount = row.UnreadCount + 1;
             Touch(row, message.Timestamp);
+            Order();
+
+            return true;
+        }
+
+        /// <summary>
+        /// A stanza from a chat that arrived with nothing this app can draw.
+        ///
+        /// Why the row and not only the message: a chat exists whether or not this build has a
+        /// reader for what was written in it. A sticker, a poll, an edit, a contact card or a
+        /// kind of media nobody has written a decoder for yet still says "this conversation
+        /// exists and it just moved" - and dropping the row together with the message is how a
+        /// group could write ten times and never appear (the phone of 2026-10-23: five chats on
+        /// screen, while a group sent ten messages into a list that never heard of it). Real
+        /// WhatsApp lists a chat as soon as anything arrives in it.
+        ///
+        /// No message is added on purpose: an empty bubble is not a message either, so the row
+        /// takes the place and the time and says nothing it does not know. False when this is
+        /// not an address a chat can have.
+        /// </summary>
+        public bool NoteIncoming(string jid, long timestamp)
+        {
+            if (jid == null) return false;
+
+            // The status list and the channels are not conversations, for the same reason as
+            // in `AddIncoming`: one is its own screen and the other is never read here.
+            if (StatusFeed.IsStatus(jid)) return false;
+
+            jid = _names.Canonical(jid);
+            if (jid == null) return false;
+
+            HistoryConversation row = EnsureRow(jid);
+            if (row == null) return false;
+            if (string.IsNullOrEmpty(row.Name)) row.Name = _names.NameFor(jid);
+
+            Touch(row, timestamp);
             Order();
 
             return true;

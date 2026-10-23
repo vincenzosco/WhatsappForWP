@@ -60,7 +60,13 @@ namespace WhatsappApp.Protocol.Crypto
             }
 
             int limbCount = (wide.Length + 3) / 4;
-            var limbs = new uint[limbCount + 1];
+
+            // At least the limbs `ToBytes` reads: a 16-byte value is four limbs of number and
+            // five were allocated, and `ToBytes` walks all eight. The guard above says 1 to 64
+            // bytes, so the short values are exactly the ones it allowed and this refused with
+            // an IndexOutOfRangeException - a guard that could not hold.
+            int needed = limbCount + 1;
+            var limbs = new uint[needed < ByteLength / 4 ? ByteLength / 4 : needed];
 
             for (int i = 0; i < wide.Length; i++)
             {

@@ -71,32 +71,84 @@ namespace WhatsappApp.Services
             return empty;
         }
 
+        /// <summary>The writes, one at a time and in order.</summary>
+        ///
+        /// Why: `AppendAsync` is a read, a merge and a write, and two of them for one chat - a
+        /// live message and the backlog filling in - both read the file before either wrote, so
+        /// the second dropped the rows of the first. The queue makes the three steps one.
+        /// </summary>
+        private static readonly SerialQueue Writes = new SerialQueue();
+
         /// <summary>Writes the tail of the conversation. Never an exception.</summary>
         public static async Task SaveAsync(string chatId, IList<ChatMessage> messages)
         {
             if (string.IsNullOrEmpty(chatId) || messages == null || messages.Count == 0) return;
 
+            // Snapped here, on the thread that owns the collection, and written in the queue:
+            // what is written is one instant of the conversation and not the list as it was
+            // before the first write and after the last.
+            string json = JsonOf(messages);
+            if (json == null) return;
+
+            await Writes.RunAsync(delegate { return WriteJsonAsync(chatId, json); });
+        }
+
+        /// <summary>The rows as JSON, or null when they cannot be serialised (named, never thrown).</summary>
+        private static string JsonOf(IList<ChatMessage> messages)
+        {
             try
             {
                 var slim = new List<ChatMessage>();
                 int from = messages.Count > Keep ? messages.Count - Keep : 0;
                 for (int i = from; i < messages.Count; i++) slim.Add(Slim(messages[i]));
 
-                string json;
                 using (var stream = new MemoryStream())
                 {
                     Serializer.WriteObject(stream, new MessageCacheFile { Messages = slim });
-                    json = Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
+                    return Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
                 }
-
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileNameFor(chatId), CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(file, json);
             }
             catch (Exception ex)
             {
                 // A cache that does not write is not a failure to show: the
                 // history arrives from the server anyway.
+                Diag.Failed("MessageCache.Save", ex);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The file, written beside itself and moved over: a conversation written into the file
+        /// it replaces loses everything to one suspension in the middle - and WhatsApp sends the
+        /// history once, so the conversation comes back empty. `ChatCache` and `StatusCache`
+        /// already write this way.
+        /// </summary>
+        private static async Task WriteJsonAsync(string chatId, string json)
+        {
+            try
+            {
+                StorageFolder folder = ApplicationData.Current.LocalFolder;
+                string name = FileNameFor(chatId);
+
+                StorageFile temp = await folder.CreateFileAsync(
+                    name + ".new", CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(temp, json);
+
+                StorageFile current = null;
+                try
+                {
+                    current = await folder.GetFileAsync(name);
+                }
+                catch (FileNotFoundException)
+                {
+                    // The first message of this chat: there is nothing to replace.
+                }
+
+                if (current == null) await temp.RenameAsync(name);
+                else await temp.MoveAndReplaceAsync(current);
+            }
+            catch (Exception ex)
+            {
                 Diag.Failed("MessageCache.Save", ex);
             }
         }
@@ -116,6 +168,11 @@ namespace WhatsappApp.Services
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameFor(chatId));
                 await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+            }
+            catch (FileNotFoundException)
+            {
+                // A chat that was never saved has no file to drop: the state of every chat
+                // deleted before it was opened, not a failure.
             }
             catch (Exception ex)
             {
@@ -137,6 +194,12 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(chatId) || messages == null || messages.Count == 0) return;
 
+            await Writes.RunAsync(delegate { return AppendCoreAsync(chatId, messages); });
+        }
+
+        /// <summary>The merge itself, inside the queue: load, merge and write are one step.</summary>
+        private static async Task AppendCoreAsync(string chatId, IList<ChatMessage> messages)
+        {
             List<ChatMessage> existing = await LoadAsync(chatId);
             var merged = new List<ChatMessage>(existing);
 
@@ -157,9 +220,11 @@ namespace WhatsappApp.Services
                 return left.Timestamp.CompareTo(right.Timestamp);
             });
 
-            // SaveAsync keeps the last `Keep` rows and slims them, so the file stays
-            // the same size whatever this adds.
-            await SaveAsync(chatId, merged);
+            // The last `Keep` rows, slimmed, so the file stays the same size whatever this
+            // adds. Written directly and not through `SaveAsync`: that would queue behind the
+            // very turn it is running in and wait for itself.
+            string json = JsonOf(merged);
+            if (json != null) await WriteJsonAsync(chatId, json);
         }
 
         /// <summary>Whether this conversation already holds a message with this id.</summary>

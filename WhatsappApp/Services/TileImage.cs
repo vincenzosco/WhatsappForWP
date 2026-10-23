@@ -31,15 +31,17 @@ namespace WhatsappApp.Services
     /// the tile falls back to the app's own asset rather than to a rejected update.
     /// </summary>
     /// <summary>
-    /// The two files one chat's picture is written to: the square card, which the medium,
-    /// the large and the 71x71 tiles draw, and the wide card for the 310x150 one. Two
-    /// shapes because a binding fills the tile with the image it is given, and one shape
-    /// stretched into the other is a magnified, cropped face.
+    /// The three files one chat's picture is written to: the square card, which the medium
+    /// and the large tiles draw, the wide card for the 310x150 one, and the small card for
+    /// the 71x71 one. One card per tile shape because a binding fills the tile with the image
+    /// it is given and crops what does not fit: a 336 card in the 170 px small tile is the
+    /// centre of the face magnified twice, which is what the phone showed on 23 October 2026.
     /// </summary>
     public sealed class TileCard
     {
         public string Square;
         public string Wide;
+        public string Small;
     }
 
     public static class TileImage
@@ -51,11 +53,32 @@ namespace WhatsappApp.Services
         private const string AppMarkPath = "Assets\\TileIcon.png";
 
         /// <summary>
-        /// The avatar a file was written from, by file name. A chat whose picture has not
-        /// changed is not decoded and encoded again for every message that arrives.
+        /// The card one file name stands for, and the picture it was composed from. A chat
+        /// whose picture has not changed is not decoded and encoded again for every message
+        /// that arrives; the card it already has is the answer.
         /// </summary>
-        private static readonly Dictionary<string, string> Written =
-            new Dictionary<string, string>(StringComparer.Ordinal);
+        private sealed class WrittenCard
+        {
+            public string Picture;
+            public TileCard Card;
+            public TileCard Previous;
+        }
+
+        private static readonly Dictionary<string, WrittenCard> Written =
+            new Dictionary<string, WrittenCard>(StringComparer.Ordinal);
+
+        /// <summary>
+        /// The card writes, one at a time.
+        ///
+        /// Why: two updates of one chat - two unread counts published a moment apart, which is
+        /// exactly what a burst of messages is - used to compose at once and open the same two
+        /// files at once. `DataService` publishes the count from every path that changes it,
+        /// and `PinnedTile.Update` fires each publish without awaiting it, so the second
+        /// `OpenAsync(ReadWrite)` on a file the first still holds is the
+        /// `UnauthorizedAccessException` (E_ACCESSDENIED) the phone showed on 23 October 2026.
+        /// One writer, and a card already written is not written again.
+        /// </summary>
+        private static readonly SerialQueue Writes = new SerialQueue();
 
         /// <summary>
         /// Writes the card for one chat and answers the paths to put in the tiles' `src`, or
@@ -65,31 +88,87 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(fileName)) return null;
 
-            string from = avatarData ?? "";
+            // The fast path, and the reason a burst of messages costs one card: the first
+            // call composes, every later one for the same picture is answered from here.
+            TileCard have = Cached(fileName, avatarData);
+            if (have != null) return have;
 
+            return await Writes.RunAsync(delegate { return ComposeAsync(fileName, avatarData); });
+        }
+
+        /// <summary>The card this chat already has, when it was drawn from the same bytes.</summary>
+        private static TileCard Cached(string fileName, string picture)
+        {
             lock (Written)
             {
-                string have;
-                if (Written.TryGetValue(fileName, out have) && have == from)
-                {
-                    return Card(fileName);
-                }
-            }
+                WrittenCard entry;
+                if (!Written.TryGetValue(fileName, out entry)) return null;
 
-            bool composed = false;
+                return entry.Picture == (picture ?? "") ? entry.Card : null;
+            }
+        }
+
+        /// <summary>
+        /// The card, composed and written - inside the queue, so a second update for the same
+        /// chat either finds the first card or waits for it.
+        /// </summary>
+        private static async Task<TileCard> ComposeAsync(string fileName, string avatarData)
+        {
+            // Again, in the queue: another update for this chat may have written the card
+            // while this one was waiting its turn.
+            TileCard have = Cached(fileName, avatarData);
+            if (have != null) return have;
+
+            string picture = avatarData ?? "";
+            TileCard card = null;
 
             try
             {
-                TilePicture picture = await PictureAsync(avatarData);
-                if (picture != null)
+                TilePicture decoded = await PictureAsync(avatarData);
+                if (decoded != null)
                 {
-                    byte[] card = TileCanvas.Card();
-                    TileCanvas.DrawPicture(card, picture.Bytes, picture.Side, picture.Side);
+                    // The name carries the picture and the rules (see `TileCanvas.CardFileName`):
+                    // a file that is already there is this very card, so it is not rewritten -
+                    // and a file the shell is drawing is never opened for writing.
+                    string name = TileCanvas.CardFileName(fileName, picture);
+                    string wide = TileCanvas.WideFileName(name);
 
-                    await WriteAsync(fileName, card, TileCanvas.Size, TileCanvas.Size);
-                    await WriteAsync(WideName(fileName), TileCanvas.WideCard(card),
-                        TileCanvas.WideWidth, TileCanvas.WideHeight);
-                    composed = true;
+                    byte[] square = TileCanvas.Card();
+                    TileCanvas.DrawPicture(square, decoded.Bytes, decoded.Side, decoded.Side);
+
+                    if (!await ExistsAsync(name))
+                    {
+                        await WriteAsync(name, square, TileCanvas.Size, TileCanvas.Size);
+                    }
+
+                    if (!await ExistsAsync(wide))
+                    {
+                        await WriteAsync(wide, TileCanvas.WideCard(square),
+                            TileCanvas.WideWidth, TileCanvas.WideHeight);
+                    }
+
+                    // The 71x71 tile gets a card composed at its own side. Composed from the
+                    // composed card and not from a second decode: the picture has already
+                    // been cropped and scaled once, and this is only the same face smaller.
+                    string small = TileCanvas.SmallFileName(name);
+                    if (!await ExistsAsync(small))
+                    {
+                        byte[] smallPicture = TileCanvas.ResizeSquare(
+                            square, TileCanvas.Size, TileCanvas.SmallSize);
+                        byte[] smallCard = TileCanvas.Card(TileCanvas.SmallSize);
+
+                        TileCanvas.DrawInto(smallCard, TileCanvas.SmallSize, smallPicture,
+                            TileCanvas.SmallSize, TileCanvas.SmallSize, 0, 0);
+
+                        await WriteAsync(small, smallCard, TileCanvas.SmallSize, TileCanvas.SmallSize);
+                    }
+
+                    card = CardOf(name, wide, small);
+
+                    // Named, because it is what a device log needs in order to say that the
+                    // tile composed at all, and from a picture of which size.
+                    Diag.Ok("tile: card v" + TileCanvas.CardVersion + " for " + fileName
+                        + " from a " + decoded.Side + "x" + decoded.Side + " picture");
                 }
             }
             catch (Exception ex)
@@ -100,32 +179,102 @@ namespace WhatsappApp.Services
                 Diag.Failed("TileImage/Store", ex);
             }
 
-            if (!composed) return await RawAsync(fileName, avatarData);
+            if (card == null) card = await RawAsync(fileName, avatarData);
+            if (card == null) return null;
 
-            lock (Written) Written[fileName] = from;
-
-            return Card(fileName);
-        }
-
-        /// <summary>The two paths one file name stands for.</summary>
-        private static TileCard Card(string fileName)
-        {
-            var card = new TileCard();
-            card.Square = "ms-appdata:///local/" + fileName;
-            card.Wide = "ms-appdata:///local/" + WideName(fileName);
+            TileCard stale = Remember(fileName, picture, card);
+            if (stale != null) await ForgetAsync(stale);
 
             return card;
         }
 
         /// <summary>
-        /// The same picture at the wide tile's proportion: written together with the square
-        /// one, and the file a wide binding has to ask for - the square one would be filled
-        /// and cropped.
+        /// Records the card as this chat's, and answers the generation it displaces.
+        ///
+        /// Two are kept - the one the tile draws and the one before it - because a file is
+        /// handed to the shell before this process knows whether the shell took it; the one
+        /// before that is nobody's.
         /// </summary>
-        private static string WideName(string fileName)
+        private static TileCard Remember(string fileName, string picture, TileCard card)
         {
-            int dot = fileName.LastIndexOf('.');
-            return dot < 0 ? fileName + "-wide" : fileName.Substring(0, dot) + "-wide" + fileName.Substring(dot);
+            lock (Written)
+            {
+                WrittenCard entry;
+                if (!Written.TryGetValue(fileName, out entry))
+                {
+                    entry = new WrittenCard();
+                    Written[fileName] = entry;
+                }
+
+                TileCard stale = entry.Previous;
+
+                entry.Previous = entry.Card;
+                entry.Card = card;
+                entry.Picture = picture;
+
+                return stale;
+            }
+        }
+
+        /// <summary>
+        /// A card two generations old: nothing points at it any more. Best effort - a file the
+        /// shell is still drawing refuses to go, and that is a file it keeps, not a failure.
+        /// </summary>
+        private static async Task ForgetAsync(TileCard card)
+        {
+            if (card == null) return;
+
+            await DeleteQuietlyAsync(card.Square);
+            await DeleteQuietlyAsync(card.Wide);
+            await DeleteQuietlyAsync(card.Small);
+        }
+
+        private static async Task DeleteQuietlyAsync(string card)
+        {
+            if (string.IsNullOrEmpty(card)) return;
+
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameOf(card));
+                await file.DeleteAsync();
+            }
+            catch (Exception)
+            {
+                // See above: a file in use is kept.
+            }
+        }
+
+        /// <summary>Whether a card of this name is already on the phone.</summary>
+        private static async Task<bool> ExistsAsync(string fileName)
+        {
+            try
+            {
+                await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
+                return true;
+            }
+            catch (System.IO.FileNotFoundException)
+            {
+                return false;
+            }
+        }
+
+        /// <summary>The three paths one card name stands for.</summary>
+        private static TileCard CardOf(string squareName, string wideName, string smallName)
+        {
+            var card = new TileCard();
+            card.Square = "ms-appdata:///local/" + squareName;
+            card.Wide = "ms-appdata:///local/" + wideName;
+            card.Small = "ms-appdata:///local/" + smallName;
+
+            return card;
+        }
+
+        /// <summary>The bare file name behind a card path.</summary>
+        private static string FileNameOf(string card)
+        {
+            const string Local = "ms-appdata:///local/";
+
+            return card.StartsWith(Local, StringComparison.Ordinal) ? card.Substring(Local.Length) : card;
         }
 
         /// <summary>
@@ -134,18 +283,48 @@ namespace WhatsappApp.Services
         /// </summary>
         public static string WideOf(string square)
         {
+            return VariantOf(square, true);
+        }
+
+        /// <summary>The 71x71 file that belongs to a square one: the third binding of a turn.</summary>
+        public static string SmallOf(string square)
+        {
+            return VariantOf(square, false);
+        }
+
+        private static string VariantOf(string square, bool wide)
+        {
             if (string.IsNullOrEmpty(square)) return square;
 
             const string Local = "ms-appdata:///local/";
             if (square.StartsWith(Local, StringComparison.Ordinal))
             {
-                return Local + WideName(square.Substring(Local.Length));
+                return Local + VariantName(square.Substring(Local.Length), wide);
             }
 
             int slash = square.LastIndexOf('/');
             if (slash < 0) return square;
 
-            return square.Substring(0, slash + 1) + WideName(square.Substring(slash + 1));
+            return square.Substring(0, slash + 1) + VariantName(square.Substring(slash + 1), wide);
+        }
+
+        private static string VariantName(string name, bool wide)
+        {
+            return wide ? TileCanvas.WideFileName(name) : TileCanvas.SmallFileName(name);
+        }
+
+        /// <summary>
+        /// Whether a path was written by the composition rules of this build.
+        ///
+        /// Why it matters: `NotificationService` remembers the last turn's picture across
+        /// processes, and a name from an older build has no `-small` card beside it - a binding
+        /// pointed at it would be empty rather than wrong, but empty is a tile with a hole.
+        /// </summary>
+        public static bool IsCurrentCard(string card)
+        {
+            if (string.IsNullOrEmpty(card)) return false;
+
+            return card.IndexOf("-v" + TileCanvas.CardVersion + "-", StringComparison.Ordinal) >= 0;
         }
 
         /// <summary>
@@ -166,20 +345,34 @@ namespace WhatsappApp.Services
                 byte[] bytes = Convert.FromBase64String(avatarData);
                 if (bytes.Length == 0 || bytes.Length > MaxImageBytes) return null;
 
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    fileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBytesAsync(file, bytes);
+                // The same naming as the card, for the same reasons: a picture written here
+                // is written once, and never over a file the shell may be drawing.
+                string name = TileCanvas.CardFileName(fileName, avatarData);
+                string wide = TileCanvas.WideFileName(name);
 
-                StorageFile wide = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    WideName(fileName), CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteBytesAsync(wide, bytes);
+                if (!await ExistsAsync(name))
+                {
+                    StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                        name, CreationCollisionOption.ReplaceExisting);
+                    await FileIO.WriteBytesAsync(file, bytes);
+                }
 
-                // The file holds this avatar, raw. Recording it makes the next call for the
-                // same bytes answer with the path, and keeps a call for other bytes from
-                // being told this file is the one it asked for.
-                lock (Written) Written[fileName] = avatarData;
+                if (!await ExistsAsync(wide))
+                {
+                    StorageFile wideFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                        wide, CreationCollisionOption.ReplaceExisting);
+                    await FileIO.WriteBytesAsync(wideFile, bytes);
+                }
 
-                return Card(fileName);
+                string small = TileCanvas.SmallFileName(name);
+                if (!await ExistsAsync(small))
+                {
+                    StorageFile smallFile = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                        small, CreationCollisionOption.ReplaceExisting);
+                    await FileIO.WriteBytesAsync(smallFile, bytes);
+                }
+
+                return CardOf(name, wide, small);
             }
             catch (Exception ex)
             {
@@ -325,10 +518,13 @@ namespace WhatsappApp.Services
         /// the bytes of the same tile as a PNG - which matters when the system refuses
         /// anything over 200 kB.
         /// </summary>
-        private static async Task WriteAsync(string fileName, byte[] card, int width, int height)
+        private static async Task WriteAsync(string cardName, byte[] card, int width, int height)
         {
+            // `cardName` and never the chat's own file name: the name of a card carries the
+            // picture it was composed from, so a file that is already there is this card and
+            // the caller does not write it again.
             StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                fileName, CreationCollisionOption.ReplaceExisting);
+                cardName, CreationCollisionOption.ReplaceExisting);
 
             using (IRandomAccessStream output = await file.OpenAsync(FileAccessMode.ReadWrite))
             {

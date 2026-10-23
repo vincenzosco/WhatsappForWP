@@ -115,6 +115,62 @@ test('la decodifica vera misura il buffer e lo riporta alla misura del disegno',
   assert.deepStrictEqual(tile.decodeProblems(source), []);
 });
 
+test('una card scritta con il nome del chiamante e senza coda si segnala', () => {
+  const problems = tile.writeProblems(
+    'var f = await ApplicationData.Current.LocalFolder.CreateFileAsync(fileName, ' +
+    'CreationCollisionOption.ReplaceExisting);');
+  assert.ok(problems.some((p) => /TileCanvas.CardFileName/.test(p)),
+    'un nome fisso e un URI che cambia contenuto');
+  assert.ok(problems.some((p) => /TileCanvas.WideFileName/.test(p)));
+  assert.ok(problems.some((p) => /not queued/.test(p)),
+    'due aggiornamenti della stessa chat scrivono lo stesso file insieme');
+  assert.ok(problems.some((p) => /caller's own name/.test(p)));
+});
+
+test('la scrittura vera della card porta la foto nel nome e un solo scrittore', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs'), 'utf8');
+  assert.deepStrictEqual(tile.writeProblems(source), []);
+});
+
+test('la tile piccola con la card quadrata si segnala', () => {
+  const problems = tile.smallProblems(
+    'AddSmall(xml, visual, image ?? AppIcon);',
+    'AddSmallBinding(xml, visual, entry.Image ?? TileIconUri);');
+  assert.strictEqual(problems.length, 2);
+  assert.ok(problems.some((p) => /card\.Small/.test(p)));
+  assert.ok(problems.some((p) => /TileImage\.SmallOf/.test(p)));
+});
+
+test('i due servizi veri danno la card piccola al binding 71x71', () => {
+  const root = path.join(ROOT, 'WhatsappApp', 'Services');
+  const problems = tile.smallProblems(
+    fs.readFileSync(path.join(root, 'PinnedTile.cs'), 'utf8'),
+    fs.readFileSync(path.join(root, 'NotificationService.cs'), 'utf8'));
+  assert.deepStrictEqual(problems, []);
+});
+
+test('la tile del contatto composta dalla preview si segnala', () => {
+  const problems = tile.pictureProblems(
+    'byte[] jpeg = await NativeConnection.Instance.RequestAvatarAsync(chatId, true);',
+    'public const int CardVersion = 4;');
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /full-size picture/);
+});
+
+test('i file veri chiedono la foto grande e non riusano le card vecchie', () => {
+  const root = path.join(ROOT, 'WhatsappApp');
+  assert.deepStrictEqual(tile.pictureProblems(
+    fs.readFileSync(path.join(root, 'Services', 'PinnedTile.cs'), 'utf8'),
+    fs.readFileSync(path.join(root, 'Protocol', 'Media', 'TileCanvas.cs'), 'utf8')), []);
+});
+
+test('una card delle regole vecchie si segnala', () => {
+  const problems = tile.pictureProblems(
+    'RequestAvatarAsync(chatId, false)', 'public const int CardVersion = 3;');
+  assert.ok(problems.some((p) => /CardVersion is below 4/.test(p)));
+});
+
 test('il modello largo che WP8.1 non ha si segnala', () => {
   const problems = tile.bindingProblems(
     'var t = TileTemplateType.TileWide310x150IconWithBadge;');

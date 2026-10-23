@@ -132,7 +132,12 @@ established the hard way:
 - **The history is pushed, not fetched on demand.** WhatsApp sends the
   conversations and a window of messages after a login; there is no per-chat
   "give me the older ones" this client asks for, so a conversation shows what the
-  sync carried and what has arrived since, and the README pair says so.
+  sync carried and what has arrived since, and the README pair says so. Because it
+  is pushed once, its ack goes out **after** the sync is applied and never before:
+  the ack is what tells the server the history is delivered, so an ack over a blob
+  that did not download is the rest of the chat list lost for good - the phone of
+  23 October 2026, with five chats and no way back. A sync that did not land is
+  asked for again with a retry receipt. Gate: `node tools/check-history-sync.js`.
 - **The call log comes from that same sync** (`HistorySync.callLogRecords`), both
   directions, with `callCreatorJID` being *this* account on a call it made - which
   is why an outgoing call is filed under the other party and not under us.
@@ -505,6 +510,18 @@ waiting) and the message is marked read when the reader reaches it.
   of the manifest whatever the app has to say. The import is guarded on its own,
   so a wide template the phone refuses cannot take the medium tile away with it.
   Gate: `node tools/check-tile.js`.
+- **A chat's tile is composed from the full-size picture, never from the preview.**
+  The row hands the tile `AvatarData`, which is the 96x96 preview the chat list draws;
+  composed on the 336 card that is a face enlarged 3.5 times, and at 150 dp on this
+  screen the tile is 360 px - the "foto troppo zoommata e non adattata" of 23 October
+  2026. `PinnedTile.AskForPicture` asks `RequestAvatarAsync(chatId, false)` once per
+  pinned chat per run (a start with no session gives the attempt back, a chat the
+  server answers no picture for spends it), keeps the bytes for the redraws that
+  follow every unread change, and composes the card again. The template is not the
+  cause: on WP8.1 a peek template flips and shows the square image across the whole
+  tile. Changing the rules of a card means bumping `TileCanvas.CardVersion`, or the
+  shell keeps serving the card the old rules left behind - it is named by them.
+  Gate: `node tools/check-tile.js` (rule 8).
 - **A bitmap decodes at the size you ask for, and at no other size.**
   `BitmapImage.DecodePixelWidth` must be set before `SetSourceAsync` - after, it
   does nothing - and it is the difference between a 52 px circle costing a few tens

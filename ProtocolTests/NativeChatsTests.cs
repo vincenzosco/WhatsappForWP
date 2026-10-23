@@ -216,6 +216,71 @@ namespace ProtocolTests
             Assert.IsTrue(chats.IsSyncComplete, "the reference fires the list on a bootstrap without waiting for progress");
         }
 
+        /// <summary>
+        /// A conversation whose `jid` the sync left empty, and whose number and LID it did
+        /// name, is still a conversation.
+        ///
+        /// The fields exist beside each other for a reason: a chat is addressed by the number
+        /// (`pnJID`, 39), by the LID (`lidJID`, 42) or by both, and a reader that only looks at
+        /// `jid` (1) drops every chunk that filled the pair instead - a chat list that keeps the
+        /// rows which happened to be written the old way, which is what a list that loses most
+        /// of its chats looks like from the outside.
+        /// </summary>
+        [Test]
+        public static void AConversationWithOnlyThePairIsStillARow()
+        {
+            byte[] conversation = new ProtoWriter()
+                .Text(39, "393555555555@s.whatsapp.net")
+                .Text(42, "155555555555555@lid")
+                .Varint(12, 1791610000L)
+                .ToArray();
+
+            HistorySync sync = HistorySync.Decode(new ProtoWriter()
+                .Varint(1, HistorySync.Full).Bytes(2, conversation).ToArray());
+
+            var chats = new NativeChats();
+            chats.ApplyHistory(sync);
+
+            Assert.AreEqual(1, chats.Rows.Count, "a conversation the sync named is a row");
+            Assert.AreEqual("393555555555@s.whatsapp.net", chats.Rows[0].Jid,
+                "and it is keyed on the number, because the chunk named the pair");
+        }
+
+        /// <summary>
+        /// A message this build cannot draw still proves its chat exists.
+        ///
+        /// The live path used to answer the opposite - it dropped the message and the row - so
+        /// a group could write ten times and never appear (the phone of 2026-10-23: five chats
+        /// on screen while a group sent into a list that never heard of it). The row takes the
+        /// place and the time; no bubble is invented, and nothing is counted as unread that
+        /// nobody has seen.
+        /// </summary>
+        [Test]
+        public static void AChatThisClientCannotDrawStillGetsItsRow()
+        {
+            var chats = new NativeChats();
+            chats.ApplyHistory(HistorySync.Decode(Hex(HistoryFixture.Plain)));
+
+            Assert.IsTrue(chats.NoteIncoming("120363111111111111@g.us", 1791650000L),
+                "the address is a conversation, so the row is the answer");
+
+            Assert.AreEqual(3, chats.Rows.Count);
+            Assert.AreEqual("120363111111111111@g.us", chats.Rows[0].Jid, "the newest row is that chat");
+            Assert.AreEqual(0, chats.Rows[0].Messages.Count, "a row and not an empty bubble");
+            Assert.AreEqual(0, chats.Rows[0].UnreadCount, "nothing this build can read was seen");
+        }
+
+        [Test]
+        public static void AStatusIsNotAChatEvenWhenItsMessageSaysNothing()
+        {
+            var chats = new NativeChats();
+            chats.ApplyHistory(HistorySync.Decode(Hex(HistoryFixture.Plain)));
+            int before = chats.Rows.Count;
+
+            Assert.IsFalse(chats.NoteIncoming("status@broadcast", 1791650000L));
+            Assert.AreEqual(before, chats.Rows.Count, "the status list is not a conversation");
+        }
+
         private static HistoryMessage Message(string jid, string id, string text, long timestamp)
         {
             var message = new HistoryMessage();

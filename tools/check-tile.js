@@ -30,6 +30,25 @@
  *     passava i byte del decoder dichiarandoli della misura chiesta. Qui il
  *     decoder risponde al crop con la misura del crop (96x96) e non con quella
  *     chiesta (336x336), quindi la lettura usciva dal buffer.
+ *  7. il binding 71x71 riceve la card PICCOLA, non quella quadrata. Un binding
+ *     riempie la tile con l'immagine che riceve e taglia il resto: la card da 336
+ *     in una tile da 170 mostra il centro della faccia al doppio - "la tile
+ *     piccola ha l'immagine troppo zoommata", 23 ottobre 2026.
+ *  8. la foto della tile di un contatto si chiede GRANDE (`preview: false`), non
+ *     nella preview 96x96 che la lista disegna: composta su una card da 336 e' una
+ *     faccia ingrandita 3,5 volte - la "foto troppo zoommata e non adattata" del
+ *     23 ottobre 2026. Il template non c'entra (su WP8.1 un peek gira e mostra
+ *     l'immagine quadrata a tutta tile): la sorgente si'. E `CardVersion` deve
+ *     stare almeno a 4, o la shell continua a disegnare la card morbida scritta
+ *     dalle regole vecchie, che ha lo stesso nome.
+ *  6. la card si scrive con un nome che porta la foto e le regole con cui e'
+ *     stata composta (`TileCanvas.CardFileName`), e da UN solo scrittore
+ *     (`SerialQueue`). Perche': la tile del telefono tiene l'immagine per URI,
+ *     quindi riscrivere lo stesso percorso lascia la foto vecchia in vetrina; e
+ *     `DataService` pubblica il conteggio da ogni punto che lo cambia, mentre
+ *     `PinnedTile.Update` non attende: due aggiornamenti della stessa chat
+ *     aprivano lo stesso file insieme - l'`UnauthorizedAccessException`
+ *     (E_ACCESSDENIED) visto sul telefono il 23 ottobre 2026.
  *
  * Usage:
  *   node tools/check-tile.js
@@ -42,7 +61,9 @@ const { stripComments } = require('./csharp');
 
 const ROOT = path.resolve(__dirname, '..');
 const SERVICE = path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs');
+const PINNED = path.join(ROOT, 'WhatsappApp', 'Services', 'PinnedTile.cs');
 const TILE_IMAGE = path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs');
+const TILE_CANVAS = path.join(ROOT, 'WhatsappApp', 'Protocol', 'Media', 'TileCanvas.cs');
 const ASSETS_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
 
 const IMAGE_PREFIX = 'ms-appx:///Assets/';
@@ -142,6 +163,105 @@ function decodeProblems(source) {
   return problems;
 }
 
+/**
+ * Problemi della scrittura: il nome della card e chi la scrive.
+ *
+ * Perche' esiste: due metà dello stesso guasto. Un nome fisso e' un URI che
+ * cambia contenuto, e la shell di WP8.1 disegna quello che ha gia' in cache;
+ * due scritture sullo stesso nome sono un file aperto due volte, che sul
+ * telefono e' l'E_ACCESSDENIED del 23 ottobre 2026.
+ */
+function writeProblems(source) {
+  const problems = [];
+  const code = stripComments(source);
+  const where = 'WhatsappApp/Services/TileImage.cs';
+
+  if (!/TileCanvas\.CardFileName\s*\(/.test(code)) {
+    problems.push(`${where}: the card is not named by TileCanvas.CardFileName - a fixed name ` +
+      'is a fixed URI whose bytes change, which the shell keeps showing from its cache, and ' +
+      'two updates of one chat open the same file at once');
+  }
+
+  if (!/TileCanvas\.WideFileName\s*\(/.test(code)) {
+    problems.push(`${where}: the wide card is not named by TileCanvas.WideFileName from the ` +
+      'square one, so the two can drift apart and a binding points at a file that is not there');
+  }
+
+  if (!/TileCanvas\.SmallFileName\s*\(/.test(code)) {
+    problems.push(`${where}: no TileCanvas.SmallFileName - the 71x71 tile needs a card of its ` +
+      'own size, or the shell shows the middle of the face magnified');
+  }
+
+  if (!/new\s+SerialQueue\s*\(\s*\)/.test(code) || !/Writes\.RunAsync\s*\(/.test(code)) {
+    problems.push(`${where}: the card writes are not queued - DataService publishes the count ` +
+      'from every path that changes it and PinnedTile.Update does not await, so two entries ' +
+      'write the same file at once (UnauthorizedAccessException, E_ACCESSDENIED)');
+  }
+
+  if (/CreateFileAsync\s*\(\s*fileName\s*,/.test(code)) {
+    problems.push(`${where}: a card is created under the caller's own name - a file the shell ` +
+      'is drawing cannot be replaced (E_ACCESSDENIED)');
+  }
+
+  return problems;
+}
+
+/**
+ * Problemi della tile piccola: chi riceve la card da 170 px.
+ *
+ * Perche' esiste: la tile 71x71 e' 170 px su questo telefono, e il binding la riempie con
+ * l'immagine che riceve, tagliando il resto. Con la card da 336 il risultato e' il centro
+ * della faccia ingrandito due volte - il difetto visto sul telefono il 23 ottobre 2026.
+ */
+function smallProblems(pinned, notifications) {
+  const problems = [];
+  const pin = stripComments(pinned);
+  const note = stripComments(notifications);
+
+  if (!/card\s*==\s*null\s*\?\s*AppIcon\s*:\s*card\.Small/.test(pin)) {
+    problems.push('WhatsappApp/Services/PinnedTile.cs: the 71x71 binding is not given ' +
+      'card.Small - the square card there is the centre of the face, magnified');
+  }
+
+  if (!/TileImage\.SmallOf\s*\(/.test(note)) {
+    problems.push('WhatsappApp/Services/NotificationService.cs: the 71x71 binding is not given ' +
+      'TileImage.SmallOf(...) - the square card there is the centre of the face, magnified');
+  }
+
+  return problems;
+}
+
+/**
+ * Problemi della foto che la tile di un contatto disegna.
+ *
+ * Perche' esiste: la tile e' il solo posto che mostra una faccia alla misura della
+ * tile, e la riga le passa `AvatarData` - la preview 96x96 che WhatsApp manda con
+ * ogni contatto. Composta su una card da 336 e' quella faccia ingrandita 3,5 volte,
+ * e su un telefono al 240% la tile media e' 360 px: un viso grande e morbido. Il
+ * template non e' la causa (il peek di WP8.1 gira e mostra l'immagine quadrata a
+ * tutta tile), la sorgente si'. La seconda regola e' la stessa cosa vista dal
+ * disco: una card `v3` ha il nome delle regole vecchie e la shell la riusa.
+ */
+function pictureProblems(pinned, canvas) {
+  const problems = [];
+  const code = stripComments(String(pinned || ''));
+
+  if (!/RequestAvatarAsync\s*\(\s*chatId\s*,\s*false\s*\)/.test(code)) {
+    problems.push('WhatsappApp/Services/PinnedTile.cs: the chat tile is not composed from the ' +
+      'full-size picture (`RequestAvatarAsync(chatId, false)`): the 96x96 preview on a 336 ' +
+      'card is a face enlarged 3.5 times, which is the tile that looked zoomed');
+  }
+
+  const version = /CardVersion\s*=\s*(\d+)/.exec(stripComments(String(canvas || '')));
+  if (!version || Number(version[1]) < 4) {
+    problems.push('WhatsappApp/Protocol/Media/TileCanvas.cs: CardVersion is below 4 - the ' +
+      'cards of the older rules, composed from the 96x96 preview, have the same file name ' +
+      'and the shell keeps drawing them');
+  }
+
+  return problems;
+}
+
 /** Problemi di un asset: misura minima, limiti del sistema, esistenza. */
 function assetProblems(asset) {
   const problems = [];
@@ -205,7 +325,15 @@ function main() {
   const source = fs.readFileSync(SERVICE, 'utf8');
   const problems = bindingProblems(source);
 
-  problems.push(...decodeProblems(fs.readFileSync(TILE_IMAGE, 'utf8')));
+  const tileImage = fs.readFileSync(TILE_IMAGE, 'utf8');
+  problems.push(...decodeProblems(tileImage));
+  problems.push(...writeProblems(tileImage));
+  problems.push(...smallProblems(
+    fs.readFileSync(PINNED, 'utf8'),
+    fs.readFileSync(SERVICE, 'utf8')));
+  problems.push(...pictureProblems(
+    fs.readFileSync(PINNED, 'utf8'),
+    fs.readFileSync(TILE_CANVAS, 'utf8')));
 
   const images = declaredImages(source);
   if (images.length === 0) {
@@ -234,4 +362,7 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { pngSize, declaredImages, bindingProblems, decodeProblems, assetProblems, stripComments };
+module.exports = {
+  pngSize, declaredImages, bindingProblems, decodeProblems, writeProblems, smallProblems,
+  pictureProblems, assetProblems, stripComments
+};

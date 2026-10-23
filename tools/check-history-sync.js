@@ -25,11 +25,23 @@
  * contatto la chat list, il registro delle chiamate e il feed degli stati di
  * questo telefono.
  *
+ * E una quarta, che e' l'intera chat list di un telefono: l'ack di un sync deve
+ * partire **dopo** che il sync e' nella lista. L'ack e' cio' che dice al server
+ * "questa storia e' arrivata", e WhatsApp la manda una volta per link: un ack in
+ * cima alla stanza butta via il resto della lista appena il blob non si scarica
+ * (o il processo finisce prima). E' il telefono del 2026-10-23: bootstrap da
+ * cinque conversazioni ackato, il chunk dopo mai arrivato, e una lista di cinque
+ * righe che nessuna riconnessione ripara. Un sync che non atterra si richiede con
+ * un retry receipt, come qualunque stanza che il telefono non e' riuscito a
+ * leggere.
+ *
  * Regole:
  *  1. `NativeConnection.cs` alza `MessageArrived` sui messaggi risposti da
  *     `ApplyHistory` (e non li tiene solo nelle righe);
  *  2. `DataService.cs` copia `incoming.IsHistory` sulla riga della cronologia;
- *  3. `NativeConnection.cs` applica il sync solo dopo `IncomingMessage.IsMine`.
+ *  3. `NativeConnection.cs` applica il sync solo dopo `IncomingMessage.IsMine`;
+ *  4. l'ack di una stanza esce solo dopo `ApplyHistoryAsync`, e un sync fallito
+ *     chiede di essere rimandato (`AskAgainAsync`) invece di essere ackato.
  *
  * Usage:
  *   node tools/check-history-sync.js
@@ -76,7 +88,44 @@ function historySyncProblems(files) {
       'anybody, a contact writes this phone\'s chat list, call log and status feed');
   }
 
+  const readMessage = methodBody(connection, 'private async Task ReadMessageAsync(');
+  const historyAt = readMessage.indexOf('HistorySyncNotification.From(incoming.Content)');
+  const ackAt = readMessage.indexOf('IncomingMessage.Ack(node)');
+
+  if (!readMessage.includes('if (await ApplyHistoryAsync(history))')) {
+    problems.push(`${CONNECTION}: the acknowledgement of a history sync must depend on ` +
+      'ApplyHistoryAsync having applied it (`if (await ApplyHistoryAsync(history))`): the ' +
+      'ack is what tells the server the sync is delivered, and WhatsApp sends it once per ' +
+      'link, so an ack over a sync that never landed is the rest of the chat list lost');
+  }
+  if (!/if \(await ApplyHistoryAsync\(history\)\)[^\n]*\r?\n\s*else await AskAgainAsync\(session, node, account\);/.test(readMessage)) {
+    problems.push(`${CONNECTION}: a history sync that did not land must be asked for again ` +
+      '(`else await AskAgainAsync(session, node, account)`), not acknowledged: a retry ' +
+      'receipt leaves the stanza unread, while an ack tells the server it may forget it');
+  }
+  if (historyAt < 0 || ackAt < 0 || ackAt < historyAt) {
+    problems.push(`${CONNECTION}: the ack of a message must not go out before the history ` +
+      'sync is looked at: the sync is applied (and acked only when it landed) after the ' +
+      'read, and an ack above that line is the one-shot history of this device thrown away');
+  }
+
   return problems;
+}
+
+/**
+ * Il corpo di un metodo: dalla sua firma fino alla riga che apre il membro dopo,
+ * cioe' una riga che comincia con otto spazi e `private` o `public`. Serve a
+ * guardare l'ordine delle righe di un metodo e non di tutto il file, dove la
+ * prima `Ack` e' quella di un altro metodo e non dice niente.
+ */
+function methodBody(text, signature) {
+  const start = text.indexOf(signature);
+  if (start < 0) return '';
+
+  const rest = text.slice(start + signature.length);
+  const next = rest.search(/\r?\n        (?:private|public|internal) /);
+
+  return next < 0 ? rest : rest.slice(0, next);
 }
 
 function main() {

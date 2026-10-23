@@ -125,7 +125,11 @@ Consigli:
 - Una chat si fissa alla schermata Start dal menu della pressione prolungata. La tile porta la
   foto della persona con il nome nella riga grande e il suo ultimo messaggio sotto, e il numero
   dei messaggi in attesa sul badge. Anche la tile dell'app si legge così, e fra un messaggio e
-  l'altro mostra la sola foto di chi aspetta una risposta.
+  l'altro mostra la sola foto di chi aspetta una risposta. Una tile fissata viene ridisegnata a
+  ogni avvio, con la foto e il conteggio che il telefono ha: una nuova versione dell'app non
+  lascia sulla schermata Start la card di quella precedente. La foto che disegna è quella
+  profilo a piena risoluzione, chiesta a WhatsApp quando la chat viene fissata, non l'anteprima
+  piccola che usa la lista: la tile è l'unico posto che mostra una faccia alla misura della tile.
 - Il controllo in background è attivo di default. Spegnilo nelle impostazioni se il telefono deve
   stare zitto.
 - Se l'app apre un elenco vuoto e resta lì, apri la pagina Diagnostics dallo stato vuoto: mostra le

@@ -213,7 +213,21 @@ namespace WhatsappApp.Models
         public string MediaData
         {
             get { return _mediaData; }
-            set { _mediaData = value; OnPropertyChanged(); }
+            set
+            {
+                // New bytes make the decoded picture the previous one's, and `LoadMediaImageAsync`
+                // only decodes when nothing is decoded yet: without dropping it here a row whose
+                // media is fetched again - a retried status, a re-download - keeps drawing the
+                // old picture. The same rule `Contact.AvatarData` follows.
+                if (_mediaData != value && _mediaImage != null)
+                {
+                    _mediaImage = null;
+                    OnPropertyChanged("MediaImage");
+                }
+
+                _mediaData = value;
+                OnPropertyChanged();
+            }
         }
 
         [DataMember]
@@ -762,6 +776,27 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
+        /// The last millisecond a local <see cref="DateTime"/> can hold, allowing for the widest
+        /// time-zone offset a phone can report (+14 h).
+        /// </summary>
+        private const long MaxWireMilliseconds = 253402300799999L - 14L * 60L * 60L * 1000L;
+
+        /// <summary>
+        /// A wire millisecond as a local moment, or now when it cannot be one.
+        ///
+        /// Why the range check: the field is a `long` off the wire or out of a cache file, and
+        /// `AddMilliseconds` throws for a value past the end of a `DateTime` - which made the
+        /// whole row vanish (`FromJson` answers null on an exception), the one thing this
+        /// method's contract says must not happen.
+        /// </summary>
+        private static DateTime FromWire(long milliseconds)
+        {
+            if (milliseconds > MaxWireMilliseconds || milliseconds < -62135596800000L) return DateTime.Now;
+
+            return Epoch.AddMilliseconds(milliseconds).ToLocalTime();
+        }
+
+        /// <summary>
         /// Interprets the Timestamp field of a frame.
         ///
         /// It accepts /Date(ms)/ with any number of backslashes before the slashes
@@ -771,6 +806,7 @@ namespace WhatsappApp.Models
         /// Anything else becomes the current time, with the Diag line saying what
         /// was wrong: an unreadable field must not make the message disappear.
         /// </summary>
+
         private static DateTime ParseWire(string value)
         {
             if (string.IsNullOrEmpty(value)) return DateTime.Now;
@@ -786,14 +822,14 @@ namespace WhatsappApp.Models
                 if (long.TryParse(inner, NumberStyles.Integer, CultureInfo.InvariantCulture, out fromWire))
                 {
                     // FormatTime expects a local date: the wire carries UTC.
-                    return Epoch.AddMilliseconds(fromWire).ToLocalTime();
+                    return FromWire(fromWire);
                 }
             }
 
             long raw;
             if (long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out raw))
             {
-                return Epoch.AddMilliseconds(raw).ToLocalTime();
+                return FromWire(raw);
             }
 
             DateTime parsed;

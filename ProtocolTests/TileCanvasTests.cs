@@ -314,6 +314,137 @@ namespace ProtocolTests
                 "ten bytes are not a square of pixels");
         }
 
+        /// <summary>
+        /// The card's file name is made of the chat, the rules and the picture.
+        ///
+        /// Why the picture is in it: a WP8.1 tile caches an image by its URI, so a card
+        /// rewritten at one path is the old picture on the Start screen; and two updates of
+        /// one chat open that one file at once, which is the `UnauthorizedAccessException`
+        /// (E_ACCESSDENIED) the phone showed on 23 October 2026. Two calls for the same
+        /// picture must still name the same file, or every message writes a new one.
+        /// </summary>
+        [Test]
+        public static void TheCardNameCarriesThePictureAndTheRules()
+        {
+            string pin = TileCanvas.CardFileName("pin-393519096405_s_whatsapp_net.jpg", "AAAA");
+            string again = TileCanvas.CardFileName("pin-393519096405_s_whatsapp_net.jpg", "AAAA");
+            string other = TileCanvas.CardFileName("pin-393519096405_s_whatsapp_net.jpg", "BBBB");
+
+            Assert.AreEqual(pin, again, "the same picture and the same rules are the same file");
+            Assert.IsTrue(pin != other, "a new picture is a new file, so no URI changes its bytes");
+
+            Assert.IsTrue(pin.StartsWith("pin-393519096405_s_whatsapp_net-v", System.StringComparison.Ordinal),
+                "the chat is still in it: " + pin);
+            Assert.IsTrue(pin.EndsWith(".jpg", System.StringComparison.Ordinal), "and so is the extension: " + pin);
+            Assert.IsTrue(pin.IndexOf("-v" + TileCanvas.CardVersion + "-", System.StringComparison.Ordinal) > 0,
+                "the rules that drew it, so an older card is not reused: " + pin);
+
+            for (int i = 0; i < pin.Length; i++)
+            {
+                char c = pin[i];
+                Assert.IsTrue(char.IsLetterOrDigit(c) || c == '-' || c == '_' || c == '.',
+                    "a tile image path holds no other character: " + c);
+            }
+
+            Assert.AreEqual("chat-v" + TileCanvas.CardVersion + "-" + TileCanvas.Fingerprint("AAAA") + ".jpg",
+                TileCanvas.CardFileName("chat", "AAAA"), "a name with no extension gets one");
+            Assert.AreEqual("a-v" + TileCanvas.CardVersion + "-" + TileCanvas.Fingerprint("") + ".png",
+                TileCanvas.CardFileName("a.png", null), "and the app mark is a name too");
+        }
+
+        /// <summary>
+        /// The fingerprint is stable across processes: the foreground and the background task
+        /// write the same chat's card, and the shell reads the name one of them wrote. A
+        /// `GetHashCode` would differ between the two runs and leave two files per picture.
+        /// </summary>
+        [Test]
+        public static void TheFingerprintOfAPictureIsTheSameInEveryProcess()
+        {
+            Assert.AreEqual("811c9dc5", TileCanvas.Fingerprint(""),
+                "FNV-1a of nothing, which is the app mark's own name");
+            Assert.AreEqual(TileCanvas.Fingerprint("aGVsbG8="), TileCanvas.Fingerprint("aGVsbG8="),
+                "the same bytes give the same digits");
+            Assert.IsTrue(TileCanvas.Fingerprint("aGVsbG8=") != TileCanvas.Fingerprint("aGVsbG9z"),
+                "and different ones do not collide here");
+            Assert.AreEqual(8, TileCanvas.Fingerprint("aGVsbG8=").Length, "eight digits, always");
+        }
+
+        /// <summary>The wide file is the same name with `-wide`: the two cannot drift apart.</summary>
+        [Test]
+        public static void TheWideNameIsTheSquareNameWithWide()
+        {
+            Assert.AreEqual("pin-1-v2-ab12cd34-wide.jpg", TileCanvas.WideFileName("pin-1-v2-ab12cd34.jpg"),
+                "the marker goes before the extension, not after it");
+            Assert.AreEqual("pin-1-wide", TileCanvas.WideFileName("pin-1"),
+                "a name with no extension keeps the marker at the end");
+        }
+
+        /// <summary>
+        /// The 71x71 tile's card: that tile's own side, with the picture filling it.
+        ///
+        /// Why it is a card of its own: a binding fills the tile with the image it is given and
+        /// crops the rest, so the 336 card in a 170 px tile showed the middle of the face at
+        /// twice its size - the "l'immagine troppo zoommata e non si adatta alla dimensione
+        /// tile" of 23 October 2026.
+        /// </summary>
+        [Test]
+        public static void TheSmallCardIsTheTilesOwnSideAndThePictureFillsIt()
+        {
+            byte[] card = TileCanvas.Card(TileCanvas.SmallSize);
+            Assert.AreEqual(TileCanvas.SmallSize * TileCanvas.SmallSize * 4, card.Length,
+                "the 71x71 tile's own shape");
+
+            byte[] picture = TileCanvas.ResizeSquare(White(TileCanvas.Size),
+                TileCanvas.Size, TileCanvas.SmallSize);
+            Assert.AreEqual(TileCanvas.SmallSize * TileCanvas.SmallSize * 4, picture.Length,
+                "the composed card, measured down to the small tile");
+
+            TileCanvas.DrawInto(card, TileCanvas.SmallSize, picture,
+                TileCanvas.SmallSize, TileCanvas.SmallSize, 0, 0);
+
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255),
+                AtSide(card, TileCanvas.SmallSize, 0, 0), "the picture starts at the corner");
+            Assert.ByteArraysEqual(Pixel(0xFF, 0xFF, 0xFF, 255),
+                AtSide(card, TileCanvas.SmallSize, TileCanvas.SmallSize - 1, TileCanvas.SmallSize - 1),
+                "and reaches the far corner, so the shell has nothing to crop");
+        }
+
+        /// <summary>
+        /// A card walked at another side is refused with a number, not read past its end: the
+        /// canvas stride is the card's side, and a 170 card read as 336 is the same
+        /// out-of-bounds read the picture's side had (`Draw`).
+        /// </summary>
+        [Test]
+        public static void ACardWalkedAtAnotherSideIsRefused()
+        {
+            byte[] small = TileCanvas.Card(TileCanvas.SmallSize);
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate
+                {
+                    TileCanvas.DrawInto(small, TileCanvas.Size, White(TileCanvas.Size),
+                        TileCanvas.Size, TileCanvas.Size, 0, 0);
+                },
+                "a 170 card read as 336 reads past its end");
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate
+                {
+                    TileCanvas.DrawInto(small, TileCanvas.SmallSize, White(TileCanvas.SmallSize),
+                        TileCanvas.SmallSize, TileCanvas.SmallSize, 1, 0);
+                },
+                "and a picture one pixel past the edge does not fit either");
+        }
+
+        [Test]
+        public static void TheSmallNameIsTheSquareNameWithSmall()
+        {
+            Assert.AreEqual("pin-1-v3-ab12cd34-small.jpg", TileCanvas.SmallFileName("pin-1-v3-ab12cd34.jpg"),
+                "the marker goes before the extension, not after it");
+            Assert.AreEqual("pin-1-small", TileCanvas.SmallFileName("pin-1"),
+                "a name with no extension keeps the marker at the end");
+        }
+
         [Test]
         public static void APictureThatDoesNotFitIsRefused()
         {

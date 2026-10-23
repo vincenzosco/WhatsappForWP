@@ -262,9 +262,29 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile storage = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(storage, json);
+                // Beside the file and moved over it: this is the file that says which chats
+                // are pinned, muted and deleted, it is rewritten on every toggle, and a
+                // suspension in the middle of the write truncated it - the next load answered
+                // "nothing was ever decided", the deleted chats came back and every pin was
+                // lost. `ChatCache` and `StatusCache` already write this way.
+                StorageFolder folder = ApplicationData.Current.LocalFolder;
+
+                StorageFile temp = await folder.CreateFileAsync(
+                    FileName + ".new", CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(temp, json);
+
+                StorageFile current = null;
+                try
+                {
+                    current = await folder.GetFileAsync(FileName);
+                }
+                catch (FileNotFoundException)
+                {
+                    // The first decision this phone ever made.
+                }
+
+                if (current == null) await temp.RenameAsync(FileName);
+                else await temp.MoveAndReplaceAsync(current);
             }
             catch (Exception ex)
             {
