@@ -625,12 +625,9 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                return await FileIO.ReadTextAsync(file);
-            }
-            catch (FileNotFoundException)
-            {
-                return "";
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item == null) return "";
+                return await FileIO.ReadTextAsync((StorageFile)item);
             }
             catch (Exception ex)
             {
@@ -716,15 +713,9 @@ namespace WhatsappApp.Services
 
         private static async Task<bool> MarkerExistsAsync()
         {
-            try
-            {
-                await ApplicationData.Current.LocalFolder.GetFileAsync(MarkerName);
-                return true;
-            }
-            catch (FileNotFoundException)
-            {
-                return false;
-            }
+            // TryGetItemAsync: a normal start has no marker, and that is not a failure. Any
+            // other fault still reaches the caller, as it did before.
+            return await ApplicationData.Current.LocalFolder.TryGetItemAsync(MarkerName) != null;
         }
 
         private static async Task WriteMarkerAsync()
@@ -745,12 +736,10 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(MarkerName);
-                await file.DeleteAsync();
-            }
-            catch (FileNotFoundException)
-            {
-                // Nothing to remove: the marker is gone, which is what was wanted.
+                // Nothing to remove when there is no marker: the marker is gone, which is what
+                // was wanted.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(MarkerName);
+                if (item != null) await item.DeleteAsync();
             }
             catch (Exception ex)
             {

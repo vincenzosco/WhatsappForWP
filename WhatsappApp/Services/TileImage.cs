@@ -247,15 +247,9 @@ namespace WhatsappApp.Services
         /// <summary>Whether a card of this name is already on the phone.</summary>
         private static async Task<bool> ExistsAsync(string fileName)
         {
-            try
-            {
-                await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
-                return true;
-            }
-            catch (System.IO.FileNotFoundException)
-            {
-                return false;
-            }
+            // TryGetItemAsync: a card that was never made is not a failure, and a missing
+            // file thrown and caught here is an exception on every check.
+            return await ApplicationData.Current.LocalFolder.TryGetItemAsync(fileName) != null;
         }
 
         /// <summary>The three paths one card name stands for.</summary>
