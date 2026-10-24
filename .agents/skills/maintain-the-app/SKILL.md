@@ -146,6 +146,16 @@ established the hard way:
   `chats.json`, and the app reopened empty until a message brought a row of its own.
   The list is what the next start draws; a tail that is lost costs one conversation's
   first screen. Gate: `node tools/check-chat-snapshot.js`.
+- **The list does not wait for a graceful end, and it is rebuilt from the tails.**
+  The snapshot's writers were all an *ending* - end of sync, suspension, end of a
+  background check - and a run does not always have one: on 24 October 2026 the app was
+  stopped from the debugger with a row that had just arrived, and the next start drew the
+  list of the day before. So a row that changes asks for its own write
+  (`ScheduleListSave`, three seconds of quiet, the list only - the tails stay at the
+  ending), and the start asks the tails for the rows `chats.json` does not name
+  (`RestoreRowsFromTheirTailsAsync`): the file is the whole of what the screen draws while
+  WhatsApp names the list again only at a link, and that store had 2 rows against
+  56 `messages_*.json`. Both are in `check-chat-snapshot.js`.
 - **The call log comes from that same sync** (`HistorySync.callLogRecords`), both
   directions, with `callCreatorJID` being *this* account on a call it made - which
   is why an outgoing call is filed under the other party and not under us.

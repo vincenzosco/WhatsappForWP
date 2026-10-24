@@ -109,56 +109,38 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The writes, one at a time.
+        ///
+        /// Why: the list has two writers in `DataService` - the snapshot at the end of a run
+        /// and `SaveListAsync` while it runs - and both write beside the file and move it over.
+        /// Two of those interleaved (one creating `chats.json.new` while the other is writing
+        /// it) is a move of a file that is no longer the one being written: it throws, and the
+        /// list stays as it was. The queue makes one write of one instant, the way
+        /// `MessageCache` already does for a conversation.
+        /// </summary>
+        private static readonly SerialQueue Writes = new SerialQueue();
+
+        /// <summary>
         /// Writes the list. Without the avatar bytes: those are rebuilt on every
         /// connection, and a megabyte file for a list that only serves to fill the
         /// first seconds is not a good trade.
         ///
-        /// Called by `DataService.SaveSnapshotAsync`, which is the one writer: the last
-        /// sync, a suspension and a background check all describe the same list, and a
-        /// second writer with its own idea of the rows is how a file ends up older than
-        /// the screen.
+        /// Called by `DataService` only: the end of a sync, a suspension, the end of a
+        /// background check (`SaveSnapshotAsync`), and the same rows while the app runs
+        /// (`SaveListAsync`). One idea of the rows, two moments to write them.
         /// </summary>
         public static async Task SaveAsync(List<ChatMessage> chats, bool historyComplete)
         {
             if (chats == null || chats.Count == 0) return;
 
+            // Snapped before the queue, on the thread that owns the rows: what is written is
+            // one instant of the list, not the list as it was before the write and after it.
+            string json = JsonOf(chats, historyComplete);
+            if (json == null) return;
+
             try
             {
-                var slim = new List<ChatMessage>();
-                for (int i = 0; i < chats.Count; i++) slim.Add(Slim(chats[i]));
-
-                string json;
-                using (var stream = new MemoryStream())
-                {
-                    Serializer.WriteObject(stream,
-                        new ChatCacheFile { Chats = slim, HistoryComplete = historyComplete });
-                    json = Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
-                }
-
-                // Written beside the file and then moved over it, not written into it.
-                // The file is now rewritten on every suspension and at the end of every
-                // background check (see DataService.SaveSnapshotAsync), and a process
-                // frozen in the middle of a write leaves a `chats.json` that does not
-                // parse - a list with no rows, which is the screen that says nothing has
-                // ever happened. A move is one step, so the file is either the old one or
-                // the new one.
-                StorageFolder folder = ApplicationData.Current.LocalFolder;
-                StorageFile temp = await folder.CreateFileAsync(
-                    TempName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(temp, json);
-
-                StorageFile current = null;
-                try
-                {
-                    current = await folder.GetFileAsync(FileName);
-                }
-                catch (FileNotFoundException)
-                {
-                    // First write of this phone: there is nothing to replace.
-                }
-
-                if (current == null) await temp.RenameAsync(FileName);
-                else await temp.MoveAndReplaceAsync(current);
+                await Writes.RunAsync(delegate { return WriteJsonAsync(json); });
             }
             catch (Exception ex)
             {
@@ -166,6 +148,58 @@ namespace WhatsappApp.Services
                 // arrives from the server anyway.
                 Diag.Failed("ChatCache.Save", ex);
             }
+        }
+
+        /// <summary>The rows as JSON, or null when they cannot be serialised (named, never thrown).</summary>
+        private static string JsonOf(List<ChatMessage> chats, bool historyComplete)
+        {
+            try
+            {
+                var slim = new List<ChatMessage>();
+                for (int i = 0; i < chats.Count; i++) slim.Add(Slim(chats[i]));
+
+                using (var stream = new MemoryStream())
+                {
+                    Serializer.WriteObject(stream,
+                        new ChatCacheFile { Chats = slim, HistoryComplete = historyComplete });
+                    return Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatCache.Save", ex);
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// The file, written beside itself and moved over.
+        ///
+        /// Why not into the file: it is rewritten on every suspension, at the end of every
+        /// background check and now whenever a row changes, and a process frozen in the middle
+        /// of a write leaves a `chats.json` that does not parse - a list with no rows, which is
+        /// the screen that says nothing has ever happened. A move is one step, so the file is
+        /// either the old one or the new one.
+        /// </summary>
+        private static async Task WriteJsonAsync(string json)
+        {
+            StorageFolder folder = ApplicationData.Current.LocalFolder;
+            StorageFile temp = await folder.CreateFileAsync(
+                TempName, CreationCollisionOption.ReplaceExisting);
+            await FileIO.WriteTextAsync(temp, json);
+
+            StorageFile current = null;
+            try
+            {
+                current = await folder.GetFileAsync(FileName);
+            }
+            catch (FileNotFoundException)
+            {
+                // First write of this phone: there is nothing to replace.
+            }
+
+            if (current == null) await temp.RenameAsync(FileName);
+            else await temp.MoveAndReplaceAsync(current);
         }
 
         /// <summary>

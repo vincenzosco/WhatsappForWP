@@ -63,7 +63,7 @@ Two lessons the gates taught:
 | `check-fire-and-forget.js` | A call inside `#pragma warning disable 4014` whose fault nobody observes: it does not go through `Guarded.RunGuardedAsync`, and the method it names catches nothing, so an exception thrown at the call site lands in a Task nobody awaits. That is the voice note whose tap did nothing and left no `DIAG` line. It also refuses two statements in one region, a call the app does not define, and a dispatcher lambda that catches nothing. |
 | `check-project-files.js` | A `.cs` or `.xaml` under `WhatsappApp` that `WhatsappApp.csproj` does not list. MSBuild never sees it, so the type it holds "does not exist" only on the VM build, and the guards all pass in the meantime - which is how `RecordingSession.cs` and `ConversationView.cs` were committed without their `Compile` entries. |
 | `check-chat-list-source.js` | A second writer for `MessagesListView.ItemsSource`. The list is bound in code by `ConversationView.Bind`; an `ItemsSource="{Binding}"` left in XAML is resolved against `DataContext`, which on this page is a `Contact` and not a collection, so it fights the code-set source and the conversation opens empty with a run of first chance `SYSTEM.NI.DLL` exceptions and no `DIAG` line. |
-| `check-chat-snapshot.js` | The order of `DataService.SaveSnapshotAsync`: the chat list written **after** the conversations' tails. Each tail is a read and a write of its own file, one at a time (about 1.8 s each on the phone of 23 October 2026), so a list written last is a list never written when the app is closed in the middle - the store had 57 `messages_*.json` and no `chats.json`, and the next start opened empty until a message brought a row of its own. |
+| `check-chat-snapshot.js` | Three ways for the list on disk to be older than the screen, all seen on the phone of 23-24 October 2026. The order inside `DataService.SaveSnapshotAsync`: the chat list written **after** the conversations' tails - each tail is a read and a write of its own file, one at a time (about 1.8 s each), so a list written last is a list never written when the app is closed in the middle, and that store had 57 `messages_*.json` with no `chats.json`. A message path that never asks for the list to be written (`ScheduleListSave`): every writer was an *ending*, and the run of 24 October was stopped from the debugger, so its rows went with the process. A start that loads `chats.json` without asking the tails for the rows it does not name (`RestoreRowsFromTheirTailsAsync`): that file held 2 rows against 56 tails, 54 conversations on the phone and not on the list. |
 | `check-chat-scroll.js` | A chat that opens on its old messages: the page not subscribed to `HistoryCompleted` (so the burst that lands after the bind moves nothing and the reader stays at the oldest row), a handler that does not ask `ActiveChatId` (a burst for a chat no longer in front would move another page's list), and the arrow back to the newest message - missing its `RecentMessagesButton_Click` wiring, `Grid.Row="1"`, `Visibility="Collapsed"` or `<!-- IconArrowDown -->` - plus the page holding its own `ScrollableHeight`, a second opinion about the bottom that goes stale. |
 | `check-history-sync.js` | The two cables of the history sync that the protocol suite cannot see, because they live in the app: a `NativeConnection.ApplySync` that keeps `_chats.ApplyHistory`'s answer to itself - the sync then fills only the list, every chat opens empty, and the page waits for a burst that never closes because `HistoryCompleted` is raised per chat that received rows - and a `DataService.OnNativeMessage` that drops `incoming.IsHistory`, so every old message arrives as new, with a toast each and a chat row counted once more per sync. It also refuses a sync applied from a stanza that is not this account's: `historySyncNotification` is a self-only protocol message, and the reference drops it from anybody else ("an attacker could otherwise spoof any of these to manipulate local state"), which on this phone would hand a contact the chat list, the call log and the status feed. |
 | `check-client-state.js` | The sentences a companion owes the server after its login, and the channel that can refuse it. `ClientPayload.Login` asks to be brought up **passively** (`passive` and `pull` are 1) and the reference completes that login with `sendPassiveIq('active')` on `success`: a client that logs in and then says nothing is the passive half of its own login, which on the phone of 2026-10-17 was a login, two `ib` nodes and a dead connection two seconds later, four runs in a row. It also refuses a `NativeConnection` that only **names** the notification (`nothing reads it yet`) instead of reading its child - the child is what the reference dispatches on, and `downgrade_webclient` is the one that refuses the client - and a `WhatsAppSocket` whose failed read does not name the bytes of the frame it interrupted, which is the only evidence of where the server stopped talking. Two more cables are pinned there: a login (`NativeSession.LoginAsync`) that reads one node instead of up to `success` and drops what arrived before it (the bootstrap's `ib` is exactly that frame), and a message path that acknowledges a stanza before opening it - the ack stops the server re-sending, so a failed open must answer with `IncomingMessage.RetryReceipt` instead. The sixth is the one the run of 2026-10-18 needed: `PairPage` must call `FileSessionStorage.DeleteAllAsync()` **before** it stores the new account, because a Signal MAC covers both identity keys and the sessions written by the previous pairing cannot read a single stanza of the new one (`the message's MAC does not verify`, from the account's own phone and from a contact alike). The seventh is the same failure one step further in: the login must call `NativeConnection.AdoptSignedPreKeyAsync`, because the store's signed pre-key can carry the account's own id over the previous identity's private key, and the responder path has nothing but the id to compare. |
@@ -225,6 +225,52 @@ That is why the cipher the handshake needs is written out in `Protocol/Crypto/Ae
 failure the app survives is written down as
 `DIAG <where>: <type> 0x<HRESULT> <message>` (`Services/Diag.cs`) - that line is the fastest answer
 to "why is the screen empty".
+
+## Reading the phone: its store and its log
+
+The store is the only evidence that outlives a run - `diag.log` for what happened,
+`chats.json` for the list the next start draws, `messages_*.json` for the conversations.
+There are two doors to it, and the first one works with the phone on the lock screen:
+
+**The platform tool (this is the one to use).** `ISETool`, with the target `de` for a
+connected phone. `xd` is the *emulator*: against a real phone it answers
+`Errore: 0x80131622` or `Errore: Timeout` - which reads exactly like a phone that is not
+connected, and cost an hour on 24 October 2026.
+
+```bash
+T="/c/Program Files (x86)/Microsoft SDKs/Windows Phone/v8.1/Tools/IsolatedStorageExplorerTool/ISETool.exe"
+mkdir -p .tools/phone-now9
+"$T" ts de 7ccc5b77-3cf2-4020-92a7-9542b250bb49 "$(cygpath -w .tools/phone-now9)"
+"$T" dir de 7ccc5b77-3cf2-4020-92a7-9542b250bb49          # the root, to prove the door
+"$T" EnumerateDevices                                       # what else there is to talk to
+```
+
+`ts` takes the snapshot into `<desktop-path>\IsolatedStore\` - the directory has to exist
+first - and prints `Completato.` when it has. The product id is the one in
+`WhatsappApp/Package.appxmanifest`.
+
+**The file explorer (fallback, and the only one that shows a deleted file).**
+`Phone\Data\Users\DefApps\AppData\<product-id>\LocalState`. That `Data` segment exists
+only while the phone is **unlocked**: when `Phone` lists just `Documents, Downloads,
+Music, Pictures, Ringtones, Videos` the phone is on its lock screen, and retrying will
+not find it - `.tools/pull-localstate.ps1` prints `MISSING Data` in exactly that state,
+which is not a missing app.
+
+What to read in the snapshot:
+
+- `diag.log` - the run markers (`=== run started 2026-10-24T08:25:00 ===`) separate a
+  launch from the background checks that follow it. A `diag.log~RF*.TMP` beside it is the
+  previous copy left by an interrupted write: `diag.log` is the current one.
+- `chats.json` - `Chats` is the list the next start draws, `HistoryComplete` is whether
+  the sync ever finished. Count the rows here and compare them with the number of
+  `messages_*.json` files: **56 tails against 2 rows** is a list that lost 54
+  conversations, and the tails are what can give them back (each message carries its
+  `ChatId`, `Text` and `Timestamp`).
+- `messages_<chat id>.json` - one conversation's tail, keyed on the JID with the
+  punctuation stripped (`393761539975@s.whatsapp.net` -> `393761539975swhatsappnet`,
+  `120363384070968155@g.us` -> `120363384070968155gus`).
+- `name-cache.json`, `avatar-cache.json`, `calls.json`, `status.json` - the rest of the
+  screens' copies; same rule, they say what the app had on disk.
 
 ## On-device checklist
 
@@ -448,7 +494,17 @@ to "why is the screen empty".
     was never written - the snapshot wrote the conversations' tails first and the close
     landed in the middle (23 October 2026). The log says which half arrived:
     `cache: the list written, N row(s)` before `cache: N conversation(s) written`.
-    See `check-chat-snapshot.js`.
+    A list shorter than the conversations on the phone is the other half of the same
+    rule: the log says `cache: N conversation(s) given back by their tails (M on the
+    phone)`, and it can only say that where `M` is greater than the rows of
+    `chats.json`. See `check-chat-snapshot.js`.
+
+    Then **kill it, do not close it**: hold the back arrow, or stop the debugger, right
+    after a message arrives, and open the app again. The row is there. It is there
+    because `cache: the list written, N row(s), mid-run` appears a few seconds after the
+    message and not at the end of the run: a run that is killed has no end for the
+    snapshot to hang on (24 October 2026, a debugger stop with 2 rows on disk and 56
+    conversations on the phone).
 57. The cache file: no `DIAG failed` line for `AvatarCache`, and a second launch does
     not rewrite `avatar-cache.json` when nothing new arrived (its timestamp in the
     app folder stays the same). A file that grows at every launch is a cache with no
