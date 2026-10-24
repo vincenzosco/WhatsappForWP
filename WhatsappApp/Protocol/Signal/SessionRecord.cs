@@ -421,6 +421,54 @@ namespace WhatsappApp.Protocol.Signal
         }
 
         /// <summary>
+        /// Whether the key this message needs has already been spent - a duplicate, and not a
+        /// failure.
+        ///
+        /// Why it exists: `Decrypt` answers a re-delivered message with a `ProtocolException`
+        /// ("the message key for N was already used"), the caller reports it as a failure and
+        /// asks the server for the stanza again, and the server sends it - for ever, because
+        /// the key is gone and no retry can open it. On 24 October 2026 that was three group
+        /// messages and one of our own re-sent on every connection, each one a red line.
+        ///
+        /// The answer is the condition `PeekMessageKey` refuses on, asked before the refusal:
+        /// the chain for that ratchet key is here, the index is at or behind it, and the key
+        /// was not kept for a message that was skipped. A key that is still kept opens
+        /// normally, and a shape this cannot read answers false so `Decrypt` names it.
+        /// </summary>
+        public bool AlreadyRead(byte[] wire, bool preKey)
+        {
+            if (!HasSession || wire == null) return false;
+
+            try
+            {
+                SignalMessage message;
+
+                if (preKey)
+                {
+                    PreKeySignalMessage envelope = PreKeySignalMessage.Decode(SignalEnvelope.Unwrap(wire));
+                    message = SignalMessage.Decode(Shift(envelope.Message));
+                }
+                else
+                {
+                    message = SignalMessage.Decode(Shift(wire));
+                }
+
+                Chain chain = Find(message.EphemeralKey);
+                if (chain == null) return false;
+
+                byte[] kept;
+                if (chain.Skipped.TryGetValue((int)message.Counter, out kept)) return false;
+
+                return message.Counter <= (uint)chain.Counter;
+            }
+            catch (ProtocolException)
+            {
+                // Not a shape this can answer for: `Decrypt` reads it and reports the reason.
+                return false;
+            }
+        }
+
+        /// <summary>
         /// The record as bytes, for the store that keeps it between runs.
         ///
         /// The framing is ours: nothing on the wire depends on it, and the reference keeps

@@ -377,6 +377,32 @@ namespace WhatsappApp.Protocol.Signal
         }
 
         /// <summary>
+        /// Whether this member's message carries an iteration this record has already read -
+        /// a duplicate, and not a failure.
+        ///
+        /// Why it exists: `SeedFor` refuses a message whose key was spent and dropped with a
+        /// `ProtocolException` ("iteration N was already read and its key is gone"), the
+        /// connection reports it as a failure and asks the group to send the message again,
+        /// and the group does - for ever, because there is no key left to open it with. The
+        /// run of 24 October 2026 asked for the same three messages on every connection.
+        ///
+        /// The condition is the one `SeedFor` throws on, asked before it: the iteration is
+        /// behind the chain and its key was not kept for a skipped message.
+        /// </summary>
+        public bool AlreadyRead(SenderKeyMessage message)
+        {
+            if (message == null || !HasKey) return false;
+            if (message.Iteration >= Iteration) return false;
+
+            for (int i = 0; i < _skipped.Count; i++)
+            {
+                if (_skipped[i].Iteration == message.Iteration) return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
         /// The chain key a given iteration's message key comes off, stepping the chain as
         /// far as is needed and keeping the keys of the iterations it steps over.
         /// </summary>
