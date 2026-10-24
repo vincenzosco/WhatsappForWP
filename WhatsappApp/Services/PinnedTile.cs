@@ -72,6 +72,19 @@ namespace WhatsappApp.Services
         /// <summary>The chats whose full picture is being fetched right now.</summary>
         private static readonly HashSet<string> Asking = new HashSet<string>(StringComparer.Ordinal);
 
+        /// <summary>
+        /// The tiles the notification platform refused in this run, by chat.
+        ///
+        /// Why it is kept: `TileUpdateManager.CreateTileUpdaterForSecondaryTile` answers
+        /// `WPN_E_INVALID_APP` (0x803E0102, "The application identifier provided is invalid")
+        /// when the notification platform cannot tie the tile to this app - a stale record
+        /// left by a redeploy, or a platform that has stopped (Microsoft names both, and
+        /// neither is something the app can repair). Every publish would retry it, spend a
+        /// disk write on a card nobody shows and leave a line per message, so the answer is
+        /// remembered for the run: the tile keeps what it has, and the next start tries once.
+        /// </summary>
+        private static readonly HashSet<string> Refused = new HashSet<string>(StringComparer.Ordinal);
+
         /// <summary>The lock the three above are guarded by.</summary>
         private static readonly object Pictures = new object();
 
@@ -138,6 +151,11 @@ namespace WhatsappApp.Services
                 {
                     bool removed = await new SecondaryTile(TileIdFor(chatId)).RequestDeleteAsync();
                     Diag.Ok("pinned tile: " + chatId + (removed ? " removed" : " kept"));
+
+                    // The tile the platform refused is the one that is gone: a chat pinned
+                    // again gets a fresh tile and a fresh chance to be drawn.
+                    if (removed) Forget(chatId);
+
                     return !removed;
                 }
 
@@ -165,6 +183,8 @@ namespace WhatsappApp.Services
 
                 bool created = await tile.RequestCreateAsync();
                 if (!created) return false;
+
+                Forget(chatId);
 
                 // The tile exists with the package's logos; the picture and the count come
                 // on a notification, which is the only thing a running app may change.
@@ -362,6 +382,13 @@ namespace WhatsappApp.Services
         {
             string tileId = TileIdFor(chatId);
 
+            // Before the card and the lines, not after: a tile the platform refused is a card
+            // written for a tile nobody is going to draw.
+            lock (Pictures)
+            {
+                if (Refused.Contains(chatId)) return;
+            }
+
             TileCard card = await StoreImageAsync(chatId, avatarData);
             string image = card == null ? null : card.Square;
             string wide = image == null ? AppWideIcon : TileImage.WideOf(image);
@@ -373,18 +400,30 @@ namespace WhatsappApp.Services
             string unread = countKnown ? NotificationService.UnreadText(count) : "";
             TileLines lines = TileText.For(sender, body, unread);
 
-            var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
+            // The tile's whole content is composed before the tile is touched.
+            //
+            // Why that order and not a `Clear` and a rebuild: `Updater.Clear()` came first
+            // here, so anything that threw afterwards left the chat's tile **empty** - no
+            // picture, no name, nothing - and the refusal of 24 October 2026 threw exactly
+            // there. A notification replaces the content of the tile on its own, so the clear
+            // bought nothing and cost the tile its content when the platform said no.
+            XmlDocument xml;
+            try
+            {
+                xml = TileUpdateManager.GetTemplateContent(
+                    TileTemplateType.TileSquare150x150PeekImageAndText02);
+            }
+            catch (Exception failed)
+            {
+                Diag.Failed("PinnedTile/compose " + chatId, failed);
+                return;
+            }
 
-            var xml = TileUpdateManager.GetTemplateContent(
-                TileTemplateType.TileSquare150x150PeekImageAndText02);
             var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
 
-            // After the check and not before it: a template with no visual is a tile this
-            // method cannot draw, and clearing first left the chat's tile empty with nothing
-            // put back in its place.
+            // A template with no visual is a tile this method cannot draw: nothing is
+            // touched, and the tile keeps what it has.
             if (visual == null) return;
-
-            updater.Clear();
 
             // The medium tile: who this chat is, in the template's large font, and what they
             // said under it - the app tile's own two lines, so the two are read the same way.
@@ -405,9 +444,82 @@ namespace WhatsappApp.Services
             // the face, magnified (23 October 2026).
             AddSmall(xml, visual, card == null ? AppIcon : card.Small);
 
-            updater.Update(new TileNotification(xml));
+            // The platform's answer, named: `WPN_E_INVALID_APP` (0x803E0102) from here is not
+            // this file's mistake and not this message's, so it must not read like one
+            // (`Refused`). C# 5 allows no await in a catch, hence the local.
+            Exception refused = null;
+            try
+            {
+                var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
+                updater.Update(new TileNotification(xml));
+            }
+            catch (Exception error)
+            {
+                refused = error;
+            }
+
+            if (refused != null)
+            {
+                await RefuseAsync(chatId, tileId, refused);
+                return;
+            }
 
             if (countKnown) SetBadge(tileId, count);
+        }
+
+        /// <summary>
+        /// A tile this chat no longer has to be careful with: it was just created, or it was
+        /// just taken away. Both are a different tile from the one the platform refused.
+        /// </summary>
+        private static void Forget(string chatId)
+        {
+            lock (Pictures)
+            {
+                Refused.Remove(chatId);
+                Attempts.Remove(chatId);
+            }
+        }
+
+        /// <summary>
+        /// The notification platform refused this tile: it is named once, the shell's own view
+        /// of it is written beside it, and the tile is left alone for the rest of the run.
+        ///
+        /// Why the shell is asked as well: `WPN_E_INVALID_APP` means the platform cannot tie
+        /// the tile to this app, and the two ways that happens look identical in a log - the
+        /// shell no longer has the tile (a redeploy took it, and the chat should offer the pin
+        /// again) or the shell has it and the notification record for this app no longer does
+        /// (the tile is stuck until it is un-pinned and pinned again). `Exists` and the list
+        /// `FindAllAsync` answers are what tells them apart on the next run.
+        /// </summary>
+        private static async Task RefuseAsync(string chatId, string tileId, Exception error)
+        {
+            lock (Pictures)
+            {
+                if (!Refused.Add(chatId)) return;
+            }
+
+            Diag.Failed("PinnedTile/update " + chatId, error);
+
+            try
+            {
+                string listed = "none";
+                IReadOnlyList<SecondaryTile> tiles = await SecondaryTile.FindAllAsync();
+                for (int i = 0; i < tiles.Count; i++)
+                {
+                    if (tiles[i].TileId != tileId) continue;
+
+                    listed = "present";
+                    break;
+                }
+
+                Diag.Ok("pinned tile: the platform refused " + tileId + ", and the shell says "
+                    + (SecondaryTile.Exists(tileId) ? "it exists" : "it is gone")
+                    + " and lists it " + listed + " - the tile keeps what it has until the app restarts");
+            }
+            catch (Exception shell)
+            {
+                Diag.Failed("PinnedTile/shell " + chatId, shell);
+            }
         }
 
         /// <summary>One binding for another size, imported from that size's own template.</summary>

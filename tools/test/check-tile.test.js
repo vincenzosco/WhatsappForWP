@@ -215,6 +215,55 @@ test('i due servizi veri aspettano il login e poi chiedono la foto', () => {
     fs.readFileSync(path.join(root, 'DataService.cs'), 'utf8')), []);
 });
 
+const RENDER =
+  'private static async Task RenderAsync(string chatId, string name, int count, string avatarData, string body,\n' +
+  '    bool countKnown)\n' +
+  '{\n' +
+  '    lock (Pictures) { if (Refused.Contains(chatId)) return; }\n' +
+  '    Exception refused = null;\n' +
+  '    try { updater.Update(new TileNotification(xml)); }\n' +
+  '    catch (Exception error) { refused = error; }\n' +
+  '    if (refused != null) { await RefuseAsync(chatId, tileId, refused); return; }\n' +
+  '}\n' +
+  'private static async Task<bool> ToggleAsync(string chatId, string name, string avatarData, string body)\n' +
+  '{\n' +
+  '    Forget(chatId);\n' +
+  '    return false;\n' +
+  '}';
+
+test('una tile composta prima di aggiornarla non e un problema', () => {
+  assert.deepStrictEqual(tile.refusalProblems(RENDER), []);
+});
+
+test('una tile svuotata prima di aggiornarla si segnala', () => {
+  const found = tile.refusalProblems(
+    RENDER.replace('Exception refused = null;', 'updater.Clear();\n    Exception refused = null;')).join('\n');
+  assert.match(found, /clears the tile/);
+});
+
+test('un rifiuto della piattaforma non catturato si segnala', () => {
+  const found = tile.refusalProblems(
+    RENDER.replace('await RefuseAsync(chatId, tileId, refused);', '')).join('\n');
+  assert.match(found, /RefuseAsync/);
+});
+
+test('una tile rifiutata che non viene ricordata si segnala', () => {
+  const found = tile.refusalProblems(
+    RENDER.replace('if (Refused.Contains(chatId)) return;', '')).join('\n');
+  assert.match(found, /Refused/);
+});
+
+test('una chat rifissata che non dimentica il rifiuto si segnala', () => {
+  const found = tile.refusalProblems(
+    RENDER.replace('    Forget(chatId);\n', '')).join('\n');
+  assert.match(found, /Forget/);
+});
+
+test('la tile vera compone prima, cattura il rifiuto e lo ricorda', () => {
+  assert.deepStrictEqual(tile.refusalProblems(
+    fs.readFileSync(path.join(ROOT, 'WhatsappApp', 'Services', 'PinnedTile.cs'), 'utf8')), []);
+});
+
 test('una card delle regole vecchie si segnala', () => {
   const problems = tile.pictureProblems(
     'RequestAvatarAsync(chatId, false)', 'public const int CardVersion = 3;');

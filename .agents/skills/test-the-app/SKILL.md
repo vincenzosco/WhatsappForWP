@@ -19,7 +19,7 @@ node tools/check-icons.js          # icon rules + consistency + no icon font
 node tools/check-resw.js --strict  # x:Uid/Loc.Get <-> both .resw, PRIResource, default language
 node tools/check-docs.js          # the two languages of the docs are in step, no emoji
 node tools/check-no-server.js    # the retired server is out of the tree and out of the docs
-node tools/check-tile.js        # the tile payload carries its icon, asset within the limits, decoded pixels measured before they are drawn
+node tools/check-tile.js        # the tile payload carries its icon, asset within the limits, decoded pixels measured before they are drawn, and a tile the platform refuses is named, never cleared
 node tools/check-memory.js      # no bitmap decoded bigger than it is drawn, every bitmap built on the thread that draws it and none in a process with no window, the picture caches bounded
 node tools/check-actions.js     # a button named X is wired to X_Click and draws its icon
 node tools/check-fire-and-forget.js  # a call fired without await is observed, or it loses its fault
@@ -36,7 +36,7 @@ node tools/check-attachment-file.js  # each attachment copies to its own name, a
 node tools/check-lid-names.js  # a LID is never printed as a phone number, and the rule is asked before digits
 node tools/check-status-viewer.js  # a status tap opens the update, the row binds only what its model has, the feed survives a restart
 node tools/check-background-task.js  # the manifest, the task component and the registration name the same class
-node --test "tools/test/**/*.test.js"  # the tools' own tests (225)
+node --test "tools/test/**/*.test.js"  # the tools' own tests (235)
 ```
 
 Exit code 0 and an `OK: ...` line each. What they catch that the build does not:

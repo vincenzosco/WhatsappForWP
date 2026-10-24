@@ -321,6 +321,59 @@ function loginProblems(pinned, dataService) {
 }
 
 /**
+ * Problemi di una tile che il sistema rifiuta di aggiornare.
+ *
+ * Perche' esiste: il 24 ottobre 2026 l'aggiornamento della tile secondaria e' finito su
+ * `0x803E0102 WPN_E_INVALID_APP` ("The application identifier provided is invalid"),
+ * l'errore con cui il servizio notifiche dice che non riesce a legare la tile a questa
+ * app - il registro lasciato da un redeploy, o il servizio notifiche fermo. Non e'
+ * qualcosa che l'app puo' riparare, ma due cose si': la tile non deve restare **vuota**
+ * (il codice faceva `updater.Clear()` prima di comporre, e il rifiuto lasciava la tile
+ * senza niente), e un rifiuto non deve diventare una riga e un tentativo a ogni publish.
+ *
+ * Regole: `RenderAsync` non svuota la tile prima di aggiornarla, il rifiuto e' catturato
+ * e nominato (`RefuseAsync`), e una tile rifiutata non viene ritentata nello stesso giro.
+ */
+function refusalProblems(pinned) {
+  const problems = [];
+  const where = 'WhatsappApp/Services/PinnedTile.cs';
+  const render = methodBody(stripComments(String(pinned || '')), 'RenderAsync');
+
+  if (!render) {
+    problems.push(where + ': no RenderAsync - the chat tile has nothing that draws it');
+    return problems;
+  }
+
+  if (/\.Clear\s*\(\s*\)/.test(render)) {
+    problems.push(where + ': RenderAsync clears the tile before composing its new content ' +
+      '- anything that throws after the clear (the WPN_E_INVALID_APP 0x803E0102 of 24 October ' +
+      '2026 threw there) leaves the tile empty, and a notification replaces the content anyway');
+  }
+
+  if (!/RefuseAsync\s*\(/.test(render)) {
+    problems.push(where + ': RenderAsync does not catch the platform refusing the tile ' +
+      '(`RefuseAsync`): WPN_E_INVALID_APP escapes to the guarded wrapper unnamed, and every ' +
+      'publish tries the same refused tile again');
+  }
+
+  const code = stripComments(String(pinned || ''));
+  if (!/Refused\.Contains\s*\(/.test(code)) {
+    problems.push(where + ': a tile the platform refused is not remembered (`Refused`): each ' +
+      'publish spends a card write and a socket-answerless render on it, and logs a line per ' +
+      'message');
+  }
+
+  const toggle = methodBody(code, 'ToggleAsync');
+  if (!/Forget\s*\(/.test(toggle)) {
+    problems.push(where + ': ToggleAsync does not forget the refusal (`Forget`): a chat ' +
+      'un-pinned and pinned again in the same run keeps a fresh tile it never draws, which is ' +
+      'the one way out of a stale tile');
+  }
+
+  return problems;
+}
+
+/**
  * Il corpo di un metodo, dalla sua dichiarazione alla graffa che lo chiude.
  *
  * Sulla sorgente gia' senza commenti (`stripComments`), perche' il nome cercato
@@ -484,6 +537,7 @@ function main() {
   problems.push(...loginProblems(
     fs.readFileSync(PINNED, 'utf8'),
     fs.readFileSync(DATA_SERVICE, 'utf8')));
+  problems.push(...refusalProblems(fs.readFileSync(PINNED, 'utf8')));
   problems.push(...requestProblems(tileImage));
   problems.push(...fallbackProblems(tileImage));
 
@@ -516,6 +570,6 @@ if (require.main === module) main();
 
 module.exports = {
   pngSize, declaredImages, bindingProblems, decodeProblems, writeProblems, smallProblems,
-  pictureProblems, loginProblems, requestProblems, fallbackProblems, methodBody,
+  pictureProblems, loginProblems, refusalProblems, requestProblems, fallbackProblems, methodBody,
   assetProblems, stripComments, DATA_SERVICE, PINNED
 };
