@@ -143,6 +143,23 @@ function chatListRefreshProblems(files) {
       problems.push(`${DATA}: RefreshChatList does not fold the rows that are one chat ` +
         '(FoldDuplicateChats()): a LID row and its number would stay side by side for ever');
     }
+    // Named every time, changed or not: a quiet tick and a dead timer look the same in a log
+    // that only writes when something moved, and the rows it left alone are the answer.
+    if (!refresh.includes('Diag.Ok(')) {
+      problems.push(`${DATA}: RefreshChatList writes nothing to the log (no Diag.Ok): a tick that ` +
+        'changed nothing and a timer that never fired are the same report');
+    }
+    if (!refresh.includes('IsGroup')) {
+      problems.push(`${DATA}: RefreshChatList does not name the group rows it left alone (no ` +
+        'IsGroup): a group that kept its subject is a different answer from a person who kept ' +
+        'their name, and a quiet tick has to say which');
+    }
+    if (!refresh.includes('_statuses')) {
+      problems.push(`${DATA}: RefreshChatList does not say what happened to the status rows (no ` +
+        '_statuses): the feed is left alone by the same pass, and a quiet tick that does not name ' +
+        'it reads as a pass that forgot it');
+    }
+
     // Local, and nothing else: a refresh that queries the server every 30 s is a poll.
     const network = ['SendAsync(', 'RequestAsync(', 'DownloadMediaAsync', 'SendTextAsync', 'AppStateSync.Query'];
     for (const call of network) {
