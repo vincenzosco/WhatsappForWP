@@ -13,6 +13,10 @@ const GOOD_DATA = [
   '        {',
   '            IList<HistoryConversation> rows = NativeConnection.Instance.ChatRows;',
   '            int folded = FoldDuplicateChats();',
+  '',
+  '            if (row.IsGroup) kept++;',
+  '',
+  '            Diag.Ok("chats: " + rows.Count + " re-read, " + _statuses.Count + " status row(s) kept");',
   '        }',
   '',
   '        private void ApplyChat(ChatMessage message, bool remember)',
@@ -164,6 +168,27 @@ test('un refresh che interroga il server si segnala', () => {
       '            int folded = FoldDuplicateChats();\n            var answer = await RequestAsync(session, query);')
   });
   assert.match(found, /must be local/);
+});
+
+test('un refresh che non scrive niente nel log si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('            Diag.Ok("chats: " + rows.Count + " re-read, " + _statuses.Count + " status row(s) kept");\n', '')
+  });
+  assert.match(found, /writes nothing to the log/);
+});
+
+test('un refresh che non nomina i gruppi che ha lasciato si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('            if (row.IsGroup) kept++;\n', '')
+  });
+  assert.match(found, /does not name the group rows/);
+});
+
+test('un refresh che dimentica gli stati si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('_statuses.Count', '0')
+  });
+  assert.match(found, /does not say what happened to the status rows/);
 });
 
 test('un refresh che non fonde le righe doppie si segnala', () => {

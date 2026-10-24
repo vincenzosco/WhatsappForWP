@@ -2743,11 +2743,27 @@ namespace WhatsappApp.Services
         public void RefreshChatList()
         {
             IList<WhatsappApp.Protocol.WaProto.HistoryConversation> rows = NativeConnection.Instance.ChatRows;
-            int refreshed = 0;
+            int applied = 0;
+            int keptGroups = 0;
+            int keptPeople = 0;
 
             for (int i = 0; i < rows.Count; i++)
             {
-                if (RefreshChatRow(rows[i])) refreshed++;
+                HistoryConversation row = rows[i];
+                if (row == null) continue;
+
+                if (RefreshChatRow(row))
+                {
+                    applied++;
+                    continue;
+                }
+
+                // Named and not only counted: a group that kept its subject is a different
+                // answer from a person who kept their name, and a tick that changes nothing
+                // has to be readable in the log - otherwise "the refresh is running" and "the
+                // refresh is dead" look the same from the outside.
+                if (row.IsGroup) keptGroups++;
+                else keptPeople++;
             }
 
             int folded = FoldDuplicateChats();
@@ -2757,15 +2773,19 @@ namespace WhatsappApp.Services
             // is the state a report has to be able to name.
             NameDuplicateRows();
 
-            if (refreshed == 0 && folded == 0) return;
+            // One line per tick, changed or not, with the status feed's rows in it as well: the
+            // two caches are read on the same pass of the eye, and a quiet tick that says how
+            // many rows it left alone is the proof the timer is alive.
+            Diag.Ok("chats: " + rows.Count + " row(s) re-read, " + applied + " applied, "
+                + folded + " folded, " + keptGroups + " group(s) and " + keptPeople
+                + " person(s) left as they were, " + _statuses.Count + " status row(s) kept");
+
+            if (applied == 0 && folded == 0) return;
 
             for (int i = 0; i < _contacts.Count; i++)
             {
                 if (_contacts[i] != null) PlaceContact(_contacts[i]);
             }
-
-            Diag.Ok("chats: " + rows.Count + " row(s) re-read, " + refreshed + " applied, "
-                + folded + " folded");
         }
 
         /// <summary>
