@@ -21,6 +21,20 @@
  * address (`FindContact`), and what slipped in anyway is folded by `FoldDuplicateChats`,
  * whose key is the canonical address and not the row's own id.
  *
+ * The same rule is owed by the two caches that hold rows of their own:
+ *
+ *  - **the client's conversation list** (`NativeChats`), which is where the groups are -
+ *    a group is a row like any other, and its jid can arrive with a device on it as easily
+ *    as a person's can. `EnsureRow` looks the row up first and canonicalises before it
+ *    adds, and `Find` compares canonical addresses and not spellings;
+ *  - **the status feed** (`StatusCache` and `DataService`). A status is keyed on its id
+ *    (`FindStatus`), and the file restored at a start can carry the same id twice: a row
+ *    drawn twice is an update watched once and a ring filled twice.
+ *
+ * And the duplicate that does survive is **named**: `NameDuplicateRows` writes, once per
+ * pair, the two rows and the address they share. A list that holds one chat twice and says
+ * so nowhere is a bug nobody can find on a phone nobody can look at.
+ *
  * Usage:
  *   node tools/check-one-row-per-chat.js
  */
@@ -32,6 +46,8 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const DATA = 'WhatsappApp/Services/DataService.cs';
 const MERGE = 'WhatsappApp/Services/ChatListMerge.cs';
+const CHATS = 'WhatsappApp/Protocol/Client/NativeChats.cs';
+const STATUS = 'WhatsappApp/Services/StatusCache.cs';
 
 /** A method declaration at the service's own indentation. */
 const METHOD = /^ {8}(public|private|internal|protected)\s+[^=;]*\(/;
@@ -83,6 +99,17 @@ function methodAt(lines, index) {
   return null;
 }
 
+/** How many times a phrase appears. */
+function count(text, phrase) {
+  let seen = 0;
+  let at = text.indexOf(phrase);
+  while (at >= 0) {
+    seen++;
+    at = text.indexOf(phrase, at + phrase.length);
+  }
+  return seen;
+}
+
 /**
  * I problemi dei due file. Un array vuoto quando una chat ha una riga sola.
  */
@@ -90,6 +117,8 @@ function oneRowPerChatProblems(files) {
   const problems = [];
   const data = String((files && files.data) || '');
   const merge = String((files && files.merge) || '');
+  const chats = String((files && files.chats) || '');
+  const status = String((files && files.status) || '');
   const lines = data.split(/\r?\n/);
 
   let rows = 0;
@@ -162,6 +191,97 @@ function oneRowPerChatProblems(files) {
       'one chat lives there, and is tested in ProtocolTests');
   }
 
+  // 2. The client's own list, where the groups are.
+  const rowWrites = count(chats, '_rows.Add(');
+  if (rowWrites !== 1) {
+    problems.push(`${CHATS}: _rows.Add appears ${rowWrites} time(s) and must appear once, in ` +
+      'EnsureRow: a row added anywhere else is a row added without a lookup');
+  }
+
+  const ensure = bodyOf(chats, 'private HistoryConversation EnsureRow(string jid)');
+  if (ensure == null) {
+    problems.push(`${CHATS}: EnsureRow is missing: the conversation list has no one door a row ` +
+      'can come in by, so this guard cannot say what every row was checked for');
+  } else {
+    const lookup = ensure.indexOf('Find(jid)');
+    const canonical = ensure.indexOf('_names.Canonical(jid)');
+    const add = ensure.indexOf('_rows.Add(');
+
+    if (lookup < 0 || add < 0 || lookup > add) {
+      problems.push(`${CHATS}: EnsureRow creates a row without looking for the row that already ` +
+        'has that address (Find(jid) before _rows.Add): a group is a row like any other, and ' +
+        'a second row for one group is the same conversation twice');
+    }
+
+    if (canonical < 0 || canonical > add) {
+      problems.push(`${CHATS}: EnsureRow creates the row under the address it was handed ` +
+        '(_names.Canonical after _rows.Add, or not at all): the spelling a group or a contact ' +
+        'arrives with is not the one the list keys on, and the fold exists precisely because ' +
+        'those two drift apart');
+    }
+  }
+
+  const find = bodyOf(chats, 'public HistoryConversation Find(string jid)');
+  if (find == null || !find.includes('_names.Canonical(jid)')) {
+    problems.push(`${CHATS}: Find compares the jid it was handed with the rows as they were ` +
+      'spelled (no _names.Canonical): the row for a chat is not found under its other address, ' +
+      'so the lookup that keeps a second row from being made misses');
+  }
+
+  // 3. The status feed: one row per status id, in memory and in the file.
+  const load = bodyOf(status, 'public static async Task<List<ChatMessage>> LoadAsync()');
+  if (load == null) {
+    problems.push(`${STATUS}: LoadAsync is missing: the feed restored at a start has no reader ` +
+      'this guard can check');
+  } else if (!load.includes('HashSet<string>') || !load.includes('Add(entry.Id)')) {
+    problems.push(`${STATUS}: LoadAsync restores every entry of the file (no HashSet of ids): a ` +
+      'copy that carries the same status twice is drawn twice - an update watched once and a ' +
+      'ring that fills for it twice');
+  }
+
+  const statusRows = count(data, '_statuses.Insert(');
+  if (statusRows !== 1) {
+    problems.push(`${DATA}: _statuses.Insert appears ${statusRows} time(s) and must appear once, ` +
+      'in InsertStatusInOrder: a status inserted anywhere else is a status inserted without ' +
+      'being looked for');
+  }
+
+  const post = bodyOf(data, 'private void OnNativeStatusPost(object sender, StatusPost post)');
+  if (post == null) {
+    problems.push(`${DATA}: OnNativeStatusPost is missing: the status feed has no single door a ` +
+      'status can come in by');
+  } else {
+    const lookup = post.indexOf('FindStatus(post.Id)');
+    const insert = post.indexOf('InsertStatusInOrder(');
+    if (lookup < 0 || insert < 0 || lookup > insert) {
+      problems.push(`${DATA}: OnNativeStatusPost inserts a status without looking for the row ` +
+        'that already has its id (FindStatus(post.Id) before InsertStatusInOrder): the sync ' +
+        'sends the same status again in every chunk, and each copy is another row');
+    }
+  }
+
+  // 4. And the duplicate that survives the fold is named in the log.
+  const namer = bodyOf(data, 'private void NameDuplicateRows()');
+  if (namer == null) {
+    problems.push(`${DATA}: NameDuplicateRows is missing: a list that holds one chat twice says ` +
+      'so nowhere, and a report from a phone nobody can look at cannot name it');
+  } else {
+    if (!namer.includes('ChatIdFor(row.Id)')) {
+      problems.push(`${DATA}: NameDuplicateRows compares the rows by the spelling they carry ` +
+        '(no ChatIdFor(row.Id)): the two rows it is looking for differ in exactly that');
+    }
+    if (!namer.includes('Diag.Ok(')) {
+      problems.push(`${DATA}: NameDuplicateRows names the pair to nobody (no Diag.Ok): the guard ` +
+        'exists so the duplicate is written to the log, not so it is found and dropped');
+    }
+  }
+
+  const refreshBody = bodyOf(data, 'public void RefreshChatList()');
+  if (refreshBody != null && !refreshBody.includes('NameDuplicateRows();')) {
+    problems.push(`${DATA}: RefreshChatList does not call NameDuplicateRows(): nothing ever looks ` +
+      'for the two rows a fold cannot take, so the line the last check is about is never written');
+  }
+
   return problems;
 }
 
@@ -170,7 +290,9 @@ function main() {
 
   const problems = oneRowPerChatProblems({
     data: read(DATA),
-    merge: read(MERGE)
+    merge: read(MERGE),
+    chats: read(CHATS),
+    status: read(STATUS)
   });
 
   if (problems.length) {
@@ -179,8 +301,10 @@ function main() {
     process.exit(1);
   }
 
-  console.log('OK: every chat row is created under its canonical address and after a lookup, ' +
-    'filed in the index, and the rows that slipped in are folded by canonical address.');
+  console.log('OK: every chat row - the list\'s, the client\'s (groups included) and the status '
+    + 'feed\'s - is created under its canonical address and after a lookup, filed in the index, '
+    + 'the rows that slipped in are folded by canonical address, and the pair that survives the '
+    + 'fold is named in the log.');
 }
 
 if (require.main === module) main();
@@ -190,5 +314,7 @@ module.exports = {
   bodyOf,
   DATA,
   MERGE,
+  CHATS,
+  STATUS,
   INSERT
 };

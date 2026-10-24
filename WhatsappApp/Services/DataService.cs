@@ -75,6 +75,14 @@ namespace WhatsappApp.Services
         // ones that are arriving now.
         private readonly List<ChatMessage> _freshChatRows = new List<ChatMessage>();
 
+        // The pairs of rows already named as one chat in the log, so a duplicate the
+        // fold cannot take is written once and not once per refresh.
+        private readonly HashSet<string> _namedDuplicates =
+            new HashSet<string>(StringComparer.Ordinal);
+
+        /// <summary>How many duplicate pairs the log names: a bounded log, like the rest.</summary>
+        private const int NamedDuplicateLimit = 32;
+
         // Whether a chat list has started and not finished. The batch cannot answer that
         // itself: once the cached snapshot has registered its rows it is never empty again.
         private bool _batchOpen;
@@ -2743,6 +2751,12 @@ namespace WhatsappApp.Services
             }
 
             int folded = FoldDuplicateChats();
+
+            // Named whether or not anything moved: the fold fixes what it can see, and what it
+            // cannot leave alone (the chat on screen, a pair the client has not learned yet)
+            // is the state a report has to be able to name.
+            NameDuplicateRows();
+
             if (refreshed == 0 && folded == 0) return;
 
             for (int i = 0; i < _contacts.Count; i++)
@@ -2837,6 +2851,42 @@ namespace WhatsappApp.Services
             // It cannot say when, but it can say what: the row shows the words and no date.
             return !believable && string.IsNullOrEmpty(contact.LastMessage)
                 && !string.IsNullOrEmpty(message.Text);
+        }
+
+        /// <summary>
+        /// Names, in the log, any two rows that are one chat under two addresses.
+        ///
+        /// Why a line and not only the fold: `FoldDuplicateChats` cannot take every pair - the
+        /// chat on screen is left alone while it is open, and two rows whose pair the client
+        /// has not learned yet are two rows it does not know are one - and a duplicate nobody
+        /// writes down is a list that is wrong on a phone nobody can look at. Each pair is
+        /// named once, not once per tick of the refresh.
+        /// </summary>
+        private void NameDuplicateRows()
+        {
+            var firstByCanonical = new Dictionary<string, string>(StringComparer.Ordinal);
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact row = _contacts[i];
+                if (row == null || string.IsNullOrEmpty(row.Id)) continue;
+
+                string canonical = ChatIdFor(row.Id);
+                if (string.IsNullOrEmpty(canonical)) continue;
+
+                string first;
+                if (firstByCanonical.TryGetValue(canonical, out first))
+                {
+                    if (_namedDuplicates.Count >= NamedDuplicateLimit) continue;
+                    if (!_namedDuplicates.Add(first + " " + row.Id)) continue;
+
+                    Diag.Ok("chats: " + row.Id + " and " + first + " are the same chat ("
+                        + canonical + ") and the list holds both");
+                    continue;
+                }
+
+                firstByCanonical[canonical] = row.Id;
+            }
         }
 
         /// <summary>

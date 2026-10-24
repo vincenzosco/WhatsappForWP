@@ -247,7 +247,7 @@ node tools/check-avatar-refusal.js   a chat that refuses its picture, told apart
 node tools/check-no-exception-probes.js  the padding is read, not guessed with a throw per trim
 node tools/check-app-state.js       the saved names: the shared keys are kept, the sync is asked, the rows are told
 node tools/check-chat-list-refresh.js  one chat per person, and a list that asks for its rows again
-node tools/check-one-row-per-chat.js  a chat row is created canonical, and only once
+node tools/check-one-row-per-chat.js  a chat row is created canonical and once: list, groups, statuses
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```

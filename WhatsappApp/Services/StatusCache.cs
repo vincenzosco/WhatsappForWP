@@ -136,6 +136,12 @@ namespace WhatsappApp.Services
                 if (cache == null || cache.Statuses == null) return rows;
 
                 DateTime cutoff = DateTime.Now.AddHours(-LifetimeHours);
+
+                // One row per status, by its id. This file has one writer, but a copy written
+                // by an older build can carry the same status twice, and a feed that draws it
+                // twice is an update somebody watches once and the ring fills for twice.
+                var seen = new HashSet<string>(StringComparer.Ordinal);
+
                 for (int i = 0; i < cache.Statuses.Count; i++)
                 {
                     StatusCacheRow entry = cache.Statuses[i];
@@ -145,6 +151,7 @@ namespace WhatsappApp.Services
                     // and a row whose date is not a date (a cache written by an older
                     // build) is not something to guess about.
                     if (entry.PostedAt < cutoff) continue;
+                    if (!seen.Add(entry.Id)) continue;
 
                     rows.Add(ToMessage(entry));
                 }
