@@ -49,6 +49,13 @@
  *      second call, so a suspension between the two left a `diag.log` of 0 bytes
  *      with the run marker still in place (seen on the phone on 2026-10-07), and
  *      the run that had to be explained was the one whose log was gone.
+ *   H. the background task waits for its last write and listens for the system's
+ *      cancellation. `Flush(true)` only *queues* a write, and the task ends with
+ *      `deferral.Complete()` the line after: on 23-24 October 2026 the phone had
+ *      21 wakes, not one `background: checked in`, and no way to tell a run that
+ *      had finished from a run the system had taken down - the closing lines were
+ *      still in the queue. A canceled run says nothing at all unless the task
+ *      asks for `Canceled`.
  *
  * `Application.UnhandledException` carries the UI thread only, and on Windows
  * Phone 8.1 it cannot be widened: the profile declares no `AppDomain` at all, so
@@ -70,6 +77,7 @@ const DIAG_REL = 'WhatsappApp/Services/Diag.cs';
 const APP_REL = 'WhatsappApp/App.xaml.cs';
 const CHAT_PAGE_REL = 'WhatsappApp/Pages/ChatPage.xaml.cs';
 const CRASH_REPORT_REL = 'WhatsappApp/Services/CrashReport.cs';
+const TASK_REL = 'WhatsappApp.Tasks/BackgroundSyncTask.cs';
 
 /**
  * The floor of rule D. It is the adapter's cold read of the account, measured on
@@ -211,6 +219,29 @@ function problemsFor(input) {
   }
 
   // -------------------------------------------------------------------------
+  // H. the task's last write is on the disk before the host takes the process
+  // -------------------------------------------------------------------------
+  const task = input.task;
+  if (typeof task === 'string') {
+    if (task === '') {
+      problems.push(TASK_REL + ': not found - the background check has no entry point,' +
+        ' and the wake of a task that no class implements leaves no line anywhere');
+    } else if (!/Diag\.FlushAndWait\s*\(/.test(task)) {
+      problems.push(TASK_REL + ': the task flushes without waiting (no Diag.FlushAndWait).' +
+        ' Flush(true) only queues the write, and the host takes the process down right after' +
+        ' deferral.Complete(): on 23-24 October 2026 that left 21 wakes with no closing line' +
+        ' in diag.log, the background: checked in that would have said whether the run had' +
+        ' finished or been killed among the missing ones');
+    }
+    if (task !== '' && !/\.Canceled\s*\+=/.test(task)) {
+      problems.push(TASK_REL + ': the task does not listen for taskInstance.Canceled.' +
+        ' The system cancels a run that spent its budget, from a thread of its own, and the' +
+        ' run itself is blocked in a wait: without the handler a canceled check and a finished' +
+        ' one are the same absence in the log (21 wakes of 23-24 October 2026)');
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // E. the crash of the previous run reaches the reader by itself
   //
   // It used to be a `diag` frame to the adapter. There is no adapter any more,
@@ -252,7 +283,9 @@ function main() {
     // Reported as a problem rather than read blindly: a missing service is the
     // finding rule E exists for, not a crash of the guard.
     crashReport: fs.existsSync(path.join(ROOT, CRASH_REPORT_REL))
-      ? read(CRASH_REPORT_REL) : ''
+      ? read(CRASH_REPORT_REL) : '',
+    // The same for the task: a missing one is a finding, not a crash of the guard.
+    task: fs.existsSync(path.join(ROOT, TASK_REL)) ? read(TASK_REL) : ''
   };
   const { problems } = problemsFor(input);
 
@@ -265,12 +298,13 @@ function main() {
     'ceiling, the file is fetched before it is written so a suspension cannot ' +
     'empty it, every line also reaches the debugger through EmitToDebugger, the ' +
     'unhandled handler writes the frames and flushes them, the run keeps its ' +
-    'marker until it ends on purpose, and the history wait is at least ' +
-    HISTORY_WAIT_FLOOR + ' ms.');
+    'marker until it ends on purpose, the history wait is at least ' +
+    HISTORY_WAIT_FLOOR + ' ms, and the background task waits for its last write ' +
+    'and listens for the system canceling it.');
 }
 
 if (require.main === module) main();
 
 module.exports = {
-  problemsFor, HISTORY_WAIT_FLOOR, DIAG_REL, APP_REL, CHAT_PAGE_REL, CRASH_REPORT_REL
+  problemsFor, HISTORY_WAIT_FLOOR, DIAG_REL, APP_REL, CHAT_PAGE_REL, CRASH_REPORT_REL, TASK_REL
 };

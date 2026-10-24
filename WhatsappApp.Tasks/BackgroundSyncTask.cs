@@ -20,13 +20,27 @@ namespace WhatsappApp.Tasks
     /// </summary>
     public sealed class BackgroundSyncTask : IBackgroundTask
     {
+        /// <summary>How long the last write is given before the process ends anyway.</summary>
+        private const int FlushLimit = 2000;
+
         public void Run(IBackgroundTaskInstance taskInstance)
         {
             BackgroundTaskDeferral deferral = null;
 
             try
             {
-                if (taskInstance != null) deferral = taskInstance.GetDeferral();
+                if (taskInstance != null)
+                {
+                    deferral = taskInstance.GetDeferral();
+
+                    // The system takes a run down when it has spent its budget, and it does it
+                    // from a thread of its own: `RunNow` is blocked in a wait at that moment and
+                    // its thread is not coming back, so this handler is the only place that can
+                    // say a run was canceled rather than finished. Without it the two looked
+                    // identical in `diag.log` - the 21 wakes of 23-24 October 2026, not one of
+                    // them with a closing line, and no way to tell which had reached the save.
+                    taskInstance.Canceled += OnCanceled;
+                }
 
                 BackgroundSync.RunNow();
             }
@@ -36,13 +50,26 @@ namespace WhatsappApp.Tasks
             }
             finally
             {
-                // The lines above are only in memory until they are written, and this
-                // process is about to end: the flush is forced for the same reason the
-                // crash handler forces it.
-                Diag.Flush(true);
+                // Waited for, not queued. The host takes the process down the moment the
+                // deferral is complete, and `Flush(true)` only queues its write: that is why
+                // every one of those 21 wakes ended mid-sentence, with the line that says
+                // what it did still in memory. Bounded, because a write that never comes back
+                // must not keep a task open either.
+                Diag.FlushAndWait(FlushLimit);
 
                 if (deferral != null) deferral.Complete();
             }
+        }
+
+        /// <summary>
+        /// The system is taking the run down. Says so, and puts the lines on the phone.
+        /// </summary>
+        private static void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
+        {
+            Diag.OkNow("background: the system canceled the check after "
+                + BackgroundSync.ElapsedMilliseconds + " ms (" + reason + ")");
+
+            Diag.FlushAndWait(FlushLimit);
         }
     }
 }
