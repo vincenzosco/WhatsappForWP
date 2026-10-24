@@ -47,6 +47,37 @@ const GOOD_DATA = [
   '            return contact;',
   '        }',
   '',
+  '        public void RefreshChatList()',
+  '        {',
+  '            int folded = FoldDuplicateChats();',
+  '            NameDuplicateRows();',
+  '        }',
+  '',
+  '        private void NameDuplicateRows()',
+  '        {',
+  '            string canonical = ChatIdFor(row.Id);',
+  '            Diag.Ok("chats: " + row.Id + " and " + first + " are the same chat (" + canonical + ")");',
+  '        }',
+  '',
+  '        private void OnNativeStatusPost(object sender, StatusPost post)',
+  '        {',
+  '            ChatMessage row = FindStatus(post.Id);',
+  '            if (row == null)',
+  '            {',
+  '                InsertStatusInOrder(row);',
+  '            }',
+  '        }',
+  '',
+  '        private ChatMessage FindStatus(string id)',
+  '        {',
+  '            return null;',
+  '        }',
+  '',
+  '        private void InsertStatusInOrder(ChatMessage row)',
+  '        {',
+  '            _statuses.Insert(at, row);',
+  '        }',
+  '',
   '        private int FoldDuplicateChats()',
   '        {',
   '            string canonical = ChatIdFor(contact.Id);',
@@ -73,7 +104,51 @@ const GOOD_MERGE = [
   ''
 ].join('\n');
 
-const GOOD = { data: GOOD_DATA, merge: GOOD_MERGE };
+const GOOD_CHATS = [
+  '        private HistoryConversation EnsureRow(string jid)',
+  '        {',
+  '            HistoryConversation row = Find(jid);',
+  '            if (row != null) return row;',
+  '',
+  '            jid = _names.Canonical(jid);',
+  '            if (jid == null) return null;',
+  '',
+  '            row = new HistoryConversation();',
+  '            row.Jid = jid;',
+  '            _rows.Add(row);',
+  '',
+  '            return row;',
+  '        }',
+  '',
+  '        public HistoryConversation Find(string jid)',
+  '        {',
+  '            jid = _names.Canonical(jid);',
+  '            if (jid == null) return null;',
+  '',
+  '            return null;',
+  '        }',
+  ''
+].join('\n');
+
+const GOOD_STATUS = [
+  '        public static async Task<List<ChatMessage>> LoadAsync()',
+  '        {',
+  '            var rows = new List<ChatMessage>();',
+  '            var seen = new HashSet<string>(StringComparer.Ordinal);',
+  '',
+  '            for (int i = 0; i < cache.Statuses.Count; i++)',
+  '            {',
+  '                StatusCacheRow entry = cache.Statuses[i];',
+  '                if (!seen.Add(entry.Id)) continue;',
+  '                rows.Add(ToMessage(entry));',
+  '            }',
+  '',
+  '            return rows;',
+  '        }',
+  ''
+].join('\n');
+
+const GOOD = { data: GOOD_DATA, merge: GOOD_MERGE, chats: GOOD_CHATS, status: GOOD_STATUS };
 
 const broken = (change) => guard.oneRowPerChatProblems(Object.assign({}, GOOD, change)).join('\n');
 
@@ -154,10 +229,74 @@ test('un file che non crea righe si segnala', () => {
   assert.match(found, /no chat row is created/);
 });
 
-test('i due sorgenti del progetto passano la guardia', () => {
+test('una riga della lista del client creata senza canonicalizzare si segnala', () => {
+  // La riga di un gruppo o di una persona arriva con la forma che la rete le da'.
+  const found = broken({
+    chats: GOOD_CHATS.replace('            jid = _names.Canonical(jid);\n            if (jid == null) return null;\n\n            row = new HistoryConversation();',
+      '            row = new HistoryConversation();')
+  });
+  assert.match(found, /creates the row under the address it was handed/);
+});
+
+test('una riga del client creata senza cercare quella che c e gia si segnala', () => {
+  const found = broken({
+    chats: GOOD_CHATS.replace('            HistoryConversation row = Find(jid);\n            if (row != null) return row;\n',
+      '            HistoryConversation row = new HistoryConversation();')
+  });
+  assert.match(found, /EnsureRow creates a row without looking/);
+});
+
+test('una ricerca che confronta la forma e non l indirizzo si segnala', () => {
+  const found = broken({
+    chats: GOOD_CHATS.replace('            jid = _names.Canonical(jid);\n            if (jid == null) return null;\n\n            return null;',
+      '            return null;')
+  });
+  assert.match(found, /Find compares the jid it was handed/);
+});
+
+test('un feed che rilegge un file con lo stesso id due volte si segnala', () => {
+  const found = broken({
+    status: GOOD_STATUS.replace('                if (!seen.Add(entry.Id)) continue;\n', '')
+  });
+  assert.match(found, /restores every entry of the file/);
+});
+
+test('uno stato inserito senza cercarne l id si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace(
+      '            ChatMessage row = FindStatus(post.Id);\n            if (row == null)',
+      '            ChatMessage row = null;\n            if (row == null)')
+  });
+  assert.match(found, /inserts a status without looking for the row/);
+});
+
+test('un doppione che nessuno nomina si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('            NameDuplicateRows();\n', '')
+  });
+  assert.match(found, /does not call NameDuplicateRows/);
+});
+
+test('un doppione trovato e non scritto si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('Diag.Ok("chats:', 'Nothing("chats:')
+  });
+  assert.match(found, /names the pair to nobody/);
+});
+
+test('una ricerca dei doppioni fatta sulla forma si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('string canonical = ChatIdFor(row.Id);', 'string canonical = row.Id;')
+  });
+  assert.match(found, /compares the rows by the spelling they carry/);
+});
+
+test('i quattro sorgenti del progetto passano la guardia', () => {
   const read = (file) => fs.readFileSync(path.join(__dirname, '..', '..', file), 'utf8');
   assert.deepStrictEqual(guard.oneRowPerChatProblems({
     data: read(guard.DATA),
-    merge: read(guard.MERGE)
+    merge: read(guard.MERGE),
+    chats: read(guard.CHATS),
+    status: read(guard.STATUS)
   }), []);
 });

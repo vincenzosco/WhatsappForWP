@@ -251,7 +251,7 @@ node tools/check-avatar-refusal.js   una chat che rifiuta la foto, distinta da u
 node tools/check-no-exception-probes.js  il padding si legge, non si indovina a eccezioni
 node tools/check-app-state.js       i nomi salvati: le chiavi si conservano, la sync si chiede, le righe lo sanno
 node tools/check-chat-list-refresh.js  una sola chat per persona, e una lista che si aggiorna
-node tools/check-one-row-per-chat.js  una riga per chat, creata canonica e una volta sola
+node tools/check-one-row-per-chat.js  una riga per chat, canonica e una sola: lista, gruppi, stati
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
