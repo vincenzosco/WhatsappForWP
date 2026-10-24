@@ -390,7 +390,7 @@ namespace WhatsappApp.Protocol.Client
                 {
                     read = SenderKeys.DecodePadded(opened);
                 }
-                catch (ProtocolException damaged)
+                catch (ProtocolException)
                 {
                     // The key opened the ciphertext and what came out is not a message this
                     // client can read: the bytes on the wire are short. The same bytes asked
