@@ -265,28 +265,5 @@ namespace WhatsappApp.Protocol.Client
         }
     }
 
-    /// <summary>
-    /// A group message whose member's sender key has not arrived yet.
-    ///
-    /// It is its own type because the answer to it is neither a retry receipt nor an
-    /// acknowledgement: the stanza is kept and read when the key comes (`HeldGroupMessages`),
-    /// and asking the sender to encrypt it again would put the message in a race with a key
-    /// that is usually a second behind. It is still a `ProtocolException`, so every reader
-    /// that treats "this stanza did not open" the same way keeps working.
-    /// </summary>
-    public sealed class SenderKeyMissingException : ProtocolException
-    {
-        public readonly string MessageId;
-        public readonly string GroupJid;
-        public readonly string Participant;
-
-        public SenderKeyMissingException(string messageId, string groupJid, string participant)
-            : base("message " + messageId + " in " + groupJid + " from " + participant
-                + " is waiting for that member's sender key")
-        {
-            MessageId = messageId;
-            GroupJid = groupJid;
-            Participant = participant;
-        }
-    }
 }
+

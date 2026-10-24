@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using WhatsappApp.Protocol.WaProto;
 
 namespace WhatsappApp.Protocol.Client
 {
@@ -58,6 +60,16 @@ namespace WhatsappApp.Protocol.Client
         public const string PushNameKey = KeyPrefix + "PushName";
 
         /// <summary>
+        /// The app-state keys the primary shared, in one value: `id=base64;id=base64`.
+        ///
+        /// One key of the flat map rather than one per key, because how many there are is the
+        /// server's business and a storage that has to be told in advance cannot hold a list.
+        /// Neither character the format uses appears in base64 (`=` is its padding and is the
+        /// separator, and the ids are base64 too), so the value reads back without escaping.
+        /// </summary>
+        public const string AppStateKeysKey = KeyPrefix + "AppStateKeys";
+
+        /// <summary>
         /// What has to be there for a session to exist.
         ///
         /// `PushName`, `Lid` and `Platform` are deliberately not in it: the pairing reply
@@ -83,7 +95,7 @@ namespace WhatsappApp.Protocol.Client
         {
             NoisePrivateKey, NoisePublicKey, IdentityPrivateKey, IdentityPublicKey, AdvSecretKey,
             RegistrationIdKey, SignedPreKeyIdKey, SignedPreKeyPublicKey, SignedPreKeyPrivateKey,
-            SignedPreKeySignatureKey, JidKey, LidKey, PlatformKey, PushNameKey
+            SignedPreKeySignatureKey, JidKey, LidKey, PlatformKey, PushNameKey, AppStateKeysKey
         };
 
         private readonly ICredentialStorage _storage;
@@ -160,6 +172,10 @@ namespace WhatsappApp.Protocol.Client
             // removes the key).
             credentials.PushName = ReadOptionalText(PushNameKey);
 
+            // Optional, and empty until the primary shares them: a device can be linked and
+            // never receive a key, and that is not a reason to refuse the account.
+            credentials.AppStateKeys = ReadAppStateKeys();
+
             return credentials;
         }
 
@@ -192,6 +208,7 @@ namespace WhatsappApp.Protocol.Client
             _storage.Write(LidKey, Value(credentials.Lid));
             _storage.Write(PlatformKey, Value(credentials.Platform));
             _storage.Write(PushNameKey, Value(credentials.PushName));
+            _storage.Write(AppStateKeysKey, AppStateKeysValue(credentials.AppStateKeys));
         }
 
         /// <summary>
@@ -201,6 +218,71 @@ namespace WhatsappApp.Protocol.Client
         public void Clear()
         {
             for (int i = 0; i < Keys.Length; i++) _storage.Write(Keys[i], string.Empty);
+        }
+
+        /// <summary>
+        /// The keys as stored: `id|base64;id|base64`, empty when there are none.
+        ///
+        /// The separator is `|` and not `=`, because the id is base64 too: an id of eight
+        /// bytes is eleven characters and a pad (`ChssPU5fYHE=`), so splitting on the first
+        /// `=` cut the id short and left a value that decodes to nothing - a key that was
+        /// shared, written, and then read back as if the phone had never been given one.
+        /// </summary>
+        private static string AppStateKeysValue(IList<AppStateKey> keys)
+        {
+            if (keys == null || keys.Count == 0) return string.Empty;
+
+            var text = new System.Text.StringBuilder();
+            for (int i = 0; i < keys.Count; i++)
+            {
+                AppStateKey key = keys[i];
+                if (key == null || string.IsNullOrEmpty(key.Id) || key.KeyData == null) continue;
+
+                if (text.Length > 0) text.Append(';');
+                text.Append(key.Id).Append('|').Append(Convert.ToBase64String(key.KeyData));
+            }
+
+            return text.ToString();
+        }
+
+        /// <summary>
+        /// The same, read back. A value that is not in the form is not a session: a record
+        /// this device cannot read is one it answers "no key" to, at the place that names it.
+        /// </summary>
+        private IList<AppStateKey> ReadAppStateKeys()
+        {
+            var keys = new List<AppStateKey>();
+            string text = ReadOptionalText(AppStateKeysKey);
+            if (string.IsNullOrEmpty(text)) return keys;
+
+            string[] pairs = text.Split(';');
+            for (int i = 0; i < pairs.Length; i++)
+            {
+                int separator = pairs[i].IndexOf('|');
+                if (separator <= 0) continue;
+
+                string id = pairs[i].Substring(0, separator);
+                string data = pairs[i].Substring(separator + 1);
+
+                byte[] bytes;
+                try
+                {
+                    bytes = Convert.FromBase64String(data);
+                }
+                catch (FormatException)
+                {
+                    continue;
+                }
+
+                if (bytes.Length != 32) continue;
+
+                var key = new AppStateKey();
+                key.Id = id;
+                key.KeyData = bytes;
+                keys.Add(key);
+            }
+
+            return keys;
         }
 
         private byte[] ReadKey(string key, int expectedLength)

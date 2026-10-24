@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using WhatsappApp.Protocol.Crypto;
+using WhatsappApp.Protocol.WaProto;
 
 namespace WhatsappApp.Protocol.Client
 {
@@ -60,6 +62,17 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>The account's own display name, when `pair-success` carries one.</summary>
         public string PushName;
+
+        /// <summary>
+        /// The app-state keys the primary has shared with this device, by id.
+        ///
+        /// Kept with the account and not in memory: the phone sends the share **once**, when
+        /// it links the device, and a client that kept it only in memory lost the ability to
+        /// read its own account's app state - the saved contact names above all - at the first
+        /// restart. They are emptied with the account (`CredentialStore.Clear`): they are that
+        /// account's keys and mean nothing to the next one.
+        /// </summary>
+        public IList<AppStateKey> AppStateKeys = new List<AppStateKey>();
 
         /// <summary>Whether this set describes a paired device rather than a candidate one.</summary>
         public bool IsPaired

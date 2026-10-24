@@ -74,6 +74,14 @@ function historySyncProblems(files) {
       'MessageArrived: the app draws a conversation from those events, and a sync that only ' +
       'filled the rows leaves the page waiting for a burst that never closes');
   }
+  if (!connection.includes('ChatArrived(this, _chats.Rows[i])')) {
+    problems.push(`${CONNECTION}: every row must be announced after a sync ` +
+      '(`ChatArrived(this, _chats.Rows[i])`), and not only the conversations of the chunk: ' +
+      'the push-name sync (syncType 4) carries 438 names and no conversation at all, and a ' +
+      'loop over sync.Conversations told the list about none of them - the names were ' +
+      'learned, written to the file, and never drawn, which is the chat list of 24 October ' +
+      '2026 showing numbers for people WhatsApp had just named');
+  }
 
   if (!dataService.includes('message.IsHistory = incoming.IsHistory;')) {
     problems.push(`${DATA_SERVICE}: OnNativeMessage must copy incoming.IsHistory onto the row ` +
