@@ -246,6 +246,7 @@ node tools/check-xaml-names.js      un x:Name per namescope
 node tools/check-client-state.js    le frasi passive/attive del login e il canale notifiche
 node tools/check-background-task.js la classe attivabile del task e il suo budget di 30 s
 node tools/check-diagnostics.js     il log che sopravvive a un crash
+node tools/check-held-group.js       un messaggio di gruppo che aspetta la sua sender key invece di un retry
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
@@ -258,7 +259,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` compila ed esegue i 309 test del protocollo in `ProtocolTests/`. Sono C#
+`tools/test-protocol.js` compila ed esegue i 350 test del protocollo in `ProtocolTests/`. Sono C#
 puro con un runner minimo, perché il toolchain WP8.1 non può ospitare un framework di test moderno.
 
 ## Da sapere

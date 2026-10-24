@@ -50,6 +50,18 @@ namespace WhatsappApp.Services
         private readonly SeenMessages _seen = new SeenMessages(NativeChats.SeenLimit);
         private readonly NativeChats _chats = new NativeChats(NameCache.Book);
 
+        /// <summary>
+        /// The group messages that arrived before the sender key of their member.
+        ///
+        /// A key and the message it belongs to are two stanzas, and the order they arrive in
+        /// is the server's, not the sender's: a `skmsg` that lands first used to be refused
+        /// and answered with a retry receipt, so it appeared only if the sender sent it again
+        /// (`SenderKeyMissingException`, thrown by `IncomingMessage.ReadGroup`).
+        /// It waits here instead, unacknowledged, and the next stanza that brings that key
+        /// opens it (`RetryHeldAsync`).
+        /// </summary>
+        private readonly HeldGroupMessages _held = new HeldGroupMessages();
+
         /// <summary>The answers this client is waiting for, by the id of the query it sent.</summary>
         private readonly Dictionary<string, TaskCompletionSource<BinaryNode>> _waiters =
             new Dictionary<string, TaskCompletionSource<BinaryNode>>();
@@ -513,6 +525,10 @@ namespace WhatsappApp.Services
                     {
                         Diag.Step("native: reading message " + node.Attrs["id"]);
                         await ReadMessageAsync(session, account, node);
+
+                        // A stanza can be the one that brings a member's sender key, and
+                        // with it the answer to a message of theirs that landed first.
+                        await RetryHeldAsync(session, account, node);
                         continue;
                     }
                 }
@@ -720,11 +736,21 @@ namespace WhatsappApp.Services
         {
             IncomingMessage incoming = null;
             Exception failure = null;
+            SenderKeyMissingException waiting = null;
 
             try
             {
                 incoming = IncomingMessage.Read(node, account,
                     await SessionsAsync(), await PreKeysAsync(), _seen, _random);
+            }
+            catch (SenderKeyMissingException missing)
+            {
+                // Not a failure: the message is kept until the key it needs arrives, which is
+                // usually one stanza later. It is not acknowledged either - the server still
+                // owning it is what makes a phone that ends before the key comes get it back -
+                // and it is not asked again, which would put the message in a race with the key
+                // the sender has already sent.
+                waiting = missing;
             }
             catch (Exception error)
             {
@@ -732,6 +758,17 @@ namespace WhatsappApp.Services
                 // and answered below: one message that did not open must not take the
                 // connection, and it must not be acknowledged as if it had.
                 failure = error;
+            }
+
+            if (waiting != null)
+            {
+                if (_held.Hold(waiting.GroupJid, waiting.Participant, waiting.MessageId, node))
+                {
+                    Diag.Ok("native: " + waiting.MessageId + " waits for the sender key of "
+                        + waiting.Participant + " in " + waiting.GroupJid);
+                }
+
+                return;
             }
 
             if (failure != null)
@@ -1568,6 +1605,47 @@ namespace WhatsappApp.Services
             catch (Exception again)
             {
                 Diag.Failed("NativeConnection/retry receipt", again);
+            }
+        }
+
+        /// <summary>
+        /// The messages of a group member that are waiting for their key, read now if it
+        /// arrived.
+        ///
+        /// Why the trigger is every group stanza and not the one that carried the key: the key
+        /// can come in a stanza of its own, inside `participants` of one that also carries a
+        /// message, or in the copy another device of the same member sent - and all three end
+        /// in the same store under the same name. Asking the store is one lookup, and a lookup
+        /// with nothing to read is the ordinary case.
+        ///
+        /// Why the order matters: they are read oldest first, and each one goes through the
+        /// path a stanza off the wire goes through - the ack, the row, the media - because by
+        /// then it is exactly that. One that still cannot be opened - a chain that moved past it
+        /// while the key was missing - is answered like any other stanza that did not open, with
+        /// a retry receipt, and the one whose key is gone again is held again by
+        /// `ReadMessageAsync`.
+        /// </summary>
+        private async Task RetryHeldAsync(NativeSession session, Credentials account, BinaryNode node)
+        {
+            if (node == null) return;
+
+            string groupJid = node.Attrs["from"];
+            string participant = node.Attrs["participant"];
+            if (!GroupDirectory.IsGroup(groupJid) || string.IsNullOrEmpty(participant)) return;
+            if (!_held.Has(groupJid, participant)) return;
+
+            SessionStore store = await SessionsAsync();
+            if (store.LoadSenderKey(groupJid + "/" + participant) == null) return;
+
+            IList<BinaryNode> held = _held.Drain(groupJid, participant);
+            if (held.Count == 0) return;
+
+            Diag.Ok("native: the sender key of " + participant + " in " + groupJid
+                + " arrived, reading " + held.Count + " held message(s)");
+
+            for (int i = 0; i < held.Count; i++)
+            {
+                await ReadMessageAsync(session, account, held[i]);
             }
         }
 
