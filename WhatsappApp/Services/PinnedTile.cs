@@ -225,15 +225,22 @@ namespace WhatsappApp.Services
         /// the phone reported on 23 October 2026 while the tile's own geometry was already
         /// right: on WP8.1 a peek template flips and shows the square image across the tile.
         ///
-        /// A start draws the tiles before the login, so the first answer is "no session";
-        /// that attempt is given back and the next publish tries again, up to
-        /// `MaxPictureAttempts` in a run. A chat the server answers no picture for keeps the
-        /// preview and is not asked again.
+        /// A start draws the tiles before the login, so this asks only once the account is in
+        /// (`NativeConnection.IsLoggedIn`): asking earlier answers `there is no open account to
+        /// send on` - a failure line at every start and one of the three attempts spent on a
+        /// question nobody can answer yet. The sweep that runs when the login completes asks
+        /// (`DataService`), and so does every publish after it, up to `MaxPictureAttempts` in a
+        /// run. A chat the server answers no picture for keeps the preview and is not asked
+        /// again.
         /// </summary>
         public static void AskForPicture(string chatId, string name, int count, string body, bool countKnown)
         {
             if (string.IsNullOrEmpty(chatId)) return;
             if (!IsPinned(chatId)) return;
+
+            // Not a skipped attempt: nothing was spent, and the ask happens as soon as the
+            // login is done.
+            if (!NativeConnection.Instance.IsLoggedIn) return;
 
             lock (Pictures)
             {

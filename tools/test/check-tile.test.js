@@ -174,6 +174,47 @@ test('i file veri chiedono la foto grande e non riusano le card vecchie', () => 
     fs.readFileSync(path.join(root, 'Protocol', 'Media', 'TileCanvas.cs'), 'utf8')), []);
 });
 
+const ASKING =
+  'public static void AskForPicture(string chatId, string name, int count, string body, bool countKnown)\n' +
+  '{\n' +
+  '    if (string.IsNullOrEmpty(chatId)) return;\n' +
+  '\n' +
+  '    if (!NativeConnection.Instance.IsLoggedIn) return;\n' +
+  '\n' +
+  '    Asking.Add(chatId);\n' +
+  '}';
+
+const STATUS =
+  'private void OnNativeConnectionStatus(object sender, string status)\n' +
+  '{\n' +
+  '    if (_pinnedTilesAfterLogin || !NativeConnection.Instance.IsLoggedIn) return;\n' +
+  '\n' +
+  '    _pinnedTilesAfterLogin = true;\n' +
+  '    PublishPinnedTiles();\n' +
+  '}';
+
+test('chiedere la foto grande solo a login fatto non e un problema', () => {
+  assert.deepStrictEqual(tile.loginProblems(ASKING, STATUS), []);
+});
+
+test('una foto chiesta prima del login si segnala', () => {
+  const found = tile.loginProblems(
+    ASKING.replace('if (!NativeConnection.Instance.IsLoggedIn) return;', ''), STATUS).join('\n');
+  assert.match(found, /IsLoggedIn/);
+});
+
+test('una scansione delle tile che non parte dopo il login si segnala', () => {
+  const found = tile.loginProblems(ASKING, STATUS.replace('PublishPinnedTiles();', '')).join('\n');
+  assert.match(found, /publishes the pinned tiles/);
+});
+
+test('i due servizi veri aspettano il login e poi chiedono la foto', () => {
+  const root = path.join(ROOT, 'WhatsappApp', 'Services');
+  assert.deepStrictEqual(tile.loginProblems(
+    fs.readFileSync(path.join(root, 'PinnedTile.cs'), 'utf8'),
+    fs.readFileSync(path.join(root, 'DataService.cs'), 'utf8')), []);
+});
+
 test('una card delle regole vecchie si segnala', () => {
   const problems = tile.pictureProblems(
     'RequestAvatarAsync(chatId, false)', 'public const int CardVersion = 3;');
