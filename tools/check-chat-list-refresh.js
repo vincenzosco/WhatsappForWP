@@ -159,6 +159,13 @@ function chatListRefreshProblems(files) {
         '_statuses): the feed is left alone by the same pass, and a quiet tick that does not name ' +
         'it reads as a pass that forgot it');
     }
+    // And named when it is empty: a bare "0 status row(s)" is the same sentence for a phone
+    // whose statuses have not arrived and for a pass that never looked at the feed.
+    if (!/_statuses\.Count\s*==\s*0/.test(refresh)) {
+      problems.push(`${DATA}: RefreshChatList prints the status count without naming an empty ` +
+        'feed (_statuses.Count == 0): a zero reads as a feed nobody read, not as a feed with ' +
+        'nothing in it');
+    }
 
     // Local, and nothing else: a refresh that queries the server every 30 s is a poll.
     const network = ['SendAsync(', 'RequestAsync(', 'DownloadMediaAsync', 'SendTextAsync', 'AppStateSync.Query'];
