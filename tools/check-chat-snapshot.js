@@ -20,6 +20,20 @@
  * `ChatCache.SaveAsync` viene prima del ciclo che chiama
  * `MessageCache.AppendAsync`.
  *
+ * Il 24 ottobre 2026 la stessa lista era corta per due altri motivi, e le regole
+ * sono qui perche' il difetto e' lo stesso: **la lista sul telefono e' l'unica che
+ * il prossimo avvio disegna**, e WhatsApp la nomina di nuovo solo a un link.
+ *
+ * - Il run delle 08:25 e' stato fermato dal debugger con una riga appena arrivata:
+ *   nessuna sospensione, nessun salvataggio, e la lista era quella del giorno
+ *   prima. Ogni scrittore era una *fine* (fine sync, sospensione, fine del
+ *   controllo in background) e un run non finisce sempre cosi'. Quindi il
+ *   percorso dei messaggi deve chiedere la scrittura (`ScheduleListSave`).
+ * - `chats.json` aveva 2 righe contro 56 `messages_*.json`: 54 conversazioni
+ *   erano sul telefono e non in lista, e nessun server le avrebbe piu' nominate.
+ *   Quindi l'avvio deve chiedere le righe anche alle code
+ *   (`RestoreRowsFromTheirTailsAsync`).
+ *
  * Usage:
  *   node tools/check-chat-snapshot.js
  */
@@ -47,7 +61,8 @@ function methodBody(source, name) {
 function problemsFor(service) {
   const problems = [];
   const where = 'WhatsappApp/Services/DataService.cs';
-  const body = methodBody(stripComments(service), 'SaveSnapshotAsync');
+  const source = stripComments(service);
+  const body = methodBody(source, 'SaveSnapshotAsync');
 
   if (!body) {
     problems.push(where + ': no SaveSnapshotAsync - the list and the conversations the next '
@@ -69,6 +84,34 @@ function problemsFor(service) {
       + '56 of them took the better part of two minutes against 169 rows, the app was closed in '
       + 'the middle and chats.json was never written - the list was empty at the next start '
       + '(57 messages_*.json, no chats.json). The list is what that screen draws; write it first');
+  }
+
+  // A run does not have to end with a suspension: on 24 October 2026 it ended with a stop from
+  // the debugger, and the rows the run had made went with the process.
+  const live = methodBody(source, 'OnNetworkMessageReceived');
+  if (!live) {
+    problems.push(where + ': no OnNetworkMessageReceived - the path every live message takes is '
+      + 'where the row it makes has to reach the phone');
+  } else if (!/\bScheduleListSave\s*\(/.test(live)) {
+    problems.push(where + ': OnNetworkMessageReceived does not ask for the chat list to be '
+      + 'written (ScheduleListSave), so the row a message makes is on the phone only if the run '
+      + 'ends with a suspension, a sync or a background check. On 24 October 2026 the app was '
+      + 'stopped from the debugger with a row that had just arrived: no suspension, no snapshot, '
+      + 'and the next start drew the list of the day before. A crash, a force close and a battery '
+      + 'pulled out all end the same way');
+  }
+
+  // The list on disk is all a start draws, and WhatsApp names it again only at a link.
+  const start = methodBody(source, 'LoadCachedChatsAsync');
+  if (!start) {
+    problems.push(where + ': no LoadCachedChatsAsync - the copy on the phone is what the first '
+      + 'screen is drawn from');
+  } else if (!/\bRestoreRowsFromTheirTailsAsync\s*\(/.test(start)) {
+    problems.push(where + ': the cached list is loaded without asking the conversations\' tails '
+      + 'for the rows it does not name (RestoreRowsFromTheirTailsAsync). chats.json is the whole '
+      + 'of what the next start draws and WhatsApp names the list again only at a link: on '
+      + '24 October 2026 it held 2 rows against 56 messages_*.json, so 54 conversations were on '
+      + 'the phone and not on the list, with no way back on screen');
   }
 
   return problems;

@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Threading.Tasks;
 using WhatsappApp.Models;
 using WhatsappApp.Protocol.Client;
@@ -42,6 +43,11 @@ namespace WhatsappApp.Services
         // 512 MB phone.
         private const int MaxMessagesPerChat = 200;
 
+        // How long the list waits after the last row changed before it is written. Long
+        // enough that a burst of messages is one write, short enough that a run killed a
+        // moment later still left the row on the phone (see ScheduleListSave).
+        private static readonly TimeSpan ListSaveQuiet = TimeSpan.FromSeconds(3);
+
         // The chats whose history burst this session has already waited for: once
         // per chat, not on every opening.
         private readonly HashSet<string> _historyRequested = new HashSet<string>();
@@ -75,6 +81,11 @@ namespace WhatsappApp.Services
         private bool _isServerRunning;
         private string _activeChatId;
         private bool _listening;
+
+        // Whether a write of the chat list is already waiting for the quiet to pass: a
+        // burst of messages is one write, not one per row. Set and cleared with Interlocked
+        // because the write runs on whichever thread the message arrived on.
+        private int _listSaveDue;
 
         /// <summary>
         /// Currently open chat. It serves one purpose only: not to raise an alert
@@ -230,6 +241,15 @@ namespace WhatsappApp.Services
             // The address book may have answered before there were rows to rename: the
             // other order (rows first) is covered by ContactDirectory calling this too.
             ApplyAddressBook();
+
+            Diag.OkNow("order after the cached list: " + OrderSample());
+
+            // And the conversations this file does not name, given back from their tails.
+            // The screen draws `chats.json` and WhatsApp names the list again only at a
+            // link, so a tail with no row is a conversation with no way back on screen
+            // (see RestoreRowsFromTheirTailsAsync).
+            await RestoreRowsFromTheirTailsAsync();
+
             NotificationService.SetUnread(TotalUnread());
 
             // And the tiles this phone has on Start are drawn again from what the copy says.
@@ -238,8 +258,6 @@ namespace WhatsappApp.Services
             // next message happened to arrive in that chat - which is why the fix of
             // 23 October 2026 could ship and leave the Start screen exactly as it was.
             PublishPinnedTiles();
-
-            Diag.OkNow("order after the cached list: " + OrderSample());
         }
 
         /// <summary>Call log, filled by a scan of WhatsApp's own log.</summary>
@@ -544,33 +562,11 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task SaveSnapshotAsync()
         {
-            var rows = new List<ChatMessage>();
-            var tails = new List<KeyValuePair<string, ChatMessage[]>>();
-
-            // Taken in one go, without an await in the middle: the rows and the messages
-            // written here have to be one instant of the list, not the list as it was
-            // before the first write and as it is after the last.
-            for (int i = 0; i < _contacts.Count; i++)
-            {
-                Contact contact = _contacts[i];
-                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
-
-                var row = new ChatMessage();
-                row.ChatId = contact.Id;
-                row.SenderName = contact.Name;
-                row.Text = contact.LastMessage;
-                row.Timestamp = contact.LastMessageAt;
-                row.IsGroup = contact.Id.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
-                rows.Add(row);
-
-                ObservableCollection<ChatMessage> messages;
-                if (!_chatMessages.TryGetValue(contact.Id, out messages)) continue;
-                if (messages == null || messages.Count == 0) continue;
-
-                var tail = new ChatMessage[messages.Count];
-                messages.CopyTo(tail, 0);
-                tails.Add(new KeyValuePair<string, ChatMessage[]>(contact.Id, tail));
-            }
+            // Both taken in one go, without an await in the middle: the rows and the
+            // messages written here have to be one instant of the list, not the list as it
+            // was before the first write and as it is after the last.
+            List<ChatMessage> rows = RowsForTheList();
+            List<KeyValuePair<string, ChatMessage[]>> tails = TailsForTheConversations();
 
             // A list with no rows is not a snapshot of anything: the copy on the phone
             // stays, and the next start shows it instead of nothing.
@@ -599,6 +595,182 @@ namespace WhatsappApp.Services
             // Named, because it is the second half of the snapshot and a close can land in
             // the middle of it: a run whose log stops at the line above lost only the tails.
             Diag.Ok("cache: " + tails.Count + " conversation(s) written");
+        }
+
+        /// <summary>
+        /// The rows of the list as they are now, in the order the list shows them.
+        ///</summary>
+        private List<ChatMessage> RowsForTheList()
+        {
+            var rows = new List<ChatMessage>();
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+
+                var row = new ChatMessage();
+                row.ChatId = contact.Id;
+                row.SenderName = contact.Name;
+                row.Text = contact.LastMessage;
+                row.Timestamp = contact.LastMessageAt;
+                row.IsGroup = contact.Id.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
+                rows.Add(row);
+            }
+
+            return rows;
+        }
+
+        /// <summary>
+        /// The conversations that have a tail in memory, keyed on their chat.
+        ///</summary>
+        private List<KeyValuePair<string, ChatMessage[]>> TailsForTheConversations()
+        {
+            var tails = new List<KeyValuePair<string, ChatMessage[]>>();
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+
+                ObservableCollection<ChatMessage> messages;
+                if (!_chatMessages.TryGetValue(contact.Id, out messages)) continue;
+                if (messages == null || messages.Count == 0) continue;
+
+                var tail = new ChatMessage[messages.Count];
+                messages.CopyTo(tail, 0);
+                tails.Add(new KeyValuePair<string, ChatMessage[]>(contact.Id, tail));
+            }
+
+            return tails;
+        }
+
+        /// <summary>
+        /// The list is written a few seconds after the last row changed, on its own.
+        ///
+        /// Why it cannot wait for the end of the run: every writer this service had was an
+        /// ending - the end of a sync, a suspension, the end of a background check - and a
+        /// run does not always end that way. On 24 October 2026 the app was stopped from the
+        /// debugger with a row that had just arrived: no suspension, so no snapshot, and the
+        /// next start drew the list of the day before (2 rows against 56 `messages_*.json`
+        /// on the phone). A crash, a force close and a battery pulled out all end the same
+        /// way. Three seconds of quiet after the last change is a write that has already
+        /// happened by the time any of those do.
+        ///
+        /// Only the list: the conversations' tails stay where they are, at the ending. This
+        /// is the cheap half of the snapshot (one small file), and the reason it can run
+        /// while the app is in use at all.
+        /// </summary>
+        private void ScheduleListSave()
+        {
+            if (Interlocked.CompareExchange(ref _listSaveDue, 1, 0) != 0) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/save list", SaveListSoonAsync());
+#pragma warning restore 4014
+        }
+
+        private async Task SaveListSoonAsync()
+        {
+            await Task.Delay(ListSaveQuiet);
+
+            // Cleared before the write and not after: a change that arrives while this one
+            // is being written has to be able to ask for another, and a change that arrives
+            // before the snapshot below is in it.
+            Interlocked.Exchange(ref _listSaveDue, 0);
+
+            try
+            {
+                await SaveListAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/save list", ex);
+            }
+        }
+
+        /// <summary>The list alone, with no tails: the half a run that is killed must not lose.</summary>
+        private async Task SaveListAsync()
+        {
+            List<ChatMessage> rows = RowsForTheList();
+            if (rows.Count == 0) return;
+
+            await ChatCache.SaveAsync(rows, HistoryComplete);
+            Diag.Ok("cache: the list written, " + rows.Count + " row(s), mid-run");
+        }
+
+        /// <summary>
+        /// The conversations the list lost, given back from their tails.
+        ///
+        /// Why it is needed: the screen draws `chats.json` and nothing else, while the
+        /// history that fills it arrives once, at the pairing. On the phone of 24 October
+        /// 2026 that file held 2 rows against 56 `messages_*.json`: every conversation was
+        /// still on the phone, 54 of them were not on the list, and no server was going to
+        /// name them again (`the backlog ended with no chat and no history`). A tail is a
+        /// row - who, when, the last words - so a chat with a tail and no row is a row this
+        /// app can draw.
+        ///
+        /// Cheap when there is nothing to do: one directory listing, and the reading starts
+        /// only when there are more tail files than rows. A chat deleted from this phone
+        /// loses its tail too (`MessageCache.DeleteAsync`), so the two counts stay
+        /// comparable.
+        /// </summary>
+        private async Task RestoreRowsFromTheirTailsAsync()
+        {
+            int tails = await MessageCache.CountAsync();
+            if (tails <= _contacts.Count) return;
+
+            List<KeyValuePair<string, List<ChatMessage>>> all = await MessageCache.TailsAsync();
+
+            int rows = 0;
+            for (int i = 0; i < all.Count; i++)
+            {
+                string chatId = all[i].Key;
+                if (string.IsNullOrEmpty(chatId)) continue;
+                if (FindContact(chatId) != null) continue;
+
+                ChatMessage last = NewestMessage(all[i].Value);
+                if (last == null) continue;
+
+                var row = new ChatMessage();
+                row.ChatId = chatId;
+                row.Text = last.Text;
+                row.Timestamp = last.Timestamp;
+                row.IsGroup = chatId.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
+
+                // The name is not the tail's: the step that names a row - the address book,
+                // the LID pairs, the number - is `ApplyChat`, and this row takes it there.
+                // So does the refusal: a hidden chat or a channel is not a row.
+                ApplyChat(row);
+
+                if (FindContact(chatId) != null) rows++;
+            }
+
+            if (rows == 0) return;
+
+            SortContacts();
+            Diag.Ok("cache: " + rows + " conversation(s) given back by their tails (" + tails
+                + " on the phone)");
+
+            // Straight to disk: the rows this just recovered are the ones a kill in the next
+            // second would take away again.
+            ScheduleListSave();
+        }
+
+        /// <summary>The newest message of a tail, or null for one that holds none.</summary>
+        private static ChatMessage NewestMessage(List<ChatMessage> messages)
+        {
+            if (messages == null) return null;
+
+            ChatMessage newest = null;
+            for (int i = 0; i < messages.Count; i++)
+            {
+                ChatMessage message = messages[i];
+                if (message == null) continue;
+                if (newest == null || message.Timestamp > newest.Timestamp) newest = message;
+            }
+
+            return newest;
         }
 
         /// <summary>
@@ -1301,6 +1473,9 @@ namespace WhatsappApp.Services
 
             NotificationService.SetUnread(TotalUnread());
 
+            // The list a start draws is this one:
+            ScheduleListSave();
+
             // The page of this chat, if it is the one in front: it scrolls and tells
             // the server the message has been read only while the reader was already
             // at the bottom (see ChatPage.OnMessageArrived). It is raised here and not
@@ -1539,6 +1714,11 @@ namespace WhatsappApp.Services
                 }
             }
             _freshChatRows.Add(message);
+
+            // The row is on the phone from now, not from the next graceful ending: the run
+            // of 24 October 2026 was stopped from the debugger and took its rows with it
+            // (see ScheduleListSave).
+            ScheduleListSave();
         }
 
         /// <summary>

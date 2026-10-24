@@ -42,20 +42,12 @@ namespace WhatsappApp.Services
         /// <summary>The saved messages. Never an exception: the first time there is no file.</summary>
         public static async Task<List<ChatMessage>> LoadAsync(string chatId)
         {
-            var empty = new List<ChatMessage>();
-            if (string.IsNullOrEmpty(chatId)) return empty;
+            if (string.IsNullOrEmpty(chatId)) return new List<ChatMessage>();
 
             try
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameFor(chatId));
-                string json = await FileIO.ReadTextAsync(file);
-                if (string.IsNullOrEmpty(json)) return empty;
-
-                using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
-                {
-                    var cache = Serializer.ReadObject(stream) as MessageCacheFile;
-                    if (cache != null && cache.Messages != null) return cache.Messages;
-                }
+                return await ReadAsync(file);
             }
             catch (FileNotFoundException)
             {
@@ -68,7 +60,124 @@ namespace WhatsappApp.Services
                 // A cache written by a different version.
                 Diag.Failed("MessageCache.Load", ex);
             }
-            return empty;
+            return new List<ChatMessage>();
+        }
+
+        /// <summary>
+        /// The rows in one tail file. It throws on a file it cannot parse, on purpose: the
+        /// caller is the one that can name the file the failure belongs to.
+        /// </summary>
+        private static async Task<List<ChatMessage>> ReadAsync(StorageFile file)
+        {
+            string json = await FileIO.ReadTextAsync(file);
+            if (string.IsNullOrEmpty(json)) return new List<ChatMessage>();
+
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
+            {
+                var cache = Serializer.ReadObject(stream) as MessageCacheFile;
+                if (cache != null && cache.Messages != null) return cache.Messages;
+            }
+
+            return new List<ChatMessage>();
+        }
+
+        /// <summary>
+        /// How many conversations this phone holds. A count and not a read: the start asks
+        /// this before reading anything (see DataService.RestoreRowsFromTheirTailsAsync).
+        /// </summary>
+        public static async Task<int> CountAsync()
+        {
+            try
+            {
+                IReadOnlyList<StorageFile> files =
+                    await ApplicationData.Current.LocalFolder.GetFilesAsync();
+
+                int count = 0;
+                for (int i = 0; i < files.Count; i++)
+                {
+                    if (IsTailFile(files[i])) count++;
+                }
+
+                return count;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("MessageCache.Count", ex);
+                return 0;
+            }
+        }
+
+        /// <summary>
+        /// Every conversation on the phone, with its rows.
+        ///
+        /// Why it exists: the chat list on disk (`chats.json`) is what the next start draws and
+        /// WhatsApp names the list again only at a link, so a tail whose chat is not in that
+        /// file is a conversation with no way back on screen - 56 tails against 2 rows on the
+        /// phone of 24 October 2026 (`DataService.RestoreRowsFromTheirTailsAsync` puts them
+        /// back).
+        ///
+        /// The id is the one the rows carry, not the one in the file name: `FileNameFor` drops
+        /// `@` and `.`, so a name can only say roughly whose file it is.
+        /// </summary>
+        public static async Task<List<KeyValuePair<string, List<ChatMessage>>>> TailsAsync()
+        {
+            var all = new List<KeyValuePair<string, List<ChatMessage>>>();
+
+            try
+            {
+                IReadOnlyList<StorageFile> files =
+                    await ApplicationData.Current.LocalFolder.GetFilesAsync();
+
+                for (int i = 0; i < files.Count; i++)
+                {
+                    StorageFile file = files[i];
+                    if (!IsTailFile(file)) continue;
+
+                    try
+                    {
+                        List<ChatMessage> messages = await ReadAsync(file);
+                        string chatId = ChatIdOf(messages);
+                        if (string.IsNullOrEmpty(chatId)) continue;
+
+                        all.Add(new KeyValuePair<string, List<ChatMessage>>(chatId, messages));
+                    }
+                    catch (Exception ex)
+                    {
+                        // One file this build cannot read is one conversation missing from the
+                        // list, not a start that stops at it.
+                        Diag.Failed("MessageCache.Read " + file.Name, ex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("MessageCache.Tails", ex);
+            }
+
+            return all;
+        }
+
+        /// <summary>Where the rows say they belong: the last of them that names a chat.</summary>
+        private static string ChatIdOf(List<ChatMessage> messages)
+        {
+            if (messages == null) return null;
+
+            for (int i = messages.Count - 1; i >= 0; i--)
+            {
+                ChatMessage message = messages[i];
+                if (message == null) continue;
+                if (!string.IsNullOrEmpty(message.ChatId)) return message.ChatId;
+            }
+
+            return null;
+        }
+
+        /// <summary>One conversation's file: `messages_*.json`.</summary>
+        private static bool IsTailFile(StorageFile file)
+        {
+            if (file == null || string.IsNullOrEmpty(file.Name)) return false;
+            if (!file.Name.StartsWith("messages_", StringComparison.OrdinalIgnoreCase)) return false;
+            return file.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
         }
 
         /// <summary>The writes, one at a time and in order.</summary>
@@ -258,9 +367,7 @@ namespace WhatsappApp.Services
                 for (int i = 0; i < files.Count; i++)
                 {
                     StorageFile file = files[i];
-                    if (file == null || string.IsNullOrEmpty(file.Name)) continue;
-                    if (!file.Name.StartsWith("messages_", StringComparison.OrdinalIgnoreCase)) continue;
-                    if (!file.Name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+                    if (!IsTailFile(file)) continue;
 
                     await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
                 }
