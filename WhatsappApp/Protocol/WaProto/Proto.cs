@@ -214,5 +214,128 @@ namespace WhatsappApp.Protocol.WaProto
             if (_index + count > _data.Length) throw new ProtocolException("a field runs past the buffer");
             _index += count;
         }
+
+        /// <summary>
+        /// How much of `bytes` a protobuf occupies - from the first byte to the end of the
+        /// last whole field - or 0 when the first byte does not begin one.
+        ///
+        /// Why it exists: `Message.DecodePadded` answers "is this the padding" by parsing,
+        /// and parsing refuses with an exception. A plaintext that did not open on the first
+        /// guess therefore cost one exception per guess - up to sixteen of them - and a
+        /// debugger prints every first-chance exception it sees, so the run of 24 October 2026
+        /// was seventeen `Eccezione generata` lines per message that carried no padding.
+        ///
+        /// This is the same walk `ReadField` and `SkipField` make, written without a single
+        /// throw: a shape is read as far as it goes and the answer is where it stopped. The
+        /// walk is greedy, so the answer is the longest prefix that is a protobuf - which is
+        /// also the right one, because a shorter prefix that happens to parse would drop real
+        /// bytes off the end of a message.
+        /// </summary>
+        public static int Measure(byte[] bytes)
+        {
+            if (bytes == null) return 0;
+
+            return Measure(bytes, bytes.Length);
+        }
+
+        /// <summary>
+        /// The same, reading no further than `limit` - which is how `DecodePadded` asks the
+        /// one question it has to ask: does the protobuf end exactly where that padding says
+        /// it does, without copying the head first.
+        /// </summary>
+        public static int Measure(byte[] bytes, int limit)
+        {
+            if (bytes == null) return 0;
+            if (limit > bytes.Length) limit = bytes.Length;
+
+            int index = 0;
+
+            while (index < limit)
+            {
+                // Where this field starts. Every branch that cannot finish it answers
+                // *this*, not where the reading stopped: the protobuf ends at the last field
+                // that was whole, and a half field's bytes belong to whatever is behind it -
+                // the padding, on this phone.
+                int fieldStart = index;
+
+                ulong tag;
+                int afterTag = VarintAt(bytes, fieldStart, limit, out tag);
+                if (afterTag < 0) return fieldStart;
+
+                ulong number = tag >> 3;
+                int wireType = (int)(tag & 7);
+
+                // The same three refusals `ReadField` makes: field zero does not exist, a
+                // number past 2^29-1 does not fit a tag, and wire types 6 and 7 are not in
+                // the format. Where `ReadField` throws, this walk ends.
+                if (number == 0 || number > 536870911UL || wireType > 5) return fieldStart;
+
+                index = afterTag;
+
+                if (wireType == 0)
+                {
+                    ulong value;
+                    int afterValue = VarintAt(bytes, index, limit, out value);
+                    if (afterValue < 0) return fieldStart;
+                    index = afterValue;
+                    continue;
+                }
+
+                if (wireType == 2)
+                {
+                    ulong length;
+                    int afterLength = VarintAt(bytes, index, limit, out length);
+                    if (afterLength < 0) return fieldStart;
+                    if (length > (ulong)(limit - afterLength)) return fieldStart;
+                    index = afterLength + (int)length;
+                    continue;
+                }
+
+                if (wireType == 1)
+                {
+                    if (index + 8 > limit) return fieldStart;
+                    index += 8;
+                    continue;
+                }
+
+                if (wireType == 5)
+                {
+                    if (index + 4 > limit) return fieldStart;
+                    index += 4;
+                    continue;
+                }
+
+                // Wire types 3 and 4, the deprecated groups: `SkipField` refuses them, and a
+                // protobuf this reader cannot walk ends where one begins.
+                return fieldStart;
+            }
+
+            return index;
+        }
+
+        /// <summary>
+        /// `ReadVarint` without the exception: the index after the number, or -1 when it runs
+        /// past `limit`. Private because the only caller is the walk above, whose whole point
+        /// is that a truncated field is an answer and not a fault.
+        /// </summary>
+        private static int VarintAt(byte[] bytes, int index, int limit, out ulong value)
+        {
+            value = 0;
+            int shift = 0;
+
+            while (true)
+            {
+                if (index >= limit) return -1;
+
+                byte current = bytes[index];
+                index++;
+
+                value |= (ulong)(current & 0x7f) << shift;
+                if ((current & 0x80) == 0) return index;
+
+                shift += 7;
+                if (shift > 63) return -1;
+            }
+        }
     }
 }

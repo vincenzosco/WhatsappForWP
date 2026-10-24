@@ -238,13 +238,21 @@ namespace WhatsappApp.Protocol.WaProto
         ///
         /// The rule is the reference's and it comes first: the last byte is how many bytes were
         /// appended, so that many are dropped before the protobuf is read (`baileys`,
-        /// `unpadRandomMax16`). Then the same search the group path has always made, for a
-        /// message that was not padded at all - the reference's rule is a rule, not a promise,
-        /// and a plaintext that ends in a byte between 1 and 15 is exactly what a sender that
-        /// skips the padding produces.
+        /// `unpadRandomMax16`). Then the case the reference's rule does not cover, a plaintext
+        /// that carries no padding at all - the rule is a rule, not a promise, and a plaintext
+        /// that ends in a byte between 1 and 15 is exactly what a sender that skips the padding
+        /// produces.
         ///
-        /// The plaintext itself is tried last, so a message that really is damaged reports the
-        /// failure its bytes produce instead of one that names a size nobody sent.
+        /// Neither of the two is decided by parsing and catching any more. `ProtoReader.Measure`
+        /// says where the protobuf ends without throwing, so the ordinary cases cost no
+        /// exception at all; a plaintext searcher that threw its way through the sixteen
+        /// possible trims was seventeen first-chance exceptions per message that carried no
+        /// padding, which is the row of `Eccezione generata` the run of 24 October 2026 left in
+        /// the debugger.
+        ///
+        /// The plaintext itself is read last, so a message that really is damaged reports the
+        /// failure its bytes produce instead of one that names a size nobody sent - and that
+        /// report is a single `ProtocolException`, which is the one that should be seen.
         /// </summary>
         public static Message DecodePadded(byte[] plaintext)
         {
@@ -256,26 +264,22 @@ namespace WhatsappApp.Protocol.WaProto
             int pad = plaintext[plaintext.Length - 1];
             if (pad >= 1 && pad <= MaxPadding && pad < plaintext.Length)
             {
-                try
+                // Asked, not assumed: the bytes before the declared padding have to be a whole
+                // protobuf, and asking costs a walk instead of an exception that is caught a
+                // line later.
+                int ended = plaintext.Length - pad;
+                if (ProtoReader.Measure(plaintext, ended) == ended)
                 {
-                    return Decode(Head(plaintext, plaintext.Length - pad));
-                }
-                catch (ProtocolException)
-                {
-                    // Not the reference's padding after all: the search below is next.
+                    return Decode(Head(plaintext, ended));
                 }
             }
 
-            for (int trimmed = 1; trimmed <= MaxPadding && trimmed < plaintext.Length; trimmed++)
+            // No padding, or a last byte that only looks like a count: the protobuf is as long
+            // as it parses, and the walk says where it stops.
+            int whole = ProtoReader.Measure(plaintext);
+            if (whole > 0 && whole < plaintext.Length)
             {
-                try
-                {
-                    return Decode(Head(plaintext, plaintext.Length - trimmed));
-                }
-                catch (ProtocolException)
-                {
-                    // Keep looking: one of the sixteen is the pad a phone appended.
-                }
+                return Decode(Head(plaintext, whole));
             }
 
             return Decode(plaintext);
