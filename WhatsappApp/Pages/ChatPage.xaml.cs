@@ -137,8 +137,11 @@ namespace WhatsappApp.Pages
                 // The chat is the active one before the list is bound: the bind
                 // waits for the history burst and asks this field whether the page
                 // is still the one in front, so the field must answer for this chat
-                // before that wait starts.
-                DataService.Instance.ActiveChatId = contact.Id;
+                // before that wait starts. The canonical id, because every message
+                // that arrives is keyed on that one (`DataService.ChatIdFor`): a page
+                // opened from a row spelled the other way would never be "the chat
+                // on screen" and its messages would be counted while it is open.
+                DataService.Instance.ActiveChatId = DataService.Instance.ChatIdFor(contact.Id);
 
                 // The position of the conversation, watched from here on: the arrow
                 // over it is shown while the newest message is off screen, and the
@@ -1223,7 +1226,11 @@ namespace WhatsappApp.Pages
                 Text = text,
                 SenderId = NativeConnection.Instance.Jid ?? "me",
                 SenderName = Loc.Get("ChatPage_Me", "Me"),
-                ChatId = _contact.Id,
+                // The chat's one spelling, not the row's: a message written while the
+                // list still had the address's other form went into a conversation
+                // nothing opened, and the group showed only what the others wrote
+                // (`ChatListMerge`).
+                ChatId = DataService.Instance.ChatIdFor(_contact.Id),
                 Timestamp = DateTime.Now,
                 Type = MessageType.Text,
                 IsIncoming = false,
@@ -1266,7 +1273,7 @@ namespace WhatsappApp.Pages
                 Text = caption ?? "",
                 SenderId = NativeConnection.Instance.Jid ?? "me",
                 SenderName = Loc.Get("ChatPage_Me", "Me"),
-                ChatId = _contact.Id,
+                ChatId = DataService.Instance.ChatIdFor(_contact.Id),
                 Timestamp = DateTime.Now,
                 Type = type,
                 IsIncoming = false,

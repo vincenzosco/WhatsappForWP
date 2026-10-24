@@ -54,7 +54,7 @@ fissa con la barra di WP8. Una conversazione è una pagina a parte.
 Cosa funziona oggi:
 
 - messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto
-- l'elenco chat vero, dalla sync della history: avatar, non letti, gruppi, nomi salvati nella rubrica del telefono
+- l'elenco chat vero, dalla sync della history: avatar, non letti, gruppi, e i nomi salvati nella rubrica WhatsApp del telefono principale, che arrivano cifrati nell'app state dell'account
 - indicatore "sta scrivendo" nelle due direzioni
 - il feed degli stati: quello che i contatti hanno pubblicato, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
 - il registro delle chiamate, nelle due direzioni, con le perse scritte per esteso
@@ -247,6 +247,10 @@ node tools/check-client-state.js    le frasi passive/attive del login e il canal
 node tools/check-background-task.js la classe attivabile del task e il suo budget di 30 s
 node tools/check-diagnostics.js     il log che sopravvive a un crash
 node tools/check-held-group.js       un messaggio di gruppo che aspetta la sua sender key invece di un retry
+node tools/check-avatar-refusal.js   una chat che rifiuta la foto, distinta da un login mancante
+node tools/check-no-exception-probes.js  il padding si legge, non si indovina a eccezioni
+node tools/check-app-state.js       i nomi salvati: le chiavi si conservano, la sync si chiede, le righe lo sanno
+node tools/check-chat-list-refresh.js  una sola chat per persona, e una lista che si aggiorna
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
@@ -259,7 +263,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` compila ed esegue i 350 test del protocollo in `ProtocolTests/`. Sono C#
+`tools/test-protocol.js` compila ed esegue i 376 test del protocollo in `ProtocolTests/`. Sono C#
 puro con un runner minimo, perché il toolchain WP8.1 non può ospitare un framework di test moderno.
 
 ## Da sapere
