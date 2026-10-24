@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
+using Windows.Storage.FileProperties;
 
 namespace WhatsappApp.Services
 {
@@ -476,12 +477,54 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void Flush(bool force)
         {
-            string text;
+            string adding = TakePending(force);
+            if (adding == null) return;
+
+            Guarded.RunGuardedAsync("Diag/Flush",
+                delegate { return Writes.RunAsync(delegate { return WriteLinesAsync(adding); }); });
+        }
+
+        /// <summary>
+        /// Writes what is not in the file yet and does not return until it is there, or
+        /// the wait runs out.
+        ///
+        /// Why it exists: `Flush(true)` only *queues* the write, and on 23-24 October 2026
+        /// that made the log lie about the one thing it was there to answer. The background
+        /// check ends with `Flush(true)` and then completes its deferral, and the system takes
+        /// the process down with the write still in the queue: 21 wakes, not one
+        /// `background: checked in`, and no way to tell a run that finished from a run that was
+        /// killed. A caller that is about to end the process waits here instead, and the
+        /// log line is on the disk before the process is not.
+        ///
+        /// Bounded on purpose: a write that never completes must not hold a process open
+        /// either. Answers whether the lines reached the file.
+        /// </summary>
+        public static bool FlushAndWait(int milliseconds)
+        {
+            string adding = TakePending(true);
+            if (adding == null) return true;
+
+            try
+            {
+                Task writing = Writes.RunAsync(delegate { return WriteLinesAsync(adding); });
+                return writing == null || writing.Wait(milliseconds);
+            }
+            catch (Exception)
+            {
+                // Reported through the log is a second write down the same path that just
+                // failed: the caller is told, and the phone is not lost over its log.
+                return false;
+            }
+        }
+
+        /// <summary>The lines that are not in the file yet, marked as written. Null when there are none.</summary>
+        private static string TakePending(bool force)
+        {
             lock (Gate)
             {
                 long now = DateTime.Now.Ticks;
-                if (!force && now - _lastFlushTicks < TimeSpan.TicksPerSecond) return;
-                if (_written >= History.Count) return;
+                if (!force && now - _lastFlushTicks < TimeSpan.TicksPerSecond) return null;
+                if (_written >= History.Count) return null;
 
                 _lastFlushTicks = now;
 
@@ -492,34 +535,31 @@ namespace WhatsappApp.Services
                     builder.Append("\r\n");
                 }
                 _written = History.Count;
-                text = builder.ToString();
+                return builder.ToString();
             }
-
-            string adding = text;
-            Guarded.RunGuardedAsync("Diag/Flush",
-                delegate { return Writes.RunAsync(delegate { return WriteLinesAsync(adding); }); });
         }
 
         /// <summary>
-        /// Reads the whole file, adds the lines and writes it back, cut to its last
-        /// MaxBytes. The cut is on the tail on purpose: a phone left in a crash loop
-        /// must still answer with the newest lines.
+        /// Adds the lines to the file, and rewrites the whole file only when the
+        /// ceiling has been reached - cut to its last MaxBytes, on the tail on purpose:
+        /// a phone left in a crash loop must still answer with the newest lines.
+        ///
+        /// Why it appends: rewriting was the only write this file had, so every line cost
+        /// a read of the file and a write of it - on 24 October 2026 the log sat at its
+        /// ceiling of 64 KB and each line on the phone cost 128 KB of I/O. The background
+        /// check logs some thirty lines a wake, the write queue fell behind the run, and the
+        /// last lines of every wake were still in it when the process ended. The append is
+        /// the same file, one call, and the whole-file rewrite is left for the ceiling.
         /// </summary>
         private static async Task WriteLinesAsync(string added)
         {
             try
             {
-                string text = await ReadAsync() + added;
-                if (text.Length > MaxBytes) text = text.Substring(text.Length - MaxBytes);
-
                 // The file is fetched when it is there, and created only when it is
                 // not: a create truncates the file there and then, while the write is
                 // a second call. An app suspended between the two left a `diag.log`
                 // of 0 bytes with the run marker still in place, so the whole run was
                 // lost, crash tail included (seen on the phone on 2026-10-07).
-                // WriteTextAsync truncates and writes in one operation on a file that
-                // already exists, so there is no window in which to lose it, and a
-                // file that is not there yet has nothing to lose.
                 // No `await` in the catch: C# 5 answers CS1985, so a failed fetch
                 // leaves a null that the create below fills in.
                 StorageFile file = null;
@@ -536,8 +576,40 @@ namespace WhatsappApp.Services
                 {
                     file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
                         FileName, CreationCollisionOption.ReplaceExisting);
+                    await FileIO.WriteTextAsync(file, added);
+                    return;
                 }
 
+                // Under the ceiling: added, not rewritten. The answer to "how big is it"
+                // decides, and a platform that will not say falls through to the rewrite
+                // below - which is what this did for every line until now.
+                bool appends = false;
+                try
+                {
+                    BasicProperties properties = await file.GetBasicPropertiesAsync();
+                    appends = properties.Size + (ulong)added.Length <= (ulong)MaxBytes;
+                }
+                catch (Exception)
+                {
+                    appends = false;
+                }
+
+                if (appends)
+                {
+                    try
+                    {
+                        await FileIO.AppendTextAsync(file, added);
+                        return;
+                    }
+                    catch (Exception)
+                    {
+                        // An append this platform does not carry is not a lost line: the
+                        // rewrite below is the path the file has always had.
+                    }
+                }
+
+                string text = await FileIO.ReadTextAsync(file) + added;
+                if (text.Length > MaxBytes) text = text.Substring(text.Length - MaxBytes);
                 await FileIO.WriteTextAsync(file, text);
             }
             catch (Exception)

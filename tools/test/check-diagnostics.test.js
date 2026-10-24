@@ -86,3 +86,34 @@ test('un writer senza la scrittura e un problema', () => {
   const broken = { diag: diag.replace('await FileIO.WriteTextAsync(file, text);', ''), app, chatPage };
   assert.match(problemsFor(broken).problems.join('\n'), /does not write the log/);
 });
+
+test('un task che accoda il log e termina si segnala', () => {
+  // La forma del 23-24 ottobre: Flush(true) accodato e deferral completo subito dopo,
+  // quindi la riga che dice com'e' andata non arriva mai sul telefono.
+  const task = fixture('task-good.cs');
+  // Ogni occorrenza: la riga sta sia nel finally sia nell'handler della cancellazione.
+  const broken = {
+    diag, app, chatPage,
+    task: task.split('Diag.FlushAndWait(FlushLimit);').join('Diag.Flush(true);')
+  };
+  assert.notStrictEqual(broken.task, task, 'il fixture deve contenere la riga da rompere');
+  assert.match(problemsFor(broken).problems.join('\n'), /FlushAndWait/);
+});
+
+test('un task che non ascolta l annullamento si segnala', () => {
+  const task = fixture('task-good.cs');
+  const broken = { diag, app, chatPage, task: task.replace('taskInstance.Canceled += OnCanceled;', '') };
+  assert.match(problemsFor(broken).problems.join('\n'), /Canceled/);
+});
+
+test('il task vero aspetta il log e ascolta l annullamento', () => {
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
+  const problems = problemsFor({
+    diag,
+    app,
+    chatPage,
+    crashReport: fixture('crashreport-good.cs'),
+    task: read('WhatsappApp.Tasks/BackgroundSyncTask.cs')
+  }).problems;
+  assert.deepStrictEqual(problems, []);
+});

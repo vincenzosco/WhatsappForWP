@@ -90,6 +90,21 @@ namespace WhatsappApp.Services
         private static readonly object Gate = new object();
         private static bool _running;
 
+        /// <summary>
+        /// How long the run in progress has been going.
+        ///
+        /// It is here and not only in the local of `RunNow` because the system cancels a task
+        /// on its own thread: the line the task writes when it is canceled has to say how far
+        /// the run had got, and on 23-24 October 2026 there was no such line at all - 21 wakes
+        /// and not one of them said whether it had finished or been taken down in the middle.
+        /// </summary>
+        public static long ElapsedMilliseconds
+        {
+            get { return Watch.ElapsedMilliseconds; }
+        }
+
+        private static readonly Stopwatch Watch = new Stopwatch();
+
         /// <summary>True while a run is in progress. A second wake does nothing.</summary>
         public static bool IsRunning
         {
@@ -187,7 +202,8 @@ namespace WhatsappApp.Services
                 _running = true;
             }
 
-            var watch = Stopwatch.StartNew();
+            var watch = Watch;
+            watch.Restart();
 
             try
             {
@@ -209,7 +225,15 @@ namespace WhatsappApp.Services
                 // Not Thread.Sleep: the WP8.1 Runtime profile the app compiles against
                 // does not carry that type (CS0103). Waiting on a task is the same pause
                 // without the missing reference.
-                if (WaitForConnection(ConnectLimit)) WaitForBacklog(watch.Elapsed);
+                if (WaitForConnection(ConnectLimit))
+                {
+                    // Named, with the time it took: the run has a budget of twenty seconds
+                    // inside a host that takes the process down at thirty, and until now
+                    // nothing said which of the steps spent what.
+                    Diag.OkNow("background: connected after " + watch.ElapsedMilliseconds + " ms");
+                    WaitForBacklog(watch.Elapsed);
+                    Diag.OkNow("background: the read window is over after " + watch.ElapsedMilliseconds + " ms");
+                }
 
                 int unread = DataService.Instance.UnreadChats();
                 NotificationService.SetUnread(unread);
@@ -231,6 +255,8 @@ namespace WhatsappApp.Services
                 {
                     Diag.Failed("BackgroundSync/save", ex);
                 }
+
+                Diag.OkNow("background: the snapshot is on the phone after " + watch.ElapsedMilliseconds + " ms");
 
                 // One line the next run can learn from: how much of the 30 seconds this
                 // took, and whether it went over what the code budgeted for itself.

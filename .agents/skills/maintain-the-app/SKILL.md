@@ -704,6 +704,17 @@ waiting) and the message is marked read when the reader reaches it.
   wait that expires first is the one that binds the list before its burst and hands it
   fifty inserts it never asked for. `check-diagnostics.js` pins the floor, so the value
   cannot drift back.
+- **A queued line is not a written line.** `Flush(true)` marks the lines as written and
+  queues the file write; it does not wait. Everywhere the process goes on living that is
+  right, and everywhere it is about to end it is wrong: the background task completes its
+  deferral on the next line, the host takes the process down, and the closing lines never
+  reach `diag.log` - 21 wakes on 23-24 October 2026, not one `background: checked in`, and
+  no way to tell a run that had finished from a run the system had killed. A caller that is
+  about to end the process uses `Diag.FlushAndWait`, and a task also listens for
+  `taskInstance.Canceled`, because a canceled run is otherwise an absence. The writer
+  appends instead of rewriting the whole file for every line (it did, at 64 KB per line on
+  the phone), and only rewrites when the ceiling is reached. Gate:
+  `node tools/check-diagnostics.js`.
 - **The diagnostics outlive the run.** `Diag` appends every line to `diag.log` through
   a `SerialQueue`, cuts the file to its last 64 KB, writes a run-start and a run-end
   marker, and keeps a `diag-run.marker` file while the run is alive. A marker still
