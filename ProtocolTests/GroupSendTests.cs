@@ -79,6 +79,111 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void AMessageThatLandsBeforeItsKeyIsReadWhenTheKeyArrives()
+        {
+            var world = new World();
+
+            // The sender makes the key and then the message, as a phone does - so the key stanza
+            // has the chain at iteration 0 and the message is encrypted with it - and the server
+            // hands them over the other way round, which is the order this test is about.
+            BinaryNode key = world.PeerSendsGroup(GroupJid, null, "G0000010", true);
+            BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000009", false);
+
+            Assert.Throws<SenderKeyMissingException>(delegate
+            {
+                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
+                    new SeenMessages(64), new SignalSessions.CounterRandom());
+            }, "a key that is a moment late is not a message that failed");
+
+            IncomingMessage.Read(key, world.Us,
+                world.Sessions, world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            IncomingMessage late = IncomingMessage.Read(early, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual("ciao", late.Text, "the held stanza is read with the key that arrived");
+            Assert.AreEqual(PeerDevice, late.Sender);
+            Assert.AreEqual(GroupJid, late.Chat);
+        }
+
+        [Test]
+        public static void TheConnectionSequenceHoldsTheMessageAndReadsItWhenTheKeyArrives()
+        {
+            // The exact order the connection uses, without the socket: read, keep what said it
+            // was waiting, read the stanza that brings the key, drain, read again.
+            var world = new World();
+            var held = new HeldGroupMessages();
+
+            BinaryNode key = world.PeerSendsGroup(GroupJid, null, "G0000013", true);
+            BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000014", false);
+
+            try
+            {
+                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
+                    new SeenMessages(64), new SignalSessions.CounterRandom());
+
+                throw new AssertionException("a message with no key in the stanza is not read");
+            }
+            catch (SenderKeyMissingException missing)
+            {
+                Assert.IsTrue(held.Hold(missing.GroupJid, missing.Participant, missing.MessageId, early),
+                    "the stanza is kept, not asked again");
+            }
+
+            IncomingMessage.Read(key, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.IsTrue(world.Sessions.LoadSenderKey(GroupJid + "/" + PeerDevice) != null);
+
+            System.Collections.Generic.IList<BinaryNode> waiting = held.Drain(GroupJid, PeerDevice);
+            Assert.AreEqual(1, waiting.Count, "the held message is the one that comes back");
+
+            IncomingMessage read = IncomingMessage.Read(waiting[0], world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual("ciao", read.Text, "and it is read, with the key that arrived after it");
+            Assert.AreEqual(0, held.Count, "nothing is left waiting");
+        }
+
+        [Test]
+        public static void AMessageWaitingForItsKeySaysWhatItNeeds()
+        {
+            var world = new World();
+            BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000011", false);
+
+            try
+            {
+                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
+                    new SeenMessages(64), new SignalSessions.CounterRandom());
+            }
+            catch (SenderKeyMissingException missing)
+            {
+                Assert.AreEqual("G0000011", missing.MessageId, "the id the ack will answer");
+                Assert.AreEqual(GroupJid, missing.GroupJid, "the group the key belongs to");
+                Assert.AreEqual(PeerDevice, missing.Participant, "and the member it is waiting for");
+
+                return;
+            }
+
+            throw new AssertionException("a message with no key in the stanza is not read");
+        }
+
+        [Test]
+        public static void TheRefusalIsStillAProtocolException()
+        {
+            var world = new World();
+            BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000012", false);
+
+            // Every reader that treats "this stanza did not open" the same way has to keep
+            // working: the new type refines the old one, it does not replace it.
+            Assert.Throws<ProtocolException>(delegate
+            {
+                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
+                    new SeenMessages(64), new SignalSessions.CounterRandom());
+            });
+        }
+
+        [Test]
         public static void AStanzaThatBringsOnlyTheKeyIsNotAMessage()
         {
             var world = new World();

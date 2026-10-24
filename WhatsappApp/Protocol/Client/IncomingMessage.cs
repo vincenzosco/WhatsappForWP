@@ -260,6 +260,10 @@ namespace WhatsappApp.Protocol.Client
         /// A stanza that carries nothing but a sender key has no words and no media: it is a
         /// protocol part, and the caller sees a message with a null `Text` and a `Content`
         /// that says so (`IncomingMessage.Content.SenderKeyDistributionMessage`).
+        ///
+        /// When the key has not arrived at all, the refusal is a `SenderKeyMissingException`
+        /// and not a plain `ProtocolException`: the two stanzas are separate, their order is
+        /// the server's, and the caller that can wait for the key reads it from the type.
         /// </summary>
         private static IncomingMessage ReadGroup(BinaryNode message, Credentials credentials,
             SessionStore sessions, PreKeyStore preKeys, IRandomSource random,
@@ -296,15 +300,22 @@ namespace WhatsappApp.Protocol.Client
             string name = groupJid + "/" + participant;
             Message read;
 
+            // The key travels in a pairwise copy that is its own stanza, and the server does
+            // not promise it comes first: a message can land while this phone holds no key for
+            // its member yet. That answer is a type of its own, and not the end of the message:
+            // the caller keeps the stanza and reads it when the key arrives
+            // (`HeldGroupMessages`), because asking the sender to send it again loses the one
+            // case this is meant to win - a key that is a second behind. Thrown outside the
+            // `try` below so the wrapper does not turn it into a plain `ProtocolException` and
+            // lose what the caller needs to hold it.
+            SenderKeyRecord record = sessions.LoadSenderKey(name);
+            if (record == null)
+            {
+                throw new SenderKeyMissingException(id, groupJid, participant);
+            }
+
             try
             {
-                SenderKeyRecord record = sessions.LoadSenderKey(name);
-                if (record == null)
-                {
-                    throw new ProtocolException("this phone holds no sender key for " + participant
-                        + " in " + groupJid + ": the message that carries one has not arrived");
-                }
-
                 read = SenderKeys.DecodePadded(record.Decrypt(groupJid, SenderKeyMessage.Parse(wire)));
 
                 // The chain moved: what the next message from them needs is the record as it
