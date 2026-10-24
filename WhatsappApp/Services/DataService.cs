@@ -1591,6 +1591,21 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The name the list shows for a row: the one saved on this phone first, then what
+        /// the row carries (the sync's name or the push name), then the number. Shared by the
+        /// row that is applied and the refresh's question of whether it would change
+        /// anything, so the two can never disagree about what the row says.
+        /// </summary>
+        private string NameFor(ChatMessage message)
+        {
+            string name = SavedNameFor(message.ChatId);
+            if (string.IsNullOrEmpty(name)) name = message.SenderName;
+            if (string.IsNullOrEmpty(name)) name = NameCache.Book.NameFor(message.ChatId);
+            if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(message.ChatId);
+            return name;
+        }
+
+        /// <summary>
         /// The same, with the one choice the refresh makes: whether this row is news.
         ///
         /// A row re-read by `RefreshChatList` is not - it is what the list already says - and
@@ -1616,10 +1631,7 @@ namespace WhatsappApp.Services
 
             // The name saved on this phone wins, then what the row carries (the sync's
             // name or the push name), then the number.
-            string name = SavedNameFor(message.ChatId);
-            if (string.IsNullOrEmpty(name)) name = message.SenderName;
-            if (string.IsNullOrEmpty(name)) name = NameCache.Book.NameFor(message.ChatId);
-            if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(message.ChatId);
+            string name = NameFor(message);
 
             if (contact == null)
             {
@@ -2739,15 +2751,19 @@ namespace WhatsappApp.Services
         /// <summary>
         /// One row of the native list, applied the way a sync's row is applied - the same
         /// `ApplyChat`, so a name, a preview, a count and a position cannot disagree with the
-        /// path that made the row. False for a row this list must not draw.
+        /// path that made the row. False for a row this list must not draw, and for one that
+        /// says exactly what the list already shows (`WouldChangeTheRow`).
         /// </summary>
         private bool RefreshChatRow(WhatsappApp.Protocol.WaProto.HistoryConversation row)
         {
             if (row == null || string.IsNullOrEmpty(row.Jid)) return false;
-            if (IsNotAConversation(row.Jid)) return false;
+
+            string chatId = ChatIdFor(row.Jid);
+            if (string.IsNullOrEmpty(chatId)) return false;
+            if (IsNotAConversation(chatId)) return false;
 
             var message = new ChatMessage();
-            message.ChatId = row.Jid;
+            message.ChatId = chatId;
             message.SenderName = row.Name;
             message.UnreadCount = row.UnreadCount;
             message.IsGroup = row.IsGroup;
@@ -2759,8 +2775,62 @@ namespace WhatsappApp.Services
 
             if (row.Messages.Count > 0) message.Text = row.Messages[row.Messages.Count - 1].Text;
 
+            // The list is only touched when the row would say something new. The refresh runs
+            // every thirty seconds, and re-applying a row that has not moved re-raises every
+            // property on it and moves it in a list the reader may be looking at, for nothing.
+            Contact contact = FindContact(chatId);
+            if (contact != null && !WouldChangeTheRow(contact, message)) return false;
+
             ApplyChat(message, false);
             return true;
+        }
+
+        /// <summary>
+        /// Whether re-applying this row would change what the list shows: the name, the
+        /// preview or the unread count. False for a row that is already on screen exactly as
+        /// the client holds it.
+        ///
+        /// Why it exists: the refresh walked every row through `ApplyChat` on every tick - a
+        /// property change per row, a move in the ordered collection and a notification for
+        /// the count - for rows that carry nothing new. A list of three hundred chats was
+        /// redrawn every thirty seconds and a row could move under the reader's finger while
+        /// he scrolled. The comparison is `ApplyChat`'s own rules, so a row can never be
+        /// skipped when those rules would write something: the name it would show, the count
+        /// the badge would carry, and the preview and the time the row would land at.
+        /// </summary>
+        private bool WouldChangeTheRow(Contact contact, ChatMessage message)
+        {
+            string name = NameFor(message);
+            if (contact.Name != name || contact.Initials != InitialsFor(name)) return true;
+
+            // Drawn on the same row, and read from the same row: a count that moved is a
+            // change even when the preview did not, or the badge waits for a message.
+            int unread = message.ChatId == _activeChatId ? 0 : message.UnreadCount;
+            if (contact.UnreadCount != unread) return true;
+
+            // The picture. A row from the client carries none, so this is the one place the
+            // bytes already on the phone reach a row that lost them (a start after a cache
+            // that dropped its decode), and `ApplyChat` looks them up for the same reason.
+            string avatar = message.AvatarData;
+            if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(message.ChatId);
+            if (!string.IsNullOrEmpty(avatar) && contact.AvatarData != avatar) return true;
+
+            bool believable = ActivityTime.IsSane(message.Timestamp, DateTime.Now);
+
+            if (believable && message.Timestamp >= contact.LastMessageAt)
+            {
+                // The time orders the list even when the row carries no words (a
+                // conversation whose last message is a media the sync did not include).
+                if (message.Timestamp != contact.LastMessageAt) return true;
+
+                return !string.IsNullOrEmpty(message.Text)
+                    && (contact.LastMessage != message.Text
+                        || contact.LastMessageTime != message.FormattedTime);
+            }
+
+            // It cannot say when, but it can say what: the row shows the words and no date.
+            return !believable && string.IsNullOrEmpty(contact.LastMessage)
+                && !string.IsNullOrEmpty(message.Text);
         }
 
         /// <summary>
