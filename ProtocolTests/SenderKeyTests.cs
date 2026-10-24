@@ -81,6 +81,32 @@ namespace ProtocolTests
                 record.Decrypt(SenderKeyFixture.GroupId, second));
         }
 
+        /// <summary>
+        /// A second copy of a message this record has already read is a duplicate, and the
+        /// answer says so before `Decrypt` refuses it.
+        ///
+        /// Why it matters: `Decrypt` answers it with a `ProtocolException` ("iteration N was
+        /// already read and its key is gone"), the connection reported it as a failure and
+        /// asked the group to send the message again, and the group did - for ever. The run of
+        /// 24 October 2026 asked for the same three messages on every connection.
+        /// </summary>
+        [Test]
+        public static void AMessageThatWasAlreadyReadAsksToBeADuplicate()
+        {
+            SenderKeyRecord record = SenderKeyRecord.StartAsReceiver(SenderKeyFixture.GroupId,
+                Hex(SenderKeyFixture.Distribution));
+
+            SenderKeyMessage message = SenderKeyMessage.Parse(Hex(SenderKeyFixture.SenderKeyMessage));
+            Assert.IsFalse(record.AlreadyRead(message), "nothing has been read yet");
+
+            record.Decrypt(SenderKeyFixture.GroupId, message);
+            Assert.IsTrue(record.AlreadyRead(message),
+                "the same stanza again is a duplicate, not a message that failed");
+
+            SenderKeyMessage next = SenderKeyMessage.Parse(Hex(SenderKeyFixture.SecondMessage));
+            Assert.IsFalse(record.AlreadyRead(next), "and the next one is not");
+        }
+
         [Test]
         public static void AMovedCiphertextByteIsRefusedByName()
         {

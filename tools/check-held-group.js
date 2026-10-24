@@ -12,21 +12,25 @@
  * quasi sempre un istante dietro, quindi il messaggio si tiene
  * (`HeldGroupMessages`) e si legge quando la chiave arriva.
  *
- * Nessun test copre quella cucitura: `ProtocolTests` compila il protocollo e
- * non `Services/NativeConnection.cs`, che e' dove il messaggio viene tenuto o
- * buttato. Questa guardia legge quel file.
+ * Come risposta era un `SenderKeyMissingException`, e il 24 ottobre 2026 quella
+ * eccezione era una riga di `Eccezione generata` nel debugger per ogni gruppo
+ * che scriveva prima della chiave - cioe' il caso normale. Adesso e' un valore
+ * (`IncomingRefusal.WaitsForSenderKey`) e la connessione tiene la stanza
+ * guardando quello. Questa guardia pinna la proprieta', non il tipo: il
+ * messaggio si tiene, non si ack, non si richiede.
  *
  * Regole:
- *  1. `IncomingMessage.cs` rifiuta un gruppo senza chiave con
- *     `SenderKeyMissingException`, non con un `ProtocolException` generico:
- *     il chiamante non puo' tenere cio' che non sa riconoscere;
- *  2. `NativeConnection.cs` ha un `catch (SenderKeyMissingException)` che mette
- *     la stanza da parte (`_held.Hold`), e in quel blocco non manda ne' un ack
- *     (butterebbe via il messaggio) ne' un retry receipt (metterebbe il
- *     messaggio in corsa con una chiave gia' partita);
- *  3. dopo `ReadMessageAsync` il giro chiama `RetryHeldAsync`: senza quella
- *     riga il messaggio tenuto non viene piu' letto da nessuno;
- *  4. `HeldGroupMessages.cs` ha i suoi due tetti: un deposito che aspetta per
+ *  1. `IncomingMessage.cs` non lancia piu' `SenderKeyMissingException`: con quel
+ *     `throw` torna una eccezione per ogni messaggio di gruppo senza chiave;
+ *  2. `ReadGroup` risponde `IncomingRefusal.WaitsForSenderKey` quando il record
+ *     della chiave non c'e';
+ *  3. `NativeConnection.cs` guarda quel valore (`incoming.Refused ==`) e in quel
+ *     ramo mette la stanza da parte (`_held.Hold`), senza ack (butterebbe via il
+ *     messaggio) e senza retry (metterebbe il messaggio in corsa con una chiave
+ *     gia' partita);
+ *  4. dopo `ReadMessageAsync` il giro chiama `RetryHeldAsync`: senza quella riga
+ *     il messaggio tenuto non viene piu' letto da nessuno;
+ *  5. `HeldGroupMessages.cs` ha i suoi due tetti: un deposito che aspetta per
  *     sempre e' una fuga di memoria con una buona scusa.
  *
  * Usage:
@@ -42,36 +46,52 @@ const INCOMING = 'WhatsappApp/Protocol/Client/IncomingMessage.cs';
 const CONNECTION = 'WhatsappApp/Services/NativeConnection.cs';
 const HELD = 'WhatsappApp/Protocol/Client/HeldGroupMessages.cs';
 
-const CATCH = 'catch (SenderKeyMissingException';
+const WAITING = 'IncomingRefusal.WaitsForSenderKey';
+const WAITS_BRANCH = 'if (incoming != null && incoming.Refused == IncomingRefusal.WaitsForSenderKey)';
+
+/// Il blocco che viene dopo: il ramo del tenuto finisce dove comincia il guasto.
 const FAILURE = 'if (failure != null)';
 
 /**
+ * Il sorgente senza i commenti: questa guardia legge il codice, e la prosa accanto
+ * racconta l'eccezione che e' stata tolta.
+ */
+function stripComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '');
+}
+
+/**
  * I problemi dei tre sorgenti: vuoto quando un messaggio senza chiave viene
- * tenuto e poi letto.
+ * tenuto, non ackato, non richiesto, e letto quando la chiave arriva.
  */
 function problemsFor(files) {
   const problems = [];
 
-  if (files.incoming.indexOf('new SenderKeyMissingException(') < 0) {
-    problems.push(`${INCOMING}: a group message with no sender key is refused without a ` +
-      'SenderKeyMissingException (a plain ProtocolException will do): the connection cannot ' +
-      'tell it from a message that will never open, so it asks the sender for it again ' +
-      'instead of keeping it');
+  if (files.incoming.indexOf('SenderKeyMissingException') >= 0) {
+    problems.push(`${INCOMING}: a SenderKeyMissingException is back: a group message that arrives ` +
+      'before its member\'s sender key is the ordinary way a group starts, and a first-chance ' +
+      'exception per message is what the debugger printed on 24 October 2026 - the answer is ' +
+      `the value ${WAITING}`);
   }
 
-  const code = files.connection;
-  const at = code.indexOf(CATCH);
+  if (files.incoming.indexOf(WAITING) < 0) {
+    problems.push(`${INCOMING}: nothing answers ${WAITING}: a group message without its key ` +
+      'has nowhere to say it is waiting instead of broken');
+  }
+
+  const at = files.connection.indexOf(WAITS_BRANCH);
   if (at < 0) {
-    problems.push(`${CONNECTION}: no ${CATCH}: a message that arrives before its member's ` +
-      'sender key is answered with a retry receipt, and it appears only if the sender sends ' +
-      'it a second time - the key is normally a stanza behind');
+    problems.push(`${CONNECTION}: no branch on ${WAITING}: a message that waits for its key is ` +
+      'read as an ordinary one, and nothing holds it');
   } else {
-    const end = code.indexOf(FAILURE, at);
-    const block = end < 0 ? code.slice(at) : code.slice(at, end);
+    const end = files.connection.indexOf(FAILURE, at);
+    const block = end < 0 ? files.connection.slice(at) : files.connection.slice(at, end);
 
     if (block.indexOf('_held.Hold(') < 0) {
-      problems.push(`${CONNECTION}: the SenderKeyMissingException is caught and the stanza is ` +
-        'not held (`_held.Hold`): nothing will read it when the key arrives');
+      problems.push(`${CONNECTION}: the waiting stanza is not held ('_held.Hold'): nothing will ` +
+        'read it when the key arrives');
     }
     if (block.indexOf('IncomingMessage.Ack(') >= 0) {
       problems.push(`${CONNECTION}: a held message is acknowledged before it is read: the ` +
@@ -85,8 +105,8 @@ function problemsFor(files) {
     }
   }
 
-  const read = code.indexOf('await ReadMessageAsync(session, account, node);');
-  const drain = code.indexOf('await RetryHeldAsync(');
+  const read = files.connection.indexOf('await ReadMessageAsync(session, account, node);');
+  const drain = files.connection.indexOf('await RetryHeldAsync(');
   if (drain < 0) {
     problems.push(`${CONNECTION}: nothing calls RetryHeldAsync: the held messages are kept and ` +
       'never read, which is worse than the refusal they replaced');
@@ -106,8 +126,8 @@ function problemsFor(files) {
 function main() {
   const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
   const problems = problemsFor({
-    incoming: read(INCOMING),
-    connection: read(CONNECTION),
+    incoming: stripComments(read(INCOMING)),
+    connection: stripComments(read(CONNECTION)),
     held: read(HELD)
   });
 
@@ -116,14 +136,18 @@ function main() {
     console.log(`\n${problems.length} held-group problem(s).`);
     process.exit(1);
   }
-  console.log('OK: a group message that arrives before its sender key is held unacknowledged ' +
-    'and read when the key arrives.');
+  console.log('OK: a group message that arrives before its sender key is held unacknowledged, ' +
+    'not asked again, and read when the key arrives.');
 }
 
 if (require.main === module) main();
 
 module.exports = {
   problemsFor,
+  stripComments,
+  WAITING,
+  WAITS_BRANCH,
+  FAILURE,
   INCOMING,
   CONNECTION,
   HELD

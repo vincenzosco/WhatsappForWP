@@ -7,6 +7,29 @@ using WhatsappApp.Protocol.WABinary;
 namespace WhatsappApp.Protocol.Client
 {
     /// <summary>
+    /// What a stanza turned out to be when nothing could be read out of it.
+    ///
+    /// Why a value and not an exception: both of these are ordinary answers on a busy
+    /// account, and a first-chance exception is printed by every debugger for every one of
+    /// them. `WaitsForSenderKey` happens whenever a group writes before that member's key has
+    /// arrived - the message is held, not lost - and `AlreadyRead` whenever the server
+    /// re-delivers something this phone has opened, which is every message that arrives after
+    /// a run the debugger stopped. The run of 24 October 2026 was a column of `Eccezione
+    /// generata: SenderKeyMissingException` for exactly these.
+    /// </summary>
+    public enum IncomingRefusal
+    {
+        /// <summary>It was read: `Content` and `Text` say what it was.</summary>
+        None,
+
+        /// <summary>A group message whose member's sender key has not arrived yet.</summary>
+        WaitsForSenderKey,
+
+        /// <summary>A copy of a message whose key this phone already spent.</summary>
+        AlreadyRead
+    }
+
+    /// <summary>
     /// A `message` stanza read: which device's copy to open, the session it needs - started
     /// from the wrapper when it is the first one - the words inside, and nothing at all when
     /// it is a copy already seen.
@@ -95,7 +118,10 @@ namespace WhatsappApp.Protocol.Client
         public bool IsOurEcho;
 
         /// <summary>
-        /// The decoded message itself, or null when there was nothing to decode.
+        /// What the stanza was when nothing was read out of it: `None` for an ordinary
+        /// message, and otherwise the reason `Content` and `Text` are empty.
+        /// </summary>
+        public IncomingRefusal Refused;
         ///
         /// It is here because the words are not all a message carries: the history
         /// bootstrap arrives as a `protocolMessage` inside an ordinary message stanza (the
@@ -138,6 +164,11 @@ namespace WhatsappApp.Protocol.Client
                 if (seen != null) seen.Forget(id);
                 throw;
             }
+
+            // A stanza that was held or found to be a duplicate is not read: its id is
+            // forgotten so the retry that reads it for real is not answered with "seen" -
+            // the same reason the `catch` above forgets it.
+            if (incoming.Refused != IncomingRefusal.None && seen != null) seen.Forget(id);
 
             incoming.PushName = NameBook.Clean(message.Attrs["notify"]);
             incoming.PhoneNumber = Jid(message.Attrs["sender_pn"]);
@@ -188,20 +219,34 @@ namespace WhatsappApp.Protocol.Client
             byte[] wire = enc.Bytes();
             if (wire == null || wire.Length == 0) throw new ProtocolException("message " + id + " carries no ciphertext");
 
-            byte[] plaintext;
+            Message read;
             uint usedPreKeyId = 0;
+            SessionRecord session;
+
             try
             {
-                SessionRecord session = SessionFor(wire, preKey, source, credentials, sessions, preKeys, random, out usedPreKeyId);
+                session = SessionFor(wire, preKey, source, credentials, sessions, preKeys, random, out usedPreKeyId);
 
-                plaintext = session.Decrypt(wire, preKey);
+                if (session.AlreadyRead(wire, preKey))
+                {
+                    // The key that opens this copy was spent the first time it arrived, and
+                    // nothing can open it twice: the stanza is a duplicate, and the caller acks
+                    // it instead of asking for it again for ever.
+                    return NotRead(message, id, from, source, IncomingRefusal.AlreadyRead);
+                }
 
-                // The ratchet moved: what the next message needs is the session as it is now.
-                sessions.Save(source, session);
+                byte[] plaintext = session.Decrypt(wire, preKey);
 
-                // And only now is the key spent: the message has opened with it, so a
-                // retry of anything that failed before this point still finds it.
-                if (usedPreKeyId != 0) preKeys.Consume(usedPreKeyId);
+                // The plaintext is read **before** the ratchet is written down, because a
+                // decode that fails - a field this build has no reader for, a stanza cut short
+                // - must not spend the key the server's retry needs. Saving first did exactly
+                // that on 24 October 2026: `the message key for 5 was already used`, and the
+                // message was gone.
+                //
+                // It is a protobuf with the WhatsApp padding behind it, not the bare message:
+                // the reference strips it for every message it opens (`decode-wa-message`,
+                // `unpadRandomMax16`).
+                read = Message.DecodePadded(plaintext);
             }
             catch (ProtocolException failed)
             {
@@ -212,12 +257,9 @@ namespace WhatsappApp.Protocol.Client
                 throw new ProtocolException("message " + id + " from " + source + " did not read: " + failed.Message);
             }
 
-            // The plaintext is a protobuf with the WhatsApp padding behind it, not the bare
-            // message: the reference strips it for every message it opens
-            // (`decode-wa-message`, `unpadRandomMax16`), and reading it as bytes was the
-            // `a protobuf field announces 12095 bytes with 52 left` on a status this phone had
-            // decrypted correctly.
-            Message read = Message.DecodePadded(plaintext);
+            // The ratchet moved and the key is spent - only now, with a message in hand.
+            sessions.Save(source, session);
+            if (usedPreKeyId != 0) preKeys.Consume(usedPreKeyId);
             var incoming = new IncomingMessage();
             incoming.Id = id;
             incoming.From = from;
@@ -230,6 +272,18 @@ namespace WhatsappApp.Protocol.Client
             // show one anonymous row per update (`StatusFeed.Post`).
             if (StatusFeed.IsStatus(from)) incoming.Sender = message.Attrs["participant"];
 
+            // A stanza from one of this account's own addresses is a copy of something this
+            // account wrote, whether or not it carries the device-sent form: the other phone
+            // wraps what it sends, and some shapes - a reaction, an edit, a message to self -
+            // travel as they are. Without this line those were read as a contact's, and on
+            // 24 October 2026 that was a chat row for ourselves plus one
+            // `carries nothing this client reads yet` per message.
+            //
+            // A status keeps its own answer: our own story is still a story, and the echo
+            // below is what the wrapper says about it (the feed is read from the same path
+            // every other status is).
+            if (!StatusFeed.IsStatus(from)) incoming.IsOurEcho = IsMine(source, credentials);
+
             if (read.DeviceSentMessage == null)
             {
                 incoming.Content = read;
@@ -237,7 +291,6 @@ namespace WhatsappApp.Protocol.Client
                 return incoming;
             }
 
-            incoming.IsOurEcho = IsMine(source, credentials);
             incoming.Content = Message.Inner(read.DeviceSentMessage);
             incoming.Text = incoming.Content.Body();
 
@@ -261,9 +314,9 @@ namespace WhatsappApp.Protocol.Client
         /// protocol part, and the caller sees a message with a null `Text` and a `Content`
         /// that says so (`IncomingMessage.Content.SenderKeyDistributionMessage`).
         ///
-        /// When the key has not arrived at all, the refusal is a `SenderKeyMissingException`
-        /// and not a plain `ProtocolException`: the two stanzas are separate, their order is
-        /// the server's, and the caller that can wait for the key reads it from the type.
+        /// When the key has not arrived at all, the answer is `IncomingRefusal.WaitsForSenderKey`
+        /// and not an exception: the two stanzas are separate, their order is the server's, and
+        /// the caller that can wait for the key reads it from the value.
         /// </summary>
         private static IncomingMessage ReadGroup(BinaryNode message, Credentials credentials,
             SessionStore sessions, PreKeyStore preKeys, IRandomSource random,
@@ -302,21 +355,28 @@ namespace WhatsappApp.Protocol.Client
 
             // The key travels in a pairwise copy that is its own stanza, and the server does
             // not promise it comes first: a message can land while this phone holds no key for
-            // its member yet. That answer is a type of its own, and not the end of the message:
-            // the caller keeps the stanza and reads it when the key arrives
-            // (`HeldGroupMessages`), because asking the sender to send it again loses the one
-            // case this is meant to win - a key that is a second behind. Thrown outside the
-            // `try` below so the wrapper does not turn it into a plain `ProtocolException` and
-            // lose what the caller needs to hold it.
+            // its member yet. That answer is a value and not an exception (`IncomingRefusal`),
+            // because it is the ordinary way a group starts: the caller keeps the stanza and
+            // reads it when the key arrives (`HeldGroupMessages`), which is the one case this is
+            // meant to win - a key that is a second behind.
             SenderKeyRecord record = sessions.LoadSenderKey(name);
             if (record == null)
             {
-                throw new SenderKeyMissingException(id, groupJid, participant);
+                return NotRead(message, id, groupJid, participant, IncomingRefusal.WaitsForSenderKey);
             }
 
             try
             {
-                read = SenderKeys.DecodePadded(record.Decrypt(groupJid, SenderKeyMessage.Parse(wire)));
+                SenderKeyMessage keyMessage = SenderKeyMessage.Parse(wire);
+
+                if (record.AlreadyRead(keyMessage))
+                {
+                    // A copy of a message this phone has already opened: the key is spent, so
+                    // asking the group to send it again buys nothing and loops for ever.
+                    return NotRead(message, id, groupJid, participant, IncomingRefusal.AlreadyRead);
+                }
+
+                read = SenderKeys.DecodePadded(record.Decrypt(groupJid, keyMessage));
 
                 // The chain moved: what the next message from them needs is the record as it
                 // is now, and an iteration that is not stored is an iteration that is lost.
@@ -346,6 +406,25 @@ namespace WhatsappApp.Protocol.Client
 
             incoming.Content = Message.Inner(read.DeviceSentMessage);
             incoming.Text = incoming.Content.Body();
+
+            return incoming;
+        }
+
+        /// <summary>
+        /// A stanza that carried nothing readable, with the identity the caller needs and the
+        /// reason a value rather than an exception: `NativeConnection` holds a waiting group
+        /// message and acks a duplicate, and neither is a failure of the run.
+        /// </summary>
+        private static IncomingMessage NotRead(BinaryNode message, string id, string from,
+            string sender, IncomingRefusal what)
+        {
+            var incoming = new IncomingMessage();
+            incoming.Id = id;
+            incoming.From = from;
+            incoming.Chat = JidUtils.Normalize(from);
+            incoming.Sender = sender;
+            incoming.Timestamp = Seconds(message.Attrs["t"]);
+            incoming.Refused = what;
 
             return incoming;
         }

@@ -414,6 +414,32 @@ namespace ProtocolTests
         }
 
         /// <summary>The body of a decrypted message: strip the padding, then read field 1.</summary>
+        /// <summary>
+        /// A copy of a message whose key is spent is a duplicate, and the reader can tell it
+        /// before `Decrypt` refuses it.
+        ///
+        /// Why it matters: the server re-delivers what was never acknowledged, so every run
+        /// the debugger stops leaves a handful of these. Read as a failure they were answered
+        /// with a retry the server honoured, which re-sent a message nothing can open - the
+        /// `message key for 5 was already used` loop of 24 October 2026.
+        /// </summary>
+        [Test]
+        public static void ACopyOfAMessageAlreadyReadIsADuplicate()
+        {
+            SessionRecord alice = Alice();
+            SessionRecord bob = Bob();
+
+            bool preKey = alice.PreKeyPending;
+            byte[] ciphertext = alice.Encrypt(PaddedBody("ciao"));
+
+            Assert.IsFalse(bob.AlreadyRead(ciphertext, preKey), "nothing has been read yet");
+            Assert.AreEqual("ciao", Body(bob.Decrypt(ciphertext, preKey)));
+
+            Assert.IsTrue(bob.AlreadyRead(ciphertext, preKey),
+                "the same ciphertext again is a duplicate: the caller acks it instead of asking " +
+                "for it again");
+        }
+
         private static string Body(byte[] decrypted)
         {
             int end = -1;

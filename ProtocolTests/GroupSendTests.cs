@@ -67,15 +67,17 @@ namespace ProtocolTests
             var world = new World();
             BinaryNode stanza = world.PeerSendsGroup(GroupJid, "ciao", "G0000004", false);
 
-            string failed = Failed(delegate
-            {
-                IncomingMessage.Read(stanza, world.Us, world.Sessions, world.PreKeys,
-                    new SeenMessages(64), new SignalSessions.CounterRandom());
-            });
+            IncomingMessage waiting = IncomingMessage.Read(stanza, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
 
-            Assert.IsTrue(failed != null, "a group ciphertext with no key anywhere cannot be read");
-            Assert.IsTrue(failed.Contains(PeerDevice) && failed.Contains(GroupJid),
-                "and the refusal names both the group and the member: <" + failed + ">");
+            // A value and not an exception: a group writing before the key arrives is the
+            // ordinary way a group starts, and a first-chance throw per message is what the
+            // debugger printed on 24 October 2026.
+            Assert.AreEqual(IncomingRefusal.WaitsForSenderKey, waiting.Refused,
+                "a group ciphertext with no key anywhere is a message to hold");
+            Assert.AreEqual(GroupJid, waiting.Chat, "and the hold names the group");
+            Assert.AreEqual(PeerDevice, waiting.Sender, "and the member");
+            Assert.IsTrue(waiting.Text == null, "nothing was read out of it");
         }
 
         [Test]
@@ -89,11 +91,11 @@ namespace ProtocolTests
             BinaryNode key = world.PeerSendsGroup(GroupJid, null, "G0000010", true);
             BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000009", false);
 
-            Assert.Throws<SenderKeyMissingException>(delegate
-            {
-                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
-                    new SeenMessages(64), new SignalSessions.CounterRandom());
-            }, "a key that is a moment late is not a message that failed");
+            IncomingMessage waiting = IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(IncomingRefusal.WaitsForSenderKey, waiting.Refused,
+                "a key that is a moment late is not a message that failed");
 
             IncomingMessage.Read(key, world.Us,
                 world.Sessions, world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
@@ -104,6 +106,34 @@ namespace ProtocolTests
             Assert.AreEqual("ciao", late.Text, "the held stanza is read with the key that arrived");
             Assert.AreEqual(PeerDevice, late.Sender);
             Assert.AreEqual(GroupJid, late.Chat);
+        }
+
+        /// <summary>
+        /// The server re-delivers what was never acknowledged, and the key that opens the copy
+        /// is already spent. That is a duplicate, and the reader says so instead of failing.
+        /// </summary>
+        [Test]
+        public static void AGroupCopyOfAMessageAlreadyReadIsADuplicate()
+        {
+            var world = new World();
+
+            IncomingMessage.Read(world.PeerSendsGroup(GroupJid, null, "G0000020", true), world.Us,
+                world.Sessions, world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            BinaryNode stanza = world.PeerSendsGroup(GroupJid, "ciao", "G0000021", false);
+
+            IncomingMessage first = IncomingMessage.Read(stanza, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+            Assert.AreEqual("ciao", first.Text, "the first copy reads");
+
+            // A fresh `SeenMessages`, because a run that starts again has no memory of the id
+            // either - which is exactly how a re-delivered message reaches the reader.
+            IncomingMessage again = IncomingMessage.Read(stanza, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(IncomingRefusal.AlreadyRead, again.Refused,
+                "the second copy is a duplicate, and the connection acks it instead of asking again");
+            Assert.AreEqual(GroupJid, again.Chat, "and it names the group it was dropped from");
         }
 
         [Test]
@@ -117,18 +147,13 @@ namespace ProtocolTests
             BinaryNode key = world.PeerSendsGroup(GroupJid, null, "G0000013", true);
             BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000014", false);
 
-            try
-            {
-                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
-                    new SeenMessages(64), new SignalSessions.CounterRandom());
+            IncomingMessage unread = IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
 
-                throw new AssertionException("a message with no key in the stanza is not read");
-            }
-            catch (SenderKeyMissingException missing)
-            {
-                Assert.IsTrue(held.Hold(missing.GroupJid, missing.Participant, missing.MessageId, early),
-                    "the stanza is kept, not asked again");
-            }
+            Assert.AreEqual(IncomingRefusal.WaitsForSenderKey, unread.Refused,
+                "a message with no key in the stanza is not read");
+            Assert.IsTrue(held.Hold(unread.Chat, unread.Sender, unread.Id, early),
+                "the stanza is kept, not asked again");
 
             IncomingMessage.Read(key, world.Us, world.Sessions, world.PreKeys,
                 new SeenMessages(64), new SignalSessions.CounterRandom());
@@ -151,36 +176,30 @@ namespace ProtocolTests
             var world = new World();
             BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000011", false);
 
-            try
-            {
-                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
-                    new SeenMessages(64), new SignalSessions.CounterRandom());
-            }
-            catch (SenderKeyMissingException missing)
-            {
-                Assert.AreEqual("G0000011", missing.MessageId, "the id the ack will answer");
-                Assert.AreEqual(GroupJid, missing.GroupJid, "the group the key belongs to");
-                Assert.AreEqual(PeerDevice, missing.Participant, "and the member it is waiting for");
+            IncomingMessage unread = IncomingMessage.Read(early, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
 
-                return;
-            }
-
-            throw new AssertionException("a message with no key in the stanza is not read");
+            Assert.AreEqual("G0000011", unread.Id, "the id the ack will answer");
+            Assert.AreEqual(GroupJid, unread.Chat, "the group the key belongs to");
+            Assert.AreEqual(PeerDevice, unread.Sender, "and the member it is waiting for");
         }
 
+        /// <summary>
+        /// The answer is a value and not an exception, and this is the test that keeps it so:
+        /// a group message without its key is the ordinary way a group starts, and every
+        /// debugger prints a first-chance throw whether the caller catches it or not.
+        /// </summary>
         [Test]
-        public static void TheRefusalIsStillAProtocolException()
+        public static void AWaitingMessageIsNotAnException()
         {
             var world = new World();
             BinaryNode early = world.PeerSendsGroup(GroupJid, "ciao", "G0000012", false);
 
-            // Every reader that treats "this stanza did not open" the same way has to keep
-            // working: the new type refines the old one, it does not replace it.
-            Assert.Throws<ProtocolException>(delegate
-            {
-                IncomingMessage.Read(early, world.Us, world.Sessions, world.PreKeys,
-                    new SeenMessages(64), new SignalSessions.CounterRandom());
-            });
+            IncomingMessage unread = IncomingMessage.Read(early, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(IncomingRefusal.WaitsForSenderKey, unread.Refused,
+                "nothing was thrown, and the stanza says it is waiting");
         }
 
         [Test]
