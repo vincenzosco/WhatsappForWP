@@ -61,6 +61,37 @@ namespace ProtocolTests
             Assert.AreEqual(PeerDevice, second.Sender);
         }
 
+        /// <summary>
+        /// A group payload the key opens to bytes that are not a message: a field that announces
+        /// sixteen bytes with fourteen left, which is the shape the phone refused on every
+        /// connection of 24 October 2026.
+        ///
+        /// The answer is a value and not an exception: the same bytes asked for again are the
+        /// same bytes, so the connection acknowledges the copy instead of asking for it for ever.
+        /// </summary>
+        [Test]
+        public static void APayloadThatIsNotAMessageIsACopyToAcknowledge()
+        {
+            var world = new World();
+
+            // tag `field 2, length-delimited`, a length of sixteen, and fourteen bytes behind it.
+            var damaged = new byte[16];
+            damaged[0] = 0x12;
+            damaged[1] = 0x10;
+            for (int i = 2; i < damaged.Length; i++) damaged[i] = 0xaa;
+
+            IncomingMessage unreadable = IncomingMessage.Read(
+                world.PeerSendsGroupRaw(GroupJid, damaged, "G0000030", true),
+                world.Us, world.Sessions, world.PreKeys, new SeenMessages(64),
+                new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(IncomingRefusal.Unreadable, unreadable.Refused,
+                "the ciphertext opened and what came out is not a message this client can read");
+            Assert.AreEqual(GroupJid, unreadable.Chat, "and the answer names the chat");
+            Assert.AreEqual(PeerDevice, unreadable.Sender, "and the member who wrote it");
+            Assert.IsTrue(unreadable.Text == null, "nothing was read out of it");
+        }
+
         [Test]
         public static void AMessageWithNoKeyAtAllSaysWhatIsMissing()
         {
@@ -346,6 +377,37 @@ namespace ProtocolTests
                 participants.Content = new List<BinaryNode> { device };
 
                 return participants;
+            }
+
+            /// <summary>
+            /// A group message whose payload is given byte for byte: the shape a damaged stanza
+            /// has, where the key opens the ciphertext and what comes out is not a message.
+            /// </summary>
+            public BinaryNode PeerSendsGroupRaw(string groupJid, byte[] plaintext, string id, bool withKey)
+            {
+                var content = new List<BinaryNode>();
+
+                if (withKey)
+                {
+                    content.Add(KeyNode(groupJid, SenderKeys.DistributionMessage(groupJid, _theirKey)));
+                }
+
+                BinaryNode group = new BinaryNode("enc");
+                group.Attrs.Add("v", "2");
+                group.Attrs.Add("type", "skmsg");
+                group.Content = SenderKeys.Ciphertext(groupJid, _theirKey, plaintext);
+                content.Add(group);
+
+                var stanza = new BinaryNode("message");
+                stanza.Attrs.Add("from", groupJid);
+                stanza.Attrs.Add("to", groupJid);
+                stanza.Attrs.Add("participant", PeerDevice);
+                stanza.Attrs.Add("id", id);
+                stanza.Attrs.Add("t", "1760000000");
+                stanza.Attrs.Add("type", "text");
+                stanza.Content = content;
+
+                return stanza;
             }
 
             /// <summary>

@@ -18,12 +18,17 @@
  * sola eccezione che resta e' quella vera, una, con la frase dei byte.
  *
  * Regole:
- *  1. `ProtoReader.Measure` e `VarintAt` non lanciano niente: un troncamento
- *     e' una risposta, non un guasto;
+ *  1. `ProtoReader.Measure`, `EndOfPadded` e `VarintAt` non lanciano niente: un
+ *     troncamento e' una risposta, non un guasto;
  *  2. `Message.DecodePadded` non ha un `catch (ProtocolException)` nel corpo:
  *     se ricompare, la sonda a eccezioni e' tornata;
  *  3. `DecodePadded` chiede a `ProtoReader.Measure` dove finisce il protobuf,
- *     invece di provare i sedici tagli.
+ *     invece di provare i sedici tagli;
+ *  4. e quando il conto nell'ultimo byte e' sbagliato - il caso del 24 ottobre
+ *     2026, quattro messaggi di gruppo rifiutati con `a protobuf field announces
+ *     16 bytes with 14 left` - chiede a `EndOfPadded` quale coda lascia intero
+ *     il messaggio. Senza quella domanda il conto sbagliato e' un messaggio
+ *     perso che nessun retry recupera.
  *
  * Usage:
  *   node tools/check-no-exception-probes.js
@@ -81,6 +86,16 @@ function problemsFor(files) {
       'an answer - a probe that throws is the seventeen first-chance exceptions of 24 October 2026');
   }
 
+  const endOf = stripComments(bodyAt(files.proto, 'public static int EndOfPadded(byte[] bytes, int declared)') || '');
+  if (!endOf) {
+    problems.push(`${PROTO}: no EndOfPadded: the count in the padding's last byte is a hint, and ` +
+      'when it names bytes the buffer does not have the reader has to walk for the tail that ' +
+      'leaves a whole message (the four group refusals of 24 October 2026)');
+  } else if (endOf.indexOf('throw new') >= 0) {
+    problems.push(`${PROTO}: EndOfPadded throws: it is asked once per candidate tail, and a walk ` +
+      'that throws once per guess is the seventeen first-chance exceptions this guard exists for');
+  }
+
   const varint = stripComments(bodyAt(files.proto, 'private static int VarintAt(') || '');
   if (!varint) {
     problems.push(`${PROTO}: no VarintAt: Measure reads its tags and lengths with it, and the ` +
@@ -107,6 +122,11 @@ function problemsFor(files) {
     if (padded.indexOf('for (') >= 0) {
       problems.push(`${MESSAGE}: DecodePadded walks the sixteen trims in a loop again: the walk ` +
         'in ProtoReader.Measure answers once, and it does not throw on the way');
+    }
+    if (padded.indexOf('EndOfPadded') < 0) {
+      problems.push(`${MESSAGE}: DecodePadded trusts the count in the last byte (no EndOfPadded): ` +
+        'a message whose count names bytes the buffer does not have is cut two bytes short and ' +
+        'refused - the four group messages asked for on every connection of 24 October 2026');
     }
   }
 

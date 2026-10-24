@@ -261,26 +261,18 @@ namespace WhatsappApp.Protocol.WaProto
                 throw new ProtocolException("a message carries no bytes; there is nothing to read");
             }
 
-            int pad = plaintext[plaintext.Length - 1];
-            if (pad >= 1 && pad <= MaxPadding && pad < plaintext.Length)
-            {
-                // Asked, not assumed: the bytes before the declared padding have to be a whole
-                // protobuf, and asking costs a walk instead of an exception that is caught a
-                // line later.
-                int ended = plaintext.Length - pad;
-                if (ProtoReader.Measure(plaintext, ended) == ended)
-                {
-                    return Decode(Head(plaintext, ended));
-                }
-            }
-
-            // No padding, or a last byte that only looks like a count: the protobuf is as long
-            // as it parses, and the walk says where it stops.
             int whole = ProtoReader.Measure(plaintext);
-            if (whole > 0 && whole < plaintext.Length)
-            {
-                return Decode(Head(plaintext, whole));
-            }
+
+            // Asked, not assumed: the walk says whether this plaintext is a whole message, and
+            // when it is not, which tail leaves one. The last byte names the padding and is
+            // usually right; when it is not (a payload whose tail was cut, a wrapper that padded
+            // its own inner message), the other fifteen are tried before the message is refused
+            // - each one a walk, never a parse that throws.
+            int ended = whole == plaintext.Length
+                ? whole
+                : ProtoReader.EndOfPadded(plaintext, plaintext[plaintext.Length - 1]);
+
+            if (ended > 0) return Decode(Head(plaintext, ended));
 
             return Decode(plaintext);
         }

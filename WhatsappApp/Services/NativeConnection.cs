@@ -914,6 +914,18 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            if (incoming.Refused == IncomingRefusal.Unreadable)
+            {
+                // The ciphertext opened and what came out is not a message: the bytes are
+                // damaged, and a retry brings the same bytes. Four group messages were asked for
+                // on every connection of 24 October 2026 for exactly this - the stanza is
+                // acknowledged above, so the server stops bringing it back, and the line names
+                // it once for the log.
+                Diag.Ok("native: " + incoming.Id + " in " + incoming.Chat
+                    + " opened and is not a message; the copy is acknowledged");
+                return;
+            }
+
             // The keys the primary shares with a device it has just linked. Read here, before
             // the rule below drops this account's own copies: the share **is** one of ours (the
             // phone writes it), and dropping it was dropping the only way to read the account's

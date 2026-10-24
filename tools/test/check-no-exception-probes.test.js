@@ -19,6 +19,12 @@ function sources(options) {
     + '            return index;\n'
     + '        }\n';
 
+  const endOf = opts.noEndOf ? '' : '        public static int EndOfPadded(byte[] bytes, int declared)\n'
+    + '        {\n'
+    + (opts.endOfThrows ? '            if (declared > bytes.Length) throw new ProtocolException("nope");\n' : '')
+    + '            return Measure(bytes, bytes.Length);\n'
+    + '        }\n';
+
   const varint = opts.noVarint ? '' : '        private static int VarintAt(byte[] bytes, int index, int limit, out ulong value)\n'
     + '        {\n'
     + (opts.varintThrows ? '            throw new ProtocolException("a varint runs past the buffer");\n' : '')
@@ -32,12 +38,13 @@ function sources(options) {
       + '                return Decode(plaintext);\n'
       + '            }\n' : '')
     + (opts.measureCall === false ? '' : '            int whole = ProtoReader.Measure(plaintext);\n')
+    + (opts.endCall === false ? '' : '            int ended = ProtoReader.EndOfPadded(plaintext, 6);\n')
     + (opts.catchProbe ? '            try { return Decode(plaintext); }\n'
       + '            catch (ProtocolException) { }\n' : '')
     + '            return Decode(plaintext);\n'
     + '        }\n';
 
-  return { proto: measure + varint, message: padded };
+  return { proto: measure + endOf + varint, message: padded };
 }
 
 test('la forma vera non si segnala', () => {
@@ -85,6 +92,24 @@ test('un giro dei sedici tagli si segnala', () => {
   const problems = guard.problemsFor(sources({ loop: true }));
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /sixteen trims/);
+});
+
+test('un EndOfPadded che lancia si segnala', () => {
+  const problems = guard.problemsFor(sources({ endOfThrows: true }));
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /EndOfPadded throws/);
+});
+
+test('un EndOfPadded assente si segnala', () => {
+  const problems = guard.problemsFor(sources({ noEndOf: true }));
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /no EndOfPadded/);
+});
+
+test('un DecodePadded che si fida del conto si segnala', () => {
+  const problems = guard.problemsFor(sources({ endCall: false }));
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /trusts the count in the last byte/);
 });
 
 test('un DecodePadded assente si segnala', () => {

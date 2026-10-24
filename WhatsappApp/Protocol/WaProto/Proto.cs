@@ -314,6 +314,55 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>
+        /// Where a plaintext that carries WhatsApp's padding ends: the walk above, asked once
+        /// per candidate tail.
+        ///
+        /// Why a search and not the last byte: the padding appends one to fifteen bytes whose
+        /// **last byte is their count**, and a count is a byte like any other - a group message
+        /// whose payload was wrapped in a `deviceSentMessage`, or one whose tail was cut by two,
+        /// arrives with a last byte that names a length the buffer does not have. Read as the
+        /// count, it cut two bytes off the message and the phone refused a message it had
+        /// decrypted correctly: `a protobuf field announces 16 bytes with 14 left`, four times
+        /// in the run of 24 October 2026. The reader therefore asks which of the sixteen tails
+        /// leaves a whole protobuf, the declared one first and then the smallest cut, and answers
+        /// the first that does - 0 when none does, which is a plaintext this client cannot read.
+        ///
+        /// Every candidate is a walk, not a parse: nothing here throws, which is the whole point
+        /// of it (`tools/check-no-exception-probes.js`).
+        /// </summary>
+        public static int EndOfPadded(byte[] bytes, int declared)
+        {
+            if (bytes == null || bytes.Length == 0) return 0;
+
+            // A plaintext with no padding at all is a whole protobuf already.
+            if (Measure(bytes, bytes.Length) == bytes.Length) return bytes.Length;
+
+            if (declared >= 1 && declared <= MaxPadding && declared < bytes.Length)
+            {
+                int declaredEnd = bytes.Length - declared;
+                if (Measure(bytes, declaredEnd) == declaredEnd) return declaredEnd;
+            }
+
+            // Then every other tail, keeping as many bytes as possible: a message that lost two
+            // bytes to the wrong count reads at the smallest cut that leaves it whole.
+            for (int trimmed = 1; trimmed <= MaxPadding && trimmed < bytes.Length; trimmed++)
+            {
+                if (trimmed == declared) continue;
+
+                int ended = bytes.Length - trimmed;
+                if (Measure(bytes, ended) == ended) return ended;
+            }
+
+            return 0;
+        }
+
+        /// <summary>
+        /// The longest padding a phone appends, mirrored here so this walk and the message
+        /// reader cannot disagree about how many tails there are.
+        /// </summary>
+        private const int MaxPadding = 15;
+
+        /// <summary>
         /// `ReadVarint` without the exception: the index after the number, or -1 when it runs
         /// past `limit`. Private because the only caller is the walk above, whose whole point
         /// is that a truncated field is an answer and not a fault.

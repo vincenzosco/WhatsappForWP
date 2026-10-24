@@ -31,7 +31,11 @@
  *  4. dopo `ReadMessageAsync` il giro chiama `RetryHeldAsync`: senza quella riga
  *     il messaggio tenuto non viene piu' letto da nessuno;
  *  5. `HeldGroupMessages.cs` ha i suoi due tetti: un deposito che aspetta per
- *     sempre e' una fuga di memoria con una buona scusa.
+ *     sempre e' una fuga di memoria con una buona scusa;
+ *  6. un payload che la chiave apre ma che non e' un messaggio risponde
+ *     `IncomingRefusal.Unreadable`, e la connessione lo ack invece di richiederlo:
+ *     gli stessi byte richiesti di nuovo sono gli stessi byte. La corsa del 24
+ *     ottobre 2026 ha richiesto quattro messaggi danneggiati su ogni connessione.
  *
  * Usage:
  *   node tools/check-held-group.js
@@ -113,6 +117,47 @@ function problemsFor(files) {
   } else if (read >= 0 && drain < read) {
     problems.push(`${CONNECTION}: RetryHeldAsync runs before ReadMessageAsync: the key that the ` +
       'stanza just brought would be looked for before it is stored');
+  }
+
+  // 6. A group payload that opens to bytes that are not a message.
+  const unreadable = 'IncomingRefusal.Unreadable';
+  if (files.incoming.indexOf(unreadable) < 0) {
+    problems.push(`${INCOMING}: nothing answers ${unreadable}: a payload the key opens but that ` +
+      'is not a message is a permanent refusal, and asked for again it is a retry per ' +
+      'connection for ever (four of them on 24 October 2026)');
+  } else {
+    const groupAt = files.incoming.indexOf('private static IncomingMessage ReadGroup(');
+    const group = groupAt < 0 ? '' : files.incoming.slice(groupAt);
+
+    if (group.indexOf(unreadable) < 0) {
+      problems.push(`${INCOMING}: ReadGroup never answers ${unreadable}: the decode that fails is ` +
+        'thrown up as a fault and the connection asks for the same bytes again');
+    } else if (group.indexOf('catch (ProtocolException') < 0) {
+      problems.push(`${INCOMING}: ReadGroup answers ${unreadable} but not from a catch around the ` +
+        'decode: the refusal has to name the bytes that did not read, not the whole stanza');
+    }
+  }
+
+  const already = files.connection.indexOf('if (incoming.Refused == IncomingRefusal.AlreadyRead)');
+  const unreadableAt = files.connection.indexOf(`if (incoming.Refused == ${unreadable})`);
+  if (unreadableAt < 0) {
+    problems.push(`${CONNECTION}: no branch on ${unreadable}: a damaged copy is read as an ` +
+      'ordinary failure and asked for again, which is the loop it exists to end');
+  } else {
+    if (already >= 0 && unreadableAt < already) {
+      problems.push(`${CONNECTION}: the unreadable branch sits above the duplicate one: both are ` +
+        'answered after the ack, and an ack above the read is the order this file exists to keep');
+    }
+
+    const slice = files.connection.slice(unreadableAt, unreadableAt + 700);
+    if (slice.indexOf('AskAgainAsync(') >= 0) {
+      problems.push(`${CONNECTION}: a damaged copy is asked for again: the same bytes come back, ` +
+        'and the group is asked for them on every connection');
+    }
+    if (slice.indexOf('Diag.Ok(') < 0) {
+      problems.push(`${CONNECTION}: a damaged copy is dropped without a line (no Diag.Ok): the ` +
+        'message is then missing from the chat and the log says nothing about it');
+    }
   }
 
   if (files.held.indexOf('MaxPerSender') < 0 || files.held.indexOf('MaxTotal') < 0) {
