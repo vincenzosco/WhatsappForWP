@@ -152,6 +152,34 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A count on the wire that names bytes the buffer does not have.
+        ///
+        /// Why this is the bug of 24 October 2026: four group messages arrived with a last byte
+        /// that said six where the payload had two, the reader cut the message to that count and
+        /// the protobuf parser refused it - `a protobuf field announces 16 bytes with 14 left` -
+        /// and the connection asked the group to send it again, on every connection, for a
+        /// message that had been decrypted correctly. The count is a hint and the walk is the
+        /// answer: the tail that leaves a whole message is the one the padding really is.
+        /// </summary>
+        [Test]
+        public static void APaddingCountTheBufferDoesNotHaveIsAWrongCountNotADeadMessage()
+        {
+            byte[] message = Message.Text(MessageFixture.TextBody).Encode();
+
+            var padded = new byte[message.Length + 4];
+            Buffer.BlockCopy(message, 0, padded, 0, message.Length);
+            padded[message.Length] = 0x00;
+            padded[message.Length + 1] = 0x00;
+            padded[message.Length + 2] = 0x00;
+            padded[message.Length + 3] = 6;   // six bytes of padding, and four on the wire
+
+            Assert.AreEqual(message.Length, ProtoReader.EndOfPadded(padded, 6),
+                "the tail that leaves a whole message is the one with four bytes off, not six");
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(padded).Conversation,
+                "and the message in front of the padding is still read");
+        }
+
+        /// <summary>
         /// The walk that replaced the throw-per-guess: it says where the protobuf ends, and
         /// it never throws doing it.
         ///

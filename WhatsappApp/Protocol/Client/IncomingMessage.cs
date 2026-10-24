@@ -26,7 +26,15 @@ namespace WhatsappApp.Protocol.Client
         WaitsForSenderKey,
 
         /// <summary>A copy of a message whose key this phone already spent.</summary>
-        AlreadyRead
+        AlreadyRead,
+
+        /// <summary>
+        /// A group ciphertext that opened to bytes that are not a message: the stanza is
+        /// damaged on the wire, or was padded outside the message it carries. Asking for it
+        /// again asks for the same bytes - the run of 24 October 2026 asked for four of these
+        /// on every connection - so the caller acknowledges the copy and moves on.
+        /// </summary>
+        Unreadable
     }
 
     /// <summary>
@@ -376,7 +384,22 @@ namespace WhatsappApp.Protocol.Client
                     return NotRead(message, id, groupJid, participant, IncomingRefusal.AlreadyRead);
                 }
 
-                read = SenderKeys.DecodePadded(record.Decrypt(groupJid, keyMessage));
+                byte[] opened = record.Decrypt(groupJid, keyMessage);
+
+                try
+                {
+                    read = SenderKeys.DecodePadded(opened);
+                }
+                catch (ProtocolException damaged)
+                {
+                    // The key opened the ciphertext and what came out is not a message this
+                    // client can read: the bytes on the wire are short. The same bytes asked
+                    // for again are the same bytes, and the reference gives up on them too -
+                    // so the record is kept (its key is spent either way) and the stanza is
+                    // answered as a value the caller acknowledges instead of a retry for ever.
+                    sessions.SaveSenderKey(name, record);
+                    return NotRead(message, id, groupJid, participant, IncomingRefusal.Unreadable);
+                }
 
                 // The chain moved: what the next message from them needs is the record as it
                 // is now, and an iteration that is not stored is an iteration that is lost.
