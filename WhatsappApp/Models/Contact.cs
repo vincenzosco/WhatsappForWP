@@ -130,8 +130,11 @@ namespace WhatsappApp.Models
         public const int AvatarDecodePixels = 52;
 
         /// <summary>
-        /// Decodes AvatarData once. It must be awaited on the UI thread, as
-        /// ImageHelper requires: BitmapImage is not view-agnostic.
+        /// Decodes AvatarData once. The caller may be on any thread: ImageHelper hops to
+        /// the view that draws the bitmap, and answers null in a process that has none
+        /// (the background check). It used to build the picture there anyway and answer
+        /// `RPC_E_WRONG_THREAD` (0x8001010E) once per wake - the line this method is named
+        /// in, 21 times on 23-24 October 2026.
         /// </summary>
         public async Task LoadAvatarAsync()
         {

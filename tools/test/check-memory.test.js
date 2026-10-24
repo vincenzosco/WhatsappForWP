@@ -224,7 +224,9 @@ const HELPER = 'WhatsappApp/Services/ImageHelper.cs';
 const HOPPING = 'var bitmap = new BitmapImage();\n' +
   'if (decodePixelWidth > 0) bitmap.DecodePixelWidth = decodePixelWidth;\n' +
   'await bitmap.SetSourceAsync(stream);\n' +
-  'if (dispatcher == null || dispatcher.HasThreadAccess) return await build();\n' +
+  'var dispatcher = UiThread.Dispatcher();\n' +
+  'if (dispatcher == null) return null;\n' +
+  'if (dispatcher.HasThreadAccess) return await build();\n' +
   'await dispatcher.RunAsync(CoreDispatcherPriority.Normal, handler);';
 
 test('ImageHelper del progetto costruisce la bitmap sul thread della vista', () => {
@@ -255,4 +257,45 @@ test('una bitmap costruita sul thread della vista non e un problema', () => {
 
 test('la regola del thread vale solo per ImageHelper', () => {
   assert.deepStrictEqual(memory.threadProblems('var bitmap = new BitmapImage();', FILE), []);
+});
+
+test('una decodifica che chiede la finestra da sola si segnala', () => {
+  const source = 'var bitmap = new BitmapImage();\n' +
+    'if (Window.Current == null) return null;\n' +
+    'if (dispatcher.HasThreadAccess) return await build();\n' +
+    'await dispatcher.RunAsync(CoreDispatcherPriority.Normal, handler);';
+  const found = memory.threadProblems(source, HELPER).join('\n');
+  assert.match(found, /UiThread\.Dispatcher/);
+});
+
+test('una decodifica che costruisce la bitmap senza finestra si segnala', () => {
+  const source = 'var bitmap = new BitmapImage();\n' +
+    'var dispatcher = UiThread.Dispatcher();\n' +
+    'if (dispatcher == null) Diag.Ok("no view");\n' +
+    'if (dispatcher.HasThreadAccess) return await build();\n' +
+    'await dispatcher.RunAsync(CoreDispatcherPriority.Normal, handler);';
+  const found = memory.threadProblems(source, HELPER).join('\n');
+  assert.match(found, /builds the bitmap even when the process has no window/);
+});
+
+const DIRECTORY = 'WhatsappApp/Services/ContactDirectory.cs';
+
+test('ContactDirectory del progetto non tocca una finestra che non ha', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'WhatsappApp', 'Services', 'ContactDirectory.cs'), 'utf8');
+  assert.deepStrictEqual(memory.windowProblems(source, DIRECTORY), []);
+});
+
+test('ContactDirectory che legge CoreApplication.MainView si segnala', () => {
+  const source = 'var view = CoreApplication.MainView;\n' +
+    'if (dispatcher == null) return;';
+  const found = memory.windowProblems(source, DIRECTORY).join('\n');
+  assert.match(found, /0x8000000E/);
+  assert.match(found, /UiThread\.Dispatcher/);
+});
+
+test('la regola della finestra vale solo per ContactDirectory', () => {
+  assert.deepStrictEqual(memory.windowProblems('var view = CoreApplication.MainView;', FILE), []);
 });

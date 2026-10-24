@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Contacts;
-using Windows.ApplicationModel.Core;
 using Windows.UI.Core;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.WABinary;
@@ -167,12 +166,23 @@ namespace WhatsappApp.Services
         /// </summary>
         private static async Task ApplyToTheListAsync()
         {
+            CoreDispatcher dispatcher = UiThread.Dispatcher();
+
+            if (dispatcher == null)
+            {
+                // No window in this process - the background check. There is no list on
+                // screen to rename, and the app renames its own rows anyway (the start reads
+                // the cache and calls ApplyAddressBook). Said once, because it is a fact about
+                // the process and not a failure: it used to be
+                // `ContactDirectory/Apply: InvalidOperationException 0x8000000E` once per wake
+                // (23-24 October 2026), which reads like a broken address book.
+                Diag.Ok("contacts: no window in this process, the rows are renamed when the app opens");
+                return;
+            }
+
             try
             {
-                CoreWindow window = CoreApplication.MainView.CoreWindow;
-                if (window == null || window.Dispatcher == null) return;
-
-                await window.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, delegate
+                await dispatcher.RunAsync(CoreDispatcherPriority.Normal, delegate
                 {
                     DataService.Instance.ApplyAddressBook();
                 });

@@ -26,6 +26,13 @@
  *     costruita da un thread del pool risponde RPC_E_WRONG_THREAD (0x8001010E) e
  *     la figura si perde - la riga resta con le iniziali e il log ha una riga
  *     sola (la corsa del 2026-10-22).
+ *  6. in un processo senza finestra non si costruisce ne' si tocca niente di
+ *     XAML: `UiThread.Dispatcher()` risponde null nel task di sfondo, e li' una
+ *     bitmap non si decodifica e le righe non si rinominano (lo fa l'app che le
+ *     disegna). Il 23-24 ottobre 2026 ogni sveglio lasciava due righe: una
+ *     RPC_E_WRONG_THREAD da `Contact.LoadAvatarAsync` e una 0x8000000E da
+ *     `ContactDirectory/Apply`, che chiamava `CoreApplication.MainView` in un
+ *     processo dove quella vista non esiste.
  *
  * Usage:
  *   node tools/check-memory.js
@@ -157,6 +164,60 @@ function threadProblems(source, file) {
       '(RunAsync): knowing it is the wrong thread is not enough to build a bitmap on it');
   }
 
+  if (!/UiThread\.Dispatcher\s*\(\s*\)/.test(code)) {
+    problems.push(`${file}: asks for the window itself instead of UiThread.Dispatcher(): ` +
+      'in a process with no view (the background task host) the platform answers with an ' +
+      'exception rather than a null, and every caller that guesses differently answers ' +
+      'differently - 0x8001010E here, 0x8000000E in ContactDirectory, once per wake');
+  }
+
+  const build = code.indexOf('await build(');
+  const none = code.indexOf('dispatcher == null');
+  if (none < 0) {
+    problems.push(`${file}: does not branch on a dispatcher that is null - a process with ` +
+      'no window has nothing to decode for, and the bitmap it builds there answers ' +
+      'RPC_E_WRONG_THREAD (0x8001010E, every wake of 23-24 October 2026)');
+  } else if (build >= 0 && !/return null/.test(code.slice(none, build))) {
+    problems.push(`${file}: builds the bitmap even when the process has no window ` +
+      '(no `return null` before the build): there is no view to draw it in, and the call ' +
+      'fails with RPC_E_WRONG_THREAD - the bytes stay in the row and the app decodes them');
+  }
+
+  return problems;
+}
+
+const CONTACT_DIRECTORY = 'WhatsappApp/Services/ContactDirectory.cs';
+
+/**
+ * Problemi della finestra che un processo senza vista non ha.
+ *
+ * Perche' esiste: il task di sfondo gira in un processo suo, dove non c'e' nessuna
+ * vista. `ContactDirectory` chiedeva `CoreApplication.MainView.CoreWindow` per
+ * rinominare le righe sul dispatcher, e li' quella chiamata risponde
+ * `InvalidOperationException 0x8000000E` - una riga per sveglio (23-24 ottobre
+ * 2026) che si legge come un indirizzario rotto, mentre e' solo un processo senza
+ * schermo. La risposta sta in `UiThread`, una volta, e chi non ha finestra non
+ * rinomina: lo fa l'avvio dell'app.
+ */
+function windowProblems(source, file) {
+  const problems = [];
+  if (file !== CONTACT_DIRECTORY) return problems;
+
+  const code = stripComments(source);
+  if (/CoreApplication\.MainView/.test(code)) {
+    problems.push(`${file}: reads CoreApplication.MainView, which throws ` +
+      'InvalidOperationException 0x8000000E in the background task host - a process there ' +
+      'has no view, and that answer is what UiThread.Dispatcher() turns into a null');
+  }
+  if (!/UiThread\.Dispatcher\s*\(\s*\)/.test(code)) {
+    problems.push(`${file}: does not ask UiThread.Dispatcher() before renaming the rows ` +
+      'on the dispatcher');
+  }
+  if (!/dispatcher == null/.test(code)) {
+    problems.push(`${file}: does not answer the null dispatcher of a headless process ` +
+      '(dispatcher == null): the rename would go to a view that does not exist ' +
+      '(0x8000000E per wake)');
+  }
   return problems;
 }
 
@@ -322,6 +383,7 @@ function main() {
     problems.push(...historyCeilingProblems(source, rel));
     if (rel === HELPER) problems.push(...sourceShapeProblems(source, rel));
     problems.push(...threadProblems(source, rel));
+    problems.push(...windowProblems(source, rel));
   }
 
   if (problems.length) {
@@ -330,8 +392,8 @@ function main() {
     process.exit(1);
   }
   console.log('OK: every decoded bitmap asks for the width it is shown at and is built on ' +
-    'the thread that draws it, the row cache stays slim, and the pictures have a bounded ' +
-    'cache read before the rows.');
+    'the thread that draws it, a process with no window builds none and renames no rows, ' +
+    'the row cache stays slim, and the pictures have a bounded cache read before the rows.');
 }
 
 if (require.main === module) main();
@@ -339,6 +401,7 @@ if (require.main === module) main();
 module.exports = {
   decodeProblems,
   threadProblems,
+  windowProblems,
   attachmentProblems,
   avatarCacheProblems,
   cachedRowsProblems,
