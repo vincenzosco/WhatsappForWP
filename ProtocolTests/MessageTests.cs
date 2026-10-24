@@ -151,6 +151,109 @@ namespace ProtocolTests
                 "and a plaintext that carries no padding still reads");
         }
 
+        /// <summary>
+        /// The walk that replaced the throw-per-guess: it says where the protobuf ends, and
+        /// it never throws doing it.
+        ///
+        /// Why this is a test and not a detail: `DecodePadded` used to answer "is this the
+        /// padding" with a parse inside a `try`, so a plaintext that did not open on the first
+        /// guess cost an exception per guess - sixteen of them, seventeen with the final read.
+        /// A debugger prints every first-chance exception, and on 24 October 2026 the debugger
+        /// output for one run was a column of `Eccezione generata: ProtocolException` for
+        /// messages that read correctly in the end.
+        /// </summary>
+        [Test]
+        public static void MeasureSaysWhereTheProtobufEndsWithoutThrowing()
+        {
+            byte[] message = Message.Text(MessageFixture.TextBody).Encode();
+
+            Assert.AreEqual(message.Length, ProtoReader.Measure(message),
+                "a whole protobuf is as long as it parses");
+            Assert.AreEqual(message.Length, ProtoReader.Measure(message, message.Length),
+                "and the same when it is asked not to read past its own end");
+
+            var cut = new byte[message.Length - 2];
+            Buffer.BlockCopy(message, 0, cut, 0, cut.Length);
+            Assert.IsTrue(ProtoReader.Measure(cut) < cut.Length,
+                "a last field the buffer does not hold is where the protobuf ends");
+
+            Assert.AreEqual(0, ProtoReader.Measure(null), "nothing is not a protobuf");
+
+            // Arbitrary bytes: the walk answers something inside them and never throws, which
+            // is the whole reason it exists.
+            var random = new Random(24);
+            for (int i = 0; i < 200; i++)
+            {
+                var noise = new byte[1 + (i % 37)];
+                random.NextBytes(noise);
+
+                int measured = ProtoReader.Measure(noise);
+                Assert.IsTrue(measured >= 0 && measured <= noise.Length,
+                    "a walk of arbitrary bytes stays inside them");
+            }
+        }
+
+        /// <summary>
+        /// A plaintext with no padding whose last byte happens to be a small number: the
+        /// declared count does not fit, so it is not the count, and the message still reads.
+        /// </summary>
+        [Test]
+        public static void ALastByteThatOnlyLooksLikeACountIsNotTakenForOne()
+        {
+            byte[] message = Message.Text(MessageFixture.TextBody).Encode();
+
+            var plaintext = new byte[message.Length + 3];
+            Buffer.BlockCopy(message, 0, plaintext, 0, message.Length);
+            plaintext[message.Length] = 0xe1;
+            plaintext[message.Length + 1] = 0xe2;
+            plaintext[message.Length + 2] = 0x05;
+
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(plaintext).Conversation,
+                "five bytes of padding are not there, so the protobuf ends where it ends");
+        }
+
+        /// <summary>
+        /// A damaged plaintext still fails, and names itself: the exception is the one worth
+        /// seeing, and a reader that swallowed it would put an empty message in the chat.
+        /// </summary>
+        [Test]
+        public static void ADamagedPlaintextStillNamesItsOwnFailure()
+        {
+            byte[] message = Message.Text(MessageFixture.TextBody).Encode();
+
+            var truncated = new byte[message.Length - 2];
+            Buffer.BlockCopy(message, 0, truncated, 0, truncated.Length);
+
+            string said = null;
+            try
+            {
+                Message.DecodePadded(truncated);
+            }
+            catch (ProtocolException error)
+            {
+                said = error.Message;
+            }
+
+            Assert.IsTrue(said != null, "a truncated plaintext is not a message");
+            Assert.IsTrue(said.IndexOf("announces", StringComparison.Ordinal) >= 0
+                || said.IndexOf("runs past", StringComparison.Ordinal) >= 0,
+                "the failure is the bytes' own: " + said);
+        }
+
+        /// <summary>
+        /// Bytes that start no protobuf at all are refused, not read as an empty message: a
+        /// silent empty `Message` is a chat row with nothing in it and no line in the log.
+        /// </summary>
+        [Test]
+        public static void BytesThatStartNoProtobufAreRefused()
+        {
+            byte[] garbage = { 0xff, 0xff, 0xff, 0xff };
+
+            Assert.AreEqual(0, ProtoReader.Measure(garbage), "nothing here starts a protobuf");
+            Assert.Throws<ProtocolException>(delegate { Message.DecodePadded(garbage); },
+                "and the decode says so instead of handing back an empty message");
+        }
+
         private static byte[] Hex(string text)
         {
             var bytes = new byte[text.Length / 2];
