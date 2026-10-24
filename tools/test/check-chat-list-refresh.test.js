@@ -16,7 +16,9 @@ const GOOD_DATA = [
   '',
   '            if (row.IsGroup) kept++;',
   '',
-  '            Diag.Ok("chats: " + rows.Count + " re-read, " + _statuses.Count + " status row(s) kept");',
+  '            string statuses = _statuses.Count == 0 ? "the status feed is empty"',
+  '                : _statuses.Count + " status row(s) kept";',
+  '            Diag.Ok("chats: " + rows.Count + " re-read, " + statuses);',
   '        }',
   '',
   '        private void ApplyChat(ChatMessage message, bool remember)',
@@ -172,9 +174,19 @@ test('un refresh che interroga il server si segnala', () => {
 
 test('un refresh che non scrive niente nel log si segnala', () => {
   const found = broken({
-    data: GOOD_DATA.replace('            Diag.Ok("chats: " + rows.Count + " re-read, " + _statuses.Count + " status row(s) kept");\n', '')
+    data: GOOD_DATA.replace('            Diag.Ok("chats: " + rows.Count + " re-read, " + statuses);\n', '')
   });
   assert.match(found, /writes nothing to the log/);
+});
+
+test('un refresh che stampa uno zero senza dire che il feed e vuoto si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('            string statuses = _statuses.Count == 0 ? "the status feed is empty"\n',
+      '            string statuses = "the feed"\n')
+      .replace('                : _statuses.Count + " status row(s) kept";',
+        '                + _statuses.Count;')
+  });
+  assert.match(found, /without naming an empty/);
 });
 
 test('un refresh che non nomina i gruppi che ha lasciato si segnala', () => {
@@ -186,7 +198,7 @@ test('un refresh che non nomina i gruppi che ha lasciato si segnala', () => {
 
 test('un refresh che dimentica gli stati si segnala', () => {
   const found = broken({
-    data: GOOD_DATA.replace('_statuses.Count', '0')
+    data: GOOD_DATA.replace(/_statuses\.Count/g, '0')
   });
   assert.match(found, /does not say what happened to the status rows/);
 });

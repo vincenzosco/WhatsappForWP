@@ -2773,12 +2773,19 @@ namespace WhatsappApp.Services
             // is the state a report has to be able to name.
             NameDuplicateRows();
 
+            // The feed named and not only counted: a bare zero is the same line for a phone
+            // whose statuses have not arrived yet and for a pass that forgot to look, and only
+            // one of those is news. An empty feed says so in words.
+            string statuses = _statuses.Count == 0
+                ? "the status feed is empty"
+                : _statuses.Count + " status row(s) kept";
+
             // One line per tick, changed or not, with the status feed's rows in it as well: the
             // two caches are read on the same pass of the eye, and a quiet tick that says how
             // many rows it left alone is the proof the timer is alive.
             Diag.Ok("chats: " + rows.Count + " row(s) re-read, " + applied + " applied, "
                 + folded + " folded, " + keptGroups + " group(s) and " + keptPeople
-                + " person(s) left as they were, " + _statuses.Count + " status row(s) kept");
+                + " person(s) left as they were, " + statuses);
 
             if (applied == 0 && folded == 0) return;
 
