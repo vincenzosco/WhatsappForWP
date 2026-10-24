@@ -118,6 +118,10 @@ namespace WhatsappApp.Services
         private IList<StatusPost> _statuses = new List<StatusPost>();
 
         private NativeSession _session;
+
+        /// <summary>Set when a login completes on the open socket, and cleared when that socket ends.</summary>
+        private bool _loggedIn;
+
         private Credentials _account;
         private ISessionStorage _storage;
         private Task<ISessionStorage> _storageOpening;
@@ -151,6 +155,25 @@ namespace WhatsappApp.Services
             {
                 NativeSession session = _session;
                 return session != null && session.IsOpen;
+            }
+        }
+
+        /// <summary>
+        /// True once this account's login has completed on the open socket.
+        ///
+        /// Why it is not `IsConnected`: the session is opened before the login begins and
+        /// stays open while it runs, so `IsConnected` answers yes for a socket that no
+        /// account has finished logging in on. A caller that wants something the account
+        /// owns - a chat's full picture, for one - needs the second answer, and used to
+        /// learn the difference from a `ProtocolException`: `there is no open account to
+        /// send on`, in `PinnedTile/picture` at every start (24 October 2026).
+        /// </summary>
+        public bool IsLoggedIn
+        {
+            get
+            {
+                NativeSession session = _session;
+                return _loggedIn && session != null && session.IsOpen;
             }
         }
 
@@ -379,6 +402,7 @@ namespace WhatsappApp.Services
                     RememberServerLid(account, welcome);
 
                     _account = account;
+                    _loggedIn = true;
                     _lastNode = DateTime.UtcNow;
                     Status = "logged in as " + account.Jid;
                     Diag.Ok("native: logged in as " + account.Jid);
@@ -432,6 +456,11 @@ namespace WhatsappApp.Services
                 {
                     if (session != null) session.Close();
                     if (ReferenceEquals(_session, session)) _session = null;
+
+                    // The socket is gone, so is the login on it. Set before the status below,
+                    // because that status is what a listener reads to decide whether there is
+                    // an account to ask anything of.
+                    if (!IsConnected) _loggedIn = false;
                 }
 
                 if (!_running || generation != _generation) break;

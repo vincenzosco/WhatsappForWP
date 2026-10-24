@@ -78,6 +78,7 @@ const { stripComments } = require('./csharp');
 const ROOT = path.resolve(__dirname, '..');
 const SERVICE = path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs');
 const PINNED = path.join(ROOT, 'WhatsappApp', 'Services', 'PinnedTile.cs');
+const DATA_SERVICE = path.join(ROOT, 'WhatsappApp', 'Services', 'DataService.cs');
 const TILE_IMAGE = path.join(ROOT, 'WhatsappApp', 'Services', 'TileImage.cs');
 const TILE_CANVAS = path.join(ROOT, 'WhatsappApp', 'Protocol', 'Media', 'TileCanvas.cs');
 const ASSETS_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
@@ -279,6 +280,47 @@ function pictureProblems(pinned, canvas) {
 }
 
 /**
+ * Problemi della foto grande chiesta prima che ci sia un account.
+ *
+ * Perche' esiste: la tile di un contatto e' composta dalla foto grande, ma la foto si
+ * chiede a WhatsApp, e una domanda senza account risponde `there is no open account to
+ * send on`. La scansione delle tile gira all'avvio, prima del login: sul telefono del 24
+ * ottobre 2026 il log dice `PinnedTile/picture ...: ProtocolException 0x80131500 there is
+ * no open account to send on`, e il tentativo si bruciava a ogni avvio. Peggio: la tile
+ * restava sulla preview 96x96 per tutta la corsa, perche' nessun publish la richiedeva
+ * dopo il login - la faccia ingrandita che il commit del 23 ottobre doveva togliere.
+ *
+ * Regole: `AskForPicture` non chiede senza `NativeConnection.IsLoggedIn`, e `DataService`
+ * pubblica le tile una volta che il login e' finito (e' il publish che riempie il buco).
+ */
+function loginProblems(pinned, dataService) {
+  const problems = [];
+  const ask = methodBody(stripComments(String(pinned || '')), 'AskForPicture');
+
+  if (!ask) {
+    problems.push('WhatsappApp/Services/PinnedTile.cs: no AskForPicture - the pinned tile ' +
+      'has nothing that asks for the full-size picture');
+    return problems;
+  }
+
+  if (!/IsLoggedIn/.test(ask)) {
+    problems.push('WhatsappApp/Services/PinnedTile.cs: AskForPicture asks without ' +
+      'NativeConnection.IsLoggedIn - at a start that is before the login, so the answer is ' +
+      '"there is no open account to send on", one failure line per start and one of the three ' +
+      'attempts spent on a question nobody can answer yet');
+  }
+
+  const status = methodBody(stripComments(String(dataService || '')), 'OnNativeConnectionStatus');
+  if (!/PublishPinnedTiles\s*\(/.test(status)) {
+    problems.push('WhatsappApp/Services/DataService.cs: nothing publishes the pinned tiles when ' +
+      'the login completes - the start sweep already asked and was refused, so the tile keeps ' +
+      'the 96x96 preview, enlarged, for the whole run (the blurry face of 23 October 2026)');
+  }
+
+  return problems;
+}
+
+/**
  * Il corpo di un metodo, dalla sua dichiarazione alla graffa che lo chiude.
  *
  * Sulla sorgente gia' senza commenti (`stripComments`), perche' il nome cercato
@@ -439,6 +481,9 @@ function main() {
   problems.push(...pictureProblems(
     fs.readFileSync(PINNED, 'utf8'),
     fs.readFileSync(TILE_CANVAS, 'utf8')));
+  problems.push(...loginProblems(
+    fs.readFileSync(PINNED, 'utf8'),
+    fs.readFileSync(DATA_SERVICE, 'utf8')));
   problems.push(...requestProblems(tileImage));
   problems.push(...fallbackProblems(tileImage));
 
@@ -471,5 +516,6 @@ if (require.main === module) main();
 
 module.exports = {
   pngSize, declaredImages, bindingProblems, decodeProblems, writeProblems, smallProblems,
-  pictureProblems, requestProblems, fallbackProblems, methodBody, assetProblems, stripComments
+  pictureProblems, loginProblems, requestProblems, fallbackProblems, methodBody,
+  assetProblems, stripComments, DATA_SERVICE, PINNED
 };

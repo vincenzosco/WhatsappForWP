@@ -64,6 +64,13 @@ namespace WhatsappApp.Services
         // next list, because nothing on the other side was ever told.
         private readonly HashSet<string> _pendingReads = new HashSet<string>();
 
+        /// <summary>
+        /// Whether the pinned tiles have been published since the login completed. One sweep
+        /// per run and not one per status change: the connection says something every few
+        /// seconds, and the sweep asks WhatsApp a question per pinned chat.
+        /// </summary>
+        private bool _pinnedTilesAfterLogin;
+
         // The chat-list rows as the server last sent them (for the cache) and the
         // ones that are arriving now.
         private readonly List<ChatMessage> _freshChatRows = new List<ChatMessage>();
@@ -2406,6 +2413,22 @@ namespace WhatsappApp.Services
             if (!NativeConnection.Instance.IsConnected) return;
 
             OnConnectionEstablished(sender, EventArgs.Empty);
+
+            // And the pinned tiles, once the account is really in. The start's sweep runs
+            // before the login, so the picture it asks for has nobody to answer it: the tile
+            // then shows the chat list's 96x96 preview, drawn large, which is the blurry face
+            // of 23 October 2026 - and it stays that way for the whole run unless a message
+            // arrives in that chat, because a publish is what asks again. This is the publish
+            // that was missing; `PinnedTile.AskForPicture` refuses to ask before this point.
+            //
+            // Only in the process that draws: the background check logs in on a budget of
+            // about fifteen seconds of reading, and a full-size picture per pinned chat is
+            // not what it is there for. Its tile is the app's, set by `NotificationService`.
+            if (_pinnedTilesAfterLogin || !NativeConnection.Instance.IsLoggedIn) return;
+            if (!UiThread.HasWindow) return;
+
+            _pinnedTilesAfterLogin = true;
+            PublishPinnedTiles();
         }
 
         private void OnConnectionEstablished(object sender, EventArgs e)
