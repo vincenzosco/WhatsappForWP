@@ -306,7 +306,9 @@ namespace WhatsappApp.Services
         {
             try
             {
-                byte[] jpeg = await NativeConnection.Instance.RequestAvatarAsync(chatId, false);
+                AvatarAnswer picture = await NativeConnection.Instance.RequestAvatarAsync(chatId, false);
+
+                byte[] jpeg = picture == null ? null : picture.Jpeg;
 
                 if (jpeg == null || jpeg.Length == 0)
                 {
