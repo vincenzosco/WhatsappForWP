@@ -36,6 +36,13 @@ namespace WhatsappApp.Services
         /// <summary>How many times a missing session is waited for before giving up.</summary>
         private const int NoSessionRetries = 3;
 
+        /// <summary>
+        /// How many chats are named for a refusal of their picture. The count of refusals can
+        /// be the whole list - every LID the server will not answer - and one line each is the
+        /// log nobody reads the next day.
+        /// </summary>
+        private const int MaxRefusedLines = 5;
+
         private static readonly object Gate = new object();
 
         /// <summary>The chats asked about this run, picture or not: one question per chat.</summary>
@@ -108,6 +115,7 @@ namespace WhatsappApp.Services
             int index = 0;
             int noSession = 0;
             int failures = 0;
+            int refused = 0;
 
             try
             {
@@ -144,38 +152,19 @@ namespace WhatsappApp.Services
 
                     if (!FirstAsk(id)) continue;
 
-                    // The wait is outside the catch blocks on purpose: the WP8.1 compiler
+                    // The wait is outside the catch block on purpose: the WP8.1 compiler
                     // answers CS1985 to an await inside one (C# 5 syntax, see
                     // tools/check-csharp5.js).
-                    byte[] jpeg = null;
+                    //
+                    // The two ordinary answers are values now, not exceptions: "no account
+                    // yet" and "the server refuses this chat" both come back in the answer,
+                    // and the catch below is left for what it is for - a socket that went
+                    // away under the request.
+                    AvatarAnswer answer = null;
                     int wait = 0;
                     try
                     {
-                        jpeg = await NativeConnection.Instance.RequestAvatarAsync(id, true);
-                        noSession = 0;
-                    }
-                    catch (ProtocolException error)
-                    {
-                        // No socket yet (or none any more): the first rows arrive from the
-                        // local copy before the login, and asking now would be one exception
-                        // per row. Wait for the connection instead of giving up on it - the
-                        // loop that broke here left every row with initials until the tab was
-                        // left and entered again, because a login that finished a second
-                        // later had nobody to tell.
-                        noSession++;
-                        Forget(id);
-
-                        if (noSession == NoSessionRetries)
-                        {
-                            Diag.Ok("avatar: no session to ask on, the pass waits for the login: "
-                                + error.Message);
-                        }
-
-                        // From the first row: the ones this pass stepped over are the ones
-                        // that still have no picture, and a completed list would otherwise
-                        // make the loop end as if there was nothing left to ask.
-                        index = 0;
-                        wait = NoSessionDelayMs;
+                        answer = await NativeConnection.Instance.RequestAvatarAsync(id, true);
                     }
                     catch (Exception error)
                     {
@@ -190,11 +179,51 @@ namespace WhatsappApp.Services
                         wait = DelayMs;
                     }
 
+                    if (answer != null && answer.NoSession)
+                    {
+                        // The first rows arrive from the local copy before the login: wait
+                        // for it instead of giving up on the row - the loop that broke here
+                        // left every row on its initials until the tab was left and entered
+                        // again, because a login that finished a second later had nobody to
+                        // tell.
+                        noSession++;
+                        Forget(id);
+
+                        if (noSession == NoSessionRetries)
+                        {
+                            Diag.Ok("avatar: no session to ask on, the pass waits for the login");
+                        }
+
+                        // From the first row: the ones this pass stepped over are the ones that
+                        // still have no picture, and a completed list would otherwise make the
+                        // loop end as if there was nothing left to ask.
+                        index = 0;
+                        wait = NoSessionDelayMs;
+                    }
+                    else if (answer != null && answer.Refused)
+                    {
+                        // Left spent in `Asked`: a refusal is an answer for this run, and the
+                        // loop goes on with the next row instead of starting over.
+                        if (refused < MaxRefusedLines)
+                        {
+                            refused++;
+                            Diag.Ok("avatar: " + id + " answers no picture");
+                        }
+
+                        wait = DelayMs;
+                    }
+                    else if (answer != null)
+                    {
+                        noSession = 0;
+                    }
+
                     if (wait > 0)
                     {
                         await Task.Delay(wait);
                         continue;
                     }
+
+                    byte[] jpeg = answer == null ? null : answer.Jpeg;
 
                     if (jpeg != null && jpeg.Length > 0)
                     {
