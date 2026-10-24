@@ -245,7 +245,8 @@ waiting) and the message is marked read when the reader reaches it.
    node tools/check-tile.js &&
    node tools/check-memory.js && node tools/check-actions.js &&
    node tools/check-fire-and-forget.js && node tools/check-project-files.js &&
-   node tools/check-chat-list-refresh.js && node tools/check-chat-list-source.js &&
+   node tools/check-chat-list-refresh.js && node tools/check-one-row-per-chat.js &&
+   node tools/check-chat-list-source.js &&
    node tools/check-chat-scroll.js &&
    node tools/check-held-group.js && node tools/check-avatar-refusal.js &&
    node tools/check-no-exception-probes.js && node tools/check-history-sync.js &&
