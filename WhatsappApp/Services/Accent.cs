@@ -45,29 +45,36 @@ namespace WhatsappApp.Services
 
             // The WP8.1 projection has no UISettings.GetColorValue (it is the
             // Windows 8.1 one): the accent is read from the theme dictionary.
-            // The candidate names cover the three names this platform has used.
+            // The candidate names cover the three names this platform has used, the one
+            // this build answers first.
+            //
+            // A missing name is asked about with `ContainsKey` and never with a lookup
+            // wrapped in a `try`: a `ResourceDictionary` answers a key it does not have with
+            // a COMException (0x80004005, "Cannot find a resource with the given key") that
+            // is thrown from inside the WinRT map, so the debugger stops on it at every
+            // start - `Eccezione generata: COMException ... at WhatsappApp.Services.Accent.Apply`
+            // on the output of 2026-10-24 - even though the `catch` below it handled it.
+            // Two of the three names are absent on every build, so that was two first-chance
+            // exceptions per launch for a question that has a `ContainsKey`.
             _color = Fallback;
-            string[] keys = { "SystemAccentColor", "PhoneAccentColor", "SystemColorControlAccentColor" };
-            for (int i = 0; i < keys.Length; i++)
+            string source = "this build names no accent in its resources";
+            ResourceDictionary resources = Application.Current == null ? null : Application.Current.Resources;
+            if (resources != null)
             {
-                try
+                string[] keys = { "SystemColorControlAccentColor", "SystemAccentColor", "PhoneAccentColor" };
+                for (int i = 0; i < keys.Length; i++)
                 {
-                    object value = Application.Current.Resources[keys[i]];
-                    if (value is Color)
-                    {
-                        _color = (Color)value;
-                        break;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // A name this build does not have is the normal case, not a failure:
-                    // the three candidates are the three names this platform has used, and
-                    // no one of them is on every build. It was written as Diag.Failed, and
-                    // every start of 2026-10-22 opened with two "Cannot find a resource with
-                    // the given key" lines - the on-device checklist asks for a start with
-                    // no failure line, and this was the one that was always there.
-                    Diag.Ok("accent: no " + keys[i] + " on this build (" + ex.Message + ")");
+                    if (!resources.ContainsKey(keys[i])) continue;
+
+                    object value = resources[keys[i]];
+                    if (!(value is Color)) continue;
+
+                    _color = (Color)value;
+                    // Which name answered, because the line below is the only evidence a phone
+                    // gives about where its colour came from - and "the fallback" and "the
+                    // accent" were the same green on a green-accented phone.
+                    source = keys[i];
+                    break;
                 }
             }
 
@@ -81,7 +88,7 @@ namespace WhatsappApp.Services
                 : Color.FromArgb(255, 255, 255, 255));
 
             // Color.ToString() already begins with '#': the extra one printed "##FF3E65FF".
-            Diag.OkNow("accent: " + _color.ToString());
+            Diag.OkNow("accent: " + _color.ToString() + " from " + source);
         }
 
         /// <summary>Luminance test: white text on a light accent is unreadable.</summary>
@@ -101,7 +108,13 @@ namespace WhatsappApp.Services
 
         private static void SetBrush(string key, Color color)
         {
-            var brush = Application.Current.Resources[key] as SolidColorBrush;
+            // The same rule as the accent above: no lookup for a key that is not there, and
+            // none at all in a process with no application (the background check imports
+            // this file and never builds one).
+            Application app = Application.Current;
+            if (app == null || !app.Resources.ContainsKey(key)) return;
+
+            var brush = app.Resources[key] as SolidColorBrush;
             if (brush != null) brush.Color = color;
         }
     }
