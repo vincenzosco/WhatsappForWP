@@ -106,7 +106,9 @@ namespace WhatsappApp.Pages
         {
             try
             {
-                byte[] jpeg = await NativeConnection.Instance.RequestAvatarAsync(_contact.Id, false);
+                AvatarAnswer picture = await NativeConnection.Instance.RequestAvatarAsync(_contact.Id, false);
+
+                byte[] jpeg = picture == null ? null : picture.Jpeg;
                 if (jpeg == null || jpeg.Length == 0) return;
 
                 string data = Convert.ToBase64String(jpeg);
