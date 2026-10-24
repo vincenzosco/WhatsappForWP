@@ -46,14 +46,12 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameFor(chatId));
-                return await ReadAsync(file);
-            }
-            catch (FileNotFoundException)
-            {
-                // First open: there is no copy of this chat on the phone. That is
-                // the normal state and not a failure, so it is not logged: a
-                // FileNotFoundException line in the log hid the real fault.
+                // TryGetItemAsync: a first open has no copy of this chat, and that is the
+                // normal state, not a failure. Not logged: a FileNotFoundException line in the
+                // log hid the real fault.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileNameFor(chatId));
+                if (item == null) return new List<ChatMessage>();
+                return await ReadAsync((StorageFile)item);
             }
             catch (Exception ex)
             {
@@ -243,15 +241,8 @@ namespace WhatsappApp.Services
                     name + ".new", CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(temp, json);
 
-                StorageFile current = null;
-                try
-                {
-                    current = await folder.GetFileAsync(name);
-                }
-                catch (FileNotFoundException)
-                {
-                    // The first message of this chat: there is nothing to replace.
-                }
+                // The first message of this chat has nothing to replace.
+                var current = (StorageFile)await folder.TryGetItemAsync(name);
 
                 if (current == null) await temp.RenameAsync(name);
                 else await temp.MoveAndReplaceAsync(current);
@@ -275,13 +266,10 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameFor(chatId));
-                await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
-            }
-            catch (FileNotFoundException)
-            {
                 // A chat that was never saved has no file to drop: the state of every chat
                 // deleted before it was opened, not a failure.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileNameFor(chatId));
+                if (item != null) await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
             catch (Exception ex)
             {

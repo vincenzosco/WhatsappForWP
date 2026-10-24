@@ -127,8 +127,11 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                string json = await FileIO.ReadTextAsync(file);
+                // TryGetItemAsync: the first run has no file, and that is not a failure.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item == null) return;
+
+                string json = await FileIO.ReadTextAsync((StorageFile)item);
                 if (string.IsNullOrEmpty(json)) return;
 
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))

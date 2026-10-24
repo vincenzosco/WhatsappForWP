@@ -67,8 +67,12 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                string json = await FileIO.ReadTextAsync(file);
+                // TryGetItemAsync, not GetFileAsync: the first run has no file, and a missing
+                // file thrown and caught here is a first-chance exception in the debugger.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item == null) return new ChatCacheFile { Chats = new List<ChatMessage>() };
+
+                string json = await FileIO.ReadTextAsync((StorageFile)item);
                 if (!string.IsNullOrEmpty(json))
                 {
                     using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
@@ -94,13 +98,10 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
-            }
-            catch (FileNotFoundException)
-            {
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
                 // A file that is not there is not a failure: the first link deletes
                 // a copy that was never written.
+                if (item != null) await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
             catch (Exception ex)
             {
@@ -188,15 +189,8 @@ namespace WhatsappApp.Services
                 TempName, CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteTextAsync(temp, json);
 
-            StorageFile current = null;
-            try
-            {
-                current = await folder.GetFileAsync(FileName);
-            }
-            catch (FileNotFoundException)
-            {
-                // First write of this phone: there is nothing to replace.
-            }
+            // First write of this phone: there is nothing to replace.
+            var current = (StorageFile)await folder.TryGetItemAsync(FileName);
 
             if (current == null) await temp.RenameAsync(FileName);
             else await temp.MoveAndReplaceAsync(current);

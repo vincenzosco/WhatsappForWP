@@ -74,8 +74,16 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                string json = await FileIO.ReadTextAsync(file);
+                // TryGetItemAsync: a fresh install has no file, and a missing file thrown and
+                // caught here is a first-chance exception on every first start.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item == null)
+                {
+                    Diag.Ok("preferences: nothing stored yet");
+                    return;
+                }
+
+                string json = await FileIO.ReadTextAsync((StorageFile)item);
                 if (string.IsNullOrEmpty(json)) return;
 
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
@@ -273,15 +281,8 @@ namespace WhatsappApp.Services
                     FileName + ".new", CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(temp, json);
 
-                StorageFile current = null;
-                try
-                {
-                    current = await folder.GetFileAsync(FileName);
-                }
-                catch (FileNotFoundException)
-                {
-                    // The first decision this phone ever made.
-                }
+                // The first decision this phone ever made has no file to replace.
+                var current = (StorageFile)await folder.TryGetItemAsync(FileName);
 
                 if (current == null) await temp.RenameAsync(FileName);
                 else await temp.MoveAndReplaceAsync(current);
