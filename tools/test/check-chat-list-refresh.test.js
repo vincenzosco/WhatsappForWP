@@ -20,6 +20,23 @@ const GOOD_DATA = [
   '            message.ChatId = ChatIdFor(message.ChatId);',
   '        }',
   '',
+  '        private bool RefreshChatRow(WhatsappApp.Protocol.WaProto.HistoryConversation row)',
+  '        {',
+  '            Contact contact = FindContact(row.Jid);',
+  '            if (contact != null && !WouldChangeTheRow(contact, message)) return false;',
+  '',
+  '            ApplyChat(message, false);',
+  '            return true;',
+  '        }',
+  '',
+  '        private bool WouldChangeTheRow(Contact contact, ChatMessage message)',
+  '        {',
+  '            string name = NameFor(message);',
+  '            if (contact.Name != name) return true;',
+  '',
+  '            return contact.LastMessage != message.Text;',
+  '        }',
+  '',
   '        public string ChatIdFor(string chatId)',
   '        {',
   '            return chatId;',
@@ -152,6 +169,29 @@ test('un refresh che interroga il server si segnala', () => {
 test('un refresh che non fonde le righe doppie si segnala', () => {
   const found = broken({ data: GOOD_DATA.replace('FoldDuplicateChats();', 'Nothing();') });
   assert.match(found, /does not fold/);
+});
+
+test('un refresh che riapplica ogni riga si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('            if (contact != null && !WouldChangeTheRow(contact, message)) return false;\n', '')
+  });
+  assert.match(found, /applies every row/);
+});
+
+test('una decisione presa dopo aver applicato la riga si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace(
+      '            if (contact != null && !WouldChangeTheRow(contact, message)) return false;\n\n            ApplyChat(message, false);',
+      '            ApplyChat(message, false);\n\n            if (contact != null && !WouldChangeTheRow(contact, message)) return false;')
+  });
+  assert.match(found, /asks the question after it applied/);
+});
+
+test('una decisione che non guarda il nome si segnala', () => {
+  const found = broken({
+    data: GOOD_DATA.replace('            if (contact.Name != name) return true;\n', '')
+  });
+  assert.match(found, /does not compare the name and the preview/);
 });
 
 test('un percorso che non canonicalizza l id si segnala', () => {

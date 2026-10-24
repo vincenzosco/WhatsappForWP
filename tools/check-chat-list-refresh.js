@@ -14,7 +14,10 @@
  *     until the app was restarted. `HomePage` now re-reads the list every 30 s
  *     (`DataService.ListRefreshSeconds`) while the chat tab is in front, and stops when it
  *     leaves. The refresh is **local**: it walks rows already in memory and asks WhatsApp
- *     nothing, which is what makes it safe on a phone with no data.
+ *     nothing, which is what makes it safe on a phone with no data. And it is **quiet**: a
+ *     row whose name and preview are what the list already shows is not applied again
+ *     (`WouldChangeTheRow`), because the tick otherwise re-raises every property of every
+ *     row and moves it in the ordered list - twice a minute, for nothing.
  *  2. **One spelling per chat.** A message that arrives under a `@lid` (or with a device)
  *     belongs to the row filed under the number. Every path that keys a chat - `ApplyChat`,
  *     `AddMessage`, `GetMessages`, `FindContact` - goes through `DataService.ChatIdFor`
@@ -150,6 +153,36 @@ function chatListRefreshProblems(files) {
     }
   }
 
+  // 1b. And quiet: a row that says nothing new is not applied.
+  const refreshRow = methodBody(data,
+    'private bool RefreshChatRow(WhatsappApp.Protocol.WaProto.HistoryConversation row)');
+  if (refreshRow == null) {
+    problems.push(`${DATA}: RefreshChatRow is missing: the refresh has nothing to apply a row with`);
+  } else {
+    const decides = refreshRow.indexOf('WouldChangeTheRow(');
+    const applies = refreshRow.indexOf('ApplyChat(');
+
+    if (decides < 0) {
+      problems.push(`${DATA}: RefreshChatRow applies every row it reads (no WouldChangeTheRow): ` +
+        'a row that has not moved is re-applied on every tick - a property change per row and a ' +
+        'move in a list the reader may be looking at, twice a minute, for nothing');
+    } else if (applies >= 0 && decides > applies) {
+      problems.push(`${DATA}: RefreshChatRow asks the question after it applied the row ` +
+        '(ApplyChat before WouldChangeTheRow): the row is already on the list when it is judged');
+    }
+
+    const decision = methodBody(data, 'private bool WouldChangeTheRow(Contact contact, ChatMessage message)');
+    if (decision == null) {
+      problems.push(`${DATA}: WouldChangeTheRow is missing: the refresh cannot tell a row that says ` +
+        'something new from one that says what the list already shows');
+    } else if (!decision.includes('contact.Name != name')
+      || !decision.includes('contact.LastMessage != message.Text')) {
+      problems.push(`${DATA}: WouldChangeTheRow does not compare the name and the preview ` +
+        '(contact.Name != name, contact.LastMessage != message.Text): a row renamed after it was ' +
+        'drawn, or a chat with a new last message, would be skipped and show the old one for ever');
+    }
+  }
+
   // 2. One spelling per chat, on every path that keys one.
   const lookups = count(data, 'ChatIdFor(');
   if (lookups < 5) {
@@ -234,9 +267,9 @@ function main() {
     process.exit(1);
   }
 
-  console.log('OK: the list is re-read every 30 s at most, one chat has one spelling on every path, ' +
-    'a sent message lands in the conversation it is read in, and the groups are asked for their ' +
-    'subject after the login.');
+  console.log('OK: the list is re-read every 30 s at most and only the rows that say something ' +
+    'new are applied, one chat has one spelling on every path, a sent message lands in the ' +
+    'conversation it is read in, and the groups are asked for their subject after the login.');
 }
 
 if (require.main === module) main();
