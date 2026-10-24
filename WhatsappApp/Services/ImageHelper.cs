@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Windows.Storage;
 using Windows.Storage.Streams;
@@ -17,6 +18,13 @@ namespace WhatsappApp.Services
     /// </summary>
     public static class ImageHelper
     {
+        /// <summary>
+        /// Whether this process has already said that it has no window to draw in. A
+        /// background wake asks this once per picture it would have decoded, and one line is
+        /// the whole of what there is to say: there is no XAML view in that process.
+        /// </summary>
+        private static int _saidNoView;
+
         /// <summary>
         /// base64 -> bitmap, decoded at `decodePixelWidth` px wide.
         /// </summary>
@@ -99,13 +107,25 @@ namespace WhatsappApp.Services
         /// </summary>
         private static async Task<BitmapImage> OnUiAsync(Func<Task<BitmapImage>> build)
         {
-            Window window = Window.Current;
-            CoreDispatcher dispatcher = window == null ? null : window.Dispatcher;
+            CoreDispatcher dispatcher = UiThread.Dispatcher();
 
             // No window means no XAML view: a background task has no one to draw for, and
-            // there is no dispatcher to hop to. The caller gets the same answer it would
-            // have got before, which is the one it can use (null or a decode that fails).
-            if (dispatcher == null || dispatcher.HasThreadAccess) return await build();
+            // there is no dispatcher to hop to. Nothing is built there: a `BitmapImage`
+            // created in that process answers `RPC_E_WRONG_THREAD` (0x8001010E) - the
+            // `Contact.LoadAvatarAsync` line of every wake of 23-24 October 2026 - and the
+            // picture is lost anyway. The bytes stay in the row, and the run that draws it
+            // builds the bitmap; the answer here is the same null a missing picture gives.
+            if (dispatcher == null)
+            {
+                if (Interlocked.Exchange(ref _saidNoView, 1) == 0)
+                {
+                    Diag.Ok("image: no window in this process, so no picture is decoded here");
+                }
+
+                return null;
+            }
+
+            if (dispatcher.HasThreadAccess) return await build();
 
             var built = new TaskCompletionSource<BitmapImage>();
             await dispatcher.RunAsync(CoreDispatcherPriority.Normal, async delegate
