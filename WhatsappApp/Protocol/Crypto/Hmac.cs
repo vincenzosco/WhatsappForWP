@@ -45,6 +45,46 @@ namespace WhatsappApp.Protocol.Crypto
             return Sha256.Hash(outer);
         }
 
+        /// <summary>
+        /// HMAC-SHA512, for the one place that needs a wider digest: the app-state sync's
+        /// mutation MAC, which the reference signs with sha512 and keeps the **first 32
+        /// bytes** of (`Utils/chat-utils.js`, `generateMac`, and `hmacSign(total, key,
+        /// 'sha512')` beside it). A different HMAC and not a different hash of this one: the
+        /// block is 128 bytes here, so a key of 64 bytes is padded and not hashed.
+        /// </summary>
+        public static byte[] ComputeSha512(byte[] key, byte[] data)
+        {
+            if (key == null) throw new ProtocolException("HMAC needs a key");
+            if (data == null) data = new byte[0];
+
+            const int blockLength = 128;
+
+            byte[] block = new byte[blockLength];
+            if (key.Length > blockLength)
+            {
+                byte[] hashed = Sha512.Hash(key);
+                Buffer.BlockCopy(hashed, 0, block, 0, hashed.Length);
+            }
+            else
+            {
+                Buffer.BlockCopy(key, 0, block, 0, key.Length);
+            }
+
+            var inner = new byte[blockLength + data.Length];
+            var outer = new byte[blockLength + Sha512.DigestLength];
+
+            for (int i = 0; i < blockLength; i++)
+            {
+                inner[i] = (byte)(block[i] ^ 0x36);
+                outer[i] = (byte)(block[i] ^ 0x5c);
+            }
+
+            Buffer.BlockCopy(data, 0, inner, blockLength, data.Length);
+            Buffer.BlockCopy(Sha512.Hash(inner), 0, outer, blockLength, Sha512.DigestLength);
+
+            return Sha512.Hash(outer);
+        }
+
         /// <summary>A constant-time comparison, so a tag cannot be found byte by byte.</summary>
         public static bool FixedTimeEquals(byte[] left, byte[] right)
         {

@@ -23,6 +23,13 @@ test('un sync che resta nelle righe lascia le chat vuote', () => {
   assert.match(historySyncProblems(broken).join('\n'), /MessageArrived/);
 });
 
+test('un sync che non dice alla lista delle righe rinominate non rinomina nessuno', () => {
+  const broken = files();
+  broken.connection = broken.connection
+    .replace(/ChatArrived\(this, _chats\.Rows\[i\]\)/, 'ChatArrived(this, sync.Conversations[i].Row)');
+  assert.match(historySyncProblems(broken).join('\n'), /push-name sync/);
+});
+
 test('una riga di cronologia senza il flag conta come nuova', () => {
   const broken = files();
   broken.dataService = broken.dataService
