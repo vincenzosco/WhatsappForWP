@@ -234,7 +234,7 @@ node tools/check-icons.js           inline vector icons, element form, same icon
 node tools/check-resw.js --strict   x:Uid, Loc.Get, both .resw files, no unused key
 node tools/check-docs.js            README pair, same headings, disclosure last, no emoji
 node tools/check-memory.js          decode width, cache caps, per-chat ceiling
-node tools/check-tile.js            tile payload and asset sizes
+node tools/check-tile.js            tile payload, asset sizes, and a tile the platform refuses
 node tools/check-actions.js         the app bar buttons
 node tools/check-fire-and-forget.js no task whose fault nobody observes
 node tools/check-project-files.js   every file the projects compile
