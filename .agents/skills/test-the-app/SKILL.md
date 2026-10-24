@@ -256,6 +256,28 @@ Music, Pictures, Ringtones, Videos` the phone is on its lock screen, and retryin
 not find it - `.tools/pull-localstate.ps1` prints `MISSING Data` in exactly that state,
 which is not a missing app.
 
+**Writing to it, and the three traps.** `rs` restores **the whole store**: it takes the
+folder that *is* the store - the `<dest>\IsolatedStore` that `ts` wrote - and the app's
+local folder becomes a copy of it. A snapshot holding one file leaves the app with one
+file; a snapshot holding a folder puts that folder inside `LocalState`. Both were done to
+this phone on 24 October 2026: the first left `chats.json` alone in the store, the second
+nested 126 conversations one level too deep, where nothing reads them. The session itself
+survives a restore - the credentials are in `LocalSettings`, outside the local folder - so
+the app logged in again both times without a new pairing.
+
+- `/install` **wipes the store** (24 October 2026: the app came back on the pairing page
+  and had to be linked again - which at least proved what a fresh link brings: the sync of
+  type 0 with 169 conversations, the whole list WhatsApp had refused to send for days).
+  `/update` keeps it, and it also terminates the app.
+- **A cold start is not `/launch`.** On a live process `/launch` only brings the window to
+  the front, and the start-up path (`ChatCache.Load`, the rows rebuilt from the tails) never
+  runs again - so a restore that needs to be read needs `/update` (a version the phone does
+  not have yet: the same version answers `0x81030137`), or the phone's own close gesture.
+- `AppDeployCmd` and `ISETool` take their commands with a leading `/` or a leading word, and
+  bash under MSYS rewrites those into paths: run them with `MSYS_NO_PATHCONV=1` in front,
+  or `AppDeployCmd /launch` becomes `C:/Program Files/Git/launch` and the tool prints its
+  help. `msbuild` is the same story - `-t:Rebuild`, not `/t:Rebuild`.
+
 What to read in the snapshot:
 
 - `diag.log` - the run markers (`=== run started 2026-10-24T08:25:00 ===`) separate a
