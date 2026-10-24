@@ -834,14 +834,17 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            var contact = new Contact
+            // The answer is the row the list keeps: a chat that is already there (under the
+            // other spelling, or one the list filled while the dialog was open) is that row,
+            // and a second one would be the same conversation twice.
+            Contact contact = DataService.Instance.AddContact(new Contact
             {
                 Id = jid,
                 Name = "+" + phone,
                 Initials = phone.Substring(0, 2).ToUpper(),
                 UnreadCount = 0
-            };
-            DataService.Instance.AddContact(contact);
+            });
+            if (contact == null) return;
 
             Frame root = RootFrame;
             if (root != null) root.Navigate(typeof(ChatPage), contact);

@@ -2116,6 +2116,12 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(chatId)) return null;
 
+            // The row is filed under the canonical address, and the tile's argument can be the
+            // other spelling: a chat opened from its tile under a `@lid` whose number is known
+            // would otherwise be the second row for that person.
+            chatId = ChatIdFor(chatId);
+            if (string.IsNullOrEmpty(chatId)) return null;
+
             Contact contact = FindContact(chatId);
             if (contact != null) return contact;
 
@@ -2995,11 +3001,29 @@ namespace WhatsappApp.Services
             return text;
         }
 
-        public void AddContact(Contact contact)
+        /// <summary>
+        /// A row from outside the list - the new-chat dialog's number, a row a page built.
+        ///
+        /// It answers the row the list has now, which is not always the one it was handed:
+        /// the id is canonicalised first (`ChatIdFor`) and a chat that is already there keeps
+        /// its row. This is the last door a row can come in by, and a second row for one chat
+        /// is two previews, two counts and a conversation that is only half of itself.
+        /// </summary>
+        public Contact AddContact(Contact contact)
         {
-            if (contact == null) return;
+            if (contact == null) return null;
+
+            string chatId = ChatIdFor(contact.Id);
+            if (string.IsNullOrEmpty(chatId)) return null;
+
+            contact.Id = chatId;
+
+            Contact existing = FindContact(chatId);
+            if (existing != null) return existing;
+
             _contacts.Insert(0, contact);
-            if (!string.IsNullOrEmpty(contact.Id)) _contactIndex[contact.Id] = contact;
+            _contactIndex[contact.Id] = contact;
+            return contact;
         }
 
         private void OnPropertyChanged([CallerMemberName] string name = null)
