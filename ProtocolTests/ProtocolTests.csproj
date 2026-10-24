@@ -60,6 +60,7 @@
     <!-- The app-side files whose logic is testable off the phone: the start-up rule
          and the rotation of the live tile. Named one by one and not by folder,
          because Services/ is otherwise WinRT code this project cannot compile. -->
+    <Compile Include="..\WhatsappApp\Services\ChatListMerge.cs" />
     <Compile Include="..\WhatsappApp\Services\StartDecision.cs" />
     <Compile Include="..\WhatsappApp\Services\TileCycle.cs" />
     <Compile Include="..\WhatsappApp\Services\TileText.cs" />

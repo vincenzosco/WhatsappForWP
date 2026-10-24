@@ -218,6 +218,50 @@ namespace WhatsappApp.Pages
         /// the page is not on the chat tab: the pictures are one round trip each and
         /// the list is not on screen.
         /// </summary>
+        /// <summary>
+        /// How often the list is re-read from what the client already holds: thirty seconds,
+        /// which is the ceiling asked for. It is a net, not a clock - the socket is live - so
+        /// it costs one walk over rows already in memory and asks WhatsApp nothing.
+        /// </summary>
+        private const int ListRefreshSeconds = DataService.ListRefreshSeconds;
+
+        /// <summary>The timer of that refresh, alive only while the chat tab is in front.</summary>
+        private DispatcherTimer _listRefresh;
+
+        private void StartListRefresh()
+        {
+            if (_listRefresh == null)
+            {
+                _listRefresh = new DispatcherTimer();
+                _listRefresh.Interval = TimeSpan.FromSeconds(ListRefreshSeconds);
+                _listRefresh.Tick += OnListRefreshTick;
+            }
+
+            _listRefresh.Start();
+        }
+
+        private void StopListRefresh()
+        {
+            if (_listRefresh != null) _listRefresh.Stop();
+        }
+
+        /// <summary>
+        /// The list, re-read: the names that arrived after their rows, the two addresses that
+        /// are one chat, and the order the times ask for. A failure here is one line and not a
+        /// dead timer: the next tick tries again.
+        /// </summary>
+        private void OnListRefreshTick(object sender, object e)
+        {
+            try
+            {
+                DataService.Instance.RefreshChatList();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("HomePage/list refresh", ex);
+            }
+        }
+
         private void ActivateChats()
         {
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;
@@ -243,6 +287,8 @@ namespace WhatsappApp.Pages
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
             DataService.Instance.ChatListCompleted += OnChatListCompleted;
 
+            StartListRefresh();
+
             NativeConnection.Instance.ConnectionStatusChanged -= OnClientStatusChanged;
             NativeConnection.Instance.ConnectionStatusChanged += OnClientStatusChanged;
 
@@ -253,6 +299,7 @@ namespace WhatsappApp.Pages
 
         private void DeactivateChats()
         {
+            StopListRefresh();
             AvatarEnricher.Stop();
 
             DataService.Instance.Contacts.CollectionChanged -= Contacts_CollectionChanged;

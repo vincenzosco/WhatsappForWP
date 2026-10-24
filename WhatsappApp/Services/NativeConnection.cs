@@ -12,6 +12,28 @@ using WhatsappApp.Protocol.WABinary;
 namespace WhatsappApp.Services
 {
     /// <summary>
+    /// The answer to asking WhatsApp for somebody's picture.
+    ///
+    /// Why a value and not a `byte[]` with an exception: two of the three answers are
+    /// ordinary and not faults. `Refused` is the server answering `iq type="error"` - a LID
+    /// it will not draw, a contact who hid theirs - and `NoSession` is the chat list's pass
+    /// asking before the login has happened. Read as exceptions they cost two first-chance
+    /// throws per refusal and one per row before the login, and the debugger prints every
+    /// one of them. `Jpeg` is null for both, which is what the callers already draw.
+    /// </summary>
+    public sealed class AvatarAnswer
+    {
+        /// <summary>The JPEG, or null when there is no picture to draw.</summary>
+        public byte[] Jpeg;
+
+        /// <summary>No account yet: nothing was asked, and the caller should wait for the login.</summary>
+        public bool NoSession;
+
+        /// <summary>The server answered with an error: this chat has no picture to give.</summary>
+        public bool Refused;
+    }
+
+    /// <summary>
     /// This phone's account, brought online: the login that follows a pairing, and the
     /// reading that keeps the connection a connection.
     ///
@@ -51,12 +73,22 @@ namespace WhatsappApp.Services
         private readonly NativeChats _chats = new NativeChats(NameCache.Book);
 
         /// <summary>
+        /// The keys the primary has shared for its app state, in memory for this run.
+        ///
+        /// What they are for: the names saved in the primary's address book. They travel in
+        /// the app state, encrypted, and a device without a key can read none of it - which is
+        /// why the phone shares them when it links a device (`MessageProtocol.AppStateSyncKeyShare`)
+        /// and why they are kept with the account between runs (`Credentials.AppStateKeys`).
+        /// </summary>
+        private readonly AppStateKeyset _appStateKeys = new AppStateKeyset();
+
+        /// <summary>
         /// The group messages that arrived before the sender key of their member.
         ///
         /// A key and the message it belongs to are two stanzas, and the order they arrive in
         /// is the server's, not the sender's: a `skmsg` that lands first used to be refused
         /// and answered with a retry receipt, so it appeared only if the sender sent it again
-        /// (`SenderKeyMissingException`, thrown by `IncomingMessage.ReadGroup`).
+        /// (`IncomingRefusal.WaitsForSenderKey`, answered by `IncomingMessage.ReadGroup`).
         /// It waits here instead, unacknowledged, and the next stanza that brings that key
         /// opens it (`RetryHeldAsync`).
         /// </summary>
@@ -65,6 +97,13 @@ namespace WhatsappApp.Services
         /// <summary>The answers this client is waiting for, by the id of the query it sent.</summary>
         private readonly Dictionary<string, TaskCompletionSource<BinaryNode>> _waiters =
             new Dictionary<string, TaskCompletionSource<BinaryNode>>();
+
+        /// <summary>
+        /// The queries whose refusal is an answer rather than a failure - the picture asks,
+        /// where `iq type="error"` means "this chat has none to give" and a thrown exception
+        /// only exists to be caught by the row that asked.
+        /// </summary>
+        private readonly HashSet<string> _refusalIsAnswer = new HashSet<string>();
 
         /// <summary>
         /// The messages this phone has written to the socket and the server has not yet
@@ -411,6 +450,20 @@ namespace WhatsappApp.Services
                     await AdoptSignedPreKeyAsync(account);
                     await PublishPreKeysAsync(session, account);
                     await session.GoAvailableAsync(account.PushName);
+
+                    // The primary's address book, as the app state carries it. Off the login's
+                    // own path and not awaited: it is one more query on a socket that is
+                    // already useful, and a sync that fails (or that has no key yet) must not
+                    // hold up the reading of messages.
+                    RememberStoredAppStateKeys(account);
+#pragma warning disable 4014
+                    Guarded.RunGuardedAsync("NativeConnection/app state", SyncAppStateAsync(session));
+#pragma warning restore 4014
+
+                    // The subjects of the groups this list already has. Until this ran only at
+                    // the end of a sync, a device that had been linked for days had no sync to
+                    // wait for and kept `Gruppo 1203...` for ever.
+                    NameTheGroups();
 
 #pragma warning disable 4014
                     Guarded.RunGuardedAsync("NativeConnection/keepalive", KeepAliveAsync(session));
@@ -765,21 +818,11 @@ namespace WhatsappApp.Services
         {
             IncomingMessage incoming = null;
             Exception failure = null;
-            SenderKeyMissingException waiting = null;
 
             try
             {
                 incoming = IncomingMessage.Read(node, account,
                     await SessionsAsync(), await PreKeysAsync(), _seen, _random);
-            }
-            catch (SenderKeyMissingException missing)
-            {
-                // Not a failure: the message is kept until the key it needs arrives, which is
-                // usually one stanza later. It is not acknowledged either - the server still
-                // owning it is what makes a phone that ends before the key comes get it back -
-                // and it is not asked again, which would put the message in a race with the key
-                // the sender has already sent.
-                waiting = missing;
             }
             catch (Exception error)
             {
@@ -789,12 +832,17 @@ namespace WhatsappApp.Services
                 failure = error;
             }
 
-            if (waiting != null)
+            if (incoming != null && incoming.Refused == IncomingRefusal.WaitsForSenderKey)
             {
-                if (_held.Hold(waiting.GroupJid, waiting.Participant, waiting.MessageId, node))
+                // Not a failure and not an exception: the message is kept until the key it
+                // needs arrives, which is usually one stanza later. It is not acknowledged
+                // either - the server still owning it is what makes a phone that ends before
+                // the key comes get it back - and it is not asked again, which would put the
+                // message in a race with the key the sender has already sent.
+                if (_held.Hold(incoming.Chat, incoming.Sender, incoming.Id, node))
                 {
-                    Diag.Ok("native: " + waiting.MessageId + " waits for the sender key of "
-                        + waiting.Participant + " in " + waiting.GroupJid);
+                    Diag.Ok("native: " + incoming.Id + " waits for the sender key of "
+                        + incoming.Sender + " in " + incoming.Chat);
                 }
 
                 return;
@@ -853,6 +901,24 @@ namespace WhatsappApp.Services
             await session.SendAsync(IncomingMessage.Ack(node));
 
             if (incoming == null) return;
+
+            if (incoming.Refused == IncomingRefusal.AlreadyRead)
+            {
+                // The key this copy needed was spent the first time the message arrived, and a
+                // retry cannot bring it back - every run the debugger stops leaves a few of
+                // these. Asking for the stanza again was a loop that never ended (24 October
+                // 2026: three group messages asked for on every connection, each one a red
+                // line); the ack above has just stopped the re-delivery, and there is nothing
+                // read to show.
+                Diag.Ok("native: " + incoming.Id + " was already read; the copy is acknowledged");
+                return;
+            }
+
+            // The keys the primary shares with a device it has just linked. Read here, before
+            // the rule below drops this account's own copies: the share **is** one of ours (the
+            // phone writes it), and dropping it was dropping the only way to read the account's
+            // own app state - the names saved in the primary's address book.
+            LearnAppStateKeys(session, incoming, account);
 
             // A copy of something this account sent from another device: shown by the phone
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
@@ -931,11 +997,25 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task<BinaryNode> RequestAsync(NativeSession session, BinaryNode query)
         {
+            return await RequestAsync(session, query, false);
+        }
+
+        /// <summary>
+        /// The same, with the one choice that matters to a caller: whether an `error` answer
+        /// is handed back as the node ("the answer to this question is no") or thrown ("the
+        /// query failed"). See `_refusalIsAnswer`.
+        /// </summary>
+        private async Task<BinaryNode> RequestAsync(NativeSession session, BinaryNode query, bool refusalIsAnswer)
+        {
             string id = query.Attrs["id"];
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a query with no id has no answer to wait for");
 
             var completion = new TaskCompletionSource<BinaryNode>();
-            lock (_waiters) _waiters[id] = completion;
+            lock (_waiters)
+            {
+                _waiters[id] = completion;
+                if (refusalIsAnswer) _refusalIsAnswer.Add(id);
+            }
 
             try
             {
@@ -949,7 +1029,11 @@ namespace WhatsappApp.Services
             }
             finally
             {
-                lock (_waiters) _waiters.Remove(id);
+                lock (_waiters)
+                {
+                    _waiters.Remove(id);
+                    _refusalIsAnswer.Remove(id);
+                }
             }
         }
 
@@ -971,8 +1055,14 @@ namespace WhatsappApp.Services
 
             if (node.Attrs["type"] == "error")
             {
-                completion.TrySetException(new ProtocolException("the server refused " + id + ": " + node));
-                return;
+                bool anAnswer;
+                lock (_waiters) anAnswer = _refusalIsAnswer.Contains(id);
+
+                if (!anAnswer)
+                {
+                    completion.TrySetException(new ProtocolException("the server refused " + id + ": " + node));
+                    return;
+                }
             }
 
             completion.TrySetResult(node);
@@ -1813,26 +1903,43 @@ namespace WhatsappApp.Services
         /// Null when there is no picture, which is an answer and not a failure - a contact
         /// with no photo is the ordinary case.
         /// </summary>
-        public async Task<byte[]> RequestAvatarAsync(string jid, bool preview)
+        public async Task<AvatarAnswer> RequestAvatarAsync(string jid, bool preview)
         {
-            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a picture needs somebody to ask about");
+            var picture = new AvatarAnswer();
+            if (string.IsNullOrEmpty(jid)) return picture;
+
+            // Asked before the socket, not after: the chat list's pass runs from the first
+            // start, before the login, and one throw per row is what this answer replaces.
+            if (!IsLoggedIn)
+            {
+                picture.NoSession = true;
+                return picture;
+            }
 
             NativeSession session = OpenSession();
 
             BinaryNode answer = await RequestAsync(session, ProfilePictures.Query(
-                OutgoingMessage.Id(_random), jid, preview ? ProfilePictures.Preview : ProfilePictures.Image));
+                OutgoingMessage.Id(_random), jid, preview ? ProfilePictures.Preview : ProfilePictures.Image),
+                true);
+
+            if (answer.Attrs["type"] == "error")
+            {
+                // An answer, not a failure: this chat has no picture this account may see.
+                picture.Refused = true;
+                return picture;
+            }
 
             string url = ProfilePictures.Read(answer);
             if (url == null)
             {
                 Diag.Ok("native: " + jid + " has no picture");
-                return null;
+                return picture;
             }
 
-            byte[] jpeg = await new WinRtMediaFetcher().GetAsync(url);
-            Diag.Ok("native: " + jpeg.Length + " byte(s) of picture for " + jid);
+            picture.Jpeg = await new WinRtMediaFetcher().GetAsync(url);
+            Diag.Ok("native: " + picture.Jpeg.Length + " byte(s) of picture for " + jid);
 
-            return jpeg;
+            return picture;
         }
 
         /// <summary>
@@ -1915,11 +2022,7 @@ namespace WhatsappApp.Services
             Diag.Ok("native: history sync type " + sync.SyncType + " carried "
                 + sync.Conversations.Count + " conversation(s), " + _chats.Rows.Count + " row(s) now");
 
-            for (int i = 0; i < sync.Conversations.Count; i++)
-            {
-                HistoryConversation row = _chats.Find(sync.Conversations[i].Jid);
-                if (row != null && ChatArrived != null) ChatArrived(this, row);
-            }
+            AnnounceRows();
 
             if (MessageArrived != null)
             {
@@ -1929,6 +2032,353 @@ namespace WhatsappApp.Services
             Diag.Ok("native: " + fromTheSync.Count + " message(s) of the sync are in the chats");
 
             if (_chats.IsSyncComplete && HistoryFinished != null) HistoryFinished(this, sync);
+
+            NameTheGroups();
+        }
+
+        /// <summary>
+        /// Every row, announced: how a name that was learned after its row existed reaches the
+        /// screen.
+        ///
+        /// Every row and not only the ones a chunk named: a sync that carries no conversation
+        /// at all still carries names - that is exactly what the push-name chunk is (`syncType`
+        /// 4, 438 names and nothing else on the account of 2026-10-22), and a loop over
+        /// `sync.Conversations` told the list about none of them, so the names were learned,
+        /// saved, and never drawn. `ApplyChat` reads the name it is handed, so a row announced
+        /// again is a row renamed.
+        /// </summary>
+        private void AnnounceRows()
+        {
+            if (ChatArrived == null) return;
+
+            for (int i = 0; i < _chats.Rows.Count; i++) ChatArrived(this, _chats.Rows[i]);
+        }
+
+        /// <summary>How many nameless groups one pass asks the server about.</summary>
+        private const int NamelessGroups = 15;
+
+        /// <summary>
+        /// The chat list this client holds, for the refresh the app runs while it is open
+        /// (`DataService.RefreshChatList`).
+        ///
+        /// Handed out as it is: the run starts on the UI thread and its continuations stay
+        /// there, so a caller walking it from a timer is not racing a writer.
+        /// </summary>
+        public IList<HistoryConversation> ChatRows
+        {
+            get { return _chats.Rows; }
+        }
+
+        /// <summary>
+        /// The groups this process has already asked about. It is a memory and not a flag, so
+        /// that a group whose row appears in a later chunk is still named, while a group the
+        /// server refuses (one this account left) is asked once and not at every chunk.
+        /// </summary>
+        private readonly HashSet<string> _groupsAsked = new HashSet<string>();
+
+        /// <summary>
+        /// Groups the sync did not name, asked of the server that knows them.
+        ///
+        /// Why: a group chat is called by its subject, and the subject lives on the server
+        /// (`GroupDirectory`). The history carries it for most groups, but one whose row was
+        /// made by a live message - or whose chunk arrived without its `name` - stays
+        /// "Gruppo 120363412599616890" while the official app shows the subject; on the account
+        /// of 2026-10-24 that was three rows of forty.
+        ///
+        /// Why it is a task of its own and not a step of the sync: the answer is an `iq`, and
+        /// an `iq` is read by the same loop this sync is running on, so awaiting one here would
+        /// be the loop waiting for itself (`RequestAsync`). It is bounded, and a pass with
+        /// nothing to ask for costs one walk over the rows.
+        /// </summary>
+        private void NameTheGroups()
+        {
+            // No wait for a sync that has completed: the rows are read from the client's own
+            // list, which is filled by the copy on the phone as well. Gating on a sync was
+            // why a phone linked for days never asked: it had no sync left to complete.
+            NativeSession session = _session;
+            if (session == null || !session.IsOpen) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("NativeConnection/group names", NameGroupsAsync(session));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// One metadata query per group chat that has no subject yet, and the row renamed from
+        /// the answer. A group this account has left answers `error`, which is an answer and
+        /// not a failure: one line, and the row keeps the name it had.
+        /// </summary>
+        private async Task NameGroupsAsync(NativeSession session)
+        {
+            // The addresses are collected before the first query: every `await` below is a
+            // window in which the loop that reads the socket can add rows to this list.
+            var wanted = new List<string>();
+            IList<HistoryConversation> rows = _chats.Rows;
+            for (int i = 0; i < rows.Count && wanted.Count < NamelessGroups; i++)
+            {
+                HistoryConversation row = rows[i];
+                if (row == null || !GroupDirectory.IsGroup(row.Jid)) continue;
+                if (!string.IsNullOrEmpty(row.Name)) continue;
+
+                // Read, not written: a group is marked asked when the server answers (below),
+                // because a query that failed is a question still open.
+                lock (_groupsAsked)
+                {
+                    if (_groupsAsked.Contains(row.Jid)) continue;
+                }
+
+                wanted.Add(row.Jid);
+            }
+
+            if (wanted.Count == 0) return;
+
+            int named = 0;
+            for (int i = 0; i < wanted.Count; i++)
+            {
+                try
+                {
+                    BinaryNode answer = await RequestAsync(session,
+                        GroupDirectory.Query(OutgoingMessage.Id(_random), wanted[i]), true);
+
+                    // Asked and answered - a subject, or the refusal of a group this account
+                    // has left, which is an answer too. A query that threw (no answer, a
+                    // timeout) never reaches this line, so the next pass asks again instead
+                    // of leaving the row on its fallback for ever.
+                    MarkGroupAsked(wanted[i]);
+
+                    GroupInfo group = GroupDirectory.Read(wanted[i], answer);
+
+                    string subject = NameBook.Clean(group.Subject);
+                    if (subject == null) continue;
+
+                    HistoryConversation row = _chats.Find(wanted[i]);
+                    if (row == null || row.Name == subject) continue;
+
+                    row.Name = subject;
+                    named++;
+
+                    if (ChatArrived != null) ChatArrived(this, row);
+                }
+                catch (Exception error)
+                {
+                    Diag.Ok("native: no subject for " + wanted[i] + " (" + error.Message + ")");
+                }
+            }
+
+            Diag.Ok("native: " + named + " of " + wanted.Count + " nameless group(s) took their subject");
+
+            // One pass names at most `NamelessGroups`: the next one takes the next batch, so a
+            // list of forty groups is named in a few passes instead of eight of forty for ever.
+            // A pass that named nothing has nothing more to do.
+            if (named > 0) NameTheGroups();
+        }
+
+        /// <summary>Written down only when the server answered: see `NameGroupsAsync`.</summary>
+        private void MarkGroupAsked(string jid)
+        {
+            if (string.IsNullOrEmpty(jid)) return;
+
+            lock (_groupsAsked)
+            {
+                _groupsAsked.Add(jid);
+            }
+        }
+
+        /// <summary>
+        /// The keys this account's app state is read with, from the store into this run.
+        ///
+        /// They are kept with the account because the phone shares them **once**: a client that
+        /// held them in memory only could read its own address book for one run and never
+        /// again.
+        /// </summary>
+        private void RememberStoredAppStateKeys(Credentials account)
+        {
+            if (account == null || account.AppStateKeys == null) return;
+
+            for (int i = 0; i < account.AppStateKeys.Count; i++) _appStateKeys.Add(account.AppStateKeys[i]);
+        }
+
+        /// <summary>
+        /// The keys a device is sent when it is linked (`APP_STATE_SYNC_KEY_SHARE`), stored and
+        /// synced.
+        ///
+        /// Why before the echo check and not after it: this stanza **is** one of this account's
+        /// own - the phone writes it - and the rule that keeps a phone from showing its own
+        /// messages would throw away the only copy of the keys its app state is readable with.
+        /// True when the stanza carried keys, which is what the log line says.
+        /// </summary>
+        private bool LearnAppStateKeys(NativeSession session, IncomingMessage incoming, Credentials account)
+        {
+            if (incoming == null || incoming.Content == null || incoming.Content.ProtocolMessage == null) return false;
+
+            MessageProtocol protocol;
+            try
+            {
+                protocol = MessageProtocol.Decode(incoming.Content.ProtocolMessage);
+            }
+            catch (ProtocolException)
+            {
+                return false;
+            }
+
+            if (protocol.KeyShare == null) return false;
+
+            IList<AppStateKey> shared = AppStateKeys.Read(protocol.KeyShare);
+            int added = 0;
+
+            for (int i = 0; i < shared.Count; i++)
+            {
+                AppStateKey key = shared[i];
+                if (!_appStateKeys.Add(key)) continue;
+
+                added++;
+                if (account.AppStateKeys == null) break;
+                account.AppStateKeys.Add(key);
+            }
+
+            if (added > 0 && account.AppStateKeys != null)
+            {
+                try
+                {
+                    _store.Save(account);
+                }
+                catch (Exception error)
+                {
+                    Diag.Failed("NativeConnection/app-state keys", error);
+                }
+            }
+
+            Diag.Ok("app-state: " + shared.Count + " key(s) shared, " + added + " new, " + _appStateKeys.Count
+                + " held - the primary's address book is readable");
+
+            if (!_appStateKeys.IsEmpty)
+            {
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("NativeConnection/app state", SyncAppStateAsync(session));
+#pragma warning restore 4014
+            }
+
+            return shared.Count > 0;
+        }
+
+        /// <summary>
+        /// The account's own app state, read: the names the primary saved in its address book.
+        ///
+        /// Why it is not awaited by the login: it is one more query on a socket that is already
+        /// reading messages, and a sync that fails - or that has no key yet, the ordinary case
+        /// of a the first start after a re-link - must not hold the chat list up. Every failure
+        /// ends in a line, because the difference between "this account has no saved names"
+        /// and "this device cannot read them" is the whole question the feature answers.
+        ///
+        /// Only the names are applied. The same collection carries the pins, the mutes and the
+        /// archive setting, and those are this phone's own (`ChatPreferences`): a snapshot that
+        /// set them would undo what a person did on this device.
+        /// </summary>
+        private async Task SyncAppStateAsync(NativeSession session)
+        {
+            if (_appStateKeys.IsEmpty)
+            {
+                Diag.Ok("app-state: no key has been shared with this device, so the primary's address book cannot be read");
+                return;
+            }
+
+            IList<AppStateCollection> collections;
+            try
+            {
+                BinaryNode answer = await RequestAsync(session,
+                    AppStateSync.Query(OutgoingMessage.Id(_random)), true);
+
+                if (answer == null || answer.Attrs["type"] == "error")
+                {
+                    Diag.Ok("app-state: the server refused the sync (" + (answer == null ? "no answer" : answer.ToString()) + ")");
+                    return;
+                }
+
+                collections = AppStateSync.Read(answer);
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("NativeConnection/app-state", error);
+                return;
+            }
+
+            int names = 0;
+
+            for (int i = 0; i < collections.Count; i++)
+            {
+                AppStateCollection collection = collections[i];
+                if (collection.Snapshot == null && collection.Patches.Count == 0) continue;
+
+                AppStateResult applied;
+                try
+                {
+                    applied = AppStateSync.Apply(collection, _appStateKeys);
+                }
+                catch (ProtocolException error)
+                {
+                    // A collection that does not verify is not half applied: the names in it
+                    // are this account's or nobody's, and a mix is worse than none.
+                    Diag.Ok("app-state: " + collection.Name + " was not read: " + error.Message);
+                    continue;
+                }
+
+                for (int c = 0; c < applied.Contacts.Count; c++)
+                {
+                    if (RememberSavedContact(applied.Contacts[c])) names++;
+                }
+
+                Diag.Ok("app-state: " + collection.Name + " at version " + applied.Version + " carried "
+                    + applied.Contacts.Count + " saved contact(s)");
+            }
+
+            if (names == 0) return;
+
+            // The rows are on screen already: the sync is a name for a chat that is there.
+            AnnounceRows();
+            Diag.Ok("app-state: " + names + " name(s) from the primary's address book are in the list");
+        }
+
+        /// <summary>
+        /// One name from the app state, written into the book under every address the action
+        /// names: the index's, the phone number's and the `@lid`'s.
+        ///
+        /// Three and not one because they are the same person seen from three sides, and a row
+        /// keyed on whichever the server used that day has to find the name - `NameBook`
+        /// resolves the pair, and writing all three means the pair is not needed to show it.
+        /// </summary>
+        private static bool RememberSavedContact(SavedContact contact)
+        {
+            if (contact == null || string.IsNullOrEmpty(contact.Name)) return false;
+
+            bool any = false;
+
+            if (!string.IsNullOrEmpty(contact.LidJid) && !string.IsNullOrEmpty(contact.PnJid))
+            {
+                NameCache.RememberMapping(contact.LidJid, contact.PnJid);
+            }
+
+            // `NameCache` answers nothing - it writes the book and, when the name is news,
+            // tells the file to save itself - so what this method reports is whether there
+            // was a name to write at all, and that is read off the addresses.
+            if (!string.IsNullOrEmpty(contact.Address))
+            {
+                NameCache.RememberSavedName(contact.Address, contact.Name);
+                any = true;
+            }
+
+            if (!string.IsNullOrEmpty(contact.PnJid))
+            {
+                NameCache.RememberSavedName(contact.PnJid, contact.Name);
+                any = true;
+            }
+
+            if (!string.IsNullOrEmpty(contact.LidJid))
+            {
+                NameCache.RememberSavedName(contact.LidJid, contact.Name);
+                any = true;
+            }
+
+            return any;
         }
 
         /// <summary>

@@ -828,6 +828,15 @@ namespace WhatsappApp.Services
                         keep.LastMessageAt = gone.LastMessageAt;
                     }
 
+                    // The name: a row called `Gruppo 1203...` or `+39389...` is a description
+                    // of its address, and it must not beat the name the other row carries.
+                    string name = ChatListMerge.BestName(keep.Name, keep.Id, gone.Name, gone.Id);
+                    if (!string.IsNullOrEmpty(name) && name != keep.Name)
+                    {
+                        keep.Name = name;
+                        keep.Initials = InitialsFor(name);
+                    }
+
                     keep.UnreadCount += gone.UnreadCount;
 
                     // The merged row has a new number and the tile of the chat is the one
@@ -1355,8 +1364,15 @@ namespace WhatsappApp.Services
 
         private async void OnNetworkMessageReceived(object sender, ChatMessage message)
         {
+            if (message == null) return;
+
             // Ignore system/handshake messages
             if (message.Type == MessageType.System) return;
+
+            // One spelling per chat: a message that arrives under a `@lid` (or with a device
+            // still on it) belongs to the row filed under the number - the row the reader
+            // opened, and the one the preview of this conversation is on.
+            message.ChatId = ChatIdFor(message.ChatId);
 
             // History is text, but it did not arrive now: it enters in order and
             // without counting. Everything else in this method is for what arrives
@@ -1571,6 +1587,23 @@ namespace WhatsappApp.Services
         /// </summary>
         private void ApplyChat(ChatMessage message)
         {
+            ApplyChat(message, true);
+        }
+
+        /// <summary>
+        /// The same, with the one choice the refresh makes: whether this row is news.
+        ///
+        /// A row re-read by `RefreshChatList` is not - it is what the list already says - and
+        /// registering it as a fresh row would rewrite the list file every thirty seconds.
+        /// </summary>
+        private void ApplyChat(ChatMessage message, bool remember)
+        {
+            if (message == null) return;
+
+            // One spelling per chat, before anything is keyed on it: the row, its messages,
+            // its count and its pin are all keyed on `ChatId`.
+            message.ChatId = ChatIdFor(message.ChatId);
+
             if (string.IsNullOrEmpty(message.ChatId)) return;
             if (IsNotAConversation(message.ChatId)) return;
 
@@ -1673,7 +1706,7 @@ namespace WhatsappApp.Services
 
             PublishUnread(contact);
 
-            RememberChatRow(message);
+            if (remember) RememberChatRow(message);
         }
 
         /// <summary>
@@ -1954,7 +1987,13 @@ namespace WhatsappApp.Services
         /// </summary>
         private static string SavedNameFor(string jid)
         {
-            string name = ContactDirectory.NameForJid(jid);
+            // The number behind the address, not the address itself. A row can still be
+            // keyed on a `@lid` - the pair can arrive after the chat does - and
+            // `ContactDirectory` matches phone numbers, refusing a LID on purpose (its digits
+            // are an identifier, not a number). `Canonical` answers the phone number when the
+            // pair is known and the address itself otherwise, so a LID with no pair still
+            // answers null here and the row keeps the name it had.
+            string name = ContactDirectory.NameForJid(NameCache.Book.Canonical(jid));
             if (string.IsNullOrEmpty(name)) return null;
 
             NameCache.RememberSavedName(jid, name);
@@ -2021,6 +2060,21 @@ namespace WhatsappApp.Services
         /// AddContact) and cleaned of ids no longer present.
         /// </summary>
         public Contact FindContact(string id)
+        {
+            Contact found = FindContactExact(id);
+            if (found != null) return found;
+
+            // The same chat under its other spelling (`@lid` whose number is known, a device,
+            // `@c.us`): a message that arrived one way has to find the row filed the other
+            // way, or it creates a second row for a conversation the list already shows.
+            string canonical = ChatIdFor(id);
+            if (canonical == id) return null;
+
+            return FindContactExact(canonical);
+        }
+
+        /// <summary>The row filed under exactly this id, or null.</summary>
+        private Contact FindContactExact(string id)
         {
             if (string.IsNullOrEmpty(id)) return null;
 
@@ -2154,6 +2208,7 @@ namespace WhatsappApp.Services
 
         public ObservableCollection<ChatMessage> GetMessages(string chatId)
         {
+            chatId = ChatIdFor(chatId);
             if (!_chatMessages.ContainsKey(chatId))
             {
                 _chatMessages[chatId] = new ObservableCollection<ChatMessage>();
@@ -2259,6 +2314,7 @@ namespace WhatsappApp.Services
 
         public void AddMessage(string chatId, ChatMessage message)
         {
+            chatId = ChatIdFor(chatId);
             if (!_chatMessages.ContainsKey(chatId))
             {
                 _chatMessages[chatId] = new ObservableCollection<ChatMessage>();
@@ -2625,6 +2681,152 @@ namespace WhatsappApp.Services
                 if (contact != null) total += contact.UnreadCount;
             }
             return total;
+        }
+
+        /// <summary>
+        /// The one spelling of a chat every row and every message is keyed on: the number for
+        /// a `@lid` whose pair is known, no device, `@c.us` as `s.whatsapp.net`
+        /// (`ChatListMerge`, which is where the rule is written and tested).
+        /// </summary>
+        public string ChatIdFor(string chatId)
+        {
+            if (string.IsNullOrEmpty(chatId)) return chatId;
+
+            string canonical = ChatListMerge.CanonicalId(chatId, NameCache.Book);
+            return string.IsNullOrEmpty(canonical) ? chatId : canonical;
+        }
+
+        /// <summary>
+        /// How often the list is re-read from what the client already knows: thirty seconds,
+        /// and it is a ceiling and not a schedule (`HomePage` starts the timer). The socket is
+        /// live, so this is the net under a stanza that never arrived.
+        /// </summary>
+        public const int ListRefreshSeconds = 30;
+
+        /// <summary>
+        /// The list, re-read from this device's own client: every row applied again, two rows
+        /// that are one chat folded, and the order the times ask for.
+        ///
+        /// Why it exists: a stanza off the socket was the only writer the list had, so a name
+        /// learned after its row (`NativeConnection.NameGroupsAsync`), a pair learned after
+        /// the row it would fold, or a row the server has and this list never heard of (a
+        /// stanza that never arrived) stayed wrong until the app was restarted. It asks
+        /// WhatsApp nothing - it walks rows already in memory - which is what lets it run on
+        /// a phone with no data and still be the truth this device has.
+        /// </summary>
+        public void RefreshChatList()
+        {
+            IList<WhatsappApp.Protocol.WaProto.HistoryConversation> rows = NativeConnection.Instance.ChatRows;
+            int refreshed = 0;
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                if (RefreshChatRow(rows[i])) refreshed++;
+            }
+
+            int folded = FoldDuplicateChats();
+            if (refreshed == 0 && folded == 0) return;
+
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                if (_contacts[i] != null) PlaceContact(_contacts[i]);
+            }
+
+            Diag.Ok("chats: " + rows.Count + " row(s) re-read, " + refreshed + " applied, "
+                + folded + " folded");
+        }
+
+        /// <summary>
+        /// One row of the native list, applied the way a sync's row is applied - the same
+        /// `ApplyChat`, so a name, a preview, a count and a position cannot disagree with the
+        /// path that made the row. False for a row this list must not draw.
+        /// </summary>
+        private bool RefreshChatRow(WhatsappApp.Protocol.WaProto.HistoryConversation row)
+        {
+            if (row == null || string.IsNullOrEmpty(row.Jid)) return false;
+            if (IsNotAConversation(row.Jid)) return false;
+
+            var message = new ChatMessage();
+            message.ChatId = row.Jid;
+            message.SenderName = row.Name;
+            message.UnreadCount = row.UnreadCount;
+            message.IsGroup = row.IsGroup;
+            message.Type = MessageType.Text;
+
+            long at = Math.Max(row.LastMessageTimestamp, row.ConversationTimestamp);
+            message.Timestamp = at > 0 ? Moment(at) : DateTime.MinValue;
+            if (!ActivityTime.IsSane(message.Timestamp, DateTime.Now)) message.Timestamp = DateTime.MinValue;
+
+            if (row.Messages.Count > 0) message.Text = row.Messages[row.Messages.Count - 1].Text;
+
+            ApplyChat(message, false);
+            return true;
+        }
+
+        /// <summary>
+        /// The rows that are one chat, made one: the same person under a `@lid` and a number,
+        /// or a device still on the address.
+        ///
+        /// It reuses `ChatMerge` because that is already the one place that knows how to move
+        /// a row - its messages, its count, its pin, its mute - and the page that may have it
+        /// open. The chat on screen is left alone: the page holds the message collection it
+        /// was bound to, and folding it under the reader would empty the conversation he is
+        /// reading. It is folded at the first refresh after he leaves.
+        /// </summary>
+        private int FoldDuplicateChats()
+        {
+            var keepByCanonical = new Dictionary<string, Contact>(StringComparer.Ordinal);
+            var snapshot = new List<Contact>(_contacts);
+            int folded = 0;
+
+            for (int i = 0; i < snapshot.Count; i++)
+            {
+                Contact contact = snapshot[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+                if (contact.Id == _activeChatId) continue;
+
+                string canonical = ChatIdFor(contact.Id);
+                if (string.IsNullOrEmpty(canonical)) continue;
+
+                Contact keep;
+                if (!keepByCanonical.TryGetValue(canonical, out keep))
+                {
+                    keepByCanonical[canonical] = contact;
+                    continue;
+                }
+
+                // The row filed under the canonical id keeps the conversation; when neither
+                // is (an old row and an older one), the newer preview stays.
+                Contact from;
+                Contact to;
+
+                if (contact.Id == canonical && keep.Id != canonical)
+                {
+                    from = keep;
+                    to = contact;
+                    keepByCanonical[canonical] = contact;
+                }
+                else if (keep.Id == canonical || keep.LastMessageAt >= contact.LastMessageAt)
+                {
+                    from = contact;
+                    to = keep;
+                }
+                else
+                {
+                    from = keep;
+                    to = contact;
+                    keepByCanonical[canonical] = contact;
+                }
+
+                if (from.Id == _activeChatId) continue;
+
+                // Named before the merge, so the log says which two addresses were one chat.
+                Diag.Ok("chats: " + from.Id + " is the same chat as " + to.Id + ", folding");
+                OnChatMerged(this, new ChatMerge(from.Id, to.Id));
+                folded++;
+            }
+
+            return folded;
         }
 
         /// <summary>
