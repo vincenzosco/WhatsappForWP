@@ -123,8 +123,11 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                string json = await FileIO.ReadTextAsync(file);
+                // TryGetItemAsync: a first start has no copy, and that is not a failure.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item == null) return rows;
+
+                string json = await FileIO.ReadTextAsync((StorageFile)item);
                 if (string.IsNullOrEmpty(json)) return rows;
 
                 StatusCacheFile cache;
@@ -155,10 +158,6 @@ namespace WhatsappApp.Services
 
                     rows.Add(ToMessage(entry));
                 }
-            }
-            catch (FileNotFoundException)
-            {
-                // First start: there is no copy on the phone. Normal, not a failure.
             }
             catch (Exception ex)
             {
@@ -214,15 +213,8 @@ namespace WhatsappApp.Services
                     TempName, CreationCollisionOption.ReplaceExisting);
                 await FileIO.WriteTextAsync(temp, json);
 
-                StorageFile current = null;
-                try
-                {
-                    current = await folder.GetFileAsync(FileName);
-                }
-                catch (FileNotFoundException)
-                {
-                    // First write of this phone: there is nothing to replace.
-                }
+                // First write of this phone: there is nothing to replace.
+                var current = (StorageFile)await folder.TryGetItemAsync(FileName);
 
                 if (current == null) await temp.RenameAsync(FileName);
                 else await temp.MoveAndReplaceAsync(current);
@@ -243,12 +235,9 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
-            }
-            catch (FileNotFoundException)
-            {
                 // A link that finds no copy is the first link, not a failure.
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item != null) await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
             catch (Exception ex)
             {
