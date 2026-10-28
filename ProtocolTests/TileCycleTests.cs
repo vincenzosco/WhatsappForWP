@@ -172,6 +172,49 @@ namespace ProtocolTests
             Assert.IsTrue(!queue[0].PictureOnly, "the list holds conversations, not the turns drawn from them");
         }
 
+        /// <summary>
+        /// The updates nobody has watched get one turn, in front, and it costs the messages
+        /// exactly one slot: four people waiting are still four turns beside it.
+        /// </summary>
+        [Test]
+        public static void TheUpdatesTakeOneSlotAndComeFirst()
+        {
+            var waiting = new List<TileEntry>();
+            for (int i = 0; i < TileCycle.MaxEntries; i++)
+            {
+                waiting.Add(Entry("c" + i + "@s.whatsapp.net", "Persona " + i, "ciao"));
+            }
+
+            var statuses = new TileEntry();
+            statuses.Sender = "Stati";
+            statuses.Body = "3 nuovi stati";
+
+            // What NotificationService asks for when there is a status turn: one slot less
+            // for the messages, then the turn in front.
+            IList<TileEntry> turns = TileCycle.WithStatuses(
+                TileCycle.Turns(waiting, TileCycle.MaxEntries - 1), statuses, TileCycle.MaxEntries);
+
+            Assert.AreEqual(TileCycle.MaxEntries, turns.Count, "the queue is still five turns wide");
+            Assert.AreEqual("Stati", turns[0].Sender, "the updates are the first thing the tile says");
+            Assert.AreEqual("Persona 0", turns[1].Sender, "and the newest person is still there");
+            Assert.AreEqual("Persona 3", turns[turns.Count - 1].Sender, "the last slot is the fourth person, not a gap");
+        }
+
+        /// <summary>
+        /// Nothing unwatched: the turns are handed back as they came, so the ordinary draw
+        /// does not pay for a copy it does not need.
+        /// </summary>
+        [Test]
+        public static void NoUpdatesLeavesTheTurnsAlone()
+        {
+            var waiting = TileCycle.Remember(null, Entry("anna@s.whatsapp.net", "Anna", "ciao"));
+            IList<TileEntry> turns = TileCycle.Turns(waiting, TileCycle.MaxEntries);
+
+            IList<TileEntry> same = TileCycle.WithStatuses(turns, null, TileCycle.MaxEntries);
+
+            Assert.IsTrue(ReferenceEquals(turns, same), "the same list is handed back, not a copy");
+        }
+
         private static TileEntry Entry(string chatId, string sender, string body)
         {
             return Entry(chatId, sender, body, null);

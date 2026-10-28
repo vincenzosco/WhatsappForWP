@@ -132,6 +132,9 @@ Consigli:
   lascia sulla schermata Start la card di quella precedente. La foto che disegna è quella
   profilo a piena risoluzione, chiesta a WhatsApp quando la chat viene fissata, non l'anteprima
   piccola che usa la lista: la tile è l'unico posto che mostra una faccia alla misura della tile.
+  Quando qualcuno ha pubblicato uno stato che nessuno ha guardato, un turno della tile lo dice
+  ("Stati" sopra "3 nuovi stati"): il badge della scheda si vede solo con l'app aperta, e il numero
+  sull'icona sono i messaggi in attesa, che uno stato non è.
 - Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
   stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
   Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda

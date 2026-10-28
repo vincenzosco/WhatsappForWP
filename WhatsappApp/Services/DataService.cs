@@ -1376,6 +1376,11 @@ namespace WhatsappApp.Services
 
         private void RaiseStatusesChanged()
         {
+            // The tile's updates turn is drawn from this count, and this is the only place an
+            // update arrives or is watched: the tile would otherwise keep saying "3 new" after
+            // the three had been seen.
+            NotificationService.SetStatuses(UnseenStatuses());
+
             // The route is the other half of the same news: a status that arrived while the
             // app was closed has no badge of its own, so this is the only place the tile's
             // destination learns that tapping it should open the Status tab.
@@ -2939,6 +2944,12 @@ namespace WhatsappApp.Services
         private void PublishBadge()
         {
             NotificationService.SetUnread(TotalUnread());
+
+            // The tile has a turn for the updates nobody has watched, and a wake draws it too:
+            // a check that found an update and said nothing left the phone showing only the
+            // messages, which is what a person would read as "nothing new".
+            NotificationService.SetStatuses(UnseenStatuses());
+
             RefreshLaunchRoute();
         }
 

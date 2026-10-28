@@ -105,6 +105,11 @@ namespace WhatsappApp.Services
                 {
                     _unread = (int)value;
                 }
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyStatuses, out value)
+                    && value is int)
+                {
+                    _unseenStatuses = (int)value;
+                }
             }
             catch (Exception ex)
             {
@@ -237,28 +242,47 @@ namespace WhatsappApp.Services
                 try { updater.Clear(); }
                 catch (Exception ex) { Diag.Failed("NotificationService.RenderTile/clear", ex); }
 
-                if (_unread <= 0) return;
+                _tileDrawn = true;
+
+                if (_unread <= 0 && _unseenStatuses <= 0) return;
+
+                // The updates turn: one of the five slots, in front, when somebody has posted
+                // and nobody has looked. It is drawn from the live count like everything else
+                // here, so a queue walked twice cannot show a number that has moved.
+                TileEntry statuses = _unseenStatuses > 0 ? StatusTurn(_unseenStatuses) : null;
 
                 IList<TileEntry> waiting = _waiting;
+                IList<TileEntry> turns;
                 if (waiting == null || waiting.Count == 0)
                 {
                     // Nobody named in this process - a count read back from the local copy
                     // before any message: one notification with the last person the phone
                     // knows, which is what the lock screen shows too.
-                    Post(updater, Entry(_senderName, _senderBody, _senderImage));
-                    return;
+                    turns = _unread > 0
+                        ? new List<TileEntry> { Entry(_senderName, _senderBody, _senderImage) }
+                        : new List<TileEntry>();
+                }
+                else
+                {
+                    // Not one notification per conversation, but the turns `TileCycle` makes
+                    // of them: the message of each person, and a picture alone in the slots
+                    // the messages leave over. The tile then does not say the same thing on
+                    // every pass through the queue.
+                    //
+                    // The updates take their slot first: a person waiting must not lose
+                    // their turn to a number, but a number that is not on the tile at all is
+                    // the defect this turn exists for - so the messages are asked for one
+                    // fewer slot and nobody is dropped.
+                    int slots = statuses == null ? TileCycle.MaxEntries : TileCycle.MaxEntries - 1;
+                    turns = TileCycle.Turns(waiting, slots);
                 }
 
-                // Not one notification per conversation, but the turns `TileCycle` makes of
-                // them: the message of each person, and a picture alone in the slots the
-                // messages leave over. The tile then does not say the same thing on every
-                // pass through the queue.
-                //
+                turns = TileCycle.WithStatuses(turns, statuses, TileCycle.MaxEntries);
+
                 // Posted back to front: the shell shows the notification it was given last
                 // first, so the first turn of the list - the newest person's message, the
                 // one this tile has always opened with - is the last one handed over. In
                 // order, the first thing on screen would be the picture turn.
-                IList<TileEntry> turns = TileCycle.Turns(waiting, TileCycle.MaxEntries);
                 for (int i = turns.Count - 1; i >= 0; i--)
                 {
                     Post(updater, turns[i]);
@@ -511,6 +535,27 @@ namespace WhatsappApp.Services
             return string.Format(Loc.Get("TileUnreadMany", "{0} unread messages"), count);
         }
 
+        /// <summary>The second line of the updates turn: how many, in words.</summary>
+        public static string StatusesText(int count)
+        {
+            if (count == 1) return Loc.Get("TileStatusOne", "1 new update");
+            return string.Format(Loc.Get("TileStatusMany", "{0} new updates"), count);
+        }
+
+        /// <summary>
+        /// The turn that says how many updates are waiting: the app mark over a label and a
+        /// count, because there is no face to put there - an update belongs to a person, but
+        /// the turn is about all of them.
+        /// </summary>
+        private static TileEntry StatusTurn(int count)
+        {
+            var entry = new TileEntry();
+            entry.Sender = Loc.Get("TileStatusLabel", "Updates");
+            entry.Body = StatusesText(count);
+
+            return entry;
+        }
+
         /// <summary>
         /// The last sender's name and the file of their picture, kept because the
         /// count changes on its own - a chat is read, another message arrives - and
@@ -540,6 +585,9 @@ namespace WhatsappApp.Services
         private const string KeyBody = "Tile.Body";
         private const string KeyImage = "Tile.Image";
         private const string KeyUnread = "Tile.Unread";
+
+        /// <summary>The updates nobody has watched, as the next process will find them.</summary>
+        private const string KeyStatuses = "Tile.Statuses";
 
         /// <summary>
         /// The wide template. WP8.1 has `PeekImageAndText01` and `02`, and only the
@@ -574,6 +622,12 @@ namespace WhatsappApp.Services
         /// <summary>
         /// <summary>The count the tile is showing, and the one the badge shows.</summary>
         private static int _unread;
+
+        /// <summary>
+        /// The updates nobody has watched. They are a turn of the tile and not part of the
+        /// number: the badge is messages waiting for an answer, and an update is not one.
+        /// </summary>
+        private static int _unseenStatuses;
 
         /// <summary>
         /// True after the notification queue has been turned on. It is a property of the
@@ -719,6 +773,52 @@ namespace WhatsappApp.Services
 
             RenderTile();
             SetBadge(_unread);
+        }
+
+        /// <summary>
+        /// How many updates nobody has watched, which the tile shows as its own turn
+        /// ("Updates" over "3 new updates").
+        ///
+        /// Why it is here and not in the badge: the badge is one number and it is the
+        /// messages waiting - an update is a thing to look at later, and mixing it in would
+        /// make the icon say a number that no list adds up to. Why a turn: it is what the
+        /// tile has to show it with, and the status tab's own badge is only visible with the
+        /// app open.
+        ///
+        /// The same rule as the unread count applies to a background check: that run reads
+        /// nothing about what was already watched, so a number below the one on the screen is
+        /// its copy and not the updates being seen.
+        /// </summary>
+        public static void SetStatuses(int count)
+        {
+            count = count < 0 ? 0 : count;
+            if (_backgroundCheck && count < _unseenStatuses) count = _unseenStatuses;
+
+            if (count == _unseenStatuses && !_tileDrawn) return;
+
+            _unseenStatuses = count;
+            RememberStatuses(count);
+
+            RenderTile();
+        }
+
+        /// <summary>
+        /// True once a tile has been drawn in this process: the first call of either count
+        /// draws it, so an unchanged number does not have to.
+        /// </summary>
+        private static bool _tileDrawn;
+
+        /// <summary>The count as the next process will find it, as `RememberUnread` does.</summary>
+        private static void RememberStatuses(int count)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeyStatuses] = count;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/RememberStatuses", ex);
+            }
         }
 
         /// <summary>
