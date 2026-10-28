@@ -11,7 +11,10 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const files = () => ({
   notifications: read('WhatsappApp/Services/NotificationService.cs'),
   data: read('WhatsappApp/Services/DataService.cs'),
-  home: read('WhatsappApp/Pages/HomePage.xaml.cs')
+  home: read('WhatsappApp/Pages/HomePage.xaml.cs'),
+  settings: read('WhatsappApp/Services/SettingsService.cs'),
+  settingsPage: read('WhatsappApp/Pages/SettingsPage.xaml.cs'),
+  settingsXaml: read('WhatsappApp/Pages/SettingsPage.xaml')
 });
 
 test('stati e chiamate perse si annunciano una volta sola, e il badge scende', () => {
@@ -24,17 +27,16 @@ test('un toast costruito fuori dal posto unico salta il permesso', () => {
     /private static void Toast\(string title, string body\)[\s\S]*?\n        \}/,
     'private static void Toast(string title, string body)\n        {\n        }');
   broken.notifications = broken.notifications.replace(
-    /(public static void ShowMessage\(string title, string body\)\s*\{\s*)Toast\(title, body\);/,
-    '$1var xml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);\n'
-    + '                ToastNotificationManager.CreateToastNotifier().Show(new ToastNotification(xml));');
+    /\n            Toast\(title, body\);/,
+    '\n            var xml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);'
+    + '\n            ToastNotificationManager.CreateToastNotifier().Show(new ToastNotification(xml));');
   assert.match(alertProblems(broken).join('\n'), /build a toast|Toast\(\)/);
 });
 
 test('un avviso senza marchio temporale suona a ogni login', () => {
   const broken = files();
   broken.notifications = broken.notifications.replace(
-    /(public static void ShowStatus\(string name, DateTime postedAt\)\s*\{\s*)if \(!IsToastNews\(KeyStatusSeenAt, postedAt\)\) return;/,
-    '$1');
+    'if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;', '');
   assert.match(alertProblems(broken).join('\n'), /ShowStatus\(\) has no IsToastNews/);
 });
 
@@ -79,6 +81,32 @@ test('un badge che non confronta le righe con la visita non scende neanche', () 
   const broken = files();
   broken.data = broken.data.replace('if (row.Timestamp > seen) total++;', 'total++;');
   assert.match(alertProblems(broken).join('\n'), /compare the rows/);
+});
+
+test('un avviso che ignora il suo interruttore suona anche spento', () => {
+  const broken = files();
+  broken.notifications = broken.notifications.replace(
+    'if (!SettingsService.StatusAlertsEnabled) return;', '');
+  assert.match(alertProblems(broken).join('\n'), /StatusAlertsEnabled/);
+});
+
+test('un interruttore che nessuno salva torna spento al riavvio', () => {
+  const broken = files();
+  broken.settings = broken.settings.replace('public static bool CallAlertsEnabled', 'public static bool UnusedCallAlerts');
+  assert.match(alertProblems(broken).join('\n'), /CallAlertsEnabled/);
+});
+
+test('una pagina che non scrive la scelta mostra un interruttore finto', () => {
+  const broken = files();
+  broken.settingsPage = broken.settingsPage.replace(
+    'SettingsService.MessageAlertsEnabled = MessagesToggle.IsOn;', ';');
+  assert.match(alertProblems(broken).join('\n'), /MessageAlertsEnabled/);
+});
+
+test('un interruttore che la pagina non ha non si puo spegnere', () => {
+  const broken = files();
+  broken.settingsXaml = broken.settingsXaml.replace('x:Name="CallsToggle"', '');
+  assert.match(alertProblems(broken).join('\n'), /CallsToggle/);
 });
 
 test('un corpo si legge dalla firma alla graffa che la chiude', () => {

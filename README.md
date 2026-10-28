@@ -135,7 +135,8 @@ Tips:
 - An update somebody posted and a call nobody answered each raise a notification, in the same
   area as a message: the author's name, and nothing else - the update itself is opened where it is.
   Each is announced once, from a mark kept on the phone, because WhatsApp re-sends the whole day
-  of updates and the whole call log at every login.
+  of updates and the whole call log at every login. Messages, updates and missed calls have a
+  switch each in Settings; the tile and the number on the icon are not one of them.
 - The Calls badge counts the missed calls that arrived since the log was last on screen, so it goes
   back to zero when the tab is opened instead of showing the same number for good.
 - The background check is on by default. Turn it off in Settings if the phone should stay quiet.

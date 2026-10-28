@@ -466,6 +466,21 @@
   <data name="Settings_ThemeHint.Text" xml:space="preserve">
     <value>The background of chats and of the list. The choice applies to the whole app.</value>
   </data>
+  <data name="Settings_AlertsLabel.Text" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="Settings_AlertsHint.Text" xml:space="preserve">
+    <value>Which alerts show up in the notification area. The tile and the number on the icon do not change.</value>
+  </data>
+  <data name="Settings_AlertsMessages.Text" xml:space="preserve">
+    <value>Messages</value>
+  </data>
+  <data name="Settings_AlertsStatuses.Text" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="Settings_AlertsCalls.Text" xml:space="preserve">
+    <value>Missed calls</value>
+  </data>
   <data name="Settings_BackgroundLabel.Text" xml:space="preserve">
     <value>Background check</value>
   </data>

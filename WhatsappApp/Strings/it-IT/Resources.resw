@@ -466,6 +466,21 @@
   <data name="Settings_ThemeHint.Text" xml:space="preserve">
     <value>Lo sfondo delle chat e dell'elenco. La scelta vale per tutta l'app.</value>
   </data>
+  <data name="Settings_AlertsLabel.Text" xml:space="preserve">
+    <value>Avvisi</value>
+  </data>
+  <data name="Settings_AlertsHint.Text" xml:space="preserve">
+    <value>Quali avvisi compaiono nell'area notifiche. La tile e il numero sull'icona non cambiano.</value>
+  </data>
+  <data name="Settings_AlertsMessages.Text" xml:space="preserve">
+    <value>Messaggi</value>
+  </data>
+  <data name="Settings_AlertsStatuses.Text" xml:space="preserve">
+    <value>Stati</value>
+  </data>
+  <data name="Settings_AlertsCalls.Text" xml:space="preserve">
+    <value>Chiamate perse</value>
+  </data>
   <data name="Settings_BackgroundLabel.Text" xml:space="preserve">
     <value>Controllo in background</value>
   </data>
