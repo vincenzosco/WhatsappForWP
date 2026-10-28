@@ -196,6 +196,11 @@ there is no cloud service to push through, so `BackgroundSync` wakes on a `TimeT
 reads what is waiting, updates the tile and the lock screen, and closes. 15 minutes is the
 shortest interval a `TimeTrigger` accepts; the system decides the exact moment and can delay it.
 Turn it off in Settings if you prefer nothing in the background.
+
+The permission is the phone's, not the switch's: the user can take background work away from the
+app in the phone's own settings, and battery saver does it on its own for a while. The
+registration stays and nothing wakes, so Settings reads the permission again on every visit and
+says so under the switch instead of showing a switch that is on for a check that never runs.
 </details>
 
 <details>

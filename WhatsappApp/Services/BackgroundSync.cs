@@ -124,7 +124,23 @@ namespace WhatsappApp.Services
         public static void Start()
         {
             if (!SettingsService.BackgroundCheckEnabled) return;
-            if (IsRegistered() && RegisteredInterval() == IntervalMinutes && RegisteredEntryPoint() == EntryPoint) return;
+
+            // A registration is not the same thing as a check that runs. The phone can
+            // take the permission away after it was given - the user turns background
+            // work off for this app, or battery saver does it for a while - and the
+            // registration stays exactly where it was: `IsRegistered` keeps saying yes
+            // while nothing ever wakes. It is the failure the scheduled agents of this
+            // platform are written against (`IsScheduled` false means the system took
+            // the task away and it has to be made again), and the same reading is what
+            // lets the settings page say the truth instead of showing a switch that is
+            // on while the phone has already refused.
+            if (!IsPermitted())
+            {
+                Diag.Ok("background: the phone is not letting this app work in the background, nothing will wake");
+            }
+
+            if (IsRegistered() && RegisteredInterval() == IntervalMinutes
+                && RegisteredEntryPoint() == EntryPoint && IsPermitted()) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("BackgroundSync/register", SetEnabledAsync(true));
@@ -153,8 +169,14 @@ namespace WhatsappApp.Services
                 // for a shorter check would keep the old one forever - which is a phone
                 // that keeps waking every half hour whatever the source says. The entry
                 // point is remembered for the same reason: a task keeps that too.
+                //
+                // The permission is part of the question: a registration that is still
+                // there while the system has refused background work is a task that will
+                // not run, so it is asked for again here - which is also the only way the
+                // app finds out that the user has turned it back on in the phone's own
+                // settings, since nothing tells it when that happens.
                 if (IsRegistered() && RegisteredInterval() == IntervalMinutes
-                    && RegisteredEntryPoint() == EntryPoint) return;
+                    && RegisteredEntryPoint() == EntryPoint && IsPermitted()) return;
                 if (IsRegistered())
                 {
                     Unregister();
@@ -329,6 +351,31 @@ namespace WhatsappApp.Services
             }
 
             return "";
+        }
+
+        /// <summary>
+        /// Whether the phone lets this app run in the background at all.
+        ///
+        /// Asked of the system and never remembered: the answer changes without the app
+        /// being told anything - the user can turn it off while the app is suspended, and
+        /// battery saver does it on its own - so a remembered yes would be a check that
+        /// never wakes and a settings page that keeps promising it does. `Denied` is the
+        /// one answer a registration cannot overrule; everything else on this platform is
+        /// a permission the user granted, with the system free to delay the moment.
+        /// </summary>
+        public static bool IsPermitted()
+        {
+            try
+            {
+                return BackgroundExecutionManager.GetAccessStatus() != BackgroundAccessStatus.Denied;
+            }
+            catch (Exception ex)
+            {
+                // Not knowing is not a refusal: the line under the switch must not accuse
+                // the phone of something it never said.
+                Diag.Failed("BackgroundSync/IsPermitted", ex);
+                return true;
+            }
         }
 
         /// <summary>True when this app already has the task registered.</summary>

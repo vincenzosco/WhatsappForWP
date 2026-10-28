@@ -466,6 +466,9 @@
   <data name="Settings_BackgroundHint.Text" xml:space="preserve">
     <value>Ogni 15 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. 15 minuti e' l'intervallo piu' breve che Windows permette: il momento esatto lo decide lui e puo' rimandarlo.</value>
   </data>
+  <data name="Settings_BackgroundState.Text" xml:space="preserve">
+    <value>Il telefono non permette alle app di lavorare in background: il controllo non si sveglia finche' non lo riattivi nelle sue impostazioni.</value>
+  </data>
   <data name="Settings_AccountLabel.Text" xml:space="preserve">
     <value>Account</value>
   </data>

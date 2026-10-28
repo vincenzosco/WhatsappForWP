@@ -12,7 +12,9 @@ const files = () => ({
   manifest: read('WhatsappApp/Package.appxmanifest'),
   task: read('WhatsappApp.Tasks/BackgroundSyncTask.cs'),
   taskProject: read('WhatsappApp.Tasks/WhatsappApp.Tasks.csproj'),
-  sync: read('WhatsappApp/Services/BackgroundSync.cs')
+  sync: read('WhatsappApp/Services/BackgroundSync.cs'),
+  settings: read('WhatsappApp/Pages/SettingsPage.xaml.cs'),
+  settingsXaml: read('WhatsappApp/Pages/SettingsPage.xaml')
 });
 
 test('il task e dichiarato, compilato e registrato con lo stesso nome', () => {
@@ -82,4 +84,31 @@ test('un task che non implementa IBackgroundTask non e un task', () => {
   const broken = files();
   broken.task = broken.task.replace(/class BackgroundSyncTask : IBackgroundTask/, 'class BackgroundSyncTask');
   assert.match(backgroundTaskProblems(broken).join('\n'), /IBackgroundTask/);
+});
+
+test('una registrazione che non chiede il permesso crede al telefono per sempre', () => {
+  const broken = files();
+  // The shape this guard exists for: the task is there, so nothing is asked again,
+  // while the phone has already taken background work away.
+  broken.sync = broken.sync.replace(/BackgroundExecutionManager\.GetAccessStatus\(\)/g, '0');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /GetAccessStatus/);
+});
+
+test('un gia registrato che non ricontrolla il permesso non si riarma mai', () => {
+  const broken = files();
+  broken.sync = broken.sync.replace(/RegisteredEntryPoint\(\) == EntryPoint && IsPermitted\(\)/g,
+    'RegisteredEntryPoint() == EntryPoint');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /IsPermitted/);
+});
+
+test('una pagina impostazioni che non chiede al telefono mostra un interruttore che mente', () => {
+  const broken = files();
+  broken.settings = broken.settings.replace(/BackgroundSync\.IsPermitted\(\)/g, 'true');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /SettingsPage\.xaml\.cs/);
+});
+
+test('un rifiuto senza una riga che lo dica resta invisibile', () => {
+  const broken = files();
+  broken.settingsXaml = broken.settingsXaml.replace('x:Name="BackgroundState"', '');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /BackgroundState/);
 });
