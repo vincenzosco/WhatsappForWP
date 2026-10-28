@@ -36,6 +36,19 @@ test('un invio senza attesa dell ack non diventa mai un fallimento', () => {
   assert.match(sendStatusProblems(broken).join('\n'), /never waits for the ack/);
 });
 
+test('un aiuto che invia senza attendere l ack non conta come attesa', () => {
+  const broken = files();
+  // The upload lives in UploadAndSendAsync so that the retry of a failed bubble can
+  // send the same file again: with the wait taken out of the helper, the attachment
+  // path has none, and the helper being in the page does not excuse it.
+  broken.page = broken.page.replace(
+    /private async System\.Threading\.Tasks\.Task UploadAndSendAsync[\s\S]*?\n        \}/,
+    (body) => body.replace('WaitForAck(message);', '')
+  );
+  assert.match(sendStatusProblems(broken).join('\n'),
+    /SendAttachmentAsync sends a file and never waits for the ack/);
+});
+
 test('un connessione che non riconosce l ack lo lascia cadere', () => {
   const broken = files();
   broken.connection = broken.connection.replace(/AnnounceAck\(/g, 'AnnounceSomethingElse(');

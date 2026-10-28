@@ -42,6 +42,26 @@ function methodBody(text, signature) {
   return end < 0 ? rest.slice(0, 1200) : rest.slice(0, end);
 }
 
+/**
+ * Whether a body waits for the ack - directly, or through a helper of this same file.
+ *
+ * Why a helper counts: the attachment path moved its upload into `UploadAndSendAsync`
+ * so that the retry of a failed bubble sends the same file again instead of a second
+ * copy of the lines. The rule is about the send path, not about which method holds it;
+ * a helper that does not wait, or one that is not in this file, still fails the check.
+ */
+function waitsForAck(page, body) {
+  if (!body) return false;
+  if (body.includes('WaitForAck(')) return true;
+
+  for (const m of body.matchAll(/\b([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)) {
+    const helper = methodBody(page, 'private async System.Threading.Tasks.Task ' + m[1]);
+    if (helper && helper.includes('WaitForAck(')) return true;
+  }
+
+  return false;
+}
+
 /** Rule 1: the page waits for the ack and never decides "sent" itself. */
 function pageProblems(page) {
   const problems = [];
@@ -59,8 +79,17 @@ function pageProblems(page) {
   }
 
   const attachment = methodBody(page, 'private async System.Threading.Tasks.Task SendAttachmentAsync');
-  if (!attachment.includes('WaitForAck(')) {
+  if (!waitsForAck(page, attachment)) {
     problems.push(`${PAGE}: SendAttachmentAsync sends a file and never waits for the ack`);
+  }
+
+  // The retry a failed bubble offers is a send path like any other, and it is the one
+  // that matters most: it runs when the cell is flaky, which is when an ack is late.
+  const retry = methodBody(page, 'private async System.Threading.Tasks.Task RetryAsync');
+  if (!retry) {
+    problems.push(`${PAGE}: RetryAsync is missing: a failed bubble has no way to be sent again`);
+  } else if (!waitsForAck(page, retry)) {
+    problems.push(`${PAGE}: RetryAsync sends and never waits for the ack`);
   }
 
   const wait = methodBody(page, 'private static async System.Threading.Tasks.Task WaitForAckAsync');

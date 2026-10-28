@@ -185,7 +185,17 @@ namespace WhatsappApp.Models
         public MessageStatus Status
         {
             get { return _status; }
-            set { _status = value; OnPropertyChanged(); }
+            set
+            {
+                _status = value;
+                OnPropertyChanged();
+
+                // The retry line under the bubble follows the status: it is there
+                // while the send is failed and gone the moment it is tried again,
+                // and without this the bubble keeps a button for a send that is
+                // already on its way.
+                OnPropertyChanged("CanRetry");
+            }
         }
 
         [DataMember]
@@ -491,6 +501,30 @@ namespace WhatsappApp.Models
         public bool IsOutgoing
         {
             get { return !IsIncoming; }
+        }
+
+        /// <summary>
+        /// This bubble's send failed and it can be tried again from the bubble itself.
+        ///
+        /// Why a property and not two bindings: the answer is "failed, and the thing a
+        /// retry needs is still here". Text is always here. A media message needs its
+        /// file, and a bubble rebuilt from the cache no longer has the bytes - the cache
+        /// keeps the name, not the file - so it says no rather than offering a button that
+        /// can only fail a second time.
+        /// </summary>
+        public bool CanRetry
+        {
+            get
+            {
+                if (IsIncoming || Status != MessageStatus.Failed) return false;
+
+                // A document is not IsMedia - its Type is Text and only the media type
+                // says what it is - so it is named here as well, or a failed document
+                // would be retried as a text message carrying its own file name.
+                if (!IsMedia && !IsDocument) return !string.IsNullOrEmpty(Text);
+
+                return !string.IsNullOrEmpty(MediaFilePath);
+            }
         }
 
         /// <summary>

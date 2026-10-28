@@ -53,7 +53,9 @@ fissa con la barra di WP8. Una conversazione è una pagina a parte.
 
 Cosa funziona oggi:
 
-- messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto
+- messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto, e una riga **Riprova** sotto il fumetto di un invio che non è passato
+- una ricerca sull'elenco chat, per nome, per quello che la chat ha detto l'ultima volta, o per il numero
+- una pressione prolungata su un messaggio ne copia le parole, lo elimina su questo telefono, o lo prende indietro per tutti entro due giorni - e un messaggio che un altro dispositivo prende indietro sparisce anche da questo
 - l'elenco chat vero, dalla sync della history: avatar, non letti, gruppi, e i nomi salvati nella rubrica WhatsApp del telefono principale, che arrivano cifrati nell'app state dell'account
 - indicatore "sta scrivendo" nelle due direzioni
 - il feed degli stati: quello che i contatti hanno pubblicato, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
@@ -70,8 +72,8 @@ C# 5; un telefono che non è il numero principale.
 **Non va bene per:** sostituire WhatsApp sul telefono principale. È un client non ufficiale,
 viola i Termini di servizio di WhatsApp, e il numero che colleghi può essere bannato. Usa un numero
 di prova o secondario. Non è nemmeno un client completo: i vocali in Ogg/Opus non si sentono, la
-history vecchia non viene chiesta su richiesta, le cancellazioni e le modifiche fatte da altri
-dispositivi non vengono lette.
+history vecchia non viene chiesta su richiesta, e le modifiche fatte da altri dispositivi non
+vengono lette.
 
 ## Compilarlo
 

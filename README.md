@@ -53,7 +53,9 @@ WP8 app bar. A conversation is a page of its own.
 
 What works today:
 
-- text messages, images and voice notes, with sent/delivered/read marks on every bubble
+- text messages, images and voice notes, with sent/delivered/read marks on every bubble, and a **Try again** line under a bubble whose send did not make it
+- a search over the chat list, by name, by what the chat last said, or by the number
+- a long press on a message copies its words, deletes it on this phone, or takes it back from everybody within two days - and a message another device takes back goes from this one too
 - the real chat list from the history sync, avatars, unread counts, groups, and the names saved in the primary phone's WhatsApp address book, which arrive encrypted in the account's app state
 - typing indicators in both directions
 - the status feed: what contacts posted, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, and an update whose photo did not arrive has a **Try again** button instead of a dead end
@@ -70,7 +72,7 @@ C# 5; a phone that is not your main number.
 **Not for:** replacing WhatsApp on your main phone. This is an unofficial client, it breaks
 WhatsApp's Terms of Service, and the number that links it can be banned. Use a test or secondary
 number. It is also not a complete client yet: voice notes in Ogg/Opus do not play, older history
-is not fetched on demand, deletions and edits from other devices are not read.
+is not fetched on demand, and edits made from other devices are not read.
 
 ## Build it
 

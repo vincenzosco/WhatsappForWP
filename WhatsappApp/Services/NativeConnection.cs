@@ -312,6 +312,13 @@ namespace WhatsappApp.Services
         /// </summary>
         public event EventHandler<MessageStatusUpdate> MessageStatusChanged;
 
+        /// <summary>
+        /// Somebody took a message back. The stanza is a message like any other whose payload
+        /// is the revoke, so it is read on the same loop and announced here; the row it names
+        /// is the listener's to remove.
+        /// </summary>
+        public event EventHandler<MessageRevocation> MessageRevoked;
+
         /// <summary>How long a query the server never answers is waited for before it is given up on.</summary>
         public const int AnswerSeconds = 20;
 
@@ -932,6 +939,26 @@ namespace WhatsappApp.Services
             // own app state - the names saved in the primary's address book.
             LearnAppStateKeys(session, incoming, account);
 
+            // A message taken back: its payload is the `ProtocolMessage` of type revoke and
+            // the only thing it says is the id of another message. It has no bubble of its
+            // own - the row it names is what goes. Read before the echo rule below would
+            // matter and before the empty-content rule after it: a revoke carries no text and
+            // no media, so every later check would treat it as a stanza with nothing in it.
+            string revoked = MessageProtocol.RevokedId(
+                incoming.Content == null ? null : incoming.Content.ProtocolMessage);
+            if (revoked != null)
+            {
+                Diag.Ok("native: " + incoming.From + " took back " + revoked + " in " + incoming.Chat);
+
+                var revocation = new MessageRevocation();
+                revocation.Jid = incoming.Chat;
+                revocation.Id = revoked;
+
+                var listener = MessageRevoked;
+                if (listener != null) listener(this, revocation);
+                return;
+            }
+
             // A copy of something this account sent from another device: shown by the phone
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
             if (incoming.IsOurEcho) return;
@@ -1227,6 +1254,44 @@ namespace WhatsappApp.Services
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
 
+            return id;
+        }
+
+        /// <summary>
+        /// Takes a message back for everybody: a stanza of its own whose payload is the
+        /// `ProtocolMessage` of type revoke, sent the way a text is.
+        ///
+        /// Why it goes through the same write: a revoke is an ordinary message to the
+        /// server. It has an id, it is encrypted device by device, and the bubble that stays
+        /// on screen while it is on its way is the one that already showed the message. Its
+        /// id is not added to the chat's preview: the preview is stepped back when the
+        /// message is deleted locally, and a row saying nothing would be worse than the
+        /// sentence it replaces.
+        /// </summary>
+        public async Task<string> RevokeAsync(string jid, string messageId)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a revoke needs the chat it happened in");
+            if (string.IsNullOrEmpty(messageId)) throw new ProtocolException("a revoke needs the message it takes back");
+
+            NativeSession session = OpenSession();
+            Message payload = Message.Revoke(jid, messageId);
+
+            // A group takes the sender key and the distribution; one person takes the device
+            // list. Both end in one stanza, which is the same one a text would be.
+            if (OutgoingMessage.IsGroup(jid))
+            {
+                return await SendGroupAsync(session, jid, payload, OutgoingMessage.TextType, null, "");
+            }
+
+            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload,
+                OutgoingMessage.TextType, null, devices, timestamp, _random));
+
+            Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
             return id;
         }
 
@@ -2921,5 +2986,21 @@ namespace WhatsappApp.Services
 
         /// <summary>True when that answer is a refusal: the server would not take it.</summary>
         public bool IsRefused;
+    }
+
+    /// <summary>
+    /// A message somebody took back: the chat it happened in and the id of the message.
+    ///
+    /// The id is the whole of it - a revoke carries no words, no media and no hint of who
+    /// wrote the message it names - which is why the row is found by the id inside the chat
+    /// and not by anything else.
+    /// </summary>
+    public sealed class MessageRevocation
+    {
+        /// <summary>The chat the revoked message belongs to.</summary>
+        public string Jid;
+
+        /// <summary>The message that was taken back.</summary>
+        public string Id;
     }
 }

@@ -114,6 +114,26 @@ namespace WhatsappApp.Converters
     }
 
     /// <summary>
+    /// A missed call, in the colour the released app paints it. False is the same grey the
+    /// second line of the row uses, so an answered call looks exactly as it did.
+    /// </summary>
+    public class MissedToBrushConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, string language)
+        {
+            bool missed = value is bool && (bool)value;
+            return missed
+                ? new SolidColorBrush(Windows.UI.Color.FromArgb(255, 211, 47, 47))
+                : new SolidColorBrush(Windows.UI.Color.FromArgb(255, 147, 147, 147));
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, string language)
+        {
+            return Windows.UI.Xaml.DependencyProperty.UnsetValue;
+        }
+    }
+
+    /// <summary>
     /// Converts unread count to visibility (0 = collapsed, >0 = visible)
     /// </summary>
     public class UnreadCountToVisibilityConverter : IValueConverter
