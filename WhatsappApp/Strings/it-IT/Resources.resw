@@ -538,5 +538,11 @@
   <data name="StatusPage_Updates" xml:space="preserve">
     <value>{0} aggiornamenti</value>
   </data>
+  <data name="StatusPage_MarkAllViewed" xml:space="preserve">
+    <value>Segna tutti come visti</value>
+  </data>
+  <data name="CallsPage_MarkAllSeen" xml:space="preserve">
+    <value>Segna tutte come viste</value>
+  </data>
 </root>
 

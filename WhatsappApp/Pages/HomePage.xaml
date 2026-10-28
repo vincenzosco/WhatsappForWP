@@ -517,6 +517,49 @@
                         <TextBlock x:Name="RefreshStatusLabel" Style="{StaticResource AppBarLabelStyle}"/>
                     </StackPanel>
                 </Button>
+
+                <!-- The same overflow as the chat list: the actions of a section that
+                     are not worth a button of their own. -->
+                <Button x:Name="StatusMoreButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="StatusMoreButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconOverflow -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="6,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="6,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="6,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="12,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="12,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="12,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="18,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="18,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="18,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                    </StackPanel>
+                </Button>
             </StackPanel>
 
             <StackPanel x:Name="CallsBar" Orientation="Horizontal" HorizontalAlignment="Right"
@@ -547,6 +590,47 @@
                             </Path.Data>
                         </Path>
                         <TextBlock x:Name="RefreshCallsLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+
+                <Button x:Name="CallsMoreButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="CallsMoreButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconOverflow -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="6,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="6,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="6,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="12,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="12,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="12,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="18,10.5" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="18,13.5"/>
+                                                <ArcSegment Size="1.5,1.5" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="18,10.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
                     </StackPanel>
                 </Button>
             </StackPanel>

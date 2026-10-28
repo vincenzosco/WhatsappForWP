@@ -1318,6 +1318,54 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The whole day at once: every update nobody has watched is now watched - from the
+        /// overflow of the Status tab, which is the official app's "mark all as viewed".
+        ///
+        /// Why not `MarkStatusViewed` in a loop: that one writes the snapshot and announces
+        /// the change for every row, so thirty unwatched updates were thirty saves of the file
+        /// and thirty rebuilds of the list for one tap. Here the flags go up together, the file
+        /// is written once and the list is told once; only the receipts stay one per status,
+        /// because the wire has no receipt for several at a time.
+        ///
+        /// Returns how many updates it changed, which is what the log line says.
+        /// </summary>
+        public int MarkAllStatusesViewed()
+        {
+            var unseen = new List<ChatMessage>();
+
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                ChatMessage row = _statuses[i];
+                if (row == null || row.IsStatusViewed) continue;
+                if (string.IsNullOrEmpty(row.Id) || string.IsNullOrEmpty(row.ChatId)) continue;
+                unseen.Add(row);
+            }
+
+            if (unseen.Count == 0) return 0;
+
+            for (int i = 0; i < unseen.Count; i++) unseen[i].IsStatusViewed = true;
+
+            SaveStatusSnapshot();
+            RaiseStatusesChanged();
+
+            for (int i = 0; i < unseen.Count; i++)
+            {
+                // Locals and not the row: the loop's variable is one slot in C# 5, and a
+                // delegate that read it would send the receipt of the last status thirty times.
+                string chatId = unseen[i].ChatId;
+                string id = unseen[i].Id;
+
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("DataService/view all statuses",
+                    delegate { return NativeConnection.Instance.ViewStatusAsync(chatId, id); });
+#pragma warning restore 4014
+            }
+
+            Diag.Ok("status: " + unseen.Count + " update(s) counted as watched");
+            return unseen.Count;
+        }
+
+        /// <summary>
         /// Drops the updates whose day is over.
         ///
         /// The feed is pruned when it is read from the phone and when it is written, and
@@ -2846,6 +2894,21 @@ namespace WhatsappApp.Services
                 if (row.Timestamp > seen) total++;
             }
             return total;
+        }
+
+        /// <summary>
+        /// The call log has been read: the badge that counts the missed calls arrived since
+        /// the last visit goes to zero - the overflow's "mark all as seen" on the Calls tab.
+        ///
+        /// The log itself is WhatsApp's and keeps every row; what this moves is the mark the
+        /// badge is measured against, the same one `HomePage.Show` writes when somebody opens
+        /// the tab. So the rows stay, and the number on the tab stops being news.
+        /// </summary>
+        public void MarkCallsSeen()
+        {
+            SessionService.MarkOpened(AppSection.Calls);
+            PublishBadge();
+            Diag.Ok("calls: the log counted as seen");
         }
 
         /// <summary>

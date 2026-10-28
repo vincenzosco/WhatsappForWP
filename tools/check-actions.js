@@ -38,7 +38,9 @@ const TITLE_BAR = {
     NewChatButton: 'IconNewChat',
     SettingsButton: 'IconSettings',
     RefreshStatusButton: 'IconRefreshStatus',
-    RefreshCallsButton: 'IconRefreshCalls'
+    RefreshCallsButton: 'IconRefreshCalls',
+    StatusMoreButton: 'IconOverflow',
+    CallsMoreButton: 'IconOverflow'
   }
 };
 
