@@ -67,6 +67,36 @@ comes from `Microsoft.Expression.DesignHost` trying to launch the app in an
 AppContainer, and on Windows 10/11 there is no "developer licence" any more, only
 Developer Mode.
 
+## `DEP0001 : Unexpected Error` on deploy
+
+`DEP0001` is the deployment tool's catch-all. The description ends with an HRESULT in
+decimal (`-1988945906` = `0x89753AEE`) and that code alone is not the diagnosis: the
+**line above it in the Output window** names the failure, and the Error List keeps only
+the summary. The package is very rarely the cause - the manifest table above, `check-tile`
+and `check-project-files` cover everything a build can check. In order:
+
+1. Read the **Output** window (`View > Output`), not the Error List.
+2. **Uninstall the app on the phone** (Impostazioni > App > WhatsApp > disinstalla) and
+   deploy again. The commonest cause is a package the device already holds under another
+   certificate or another `Identity / Name`: registration is refused (`0x80073CF9`,
+   `0x8973180x`) and the tool reports only `DEP0001`.
+3. Screen **on and unlocked** for the whole deploy, cable on a port that is not a hub, and
+   the phone in developer mode (see below).
+4. Restart the `IpOverUsbSvc` service and replug the cable. A service that has been up since
+   before the phone was paired is the second commonest cause.
+5. Free storage on the device: the install takes about twice the package.
+6. Emulator: shut it down completely (not save state) and deploy again. A stale XDE image
+   fails with `DEP0001` and nothing else.
+7. Still failing: install by hand with the SDK tool, which prints the real error:
+   `"C:\Program Files (x86)\Microsoft SDKs\Windows Phone\v8.1\Tools\AppDeploy\AppDeploy.exe"`
+   - pick the device, `Browse...` to `WhatsappApp\bin\ARM\Debug\WhatsApp_<version>_Bundle\`
+   (or the `.appx` alone), Deploy.
+
+The package this repository produces has been checked by hand as well: the `.appx` in
+`bin\ARM\Debug\WhatsApp_<version>_Bundle\` holds `AppxManifest.xml` (identity, four
+capabilities, `resources.pri`), the `Assets` folder the manifest names, and 115 entries - an
+appx that a build produced is not the thing to suspect first.
+
 ## Checklist before calling it a release
 
 - [ ] The four guards pass (`check-csharp5`, `check-icons`, `check-resw --strict`, `check-docs`).
