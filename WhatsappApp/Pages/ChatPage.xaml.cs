@@ -8,6 +8,7 @@ using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.Input;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -1476,13 +1477,10 @@ namespace WhatsappApp.Pages
         {
             var flyout = new MenuFlyout();
 
-            string text = message.Text;
-            if (message.ShowsText && !string.IsNullOrEmpty(text))
-            {
-                var copy = new MenuFlyoutItem { Text = Loc.Get("ChatPage_Copy", "Copy") };
-                copy.Click += delegate { CopyText(text); };
-                flyout.Items.Add(copy);
-            }
+            // No "copy" entry: WP8.1's Windows Runtime has no clipboard
+            // (`Windows.winmd` of the phone kit names no `Clipboard` at all, and the build
+            // answers CS0103), so an entry for it would be a menu item that does nothing.
+            // The limit is stated in the README pair instead.
 
             // Taking the message back from everybody: only what this phone sent, and only
             // while WhatsApp still accepts it. Above "delete here" because it is the stronger
@@ -1506,22 +1504,6 @@ namespace WhatsappApp.Pages
             flyout.Items.Add(delete);
 
             flyout.ShowAt(bubble);
-        }
-
-        /// <summary>The text of a bubble to the clipboard, and a line that says it happened.</summary>
-        private static void CopyText(string text)
-        {
-            try
-            {
-                var package = new DataPackage();
-                package.SetText(text);
-                Clipboard.SetContent(package);
-                Diag.Ok("message copied: " + text.Length + " char(s)");
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("ChatPage/copy", ex);
-            }
         }
 
         /// <summary>
@@ -1652,8 +1634,6 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void RetryMessageButton_Click(object sender, RoutedEventArgs e)
         {
-            e.Handled = true;
-
             var element = sender as FrameworkElement;
             var message = element == null ? null : element.DataContext as ChatMessage;
             if (message == null || !message.CanRetry) return;

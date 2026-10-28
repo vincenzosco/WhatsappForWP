@@ -4,23 +4,32 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     Background="Black">
 
-    <!-- One status, full screen: what the author posted, who posted it and when.
-         The update is the screen; the two bars are only what a person needs to
-         know whose it is and a way out. Black is the ground the released app
-         puts a status on, and it is also what makes a photo read at a glance. -->
+    <!-- One person's updates, full screen: what they posted, who they are and when.
+         The update is the screen; the bars are only what a person needs to know
+         whose it is, where they are in the day, and a way out. Black is the ground
+         the released app puts a status on, and it is also what makes a photo read
+         at a glance. -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
+
+        <!-- One bar per update of the day, the watched ones filled: the segments are
+             built in code (`RenderSegments`), because how many there are is not known
+             when this file is compiled. A lone update gets no bar at all. -->
+        <Grid x:Name="Segments" Grid.Row="0" Height="3"
+              Margin="8,10,8,6" Visibility="Collapsed"/>
 
         <!-- Whose update it is: the name the row already carries (a contact's
              saved name, a push name, or the number) and the time it was posted.
              The number is not repeated under the name: the pane had no name to
              give when it built the row, and a second line of digits says less
              than the first. -->
-        <Grid Grid.Row="0" Margin="16,8,8,8">
+        <Grid Grid.Row="1" Margin="16,0,8,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -68,7 +77,7 @@
              the video, the words of a status that is words alone, the spinner
              while the bytes are on their way, and the line that says they did
              not come. -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2">
             <Image x:Name="StatusImage" Stretch="Uniform" Visibility="Collapsed"/>
 
             <MediaElement x:Name="StatusVideo"
@@ -76,7 +85,8 @@
                           AutoPlay="True"
                           Stretch="Uniform"
                           Visibility="Collapsed"
-                          MediaFailed="StatusVideo_MediaFailed"/>
+                          MediaFailed="StatusVideo_MediaFailed"
+                          MediaEnded="StatusVideo_MediaEnded"/>
 
             <TextBlock x:Name="StatusText" Text=""
                        Foreground="White" FontSize="28" FontFamily="Segoe WP Semilight"
@@ -111,11 +121,70 @@
 
         <!-- The caption of a photo or a video, on its own band so a bright
              picture cannot swallow the words. -->
-        <Border x:Name="CaptionBar" Grid.Row="2"
+        <Border x:Name="CaptionBar" Grid.Row="3"
                 Background="#99000000" Visibility="Collapsed">
             <TextBlock x:Name="CaptionText" Text=""
                        Foreground="White" FontSize="18" TextWrapping="Wrap"
                        Margin="16,12,16,16"/>
         </Border>
+
+        <!-- Where they are in the day, and the two taps that move: a person's updates
+             play one after the other, and the arrows are what a phone without a swipe
+             gesture uses to go back to one already seen. Hidden when there is only one. -->
+        <Grid x:Name="Pager" Grid.Row="4" Margin="8,4,8,8" Visibility="Collapsed">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <Button x:Name="PreviousButton" Grid.Column="0"
+                    Background="Transparent" BorderThickness="0"
+                    MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
+                    Click="PreviousButton_Click">
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24">
+                    <!-- IconChevronLeft -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="15,4">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="7,12 15,20"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
+
+            <TextBlock x:Name="CounterText" Grid.Column="1" Text=""
+                       Foreground="#FFB0B0B0" FontSize="14"
+                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+            <Button x:Name="NextButton" Grid.Column="2"
+                    Background="Transparent" BorderThickness="0"
+                    MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
+                    Click="NextButton_Click">
+                <Path Stroke="White" StrokeThickness="2.4"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                      Width="24" Height="24">
+                    <!-- IconChevronRight -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="9,4">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="17,12 9,20"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
+        </Grid>
     </Grid>
 </Page>

@@ -199,9 +199,6 @@
   <data name="ChatPage_Retry.Text" xml:space="preserve">
     <value>Riprova</value>
   </data>
-  <data name="ChatPage_Copy" xml:space="preserve">
-    <value>Copia</value>
-  </data>
   <data name="ChatPage_DeleteHere" xml:space="preserve">
     <value>Elimina solo qui</value>
   </data>
@@ -495,6 +492,18 @@
   </data>
   <data name="StatusViewer_Retry.Content" xml:space="preserve">
     <value>Riprova</value>
+  </data>
+  <data name="StatusViewer_Previous" xml:space="preserve">
+    <value>Aggiornamento precedente</value>
+  </data>
+  <data name="StatusViewer_Next" xml:space="preserve">
+    <value>Aggiornamento successivo</value>
+  </data>
+  <data name="StatusViewer_Count" xml:space="preserve">
+    <value>{0} di {1}</value>
+  </data>
+  <data name="StatusPage_Updates" xml:space="preserve">
+    <value>{0} aggiornamenti</value>
   </data>
 </root>
 

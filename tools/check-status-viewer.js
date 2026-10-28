@@ -37,12 +37,21 @@
  *     only counts the change; one writer waits for the feed to stand still, writes
  *     it once, and writes again only if it moved while the file was being written;
  *  6. the row template binds only what a status row **has**: `StatusPane.xaml`
- *     asks for `{Binding X}` on a `ChatMessage`, and X must be a public member of
- *     it. The template asked for `Initials` before the model had one, and the run
- *     of 2026-10-22 answered with two binding errors per realised row
- *     (`'Initials' property not found on 'WhatsappApp.Models.ChatMessage'`) and an
- *     empty circle on the screen - no compile error, no DIAG line, nothing that
- *     failed.
+ *     asks for `{Binding X}` on a `StatusGroup` (one row per person, carrying the
+ *     newest update as `Latest` and the count as `Detail`) and for
+ *     `{Binding Latest.Y}` on the `ChatMessage` behind it, and every X and Y must
+ *     be a public member of its model. The template asked for `Initials` before the
+ *     model had one, and the run of 2026-10-22 answered with two binding errors per
+ *     realised row (`'Initials' property not found on
+ *     'WhatsappApp.Models.ChatMessage'`) and an empty circle on the screen - no
+ *     compile error, no DIAG line, nothing that failed;
+ *  7. the tap opens the **day** of the person tapped, not the one row that was
+ *     touched: the pane draws "3 updates" on one line, and the viewer that showed
+ *     only the tapped row made that line a lie - the other two could be reached by
+ *     leaving the screen and tapping the same name again. The viewer builds its
+ *     queue from the feed (`DataService.Instance.Statuses`), puts it back in the
+ *     order the updates were posted (`_queue.Reverse()`, the feed is newest first)
+ *     and starts at the first one nobody has watched (`FirstUnwatched()`).
  *
  * Usage:
  *   node tools/check-status-viewer.js
@@ -56,6 +65,7 @@ const { stripComments } = require('./csharp');
 const ROOT = path.resolve(__dirname, '..');
 const PANE = 'WhatsappApp/Controls/StatusPane.xaml.cs';
 const PANE_XAML = 'WhatsappApp/Controls/StatusPane.xaml';
+const GROUP_MODEL = 'WhatsappApp/Models/StatusGroup.cs';
 const ROW_MODEL = 'WhatsappApp/Models/ChatMessage.cs';
 const VIEWER = 'WhatsappApp/Pages/StatusViewerPage.xaml.cs';
 const FEED = 'WhatsappApp/Protocol/Client/StatusFeed.cs';
@@ -110,10 +120,10 @@ function rowTemplate(xaml) {
   return xaml.slice(start, end);
 }
 
-/** The property names a template's bindings ask for. */
+/** The property names a template's bindings ask for, as `Latest.SenderName`. */
 function boundNames(template) {
   const names = new Set();
-  const binding = /\{Binding\s+(?:Path\s*=\s*)?([A-Za-z_][A-Za-z0-9_]*)/g;
+  const binding = /\{Binding\s+(?:Path\s*=\s*)?([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)/g;
   for (const match of template.matchAll(binding)) names.add(match[1]);
   return names;
 }
@@ -142,22 +152,56 @@ function statusViewerProblems(files) {
   const pairing = String((files && files.pairing) || '');
   const xaml = String((files && files.template) || '');
   const row = String((files && files.row) || '');
+  const group = String((files && files.group) || '');
 
-  // Rule 6: the row draws what the row has.
+  // Rule 6: the row draws what the row has. Two models, because the row is a person
+  // (`StatusGroup`) and the picture, the name and the time on it belong to their
+  // newest update (`ChatMessage`, reached through `Latest`).
   const template = rowTemplate(xaml);
   if (template === null) {
     problems.push(PANE_XAML + ': the status row template is gone: this guard reads the ' +
       'bindings of the row from it, so a pane without one has no row to check');
   } else {
-    const members = publicMembers(row);
-    if (members.size < 10) {
-      problems.push(ROW_MODEL + ': the guard found ' + members.size + ' public member(s) on a ' +
+    const groupMembers = publicMembers(group);
+    const rowMembers = publicMembers(row);
+
+    if (groupMembers.size < 5) {
+      problems.push(GROUP_MODEL + ': the guard found ' + groupMembers.size + ' public member(s) ' +
+        'on a status row, which is too few to be the model: it can no longer tell a binding ' +
+        'that resolves from one that never did');
+    } else if (rowMembers.size < 10) {
+      problems.push(ROW_MODEL + ': the guard found ' + rowMembers.size + ' public member(s) on a ' +
         'status row, which is too few to be the model: it can no longer tell a binding ' +
         'that resolves from one that never did');
     } else {
       for (const name of boundNames(template)) {
-        if (members.has(name)) continue;
-        problems.push(PANE_XAML + ': the status row binds ' + name + ', which ' + ROW_MODEL +
+        const dot = name.indexOf('.');
+
+        if (dot > 0) {
+          const head = name.slice(0, dot);
+          const tail = name.slice(dot + 1);
+
+          // `Latest.SenderName` names a member of the row's newest update, and the
+          // head has to be on the group or the path is empty before it is read.
+          if (!groupMembers.has(head)) {
+            problems.push(PANE_XAML + ': the status row binds ' + name + ', and ' + GROUP_MODEL +
+              ' has no ' + head + ' to reach it through: the binding answers an error per ' +
+              'realised row in the Output window and draws nothing on the screen');
+            continue;
+          }
+
+          if (rowMembers.has(tail)) continue;
+
+          problems.push(PANE_XAML + ': the status row binds ' + name + ', which ' + ROW_MODEL +
+            ' does not have: the binding answers an error per realised row in the Output ' +
+            'window and draws nothing on the screen, and nothing fails - the row keeps an ' +
+            'empty circle where the author\'s initial belongs');
+          continue;
+        }
+
+        if (groupMembers.has(name)) continue;
+
+        problems.push(PANE_XAML + ': the status row binds ' + name + ', which ' + GROUP_MODEL +
           ' does not have: the binding answers an error per realised row in the Output ' +
           'window and draws nothing on the screen, and nothing fails - the row keeps an ' +
           'empty circle where the author\'s initial belongs');
@@ -180,6 +224,22 @@ function statusViewerProblems(files) {
     problems.push(VIEWER + ': a status without its bytes must ask for them ' +
       '(RequestStatusMedia(_status)): a status out of the history sync arrives with its keys ' +
       'and its address and no file, so a page that only draws what it was given shows nothing');
+  }
+
+  // Rule 7: the one line that says "3 updates" plays the three.
+  if (!viewer.includes('DataService.Instance.Statuses')) {
+    problems.push(VIEWER + ': the page must take the whole day of the author tapped from the ' +
+      'feed (DataService.Instance.Statuses): the pane draws one row per person, so a page that ' +
+      'shows only the row it was handed leaves the rest of that line unreachable');
+  }
+  if (!viewer.includes('_queue.Reverse()')) {
+    problems.push(VIEWER + ': a person\'s updates are watched in the order they were posted ' +
+      '(_queue.Reverse(): the feed is newest first), or the day plays backwards');
+  }
+  if (!viewer.includes('FirstUnwatched()')) {
+    problems.push(VIEWER + ': the day must start at the first update nobody has watched ' +
+      '(FirstUnwatched()): opening it always at the oldest one makes the tap a re-run of ' +
+      'what was already seen');
   }
 
   if (!feed.includes('IncomingMessage.Receipt(BroadcastJid')) {
@@ -294,6 +354,7 @@ function main() {
     cache: read(CACHE),
     pairing: read(PAIRING),
     template: read(PANE_XAML),
+    group: read(GROUP_MODEL),
     row: read(ROW_MODEL)
   });
 
@@ -303,10 +364,10 @@ function main() {
     process.exit(1);
   }
 
-  console.log('OK: a status tap opens the update, the page watches it and asks for the bytes it '
-    + 'does not have, the receipt goes to the broadcast list naming the author, the row binds '
-    + 'only members its model has, and the feed survives a restart for the day a status lives '
-    + '- written once per burst, not once per status.');
+  console.log('OK: a status tap opens the whole day of the author, the page watches each update '
+    + 'and asks for the bytes it does not have, the receipt goes to the broadcast list naming '
+    + 'the author, the row binds only members its two models have, and the feed survives a '
+    + 'restart for the day a status lives - written once per burst, not once per status.');
 }
 
 if (require.main === module) main();

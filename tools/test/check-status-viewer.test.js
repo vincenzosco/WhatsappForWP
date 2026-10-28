@@ -9,6 +9,7 @@ const { statusViewerProblems } = require('../check-status-viewer');
 const ROOT = path.join(__dirname, '..', '..');
 const PANE = 'WhatsappApp/Controls/StatusPane.xaml.cs';
 const PANE_XAML = 'WhatsappApp/Controls/StatusPane.xaml';
+const GROUP_MODEL = 'WhatsappApp/Models/StatusGroup.cs';
 const ROW_MODEL = 'WhatsappApp/Models/ChatMessage.cs';
 const VIEWER = 'WhatsappApp/Pages/StatusViewerPage.xaml.cs';
 const FEED = 'WhatsappApp/Protocol/Client/StatusFeed.cs';
@@ -27,6 +28,7 @@ const files = () => ({
   cache: read(CACHE),
   pairing: read(PAIRING),
   template: read(PANE_XAML),
+  group: read(GROUP_MODEL),
   row: read(ROW_MODEL)
 });
 
@@ -129,15 +131,43 @@ test('una riga che chiede una proprieta che il modello non ha non disegna niente
   // The shape of the run of 2026-10-22: the template asked for Initials and the row
   // model did not have one, so every realised row drew an empty circle and the Output
   // window said `'Initials' property not found on 'WhatsappApp.Models.ChatMessage'`.
-  broken.row = broken.row.replace(/public string Initials\r?\n[\s\S]*?\r?\n        \}/, '');
-  assert.doesNotMatch(broken.row, /public string Initials/);
+  // The circle's letter now lives on the group, so that is where it is taken away.
+  broken.group = broken.group.replace(/public string Initials\r?\n[\s\S]*?\r?\n        \}/, '');
+  assert.doesNotMatch(broken.group, /public string Initials/);
   assert.match(statusViewerProblems(broken).join('\n'), /binds Initials, which/);
+});
+
+test('una riga che raggiunge un campo che lo stato non ha non lo disegna', () => {
+  const broken = files();
+  // `Latest.SenderName` is a member of the update behind the row: a template that
+  // names something the status does not carry draws an empty line and says nothing.
+  broken.row = broken.row.replace(/public string FormattedTime/, 'public string FormattedTimeGone');
+  assert.match(statusViewerProblems(broken).join('\n'), /Latest\.FormattedTime, which/);
 });
 
 test('un modello che la guardia non sa piu leggere lo dice invece di approvare', () => {
   const broken = files();
   broken.row = 'public class ChatMessage { }';
   assert.match(statusViewerProblems(broken).join('\n'), /too few/);
+});
+
+test('un visore che prende solo la riga toccata lascia il resto della giornata irraggiungibile', () => {
+  const broken = files();
+  broken.viewer = broken.viewer.replace(/DataService\.Instance\.Statuses/g,
+    'new ObservableCollection<ChatMessage>()');
+  assert.match(statusViewerProblems(broken).join('\n'), /whole day of the author tapped/);
+});
+
+test('una giornata riprodotta al contrario mostra prima l ultimo aggiornamento', () => {
+  const broken = files();
+  broken.viewer = broken.viewer.replace(/\s*_queue\.Reverse\(\);/, '');
+  assert.match(statusViewerProblems(broken).join('\n'), /plays backwards/);
+});
+
+test('una giornata che parte sempre dal piu vecchio ripete quello che si e gia visto', () => {
+  const broken = files();
+  broken.viewer = broken.viewer.replace(/FirstUnwatched\(\)/g, '0');
+  assert.match(statusViewerProblems(broken).join('\n'), /first update nobody has watched/);
 });
 
 test('un pannello senza il modello della riga non e un pannello controllato', () => {
