@@ -134,7 +134,9 @@ Consigli:
   piccola che usa la lista: la tile è l'unico posto che mostra una faccia alla misura della tile.
   Quando qualcuno ha pubblicato uno stato che nessuno ha guardato, un turno della tile lo dice
   ("Stati" sopra "3 nuovi stati"): il badge della scheda si vede solo con l'app aperta, e il numero
-  sull'icona sono i messaggi in attesa, che uno stato non è.
+  sull'icona sono i messaggi in attesa, che uno stato non è. I turni dove non c'è la faccia di
+  nessuno sono dipinti con lo sfondo scelto in Impostazioni - Tema: quella foto, o il colore di
+  accento del telefono quando la scelta è il bianco - così la tile ha lo stesso aspetto della lista.
 - Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
   stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
   Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda

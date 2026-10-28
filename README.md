@@ -133,7 +133,9 @@ Tips:
   not the small preview the chat list uses: the tile is the one place that shows a face at the
   size of the tile. When somebody posted an update nobody has watched, one turn of the tile says so
   ("Updates" over "3 new updates"): the tab's own badge is only visible with the app open, and the
-  number on the icon is the messages waiting, which an update is not.
+  number on the icon is the messages waiting, which an update is not. The turns that have nobody's
+  face on them are painted with the background chosen in Settings - Tema: that wallpaper, or the
+  phone's accent colour when the choice is plain white - so the tile is the same look as the list.
 - An update somebody posted and a call nobody answered each raise a notification, in the same
   area as a message: the author's name, and nothing else - the update itself is opened where it is.
   Each is announced once, from a mark kept on the phone, because WhatsApp re-sends the whole day

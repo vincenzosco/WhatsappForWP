@@ -411,6 +411,13 @@ namespace WhatsappApp
             // what the official package does through PhoneAccentBrush.
             Accent.Apply();
 
+            // And the tile is painted with the same choice (`TileTheme`): the wallpaper the
+            // user set in Settings, or the accent when that choice is plain. Composed in its
+            // own time - it decodes a picture - and the tile is drawn again when it is ready.
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("App/tile theme", TileTheme.RefreshAsync());
+#pragma warning restore 4014
+
             // The ui thread's own heartbeat, before anything that could stop it: a
             // freeze is named by the thread that is still running, not by the one
             // that stopped (see `Diag.StartWatchdog`).
