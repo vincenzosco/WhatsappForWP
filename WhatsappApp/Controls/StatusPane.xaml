@@ -7,6 +7,7 @@
     <UserControl.Resources>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
 
         <Style x:Key="StatusItemContainerStyle" TargetType="ListViewItem">
             <Setter Property="Padding" Value="0"/>
@@ -38,8 +39,15 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid Grid.Column="0" Width="48" Height="48"
-                              Margin="0,12,0,12" VerticalAlignment="Top">
+                        <Grid Grid.Column="0" Width="52" Height="52"
+                              Margin="-2,10,-2,10" VerticalAlignment="Top">
+                            <!-- The ring is what the feed says about itself: an update nobody
+                                 has watched yet is ringed in the accent, and the ring goes when
+                                 the viewer has sent its `read`. Without it a feed of yesterday's
+                                 updates looks exactly like a feed of new ones. -->
+                            <Ellipse Width="52" Height="52" StrokeThickness="2"
+                                     Stroke="{StaticResource WhatsAppAccentBrush}"
+                                     Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                             <Ellipse Width="48" Height="48"
                                      Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
                             <TextBlock Text="{Binding Initials}"

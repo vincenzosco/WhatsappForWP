@@ -22,6 +22,20 @@ namespace WhatsappApp.Models
         public int DurationSeconds { get; set; }
         public bool IsVideo { get; set; }
 
+        /// <summary>
+        /// Nobody answered this one. The list paints it red: the word in `Detail` says the
+        /// same thing, but a missed call is the one row of the log a person scans for, and
+        /// the released app colours it instead of asking to read every line.
+        /// </summary>
+        public bool IsMissed
+        {
+            get
+            {
+                string reason = (Reason ?? "").Trim().ToLowerInvariant();
+                return reason == "missed" || reason == "timeout";
+            }
+        }
+
         /// <summary>Initials for the avatar, as in the chat list.</summary>
         public string Initials
         {

@@ -76,19 +76,62 @@
             <Grid Background="Transparent">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
+                <!-- The search box, and only while it is asked for: the official list has
+                     no box of its own, so the magnifier in the app bar brings this row in
+                     and puts it away. The filter lives in the page (`ApplyFilter`), because
+                     the rows are `Contact` objects and the list's order is DataService's. -->
+                <Grid x:Name="SearchPanel" Grid.Row="0" Background="White"
+                      Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBox x:Name="SearchBox" x:Uid="ChatsPage_Search" Grid.Column="0"
+                             Margin="12,6,6,6" FontSize="16"
+                             BorderThickness="0" Background="Transparent"
+                             TextChanged="SearchBox_TextChanged"/>
+                    <Button x:Name="CloseSearchButton" Grid.Column="1"
+                            Width="44" Height="44" MinWidth="0" MinHeight="0"
+                            Padding="0" BorderThickness="0" Background="Transparent"
+                            Click="CloseSearchButton_Click">
+                        <Path Stroke="#FF333333" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="14" Height="14" HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- IconCloseSearch -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="4,4">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="20,20"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="20,4">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="4,20"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                    </Button>
+                </Grid>
+
                 <!-- An image picked with the chooser or shared from another app is
                      waiting for a chat. -->
-                <Border x:Name="PendingAttachmentBar" Grid.Row="0"
+                <Border x:Name="PendingAttachmentBar" Grid.Row="1"
                         Background="#FFFFF3CD" Padding="12,8" Visibility="Collapsed">
                     <TextBlock x:Uid="ChatsPage_PendingImage"
                                Text="An image is ready: open a chat to send it"
                                Foreground="#FF7A5B00" FontSize="13" TextWrapping="Wrap"/>
                 </Border>
 
-                <Grid Grid.Row="1" Background="Transparent">
+                <Grid Grid.Row="2" Background="Transparent">
                     <ListView x:Name="ChatListView"
                               ItemsSource="{Binding}"
                               ItemContainerStyle="{StaticResource ChatItemContainerStyle}"
@@ -279,6 +322,37 @@
             <Rectangle Height="1" VerticalAlignment="Top" Fill="{StaticResource WhatsAppAccentDarkBrush}"/>
             <StackPanel x:Name="ChatsBar" Orientation="Horizontal" HorizontalAlignment="Right"
                         VerticalAlignment="Stretch">
+                <Button x:Name="SearchButton" Style="{StaticResource AppBarButtonStyle}"
+                        Click="SearchButton_Click">
+                    <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="24" Height="24" HorizontalAlignment="Center">
+                            <!-- IconSearch -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="10,4">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="6,6" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="10,16"/>
+                                                <ArcSegment Size="6,6" RotationAngle="0" IsLargeArc="True"
+                                                            SweepDirection="Clockwise" Point="10,4"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="14.3,14.3">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="20,20"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="SearchLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                    </StackPanel>
+                </Button>
+
                 <Button x:Name="NewChatButton" Style="{StaticResource AppBarButtonStyle}"
                         Click="NewChatButton_Click">
                     <StackPanel VerticalAlignment="Center" Margin="0,4,0,0">

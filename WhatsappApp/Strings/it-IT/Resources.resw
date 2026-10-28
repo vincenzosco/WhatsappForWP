@@ -112,6 +112,21 @@
   <data name="CallsPage_NotConnected" xml:space="preserve">
     <value>Non connesso al server: il registro chiamate non è disponibile.</value>
   </data>
+  <data name="Common_Ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+    <value>Elimina per tutti</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneTitle" xml:space="preserve">
+    <value>Eliminare per tutti?</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneBody" xml:space="preserve">
+    <value>Sparisce per tutti in questa chat, su ogni dispositivo che usano.</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneFailed" xml:space="preserve">
+    <value>WhatsApp non ha preso indietro il messaggio. Il messaggio è ancora qui; riprova quando il telefono è connesso.</value>
+  </data>
   <data name="Common_Refresh" xml:space="preserve">
     <value>aggiorna</value>
   </data>
@@ -181,6 +196,27 @@
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Io</value>
   </data>
+  <data name="ChatPage_Retry.Text" xml:space="preserve">
+    <value>Riprova</value>
+  </data>
+  <data name="ChatPage_Copy" xml:space="preserve">
+    <value>Copia</value>
+  </data>
+  <data name="ChatPage_DeleteHere" xml:space="preserve">
+    <value>Elimina solo qui</value>
+  </data>
+  <data name="ChatPage_DeleteHereTitle" xml:space="preserve">
+    <value>Eliminare questo messaggio?</value>
+  </data>
+  <data name="ChatPage_DeleteHereBody" xml:space="preserve">
+    <value>Sparisce da questo telefono. L'altra persona mantiene la sua copia.</value>
+  </data>
+  <data name="ChatPage_DeleteConfirm" xml:space="preserve">
+    <value>Elimina</value>
+  </data>
+  <data name="ChatPage_Cancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
   <data name="ChatPage_ImageError" xml:space="preserve">
     <value>Impossibile aprire l'immagine: {0}</value>
   </data>
@@ -231,6 +267,15 @@
   </data>
   <data name="ChatsPage_MoreTooltip" xml:space="preserve">
     <value>Altro</value>
+  </data>
+  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
+    <value>Cerca</value>
+  </data>
+  <data name="ChatsPage_SearchTooltip" xml:space="preserve">
+    <value>Cerca</value>
+  </data>
+  <data name="ChatsPage_SearchClose" xml:space="preserve">
+    <value>Chiudi la ricerca</value>
   </data>
   <data name="ChatsPage_PinChat" xml:space="preserve">
     <value>Fissa una chat</value>

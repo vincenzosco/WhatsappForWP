@@ -29,7 +29,13 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>`APP_STATE_SYNC_KEY_REQUEST`: the primary asking this device for one.</summary>
         public const int AppStateSyncKeyRequest = 7;
 
+        /// <summary>`REVOKE`: the sender takes a message back for everybody.</summary>
+        public const int Revoke = 0;
+
         public int Type;
+
+        /// <summary>The encoded `MessageKey`: which message a revoke (or an edit) names.</summary>
+        public byte[] Key;
 
         /// <summary>The encoded `AppStateSyncKeyShare`, or null when the stanza carries none.</summary>
         public byte[] KeyShare;
@@ -47,6 +53,10 @@ namespace WhatsappApp.Protocol.WaProto
 
                 switch (field.Number)
                 {
+                    case 1:
+                        protocol.Key = reader.ReadBytes();
+                        break;
+
                     case 2:
                         protocol.Type = (int)reader.ReadVarint();
                         break;
@@ -62,6 +72,71 @@ namespace WhatsappApp.Protocol.WaProto
             }
 
             return protocol;
+        }
+
+        /// <summary>
+        /// The `ProtocolMessage` that takes a message back: the key of the message it names
+        /// and the type `REVOKE`.
+        ///
+        /// The field numbers are the reference's, the same table `type` and the key share
+        /// above came from: `Message.ProtocolMessage.key` is 1 and `type` is 2,
+        /// `MessageKey.remoteJid` is 1, `fromMe` 2 and `id` 3 (`@whiskeysockets/baileys`,
+        /// `WAProto`). `fromMe` is true because only what this phone sent can be taken back.
+        /// </summary>
+        public static byte[] RevokeMessage(string jid, string messageId)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a revoke needs the chat it happened in");
+            if (string.IsNullOrEmpty(messageId)) throw new ProtocolException("a revoke needs the message it takes back");
+
+            byte[] key = new ProtoWriter()
+                .Text(1, jid)
+                .Varint(2, 1)
+                .Text(3, messageId)
+                .ToArray();
+
+            return new ProtoWriter()
+                .Bytes(1, key)
+                .Varint(2, Revoke)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// The id of the message a revoke names, or null when this is not a revoke.
+        ///
+        /// Why it is read here and not by whoever handles the stanza: a revoke is a message
+        /// like any other on the wire, and the only thing that says it is one is the type
+        /// inside this blob.
+        /// </summary>
+        public static string RevokedId(byte[] protocolMessage)
+        {
+            if (protocolMessage == null) return null;
+
+            MessageProtocol protocol;
+            try
+            {
+                protocol = Decode(protocolMessage);
+            }
+            catch (ProtocolException)
+            {
+                return null;
+            }
+
+            if (protocol.Type != Revoke || protocol.Key == null) return null;
+
+            var reader = new ProtoReader(protocol.Key);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == 3)
+                {
+                    byte[] id = reader.ReadBytes();
+                    return id == null ? null : Encoding.UTF8.GetString(id, 0, id.Length);
+                }
+
+                reader.SkipField(field.WireType);
+            }
+
+            return null;
         }
     }
 

@@ -153,6 +153,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.ChatMerged += OnChatMerged;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
             NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
+            NativeConnection.Instance.MessageRevoked += OnMessageRevoked;
             NativeConnection.Instance.MediaArrived += OnNativeMedia;
             NativeConnection.Instance.CallsScanned += OnNativeCalls;
             NativeConnection.Instance.StatusArrived += OnNativeStatusPost;
@@ -1323,6 +1324,18 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// A message taken back by whoever wrote it: the row goes, and it goes the same way
+        /// as a message deleted here - one removal for both, so the copy on the phone cannot
+        /// disagree with the screen. What differs is only who asked.
+        /// </summary>
+        private void OnMessageRevoked(object sender, MessageRevocation revocation)
+        {
+            if (revocation == null || string.IsNullOrEmpty(revocation.Jid)) return;
+
+            RemoveMessage(revocation.Jid, revocation.Id);
+        }
+
+        /// <summary>
         /// A receipt for something this phone sent: the bubble that said `Sent` becomes
         /// `Delivered`, and then `Read`. The ids come off the wire one per message, and the
         /// chat is the one the receipt names - not the open chat, which may be another one.
@@ -1970,6 +1983,54 @@ namespace WhatsappApp.Services
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// A message is deleted on this phone and nowhere else: gone from the conversation,
+        /// gone from the copy the next start reads, and the chat's preview stepped back to
+        /// what is left.
+        ///
+        /// Why the file is rewritten and not appended to: `MessageCache.AppendAsync` merges
+        /// by id, so a deletion it never sees would be undone by the copy already on the
+        /// phone, and a message that comes back after a restart is worse than one the user
+        /// could not delete at all. A conversation with nothing left deletes the file
+        /// instead, because `SaveAsync` refuses to write an empty one.
+        /// </summary>
+        public void RemoveMessage(string chatId, string messageId)
+        {
+            chatId = ChatIdFor(chatId);
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                if (messages[i] == null || messages[i].Id != messageId) continue;
+                messages.RemoveAt(i);
+                break;
+            }
+
+            RefreshPreview(chatId);
+
+            var contact = FindContact(chatId);
+            if (contact != null) PlaceContact(contact);
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/remove message", RewriteTailAsync(chatId, messages));
+#pragma warning restore 4014
+        }
+
+        /// <summary>The conversation as it is now, written over the copy on the phone.</summary>
+        private static async Task RewriteTailAsync(string chatId, ObservableCollection<ChatMessage> messages)
+        {
+            if (messages == null || messages.Count == 0)
+            {
+                await MessageCache.DeleteAsync(chatId);
+                return;
+            }
+
+            await MessageCache.SaveAsync(chatId, new List<ChatMessage>(messages));
         }
 
         /// <summary>

@@ -97,6 +97,20 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>
+        /// A message taken back: the `ProtocolMessage` of type revoke and nothing else.
+        ///
+        /// It travels as a message like any other, because that is what a revoke is on this
+        /// protocol: the other side's phone reads it and replaces the bubble it names with
+        /// "this message was deleted" instead of drawing this one.
+        /// </summary>
+        public static Message Revoke(string jid, string messageId)
+        {
+            var message = new Message();
+            message.ProtocolMessage = MessageProtocol.RevokeMessage(jid, messageId);
+            return message;
+        }
+
+        /// <summary>
         /// The device-sent wrapper: `destinationJid` field 1 and the wrapped message
         /// field 2, which is the form our own other devices read the words out of.
         /// </summary>
