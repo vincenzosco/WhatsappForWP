@@ -388,6 +388,15 @@
   <data name="TileUnreadMany" xml:space="preserve">
     <value>{0} messaggi non letti</value>
   </data>
+  <data name="TileStatusLabel" xml:space="preserve">
+    <value>Stati</value>
+  </data>
+  <data name="TileStatusOne" xml:space="preserve">
+    <value>1 nuovo stato</value>
+  </data>
+  <data name="TileStatusMany" xml:space="preserve">
+    <value>{0} nuovi stati</value>
+  </data>
   <data name="ChatsPage_Diagnostics.Content" xml:space="preserve">
     <value>Perché è vuota?</value>
   </data>

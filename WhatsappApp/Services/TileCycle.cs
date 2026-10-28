@@ -146,6 +146,38 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The turns with the updates turn in front, and the messages giving up the slot it
+        /// takes.
+        ///
+        /// Why the updates are a turn of the queue and not a line on somebody's message: the
+        /// five notifications are the whole of what the tile can say, and a person who is
+        /// waiting must not lose their turn to a number. The updates take the slot they cost
+        /// and no more, and they come first because they are the only thing on the tile that
+        /// is not somebody waiting for an answer - the tile opens with "3 new updates" and
+        /// then names the people.
+        ///
+        /// A null status turn is the ordinary case (nothing unwatched) and leaves the turns
+        /// exactly as they were, without copying them again.
+        /// </summary>
+        public static IList<TileEntry> WithStatuses(IList<TileEntry> turns, TileEntry statuses, int max)
+        {
+            if (statuses == null) return turns;
+
+            var next = new List<TileEntry>();
+            next.Add(statuses);
+
+            if (turns != null)
+            {
+                for (int i = 0; i < turns.Count && next.Count < max; i++)
+                {
+                    if (turns[i] != null) next.Add(turns[i]);
+                }
+            }
+
+            return next;
+        }
+
+        /// <summary>
         /// A copy of one conversation as one turn, so nothing that is drawn can change the
         /// waiting list - the same reason <see cref="Remember"/> answers a new list.
         /// </summary>

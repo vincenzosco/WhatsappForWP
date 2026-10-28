@@ -285,6 +285,10 @@ namespace WhatsappApp.Services
                 int unread = DataService.Instance.UnreadChats();
                 NotificationService.SetUnread(unread);
 
+                // And the updates that arrived with this wake say so on the tile: a check that
+                // read one and drew nothing leaves the phone saying only that no message came.
+                NotificationService.SetStatuses(DataService.Instance.UnseenStatuses());
+
                 // And what it read goes to the phone before this process ends. The tile
                 // is not a record of anything: WhatsApp counts these messages as
                 // delivered when they are acknowledged, and never sends them again, so a
