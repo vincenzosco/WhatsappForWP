@@ -144,18 +144,14 @@ namespace WhatsappApp
                 // arrives as a plain launch: WP8.1 hands it the same empty arguments as the
                 // app list does, so nothing in the launch says where the tap was. What is
                 // left is the record the notification layer wrote of what the phone was
-                // showing while it was closed (`LaunchRoute`), taken once here. A resume is
-                // not this: it has a section of its own and the user left it on purpose.
+                // showing while it was closed (`LaunchRoute`). It is taken and named here,
+                // and it no longer decides the tab: the app opens on the conversations, and
+                // the badge on the other two tabs is what says what is waiting there
+                // (asked for on 28 October 2026, when every launch landed on the Status tab).
                 string route = SessionService.TakeRoute(DateTime.UtcNow);
-                if (route == LaunchRoute.Status)
+                if (!string.IsNullOrEmpty(route))
                 {
-                    SessionService.PendingSection = AppSection.Status;
-                    Diag.Ok("launch: the tile was showing an update, the Status tab opens");
-                }
-                else if (route == LaunchRoute.Calls)
-                {
-                    SessionService.PendingSection = AppSection.Calls;
-                    Diag.Ok("launch: the tile was showing a missed call, the Calls tab opens");
+                    Diag.Ok("launch: the tile was showing " + route + ", the chats open");
                 }
             }
 
@@ -179,20 +175,15 @@ namespace WhatsappApp
                 // Where this start goes. The decision is a rule and it lives in
                 // StartDecision, where it is a test (ProtocolTests/StartupTests.cs):
                 // no account stored - or an account WhatsApp has already refused -
-                // is the QR, an app the OS terminated comes back to its section, and
-                // a cold start with an account is the chats. Nothing about the old
+                // is the QR, and anything else is the chats. Nothing about the old
                 // server is an input, which is what keeps an install upgraded from
                 // the server build off its connection page.
                 //
                 // After a termination contacts and messages are not restored: they
                 // come from WhatsApp again on connection.
-                bool resumed = e.PreviousExecutionState == ApplicationExecutionState.Terminated;
-
                 StartTarget target = StartDecision.Decide(
                     NativeCredentialStorage.Session().HasSession,
-                    SessionState.Expired,
-                    resumed,
-                    SessionService.Section == AppSection.Chats);
+                    SessionState.Expired);
 
                 // One page hosts all three sections now (HomePage draws the tab
                 // strip and the panes); which tab it opens is read from
@@ -211,14 +202,10 @@ namespace WhatsappApp
                 }
             }
 
-            // The page is there now: a cold start has already consumed the request in its own
-            // OnNavigatedTo, and this is the launch that found the app already running.
-            // A tap on the tile of a suspended app is a resume: the page is already there,
-            // nothing is navigated, and the section the route asked for has to be shown on
-            // it. On a cold start the page consumed the request in its own OnNavigatedTo
-            // and this finds nothing left.
+            // The page is there now, and a launch that found it already running has one thing
+            // left to do: open the chat a pinned tile named. The section is not part of it -
+            // a start is the chats (see HomePage.OnNavigatedTo).
             var home = rootFrame.Content as HomePage;
-            if (home != null) home.ShowPendingSection();
             if (home != null) home.OpenPinnedChat();
 
             Window.Current.Activate();

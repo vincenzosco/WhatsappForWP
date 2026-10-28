@@ -530,6 +530,112 @@ namespace ProtocolTests
                 "a name with no extension keeps the marker at the end");
         }
 
+        /// <summary>
+        /// The theme card's own shape: a background covers the card of **any** proportions, and
+        /// the mark drawn on it is the app's logo - which is what the card of 28 October 2026
+        /// had lost, a wallpaper edge to edge and nothing else on it.
+        /// </summary>
+        [Test]
+        public static void ABackgroundCoversTheWideCardAndTheMarkSitsOnIt()
+        {
+            // A 768x768 wallpaper, white: every pixel of both cards is the picture itself, so
+            // anything that is not white was drawn by this class - the card's teal, or the mark.
+            byte[] background = White(768);
+
+            byte[] square = TileCanvas.CoverPixels(background, 768, 768, TileCanvas.Size, TileCanvas.Size);
+            Assert.AreEqual(TileCanvas.Size * TileCanvas.Size * 4, square.Length,
+                "the square card is the size the medium and large tiles draw");
+
+            TileCanvas.Dim(square, TileCanvas.ThemeDim);
+            Assert.ByteArraysEqual(Pixel(153, 153, 153, 255), At(square, 0, 0),
+                "the background is darkened so a white mark reads on it");
+
+            byte[] mark = new byte[4 * 4 * 4];
+            for (int i = 0; i < mark.Length; i += 4)
+            {
+                mark[i] = 0x54;
+                mark[i + 1] = 0x5E;
+                mark[i + 2] = 0x07;
+                mark[i + 3] = 255;
+            }
+
+            TileCanvas.DrawOnto(square, TileCanvas.Size, TileCanvas.Size, mark, 4, 4,
+                TileCanvas.Inset, TileCanvas.Inset);
+
+            Assert.ByteArraysEqual(Pixel(0x54, 0x5E, 0x07, 255), At(square, TileCanvas.Inset, TileCanvas.Inset),
+                "the mark is drawn on the background, in the middle of the card");
+            Assert.ByteArraysEqual(Pixel(153, 153, 153, 255), At(square, 2, 2),
+                "and the background is around it, not the card's teal");
+
+            byte[] wide = TileCanvas.CoverPixels(background, 768, 768,
+                TileCanvas.WideWidth, TileCanvas.WideHeight);
+            Assert.AreEqual(TileCanvas.WideWidth * TileCanvas.WideHeight * 4, wide.Length,
+                "the wide tile is filled by the background, not by a square floating on teal");
+
+            TileCanvas.Dim(wide, TileCanvas.ThemeDim);
+            TileCanvas.DrawOnto(wide, TileCanvas.WideWidth, TileCanvas.WideHeight, mark, 4, 4,
+                (TileCanvas.WideWidth - 4) / 2, (TileCanvas.WideHeight - 4) / 2);
+
+            int corner = (0 * TileCanvas.WideWidth + 0) * 4;
+            Assert.AreEqual(153, (int)wide[corner], "the far left of the wide card is the background");
+
+            int middle = ((TileCanvas.WideHeight / 2) * TileCanvas.WideWidth + TileCanvas.WideWidth / 2) * 4;
+            Assert.AreEqual(0x54, (int)wide[middle], "and the mark is in the middle of it");
+        }
+
+        /// <summary>
+        /// The crop a background needs: the card's shape, centred, and never stretched. A 4:3
+        /// picture in a square card loses its sides, not its proportions.
+        /// </summary>
+        [Test]
+        public static void ABackgroundLosesItsEdgesAndNotItsProportions()
+        {
+            // Four columns of one colour each, three rows tall, in BGRA.
+            var picture = new byte[4 * 3 * 4];
+            for (int y = 0; y < 3; y++)
+            {
+                for (int x = 0; x < 4; x++)
+                {
+                    int at = (y * 4 + x) * 4;
+                    picture[at] = (byte)(x * 40);
+                    picture[at + 1] = (byte)(x * 40);
+                    picture[at + 2] = (byte)(x * 40);
+                    picture[at + 3] = 255;
+                }
+            }
+
+            byte[] square = TileCanvas.CoverPixels(picture, 4, 3, 3, 3);
+            Assert.AreEqual(3 * 3 * 4, square.Length, "a 3x3 card out of a 4x3 picture");
+
+            // The crop keeps the left three of the four columns - a whole-pixel centring, so
+            // the odd column goes on the right - and every kept column keeps its colour.
+            int middle = (1 * 3 + 1) * 4;
+            Assert.AreEqual((byte)40, square[middle], "the second column of the picture is the second of the card");
+        }
+
+        /// <summary>
+        /// A crop that runs off the picture is a read past the end of its buffer, and it is
+        /// refused with the numbers instead: this is the shape the tile of 23 October 2026
+        /// crashed on, and a background that covers a card is a crop like any other.
+        /// </summary>
+        [Test]
+        public static void ACropOutsideThePictureIsRefused()
+        {
+            byte[] picture = White(4);
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.Resize(picture, 4, 3, 0, 4, 4, 8, 8); },
+                "four columns read from column 3 are one column and three past the end");
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.Resize(picture, 4, 0, 3, 4, 4, 8, 8); },
+                "and a crop below the last row is past the end of the buffer too");
+
+            Assert.Throws<WhatsappApp.Protocol.ProtocolException>(
+                delegate { TileCanvas.Resize(new byte[10], 4, 0, 0, 4, 4, 8, 8); },
+                "a buffer that is not whole rows has no rows to crop");
+        }
+
         [Test]
         public static void APictureThatDoesNotFitIsRefused()
         {

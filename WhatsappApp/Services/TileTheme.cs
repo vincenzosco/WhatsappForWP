@@ -146,7 +146,11 @@ namespace WhatsappApp.Services
                 string name = "theme-" + Safe(theme) + "-" + accent;
 
                 string picture = await PictureAsync();
-                _card = await TileImage.StoreAsync(name, picture);
+
+                // The theme is a **background**, not the tile's subject: the composer draws it
+                // edge to edge, dims it and puts the app mark over it. Handed to the chat
+                // path, the wallpaper covered the tile and the logo disappeared with it.
+                _card = await TileImage.StoreThemeAsync(name, picture);
 
                 if (_card != null) Remember(key);
 

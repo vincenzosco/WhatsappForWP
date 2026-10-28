@@ -6,7 +6,6 @@
 
     <UserControl.Resources>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
-        <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
 
         <Style x:Key="StatusItemContainerStyle" TargetType="ListViewItem">
@@ -51,8 +50,21 @@
                                      Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                             <Ellipse Width="48" Height="48"
                                      Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+
+                            <!-- The author's picture, when the chat list knows one: the same
+                                 face the conversation shows, drawn in the circle the initial
+                                 was in. An ellipse and not an Image with a clip, because
+                                 WP8.1 has no circular clip and the brush fills it. -->
+                            <Ellipse Width="48" Height="48"
+                                     Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                <Ellipse.Fill>
+                                    <ImageBrush ImageSource="{Binding Owner.Avatar}" Stretch="UniformToFill"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+
                             <TextBlock Text="{Binding Initials}"
                                        Foreground="White" FontSize="18" FontWeight="SemiBold"
+                                       Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
                                        VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
 
@@ -63,8 +75,11 @@
                                        FontWeight="SemiBold" TextTrimming="WordEllipsis"/>
                             <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="17"
                                        TextWrapping="Wrap" MaxLines="3" TextTrimming="WordEllipsis"/>
+                            <!-- Only while something here is still unwatched: a thumbnail of an
+                                 update already seen is the row promising a first look that
+                                 has happened. -->
                             <Border CornerRadius="4" Margin="0,4,0,0"
-                                    Visibility="{Binding Latest.Type, Converter={StaticResource MsgTypeToImageVis}}"
+                                    Visibility="{Binding ShowPreview, Converter={StaticResource BoolToVisibility}}"
                                     MaxWidth="220" MaxHeight="160" HorizontalAlignment="Left">
                                 <Image Source="{Binding Latest.MediaImage}" Stretch="UniformToFill"/>
                             </Border>

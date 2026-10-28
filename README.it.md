@@ -58,7 +58,7 @@ Cosa funziona oggi:
 - una pressione prolungata su un messaggio ne copia le parole, lo elimina su questo telefono, o lo prende indietro per tutti entro due giorni - e un messaggio che un altro dispositivo prende indietro sparisce anche da questo
 - l'elenco chat vero, dalla sync della history: avatar, non letti, gruppi, e i nomi salvati nella rubrica WhatsApp del telefono principale, che arrivano cifrati nell'app state dell'account
 - indicatore "sta scrivendo" nelle due direzioni
-- il feed degli stati: quello che i contatti hanno pubblicato, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
+- il feed degli stati: quello che i contatti hanno pubblicato, con la foto dell'autore e il nome che WhatsApp manda con l'aggiornamento, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, l'anteprima di un aggiornamento lascia la riga quando la giornata è stata guardata, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
 - il registro delle chiamate, nelle due direzioni, con le perse scritte per esteso
 - una tile viva che ruota fra le persone in attesa - nome e messaggio, e fra un messaggio e l'altro la sola foto di chi aspetta una risposta - più la tile di una chat fissata, il testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
 - selettore del tema con gli sfondi del pacchetto ufficiale, più il doodle e il bianco
@@ -137,6 +137,8 @@ Consigli:
   sull'icona sono i messaggi in attesa, che uno stato non è. I turni dove non c'è la faccia di
   nessuno sono dipinti con lo sfondo scelto in Impostazioni - Tema: quella foto, o il colore di
   accento del telefono quando la scelta è il bianco - così la tile ha lo stesso aspetto della lista.
+  Il marchio WhatsApp è disegnato su quello sfondo, scurito perché una sagoma bianca si legga, e la
+  tile grande è riempita con lo stesso sfondo invece di incorniciare un quadrato sul verde.
 - Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
   stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
   Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda
@@ -224,12 +226,12 @@ il telefono lo permette, e cosa ha fatto l'ultimo risveglio - quando è partito,
 quanto ci ha messo e cosa ha messo sulla tile. `running` senza finale è un risveglio che il sistema
 ha preso in mezzo, al suo tetto di 30 secondi.
 
-Un tocco sulla tile - e sulla schermata di blocco, che mostra la stessa tile - apre l'ultima cosa
-arrivata: un aggiornamento che nessuno ha guardato porta a Stato, una chiamata persa a Chiamate, e
-le chat restano il ripiego. WP8.1 dà al tocco sulla tile gli stessi argomenti vuoti dell'elenco
-delle app, quindi l'app scrive quello che il telefono sta mostrando quando disegna il badge e lo
-riprende una volta sola all'avvio dopo. La sezione su cui atterra conta come guardata, così la
-stessa notizia non trascina l'avvio successivo sulla stessa scheda.
+Un avvio atterra sempre sulle chat. Prima atterrava sulla sezione lasciata aperta, e il 28 ottobre
+2026 quella era la scheda Stati: l'app si apriva sugli aggiornamenti di qualcuno invece che sulle
+conversazioni. WP8.1 dà al tocco sulla tile gli stessi argomenti vuoti dell'elenco delle app,
+quindi l'app scrive ancora quello che il telefono sta mostrando quando disegna il badge e lo
+riprende una volta sola all'avvio dopo - lo nomina nel log, e non sceglie più la scheda: i badge su
+Stati e Chiamate sono quello che dice che quelle due hanno qualcosa di nuovo.
 </details>
 
 <details>

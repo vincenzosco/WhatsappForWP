@@ -11,6 +11,7 @@ const PANE = 'WhatsappApp/Controls/StatusPane.xaml.cs';
 const PANE_XAML = 'WhatsappApp/Controls/StatusPane.xaml';
 const GROUP_MODEL = 'WhatsappApp/Models/StatusGroup.cs';
 const ROW_MODEL = 'WhatsappApp/Models/ChatMessage.cs';
+const OWNER_MODEL = 'WhatsappApp/Models/Contact.cs';
 const VIEWER = 'WhatsappApp/Pages/StatusViewerPage.xaml.cs';
 const FEED = 'WhatsappApp/Protocol/Client/StatusFeed.cs';
 const MESSAGE = 'WhatsappApp/Protocol/Client/IncomingMessage.cs';
@@ -29,7 +30,8 @@ const files = () => ({
   pairing: read(PAIRING),
   template: read(PANE_XAML),
   group: read(GROUP_MODEL),
-  row: read(ROW_MODEL)
+  row: read(ROW_MODEL),
+  owner: read(OWNER_MODEL)
 });
 
 test('il tocco apre lo stato, la pagina lo guarda e chiede i byte, la ricevuta va alla lista', () => {
@@ -145,6 +147,14 @@ test('una riga che raggiunge un campo che lo stato non ha non lo disegna', () =>
   assert.match(statusViewerProblems(broken).join('\n'), /Latest\.FormattedTime, which/);
 });
 
+test('una riga che chiede il viso del proprietario quando il modello non lo ha', () => {
+  // The circle of the run of 28 October 2026: a column of coloured initials, because the
+  // row had no picture to draw. The picture and its flag live on the chat row.
+  const broken = files();
+  broken.owner = broken.owner.replace(/public BitmapImage Avatar/, 'public BitmapImage AvatarGone');
+  assert.match(statusViewerProblems(broken).join('\n'), /Owner\.Avatar, which/);
+});
+
 test('un modello che la guardia non sa piu leggere lo dice invece di approvare', () => {
   const broken = files();
   broken.row = 'public class ChatMessage { }';
@@ -168,6 +178,32 @@ test('una giornata che parte sempre dal piu vecchio ripete quello che si e gia v
   const broken = files();
   broken.viewer = broken.viewer.replace(/FirstUnwatched\(\)/g, '0');
   assert.match(statusViewerProblems(broken).join('\n'), /first update nobody has watched/);
+});
+
+test('la giornata intera segnata in una volta scrive lo snapshot una volta sola', () => {
+  // The property the batch exists for: ten unwatched updates are one write of the file and
+  // one rebuild of the list, and ten receipts. Through MarkStatusViewed it was ten of each.
+  const broken = files();
+  broken.data = broken.data.replace(
+    /public int MarkAllStatusesViewed\(\)\r?\n        \{[\s\S]*?\r?\n        \}/,
+    'public int MarkAllStatusesViewed()\n        {\n'
+    + '            for (int i = 0; i < _statuses.Count; i++) MarkStatusViewed(_statuses[i]);\n'
+    + '            return _statuses.Count;\n        }');
+  const problems = statusViewerProblems(broken).join('\n');
+  assert.match(problems, /MarkStatusViewed/);
+  assert.match(problems, /writes the snapshot 0 time\(s\)/);
+});
+
+test('una segnatura che scrive lo snapshot per ogni stato riscrive il file a ogni riga', () => {
+  const broken = files();
+  broken.data = broken.data.replace(
+    /public int MarkAllStatusesViewed\(\)\r?\n        \{[\s\S]*?\r?\n        \}/,
+    'public int MarkAllStatusesViewed()\n        {\n'
+    + '            for (int i = 0; i < _statuses.Count; i++)\n            {\n'
+    + '                _statuses[i].IsStatusViewed = true;\n                SaveStatusSnapshot();\n'
+    + '            }\n            RaiseStatusesChanged();\n            return _statuses.Count;\n        }');
+  assert.match(statusViewerProblems(broken).join('\n'),
+    /writes the snapshot inside a loop or a branch/);
 });
 
 test('un pannello senza il modello della riga non e un pannello controllato', () => {

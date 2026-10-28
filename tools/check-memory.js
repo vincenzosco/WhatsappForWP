@@ -304,14 +304,19 @@ function cachedRowsProblems(source, file) {
   if (file !== DATA_SERVICE) return problems;
 
   const code = stripComments(source);
-  const start = code.indexOf('LoadCachedChatsAsync');
+
+  // The declaration and not the first mention: the start-up path calls this method by
+  // name long before it is written, and a window measured from the call site is a window
+  // that any method added in between pushes off the awaits it is looking for (28 October
+  // 2026: the status cache grew by a few lines and this guard called a correct file wrong).
+  const start = code.search(/private\s+(?:async\s+)?(?:System\.Threading\.Tasks\.|System\.Tasks\.)?Task\s+LoadCachedChatsAsync\s*\(\)/);
   if (start < 0) {
     problems.push(`${file}: LoadCachedChatsAsync is gone (did the cached rows move? ` +
       'then this guard must move too)');
     return problems;
   }
 
-  const body = code.slice(start, start + 1500);
+  const body = code.slice(start, start + 2000);
   const load = body.indexOf('AvatarCache.LoadAsync');
   const apply = body.indexOf('ApplyChat(');
 

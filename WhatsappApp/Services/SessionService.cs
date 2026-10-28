@@ -45,23 +45,6 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The section a tap on the tile or the lock screen asked for, until the home page
-        /// has shown it.
-        ///
-        /// In memory only, like the pinned chat: the route arrives with the launch and the
-        /// page that acts on it is built in the same run.
-        /// </summary>
-        public static AppSection? PendingSection;
-
-        /// <summary>Takes the request away, so a return to the page does not repeat it.</summary>
-        public static AppSection? TakePendingSection()
-        {
-            AppSection? asked = PendingSection;
-            PendingSection = null;
-            return asked;
-        }
-
-        /// <summary>
         /// When the user last had a section on screen, in the clock the rows carry.
         /// `default(DateTime)` means never, which is before every row.
         ///
