@@ -31,6 +31,13 @@ namespace WhatsappApp.Protocol.Client
         public string Text;
 
         /// <summary>
+        /// The poster's own name, from the stanza's `notify` - the only name that exists for
+        /// an author this phone knows as a `@lid`, whose fourteen digits are not a name.
+        /// `StatusName` is the rule that decides between this and what the phone resolved.
+        /// </summary>
+        public string Name;
+
+        /// <summary>
         /// The encoded `Message`, when the status carries a photo or a video. Null for one
         /// that is words alone. It is kept whole for the same reason a chat message's is:
         /// the keys and the address a later fetch needs are inside it.

@@ -189,16 +189,15 @@ namespace WhatsappApp.Pages
             // return from that page passes through.
             ApplyTheme();
 
-            // A tap on the Start tile or on the lock screen asked for a section
-            // (`LaunchRoute`, taken by `App.OnLaunched`), and it wins over the last one:
-            // this is the first page built after that start.
-            AppSection? asked = SessionService.TakePendingSection();
-            int index = SectionIndex(asked ?? SessionService.Section);
-            Show(index, true);
+            // A start is the chats. It used to be "the section you left", and on
+            // 28 October 2026 that was the Status tab - the app opened on somebody's updates
+            // instead of on the conversations. The other two tabs are one tap away and their
+            // badges are what say they have something new.
+            Show(0, true);
 
             // Show() only activates the chats when it moves to them: coming back
             // from a chat it may already be on index 0 while the tab was stopped.
-            if (index == 0) ActivateChats();
+            ActivateChats();
 
             EvaluateChats();
             ShowConnectionBar();
@@ -831,25 +830,6 @@ namespace WhatsappApp.Pages
         /// that finds the page already alive. The pending chat is taken once, so coming back
         /// to this page does not reopen it.
         /// </summary>
-        /// <summary>
-        /// Shows the section a tap on the tile asked for, on a launch that found this page
-        /// already running.
-        ///
-        /// Why it exists at all: a tap on the tile of a suspended app is a resume, not a
-        /// start - `App.OnLaunched` runs with the frame still holding this page, and
-        /// nothing is navigated. The route was taken there (`SessionService.PendingSection`)
-        /// and this is the only thing that can act on it. On a cold start the section is
-        /// already right, because `OnNavigatedTo` above asked the same question first.
-        /// </summary>
-        public void ShowPendingSection()
-        {
-            AppSection? asked = SessionService.TakePendingSection();
-            if (asked == null) return;
-
-            Show(SectionIndex(asked.Value), true);
-            Diag.Ok("launch: the tile asked for " + asked.Value + ", shown on the page that was running");
-        }
-
         public void OpenPinnedChat()
         {
             string chatId = SessionService.PendingChatId;

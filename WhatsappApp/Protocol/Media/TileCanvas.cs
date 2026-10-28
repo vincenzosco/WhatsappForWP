@@ -59,6 +59,27 @@ namespace WhatsappApp.Protocol.Media
         public const int Inset = (Size - Picture) / 2;
 
         /// <summary>
+        /// The app mark on the theme card: a third of the tile, not half.
+        ///
+        /// Why smaller than `Picture`: a theme card also carries the tile's two lines of text,
+        /// which the shell draws across the bottom of it, and a mark at half the tile sits in
+        /// the same place as the first one. A third leaves the text a band of its own and is
+        /// the size a logo is read at anyway.
+        /// </summary>
+        public const int ThemeMark = Size / 3;
+
+        /// <summary>
+        /// How much of the theme background's light is kept under the mark.
+        ///
+        /// Why a dim at all: the wallpaper is whatever the user chose and the mark drawn over
+        /// it is white - on a photo whose middle is the same white the tile has a logo nobody
+        /// can see. The phone of 28 October 2026 had no logo at all, because the theme card
+        /// was the wallpaper edge to edge and nothing was drawn on it; with the mark back, a
+        /// little dimming is what keeps it a logo on any of the package's wallpapers.
+        /// </summary>
+        public const double ThemeDim = 0.6;
+
+        /// <summary>
         /// The wide tile, in pixels: 310x150 dp at the 240% scale this phone reports. It is
         /// the card's own size and not the square scaled: a square image in a 2.07:1 tile is
         /// scaled by the longer side and cropped, which magnifies the face by more than twice
@@ -95,8 +116,13 @@ namespace WhatsappApp.Protocol.Media
         /// are the magnified face this class exists to end - and the name is what the shell
         /// caches. The fallback has a name of its own now (`FallbackFileName`); this bump is
         /// what makes the phone draw the composed card instead of the file it left behind.
+        ///
+        /// 6: the theme card is composed by different rules - the chosen wallpaper edge to
+        /// edge at every size, dimmed, with the app mark over it (`TileImage.StoreThemeAsync`).
+        /// The `v5` theme file on the phone of 28 October 2026 is the wallpaper alone, with no
+        /// logo on it, and the shell would keep drawing exactly that.
         /// </summary>
-        public const int CardVersion = 5;
+        public const int CardVersion = 6;
 
         /// <summary>
         /// The card's colour, as BGRA: `#075E54`, the dark teal the app's own header uses.
@@ -485,6 +511,181 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
+        /// The picture cropped to fill a card of another shape, and scaled to it.
+        ///
+        /// Why it exists: the wide tile is 744x360, and the crop this class already had
+        /// (`CentreSquare`) only answers a square. A theme background handed to the wide
+        /// binding without this is the square card floating on the card's teal - which is
+        /// right for a face, whose chin matters, and wrong for a wallpaper, which is a
+        /// texture and can lose its edges. The rule is the same one either way: lose a
+        /// slice, never stretch.
+        /// </summary>
+        public static byte[] CoverPixels(byte[] picture, int width, int height, int targetWidth, int targetHeight)
+        {
+            if (picture == null) throw new ArgumentNullException("picture");
+            if (width <= 0 || height <= 0)
+            {
+                throw new ProtocolException("a picture of " + width + "x" + height + " has no shape to crop");
+            }
+            if (targetWidth <= 0 || targetHeight <= 0)
+            {
+                throw new ProtocolException("a card of " + targetWidth + "x" + targetHeight + " has no shape to fill");
+            }
+            if ((long)width * height * 4 > picture.Length)
+            {
+                throw new ProtocolException("a picture of " + width + "x" + height + " is "
+                    + (width * height * 4) + " byte(s) and this one is " + picture.Length);
+            }
+
+            // The largest rectangle of the card's shape that fits the picture.
+            int cropWidth = width;
+            int cropHeight = (int)Math.Round((double)width * targetHeight / targetWidth);
+
+            if (cropHeight > height)
+            {
+                cropHeight = height;
+                cropWidth = (int)Math.Round((double)height * targetWidth / targetHeight);
+            }
+
+            if (cropWidth <= 0) cropWidth = 1;
+            if (cropHeight <= 0) cropHeight = 1;
+
+            int left = (width - cropWidth) / 2;
+            int top = (height - cropHeight) / 2;
+
+            return Resize(picture, width, left, top, cropWidth, cropHeight, targetWidth, targetHeight);
+        }
+
+        /// <summary>
+        /// A rectangle of a picture at another size, by bilinear interpolation over
+        /// premultiplied alpha - `ResizeSquare` without the square, which is what the wide
+        /// card needs.
+        /// </summary>
+        public static byte[] Resize(byte[] picture, int sourceWidth, int left, int top,
+            int cropWidth, int cropHeight, int toWidth, int toHeight)
+        {
+            if (picture == null) throw new ArgumentNullException("picture");
+            if (sourceWidth <= 0) throw new ProtocolException("a picture of no width cannot be scaled");
+            if (cropWidth <= 0 || cropHeight <= 0)
+            {
+                throw new ProtocolException("a crop of " + cropWidth + "x" + cropHeight + " has nothing in it");
+            }
+            if (toWidth <= 0 || toHeight <= 0)
+            {
+                throw new ProtocolException("a picture of " + toWidth + "x" + toHeight + " has no shape");
+            }
+
+            // The crop has to be **inside** the picture. A rectangle half outside it is a read
+            // past the end of the buffer, which is the IndexOutOfRangeException this class was
+            // written to stop, and the height is measured rather than trusted so a caller that
+            // gets it wrong is told with numbers.
+            int sourceHeight = picture.Length / (sourceWidth * 4);
+            if ((long)sourceWidth * sourceHeight * 4 != picture.Length)
+            {
+                throw new ProtocolException("a picture of " + picture.Length + " byte(s) is not whole "
+                    + sourceWidth + "-wide rows: it cannot be cropped");
+            }
+            if (left < 0 || top < 0 || left + cropWidth > sourceWidth || top + cropHeight > sourceHeight)
+            {
+                throw new ProtocolException("the crop does not fit the picture: " + cropWidth + "x"
+                    + cropHeight + " at " + left + "," + top + " in " + sourceWidth + "x" + sourceHeight);
+            }
+
+            var scaled = new byte[toWidth * toHeight * 4];
+
+            for (int y = 0; y < toHeight; y++)
+            {
+                double sourceY = top + (y + 0.5) * cropHeight / toHeight - 0.5;
+                if (sourceY < top) sourceY = top;
+                if (sourceY > top + cropHeight - 1) sourceY = top + cropHeight - 1;
+
+                int above = (int)sourceY;
+                int below = above < top + cropHeight - 1 ? above + 1 : above;
+                double fy = sourceY - above;
+
+                for (int x = 0; x < toWidth; x++)
+                {
+                    double sourceX = left + (x + 0.5) * cropWidth / toWidth - 0.5;
+                    if (sourceX < left) sourceX = left;
+                    if (sourceX > left + cropWidth - 1) sourceX = left + cropWidth - 1;
+
+                    int before = (int)sourceX;
+                    int after = before < left + cropWidth - 1 ? before + 1 : before;
+                    double fx = sourceX - before;
+
+                    int topLeft = (above * sourceWidth + before) * 4;
+                    int topRight = (above * sourceWidth + after) * 4;
+                    int bottomLeft = (below * sourceWidth + before) * 4;
+                    int bottomRight = (below * sourceWidth + after) * 4;
+
+                    double wTopLeft = (1 - fx) * (1 - fy);
+                    double wTopRight = fx * (1 - fy);
+                    double wBottomLeft = (1 - fx) * fy;
+                    double wBottomRight = fx * fy;
+
+                    // Premultiplied, like ResizeSquare: averaging straight alpha across a
+                    // transparent neighbour is a halo around every glyph edge.
+                    double alpha = picture[topLeft + 3] * wTopLeft
+                        + picture[topRight + 3] * wTopRight
+                        + picture[bottomLeft + 3] * wBottomLeft
+                        + picture[bottomRight + 3] * wBottomRight;
+
+                    int at = (y * toWidth + x) * 4;
+                    if (alpha <= 0)
+                    {
+                        scaled[at + 3] = 0;
+                        continue;
+                    }
+
+                    double blue = picture[topLeft] * picture[topLeft + 3] * wTopLeft
+                        + picture[topRight] * picture[topRight + 3] * wTopRight
+                        + picture[bottomLeft] * picture[bottomLeft + 3] * wBottomLeft
+                        + picture[bottomRight] * picture[bottomRight + 3] * wBottomRight;
+
+                    double green = picture[topLeft + 1] * picture[topLeft + 3] * wTopLeft
+                        + picture[topRight + 1] * picture[topRight + 3] * wTopRight
+                        + picture[bottomLeft + 1] * picture[bottomLeft + 3] * wBottomLeft
+                        + picture[bottomRight + 1] * picture[bottomRight + 3] * wBottomRight;
+
+                    double red = picture[topLeft + 2] * picture[topLeft + 3] * wTopLeft
+                        + picture[topRight + 2] * picture[topRight + 3] * wTopRight
+                        + picture[bottomLeft + 2] * picture[bottomLeft + 3] * wBottomLeft
+                        + picture[bottomRight + 2] * picture[bottomRight + 3] * wBottomRight;
+
+                    scaled[at] = Channel(blue / alpha);
+                    scaled[at + 1] = Channel(green / alpha);
+                    scaled[at + 2] = Channel(red / alpha);
+                    scaled[at + 3] = Channel(alpha);
+                }
+            }
+
+            return scaled;
+        }
+
+        /// <summary>
+        /// A card darkened, in place, so the white mark and the tile's two lines of text read
+        /// over a photograph whose middle happens to be the same white.
+        ///
+        /// Alpha is left alone: the card is opaque, and what is being dimmed is the light the
+        /// mark is drawn on.
+        /// </summary>
+        public static void Dim(byte[] canvas, double factor)
+        {
+            if (canvas == null) throw new ArgumentNullException("canvas");
+            if (factor <= 0 || factor > 1)
+            {
+                throw new ProtocolException("a dim of " + factor + " is not a fraction: it is between 0 and 1, and 1 is no dim at all");
+            }
+
+            for (int i = 0; i + 3 < canvas.Length; i += 4)
+            {
+                canvas[i] = Channel(canvas[i] * factor);
+                canvas[i + 1] = Channel(canvas[i + 1] * factor);
+                canvas[i + 2] = Channel(canvas[i + 2] * factor);
+            }
+        }
+
+        /// <summary>
         /// The picture drawn into the card, centred: a picture of the whole tile covers it edge
         /// to edge, and the app mark - half the tile across - is the one that keeps a margin.
         ///
@@ -540,12 +741,54 @@ namespace WhatsappApp.Protocol.Media
                     + " at " + left + "," + top + " in " + canvasSide + "x" + canvasSide);
             }
 
+            DrawOnto(canvas, canvasSide, canvasSide, picture, width, height, left, top);
+        }
+
+        /// <summary>
+        /// The same compositing into a card of **any** shape: the wide tile, which is 744x360.
+        ///
+        /// Why it is not `DrawInto` with a bigger side: that one walks the buffer with one
+        /// stride, because a card it is given is square. The wide card has two, and reading a
+        /// 744-wide row into a 744-square stride is the out-of-bounds read this class was
+        /// written to stop - so the shape is a parameter, and the square case passes one value
+        /// twice.
+        /// </summary>
+        public static void DrawOnto(byte[] canvas, int canvasWidth, int canvasHeight,
+            byte[] picture, int width, int height, int left, int top)
+        {
+            if (canvas == null) throw new ArgumentNullException("canvas");
+            if (picture == null) throw new ArgumentNullException("picture");
+            if (width <= 0 || height <= 0) throw new ProtocolException("a picture with no side is no picture");
+
+            if (picture.Length < width * height * 4)
+            {
+                throw new ProtocolException("a picture of " + width + "x" + height + " is "
+                    + (width * height * 4) + " byte(s) and this one is " + picture.Length
+                    + ": the side it is drawn at is not the side it has");
+            }
+
+            if (canvasWidth <= 0 || canvasHeight <= 0)
+            {
+                throw new ProtocolException("a card of " + canvasWidth + "x" + canvasHeight + " has no shape");
+            }
+            if (canvas.Length < canvasWidth * canvasHeight * 4)
+            {
+                throw new ProtocolException("a card of " + canvasWidth + "x" + canvasHeight + " is "
+                    + (canvasWidth * canvasHeight * 4) + " byte(s) and this one is " + canvas.Length);
+            }
+
+            if (left < 0 || top < 0 || left + width > canvasWidth || top + height > canvasHeight)
+            {
+                throw new ProtocolException("the picture does not fit the card: " + width + "x" + height
+                    + " at " + left + "," + top + " in " + canvasWidth + "x" + canvasHeight);
+            }
+
             for (int y = 0; y < height; y++)
             {
                 for (int x = 0; x < width; x++)
                 {
                     int from = (y * width + x) * 4;
-                    int to = ((top + y) * canvasSide + (left + x)) * 4;
+                    int to = ((top + y) * canvasWidth + (left + x)) * 4;
 
                     int alpha = picture[from + 3];
                     if (alpha == 255)

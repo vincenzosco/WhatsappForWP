@@ -2638,6 +2638,12 @@ namespace WhatsappApp.Services
             post.Id = incoming.Id;
             post.Timestamp = incoming.Timestamp;
             post.Text = incoming.Text;
+
+            // The poster's own name, off the same stanza: a status often arrives from a
+            // `@lid`, and the feed showing fourteen digits where the official app shows a
+            // name is the report of 28 October 2026.
+            post.Name = incoming.PushName;
+
             if (incoming.Content != null) post.Encoded = incoming.Content.Encode();
 
             if (!KnownStatus(post.Id)) _statuses.Insert(0, post);

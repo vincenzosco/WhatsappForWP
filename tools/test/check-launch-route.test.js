@@ -12,10 +12,11 @@ const files = () => ({
   app: read('WhatsappApp/App.xaml.cs'),
   home: read('WhatsappApp/Pages/HomePage.xaml.cs'),
   data: read('WhatsappApp/Services/DataService.cs'),
-  route: read('WhatsappApp/Services/LaunchRoute.cs')
+  route: read('WhatsappApp/Services/LaunchRoute.cs'),
+  session: read('WhatsappApp/Services/SessionService.cs')
 });
 
-test('la catena dal badge alla sezione e intera', () => {
+test('una chain from the badge to a start on the chats is whole', () => {
   assert.deepStrictEqual(launchRouteProblems(files()), []);
 });
 
@@ -32,22 +33,24 @@ test('un avvio che non prende la rotta apre sempre la stessa sezione', () => {
   assert.match(launchRouteProblems(broken).join('\n'), /TakeRoute/);
 });
 
-test('una rotta letta e buttata via non sposta nessuna scheda', () => {
+test('una rotta che riappare come sezione in attesa riporta lapp su un altra tab', () => {
   const broken = files();
-  broken.app = broken.app.replace(/SessionService\.PendingSection = AppSection\.(Status|Calls);/g, ';');
-  assert.match(launchRouteProblems(broken).join('\n'), /PendingSection/);
+  broken.app = broken.app.replace('Diag.Ok("launch: the tile was showing "',
+    'SessionService.PendingSection = AppSection.Status; Diag.Ok("launch: the tile was showing "');
+  assert.match(launchRouteProblems(broken).join('\n'), /pending section/);
 });
 
-test('una sola delle due sezioni nominate lascia l altra irraggiungibile', () => {
+test('una rotta presa e mai nominata lascia il log muto su dove si e atterrati', () => {
   const broken = files();
-  broken.app = broken.app.replace(/LaunchRoute\.Calls/g, '"calls"');
-  assert.match(launchRouteProblems(broken).join('\n'), /LaunchRoute\.Calls/);
+  broken.app = broken.app.replace(/Diag\.Ok\("launch: the tile was showing " \+ route[^;]*;/,
+    'Diag.Ok("launch");');
+  assert.match(launchRouteProblems(broken).join('\n'), /names it/);
 });
 
-test('una home che ignora la sezione chiesta torna all ultima dell utente', () => {
+test('una home che apre lultima sezione invece delle chat riparte da dove era', () => {
   const broken = files();
-  broken.home = broken.home.replace(/SessionService\.TakePendingSection\(\)/, 'null');
-  assert.match(launchRouteProblems(broken).join('\n'), /TakePendingSection/);
+  broken.home = broken.home.replace('Show(0, true);', 'Show(SectionIndex(SessionService.Section), true);');
+  assert.match(launchRouteProblems(broken).join('\n'), /Show\(0, true\)/);
 });
 
 test('una sezione mai segnata aperta riporta sempre li', () => {
@@ -86,16 +89,16 @@ test('una chiamata persa che arriva senza rotta non e raggiungibile', () => {
   assert.match(launchRouteProblems(broken).join('\n'), /RaiseCallsScanCompleted/);
 });
 
-test('una rotta presa su un resume che nessuno mostra resta ferma in memoria', () => {
+test('una tile di chat che nessuno apre resta una tile che non fa niente', () => {
   const broken = files();
-  broken.app = broken.app.replace('home.ShowPendingSection();', 'home.OpenPinnedChat();');
-  assert.match(launchRouteProblems(broken).join('\n'), /ShowPendingSection/);
+  broken.app = broken.app.replace('home.OpenPinnedChat();', ';');
+  assert.match(launchRouteProblems(broken).join('\n'), /OpenPinnedChat/);
 });
 
-test('una home senza il metodo del resume lascia la rotta senza nessuno che la mostri', () => {
+test('una home senza il metodo della chat pinnata non puo aprirla', () => {
   const broken = files();
-  broken.home = broken.home.replace('public void ShowPendingSection()', 'private void NeverCalled()');
-  assert.match(launchRouteProblems(broken).join('\n'), /ShowPendingSection/);
+  broken.home = broken.home.replace('public void OpenPinnedChat()', 'private void NeverCalled()');
+  assert.match(launchRouteProblems(broken).join('\n'), /OpenPinnedChat/);
 });
 
 test('una regola che nomina WinRT non e piu compilabile dal runner', () => {

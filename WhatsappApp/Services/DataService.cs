@@ -197,6 +197,12 @@ namespace WhatsappApp.Services
                 if (row == null) continue;
                 if (FindStatus(row.Id) != null) continue;
 
+                // A name written yesterday may be the address the pair had not been learned
+                // for yet: the row asks again, and keeps the stored name only when the
+                // phone still has nothing better (`StatusName`).
+                string known = row.SenderName;
+                row.SenderName = StatusName.Choose(DisplayNameForJid(row.ChatId), known);
+
                 InsertStatusInOrder(row);
                 added++;
             }
@@ -1016,7 +1022,10 @@ namespace WhatsappApp.Services
                 InsertStatusInOrder(row);
             }
 
-            row.SenderName = DisplayNameForJid(post.Author);
+            // The phone's own name for the author, unless that is the address itself: a
+            // status from a `@lid` resolved to fourteen digits, and the list showed them.
+            row.SenderName = StatusName.Choose(DisplayNameForJid(post.Author), post.Name);
+
             if (!string.IsNullOrEmpty(post.Text)) row.Text = post.Text;
 
             ApplyNativeMedia(row, post.Encoded);

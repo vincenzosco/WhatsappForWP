@@ -58,6 +58,11 @@ namespace WhatsappApp.Controls
             DataService.Instance.ScanStatuses();
             ShowState();
 
+            // The faces: the same fetch the chat list starts, because the row draws the same
+            // picture - nothing else in the app asks for a status author's picture, so
+            // without this the list was a column of coloured initials.
+            AvatarEnricher.Start();
+
             // Why the row exists: "the statuses stopped appearing" arrived with a log that
             // said nothing at all about the feed, so the tab now writes what it was handed -
             // how many updates the day holds, and how many authors that is on screen.
@@ -71,6 +76,8 @@ namespace WhatsappApp.Controls
             if (!_active) return;
             _active = false;
             DataService.Instance.StatusesChanged -= OnStatusesChanged;
+
+            AvatarEnricher.Stop();
         }
 
         private void OnStatusesChanged(object sender, EventArgs e)
@@ -119,7 +126,15 @@ namespace WhatsappApp.Controls
                 if (group.Latest == null) group.Latest = row;
             }
 
-            for (int i = 0; i < order.Count; i++) order[i].Finish();
+            for (int i = 0; i < order.Count; i++)
+            {
+                order[i].Finish();
+
+                // The circle draws the author's picture rather than their initial whenever the
+                // chat list holds that person: `FindContact` canonicalises, so a status from a
+                // `@lid` finds the row filed under the number it is paired with.
+                order[i].Owner = DataService.Instance.FindContact(order[i].Author);
+            }
 
             for (int i = 0; i < order.Count; i++)
             {

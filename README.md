@@ -58,7 +58,7 @@ What works today:
 - a long press on a message copies its words, deletes it on this phone, or takes it back from everybody within two days - and a message another device takes back goes from this one too
 - the real chat list from the history sync, avatars, unread counts, groups, and the names saved in the primary phone's WhatsApp address book, which arrive encrypted in the account's app state
 - typing indicators in both directions
-- the status feed: what contacts posted, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, and an update whose photo did not arrive has a **Try again** button instead of a dead end
+- the status feed: what contacts posted, with the author's picture and the name WhatsApp sends with the update, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, the preview of an update leaves the row once the day is watched, and an update whose photo did not arrive has a **Try again** button instead of a dead end
 - the call log, both directions, with missed calls spelled out
 - a live tile that rotates the people waiting - their name and their message, and between one message and the next the picture alone of somebody still unanswered - plus a pinned-chat tile, lock screen text, and a background check about every 15 minutes
 - theme picker with the wallpapers the released package ships, plus the doodle and plain white
@@ -136,6 +136,8 @@ Tips:
   number on the icon is the messages waiting, which an update is not. The turns that have nobody's
   face on them are painted with the background chosen in Settings - Tema: that wallpaper, or the
   phone's accent colour when the choice is plain white - so the tile is the same look as the list.
+  The WhatsApp mark is drawn on that background, dimmed so a white glyph reads on it, and the wide
+  tile is filled with the same background instead of framing a square in teal.
 - An update somebody posted and a call nobody answered each raise a notification, in the same
   area as a message: the author's name, and nothing else - the update itself is opened where it is.
   Each is announced once, from a mark kept on the phone, because WhatsApp re-sends the whole day
@@ -218,12 +220,12 @@ whether the phone permits it, and what the last wake did - when it started, how 
 it took and what it put on the tile. `running` with no ending is a wake the system took down at its
 30-second ceiling.
 
-A tap on the tile - and on the lock screen, which shows the same tile - opens what arrived last:
-an update nobody has watched goes to Status, a missed call goes to Calls, and the chats are the
-fallback. WP8.1 hands a tap on the tile the same empty arguments as the app list, so the app
-writes down what the phone is advertising when it draws the badge and takes it back once at the
-next start. The section it lands on then counts as seen, so the same news cannot pull the next
-start to the same tab.
+A start always lands on the chats. It used to land on the section the app was left on, and on
+28 October 2026 that was the Status tab: the app opened on somebody's updates instead of on the
+conversations. WP8.1 hands a tap on the tile the same empty arguments as the app list, so the app
+still writes down what the phone is advertising when it draws the badge and reads it back once at
+the next start - it is named in the log, and it no longer chooses the tab: the badges on Status and
+Calls are what say those two have something new.
 </details>
 
 <details>

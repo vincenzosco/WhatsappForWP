@@ -63,6 +63,7 @@
     <Compile Include="..\WhatsappApp\Services\ChatListMerge.cs" />
     <Compile Include="..\WhatsappApp\Services\LaunchRoute.cs" />
     <Compile Include="..\WhatsappApp\Services\StartDecision.cs" />
+    <Compile Include="..\WhatsappApp\Services\StatusName.cs" />
     <Compile Include="..\WhatsappApp\Services\TileCycle.cs" />
     <Compile Include="..\WhatsappApp\Services\TileText.cs" />
   </ItemGroup>
