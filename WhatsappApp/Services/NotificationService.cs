@@ -244,6 +244,11 @@ namespace WhatsappApp.Services
 
                 _tileDrawn = true;
 
+                // A background run draws this before anything could compose a wallpaper: the
+                // card the last run wrote is read back, or the tile would change picture at
+                // every wake. Three stored paths, once per process.
+                TileTheme.Restore();
+
                 if (_unread <= 0 && _unseenStatuses <= 0) return;
 
                 // The updates turn: one of the five slots, in front, when somebody has posted
@@ -317,11 +322,11 @@ namespace WhatsappApp.Services
             if (visual == null) return;
 
             var medium = visual.SelectSingleNode("binding") as XmlElement;
-            string wide = entry.Image == null ? TileWideIconUri : TileImage.WideOf(entry.Image);
+            string wide = entry.Image == null ? WideMarkUri : TileImage.WideOf(entry.Image);
 
             if (entry.PictureOnly)
             {
-                SetImage(xml, medium, entry.Image ?? TileIconUri);
+                SetImage(xml, medium, entry.Image ?? MarkUri);
                 AddWidePicture(xml, visual, wide);
             }
             else
@@ -334,7 +339,7 @@ namespace WhatsappApp.Services
 
             // 71x71 carries the person's picture whenever there is one - it is the only
             // thing that size has room for - and the app mark when the chat has no picture.
-            AddSmallBinding(xml, visual, entry.Image == null ? TileIconUri : TileImage.SmallOf(entry.Image));
+            AddSmallBinding(xml, visual, entry.Image == null ? MarkUri : TileImage.SmallOf(entry.Image));
 
             updater.Update(new TileNotification(xml));
         }
@@ -368,7 +373,7 @@ namespace WhatsappApp.Services
             if (binding == null) return;
 
             FillText(xml, binding, TileText.For(senderName, bodyText, UnreadText(_unread)));
-            SetImage(xml, binding, image ?? TileIconUri);
+            SetImage(xml, binding, image ?? MarkUri);
         }
 
         /// <summary>The two lines of one binding, as `TileText` decided them.</summary>
@@ -446,13 +451,13 @@ namespace WhatsappApp.Services
 
                 if (entry.PictureOnly)
                 {
-                    SetImage(xml, binding, entry.Image ?? TileIconUri);
+                    SetImage(xml, binding, entry.Image ?? MarkUri);
                     return;
                 }
 
                 TileLines lines = TileText.For(entry.Sender, entry.Body, UnreadText(_unread));
                 FillText(xml, binding, lines);
-                SetImage(xml, binding, entry.Image ?? TileIconUri);
+                SetImage(xml, binding, entry.Image ?? MarkUri);
             }
             catch (Exception ex)
             {
@@ -521,7 +526,7 @@ namespace WhatsappApp.Services
             // The wide tile has its own asset: the square one is scaled to fill
             // 310x150 and loses its top and bottom, which cut the mark. This one is
             // drawn at the tile's proportion, so the mark is whole.
-            SetImage(xml, binding, image ?? TileWideIconUri);
+            SetImage(xml, binding, image ?? WideMarkUri);
         }
 
         /// <summary>
@@ -830,6 +835,16 @@ namespace WhatsappApp.Services
             _waiting = TileCycle.Forget(_waiting, chatId);
         }
 
+        /// <summary>
+        /// Draws the tile again from what the process already holds. Called when the picture
+        /// under it changed - the theme was chosen and its card composed - so the tile on
+        /// screen is the one the new choice asks for without waiting for a message.
+        /// </summary>
+        public static void Refresh()
+        {
+            RenderTile();
+        }
+
         /// <summary>Everything was read: no conversation is waiting for a turn.</summary>
         public static void ForgetAll()
         {
@@ -902,6 +917,21 @@ namespace WhatsappApp.Services
         /// that padding eats the drawing.
         /// </summary>
         private const string TileIconUri = "ms-appx:///Assets/TileIcon.png";
+
+        /// <summary>
+        /// The app mark, or the card of the theme the user chose (`TileTheme`): the picture a
+        /// turn gets when there is nobody's face to put there.
+        /// </summary>
+        private static string MarkUri
+        {
+            get { return TileTheme.Square ?? TileIconUri; }
+        }
+
+        /// <summary>The same, at the wide size the 310x150 tile draws.</summary>
+        private static string WideMarkUri
+        {
+            get { return TileTheme.Wide ?? TileWideIconUri; }
+        }
 
         /// <summary>
         /// The same mark, drawn at the wide tile's proportion (310x150 and its 240%

@@ -100,6 +100,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The chosen background itself, image and all. Null only if the settings hold a key
+        /// this build does not know, which `Read` has already turned into one it does.
+        ///
+        /// Why the entry and not the key: `TileTheme` needs the picture to compose the tile
+        /// from, and asking for "the image of what is current" in one call is what keeps the
+        /// tile and the list from reading two different answers.
+        /// </summary>
+        public static ThemeChoice Chosen()
+        {
+            EnsureLoaded();
+            return Find(_current);
+        }
+
+        /// <summary>
         /// The image of a key, or null for plain white (and for an unknown key, which
         /// falls back to plain rather than to a broken brush).
         /// </summary>
@@ -124,6 +138,12 @@ namespace WhatsappApp.Services
 
             _current = choice.Key;
             for (int i = 0; i < Known.Count; i++) Known[i].Selected = Known[i].Key == _current;
+
+            // The tile is painted with this too (`TileTheme`): composed in its own time and
+            // drawn when it is ready, so the grid does not wait for a decoder.
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("ThemeService/tile theme", TileTheme.RefreshAsync());
+#pragma warning restore 4014
 
             try
             {
