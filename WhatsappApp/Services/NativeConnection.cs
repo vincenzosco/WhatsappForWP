@@ -731,6 +731,18 @@ namespace WhatsappApp.Services
                         + "to be linked again to receive the history (WhatsApp sends it once, at the pairing)");
                 }
 
+                // The status day is the other half of what a link is supposed to bring, and the
+                // one list a person checks in the morning was the one nothing named: with the
+                // link of 28 October 2026 the server sent sync type 5 and type 0 and no status
+                // sync at all, so the tab opened on whatever the phone had kept. There is no
+                // request to ask for it - the reference clients have none either - so the line
+                // is what turns "gli stati non compaiono" into a fact about this login.
+                if (_statuses.Count == 0)
+                {
+                    Diag.Ok("native: this login brought no status at all (no type 1 sync and nothing "
+                        + "live): the day of updates is sent once, with the link, and this one had none");
+                }
+
                 return;
             }
 
