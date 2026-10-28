@@ -138,6 +138,26 @@ namespace WhatsappApp
                 SessionService.PendingChatName = PinnedTile.NameFromArguments(e.Arguments);
                 Diag.Ok("pinned tile: launching into " + tileChat);
             }
+            else if (e.PreviousExecutionState != ApplicationExecutionState.Terminated)
+            {
+                // The app's own tile - and the lock screen, which shows the same tile -
+                // arrives as a plain launch: WP8.1 hands it the same empty arguments as the
+                // app list does, so nothing in the launch says where the tap was. What is
+                // left is the record the notification layer wrote of what the phone was
+                // showing while it was closed (`LaunchRoute`), taken once here. A resume is
+                // not this: it has a section of its own and the user left it on purpose.
+                string route = SessionService.TakeRoute(DateTime.UtcNow);
+                if (route == LaunchRoute.Status)
+                {
+                    SessionService.PendingSection = AppSection.Status;
+                    Diag.Ok("launch: the tile was showing an update, the Status tab opens");
+                }
+                else if (route == LaunchRoute.Calls)
+                {
+                    SessionService.PendingSection = AppSection.Calls;
+                    Diag.Ok("launch: the tile was showing a missed call, the Calls tab opens");
+                }
+            }
 
             Frame rootFrame = EnsureFrame();
 
@@ -193,7 +213,12 @@ namespace WhatsappApp
 
             // The page is there now: a cold start has already consumed the request in its own
             // OnNavigatedTo, and this is the launch that found the app already running.
+            // A tap on the tile of a suspended app is a resume: the page is already there,
+            // nothing is navigated, and the section the route asked for has to be shown on
+            // it. On a cold start the page consumed the request in its own OnNavigatedTo
+            // and this finds nothing left.
             var home = rootFrame.Content as HomePage;
+            if (home != null) home.ShowPendingSection();
             if (home != null) home.OpenPinnedChat();
 
             Window.Current.Activate();

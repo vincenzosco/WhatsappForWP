@@ -44,6 +44,130 @@ namespace WhatsappApp.Services
             PendingChatName = null;
         }
 
+        /// <summary>
+        /// The section a tap on the tile or the lock screen asked for, until the home page
+        /// has shown it.
+        ///
+        /// In memory only, like the pinned chat: the route arrives with the launch and the
+        /// page that acts on it is built in the same run.
+        /// </summary>
+        public static AppSection? PendingSection;
+
+        /// <summary>Takes the request away, so a return to the page does not repeat it.</summary>
+        public static AppSection? TakePendingSection()
+        {
+            AppSection? asked = PendingSection;
+            PendingSection = null;
+            return asked;
+        }
+
+        /// <summary>
+        /// When the user last had a section on screen, in UTC. `default(DateTime)` means
+        /// never, which is before every row.
+        ///
+        /// Why it is written down and not kept in memory: a start that decides where to
+        /// go is a new process, and "what arrived since you last looked" is a question
+        /// about the last run.
+        /// </summary>
+        public static DateTime OpenedAt(AppSection section)
+        {
+            object stored;
+            long ticks;
+            if (!Settings.Values.TryGetValue(KeyOpened(section), out stored) || stored == null) return default(DateTime);
+            if (!long.TryParse(stored.ToString(), out ticks) || ticks <= 0) return default(DateTime);
+
+            return new DateTime(ticks, DateTimeKind.Utc);
+        }
+
+        /// <summary>The section came to the front: what is in it is no longer news.</summary>
+        public static void MarkOpened(AppSection section)
+        {
+            try
+            {
+                Settings.Values[KeyOpened(section)] = DateTime.UtcNow.Ticks;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("SessionService/MarkOpened", ex);
+            }
+        }
+
+        /// <summary>
+        /// The destination the notification layer recorded for the next start, and when it
+        /// was recorded. Written when the badge is drawn (`DataService.RefreshLaunchRoute`),
+        /// taken once by `App.OnLaunched`.
+        /// </summary>
+        public static void RememberRoute(string target)
+        {
+            try
+            {
+                if (string.IsNullOrEmpty(target))
+                {
+                    Settings.Values[KeyRoute] = "";
+                    Settings.Values[KeyRouteAt] = (long)0;
+                    return;
+                }
+
+                // Written only when it changes, so the stamp is the moment the phone
+                // started advertising this and not the last message of any kind.
+                object stored;
+                if (Settings.Values.TryGetValue(KeyRoute, out stored) && stored != null
+                    && string.Equals(stored.ToString(), target, StringComparison.Ordinal)) return;
+
+                Settings.Values[KeyRoute] = target;
+                Settings.Values[KeyRouteAt] = DateTime.UtcNow.Ticks;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("SessionService/RememberRoute", ex);
+            }
+        }
+
+        /// <summary>
+        /// The route a start may act on, taken away as it is read. Null when there is none,
+        /// or when the record is too old to be what the user just tapped (`LaunchRoute.IsFresh`).
+        /// </summary>
+        public static string TakeRoute(DateTime nowUtc)
+        {
+            try
+            {
+                object stored;
+                if (!Settings.Values.TryGetValue(KeyRoute, out stored) || stored == null) return null;
+
+                string target = stored.ToString();
+                if (string.IsNullOrEmpty(target)) return null;
+
+                object at;
+                long ticks = 0;
+                if (Settings.Values.TryGetValue(KeyRouteAt, out at) && at != null) long.TryParse(at.ToString(), out ticks);
+
+                // Taken either way: a route that is too old is a route that is done.
+                Settings.Values[KeyRoute] = "";
+                Settings.Values[KeyRouteAt] = (long)0;
+
+                if (!LaunchRoute.IsFresh(ticks > 0 ? new DateTime(ticks, DateTimeKind.Utc) : default(DateTime), nowUtc))
+                {
+                    Diag.Ok("launch: the recorded route was too old to be the tap, dropped");
+                    return null;
+                }
+
+                return target;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("SessionService/TakeRoute", ex);
+                return null;
+            }
+        }
+
+        private static string KeyOpened(AppSection section)
+        {
+            return "Session.Opened." + (int)section;
+        }
+
+        private const string KeyRoute = "Session.Route";
+        private const string KeyRouteAt = "Session.RouteAt";
+
         /// <summary>Section to show at startup after a termination.</summary>
         public static AppSection Section
         {

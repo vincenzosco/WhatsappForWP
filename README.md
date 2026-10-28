@@ -201,6 +201,18 @@ The permission is the phone's, not the switch's: the user can take background wo
 app in the phone's own settings, and battery saver does it on its own for a while. The
 registration stays and nothing wakes, so Settings reads the permission again on every visit and
 says so under the switch instead of showing a switch that is on for a check that never runs.
+
+Diagnostics answers the same question for a report: the interval, whether the task is registered,
+whether the phone permits it, and what the last wake did - when it started, how it ended, how long
+it took and what it put on the tile. `running` with no ending is a wake the system took down at its
+30-second ceiling.
+
+A tap on the tile - and on the lock screen, which shows the same tile - opens what arrived last:
+an update nobody has watched goes to Status, a missed call goes to Calls, and the chats are the
+fallback. WP8.1 hands a tap on the tile the same empty arguments as the app list, so the app
+writes down what the phone is advertising when it draws the badge and takes it back once at the
+next start. The section it lands on then counts as seen, so the same news cannot pull the next
+start to the same tab.
 </details>
 
 <details>
@@ -247,8 +259,9 @@ node tools/check-fire-and-forget.js no task whose fault nobody observes
 node tools/check-project-files.js   every file the projects compile
 node tools/check-xaml-names.js      one x:Name per namescope
 node tools/check-client-state.js    the login's passive/active sentences and the notification channel
-node tools/check-background-task.js the task's activatable class and its 30 s budget
+node tools/check-background-task.js the task's activatable class, its 30 s budget, and the phone's permission
 node tools/check-diagnostics.js     the log that survives a crash
+node tools/check-launch-route.js    a tap on the tile: what it records and the one start that uses it
 node tools/check-held-group.js       a group message that waits for its sender key instead of a retry
 node tools/check-avatar-refusal.js   a chat that refuses its picture, told apart from a missing login
 node tools/check-no-exception-probes.js  the padding is read, not guessed with a throw per trim

@@ -65,10 +65,50 @@ namespace WhatsappApp.Pages
             text.Append("account: ").Append(NativeConnection.Instance.Jid).Append('\n');
             text.Append("device: ").Append(SettingsService.DeviceId).Append('\n');
             text.Append("chats: ").Append(DataService.Instance.Contacts.Count).Append('\n');
+
+            // The check that runs while the app is closed, in the three facts a report
+            // needs: whether the phone lets it run, whether it is registered, and what the
+            // last wake actually did. Without the third, "messages arrive only every 15
+            // minutes" and "nothing arrives at all" read the same on the phone.
+            text.Append("background: ").Append(BackgroundSync.IntervalMinutes).Append(" min, registered ")
+                .Append(BackgroundSync.IsRegistered() ? "yes" : "no")
+                .Append(", permitted ").Append(BackgroundSync.IsPermitted() ? "yes" : "no").Append('\n');
+            text.Append("last wake: ").Append(LastWakeText()).Append('\n');
+
             text.Append("---\n");
             text.Append(Diag.HistoryText());
 
             DiagnosticsText.Text = text.ToString();
+        }
+
+        /// <summary>
+        /// The last wake in one line: when, how it ended, how long it took and what it put
+        /// on the tile. `running` is the interesting one - the wake started and never
+        /// wrote an ending, which on WP8.1 means the system took it down at its 30-second
+        /// ceiling.
+        /// </summary>
+        private static string LastWakeText()
+        {
+            DateTime wake = BackgroundSync.LastWake;
+            if (wake == default(DateTime)) return "never (the task has not run on this phone)";
+
+            string outcome = BackgroundSync.LastOutcome;
+            var line = new StringBuilder();
+
+            line.Append(wake.ToLocalTime().ToString("dd/MM HH:mm"))
+                .Append(", ").Append(string.IsNullOrEmpty(outcome) ? "unknown" : outcome);
+
+            if (outcome == BackgroundSync.OutcomeRunning)
+            {
+                line.Append(" (started, no ending: the system took it down)");
+            }
+            else
+            {
+                line.Append(", ").Append(BackgroundSync.LastMilliseconds).Append(" ms, ")
+                    .Append(BackgroundSync.LastUnread).Append(" unread");
+            }
+
+            return line.ToString();
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
