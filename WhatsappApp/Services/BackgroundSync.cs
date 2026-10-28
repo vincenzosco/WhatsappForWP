@@ -81,6 +81,30 @@ namespace WhatsappApp.Services
         /// <summary>How long a run waits for the login before it gives up.</summary>
         private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(8);
 
+        // What the last wake left on the phone, for the diagnostics page: a wake that
+        // read nothing and a wake that never ran look the same from the outside, and the
+        // one question a report has to answer is which of the two happened.
+        private const string KeyLastWake = "BackgroundCheck.LastWakeAt";
+        private const string KeyLastOutcome = "BackgroundCheck.LastOutcome";
+        private const string KeyLastUnread = "BackgroundCheck.LastUnread";
+        private const string KeyLastMilliseconds = "BackgroundCheck.LastMilliseconds";
+
+        /// <summary>Written when a wake starts, so a wake taken down reads as one.</summary>
+        public const string OutcomeRunning = "running";
+
+        /// <summary>The wake went through: it connected, read, saved and closed.</summary>
+        public const string OutcomeDone = "done";
+
+        /// <summary>The wake threw. The log has the exception; this is that it happened.</summary>
+        public const string OutcomeFailed = "failed";
+
+        /// <summary>
+        /// The phone took the wake down in the middle - the 30-second ceiling of a WP8.1
+        /// background task, on its own thread. This is the outcome of 23-24 October 2026,
+        /// which until now was indistinguishable from a wake that never arrived.
+        /// </summary>
+        public const string OutcomeCanceled = "canceled";
+
         /// <summary>
         /// How long a run lets the backlog arrive before it reports. Clamped to what is
         /// left of the budget: eight for the login plus six here is over the twenty.
@@ -230,6 +254,7 @@ namespace WhatsappApp.Services
             try
             {
                 Diag.Ok("background: woke");
+                RememberWake(OutcomeRunning, LastUnread, 0);
 
                 // What the last run left on the tile is read back first: this process
                 // starts with nothing in memory, and a check that drew a tile without it
@@ -280,6 +305,8 @@ namespace WhatsappApp.Services
 
                 Diag.OkNow("background: the snapshot is on the phone after " + watch.ElapsedMilliseconds + " ms");
 
+                RememberWake(OutcomeDone, unread, watch.ElapsedMilliseconds);
+
                 // One line the next run can learn from: how much of the 30 seconds this
                 // took, and whether it went over what the code budgeted for itself.
                 Diag.Ok("background: checked in " + watch.ElapsedMilliseconds + " ms, "
@@ -289,6 +316,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                RememberWake(OutcomeFailed, LastUnread, Watch.ElapsedMilliseconds);
                 Diag.Failed("BackgroundSync/RunNow", ex);
             }
             finally
@@ -348,6 +376,107 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("BackgroundSync/RegisteredEntryPoint", ex);
+            }
+
+            return "";
+        }
+
+        /// <summary>When the last wake started, in UTC, or `default(DateTime)` for never.</summary>
+        public static DateTime LastWake
+        {
+            get
+            {
+                long ticks = LastNumber(KeyLastWake, 0);
+                if (ticks <= 0) return default(DateTime);
+                return new DateTime(ticks, DateTimeKind.Utc);
+            }
+        }
+
+        /// <summary>
+        /// How the last wake ended: one of the `Outcome*` words, or empty when the phone
+        /// has never recorded one. `running` is a wake that started and left no ending,
+        /// which on this platform means the system took it down.
+        /// </summary>
+        public static string LastOutcome
+        {
+            get { return LastText(KeyLastOutcome); }
+        }
+
+        /// <summary>The unread count the last wake put on the tile.</summary>
+        public static int LastUnread
+        {
+            get { return (int)LastNumber(KeyLastUnread, 0); }
+        }
+
+        /// <summary>How long the last wake took, in milliseconds.</summary>
+        public static int LastMilliseconds
+        {
+            get { return (int)LastNumber(KeyLastMilliseconds, 0); }
+        }
+
+        /// <summary>
+        /// Says on the phone how a wake is going, in the same place the diagnostics page
+        /// reads: written at the start as `running` and overwritten with the ending, so a
+        /// wake the system cut in half is still visible after the process is gone.
+        /// </summary>
+        private static void RememberWake(string outcome, int unread, long milliseconds)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeyLastWake] = DateTime.UtcNow.Ticks;
+                ApplicationData.Current.LocalSettings.Values[KeyLastOutcome] = outcome;
+                ApplicationData.Current.LocalSettings.Values[KeyLastUnread] = unread;
+                ApplicationData.Current.LocalSettings.Values[KeyLastMilliseconds] = (int)milliseconds;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/RememberWake", ex);
+            }
+        }
+
+        /// <summary>
+        /// The system is taking the wake down, and the task that owns the deferral says so.
+        /// Called from the component's `Canceled` handler, which runs on a thread of the
+        /// system's choosing while `RunNow` is still blocked in a wait - so this only
+        /// writes its own line and does not touch anything the run is using.
+        /// </summary>
+        public static void MarkCanceled(string reason)
+        {
+            RememberWake(OutcomeCanceled, LastUnread, ElapsedMilliseconds);
+            Diag.OkNow("background: the system canceled the check after "
+                + ElapsedMilliseconds + " ms (" + reason + ")");
+        }
+
+        private static long LastNumber(string key, long fallback)
+        {
+            try
+            {
+                object stored;
+                long value;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out stored) && stored != null
+                    && long.TryParse(stored.ToString(), out value)) return value;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/LastNumber", ex);
+            }
+
+            return fallback;
+        }
+
+        private static string LastText(string key)
+        {
+            try
+            {
+                object stored;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out stored) && stored != null)
+                {
+                    return stored.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/LastText", ex);
             }
 
             return "";

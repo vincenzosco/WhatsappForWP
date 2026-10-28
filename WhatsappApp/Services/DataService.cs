@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using WhatsappApp.Controls;
 using WhatsappApp.Models;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Media;
@@ -266,7 +267,7 @@ namespace WhatsappApp.Services
             // (see RestoreRowsFromTheirTailsAsync).
             await RestoreRowsFromTheirTailsAsync();
 
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
 
             // And the tiles this phone has on Start are drawn again from what the copy says.
             // Without this a pinned tile kept the card the build that composed it left
@@ -868,7 +869,7 @@ namespace WhatsappApp.Services
 
             if (_activeChatId == merge.From) _activeChatId = merge.To;
 
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
             ResortContacts();
         }
 
@@ -1360,6 +1361,11 @@ namespace WhatsappApp.Services
 
         private void RaiseStatusesChanged()
         {
+            // The route is the other half of the same news: a status that arrived while the
+            // app was closed has no badge of its own, so this is the only place the tile's
+            // destination learns that tapping it should open the Status tab.
+            RefreshLaunchRoute();
+
             var handler = StatusesChanged;
             if (handler != null) handler(this, EventArgs.Empty);
         }
@@ -1523,7 +1529,7 @@ namespace WhatsappApp.Services
                     contact.UnreadCount = message.ChatId == _activeChatId
                         ? 0
                         : NativeConnection.Instance.UnreadFor(message.ChatId);
-                    NotificationService.SetUnread(TotalUnread());
+                    PublishBadge();
                     PublishUnread(contact);
                 }
 
@@ -1556,7 +1562,7 @@ namespace WhatsappApp.Services
                 NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar, message.Text);
             }
 
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
 
             // The list a start draws is this one:
             ScheduleListSave();
@@ -1981,6 +1987,10 @@ namespace WhatsappApp.Services
 
         private void RaiseCallsScanCompleted()
         {
+            // A missed call is the other thing a tap must be able to reach, and it arrives
+            // here: no badge, no toast, only the log.
+            RefreshLaunchRoute();
+
             var handler = CallsScanCompleted;
             if (handler != null) handler(this, EventArgs.Empty);
         }
@@ -2465,7 +2475,7 @@ namespace WhatsappApp.Services
                 if (message.IsIncoming)
                 {
                     contact.UnreadCount++;
-                    NotificationService.SetUnread(TotalUnread());
+                    PublishBadge();
                     PublishUnread(contact);
                 }
 
@@ -2499,7 +2509,7 @@ namespace WhatsappApp.Services
             PublishUnread(contact);
 
             SendRead(chatId);
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
         }
 
         /// <summary>
@@ -2532,7 +2542,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.MarkAllChatsRead();
 
             NotificationService.ForgetAll();
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
             for (int i = 0; i < rows.Count; i++) SendRead(rows[i].Id);
 
             Diag.Ok("read all: " + rows.Count + " chat(s)");
@@ -2756,7 +2766,7 @@ namespace WhatsappApp.Services
 
             ChatPreferences.Hide(chatId);
             NotificationService.Forget(chatId);
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
 
 #pragma warning disable 4014
             MessageCache.DeleteAsync(chatId);
@@ -2809,6 +2819,64 @@ namespace WhatsappApp.Services
                 if (contact != null) total += contact.UnreadCount;
             }
             return total;
+        }
+
+        /// <summary>
+        /// The newest update nobody has watched, or `default(DateTime)` when there is none.
+        ///
+        /// It is what `LaunchRoute` compares against the last time the Status tab was on
+        /// screen: the tile is the only thing a tap on the Start screen can carry, so what
+        /// arrived after that moment is the whole of the signal.
+        /// </summary>
+        public DateTime NewestUnseenStatus()
+        {
+            DateTime newest = default(DateTime);
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                ChatMessage row = _statuses[i];
+                if (row != null && !row.IsStatusViewed && row.Timestamp > newest) newest = row.Timestamp;
+            }
+            return newest;
+        }
+
+        /// <summary>The newest missed call in the log, or `default(DateTime)` when there is none.</summary>
+        public DateTime NewestMissedCall()
+        {
+            DateTime newest = default(DateTime);
+            for (int i = 0; i < _calls.Count; i++)
+            {
+                CallLogEntry row = _calls[i];
+                if (row != null && row.IsMissed && row.Timestamp > newest) newest = row.Timestamp;
+            }
+            return newest;
+        }
+
+        /// <summary>
+        /// Writes down where a tap on the tile - or on the lock screen, which shows the
+        /// same thing - should land, for the start that consumes it.
+        ///
+        /// Called with the badge, because that is the moment the phone starts advertising
+        /// something new. The rule itself is `LaunchRoute.Decide`, which is tested on the
+        /// desktop; this only feeds it the two dates and the two "last looked at" marks,
+        /// and the clock it compares them in is the one the rows carry.
+        /// </summary>
+        public void RefreshLaunchRoute()
+        {
+            SessionService.RememberRoute(LaunchRoute.Decide(
+                NewestUnseenStatus(), SessionService.OpenedAt(AppSection.Status),
+                NewestMissedCall(), SessionService.OpenedAt(AppSection.Calls)));
+        }
+
+        /// <summary>
+        /// What the phone shows about the unread, in one place: the tile, the badge, and the
+        /// destination recorded for the next tap on them. The count and the route are the
+        /// same fact seen twice, so they are written together - eight call sites that each
+        /// remembered one of the two is how they would come to disagree.
+        /// </summary>
+        private void PublishBadge()
+        {
+            NotificationService.SetUnread(TotalUnread());
+            RefreshLaunchRoute();
         }
 
         /// <summary>

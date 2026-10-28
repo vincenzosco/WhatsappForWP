@@ -205,6 +205,18 @@ Il permesso è del telefono, non dell'interruttore: l'utente può togliere il la
 all'app dalle impostazioni del telefono, e il risparmio energetico lo fa da sé per un po'. La
 registrazione resta e niente si sveglia, quindi le impostazioni rileggono il permesso a ogni
 visita e lo dicono sotto l'interruttore, invece di mostrare acceso un controllo che non parte.
+
+Diagnostica risponde alla stessa domanda per un rapporto: l'intervallo, se il task è registrato, se
+il telefono lo permette, e cosa ha fatto l'ultimo risveglio - quando è partito, come è finito,
+quanto ci ha messo e cosa ha messo sulla tile. `running` senza finale è un risveglio che il sistema
+ha preso in mezzo, al suo tetto di 30 secondi.
+
+Un tocco sulla tile - e sulla schermata di blocco, che mostra la stessa tile - apre l'ultima cosa
+arrivata: un aggiornamento che nessuno ha guardato porta a Stato, una chiamata persa a Chiamate, e
+le chat restano il ripiego. WP8.1 dà al tocco sulla tile gli stessi argomenti vuoti dell'elenco
+delle app, quindi l'app scrive quello che il telefono sta mostrando quando disegna il badge e lo
+riprende una volta sola all'avvio dopo. La sezione su cui atterra conta come guardata, così la
+stessa notizia non trascina l'avvio successivo sulla stessa scheda.
 </details>
 
 <details>
@@ -253,6 +265,7 @@ node tools/check-xaml-names.js      un x:Name per namescope
 node tools/check-client-state.js    le frasi passive/attive del login e il canale notifiche
 node tools/check-background-task.js la classe attivabile del task e il suo budget di 30 s
 node tools/check-diagnostics.js     il log che sopravvive a un crash
+node tools/check-launch-route.js    un tocco sulla tile: cosa registra e l'unico avvio che lo usa
 node tools/check-held-group.js       un messaggio di gruppo che aspetta la sua sender key invece di un retry
 node tools/check-avatar-refusal.js   una chat che rifiuta la foto, distinta da un login mancante
 node tools/check-no-exception-probes.js  il padding si legge, non si indovina a eccezioni
