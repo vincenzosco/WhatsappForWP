@@ -135,7 +135,9 @@ Consigli:
 - Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
   stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
   Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda
-  l'intera giornata di stati e l'intero log delle chiamate a ogni login.
+  l'intera giornata di stati e l'intero log delle chiamate a ogni login. Messaggi, stati e
+  chiamate perse hanno un interruttore ciascuno nelle impostazioni; la tile e il numero
+  sull'icona non sono uno di loro.
 - Il badge di Chiamate conta le chiamate perse arrivate da quando il log è stato guardato l'ultima
   volta, quindi torna a zero quando la scheda si apre invece di mostrare per sempre lo stesso numero.
 - Il controllo in background è attivo di default. Spegnilo nelle impostazioni se il telefono deve

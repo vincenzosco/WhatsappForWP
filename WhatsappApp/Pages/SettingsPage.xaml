@@ -150,6 +150,37 @@
 
             <GridView.Footer>
                 <StackPanel Margin="4,8,4,24">
+                    <!-- Which alerts arrive. Three separate switches and not one: a person
+                         who is in a group all day turns the messages off and still wants
+                         the calls, and one switch for all three would make them choose.
+                         The tile and the number on the icon are not here: they are a
+                         summary, not an alert. -->
+                    <TextBlock x:Uid="Settings_AlertsLabel" Text="Avvisi"
+                               Foreground="{StaticResource WhatsAppAccentBrush}"
+                               FontSize="15" FontWeight="SemiBold"/>
+                    <TextBlock x:Uid="Settings_AlertsHint"
+                               Text="Quali avvisi compaiono nell'area notifiche. La tile e il numero sull'icona non cambiano."
+                               Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
+                               Margin="0,2,0,6"/>
+
+                    <TextBlock x:Uid="Settings_AlertsMessages" Text="Messaggi"
+                               Foreground="#FF333333" FontSize="15"/>
+                    <ToggleSwitch x:Name="MessagesToggle"
+                                  Margin="0,0,0,4"
+                                  Toggled="MessagesToggle_Toggled"/>
+
+                    <TextBlock x:Uid="Settings_AlertsStatuses" Text="Stati"
+                               Foreground="#FF333333" FontSize="15"/>
+                    <ToggleSwitch x:Name="StatusesToggle"
+                                  Margin="0,0,0,4"
+                                  Toggled="StatusesToggle_Toggled"/>
+
+                    <TextBlock x:Uid="Settings_AlertsCalls" Text="Chiamate perse"
+                               Foreground="#FF333333" FontSize="15"/>
+                    <ToggleSwitch x:Name="CallsToggle"
+                                  Margin="0,0,0,12"
+                                  Toggled="CallsToggle_Toggled"/>
+
                     <!-- The periodic check while the app is suspended. The switch is
                          bare: the two lines above it carry the words, so there is no
                          Header or On/Off Content to translate twice. -->

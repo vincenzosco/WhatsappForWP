@@ -35,7 +35,11 @@
  *  4. `DataService` annuncia le chiamate perse quando il log e' completo
  *     (`RaiseCallsScanCompleted`);
  *  5. `MissedCalls()` conta solo le chiamate piu' recenti dell'ultima volta che la
- *     scheda Chiamate e' stata davanti, e la home la segna (`MarkOpened`).
+ *     scheda Chiamate e' stata davanti, e la home la segna (`MarkOpened`);
+ *  6. ogni tipo di avviso ha il suo interruttore, e le impostazioni li mostrano e li
+ *     scrivono tutti e tre: un interruttore salvato che nessun avviso legge e' un
+ *     interruttore che non fa niente, e nessuno se ne accorge finche' non e' un utente
+ *     a dire che il telefono suona lo stesso.
  *
  * Usage:
  *   node tools/check-notification-alerts.js
@@ -49,6 +53,9 @@ const ROOT = path.resolve(__dirname, '..');
 const NOTIFICATIONS = 'WhatsappApp/Services/NotificationService.cs';
 const DATA = 'WhatsappApp/Services/DataService.cs';
 const HOME = 'WhatsappApp/Pages/HomePage.xaml.cs';
+const SETTINGS = 'WhatsappApp/Services/SettingsService.cs';
+const SETTINGS_PAGE = 'WhatsappApp/Pages/SettingsPage.xaml.cs';
+const SETTINGS_XAML = 'WhatsappApp/Pages/SettingsPage.xaml';
 
 /** Il corpo di un metodo, dalla firma alla graffa che la chiude. */
 function methodBody(text, signature) {
@@ -163,6 +170,37 @@ function alertProblems(files) {
       'the badge and the tap route both stop moving forward');
   }
 
+  // 6. Ogni avviso ha il suo interruttore, e le impostazioni lo mostrano.
+  const switches = [
+    { method: 'ShowMessage', setting: 'MessageAlertsEnabled', toggle: 'MessagesToggle' },
+    { method: 'ShowStatus', setting: 'StatusAlertsEnabled', toggle: 'StatusesToggle' },
+    { method: 'ShowMissedCall', setting: 'CallAlertsEnabled', toggle: 'CallsToggle' }
+  ];
+
+  for (const item of switches) {
+    const body = methodBody(files.notifications, 'public static void ' + item.method + '(') || '';
+    if (!new RegExp('SettingsService\\.' + item.setting).test(body)) {
+      problems.push('WhatsappApp/Services/NotificationService.cs: ' + item.method + '() does not read ' +
+        'SettingsService.' + item.setting + ' - that switch would be a setting that does nothing');
+    }
+
+    const property = new RegExp('public static bool ' + item.setting + '\\b');
+    if (!property.test(files.settings)) {
+      problems.push('WhatsappApp/Services/SettingsService.cs: no ' + item.setting + ' - ' +
+        'the switch has nowhere to be remembered');
+    }
+
+    if (!new RegExp('SettingsService\\.' + item.setting + '\\s*=').test(files.settingsPage)) {
+      problems.push('WhatsappApp/Pages/SettingsPage.xaml.cs: nothing writes SettingsService.' +
+        item.setting + ' - the switch on the page and the one the alert reads are not the same fact');
+    }
+
+    if (!new RegExp('x:Name="' + item.toggle + '"').test(files.settingsXaml)) {
+      problems.push('WhatsappApp/Pages/SettingsPage.xaml: no ' + item.toggle + ' - ' +
+        'the user has no way to turn that alert off');
+    }
+  }
+
   return problems;
 }
 
@@ -171,7 +209,10 @@ function main() {
   const problems = alertProblems({
     notifications: read(NOTIFICATIONS),
     data: read(DATA),
-    home: read(HOME)
+    home: read(HOME),
+    settings: read(SETTINGS),
+    settingsPage: read(SETTINGS_PAGE),
+    settingsXaml: read(SETTINGS_XAML)
   });
 
   if (problems.length) {

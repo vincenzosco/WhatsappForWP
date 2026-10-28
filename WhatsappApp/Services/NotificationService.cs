@@ -585,6 +585,8 @@ namespace WhatsappApp.Services
         /// <summary>An alert for a message that arrived in a closed chat.</summary>
         public static void ShowMessage(string title, string body)
         {
+            if (!SettingsService.MessageAlertsEnabled) return;
+
             Toast(title, body);
         }
 
@@ -602,6 +604,7 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void ShowStatus(string name, DateTime postedAt)
         {
+            if (!SettingsService.StatusAlertsEnabled) return;
             if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;
 
             Toast(Loc.Get("Notification_Status", "New status"), name);
@@ -614,6 +617,7 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void ShowMissedCall(string name, DateTime arrivedAt)
         {
+            if (!SettingsService.CallAlertsEnabled) return;
             if (!IsToastNews(KeyMissedCallSeenAt, arrivedAt)) return;
 
             Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);

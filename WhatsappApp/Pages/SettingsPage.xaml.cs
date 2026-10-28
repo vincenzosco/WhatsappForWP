@@ -42,6 +42,9 @@ namespace WhatsappApp.Pages
             Diag.Ok("settings: " + ThemeService.Choices.Count + " theme(s), current " + ThemeService.Current);
 
             _loading = true;
+            MessagesToggle.IsOn = SettingsService.MessageAlertsEnabled;
+            StatusesToggle.IsOn = SettingsService.StatusAlertsEnabled;
+            CallsToggle.IsOn = SettingsService.CallAlertsEnabled;
             BackgroundToggle.IsOn = SettingsService.BackgroundCheckEnabled;
             _loading = false;
 
@@ -67,6 +70,35 @@ namespace WhatsappApp.Pages
             {
                 Diag.Ok("settings: the phone refuses background work, the check cannot wake");
             }
+        }
+
+        /// <summary>
+        /// Which alerts arrive. Each switch is its own question and its own key: they are
+        /// read where the alert is raised (`NotificationService`), so a change here is
+        /// in force from the next message - no restart and no re-registration.
+        /// </summary>
+        private void MessagesToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.MessageAlertsEnabled = MessagesToggle.IsOn;
+            Diag.Ok("settings: message alerts " + (MessagesToggle.IsOn ? "on" : "off"));
+        }
+
+        private void StatusesToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.StatusAlertsEnabled = StatusesToggle.IsOn;
+            Diag.Ok("settings: status alerts " + (StatusesToggle.IsOn ? "on" : "off"));
+        }
+
+        private void CallsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.CallAlertsEnabled = CallsToggle.IsOn;
+            Diag.Ok("settings: call alerts " + (CallsToggle.IsOn ? "on" : "off"));
         }
 
         /// <summary>

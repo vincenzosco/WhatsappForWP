@@ -19,6 +19,9 @@ namespace WhatsappApp.Services
     public static class SettingsService
     {
         private const string KeyNotifications = "NotificationsEnabled";
+        private const string KeyMessageAlerts = "Alerts.Messages";
+        private const string KeyStatusAlerts = "Alerts.Statuses";
+        private const string KeyCallAlerts = "Alerts.Calls";
         private const string KeyBackgroundCheck = "BackgroundCheckEnabled";
         private const string KeyDeviceId = "DeviceId";
 
@@ -33,6 +36,9 @@ namespace WhatsappApp.Services
         private static bool _loaded;
         private static string _deviceId;
         private static bool _notificationsEnabled;
+        private static bool _messageAlertsEnabled = true;
+        private static bool _statusAlertsEnabled = true;
+        private static bool _callAlertsEnabled = true;
         private static bool _backgroundCheckEnabled = true;
 
         private static void EnsureLoaded()
@@ -41,6 +47,9 @@ namespace WhatsappApp.Services
 
             _deviceId = ReadString(KeyDeviceId, "");
             _notificationsEnabled = ReadBool(KeyNotifications, true);
+            _messageAlertsEnabled = ReadBool(KeyMessageAlerts, true);
+            _statusAlertsEnabled = ReadBool(KeyStatusAlerts, true);
+            _callAlertsEnabled = ReadBool(KeyCallAlerts, true);
             _backgroundCheckEnabled = ReadBool(KeyBackgroundCheck, true);
 
             _loaded = true;
@@ -119,7 +128,7 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>Whether the app may raise a notification when a message arrives.</summary>
+        /// <summary>The master switch of every notification. On unless something turns it off.</summary>
         public static bool NotificationsEnabled
         {
             get { EnsureLoaded(); return _notificationsEnabled; }
@@ -128,6 +137,50 @@ namespace WhatsappApp.Services
                 EnsureLoaded();
                 _notificationsEnabled = value;
                 Settings.Values[KeyNotifications] = value;
+            }
+        }
+
+        /// <summary>
+        /// A message that arrives in a chat that is not open raises a notification.
+        ///
+        /// The three "which alerts" switches are separate and not one list of kinds, because
+        /// they are separate questions: somebody who works in a group all day turns the
+        /// messages off and still wants to know that a call was missed, and somebody whose
+        /// phone is in a pocket cares about the opposite. All three are on by default, which
+        /// is the behaviour of the builds before the switches existed.
+        /// </summary>
+        public static bool MessageAlertsEnabled
+        {
+            get { EnsureLoaded(); return _messageAlertsEnabled; }
+            set
+            {
+                EnsureLoaded();
+                _messageAlertsEnabled = value;
+                Settings.Values[KeyMessageAlerts] = value;
+            }
+        }
+
+        /// <summary>A contact posted an update: the notification names the author, not the update.</summary>
+        public static bool StatusAlertsEnabled
+        {
+            get { EnsureLoaded(); return _statusAlertsEnabled; }
+            set
+            {
+                EnsureLoaded();
+                _statusAlertsEnabled = value;
+                Settings.Values[KeyStatusAlerts] = value;
+            }
+        }
+
+        /// <summary>A call nobody answered: the notification names the caller.</summary>
+        public static bool CallAlertsEnabled
+        {
+            get { EnsureLoaded(); return _callAlertsEnabled; }
+            set
+            {
+                EnsureLoaded();
+                _callAlertsEnabled = value;
+                Settings.Values[KeyCallAlerts] = value;
             }
         }
 
