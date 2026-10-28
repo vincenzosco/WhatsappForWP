@@ -466,6 +466,9 @@
   <data name="Settings_BackgroundHint.Text" xml:space="preserve">
     <value>Every 15 minutes the app wakes, checks the messages and updates the tile and the lock screen. 15 minutes is the shortest interval Windows allows, and it decides the exact moment and can delay it on top.</value>
   </data>
+  <data name="Settings_BackgroundState.Text" xml:space="preserve">
+    <value>The phone does not allow apps to work in the background: the check will not wake until you turn it back on in the phone's settings.</value>
+  </data>
   <data name="Settings_AccountLabel.Text" xml:space="preserve">
     <value>Account</value>
   </data>

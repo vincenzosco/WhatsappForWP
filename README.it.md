@@ -200,6 +200,11 @@ c'è nessun servizio cloud per il push, quindi `BackgroundSync` si sveglia con u
 connette, legge quello che aspetta, aggiorna tile e schermata di blocco, e chiude. 15 minuti è
 l'intervallo più breve che un `TimeTrigger` accetta; il momento esatto lo decide il sistema e può
 rimandarlo. Spegnilo nelle impostazioni se preferisci che in background non faccia niente.
+
+Il permesso è del telefono, non dell'interruttore: l'utente può togliere il lavoro in background
+all'app dalle impostazioni del telefono, e il risparmio energetico lo fa da sé per un po'. La
+registrazione resta e niente si sveglia, quindi le impostazioni rileggono il permesso a ogni
+visita e lo dicono sotto l'interruttore, invece di mostrare acceso un controllo che non parte.
 </details>
 
 <details>

@@ -161,8 +161,16 @@
                                Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
                                Margin="0,2,0,4"/>
                     <ToggleSwitch x:Name="BackgroundToggle"
-                                  Margin="0,4,0,12"
+                                  Margin="0,4,0,4"
                                   Toggled="BackgroundToggle_Toggled"/>
+                    <!-- Shown only when the phone has refused: a switch that is on while
+                         nothing will ever wake is the worst of both, and the sentence is
+                         the only place that says why nothing arrives. -->
+                    <TextBlock x:Uid="Settings_BackgroundState"
+                               Text="Il telefono non permette alle app di lavorare in background: il controllo non si sveglia finche' non lo riattivi nelle sue impostazioni."
+                               Foreground="#FFC62828" FontSize="13" TextWrapping="Wrap"
+                               Margin="0,0,0,12" Visibility="Collapsed"
+                               x:Name="BackgroundState"/>
 
                     <TextBlock x:Uid="Settings_AccountLabel" Text="Account"
                                Foreground="{StaticResource WhatsAppAccentBrush}"

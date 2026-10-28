@@ -30,7 +30,17 @@
  *  2. l'`EntryPoint` del task, l'`ActivatableClassId` e il tipo compilato nel
  *     componente sono la stessa stringa;
  *  3. `BackgroundSync.EntryPoint` e' quella stessa stringa;
- *  4. il file del task e' un `<Compile Include>` del progetto del componente.
+ *  4. il file del task e' un `<Compile Include>` del progetto del componente;
+ *  5. la registrazione chiede al telefono il permesso di lavorare in background,
+ *     e non si accontenta di trovare la registrazione gia' fatta: il telefono
+ *     puo' toglierlo dopo (l'utente dalle impostazioni, o il risparmio
+ *     energetico) e la registrazione resta dov'era, mentre niente si sveglia piu'.
+ *     Su questa piattaforma e' il caso che gli agent si scrivono contro
+ *     (`IsScheduled` falso = il sistema ha tolto il task), e qui il segnale e'
+ *     `BackgroundExecutionManager.GetAccessStatus()`;
+ *  6. la pagina delle impostazioni dice quando il telefono ha rifiutato: un
+ *     interruttore acceso che non fa partire niente e' la cosa peggiore, e la
+ *     riga che lo spiega e' l'unico posto in cui l'utente lo viene a sapere.
  *
  * Usage:
  *   node tools/check-background-task.js
@@ -45,6 +55,8 @@ const MANIFEST = 'WhatsappApp/Package.appxmanifest';
 const TASK = 'WhatsappApp.Tasks/BackgroundSyncTask.cs';
 const TASK_PROJECT = 'WhatsappApp.Tasks/WhatsappApp.Tasks.csproj';
 const SYNC = 'WhatsappApp/Services/BackgroundSync.cs';
+const SETTINGS = 'WhatsappApp/Pages/SettingsPage.xaml.cs';
+const SETTINGS_XAML = 'WhatsappApp/Pages/SettingsPage.xaml';
 
 /** La stringa cercata in un attributo, o null. */
 function attribute(text, name) {
@@ -132,6 +144,32 @@ function backgroundTaskProblems(files) {
       '<Compile Include> - the class is not in the component the manifest points at');
   }
 
+  // Il permesso del telefono, letto e non ricordato.
+  if (!/GetAccessStatus\s*\(\s*\)/.test(files.sync)) {
+    problems.push('WhatsappApp/Services/BackgroundSync.cs: nothing reads ' +
+      'BackgroundExecutionManager.GetAccessStatus() - the phone can take background ' +
+      'work away after granting it, and a registration that stays while nothing wakes ' +
+      'looks exactly like a check that works');
+  }
+
+  // ...e il "gia' registrato" da solo non basta a fermarsi.
+  else if (!/RegisteredEntryPoint\(\)\s*==\s*EntryPoint\s*&&\s*IsPermitted\(\)/.test(files.sync)) {
+    problems.push('WhatsappApp/Services/BackgroundSync.cs: the "already registered" ' +
+      'return does not ask IsPermitted() - a registration the phone has stopped ' +
+      'honouring is never made again, and the switch keeps saying it will');
+  }
+
+  // La pagina delle impostazioni deve dire quando il telefono ha detto no.
+  if (!/BackgroundSync\.IsPermitted\s*\(\s*\)/.test(files.settings)) {
+    problems.push('WhatsappApp/Pages/SettingsPage.xaml.cs: the settings page never asks ' +
+      'BackgroundSync.IsPermitted() - a switch that is on while the phone has refused ' +
+      'looks like a working check');
+  }
+  if (!/x:Name="BackgroundState"/.test(files.settingsXaml)) {
+    problems.push('WhatsappApp/Pages/SettingsPage.xaml: no element named BackgroundState - ' +
+      'there is nowhere to say the phone has refused background work');
+  }
+
   // E la registrazione deve chiedere quella classe.
   const registered = constString(files.sync, 'EntryPoint');
   if (!registered) {
@@ -151,7 +189,9 @@ function main() {
     manifest: read(MANIFEST),
     task: read(TASK),
     taskProject: read(TASK_PROJECT),
-    sync: read(SYNC)
+    sync: read(SYNC),
+    settings: read(SETTINGS),
+    settingsXaml: read(SETTINGS_XAML)
   });
 
   if (problems.length) {
