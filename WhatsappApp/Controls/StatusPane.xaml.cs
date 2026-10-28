@@ -57,6 +57,12 @@ namespace WhatsappApp.Controls
             // Nothing to ask WhatsApp for: the client re-tells what it holds.
             DataService.Instance.ScanStatuses();
             ShowState();
+
+            // Why the row exists: "the statuses stopped appearing" arrived with a log that
+            // said nothing at all about the feed, so the tab now writes what it was handed -
+            // how many updates the day holds, and how many authors that is on screen.
+            Diag.Ok("status: tab opened with " + DataService.Instance.Statuses.Count
+                + " update(s) and " + _groups.Count + " author(s) on screen");
         }
 
         /// <summary>Called when this tab leaves the front.</summary>

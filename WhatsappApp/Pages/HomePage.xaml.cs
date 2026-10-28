@@ -370,6 +370,63 @@ namespace WhatsappApp.Pages
             ConnectionBar.Visibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// The overflow of the Status tab. One entry today - the whole day watched at once,
+        /// which is the official app's "mark all as viewed" - and the flyout is built here
+        /// and not in XAML because the words are localized and the menu is empty-headed
+        /// otherwise.
+        /// </summary>
+        private void StatusMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var flyout = new MenuFlyout();
+
+            var seen = new MenuFlyoutItem
+            {
+                Text = Loc.Get("StatusPage_MarkAllViewed", "Mark all as viewed")
+            };
+            seen.Click += MarkAllStatusesMenuItem_Click;
+            flyout.Items.Add(seen);
+
+            flyout.ShowAt(StatusMoreButton);
+        }
+
+        /// <summary>
+        /// Every update of the day stops being new: the rings drop, the receipts go out and
+        /// the badge on the tab goes with them. The rows stay - a status is watched, not
+        /// erased - and the viewer still plays them if the tap comes.
+        /// </summary>
+        private void MarkAllStatusesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            int changed = DataService.Instance.MarkAllStatusesViewed();
+
+            // Nothing to watch is not a failure: the tap says so in the log and the list is
+            // left exactly as it was.
+            if (changed == 0) Diag.Ok("status: mark all, nothing was unwatched");
+
+            RefreshBadges();
+        }
+
+        /// <summary>The overflow of the Calls tab: the same single entry, over the call log.</summary>
+        private void CallsMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var flyout = new MenuFlyout();
+
+            var seen = new MenuFlyoutItem
+            {
+                Text = Loc.Get("CallsPage_MarkAllSeen", "Mark all as seen")
+            };
+            seen.Click += MarkCallsSeenMenuItem_Click;
+            flyout.Items.Add(seen);
+
+            flyout.ShowAt(CallsMoreButton);
+        }
+
+        private void MarkCallsSeenMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            DataService.Instance.MarkCallsSeen();
+            RefreshBadges();
+        }
+
         private void OnAttachmentReady()
         {
             UpdatePendingAttachment();
