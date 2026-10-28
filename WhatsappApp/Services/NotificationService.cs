@@ -585,6 +585,95 @@ namespace WhatsappApp.Services
         /// <summary>An alert for a message that arrived in a closed chat.</summary>
         public static void ShowMessage(string title, string body)
         {
+            Toast(title, body);
+        }
+
+        /// <summary>
+        /// A contact posted an update. One line, like the official client: who posted it and
+        /// not what it says - a status is a photo or a sentence meant to be read where it
+        /// is, and a toast that quoted it would be the message in the middle of another app.
+        ///
+        /// `postedAt` is what keeps the sync from being a storm: WhatsApp re-sends the day on
+        /// every login, so a toast per row would fire a dozen for updates posted yesterday -
+        /// on each wake of the background task, too. The watermark below is the newest update
+        /// this phone has already told the user about, and the first run on a phone only
+        /// writes it (`IsToastNews`), because what the login brought the first time is that
+        /// phone's history and not news.
+        /// </summary>
+        public static void ShowStatus(string name, DateTime postedAt)
+        {
+            if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;
+
+            Toast(Loc.Get("Notification_Status", "New status"), name);
+        }
+
+        /// <summary>
+        /// A call nobody answered arrived. Same watermark, its own key: the log is re-read
+        /// whole on every scan, and a toast per row on every scan would be that log read
+        /// aloud each time the tab was opened.
+        /// </summary>
+        public static void ShowMissedCall(string name, DateTime arrivedAt)
+        {
+            if (!IsToastNews(KeyMissedCallSeenAt, arrivedAt)) return;
+
+            Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);
+        }
+
+        /// <summary>The newest update this phone has already announced.</summary>
+        private const string KeyStatusSeenAt = "Notifications.StatusSeenAt";
+
+        /// <summary>The newest missed call this phone has already announced.</summary>
+        private const string KeyMissedCallSeenAt = "Notifications.MissedCallSeenAt";
+
+        /// <summary>
+        /// Whether a row of `moment` is worth a toast, and the answer moves the watermark
+        /// forward when it is.
+        ///
+        /// The first answer on a phone is always no: with no mark every row read is the
+        /// history that came with the login, and announcing it would greet a new install
+        /// with a dozen alerts about things that happened before it existed.
+        /// </summary>
+        private static bool IsToastNews(string key, DateTime moment)
+        {
+            if (moment == default(DateTime)) return false;
+            if (!SettingsService.NotificationsEnabled) return false;
+
+            try
+            {
+                long ticks = 0;
+                object stored;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out stored) && stored != null)
+                {
+                    long.TryParse(stored.ToString(), out ticks);
+                }
+
+                if (ticks <= 0)
+                {
+                    ApplicationData.Current.LocalSettings.Values[key] = moment.Ticks;
+                    Diag.Ok("notification: " + key + " starts at " + moment.ToString("dd/MM HH:mm")
+                        + ", nothing said");
+                    return false;
+                }
+
+                if (moment.Ticks <= ticks) return false;
+
+                ApplicationData.Current.LocalSettings.Values[key] = moment.Ticks;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/IsToastNews", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The one place a toast is built: two lines, the title in the larger text. Every
+        /// alert of this app goes through here, so the permission and the refusal are
+        /// handled once instead of once per caller.
+        /// </summary>
+        private static void Toast(string title, string body)
+        {
             if (!SettingsService.NotificationsEnabled) return;
 
             try
@@ -597,7 +686,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                Diag.Failed("NotificationService.ShowMessage", ex);
+                Diag.Failed("NotificationService.Toast", ex);
             }
         }
 

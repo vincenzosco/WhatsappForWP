@@ -132,6 +132,12 @@ Tips:
   picture it draws is the full-size profile picture it asks WhatsApp for once the chat is pinned,
   not the small preview the chat list uses: the tile is the one place that shows a face at the
   size of the tile.
+- An update somebody posted and a call nobody answered each raise a notification, in the same
+  area as a message: the author's name, and nothing else - the update itself is opened where it is.
+  Each is announced once, from a mark kept on the phone, because WhatsApp re-sends the whole day
+  of updates and the whole call log at every login.
+- The Calls badge counts the missed calls that arrived since the log was last on screen, so it goes
+  back to zero when the tab is opened instead of showing the same number for good.
 - The background check is on by default. Turn it off in Settings if the phone should stay quiet.
 - If the app opens an empty list and stays there, open the Diagnostics page from the empty state:
   it shows the last `DIAG` lines.
@@ -262,6 +268,7 @@ node tools/check-client-state.js    the login's passive/active sentences and the
 node tools/check-background-task.js the task's activatable class, its 30 s budget, and the phone's permission
 node tools/check-diagnostics.js     the log that survives a crash
 node tools/check-launch-route.js    a tap on the tile: what it records and the one start that uses it
+node tools/check-notification-alerts.js  an update and a missed call announced once, and a badge that drops
 node tools/check-held-group.js       a group message that waits for its sender key instead of a retry
 node tools/check-avatar-refusal.js   a chat that refuses its picture, told apart from a missing login
 node tools/check-no-exception-probes.js  the padding is read, not guessed with a throw per trim

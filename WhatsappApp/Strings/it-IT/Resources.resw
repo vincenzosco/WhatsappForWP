@@ -91,6 +91,12 @@
   <data name="CallsPage_Missed" xml:space="preserve">
     <value>Chiamata persa</value>
   </data>
+  <data name="Notification_MissedCall" xml:space="preserve">
+    <value>Chiamata persa</value>
+  </data>
+  <data name="Notification_Status" xml:space="preserve">
+    <value>Nuovo stato</value>
+  </data>
   <data name="CallsPage_Declined" xml:space="preserve">
     <value>Chiamata rifiutata</value>
   </data>
