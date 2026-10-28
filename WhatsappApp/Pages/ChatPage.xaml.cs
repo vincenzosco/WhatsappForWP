@@ -1341,7 +1341,12 @@ namespace WhatsappApp.Pages
 
                 bool voiceNote = kind == "audio";
 
-                string id = await NativeConnection.Instance.SendMediaAsync(_contact.Id, file, kind,
+                // The same address the text path writes to, and not the row's own spelling:
+                // a contact filed under a `@lid`, or under the `@c.us` an older build wrote,
+                // asked the server for the devices of an address it does not route, and the
+                // attachment was refused before a stanza existed.
+                string id = await NativeConnection.Instance.SendMediaAsync(
+                    DataService.Instance.ChatIdFor(_contact.Id), file, kind,
                     mimeType, fileName, caption ?? "", 0, voiceNote);
 
                 // The wire id becomes the bubble's: a receipt names the message by it, and
