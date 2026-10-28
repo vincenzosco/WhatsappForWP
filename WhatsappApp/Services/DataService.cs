@@ -1286,6 +1286,11 @@ namespace WhatsappApp.Services
             // back on a status somebody already saw.
             SaveStatusSnapshot();
 
+            // And it is announced, because two things count it: the ring of the row, and
+            // the number on the Status tab (`UnseenStatuses`). Neither is told by the row's
+            // own property change, which reaches only the bubble that bound it.
+            RaiseStatusesChanged();
+
 #pragma warning disable 4014
             // The delegate and not the task: a `ViewStatusAsync` that throws while it is
             // being *called* - no open session, a chat id that is not a JID - already threw
@@ -1294,6 +1299,42 @@ namespace WhatsappApp.Services
             Guarded.RunGuardedAsync("DataService/view status",
                 delegate { return NativeConnection.Instance.ViewStatusAsync(row.ChatId, row.Id); });
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Drops the updates whose day is over.
+        ///
+        /// The feed is pruned when it is read from the phone and when it is written, and
+        /// neither of those happens to a list that is already on screen: a tab left open
+        /// across midnight kept offering a status nobody can open any more, and the round
+        /// trip it answers with is a download of a file WhatsApp has already taken down.
+        /// Called by the pane when the tab comes to the front, which is the one moment
+        /// somebody is looking at the list. The day is `StatusCache.LifetimeHours` in both
+        /// places, so the screen and the file cannot disagree about when an update ends.
+        /// </summary>
+        public void PruneExpiredStatuses()
+        {
+            DateTime cutoff = DateTime.Now.AddHours(-StatusCache.LifetimeHours);
+
+            int removed = 0;
+            for (int i = _statuses.Count - 1; i >= 0; i--)
+            {
+                ChatMessage row = _statuses[i];
+
+                // A row with no time is not a row with an old time: an empty one has
+                // nothing to draw and nothing to open.
+                if (row == null || row.Timestamp < cutoff)
+                {
+                    _statuses.RemoveAt(i);
+                    removed++;
+                }
+            }
+
+            if (removed == 0) return;
+
+            RaiseStatusesChanged();
+            SaveStatusSnapshot();
+            Diag.Ok("status: " + removed + " update(s) lived their day and left the feed");
         }
 
         /// <summary>

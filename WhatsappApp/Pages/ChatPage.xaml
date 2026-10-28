@@ -591,7 +591,8 @@
                                         Background="Transparent"
                                         Click="RetryMessageButton_Click"
                                         Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock x:Uid="ChatPage_Retry" FontSize="12"
+                                    <TextBlock x:Uid="ChatPage_Retry" Text="Try again"
+                                               FontSize="12"
                                                Foreground="{StaticResource WhatsAppAccentTextBrush}"/>
                                 </Button>
                             </StackPanel>

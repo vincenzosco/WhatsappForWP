@@ -90,7 +90,8 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="SearchBox" x:Uid="ChatsPage_Search" Grid.Column="0"
+                    <TextBox x:Name="SearchBox" x:Uid="ChatsPage_Search"
+                             PlaceholderText="Search" Grid.Column="0"
                              Margin="12,6,6,6" FontSize="16"
                              BorderThickness="0" Background="Transparent"
                              TextChanged="SearchBox_TextChanged"/>
