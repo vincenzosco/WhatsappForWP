@@ -1036,7 +1036,22 @@ namespace WhatsappApp.Services
             // A new update is the one change worth a write: the feed is what the next
             // start draws before any connection exists, and the media keys it carries
             // are what makes a tap on a restored status download its photo.
-            if (inserted) SaveStatusSnapshot();
+            if (inserted)
+            {
+                SaveStatusSnapshot();
+
+                // And it is announced, once per row and never for the user's own: the
+                // toast is the only thing that puts an update in the notification area
+                // while the app is closed (`BackgroundSync` reads the same rows in its
+                // own process, and the watermark in `NotificationService` is what keeps
+                // the two from announcing the same one twice).
+                string mine = ChatIdFor(NativeConnection.Instance.Jid);
+                if (string.IsNullOrEmpty(mine)
+                    || !string.Equals(ChatIdFor(post.Author), mine, StringComparison.OrdinalIgnoreCase))
+                {
+                    NotificationService.ShowStatus(row.SenderName, row.Timestamp);
+                }
+            }
         }
 
         /// <summary>
@@ -1987,8 +2002,13 @@ namespace WhatsappApp.Services
 
         private void RaiseCallsScanCompleted()
         {
+            // The log is complete now, so this is the one moment a missed call can be
+            // announced: `OnNativeCalls` rebuilds the whole list from the sync, and a toast
+            // while it was half built would be a call with the wrong name or none.
+            AnnounceMissedCalls();
+
             // A missed call is the other thing a tap must be able to reach, and it arrives
-            // here: no badge, no toast, only the log.
+            // here: no badge of its own, only the log.
             RefreshLaunchRoute();
 
             var handler = CallsScanCompleted;
@@ -2795,8 +2815,21 @@ namespace WhatsappApp.Services
             return total;
         }
 
+        /// <summary>
+        /// The badge of the Calls tab: the missed calls that arrived since the log was last
+        /// on screen.
+        ///
+        /// Why not every missed call in the log: that log is WhatsApp's and it keeps them
+        /// for good, so the count never went down - a badge that says the same number every
+        /// time somebody looks at it is a badge nobody looks at. `SessionService.MarkOpened`
+        /// writes the visit (`HomePage.Show`), and the number falls to zero when the tab is
+        /// opened - which is also the moment the route that sends a tap there stops applying
+        /// (`LaunchRoute` uses the same mark).
+        /// </summary>
         public int MissedCalls()
         {
+            DateTime seen = SessionService.OpenedAt(AppSection.Calls);
+
             int total = 0;
             for (int i = 0; i < _calls.Count; i++)
             {
@@ -2804,10 +2837,40 @@ namespace WhatsappApp.Services
                 // Two vocabularies meet here: the old server said `timeout`, the native
                 // client says `missed`. A badge that only knew the first was a badge that
                 // never counted a missed call.
-                if (row != null && (string.Equals(row.Reason, "timeout", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(row.Reason, "missed", StringComparison.OrdinalIgnoreCase))) total++;
+                if (row == null || !row.IsMissed) continue;
+                if (row.Timestamp > seen) total++;
             }
             return total;
+        }
+
+        /// <summary>
+        /// One toast per missed call the phone has not announced yet, oldest first, so a
+        /// wake that found two tells them in the order they happened.
+        ///
+        /// The watermark is `NotificationService`'s own (`ShowMissedCall`); this only reads
+        /// the log in order, because the log lives here.
+        /// </summary>
+        private void AnnounceMissedCalls()
+        {
+            var missed = new List<CallLogEntry>();
+            for (int i = 0; i < _calls.Count; i++)
+            {
+                CallLogEntry row = _calls[i];
+                if (row != null && row.IsMissed) missed.Add(row);
+            }
+
+            missed.Sort(delegate (CallLogEntry left, CallLogEntry right)
+            {
+                return left.Timestamp.CompareTo(right.Timestamp);
+            });
+
+            for (int i = 0; i < missed.Count; i++)
+            {
+                CallLogEntry row = missed[i];
+                string name = row.Name;
+                if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(row.ChatId);
+                NotificationService.ShowMissedCall(name, row.Timestamp);
+            }
         }
 
         /// <summary>Sum of the unread: it is the number that goes on the icon.</summary>

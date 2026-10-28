@@ -132,6 +132,12 @@ Consigli:
   lascia sulla schermata Start la card di quella precedente. La foto che disegna è quella
   profilo a piena risoluzione, chiesta a WhatsApp quando la chat viene fissata, non l'anteprima
   piccola che usa la lista: la tile è l'unico posto che mostra una faccia alla misura della tile.
+- Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
+  stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
+  Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda
+  l'intera giornata di stati e l'intero log delle chiamate a ogni login.
+- Il badge di Chiamate conta le chiamate perse arrivate da quando il log è stato guardato l'ultima
+  volta, quindi torna a zero quando la scheda si apre invece di mostrare per sempre lo stesso numero.
 - Il controllo in background è attivo di default. Spegnilo nelle impostazioni se il telefono deve
   stare zitto.
 - Se l'app apre un elenco vuoto e resta lì, apri la pagina Diagnostics dallo stato vuoto: mostra le
@@ -266,6 +272,7 @@ node tools/check-client-state.js    le frasi passive/attive del login e il canal
 node tools/check-background-task.js la classe attivabile del task e il suo budget di 30 s
 node tools/check-diagnostics.js     il log che sopravvive a un crash
 node tools/check-launch-route.js    un tocco sulla tile: cosa registra e l'unico avvio che lo usa
+node tools/check-notification-alerts.js  un aggiornamento e una chiamata persa annunciati una volta, e un badge che scende
 node tools/check-held-group.js       un messaggio di gruppo che aspetta la sua sender key invece di un retry
 node tools/check-avatar-refusal.js   una chat che rifiuta la foto, distinta da un login mancante
 node tools/check-no-exception-probes.js  il padding si legge, non si indovina a eccezioni

@@ -62,12 +62,18 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// When the user last had a section on screen, in UTC. `default(DateTime)` means
-        /// never, which is before every row.
+        /// When the user last had a section on screen, in the clock the rows carry.
+        /// `default(DateTime)` means never, which is before every row.
         ///
         /// Why it is written down and not kept in memory: a start that decides where to
         /// go is a new process, and "what arrived since you last looked" is a question
         /// about the last run.
+        ///
+        /// Why local time and not UTC: the rows it is compared with (`ChatMessage.Timestamp`,
+        /// `CallLogEntry.Timestamp`) are built by `DataService.Moment`, which converts the
+        /// wire's seconds to local. Comparing a local moment with a UTC mark is two hours of
+        /// error in Italy and more elsewhere, which is exactly the window where a badge
+        /// would either stay lit or never light.
         /// </summary>
         public static DateTime OpenedAt(AppSection section)
         {
@@ -76,7 +82,7 @@ namespace WhatsappApp.Services
             if (!Settings.Values.TryGetValue(KeyOpened(section), out stored) || stored == null) return default(DateTime);
             if (!long.TryParse(stored.ToString(), out ticks) || ticks <= 0) return default(DateTime);
 
-            return new DateTime(ticks, DateTimeKind.Utc);
+            return new DateTime(ticks, DateTimeKind.Local);
         }
 
         /// <summary>The section came to the front: what is in it is no longer news.</summary>
@@ -84,7 +90,7 @@ namespace WhatsappApp.Services
         {
             try
             {
-                Settings.Values[KeyOpened(section)] = DateTime.UtcNow.Ticks;
+                Settings.Values[KeyOpened(section)] = DateTime.Now.Ticks;
             }
             catch (Exception ex)
             {

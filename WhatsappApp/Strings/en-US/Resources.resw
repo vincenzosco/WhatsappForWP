@@ -91,6 +91,12 @@
   <data name="CallsPage_Missed" xml:space="preserve">
     <value>Missed call</value>
   </data>
+  <data name="Notification_MissedCall" xml:space="preserve">
+    <value>Missed call</value>
+  </data>
+  <data name="Notification_Status" xml:space="preserve">
+    <value>New status</value>
+  </data>
   <data name="CallsPage_Declined" xml:space="preserve">
     <value>Declined call</value>
   </data>
