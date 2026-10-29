@@ -1622,7 +1622,9 @@ namespace WhatsappApp.Services
             // always updated: the count is true, and the open chat is cleared when
             // the page shows it (ClearUnread), not because someone skipped it.
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
-                NotificationService.ShowMessage(contact.Name, message.Text);
+                // The toast and the tile draw text too, and the same rule: a heart of 15.0
+                // in the body was a box on the lock screen as well as in the bubble.
+                NotificationService.ShowMessage(contact.Name, message.ShownText);
 
             // And the tile shows who wrote and how many are waiting: their picture,
             // their name, and the count. Only for a person, not for a group, and only
@@ -1636,7 +1638,8 @@ namespace WhatsappApp.Services
                 string tileAvatar = contact.AvatarData;
                 if (string.IsNullOrEmpty(tileAvatar)) tileAvatar = AvatarCache.Get(message.ChatId);
 
-                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar, message.Text);
+                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar,
+                    message.ShownText);
             }
 
             PublishBadge();
@@ -1884,7 +1887,10 @@ namespace WhatsappApp.Services
                 if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
 
                 string name = SavedNameFor(contact.Id);
-                if (name == null || contact.Name == name) continue;
+                // Compared as the row stores it: the name goes through the emoji rule on
+                // its way in, so a name with a heart of 15.0 in it would never compare equal
+                // and every apply would rename the row again.
+                if (name == null || contact.Name == EmojiText.Compatible(name)) continue;
 
                 contact.Name = name;
                 contact.Initials = InitialsFor(name);

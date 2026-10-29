@@ -282,6 +282,29 @@ namespace ProtocolTests
                 "and the decode says so instead of handing back an empty message");
         }
 
+        /// <summary>
+        /// An emoji typed into the composer goes out as the characters that were typed, and
+        /// comes back the same: UTF-8 carries a surrogate pair as four bytes and the
+        /// protobuf length is in bytes, not characters.
+        ///
+        /// Why it is a test at all: the app replaces the emoji this phone has no glyph for
+        /// **when it draws them** (`EmojiText`), and the plan of 29 October 2026 depends on
+        /// that being the only place: what is written is what is sent. The heart of 15.0 is
+        /// the one that made it worth pinning - it is a pair of surrogates, and the older
+        /// heart it is drawn as here is a different pair.
+        /// </summary>
+        [Test]
+        public static void AnEmojiIsSentAsTheCharactersThatWereTyped()
+        {
+            const string body = "ciao \U0001FA75 e \U0001F355 :)";
+
+            byte[] encoded = Message.Text(body).Encode();
+
+            Assert.AreEqual(body, Message.Decode(encoded).Conversation,
+                "the emoji of 15.0 has to reach the other side as itself, not as the older one "
+                + "this phone draws it with");
+        }
+
         private static byte[] Hex(string text)
         {
             var bytes = new byte[text.Length / 2];

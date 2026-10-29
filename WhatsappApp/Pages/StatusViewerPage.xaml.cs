@@ -327,13 +327,17 @@ namespace WhatsappApp.Pages
             bool waiting = (video || picture) && !hasBytes;
             bool words = !video && !picture;
 
-            StatusText.Text = _status.Text ?? "";
+            // `ShownText` and not `Text`: a status written on a newer phone carries emoji
+            // this one has no glyph for, and the caption is the largest text in the app.
+            StatusText.Text = _status.ShownText ?? "";
             StatusText.Visibility = words ? Visibility.Visible : Visibility.Collapsed;
 
             // A photo's caption is the same sentence under the picture, and it is not
             // repeated in the middle of the screen.
-            bool caption = !words && !string.IsNullOrEmpty(_status.Text);
-            CaptionText.Text = caption ? _status.Text : "";
+            // The same question asked of what is drawn: a caption made only of an emoji this
+            // phone cannot draw has nothing left to put under the picture.
+            bool caption = !words && !string.IsNullOrEmpty(_status.ShownText);
+            CaptionText.Text = caption ? _status.ShownText : "";
             CaptionBar.Visibility = caption ? Visibility.Visible : Visibility.Collapsed;
 
             Loading.IsActive = waiting && _status.IsMediaLoading;

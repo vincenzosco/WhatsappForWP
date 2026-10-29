@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Imaging;
+using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Models
@@ -101,7 +102,23 @@ namespace WhatsappApp.Models
                 _text = value;
                 OnPropertyChanged();
                 OnPropertyChanged("ShowsText");
+                OnPropertyChanged("ShownText");
             }
+        }
+
+        /// <summary>
+        /// The same text, as this phone can draw it: the emoji whose code point it has no
+        /// glyph for are the older ones `EmojiText` names, instead of the boxes they used
+        /// to be (`Benny🩵` read as `Benny` and a box).
+        ///
+        /// Why it is a second property and not the setter: `Text` is the message. It goes
+        /// to the wire, into the cache and back out on a forward, and substituting it at
+        /// the door would send a different emoji from the one that was written. Only what
+        /// the screen draws asks this, and it is computed and not stored.
+        /// </summary>
+        public string ShownText
+        {
+            get { return EmojiText.Compatible(_text); }
         }
 
         [DataMember]
@@ -117,7 +134,10 @@ namespace WhatsappApp.Models
             get { return _senderName; }
             set
             {
-                _senderName = value;
+                // A name is on screen too, and the names carry emoji: `Benny🩵` was a row
+                // with a box in it. The initials are the first letter of the result, so a
+                // replaced emoji at the front still gives a letter this phone can draw.
+                _senderName = EmojiText.Compatible(value);
                 OnPropertyChanged();
                 // The avatar circle is drawn from the first letter of this one.
                 OnPropertyChanged("Initials");

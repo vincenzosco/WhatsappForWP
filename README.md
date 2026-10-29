@@ -145,6 +145,13 @@ Tips:
   switch each in Settings; the tile and the number on the icon are not one of them.
 - The Calls badge counts the missed calls that arrived since the log was last on screen, so it goes
   back to zero when the tab is opened instead of showing the same number for good.
+- Emoji work the way this phone can. A face the font of Windows Phone 8.1 has never had - the
+  light blue heart, the mechanical arm, the ringed planet - is drawn as the nearest older face it
+  does have, and one with no older cousin is left out rather than drawn as a box. What is sent is
+  what was written, so a newer phone on the other side sees exactly that. Typing a smile the old
+  way still sends a face: the text box asks the keyboard for the chat scope, which is what puts its
+  emoji key next to the space bar, and `:)` - or `:(`, `;)`, `:D`, `:P`, `:O`, `:|`, `<3`, `</3` -
+  becomes the face itself on the way out, even from a keyboard that does neither.
 - The background check is on by default. Turn it off in Settings if the phone should stay quiet.
 - If the app opens an empty list and stays there, open the Diagnostics page from the empty state:
   it shows the last `DIAG` lines.
@@ -282,6 +289,7 @@ node tools/check-no-exception-probes.js  the padding is read, not guessed with a
 node tools/check-app-state.js       the saved names: the shared keys are kept, the sync is asked, the rows are told
 node tools/check-chat-list-refresh.js  one chat per person, and a list that asks for its rows again
 node tools/check-one-row-per-chat.js  a chat row is created canonical and once: list, groups, statuses
+node tools/check-emoji.js           emoji the font lacks, and a typed smile that leaves as a face
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
@@ -294,7 +302,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` builds and runs the 376 protocol tests in `ProtocolTests/`. The protocol
+`tools/test-protocol.js` builds and runs the 411 protocol tests in `ProtocolTests/`. The protocol
 tests are plain C# with a tiny runner, because the WP8.1 toolchain cannot host a modern test
 framework.
 

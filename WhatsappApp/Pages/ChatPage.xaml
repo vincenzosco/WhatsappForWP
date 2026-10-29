@@ -358,7 +358,7 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
                                 <TextBlock Text="{Binding FormattedTime}"
@@ -563,7 +563,7 @@
                                      dark (the usual case), #333 when it is light, which is what
                                      Accent.Apply puts in WhatsAppAccentTextBrush. A fixed white
                                      was unreadable on a light accent. -->
-                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="16"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0"
@@ -876,7 +876,20 @@
                          BorderThickness="0"
                          KeyDown="MessageTextBox_KeyDown"
                          TextChanged="MessageTextBox_TextChanged"
-                         Margin="0,0,4,0"/>
+                         Margin="0,0,4,0">
+                    <!-- The scope is what puts the emoji key on the keyboard: Windows
+                         Phone 8.1 shows the smiley next to the space bar only for `Chat`,
+                         and with it the keyboard turns a typed `:)` into the emoji it has.
+                         Without the scope the composer was a plain text box, so the one
+                         keyboard everybody types on offered neither. -->
+                    <TextBox.InputScope>
+                        <InputScope>
+                            <InputScope.Names>
+                                <InputScopeName NameValue="Chat"/>
+                            </InputScope.Names>
+                        </InputScope>
+                    </TextBox.InputScope>
+                </TextBox>
 
                 <Button x:Name="RecordButton" Grid.Column="2"
                         Background="Transparent"

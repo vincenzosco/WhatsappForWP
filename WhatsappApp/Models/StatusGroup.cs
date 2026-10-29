@@ -124,7 +124,10 @@ namespace WhatsappApp.Models
             }
             else
             {
-                Detail = Latest == null ? "" : Latest.Text;
+                // The caption of the only update, drawn under the author's name: the emoji
+                // rule is asked here, because a caption of two words and a heart is exactly
+                // the text a newer phone writes (`EmojiText`).
+                Detail = Latest == null ? "" : Latest.ShownText;
             }
 
             IsStatusViewed = Unseen == 0;

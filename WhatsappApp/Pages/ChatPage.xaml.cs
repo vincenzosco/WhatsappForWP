@@ -17,6 +17,7 @@ using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
@@ -1210,7 +1211,12 @@ namespace WhatsappApp.Pages
                 if (string.IsNullOrEmpty(_selectedLocalFileName)) return;
             }
 
-            string text = (MessageTextBox.Text ?? "").Trim();
+            // The face a keyboard would have made, when it did not make it: the composer
+            // has the `Chat` scope, and a keyboard without the emoji key - or with its own
+            // conversion off - leaves `:)` a colon and a bracket. It is done here, on the
+            // way out, and not as the text is typed: what is sent is the face, and the box
+            // still holds what was typed until the send clears it.
+            string text = EmojiText.Emoticons((MessageTextBox.Text ?? "").Trim());
 
             // If we have a selected image or video, send it as an attachment
             if (_selectedLocalFileName != null)
