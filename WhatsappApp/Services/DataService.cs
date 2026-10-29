@@ -1895,6 +1895,42 @@ namespace WhatsappApp.Services
             {
                 Diag.Ok("contacts: " + renamed + " chat(s) renamed from the address book");
             }
+
+            // And the ones the book could not name, with the numbers on screen: the log said
+            // how many contacts it read, never which chats were left as digits, so a list of
+            // `+39...` had no answer in it (28 October 2026: fourteen of them).
+            int left = 0;
+            string sample = "";
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Name)) continue;
+                if (!IsANumber(contact.Name)) continue;
+
+                left++;
+                if (left <= 5) sample += (sample.Length == 0 ? "" : ", ") + contact.Name;
+            }
+
+            if (left > 0)
+            {
+                Diag.Ok("contacts: " + left + " chat(s) still show a number, the book has no "
+                    + "name for them (" + sample + ")");
+            }
+        }
+
+        /// <summary>Whether a name on screen is the number it fell back to.</summary>
+        private static bool IsANumber(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+
+            for (int i = 0; i < name.Length; i++)
+            {
+                char c = name[i];
+                if (c == '+' && i == 0) continue;
+                if (c < '0' || c > '9') return false;
+            }
+
+            return true;
         }
 
         /// <summary>This update row, kept aside for the cache.</summary>
@@ -2228,6 +2264,15 @@ namespace WhatsappApp.Services
             // contact uses, and - for a LID whose pair is known - the real phone number.
             string known = NameCache.Book.NameFor(jid);
             if (!string.IsNullOrEmpty(known)) return known;
+
+            // And when the wire named nobody, the phone's own address book: it is the name
+            // the person saved for that number, and it is what the official app shows in
+            // place of the digits. Asked here and not only when a row is made, because the
+            // rows that never go through `SavedNameFor` - a status author, a group's
+            // participant, a conversation given back from its tail - were the ones left as
+            // numbers while the book on the same phone had a name for them.
+            string saved = SavedNameFor(jid);
+            if (!string.IsNullOrEmpty(saved)) return saved;
 
             string phone = NameCache.Book.PhoneNumberFor(jid);
             if (phone != null) jid = phone;

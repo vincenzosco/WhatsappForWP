@@ -165,6 +165,38 @@ function siteProblems(source, site) {
 }
 
 /**
+ * The phone's address book is the fallback for a number the wire never named: it is
+ * the name the person saved, and the one the official app shows instead of the digits.
+ *
+ * It is asked where the name is chosen and not only when a row is made - a status
+ * author, a group's participant and a conversation given back from its tail never go
+ * through `SavedNameFor` - which is why this rule is here and not on the rows.
+ */
+function addressBookProblems(data) {
+  const problems = [];
+  const body = methodBody(data, 'public static string DisplayNameForJid');
+
+  // A missing method is `siteProblems`' sentence; this rule only says where the book goes.
+  if (body == null) return problems;
+
+  const saved = body.indexOf('SavedNameFor(');
+  if (saved < 0) {
+    problems.push(`${DATA}: public static string DisplayNameForJid never asks the phone's `
+      + 'address book (SavedNameFor): a chat, a status author or a group participant whose '
+      + 'number is saved on the phone is printed as the number instead of the name');
+    return problems;
+  }
+
+  const plus = body.indexOf('"+"');
+  if (plus >= 0 && plus < saved) {
+    problems.push(`${DATA}: public static string DisplayNameForJid prints "+number" before `
+      + 'it asks the address book, so the fallback can never run');
+  }
+
+  return problems;
+}
+
+/**
  * Any other file that turns a JID's user part into text must ask the rule too.
  * `ConnectionPage` is the one exception, and it is named rather than pattern-matched:
  * it prints this account's own address, which is a phone number by construction.
@@ -224,6 +256,7 @@ function lidNameProblems(files) {
     problems.push(...siteProblems(bySite[site.file], site));
   }
 
+  problems.push(...addressBookProblems(code[DATA] || ''));
   problems.push(...strayProblems(code));
 
   return problems;
