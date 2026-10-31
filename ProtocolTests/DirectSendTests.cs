@@ -187,6 +187,28 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ThePrimaryDeviceBundleMayOmitItsZeroDeviceSuffix()
+        {
+            Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
+            us.Jid = OurJid;
+
+            // The device list uses the explicit `:0`, while the encrypt answer can name
+            // the primary device by the account JID alone. The bundle still belongs to
+            // the target's primary device, not to the linked tablet.
+            var phone = new Device(PeerUser);
+            var tablet = new Device(PeerTablet);
+            IList<string> targets = DirectSend.Targets(DeviceAnswer("0", "5"), OurJid, null);
+
+            var store = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+            DirectSendPlan plan = DirectSend.Plan(targets, BundleAnswer(phone, tablet),
+                us, store, new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(2, plan.Devices.Count,
+                "the primary device's bundle is matched even without `:0`");
+            Assert.AreEqual(0, plan.Skipped.Count);
+        }
+
+        [Test]
         public static void TheDeviceListIsNotABundleAnswer()
         {
             // The mistake that made the one-to-one send impossible: the usync answer has
