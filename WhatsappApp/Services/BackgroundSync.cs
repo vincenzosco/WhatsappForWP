@@ -446,7 +446,16 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void MarkCanceled(string reason)
         {
-            RememberWake(OutcomeCanceled, LastUnread, ElapsedMilliseconds);
+            lock (Gate)
+            {
+                // A cancellation callback can race the end of RunNow. Once the run has
+                // recorded a terminal outcome, it must remain the last outcome shown by
+                // diagnostics; only an interrupted run may be marked canceled.
+                if (!_running || LastOutcome != OutcomeRunning) return;
+
+                RememberWake(OutcomeCanceled, LastUnread, ElapsedMilliseconds);
+            }
+
             Diag.OkNow("background: the system canceled the check after "
                 + ElapsedMilliseconds + " ms (" + reason + ")");
         }

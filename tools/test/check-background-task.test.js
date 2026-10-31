@@ -62,6 +62,12 @@ test('un task di tipo diverso da timer non risponde a un TimeTrigger', () => {
   assert.match(backgroundTaskProblems(broken).join('\n'), /Type="timer"/);
 });
 
+test('senza ToastCapable le toast dei messaggi vengono scartate dal sistema', () => {
+  const broken = files();
+  broken.manifest = broken.manifest.replace(' ToastCapable="true"', '');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /ToastCapable/);
+});
+
 test('una registrazione che chiede un altra classe non accende niente', () => {
   const broken = files();
   broken.sync = broken.sync.replace(
