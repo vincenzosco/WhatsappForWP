@@ -682,6 +682,35 @@ namespace WhatsappApp.Services
             Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);
         }
 
+        /// <summary>
+        /// A visible Calls tab has consumed the local call alert watermark. WhatsApp
+        /// does not send this phone the read state from another client, so this is
+        /// deliberately local to the device.
+        /// </summary>
+        public static void MarkMissedCallsSeen(DateTime through)
+        {
+            if (through == default(DateTime)) return;
+
+            try
+            {
+                object stored;
+                long ticks = 0;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(
+                    KeyMissedCallSeenAt, out stored) && stored != null)
+                {
+                    long.TryParse(stored.ToString(), out ticks);
+                }
+
+                if (through.Ticks <= ticks) return;
+
+                ApplicationData.Current.LocalSettings.Values[KeyMissedCallSeenAt] = through.Ticks;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/MarkMissedCallsSeen", ex);
+            }
+        }
+
         /// <summary>The newest update this phone has already announced.</summary>
         private const string KeyStatusSeenAt = "Notifications.StatusSeenAt";
 

@@ -2045,15 +2045,29 @@ namespace WhatsappApp.Services
             _calls.Add(new CallLogEntry
             {
                 ChatId = message.ChatId,
-                Name = SavedNameFor(message.ChatId) ?? (string.IsNullOrEmpty(message.SenderName)
-                    ? DisplayNameForJid(message.ChatId)
-                    : message.SenderName),
+                Name = CallNameFor(message),
                 Timestamp = message.Timestamp,
                 CallId = message.CallId,
                 Reason = message.CallReason,
                 DurationSeconds = message.CallDurationSeconds,
                 IsVideo = message.CallIsVideo
             });
+        }
+
+        /// <summary>
+        /// Names a call after reducing device and LID spellings to the chat address.
+        /// A call row has no message push name, so it must use the same local books
+        /// as the chat list before falling back to the readable number.
+        /// </summary>
+        private string CallNameFor(ChatMessage message)
+        {
+            string chatId = ChatIdFor(message.ChatId);
+            string name = SavedNameFor(chatId);
+            if (string.IsNullOrEmpty(name)) name = NameCache.Book.NameFor(chatId);
+            if (string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(message.SenderName))
+                name = message.SenderName;
+            if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(chatId);
+            return name;
         }
 
         /// <summary>Empties the log before a new scan.</summary>
@@ -2916,6 +2930,7 @@ namespace WhatsappApp.Services
         public void MarkCallsSeen()
         {
             SessionService.MarkOpened(AppSection.Calls);
+            NotificationService.MarkMissedCallsSeen(DateTime.Now);
             PublishBadge();
             Diag.Ok("calls: the log counted as seen");
         }

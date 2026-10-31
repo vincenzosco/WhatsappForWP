@@ -145,6 +145,15 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ADeviceJidCanBeReducedToItsPerson()
+        {
+            Assert.AreEqual(PeerBundleFixture.Peer,
+                DeviceDirectory.Person(PeerBundleFixture.PeerPhone));
+            Assert.AreEqual(PeerBundleFixture.Peer,
+                DeviceDirectory.Person(PeerBundleFixture.PeerTablet));
+        }
+
+        [Test]
         public static void TheDeviceQueryAsksForTheDevicesProtocol()
         {
             BinaryNode iq = DeviceDirectory.Query(PeerBundleFixture.Peer, new SignalSessions.CounterRandom());

@@ -78,6 +78,24 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ADeviceSuffixIsNotPartOfTheCallChat()
+        {
+            byte[] record = new ProtoWriter()
+                .Varint(1, 4)
+                .Varint(5, 1760000500)
+                .Varint(6, 1)
+                .Text(11, "CALL0008")
+                .Text(12, "15551230000:7@s.whatsapp.net")
+                .ToArray();
+
+            IList<CallLogEntryModel> calls = Calls.FromHistory(
+                HistorySync.Decode(new ProtoWriter().Bytes(13, record).ToArray()), Me);
+
+            Assert.AreEqual(Peer, calls[0].Jid,
+                "the call list and its name lookup use the person, not a device");
+        }
+
+        [Test]
         public static void AGroupCallIsFiledUnderTheGroup()
         {
             byte[] record = new ProtoWriter()
