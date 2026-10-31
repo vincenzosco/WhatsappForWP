@@ -137,10 +137,33 @@ namespace WhatsappApp.Protocol.Client
 
             for (int i = 0; i < bundles.Count; i++)
             {
-                if (bundles[i].Key == deviceJid) return bundles[i].Value;
+                if (bundles[i].Key == deviceJid || IsPrimaryDeviceAlias(bundles[i].Key, deviceJid))
+                {
+                    return bundles[i].Value;
+                }
             }
 
             return null;
+        }
+
+        /// <summary>
+        /// The primary device is sometimes returned without its explicit `:0` in the
+        /// bundle answer, although the device list names it as `user:0@server`.
+        /// Linked devices must remain exact matches: collapsing their device ids would
+        /// let one device's bundle be used for another.
+        /// </summary>
+        private static bool IsPrimaryDeviceAlias(string bundleJid, string deviceJid)
+        {
+            DecodedJid bundle = JidUtils.Decode(bundleJid);
+            DecodedJid device = JidUtils.Decode(deviceJid);
+
+            return bundle.IsJid
+                && device.IsJid
+                && !bundle.HasDevice
+                && device.HasDevice
+                && device.Device == 0
+                && bundle.User == device.User
+                && bundle.Server == device.Server;
         }
     }
 
