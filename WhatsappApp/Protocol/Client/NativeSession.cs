@@ -88,32 +88,42 @@ namespace WhatsappApp.Protocol.Client
             // bootstrap can speak first (see `_beforeLogin`). Everything that is not the
             // answer is kept for the reader the caller starts, so no frame is lost in the
             // one moment where nothing is reading yet.
-            for (int read = 0; read < LoginFrameLimit; read++)
+            try
             {
-                BinaryNode answer = await _socket.ReadNodeAsync();
-
-                string refusal = Refusal(answer);
-                if (refusal != null)
+                for (int read = 0; read < LoginFrameLimit; read++)
                 {
-                    IsOpen = false;
-                    throw new SessionRefusedException("the server refused the login: " + refusal);
+                    BinaryNode answer = await _socket.ReadNodeAsync();
+
+                    string refusal = Refusal(answer);
+                    if (refusal != null)
+                    {
+                        IsOpen = false;
+                        throw new SessionRefusedException("the server refused the login: " + refusal);
+                    }
+
+                    if (answer != null && answer.Tag == "success")
+                    {
+                        _log.Info("whatsapp: logged in as " + account.Jid);
+                        return answer;
+                    }
+
+                    if (answer != null)
+                    {
+                        _beforeLogin.Enqueue(answer);
+                        _log.Info("whatsapp: <" + answer.Tag + "> arrived before the login was answered, and is read after it");
+                    }
                 }
 
-                if (answer != null && answer.Tag == "success")
-                {
-                    _log.Info("whatsapp: logged in as " + account.Jid);
-                    return answer;
-                }
-
-                if (answer != null)
-                {
-                    _beforeLogin.Enqueue(answer);
-                    _log.Info("whatsapp: <" + answer.Tag + "> arrived before the login was answered, and is read after it");
-                }
+                IsOpen = false;
+                throw new ProtocolException("the server did not answer the login in " + LoginFrameLimit + " node(s)");
             }
-
-            IsOpen = false;
-            throw new ProtocolException("the server did not answer the login in " + LoginFrameLimit + " node(s)");
+            catch
+            {
+                IsOpen = false;
+                Jid = null;
+                _beforeLogin.Clear();
+                throw;
+            }
         }
 
         /// <summary>
@@ -266,4 +276,3 @@ namespace WhatsappApp.Protocol.Client
     }
 
 }
-

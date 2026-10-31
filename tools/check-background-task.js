@@ -102,6 +102,12 @@ function backgroundTaskProblems(files) {
       'a TimeTrigger registration has nothing it may run');
   }
 
+  const visualElements = /<m3:VisualElements\b[^>]*>/.exec(manifest);
+  if (!visualElements || !/\bToastCapable="true"/.test(visualElements[0])) {
+    problems.push('Package.appxmanifest: m3:VisualElements must declare ToastCapable="true" - ' +
+      'background sync can update the tile but Windows will suppress message toasts');
+  }
+
   // La dichiarazione che rende la classe istanziabile.
   const server = manifest.match(/<Extension\s+Category="windows\.activatableClass\.inProcessServer"[\s\S]*?<\/Extension>/);
   if (!server) {
