@@ -128,7 +128,10 @@ namespace WhatsappApp.Pages
             // destination is "what arrived since the last look" (`LaunchRoute`), and this
             // is the look. Written for whichever section is shown, so switching tabs by
             // hand also keeps a stale route from winning the next start.
-            SessionService.MarkOpened(SectionOf(index));
+            if (index == 2)
+                DataService.Instance.MarkCallsSeen();
+            else
+                SessionService.MarkOpened(SectionOf(index));
 
             if (index == 0)
             {

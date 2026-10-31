@@ -72,6 +72,7 @@ namespace WhatsappApp.Controls
             }
 
             StatusText.Visibility = Visibility.Collapsed;
+            DataService.Instance.MarkCallsSeen();
         }
 
         private void ShowMessage(string text)

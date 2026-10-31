@@ -1636,7 +1636,39 @@ namespace WhatsappApp.Services
             BinaryNode bundleAnswer = null;
             if (missing.Count > 0)
             {
-                bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
+                ProtocolException bundleFailure = null;
+
+                try
+                {
+                    bundleAnswer = await RequestAsync(session,
+                        DeviceDirectory.BundleQuery(missing, _random));
+                }
+                catch (ProtocolException error)
+                {
+                    bundleFailure = error;
+                }
+
+                if (bundleFailure != null)
+                {
+                    if (!bundleFailure.Message.StartsWith("the server did not answer ",
+                        StringComparison.Ordinal))
+                    {
+                        throw bundleFailure;
+                    }
+
+                    var people = new List<string>();
+                    for (int i = 0; i < missing.Count; i++)
+                    {
+                        string person = DeviceDirectory.Person(missing[i]);
+                        if (!people.Contains(person)) people.Add(person);
+                    }
+
+                    Diag.Ok("native: the per-device bundle query: " + bundleFailure.Message);
+                    Diag.Ok("native: asking the bundles per person instead (" + people.Count
+                        + " of them), because a query with no answer is not a no");
+                    bundleAnswer = await RequestAsync(session,
+                        DeviceDirectory.BundleQuery(people, _random));
+                }
             }
 
             DirectSendPlan plan = DirectSend.Plan(targets, bundleAnswer, _account, store, _random);
