@@ -138,7 +138,7 @@ namespace WhatsappApp.Protocol.Client
             for (int i = 0; i < deviceJids.Count; i++)
             {
                 string deviceJid = deviceJids[i];
-                string user = User(deviceJid);
+                string user = Person(deviceJid);
 
                 var userNode = new BinaryNode("user");
                 userNode.Attrs.Add("jid", user);
@@ -306,7 +306,8 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>`name:device@server` without the device, which is the user the server keys on.</summary>
-        private static string User(string deviceJid)
+        /// <summary>The account JID behind a device JID, used by person-level bundle fallback.</summary>
+        public static string Person(string deviceJid)
         {
             int colon = deviceJid.IndexOf(':');
             if (colon < 0) return deviceJid;
