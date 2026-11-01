@@ -37,7 +37,9 @@ namespace WhatsappApp.Models
 
                 if (trimmed.StartsWith("+") && trimmed.Length > 1)
                     return trimmed.Substring(1, Math.Min(2, trimmed.Length - 1)).ToUpper();
-                return trimmed.Substring(0, 1).ToUpper();
+                // An emoji name starts with two UTF-16 units: one of them alone is not a letter.
+                int first = char.IsHighSurrogate(trimmed[0]) && trimmed.Length > 1 ? 2 : 1;
+                return trimmed.Substring(0, first).ToUpper();
             }
         }
 

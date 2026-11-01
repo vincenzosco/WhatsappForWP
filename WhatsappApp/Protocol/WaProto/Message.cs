@@ -28,6 +28,10 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>The encoded `ExtendedText`: a quote, a link preview, a thumbnail.</summary>
         public const int ExtendedTextField = 6;
 
+        /// <summary>`ExtendedTextMessage.contextInfo`, and inside it `mentionedJid`.</summary>
+        public const int ContextInfoField = 17;
+        public const int MentionedJidField = 15;
+
         /// <summary>The encoded `ImageMessage`: a photo.</summary>
         public const int ImageField = 3;
 
@@ -156,6 +160,65 @@ namespace WhatsappApp.Protocol.WaProto
             if (!extended.ContainsKey(1)) return null;
 
             return System.Text.Encoding.UTF8.GetString(extended[1], 0, extended[1].Length);
+        }
+
+        /// <summary>
+        /// A message with words that name people: an extended text whose `contextInfo`
+        /// (field 17) lists each mentioned JID as `mentionedJid` (field 15). Without any
+        /// mention it is a plain `conversation`, as `Text` makes it.
+        /// </summary>
+        public static Message TextMentioning(string body, IList<string> mentionedJids)
+        {
+            if (body == null) throw new ProtocolException("a text message needs words");
+            if (mentionedJids == null || mentionedJids.Count == 0) return Text(body);
+
+            var context = new ProtoWriter();
+            for (int i = 0; i < mentionedJids.Count; i++)
+            {
+                context.Text(MentionedJidField, mentionedJids[i]);
+            }
+
+            var message = new Message();
+            message.ExtendedTextMessage = new ProtoWriter()
+                .Text(1, body)
+                .Bytes(ContextInfoField, context.ToArray())
+                .ToArray();
+            return message;
+        }
+
+        /// <summary>
+        /// The JIDs this message names, in the order they were written. Empty when the
+        /// message names nobody - a plain conversation has no mentions at all.
+        /// </summary>
+        public IList<string> Mentions()
+        {
+            var jids = new List<string>();
+            if (ExtendedTextMessage == null) return jids;
+
+            byte[] context = null;
+            var reader = new ProtoReader(ExtendedTextMessage);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == ContextInfoField && field.WireType == 2) context = reader.ReadBytes();
+                else reader.SkipField(field.WireType);
+            }
+
+            if (context == null) return jids;
+
+            reader = new ProtoReader(context);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == MentionedJidField && field.WireType == 2)
+                {
+                    byte[] jid = reader.ReadBytes();
+                    jids.Add(System.Text.Encoding.UTF8.GetString(jid, 0, jid.Length));
+                }
+                else reader.SkipField(field.WireType);
+            }
+
+            return jids;
         }
 
         public byte[] Encode()

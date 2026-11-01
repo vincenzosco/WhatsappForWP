@@ -137,6 +137,11 @@ function appStateProblems(files) {
     problems.push(`${CONNECTION}: the sync asks for nothing ("AppStateSync.Query("): the ` +
       'collections have to be requested from the server before they can be read');
   }
+  if (syncBody.indexOf('asking again') < 0) {
+    problems.push(`${CONNECTION}: the sync asks once and gives up on silence: a server that ` +
+      'let the query pass unanswered gets a second one (the "asking again" retry), or the ' +
+      'address book of the primary waits for the next login');
+  }
   if (!/catch \(ProtocolException[\s\S]*?continue;/.test(syncBody)) {
     problems.push(`${CONNECTION}: a collection that does not verify is not skipped ` +
       '(`catch (ProtocolException ...)` then `continue`): the sync is five collections, and one ' +

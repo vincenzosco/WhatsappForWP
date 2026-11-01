@@ -799,6 +799,7 @@
             <Grid Grid.Row="1">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -842,7 +843,16 @@
                     </Path>
                 </Button>
 
-                <TextBox x:Name="MessageTextBox" x:Uid="ChatPage_Input" Grid.Column="1"
+                <!-- Group only: @ names a member. Collapsed in a one-to-one chat. -->
+                <Button x:Name="MentionButton" Grid.Column="1"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="40" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4" Visibility="Collapsed"
+                        Content="@" FontSize="20" Foreground="#FF808080"
+                        Click="MentionButton_Click"/>
+
+                <TextBox x:Name="MessageTextBox" x:Uid="ChatPage_Input" Grid.Column="2"
                          Text=""
                          PlaceholderText="Type a message"
                          VerticalAlignment="Center"
@@ -854,7 +864,7 @@
                          TextChanged="MessageTextBox_TextChanged"
                          Margin="0,0,4,0"/>
 
-                <Button x:Name="RecordButton" Grid.Column="2"
+                <Button x:Name="RecordButton" Grid.Column="3"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
@@ -898,7 +908,7 @@
                     </Path>
                 </Button>
 
-                <Button x:Name="StopRecordButton" Grid.Column="3"
+                <Button x:Name="StopRecordButton" Grid.Column="4"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
@@ -921,7 +931,7 @@
                     </Path>
                 </Button>
 
-                <Button x:Name="SendButton" Grid.Column="4"
+                <Button x:Name="SendButton" Grid.Column="5"
                         Background="{StaticResource WhatsAppAccentBrush}"
                         Foreground="White"
                         MinWidth="0" MinHeight="0"

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Diagnostics;
@@ -15,6 +16,8 @@ using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Animation;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.Client;
+using WhatsappApp.Protocol.WABinary;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
@@ -22,6 +25,8 @@ namespace WhatsappApp.Pages
     public sealed partial class ChatPage : Page
     {
         private Contact _contact;
+        // The members picked from the @ menu for the message being written.
+        private readonly List<string> _pendingMentions = new List<string>();
         private ObservableCollection<ChatMessage> _messages;
         // The handler put on ConnectionEstablished while this chat is open: a
         // chat opened before the socket is up asks for nothing, and this is what
@@ -33,6 +38,7 @@ namespace WhatsappApp.Pages
         private string _selectedLocalFileName;
         private string _selectedMediaFileName;
         private string _selectedMediaMimeType;
+        private bool _selectedIsVoiceNote;
         // The conversation's view state: the bind, the scroll and the viewer.
         // It is a module because all three touch the same three things, and the
         // E_UNEXPECTED that left a chat empty lived exactly there.
@@ -108,6 +114,8 @@ namespace WhatsappApp.Pages
             if (contact != null)
             {
                 _contact = contact;
+                _pendingMentions.Clear();
+                MentionButton.Visibility = GroupDirectory.IsGroup(contact.Id) ? Visibility.Visible : Visibility.Collapsed;
                 _contactTyping = false;
                 _typingSent = false;
                 _markReadPending = false;
@@ -1339,7 +1347,7 @@ namespace WhatsappApp.Pages
 
                 message.MediaSizeBytes = file.Length;
 
-                bool voiceNote = kind == "audio";
+                bool voiceNote = kind == "audio" && _selectedIsVoiceNote;
 
                 string id = await NativeConnection.Instance.SendMediaAsync(_contact.Id, file, kind,
                     mimeType, fileName, caption ?? "", 0, voiceNote);
@@ -1384,6 +1392,57 @@ namespace WhatsappApp.Pages
             return bytes;
         }
 
+        /// <summary>
+        /// The @ button is for groups only. It asks the group for its members and lets the
+        /// user pick one; the name goes into the text and the JID goes with the send, so
+        /// WhatsApp shows it as a mention.
+        /// </summary>
+        private async void MentionButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contact == null || !GroupDirectory.IsGroup(_contact.Id)) return;
+
+            try
+            {
+                IList<string> members = await NativeConnection.Instance.GroupMembersAsync(_contact.Id);
+                if (members == null || members.Count == 0) return;
+
+                var flyout = new MenuFlyout();
+                for (int i = 0; i < members.Count; i++)
+                {
+                    string jid = members[i];
+                    string name = NameCache.Book.NameFor(jid);
+                    if (string.IsNullOrEmpty(name)) name = DisplayNumber(jid);
+                    if (string.IsNullOrEmpty(name)) continue;
+
+                    var item = new MenuFlyoutItem { Text = name, Tag = jid };
+                    item.Click += MentionItem_Click;
+                    flyout.Items.Add(item);
+                }
+                flyout.ShowAt(MentionButton);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.MentionButton_Click", ex);
+            }
+        }
+
+        private void MentionItem_Click(object sender, RoutedEventArgs e)
+        {
+            var item = sender as MenuFlyoutItem;
+            if (item == null) return;
+
+            string jid = item.Tag as string;
+            if (string.IsNullOrEmpty(jid)) return;
+
+            _pendingMentions.Add(jid);
+            string number = JidUtils.Normalize(jid);
+            int at = number.IndexOf('@');
+            if (at > 0) number = number.Substring(0, at);
+
+            MessageTextBox.Text = (MessageTextBox.Text ?? "") + "@" + number + " ";
+            MessageTextBox.SelectionStart = MessageTextBox.Text.Length;
+        }
+
         private async void AddAndSendMessage(ChatMessage message)
         {
             // DataService is the only insertion point: _messages is the same
@@ -1410,7 +1469,10 @@ namespace WhatsappApp.Pages
             try
             {
                 // The wire id becomes the bubble's: a receipt names the message by it.
-                message.Id = await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text);
+                // Mentions picked from the @ menu go with the text they were written into.
+                List<string> mentions = _pendingMentions.Count > 0 ? new List<string>(_pendingMentions) : null;
+                _pendingMentions.Clear();
+                message.Id = await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text, mentions);
 
                 // Written is not sent: the tick is the server's answer, and it has not
                 // arrived yet. See WaitForAck for what happens when it never does.
@@ -1607,7 +1669,7 @@ namespace WhatsappApp.Pages
             try
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
-                await AttachmentInbox.PutAsync(file, null);
+                await AttachmentInbox.PutAsync(file, null, true);
 
                 // The slot is taken here and not only by the Ready handler: Send
                 // keeps going in the same tap that stopped the recording, and the
@@ -1707,6 +1769,7 @@ namespace WhatsappApp.Pages
             _selectedLocalFileName = AttachmentInbox.LocalFileName;
             _selectedMediaFileName = AttachmentInbox.FileName;
             _selectedMediaMimeType = AttachmentInbox.MimeType;
+            _selectedIsVoiceNote = AttachmentInbox.IsVoiceNote;
             AttachmentInbox.Clear();
 
             if (!string.IsNullOrEmpty(note) && string.IsNullOrEmpty(MessageTextBox.Text))
@@ -1783,6 +1846,7 @@ namespace WhatsappApp.Pages
             _selectedLocalFileName = null;
             _selectedMediaFileName = null;
             _selectedMediaMimeType = null;
+            _selectedIsVoiceNote = false;
             SelectedImagePreview.Source = null;
             SelectedAudioPreview.Visibility = Visibility.Collapsed;
             SelectedDocumentPreview.Visibility = Visibility.Collapsed;

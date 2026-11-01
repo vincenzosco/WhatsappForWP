@@ -720,7 +720,12 @@ namespace WhatsappApp.Services
         private static string Cut(string value, int max)
         {
             string text = value ?? "";
-            return text.Length <= max ? text : text.Substring(0, max - 1) + "\u2026";
+            if (text.Length <= max) return text;
+
+            // An emoji is two UTF-16 units: a cut between them leaves half of it, which draws as nothing.
+            int keep = max - 1;
+            if (keep > 0 && char.IsHighSurrogate(text[keep - 1])) keep--;
+            return text.Substring(0, keep) + "\u2026";
         }
     }
 }

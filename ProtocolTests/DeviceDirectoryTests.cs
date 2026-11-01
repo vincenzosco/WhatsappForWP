@@ -184,6 +184,34 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void AGroupSkipsTheDeviceWhoseBundleIsIncomplete()
+        {
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            BinaryNode answer = TwoDevices(peer, true);
+
+            // Only the tablet's registration is removed: the phone's bundle is whole.
+            IList<BinaryNode> users = (IList<BinaryNode>)answer.Child("list").Content;
+            for (int u = 0; u < users.Count; u++)
+            {
+                if (users[u].Attrs["jid"] != PeerBundleFixture.PeerTablet) continue;
+                var children = (IList<BinaryNode>)users[u].Content;
+                for (int i = children.Count - 1; i >= 0; i--)
+                {
+                    if (children[i].Tag == "registration") children.RemoveAt(i);
+                }
+            }
+
+            var skipped = new List<string>();
+            IList<KeyValuePair<string, PreKeyBundle>> bundles =
+                DeviceDirectory.Bundles(answer, true, skipped);
+
+            Assert.AreEqual(1, bundles.Count, "the phone is still sent to");
+            Assert.AreEqual(PeerBundleFixture.PeerPhone, bundles[0].Key);
+            Assert.AreEqual(1, skipped.Count, "the tablet is named as skipped");
+            Assert.AreEqual(PeerBundleFixture.PeerTablet, skipped[0]);
+        }
+
+        [Test]
         public static void ABundleWithoutItsSignedPreKeyIsRefusedByName()
         {
             Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());

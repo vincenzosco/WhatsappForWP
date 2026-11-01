@@ -48,6 +48,13 @@ namespace WhatsappApp.Services
         private static string _fileName;
         private static string _mimeType;
         private static string _note;
+        private static bool _voiceNote;
+
+        /// <summary>True when the attachment is a voice note the user recorded, not a picked file.</summary>
+        public static bool IsVoiceNote
+        {
+            get { return _voiceNote; }
+        }
 
         /// <summary>An attachment nobody has taken yet.</summary>
         public static event Action Ready;
@@ -85,7 +92,7 @@ namespace WhatsappApp.Services
         /// reference to the file may no longer be valid, and the app may have been
         /// terminated.
         /// </summary>
-        public static async Task PutAsync(StorageFile file, string note)
+        public static async Task PutAsync(StorageFile file, string note, bool voiceNote = false)
         {
             if (file == null) return;
 
@@ -96,7 +103,7 @@ namespace WhatsappApp.Services
                 NextCopyName(extension),
                 NameCollisionOption.ReplaceExisting);
 
-            PutLocal(copy.Name, file.Name, mimeType, note);
+            PutLocal(copy.Name, file.Name, mimeType, note, voiceNote);
         }
 
         /// <summary>Deposits the bytes already read (a shared bitmap).</summary>
@@ -109,15 +116,16 @@ namespace WhatsappApp.Services
                 NextCopyName(extension), CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBytesAsync(file, buffer);
 
-            PutLocal(file.Name, fileName, mimeType, note);
+            PutLocal(file.Name, fileName, mimeType, note, false);
         }
 
-        private static void PutLocal(string localName, string fileName, string mimeType, string note)
+        private static void PutLocal(string localName, string fileName, string mimeType, string note, bool voiceNote)
         {
             _localFileName = localName;
             _fileName = fileName;
             _mimeType = string.IsNullOrEmpty(mimeType) ? "image/jpeg" : mimeType;
             _note = note;
+            _voiceNote = voiceNote;
 
             var handler = Ready;
             if (handler != null) handler();
@@ -130,6 +138,7 @@ namespace WhatsappApp.Services
             _fileName = null;
             _mimeType = null;
             _note = null;
+            _voiceNote = false;
         }
 
         /// <summary>

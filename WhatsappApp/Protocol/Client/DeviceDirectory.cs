@@ -169,6 +169,19 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static IList<KeyValuePair<string, PreKeyBundle>> Bundles(BinaryNode answer)
         {
+            return Bundles(answer, false, null);
+        }
+
+        /// <summary>
+        /// The bundles in an answer. With `skipIncomplete` a device whose bundle is missing a
+        /// node is not fatal: it is added to `skipped` by name and the rest are still read.
+        /// A group send uses that, so one device with a broken bundle does not drop the
+        /// message for every other device in the group. Without it, the first incomplete
+        /// bundle throws, as before.
+        /// </summary>
+        public static IList<KeyValuePair<string, PreKeyBundle>> Bundles(BinaryNode answer,
+            bool skipIncomplete, IList<string> skipped)
+        {
             var bundles = new List<KeyValuePair<string, PreKeyBundle>>();
             IList<BinaryNode> users = Users(answer);
 
@@ -183,36 +196,52 @@ namespace WhatsappApp.Protocol.Client
                     throw new ProtocolException("the server answered an error for " + jid);
                 }
 
-                // Every node is named before it is read. `Child` answers null for a
-                // tag that is not there, and a `.Bytes()` on it is a
-                // NullReferenceException that escapes the caller's `catch
-                // (ProtocolException)` - a failure with no name and no device on it,
-                // for an answer that is simply incomplete.
-                var bundle = new PreKeyBundle();
-                bundle.RegistrationId = Number(Required(jid, user, "registration").Bytes());
-                bundle.IdentityKey = Required(jid, user, "identity").Bytes();
-
-                BinaryNode signedPreKey = Required(jid, user, "skey");
-                bundle.SignedPreKeyId = Number(Required(jid, signedPreKey, "id").Bytes());
-                bundle.SignedPreKeyPublic = Required(jid, signedPreKey, "value").Bytes();
-                bundle.SignedPreKeySignature = Required(jid, signedPreKey, "signature").Bytes();
-                bundle.HasSignedPreKey = bundle.SignedPreKeyId != 0;
-
-                BinaryNode oneTime = user.Child("key");
-                if (oneTime != null)
+                PreKeyBundle bundle;
+                try
                 {
-                    bundle.PreKeyId = Number(Required(jid, oneTime, "id").Bytes());
-                    bundle.PreKeyPublic = Required(jid, oneTime, "value").Bytes();
-                    bundle.HasPreKey = bundle.PreKeyPublic != null;
+                    bundle = ReadBundle(jid, user);
                 }
-
-                bundle.Check();
-                Verify(jid, bundle);
+                catch (ProtocolException)
+                {
+                    if (!skipIncomplete) throw;
+                    if (skipped != null) skipped.Add(jid);
+                    continue;
+                }
 
                 bundles.Add(new KeyValuePair<string, PreKeyBundle>(jid, bundle));
             }
 
             return bundles;
+        }
+
+        private static PreKeyBundle ReadBundle(string jid, BinaryNode user)
+        {
+            // Every node is named before it is read. `Child` answers null for a
+            // tag that is not there, and a `.Bytes()` on it is a
+            // NullReferenceException that escapes the caller's `catch
+            // (ProtocolException)` - a failure with no name and no device on it,
+            // for an answer that is simply incomplete.
+            var bundle = new PreKeyBundle();
+            bundle.RegistrationId = Number(Required(jid, user, "registration").Bytes());
+            bundle.IdentityKey = Required(jid, user, "identity").Bytes();
+
+            BinaryNode signedPreKey = Required(jid, user, "skey");
+            bundle.SignedPreKeyId = Number(Required(jid, signedPreKey, "id").Bytes());
+            bundle.SignedPreKeyPublic = Required(jid, signedPreKey, "value").Bytes();
+            bundle.SignedPreKeySignature = Required(jid, signedPreKey, "signature").Bytes();
+            bundle.HasSignedPreKey = bundle.SignedPreKeyId != 0;
+
+            BinaryNode oneTime = user.Child("key");
+            if (oneTime != null)
+            {
+                bundle.PreKeyId = Number(Required(jid, oneTime, "id").Bytes());
+                bundle.PreKeyPublic = Required(jid, oneTime, "value").Bytes();
+                bundle.HasPreKey = bundle.PreKeyPublic != null;
+            }
+
+            bundle.Check();
+            Verify(jid, bundle);
+            return bundle;
         }
 
         /// <summary>

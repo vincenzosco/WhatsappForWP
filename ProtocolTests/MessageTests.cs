@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.WaProto;
 
@@ -84,6 +85,29 @@ namespace ProtocolTests
             Message wrapping = Message.Decode(expected);
             Assert.AreEqual(MessageFixture.DeviceSentTo, Message.Destination(wrapping.DeviceSentMessage));
             Assert.AreEqual(MessageFixture.TextBody, Message.Inner(wrapping.DeviceSentMessage).Conversation);
+        }
+
+        [Test]
+        public static void AMentionIsWrittenAndReadBackInTheExtendedText()
+        {
+            var jids = new List<string> { "391111111111@s.whatsapp.net", "392222222222@s.whatsapp.net" };
+
+            Message wire = Message.Decode(Message.TextMentioning("ciao @Ada", jids).Encode());
+
+            Assert.IsTrue(wire.Conversation == null, "a message that names people is an extended text");
+            Assert.AreEqual("ciao @Ada", wire.Body());
+            Assert.AreEqual(2, wire.Mentions().Count);
+            Assert.AreEqual(jids[0], wire.Mentions()[0]);
+            Assert.AreEqual(jids[1], wire.Mentions()[1]);
+        }
+
+        [Test]
+        public static void ATextWithNoMentionsStaysAPlainConversation()
+        {
+            Message wire = Message.Decode(Message.TextMentioning("ciao", new List<string>()).Encode());
+
+            Assert.AreEqual("ciao", wire.Conversation);
+            Assert.AreEqual(0, wire.Mentions().Count);
         }
 
         [Test]
@@ -280,6 +304,39 @@ namespace ProtocolTests
             Assert.AreEqual(0, ProtoReader.Measure(garbage), "nothing here starts a protobuf");
             Assert.Throws<ProtocolException>(delegate { Message.DecodePadded(garbage); },
                 "and the decode says so instead of handing back an empty message");
+        }
+
+        /// <summary>
+        /// A deprecated group is a field the reader does not know: it is stepped over up to its
+        /// end-group, and the field after it is still read. Refusing it ended the whole app-state
+        /// sync on 24 October 2026 ("unsupported protobuf wire type 3").
+        /// </summary>
+        [Test]
+        public static void AnUnknownGroupIsSteppedOverToItsEnd()
+        {
+            // group field 20 (start, wire type 3) { field 1 = 5 }, end-group field 20, then field 1 = 7.
+            byte[] bytes = { 0xA3, 0x01, 0x08, 0x05, 0xA4, 0x01, 0x08, 0x07 };
+
+            var reader = new ProtoReader(bytes);
+            ProtoField group = reader.ReadField();
+            reader.SkipField(group.WireType);
+
+            ProtoField after = reader.ReadField();
+            Assert.AreEqual(1, after.Number, "the field after the group is read");
+            Assert.AreEqual(7, (int)reader.ReadVarint(), "and its value is the one after the group's");
+        }
+
+        /// <summary>A group that is never closed runs past the buffer and is refused, not read as empty.</summary>
+        [Test]
+        public static void AGroupThatNeverEndsIsRefused()
+        {
+            byte[] bytes = { 0xA3, 0x01, 0x08, 0x05 };
+
+            var reader = new ProtoReader(bytes);
+            ProtoField group = reader.ReadField();
+
+            Assert.Throws<ProtocolException>(delegate { reader.SkipField(group.WireType); },
+                "a group with no end-group is not a field");
         }
 
         private static byte[] Hex(string text)

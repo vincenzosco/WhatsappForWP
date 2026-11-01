@@ -29,6 +29,7 @@ const GOOD_CONNECTION = [
   '        private async Task SyncAppStateAsync(NativeSession session)',
   '        {',
   '            BinaryNode answer = await RequestAsync(session, AppStateSync.Query(OutgoingMessage.Id(_random)), true);',
+  '            Diag.Ok("app-state: " + silent.Message + ", asking again");',
   '            try',
   '            {',
   '                applied = AppStateSync.Apply(collection, _appStateKeys);',
@@ -145,6 +146,11 @@ test('a snapshot whose LT-Hash is not checked is reported', () => {
 test('a patch whose MAC is not verified is reported', () => {
   const found = broken({ appState: GOOD_APP_STATE.replace(guard.PATCH_MAC, '') });
   assert.match(found, /patch's MAC is not verified/);
+});
+
+test('a sync that gives up on the first silence is reported', () => {
+  const found = broken({ connection: GOOD_CONNECTION.replace('asking again', 'giving up') });
+  assert.match(found, /asks once/);
 });
 
 test('a reader that applies more than the saved names is reported', () => {

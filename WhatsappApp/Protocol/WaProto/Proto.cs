@@ -206,7 +206,41 @@ namespace WhatsappApp.Protocol.WaProto
                 return;
             }
 
+            if (wireType == 3)
+            {
+                SkipGroup();
+                return;
+            }
+
             throw new ProtocolException("unsupported protobuf wire type " + wireType);
+        }
+
+        /// <summary>
+        /// Steps over a deprecated group: every field up to the end-group that closes it.
+        /// Groups nest, so the walk counts the starts and the ends and stops when the outer
+        /// one is closed. A group that never closes runs past the buffer and is refused.
+        /// </summary>
+        private void SkipGroup()
+        {
+            int depth = 1;
+
+            while (depth > 0)
+            {
+                int type = (int)(ReadVarint() & 7);
+
+                if (type == 3)
+                {
+                    depth++;
+                }
+                else if (type == 4)
+                {
+                    depth--;
+                }
+                else
+                {
+                    SkipField(type);
+                }
+            }
         }
 
         private void Advance(int count)

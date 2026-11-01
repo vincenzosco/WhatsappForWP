@@ -972,7 +972,7 @@ namespace WhatsappApp.Services
             // The chat, not the address it came from: the stanza keeps the sender's device
             // and a row keyed on it would be a row per device (`IncomingMessage.Chat`).
             message.Jid = incoming.Chat;
-            message.Text = incoming.Text;
+            message.Text = NamedMentions(incoming);
             message.Timestamp = incoming.Timestamp;
             message.IsFromMe = false;
             // Who wrote it, for a group: the row's chat is the group, so the sender has to
@@ -1205,16 +1205,50 @@ namespace WhatsappApp.Services
         /// list they had yesterday. What is *not* re-done is the session: an established one
         /// is what the ratchet is for (`DeviceDirectory.Session`).
         /// </summary>
-        public async Task<string> SendTextAsync(string jid, string body)
+        public Task<string> SendTextAsync(string jid, string body)
+        {
+            return SendTextAsync(jid, body, null);
+        }
+
+        /// <summary>
+        /// The members of a group, as JIDs, from the group's own query. The account's own JID
+        /// is left out: nobody is mentioned from this device.
+        /// </summary>
+        public async Task<IList<string>> GroupMembersAsync(string groupJid)
+        {
+            if (!GroupDirectory.IsGroup(groupJid)) throw new ProtocolException("not a group: " + groupJid);
+
+            NativeSession session = OpenSession();
+            BinaryNode answer = await RequestAsync(session,
+                GroupDirectory.Query(OutgoingMessage.Id(_random), groupJid), true);
+
+            GroupInfo group = GroupDirectory.Read(groupJid, answer);
+
+            var members = new List<string>();
+            for (int i = 0; i < group.Participants.Count; i++)
+            {
+                if (group.Participants[i] == Jid) continue;
+                members.Add(group.Participants[i]);
+            }
+            return members;
+        }
+
+        /// <summary>
+        /// A text that names people: `mentionedJids` are the members the words mention, and
+        /// the words carry each of them as `@number` (see `Message.TextMentioning`).
+        /// </summary>
+        public async Task<string> SendTextAsync(string jid, string body, IList<string> mentionedJids)
         {
             if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a message needs a chat to go to");
             if (string.IsNullOrEmpty(body)) throw new ProtocolException("there is nothing to send");
 
             NativeSession session = OpenSession();
 
+            Message message = Message.TextMentioning(body, mentionedJids);
+
             if (OutgoingMessage.IsGroup(jid))
             {
-                return await SendGroupAsync(session, jid, Message.Text(body), OutgoingMessage.TextType, null, body);
+                return await SendGroupAsync(session, jid, message, OutgoingMessage.TextType, null, body);
             }
 
             IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
@@ -1222,7 +1256,8 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, body, devices, timestamp, _random));
+            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, message, OutgoingMessage.TextType, null,
+                devices, timestamp, _random));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
@@ -1252,7 +1287,22 @@ namespace WhatsappApp.Services
 
             NativeSession session = OpenSession();
 
-            BinaryNode answer = await RequestAsync(session, MediaConn.Query(OutgoingMessage.Id(_random)));
+            // The media-connection query is a read, so a silent server is asked once more with
+            // a fresh id before the send is given up. The device log had seven of these
+            // timeouts, each one a message that never left.
+            BinaryNode answer = null;
+            try
+            {
+                answer = await RequestAsync(session, MediaConn.Query(OutgoingMessage.Id(_random)));
+            }
+            catch (ProtocolException silent)
+            {
+                Diag.Failed("native: media connection did not answer, asking again", silent);
+            }
+            if (answer == null)
+            {
+                answer = await RequestAsync(session, MediaConn.Query(OutgoingMessage.Id(_random)));
+            }
             MediaConnInfo conn = MediaConn.Read(answer);
 
             UploadedMedia uploaded = await MediaUpload.SendAsync(new WinRtMediaFetcher(), conn, file,
@@ -1353,8 +1403,13 @@ namespace WhatsappApp.Services
                 IList<KeyValuePair<string, PreKeyBundle>> bundles = null;
                 if (missing.Count > 0)
                 {
+                    var incomplete = new List<string>();
                     bundles = DeviceDirectory.Bundles(await RequestAsync(session,
-                        DeviceDirectory.BundleQuery(missing, _random)));
+                        DeviceDirectory.BundleQuery(missing, _random)), true, incomplete);
+                    for (int i = 0; i < incomplete.Count; i++)
+                    {
+                        Diag.Ok("native: the bundle of " + incomplete[i] + " is incomplete, so it is skipped");
+                    }
                 }
 
                 for (int i = 0; i < targets.Count; i++)
@@ -2297,8 +2352,23 @@ namespace WhatsappApp.Services
             IList<AppStateCollection> collections;
             try
             {
-                BinaryNode answer = await RequestAsync(session,
-                    AppStateSync.Query(OutgoingMessage.Id(_random)), true);
+                // One retry on silence only: a server that let the first query pass in silence
+                // often answers the second. A refusal is an answer and is never asked again.
+                BinaryNode answer = null;
+                for (int attempt = 1; ; attempt++)
+                {
+                    try
+                    {
+                        answer = await RequestAsync(session,
+                            AppStateSync.Query(OutgoingMessage.Id(_random)), true);
+                        break;
+                    }
+                    catch (ProtocolException silent)
+                    {
+                        if (attempt >= 2 || silent.Message.IndexOf("did not answer", StringComparison.Ordinal) < 0) throw;
+                        Diag.Ok("app-state: " + silent.Message + ", asking again");
+                    }
+                }
 
                 if (answer == null || answer.Attrs["type"] == "error")
                 {
@@ -2554,6 +2624,56 @@ namespace WhatsappApp.Services
 
             await session.SendAsync(Calls.Reject(callId, jid));
             Diag.Ok("native: refused the call " + callId + " from " + jid);
+        }
+
+        /// <summary>
+        /// The words of a message with each mention shown as the name the contact uses, not
+        /// as the number WhatsApp writes into the text. A mention with no known name stays as
+        /// the number it was written with.
+        /// </summary>
+        private static string NamedMentions(IncomingMessage incoming)
+        {
+            string text = incoming.Text;
+            if (incoming.Content == null || text == null) return text;
+
+            foreach (string jid in incoming.Content.Mentions())
+            {
+                string name = NameCache.Book.NameFor(jid);
+                if (string.IsNullOrEmpty(name)) continue;
+
+                string number = JidUtils.Normalize(jid);
+                int at = number.IndexOf('@');
+                if (at > 0) number = number.Substring(0, at);
+
+                text = ReplaceWholeNumber(text, number, name);
+            }
+
+            return text;
+        }
+
+        /// <summary>
+        /// Replaces `@number` with `@name`, but only where the number ends: `@3911` must not
+        /// be cut out of `@39111222`, which is a different contact.
+        /// </summary>
+        private static string ReplaceWholeNumber(string text, string number, string name)
+        {
+            string mention = "@" + number;
+            var result = new System.Text.StringBuilder();
+            int from = 0;
+            int at;
+
+            while ((at = text.IndexOf(mention, from, System.StringComparison.Ordinal)) >= 0)
+            {
+                int end = at + mention.Length;
+                bool wholeNumber = end >= text.Length || !char.IsDigit(text[end]);
+
+                result.Append(text, from, at - from);
+                result.Append(wholeNumber ? "@" + name : mention);
+                from = end;
+            }
+
+            result.Append(text, from, text.Length - from);
+            return result.ToString();
         }
 
         /// <summary>
