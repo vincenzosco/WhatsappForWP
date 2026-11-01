@@ -22,8 +22,9 @@
  *     troncamento e' una risposta, non un guasto;
  *  2. `Message.DecodePadded` non ha un `catch (ProtocolException)` nel corpo:
  *     se ricompare, la sonda a eccezioni e' tornata;
- *  3. `DecodePadded` chiede a `ProtoReader.Measure` dove finisce il protobuf,
- *     invece di provare i sedici tagli;
+ *  3. `DecodePadded` chiede alla camminata (`ProtoReader.Measure`, o `EndOfPadded`
+ *     che e' costruita su di lei) dove finisce il protobuf, invece di provare i
+ *     sedici tagli;
  *  4. e quando il conto nell'ultimo byte e' sbagliato - il caso del 24 ottobre
  *     2026, quattro messaggi di gruppo rifiutati con `a protobuf field announces
  *     16 bytes with 14 left` - chiede a `EndOfPadded` quale coda lascia intero
@@ -115,9 +116,13 @@ function problemsFor(files) {
         'probe by exception, which costs one first-chance exception per padding guess in the ' +
         "debugger and reads as a crash in the run's output");
     }
-    if (padded.indexOf('ProtoReader.Measure') < 0) {
-      problems.push(`${MESSAGE}: DecodePadded does not ask ProtoReader.Measure where the ` +
-        'protobuf ends: the padding is being guessed instead of read');
+    // The walk, in either of its two shapes: `Measure` answers where a protobuf ends, and
+    // `EndOfPadded` is the same walk asked once per candidate tail. What this rule refuses is
+    // a `DecodePadded` that asks nothing and cuts the padding on the strength of a byte.
+    if (padded.indexOf('ProtoReader.Measure') < 0 && padded.indexOf('ProtoReader.EndOfPadded') < 0) {
+      problems.push(`${MESSAGE}: DecodePadded does not ask the walk (ProtoReader.Measure, or ` +
+        'EndOfPadded, which is built on it) where the protobuf ends: the padding is being ' +
+        'guessed instead of read');
     }
     if (padded.indexOf('for (') >= 0) {
       problems.push(`${MESSAGE}: DecodePadded walks the sixteen trims in a loop again: the walk ` +

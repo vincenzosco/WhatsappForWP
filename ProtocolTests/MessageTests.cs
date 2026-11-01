@@ -87,6 +87,66 @@ namespace ProtocolTests
             Assert.AreEqual(MessageFixture.TextBody, Message.Inner(wrapping.DeviceSentMessage).Conversation);
         }
 
+        /// <summary>
+        /// The wrapper as the phone writes it: the message **inside** `deviceSentMessage`
+        /// carries WhatsApp's own padding, and the reader used to hand those bytes to
+        /// `Decode` exactly as they were.
+        ///
+        /// Why it is a test: the run of 1 November 2026 could not open the echo of a message
+        /// sent from the account's own phone - `a protobuf field announces 9 bytes with 7
+        /// left` - and asked the sender for it again, which is the same bytes. Those nine
+        /// bytes are the padding: this padding is nine bytes of the value nine, so the first
+        /// two read as field 1 (`0x09`, wire type 1) with a length of nine while seven are
+        /// left. `Bytes` ignores the wire type in the field's own number, which is why the
+        /// sentence names a `conversation` nobody wrote.
+        /// </summary>
+        [Test]
+        public static void ADeviceSentFormWhoseMessageIsPaddedIsReadBack()
+        {
+            byte[] wrapper = WrapperWith(Message.Text("padded inside").Encode(), 9);
+
+            Assert.AreEqual("padded inside", Message.Inner(wrapper).Body(),
+                "the message inside the wrapper carries the sender's padding");
+            Assert.AreEqual(MessageFixture.DeviceSentTo, Message.Destination(wrapper));
+        }
+
+        /// <summary>
+        /// And the failure itself, pinned on the bytes: read as a message with no padding the
+        /// wrapped copy is the refusal of 1 November 2026, byte for byte.
+        /// </summary>
+        [Test]
+        public static void ThePaddedCopyOfOneNovemberIsTheRefusalItWas()
+        {
+            byte[] padded = Padded(Message.Text("padded inside").Encode(), 9);
+
+            try
+            {
+                Message.Decode(padded);
+            }
+            catch (ProtocolException refused)
+            {
+                Assert.IsTrue(refused.Message.IndexOf("announces 9 bytes with 7 left",
+                    StringComparison.Ordinal) >= 0,
+                    "the padding is what the reader tripped over: " + refused.Message);
+                return;
+            }
+
+            throw new AssertionException("nine bytes of padding behind a message were read as a field");
+        }
+
+        /// <summary>
+        /// The wrapper's own content may carry the padding too - one client pads what it puts
+        /// inside the field - and the destination and the words are still read.
+        /// </summary>
+        [Test]
+        public static void ADeviceSentFormWhoseWrapperIsPaddedIsReadBack()
+        {
+            byte[] wrapper = Padded(WrapperWith(Message.Text("padded outside").Encode(), 0), 5);
+
+            Assert.AreEqual(MessageFixture.DeviceSentTo, Message.Destination(wrapper));
+            Assert.AreEqual("padded outside", Message.Inner(wrapper).Body());
+        }
+
         [Test]
         public static void AMentionIsWrittenAndReadBackInTheExtendedText()
         {
@@ -431,6 +491,32 @@ namespace ProtocolTests
             Assert.AreEqual(body, Message.Decode(encoded).Conversation,
                 "the emoji of 15.0 has to reach the other side as itself, not as the older one "
                 + "this phone draws it with");
+        }
+
+        /// <summary>
+        /// A `deviceSentMessage` with `inner` behind field 2, and `pad` bytes of its own after
+        /// that field's content - the shape a phone writes, which `Message.DeviceSent` does
+        /// not reproduce (it pads nothing inside).
+        /// </summary>
+        private static byte[] WrapperWith(byte[] inner, int pad)
+        {
+            return new ProtoWriter()
+                .Text(1, MessageFixture.DeviceSentTo)
+                .Bytes(2, Padded(inner, pad))
+                .ToArray();
+        }
+
+        /// <summary>`count` bytes of the value `count` behind `message`: WhatsApp's padding.</summary>
+        private static byte[] Padded(byte[] message, int count)
+        {
+            if (count == 0) return message;
+
+            var padded = new byte[message.Length + count];
+            Buffer.BlockCopy(message, 0, padded, 0, message.Length);
+
+            for (int i = message.Length; i < padded.Length; i++) padded[i] = (byte)count;
+
+            return padded;
         }
 
         private static byte[] Hex(string text)

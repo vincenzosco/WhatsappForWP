@@ -148,7 +148,19 @@ namespace WhatsappApp.Protocol.WaProto
             return System.Text.Encoding.UTF8.GetString(fields[1], 0, fields[1].Length);
         }
 
-        /// <summary>The message a device-sent form wraps.</summary>
+        /// <summary>
+        /// The message a device-sent form wraps, read **as a plaintext**: WhatsApp's own
+        /// clients pad the copy they put inside this field, and reading it with `Decode` was
+        /// the refusal of 1 November 2026.
+        ///
+        /// Why the padding is here and not only behind the stanza: the sender writes the
+        /// wrapper, then pads the wrapper; a client that pads what it puts *inside* the field
+        /// is equally real - the nine bytes of the phone's copy are `09` nine times, which
+        /// `Decode` reads as field 1 with a length of nine while seven are left (`a protobuf
+        /// field announces 9 bytes with 7 left`), and the answer to that was a `retry` for
+        /// bytes that were never damaged. The words of a message sent from the account's own
+        /// phone were lost that way, once per message.
+        /// </summary>
         public static Message Inner(byte[] deviceSent)
         {
             Dictionary<int, byte[]> fields = Fields(deviceSent);
@@ -157,7 +169,7 @@ namespace WhatsappApp.Protocol.WaProto
                 throw new ProtocolException("a device-sent form with no message inside it");
             }
 
-            return Decode(fields[2]);
+            return DecodePadded(fields[2]);
         }
 
         /// <summary>
@@ -338,20 +350,36 @@ namespace WhatsappApp.Protocol.WaProto
                 throw new ProtocolException("a message carries no bytes; there is nothing to read");
             }
 
-            int whole = ProtoReader.Measure(plaintext);
-
-            // Asked, not assumed: the walk says whether this plaintext is a whole message, and
-            // when it is not, which tail leaves one. The last byte names the padding and is
-            // usually right; when it is not (a payload whose tail was cut, a wrapper that padded
-            // its own inner message), the other fifteen are tried before the message is refused
-            // - each one a walk, never a parse that throws.
-            int ended = whole == plaintext.Length
-                ? whole
-                : ProtoReader.EndOfPadded(plaintext, plaintext[plaintext.Length - 1]);
+            // Asked, not assumed: the walk says which tail of this plaintext leaves a whole
+            // message, and the last byte - the count - is asked about first. It has to be: the
+            // padding WhatsApp writes is the count repeated, so the padded buffer also walks as
+            // a whole protobuf, and asking the buffer first read the padding as a field of the
+            // message (`a protobuf field announces 9 bytes with 7 left`, the echo of 1 November
+            // 2026). The other fifteen tails are tried before the message is refused - each one
+            // a walk, never a parse that throws.
+            int ended = ProtoReader.EndOfPadded(plaintext, plaintext[plaintext.Length - 1]);
 
             if (ended > 0) return Decode(Head(plaintext, ended));
 
             return Decode(plaintext);
+        }
+
+        /// <summary>
+        /// The bytes of a sub-message without the padding that may follow them.
+        ///
+        /// The same walk `DecodePadded` makes, in the one form this reader needs: the answer is
+        /// the bytes themselves when nothing is behind them, so an unpadded sub-message costs
+        /// no copy and no search.
+        /// </summary>
+        private static byte[] TrimPadding(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return bytes;
+
+            int whole = ProtoReader.Measure(bytes);
+            if (whole == bytes.Length) return bytes;
+
+            int ended = ProtoReader.EndOfPadded(bytes, bytes[bytes.Length - 1]);
+            return ended > 0 ? Head(bytes, ended) : bytes;
         }
 
         private static byte[] Head(byte[] bytes, int length)
@@ -370,6 +398,10 @@ namespace WhatsappApp.Protocol.WaProto
         private static Dictionary<int, byte[]> Fields(byte[] bytes)
         {
             if (bytes == null) throw new ProtocolException("no message bytes to read");
+
+            // The sub-message is a plaintext, and a plaintext may carry the padding behind it:
+            // cut it off before the walk, or the tail reads as a field of its own.
+            bytes = TrimPadding(bytes);
 
             var fields = new Dictionary<int, byte[]>();
             var reader = new ProtoReader(bytes);

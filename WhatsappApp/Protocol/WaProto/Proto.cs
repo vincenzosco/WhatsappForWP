@@ -391,19 +391,28 @@ namespace WhatsappApp.Protocol.WaProto
         ///
         /// Every candidate is a walk, not a parse: nothing here throws, which is the whole point
         /// of it (`tools/check-no-exception-probes.js`).
+        ///
+        /// The count comes **before** the "this is already whole" question, and that order is
+        /// the difference between a message and a refusal: WhatsApp's own padding is the count
+        /// repeated, so nine bytes of `09` behind a message walk as one valid 64-bit field
+        /// (tag `0x09` is field 1, wire type 1) and the padded buffer measures *whole* - which
+        /// is how the echo of 1 November 2026 was read as a protobuf and then refused with `a
+        /// protobuf field announces 9 bytes with 7 left`. Whichever tail the count names is
+        /// asked about first, and the padded buffer is only accepted when no candidate is
+        /// whole.
         /// </summary>
         public static int EndOfPadded(byte[] bytes, int declared)
         {
             if (bytes == null || bytes.Length == 0) return 0;
-
-            // A plaintext with no padding at all is a whole protobuf already.
-            if (Measure(bytes, bytes.Length) == bytes.Length) return bytes.Length;
 
             if (declared >= 1 && declared <= MaxPadding && declared < bytes.Length)
             {
                 int declaredEnd = bytes.Length - declared;
                 if (Measure(bytes, declaredEnd) == declaredEnd) return declaredEnd;
             }
+
+            // Then a plaintext with no padding at all, which is a whole protobuf already.
+            if (Measure(bytes, bytes.Length) == bytes.Length) return bytes.Length;
 
             // Then every other tail, keeping as many bytes as possible: a message that lost two
             // bytes to the wrong count reads at the smallest cut that leaves it whole.

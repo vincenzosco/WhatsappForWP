@@ -984,6 +984,18 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            if (incoming.Refused == IncomingRefusal.Channel)
+            {
+                // A channel's post: the ciphertext is the channel's own sender key and this
+                // device is never handed it, so there is nothing to retry. The ack above has
+                // already stopped the re-delivery; a line says that the row this app does not
+                // draw was seen and left alone, which is the difference between a post nobody
+                // can read and a post nobody received.
+                Diag.Ok("native: " + incoming.Id + " in " + incoming.Chat
+                    + " is a channel post, which this client cannot open; the copy is acknowledged");
+                return;
+            }
+
             if (incoming.Refused == IncomingRefusal.Unreadable)
             {
                 // The ciphertext opened and what came out is not a message: the bytes are

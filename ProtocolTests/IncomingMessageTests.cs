@@ -207,6 +207,64 @@ namespace ProtocolTests
                 "the refusal names what arrived, and it said: " + failed);
         }
 
+        /// <summary>
+        /// A channel's post: it carries no `enc` for this device at all, and the answer is not
+        /// a `retry`.
+        ///
+        /// Why: a `@newsletter` post is encrypted with the channel's own sender key, which
+        /// WhatsApp hands to the phone that subscribed and never to a linked companion. Read as
+        /// an ordinary message it was `no enc for this device`, and the connection answered with
+        /// a retry for bytes that were never damaged - the two channels of 1 November 2026 were
+        /// asked again on every connection, and the rows they belong to are ones this app does
+        /// not even draw. The refusal is a value so the caller acks the copy.
+        /// </summary>
+        [Test]
+        public static void AChannelPostIsANamedRefusalAndNotARetry()
+        {
+            var world = new World();
+
+            var post = new BinaryNode("message");
+            post.Attrs.Add("id", "3EB059B9B112C1B0BDD89E");
+            post.Attrs.Add("from", "120363175479296080@newsletter");
+            post.Attrs.Add("type", "media");
+            post.Attrs.Add("t", "1760000000");
+
+            IncomingMessage incoming = IncomingMessage.Read(post, world.Us, world.Sessions, world.PreKeys,
+                new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(IncomingRefusal.Channel, incoming.Refused,
+                "a post nobody here can open is answered as one, not asked for again");
+            Assert.AreEqual("120363175479296080@newsletter", incoming.Chat,
+                "and it is named so the log says which channel it was");
+            Assert.AreEqual("3EB059B9B112C1B0BDD89E", incoming.Id);
+        }
+
+        /// <summary>
+        /// And the same shape from a person is still a failure: a retry is the right answer for
+        /// a message that should have been encrypted for this device, and a broader rule that
+        /// swallowed both would lose the ordinary messages too.
+        /// </summary>
+        [Test]
+        public static void AMessageWithNoCiphertextForThisDeviceIsStillAFailure()
+        {
+            var world = new World();
+
+            var stanza = new BinaryNode("message");
+            stanza.Attrs.Add("id", "A1B2C3D4E5F60718");
+            stanza.Attrs.Add("from", PeerDevice);
+            stanza.Attrs.Add("type", "text");
+
+            string failed = Failed(delegate
+            {
+                IncomingMessage.Read(stanza, world.Us, world.Sessions, world.PreKeys,
+                    new SeenMessages(64), new SignalSessions.CounterRandom());
+            });
+
+            Assert.IsTrue(failed != null, "a message with no copy for this device does not read");
+            Assert.IsTrue(failed.Contains("no enc for this device"),
+                "and the refusal says which: " + failed);
+        }
+
         [Test]
         public static void TheAckNamesTheStanzaItAnswers()
         {

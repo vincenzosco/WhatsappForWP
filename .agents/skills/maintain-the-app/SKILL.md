@@ -367,6 +367,27 @@ waiting) and the message is marked read when the reader reaches it.
   pre-key one; a device linked by a build that did not keep it has to be linked
   again, because nothing on the wire can rebuild the signature.
   `tools/check-device-identity.js` holds the four cables.
+- **The copy inside the wrapper is a plaintext, and WhatsApp pads it too.**
+  `deviceSentMessage` holds `destinationJid` (field 1) and the message (field 2),
+  and the message inside it arrives with the sender's padding behind it - nine
+  bytes of `09` in the copy the phone wrote on 1 November 2026. `Decode` read
+  them as a field (`0x09` is field 1, so `Bytes` took the next byte as a length
+  of nine with seven left: `a protobuf field announces 9 bytes with 7 left`) and
+  the answer was a `retry` for bytes nobody had damaged, once per message sent
+  from the account's own phone. `Message.Inner` therefore decodes with
+  `DecodePadded`, and `Message.Fields` - the wrapper, the extended text - cuts
+  the padding off before it walks. The count is asked **before** "is this whole":
+  the padding is the count repeated, so the padded buffer walks as one valid
+  64-bit field and was accepted as the whole message.
+- **A channel's post is not for a device.** `@newsletter` posts are encrypted
+  with the channel's own sender key, which WhatsApp hands to the subscribing
+  phone and never to a linked companion, so the stanza carries no `enc` for us at
+  all. Read as an ordinary message it was `no enc for this device`, and the
+  connection answered with a `retry` that could never help - two channels were
+  asked again on every connection of 1 November 2026. `IncomingMessage.ReadStanza`
+  asks `JidUtils.IsChannel` first and answers `IncomingRefusal.Channel`, which
+  `ReadMessageAsync` acknowledges and names once - the rows these posts belong to
+  are ones the app does not draw anyway (`JidUtils.IsConversation`).
 
 - **A notification is answered, and the answer goes out first.** `<notification>` stanzas
   that carry an `id` are questions: the answer is `IncomingMessage.Ack`, which is

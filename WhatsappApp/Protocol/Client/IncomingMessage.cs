@@ -34,7 +34,16 @@ namespace WhatsappApp.Protocol.Client
         /// again asks for the same bytes - the run of 24 October 2026 asked for four of these
         /// on every connection - so the caller acknowledges the copy and moves on.
         /// </summary>
-        Unreadable
+        Unreadable,
+
+        /// <summary>
+        /// A channel's post (`@newsletter`). Its ciphertext is the channel's own sender key,
+        /// which WhatsApp hands to a phone that subscribed and never to a linked companion,
+        /// so there is no `enc` for this device to open - and a `retry` asks for the same
+        /// post for ever (the two channels of 1 November 2026, once per connection). The
+        /// copy is acknowledged and named once.
+        /// </summary>
+        Channel
     }
 
     /// <summary>
@@ -221,6 +230,16 @@ namespace WhatsappApp.Protocol.Client
             }
 
             BinaryNode enc = EncFor(message, credentials);
+
+            // A channel's post is not for a device: its ciphertext is the channel's own sender
+            // key, which a linked companion is never given. It is answered as what it is - a
+            // value, so the caller acks the copy - instead of an exception, which asked the
+            // channel to send the same bytes again on every connection.
+            if (enc == null && JidUtils.IsChannel(from))
+            {
+                return NotRead(message, id, from, source, IncomingRefusal.Channel);
+            }
+
             if (enc == null) throw new ProtocolException("no enc for this device in message " + id);
 
             bool preKey = enc.Attrs["type"] == OutgoingMessage.PreKeyType;

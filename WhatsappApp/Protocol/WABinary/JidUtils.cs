@@ -158,6 +158,22 @@ namespace WhatsappApp.Protocol.WABinary
         }
 
         /// <summary>
+        /// Whether this address is a channel (`@newsletter`): a broadcast whose posts are
+        /// encrypted with a key this client never receives.
+        ///
+        /// Why it is asked at the message path and not only at the list: a post arrives as an
+        /// ordinary `message` stanza with no `enc` for this device at all, so the reader refused
+        /// it (`no enc for this device`) and answered with a `retry` - for bytes that were never
+        /// damaged and a key that was never going to come. The run of 1 November 2026 asked two
+        /// channels to send again, once per connection.
+        /// </summary>
+        public static bool IsChannel(string jid)
+        {
+            DecodedJid decoded = Decode(jid);
+            return decoded.IsJid && decoded.Server == "newsletter";
+        }
+
+        /// <summary>
         /// Whether this address is a LID: the identifier WhatsApp uses for an account whose
         /// phone number this phone does not know yet.
         ///

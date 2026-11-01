@@ -82,10 +82,19 @@ test('un DecodePadded che cattura di nuovo si segnala', () => {
   assert.match(problems[0], /catches a ProtocolException again/);
 });
 
-test('un DecodePadded che non chiede a Measure si segnala', () => {
+test('un DecodePadded che non chiede niente alla camminata si segnala', () => {
+  // Ne' `Measure` ne' `EndOfPadded`: taglia il padding sulla parola di un byte, e il conto
+  // sbagliato e' il messaggio perso del 24 ottobre 2026. Due regole lo dicono.
+  const problems = guard.problemsFor(sources({ measureCall: false, endCall: false }));
+  assert.strictEqual(problems.length, 2);
+  assert.ok(problems.some((one) => /does not ask the walk/.test(one)));
+});
+
+test('un DecodePadded che chiede solo a EndOfPadded passa quella regola', () => {
+  // La camminata e' una sola: il conto si chiede alla sua forma vera, e `Measure`
+  // dentro non serve piu' - chiederlo prima accettava il buffer imbottito come intero.
   const problems = guard.problemsFor(sources({ measureCall: false }));
-  assert.strictEqual(problems.length, 1);
-  assert.match(problems[0], /does not ask ProtoReader.Measure/);
+  assert.deepStrictEqual(problems, []);
 });
 
 test('un giro dei sedici tagli si segnala', () => {
