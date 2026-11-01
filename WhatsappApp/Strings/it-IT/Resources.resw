@@ -91,6 +91,12 @@
   <data name="CallsPage_Missed" xml:space="preserve">
     <value>Chiamata persa</value>
   </data>
+  <data name="Notification_MissedCall" xml:space="preserve">
+    <value>Chiamata persa</value>
+  </data>
+  <data name="Notification_Status" xml:space="preserve">
+    <value>Nuovo stato</value>
+  </data>
   <data name="CallsPage_Declined" xml:space="preserve">
     <value>Chiamata rifiutata</value>
   </data>
@@ -111,6 +117,21 @@
   </data>
   <data name="CallsPage_NotConnected" xml:space="preserve">
     <value>Non connesso al server: il registro chiamate non è disponibile.</value>
+  </data>
+  <data name="Common_Ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+    <value>Elimina per tutti</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneTitle" xml:space="preserve">
+    <value>Eliminare per tutti?</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneBody" xml:space="preserve">
+    <value>Sparisce per tutti in questa chat, su ogni dispositivo che usano.</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneFailed" xml:space="preserve">
+    <value>WhatsApp non ha preso indietro il messaggio. Il messaggio è ancora qui; riprova quando il telefono è connesso.</value>
   </data>
   <data name="Common_Refresh" xml:space="preserve">
     <value>aggiorna</value>
@@ -181,6 +202,24 @@
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Io</value>
   </data>
+  <data name="ChatPage_Retry.Text" xml:space="preserve">
+    <value>Riprova</value>
+  </data>
+  <data name="ChatPage_DeleteHere" xml:space="preserve">
+    <value>Elimina solo qui</value>
+  </data>
+  <data name="ChatPage_DeleteHereTitle" xml:space="preserve">
+    <value>Eliminare questo messaggio?</value>
+  </data>
+  <data name="ChatPage_DeleteHereBody" xml:space="preserve">
+    <value>Sparisce da questo telefono. L'altra persona mantiene la sua copia.</value>
+  </data>
+  <data name="ChatPage_DeleteConfirm" xml:space="preserve">
+    <value>Elimina</value>
+  </data>
+  <data name="ChatPage_Cancel" xml:space="preserve">
+    <value>Annulla</value>
+  </data>
   <data name="ChatPage_ImageError" xml:space="preserve">
     <value>Impossibile aprire l'immagine: {0}</value>
   </data>
@@ -231,6 +270,15 @@
   </data>
   <data name="ChatsPage_MoreTooltip" xml:space="preserve">
     <value>Altro</value>
+  </data>
+  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
+    <value>Cerca</value>
+  </data>
+  <data name="ChatsPage_SearchTooltip" xml:space="preserve">
+    <value>Cerca</value>
+  </data>
+  <data name="ChatsPage_SearchClose" xml:space="preserve">
+    <value>Chiudi la ricerca</value>
   </data>
   <data name="ChatsPage_PinChat" xml:space="preserve">
     <value>Fissa una chat</value>
@@ -340,6 +388,15 @@
   <data name="TileUnreadMany" xml:space="preserve">
     <value>{0} messaggi non letti</value>
   </data>
+  <data name="TileStatusLabel" xml:space="preserve">
+    <value>Stati</value>
+  </data>
+  <data name="TileStatusOne" xml:space="preserve">
+    <value>1 nuovo stato</value>
+  </data>
+  <data name="TileStatusMany" xml:space="preserve">
+    <value>{0} nuovi stati</value>
+  </data>
   <data name="ChatsPage_Diagnostics.Content" xml:space="preserve">
     <value>Perché è vuota?</value>
   </data>
@@ -418,11 +475,29 @@
   <data name="Settings_ThemeHint.Text" xml:space="preserve">
     <value>Lo sfondo delle chat e dell'elenco. La scelta vale per tutta l'app.</value>
   </data>
+  <data name="Settings_AlertsLabel.Text" xml:space="preserve">
+    <value>Avvisi</value>
+  </data>
+  <data name="Settings_AlertsHint.Text" xml:space="preserve">
+    <value>Quali avvisi compaiono nell'area notifiche. La tile e il numero sull'icona non cambiano.</value>
+  </data>
+  <data name="Settings_AlertsMessages.Text" xml:space="preserve">
+    <value>Messaggi</value>
+  </data>
+  <data name="Settings_AlertsStatuses.Text" xml:space="preserve">
+    <value>Stati</value>
+  </data>
+  <data name="Settings_AlertsCalls.Text" xml:space="preserve">
+    <value>Chiamate perse</value>
+  </data>
   <data name="Settings_BackgroundLabel.Text" xml:space="preserve">
     <value>Controllo in background</value>
   </data>
   <data name="Settings_BackgroundHint.Text" xml:space="preserve">
     <value>Ogni 15 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. 15 minuti e' l'intervallo piu' breve che Windows permette: il momento esatto lo decide lui e puo' rimandarlo.</value>
+  </data>
+  <data name="Settings_BackgroundState.Text" xml:space="preserve">
+    <value>Il telefono non permette alle app di lavorare in background: il controllo non si sveglia finche' non lo riattivi nelle sue impostazioni.</value>
   </data>
   <data name="Settings_AccountLabel.Text" xml:space="preserve">
     <value>Account</value>
@@ -450,6 +525,24 @@
   </data>
   <data name="StatusViewer_Retry.Content" xml:space="preserve">
     <value>Riprova</value>
+  </data>
+  <data name="StatusViewer_Previous" xml:space="preserve">
+    <value>Aggiornamento precedente</value>
+  </data>
+  <data name="StatusViewer_Next" xml:space="preserve">
+    <value>Aggiornamento successivo</value>
+  </data>
+  <data name="StatusViewer_Count" xml:space="preserve">
+    <value>{0} di {1}</value>
+  </data>
+  <data name="StatusPage_Updates" xml:space="preserve">
+    <value>{0} aggiornamenti</value>
+  </data>
+  <data name="StatusPage_MarkAllViewed" xml:space="preserve">
+    <value>Segna tutti come visti</value>
+  </data>
+  <data name="CallsPage_MarkAllSeen" xml:space="preserve">
+    <value>Segna tutte come viste</value>
   </data>
 </root>
 

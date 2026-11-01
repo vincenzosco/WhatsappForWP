@@ -93,13 +93,14 @@ namespace WhatsappApp.Services
                 var tail8 = new Dictionary<string, string>();
 
                 int named = 0;
+                int unnamed = 0;
                 for (int i = 0; i < contacts.Count; i++)
                 {
                     Contact contact = contacts[i];
                     if (contact == null) continue;
 
-                    string name = NameBook.Clean(contact.DisplayName);
-                    if (name == null) continue;
+                    string name = NameOf(contact);
+                    if (name == null) { unnamed++; continue; }
 
                     IList<ContactPhone> phones = contact.Phones;
                     if (phones == null) continue;
@@ -128,7 +129,7 @@ namespace WhatsappApp.Services
                 }
 
                 Diag.Ok("contacts: " + contacts.Count + " in the address book, "
-                    + named + " number(s) named");
+                    + named + " number(s) named, " + unnamed + " contact(s) with no name");
 
                 await ApplyToTheListAsync();
             }
@@ -136,6 +137,42 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("ContactDirectory/Load", ex);
             }
+        }
+
+        /// <summary>
+        /// What the address book calls a contact.
+        ///
+        /// Why it is not just `DisplayName`: a contact saved with its name in the
+        /// fields and no display name of its own - and one saved only as a company -
+        /// answers null there, and used to be skipped whole, so every chat with that
+        /// person kept its number while the book on the same phone had a name for it.
+        /// The display name still wins when it exists: it is the one the contact chose.
+        /// </summary>
+        private static string NameOf(Contact contact)
+        {
+            string name = NameBook.Clean(contact.DisplayName);
+            if (name != null) return name;
+
+            string first = contact.FirstName == null ? "" : contact.FirstName.Trim();
+            string last = contact.LastName == null ? "" : contact.LastName.Trim();
+
+            name = NameBook.Clean((first + " " + last).Trim());
+            if (name != null) return name;
+
+            // A contact saved as a company has no person's name at all, and is the one the
+            // address book shows by its company - the same thing this row should show.
+            IList<ContactJobInfo> jobs = contact.JobInfo;
+            if (jobs == null) return null;
+
+            for (int i = 0; i < jobs.Count; i++)
+            {
+                if (jobs[i] == null) continue;
+
+                name = NameBook.Clean(jobs[i].CompanyName);
+                if (name != null) return name;
+            }
+
+            return null;
         }
 
         /// <summary>

@@ -53,10 +53,12 @@ WP8 app bar. A conversation is a page of its own.
 
 What works today:
 
-- text messages, images and voice notes, with sent/delivered/read marks on every bubble
+- text messages, images and voice notes, with sent/delivered/read marks on every bubble, and a **Try again** line under a bubble whose send did not make it
+- a search over the chat list, by name, by what the chat last said, or by the number
+- a long press on a message copies its words, deletes it on this phone, or takes it back from everybody within two days - and a message another device takes back goes from this one too
 - the real chat list from the history sync, avatars, unread counts, groups, and the names saved in the primary phone's WhatsApp address book, which arrive encrypted in the account's app state
 - typing indicators in both directions
-- the status feed: what contacts posted, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, and an update whose photo did not arrive has a **Try again** button instead of a dead end
+- the status feed: what contacts posted, with the author's picture and the name WhatsApp sends with the update, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, the preview of an update leaves the row once the day is watched, and an update whose photo did not arrive has a **Try again** button instead of a dead end
 - the call log, both directions, with missed calls spelled out
 - a live tile that rotates the people waiting - their name and their message, and between one message and the next the picture alone of somebody still unanswered - plus a pinned-chat tile, lock screen text, and a background check about every 15 minutes
 - theme picker with the wallpapers the released package ships, plus the doodle and plain white
@@ -70,7 +72,7 @@ C# 5; a phone that is not your main number.
 **Not for:** replacing WhatsApp on your main phone. This is an unofficial client, it breaks
 WhatsApp's Terms of Service, and the number that links it can be banned. Use a test or secondary
 number. It is also not a complete client yet: voice notes in Ogg/Opus do not play, older history
-is not fetched on demand, deletions and edits from other devices are not read.
+is not fetched on demand, and edits made from other devices are not read.
 
 ## Build it
 
@@ -129,7 +131,27 @@ Tips:
   a new version of the app does not leave the card of the previous one on the Start screen. The
   picture it draws is the full-size profile picture it asks WhatsApp for once the chat is pinned,
   not the small preview the chat list uses: the tile is the one place that shows a face at the
-  size of the tile.
+  size of the tile. When somebody posted an update nobody has watched, one turn of the tile says so
+  ("Updates" over "3 new updates"): the tab's own badge is only visible with the app open, and the
+  number on the icon is the messages waiting, which an update is not. The turns that have nobody's
+  face on them are painted with the background chosen in Settings - Tema: that wallpaper, or the
+  phone's accent colour when the choice is plain white - so the tile is the same look as the list.
+  The WhatsApp mark is drawn on that background, dimmed so a white glyph reads on it, and the wide
+  tile is filled with the same background instead of framing a square in teal.
+- An update somebody posted and a call nobody answered each raise a notification, in the same
+  area as a message: the author's name, and nothing else - the update itself is opened where it is.
+  Each is announced once, from a mark kept on the phone, because WhatsApp re-sends the whole day
+  of updates and the whole call log at every login. Messages, updates and missed calls have a
+  switch each in Settings; the tile and the number on the icon are not one of them.
+- The Calls badge counts the missed calls that arrived since the log was last on screen, so it goes
+  back to zero when the tab is opened instead of showing the same number for good.
+- Emoji work the way this phone can. A face the font of Windows Phone 8.1 has never had - the
+  light blue heart, the mechanical arm, the ringed planet - is drawn as the nearest older face it
+  does have, and one with no older cousin is left out rather than drawn as a box. What is sent is
+  what was written, so a newer phone on the other side sees exactly that. Typing a smile the old
+  way still sends a face: the text box asks the keyboard for the chat scope, which is what puts its
+  emoji key next to the space bar, and `:)` - or `:(`, `;)`, `:D`, `:P`, `:O`, `:|`, `<3`, `</3` -
+  becomes the face itself on the way out, even from a keyboard that does neither.
 - The background check is on by default. Turn it off in Settings if the phone should stay quiet.
 - If the app opens an empty list and stays there, open the Diagnostics page from the empty state:
   it shows the last `DIAG` lines.
@@ -194,6 +216,23 @@ there is no cloud service to push through, so `BackgroundSync` wakes on a `TimeT
 reads what is waiting, updates the tile and the lock screen, and closes. 15 minutes is the
 shortest interval a `TimeTrigger` accepts; the system decides the exact moment and can delay it.
 Turn it off in Settings if you prefer nothing in the background.
+
+The permission is the phone's, not the switch's: the user can take background work away from the
+app in the phone's own settings, and battery saver does it on its own for a while. The
+registration stays and nothing wakes, so Settings reads the permission again on every visit and
+says so under the switch instead of showing a switch that is on for a check that never runs.
+
+Diagnostics answers the same question for a report: the interval, whether the task is registered,
+whether the phone permits it, and what the last wake did - when it started, how it ended, how long
+it took and what it put on the tile. `running` with no ending is a wake the system took down at its
+30-second ceiling.
+
+A start always lands on the chats. It used to land on the section the app was left on, and on
+28 October 2026 that was the Status tab: the app opened on somebody's updates instead of on the
+conversations. WP8.1 hands a tap on the tile the same empty arguments as the app list, so the app
+still writes down what the phone is advertising when it draws the badge and reads it back once at
+the next start - it is named in the log, and it no longer chooses the tab: the badges on Status and
+Calls are what say those two have something new.
 </details>
 
 <details>
@@ -240,14 +279,18 @@ node tools/check-fire-and-forget.js no task whose fault nobody observes
 node tools/check-project-files.js   every file the projects compile
 node tools/check-xaml-names.js      one x:Name per namescope
 node tools/check-client-state.js    the login's passive/active sentences and the notification channel
-node tools/check-background-task.js the task's activatable class and its 30 s budget
+node tools/check-background-task.js the task's activatable class, its 30 s budget, and the phone's permission
 node tools/check-diagnostics.js     the log that survives a crash
+node tools/check-launch-route.js    a tap on the tile: what it records and the one start that uses it
+node tools/check-notification-alerts.js  an update and a missed call announced once, and a badge that drops
 node tools/check-held-group.js       a group message that waits for its sender key instead of a retry
 node tools/check-avatar-refusal.js   a chat that refuses its picture, told apart from a missing login
 node tools/check-no-exception-probes.js  the padding is read, not guessed with a throw per trim
 node tools/check-app-state.js       the saved names: the shared keys are kept, the sync is asked, the rows are told
 node tools/check-chat-list-refresh.js  one chat per person, and a list that asks for its rows again
 node tools/check-one-row-per-chat.js  a chat row is created canonical and once: list, groups, statuses
+node tools/check-emoji.js           emoji the font lacks, and a typed smile that leaves as a face
+node tools/check-send-path.js       a tap the send path drops says why in diag.log
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
@@ -260,7 +303,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` builds and runs the 376 protocol tests in `ProtocolTests/`. The protocol
+`tools/test-protocol.js` builds and runs the 418 protocol tests in `ProtocolTests/`. The protocol
 tests are plain C# with a tiny runner, because the WP8.1 toolchain cannot host a modern test
 framework.
 

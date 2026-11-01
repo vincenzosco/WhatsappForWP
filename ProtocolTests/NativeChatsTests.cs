@@ -204,6 +204,23 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void AnEmptySyncDoesNotEraseExistingRows()
+        {
+            var chats = new NativeChats();
+            chats.ApplyHistory(HistorySync.Decode(Hex(HistoryFixture.Plain)));
+
+            var empty = new HistorySync();
+            empty.SyncType = HistorySync.Recent;
+            empty.Progress = 100;
+            chats.ApplyHistory(empty);
+
+            Assert.AreEqual(2, chats.Rows.Count,
+                "a sync without conversations must not erase the cached/native rows");
+            Assert.AreEqual("393000000000@s.whatsapp.net", chats.Rows[0].Jid);
+            Assert.AreEqual("120363000000000000@g.us", chats.Rows[1].Jid);
+        }
+
+        [Test]
         public static void AnInitialBootstrapCompletesTheSyncByItself()
         {
             var chats = new NativeChats();

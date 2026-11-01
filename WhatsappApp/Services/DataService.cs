@@ -6,6 +6,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
+using WhatsappApp.Controls;
 using WhatsappApp.Models;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Media;
@@ -153,6 +154,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.ChatMerged += OnChatMerged;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
             NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
+            NativeConnection.Instance.MessageRevoked += OnMessageRevoked;
             NativeConnection.Instance.MediaArrived += OnNativeMedia;
             NativeConnection.Instance.CallsScanned += OnNativeCalls;
             NativeConnection.Instance.StatusArrived += OnNativeStatusPost;
@@ -194,6 +196,12 @@ namespace WhatsappApp.Services
                 ChatMessage row = cached[i];
                 if (row == null) continue;
                 if (FindStatus(row.Id) != null) continue;
+
+                // A name written yesterday may be the address the pair had not been learned
+                // for yet: the row asks again, and keeps the stored name only when the
+                // phone still has nothing better (`StatusName`).
+                string known = row.SenderName;
+                row.SenderName = StatusName.Choose(DisplayNameForJid(row.ChatId), known);
 
                 InsertStatusInOrder(row);
                 added++;
@@ -265,7 +273,7 @@ namespace WhatsappApp.Services
             // (see RestoreRowsFromTheirTailsAsync).
             await RestoreRowsFromTheirTailsAsync();
 
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
 
             // And the tiles this phone has on Start are drawn again from what the copy says.
             // Without this a pinned tile kept the card the build that composed it left
@@ -733,8 +741,6 @@ namespace WhatsappApp.Services
         private async Task RestoreRowsFromTheirTailsAsync()
         {
             int tails = await MessageCache.CountAsync();
-            if (tails <= _contacts.Count) return;
-
             List<KeyValuePair<string, List<ChatMessage>>> all = await MessageCache.TailsAsync();
 
             int rows = 0;
@@ -761,7 +767,11 @@ namespace WhatsappApp.Services
                 if (FindContact(chatId) != null) rows++;
             }
 
-            if (rows == 0) return;
+            if (rows == 0)
+            {
+                Diag.Ok("cache: inspected " + all.Count + " conversation tail(s), no missing rows");
+                return;
+            }
 
             SortContacts();
             Diag.Ok("cache: " + rows + " conversation(s) given back by their tails (" + tails
@@ -867,7 +877,7 @@ namespace WhatsappApp.Services
 
             if (_activeChatId == merge.From) _activeChatId = merge.To;
 
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
             ResortContacts();
         }
 
@@ -1014,7 +1024,10 @@ namespace WhatsappApp.Services
                 InsertStatusInOrder(row);
             }
 
-            row.SenderName = DisplayNameForJid(post.Author);
+            // The phone's own name for the author, unless that is the address itself: a
+            // status from a `@lid` resolved to fourteen digits, and the list showed them.
+            row.SenderName = StatusName.Choose(DisplayNameForJid(post.Author), post.Name);
+
             if (!string.IsNullOrEmpty(post.Text)) row.Text = post.Text;
 
             ApplyNativeMedia(row, post.Encoded);
@@ -1034,7 +1047,22 @@ namespace WhatsappApp.Services
             // A new update is the one change worth a write: the feed is what the next
             // start draws before any connection exists, and the media keys it carries
             // are what makes a tap on a restored status download its photo.
-            if (inserted) SaveStatusSnapshot();
+            if (inserted)
+            {
+                SaveStatusSnapshot();
+
+                // And it is announced, once per row and never for the user's own: the
+                // toast is the only thing that puts an update in the notification area
+                // while the app is closed (`BackgroundSync` reads the same rows in its
+                // own process, and the watermark in `NotificationService` is what keeps
+                // the two from announcing the same one twice).
+                string mine = ChatIdFor(NativeConnection.Instance.Jid);
+                if (string.IsNullOrEmpty(mine)
+                    || !string.Equals(ChatIdFor(post.Author), mine, StringComparison.OrdinalIgnoreCase))
+                {
+                    NotificationService.ShowStatus(row.SenderName, row.Timestamp);
+                }
+            }
         }
 
         /// <summary>
@@ -1285,6 +1313,11 @@ namespace WhatsappApp.Services
             // back on a status somebody already saw.
             SaveStatusSnapshot();
 
+            // And it is announced, because two things count it: the ring of the row, and
+            // the number on the Status tab (`UnseenStatuses`). Neither is told by the row's
+            // own property change, which reaches only the bubble that bound it.
+            RaiseStatusesChanged();
+
 #pragma warning disable 4014
             // The delegate and not the task: a `ViewStatusAsync` that throws while it is
             // being *called* - no open session, a chat id that is not a JID - already threw
@@ -1293,6 +1326,90 @@ namespace WhatsappApp.Services
             Guarded.RunGuardedAsync("DataService/view status",
                 delegate { return NativeConnection.Instance.ViewStatusAsync(row.ChatId, row.Id); });
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The whole day at once: every update nobody has watched is now watched - from the
+        /// overflow of the Status tab, which is the official app's "mark all as viewed".
+        ///
+        /// Why not `MarkStatusViewed` in a loop: that one writes the snapshot and announces
+        /// the change for every row, so thirty unwatched updates were thirty saves of the file
+        /// and thirty rebuilds of the list for one tap. Here the flags go up together, the file
+        /// is written once and the list is told once; only the receipts stay one per status,
+        /// because the wire has no receipt for several at a time.
+        ///
+        /// Returns how many updates it changed, which is what the log line says.
+        /// </summary>
+        public int MarkAllStatusesViewed()
+        {
+            var unseen = new List<ChatMessage>();
+
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                ChatMessage row = _statuses[i];
+                if (row == null || row.IsStatusViewed) continue;
+                if (string.IsNullOrEmpty(row.Id) || string.IsNullOrEmpty(row.ChatId)) continue;
+                unseen.Add(row);
+            }
+
+            if (unseen.Count == 0) return 0;
+
+            for (int i = 0; i < unseen.Count; i++) unseen[i].IsStatusViewed = true;
+
+            SaveStatusSnapshot();
+            RaiseStatusesChanged();
+
+            for (int i = 0; i < unseen.Count; i++)
+            {
+                // Locals and not the row: the loop's variable is one slot in C# 5, and a
+                // delegate that read it would send the receipt of the last status thirty times.
+                string chatId = unseen[i].ChatId;
+                string id = unseen[i].Id;
+
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("DataService/view all statuses",
+                    delegate { return NativeConnection.Instance.ViewStatusAsync(chatId, id); });
+#pragma warning restore 4014
+            }
+
+            Diag.Ok("status: " + unseen.Count + " update(s) counted as watched");
+            return unseen.Count;
+        }
+
+        /// <summary>
+        /// Drops the updates whose day is over.
+        ///
+        /// The feed is pruned when it is read from the phone and when it is written, and
+        /// neither of those happens to a list that is already on screen: a tab left open
+        /// across midnight kept offering a status nobody can open any more, and the round
+        /// trip it answers with is a download of a file WhatsApp has already taken down.
+        /// Called by the pane when the tab comes to the front, which is the one moment
+        /// somebody is looking at the list. The day is `StatusCache.LifetimeHours` in both
+        /// places, so the screen and the file cannot disagree about when an update ends.
+        /// </summary>
+        public void PruneExpiredStatuses()
+        {
+            DateTime cutoff = DateTime.Now.AddHours(-StatusCache.LifetimeHours);
+
+            int removed = 0;
+            for (int i = _statuses.Count - 1; i >= 0; i--)
+            {
+                ChatMessage row = _statuses[i];
+
+                // A row with no time is not a row with an old time: an empty one has
+                // nothing to draw and nothing to open.
+                if (row == null || row.Timestamp < cutoff)
+                {
+                    _statuses.RemoveAt(i);
+                    removed++;
+                }
+            }
+
+            if (removed == 0) return;
+
+            RaiseStatusesChanged();
+            SaveStatusSnapshot();
+            Diag.Ok("status: " + removed + " update(s) lived their day and left the feed");
         }
 
         /// <summary>
@@ -1318,8 +1435,30 @@ namespace WhatsappApp.Services
 
         private void RaiseStatusesChanged()
         {
+            // The tile's updates turn is drawn from this count, and this is the only place an
+            // update arrives or is watched: the tile would otherwise keep saying "3 new" after
+            // the three had been seen.
+            NotificationService.SetStatuses(UnseenStatuses());
+
+            // The route is the other half of the same news: a status that arrived while the
+            // app was closed has no badge of its own, so this is the only place the tile's
+            // destination learns that tapping it should open the Status tab.
+            RefreshLaunchRoute();
+
             var handler = StatusesChanged;
             if (handler != null) handler(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// A message taken back by whoever wrote it: the row goes, and it goes the same way
+        /// as a message deleted here - one removal for both, so the copy on the phone cannot
+        /// disagree with the screen. What differs is only who asked.
+        /// </summary>
+        private void OnMessageRevoked(object sender, MessageRevocation revocation)
+        {
+            if (revocation == null || string.IsNullOrEmpty(revocation.Jid)) return;
+
+            RemoveMessage(revocation.Jid, revocation.Id);
         }
 
         /// <summary>
@@ -1469,7 +1608,7 @@ namespace WhatsappApp.Services
                     contact.UnreadCount = message.ChatId == _activeChatId
                         ? 0
                         : NativeConnection.Instance.UnreadFor(message.ChatId);
-                    NotificationService.SetUnread(TotalUnread());
+                    PublishBadge();
                     PublishUnread(contact);
                 }
 
@@ -1485,7 +1624,9 @@ namespace WhatsappApp.Services
             // always updated: the count is true, and the open chat is cleared when
             // the page shows it (ClearUnread), not because someone skipped it.
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
-                NotificationService.ShowMessage(contact.Name, message.Text);
+                // The toast and the tile draw text too, and the same rule: a heart of 15.0
+                // in the body was a box on the lock screen as well as in the bubble.
+                NotificationService.ShowMessage(contact.Name, message.ShownText);
 
             // And the tile shows who wrote and how many are waiting: their picture,
             // their name, and the count. Only for a person, not for a group, and only
@@ -1499,10 +1640,11 @@ namespace WhatsappApp.Services
                 string tileAvatar = contact.AvatarData;
                 if (string.IsNullOrEmpty(tileAvatar)) tileAvatar = AvatarCache.Get(message.ChatId);
 
-                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar, message.Text);
+                NotificationService.RememberSender(message.ChatId, contact.Name, tileAvatar,
+                    message.ShownText);
             }
 
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
 
             // The list a start draws is this one:
             ScheduleListSave();
@@ -1747,7 +1889,10 @@ namespace WhatsappApp.Services
                 if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
 
                 string name = SavedNameFor(contact.Id);
-                if (name == null || contact.Name == name) continue;
+                // Compared as the row stores it: the name goes through the emoji rule on
+                // its way in, so a name with a heart of 15.0 in it would never compare equal
+                // and every apply would rename the row again.
+                if (name == null || contact.Name == EmojiText.Compatible(name)) continue;
 
                 contact.Name = name;
                 contact.Initials = InitialsFor(name);
@@ -1758,6 +1903,42 @@ namespace WhatsappApp.Services
             {
                 Diag.Ok("contacts: " + renamed + " chat(s) renamed from the address book");
             }
+
+            // And the ones the book could not name, with the numbers on screen: the log said
+            // how many contacts it read, never which chats were left as digits, so a list of
+            // `+39...` had no answer in it (28 October 2026: fourteen of them).
+            int left = 0;
+            string sample = "";
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Name)) continue;
+                if (!IsANumber(contact.Name)) continue;
+
+                left++;
+                if (left <= 5) sample += (sample.Length == 0 ? "" : ", ") + contact.Name;
+            }
+
+            if (left > 0)
+            {
+                Diag.Ok("contacts: " + left + " chat(s) still show a number, the book has no "
+                    + "name for them (" + sample + ")");
+            }
+        }
+
+        /// <summary>Whether a name on screen is the number it fell back to.</summary>
+        private static bool IsANumber(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return false;
+
+            for (int i = 0; i < name.Length; i++)
+            {
+                char c = name[i];
+                if (c == '+' && i == 0) continue;
+                if (c < '0' || c > '9') return false;
+            }
+
+            return true;
         }
 
         /// <summary>This update row, kept aside for the cache.</summary>
@@ -1927,6 +2108,15 @@ namespace WhatsappApp.Services
 
         private void RaiseCallsScanCompleted()
         {
+            // The log is complete now, so this is the one moment a missed call can be
+            // announced: `OnNativeCalls` rebuilds the whole list from the sync, and a toast
+            // while it was half built would be a call with the wrong name or none.
+            AnnounceMissedCalls();
+
+            // A missed call is the other thing a tap must be able to reach, and it arrives
+            // here: no badge of its own, only the log.
+            RefreshLaunchRoute();
+
             var handler = CallsScanCompleted;
             if (handler != null) handler(this, EventArgs.Empty);
         }
@@ -1947,9 +2137,34 @@ namespace WhatsappApp.Services
             foreach (var message in messages)
             {
                 if (message.Id != messageId) continue;
+                if (!IsForward(message.Status, status)) return;
                 message.Status = status;
                 return;
             }
+        }
+
+        /// <summary>
+        /// Whether a status is a step forward from the one the row already carries.
+        ///
+        /// Why it exists: the answers a sent message gets - the server's ack (`Sent`) and the
+        /// recipient's receipts (`Delivered`, `Read`) - are separate frames, and nothing
+        /// orders them. A `delivered` that arrived behind the `read` it belongs with, or an
+        /// ack behind both, rewrote the bubble backwards: a message the person had already
+        /// read went back to one tick, and the row said so until the next receipt. A status
+        /// is a ladder here, not a value.
+        ///
+        /// `Failed` is not a rung: only a message still on its way can be declared failed.
+        /// A late ack must still be able to repair one, because a refusal is the server's
+        /// first word and not its last.
+        /// </summary>
+        private static bool IsForward(MessageStatus current, MessageStatus wanted)
+        {
+            // The rule itself is `StatusLadder`, in the core: the same question is asked
+            // there and pinned by a protocol test (`ProtocolTests/StatusLadderTests.cs`),
+            // which is the only place in this repository that runs without a phone. The
+            // numbers are the model's own - `MessageStatus` is stored as that number in
+            // the message cache, so the order is a contract and not an accident.
+            return StatusLadder.IsForward((int)current, (int)wanted);
         }
 
         /// <summary>
@@ -1966,10 +2181,59 @@ namespace WhatsappApp.Services
                 foreach (var message in chat.Value)
                 {
                     if (message.Id != messageId) continue;
+                    if (!IsForward(message.Status, status)) return;
                     message.Status = status;
                     return;
                 }
             }
+        }
+
+        /// <summary>
+        /// A message is deleted on this phone and nowhere else: gone from the conversation,
+        /// gone from the copy the next start reads, and the chat's preview stepped back to
+        /// what is left.
+        ///
+        /// Why the file is rewritten and not appended to: `MessageCache.AppendAsync` merges
+        /// by id, so a deletion it never sees would be undone by the copy already on the
+        /// phone, and a message that comes back after a restart is worse than one the user
+        /// could not delete at all. A conversation with nothing left deletes the file
+        /// instead, because `SaveAsync` refuses to write an empty one.
+        /// </summary>
+        public void RemoveMessage(string chatId, string messageId)
+        {
+            chatId = ChatIdFor(chatId);
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                if (messages[i] == null || messages[i].Id != messageId) continue;
+                messages.RemoveAt(i);
+                break;
+            }
+
+            RefreshPreview(chatId);
+
+            var contact = FindContact(chatId);
+            if (contact != null) PlaceContact(contact);
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/remove message", RewriteTailAsync(chatId, messages));
+#pragma warning restore 4014
+        }
+
+        /// <summary>The conversation as it is now, written over the copy on the phone.</summary>
+        private static async Task RewriteTailAsync(string chatId, ObservableCollection<ChatMessage> messages)
+        {
+            if (messages == null || messages.Count == 0)
+            {
+                await MessageCache.DeleteAsync(chatId);
+                return;
+            }
+
+            await MessageCache.SaveAsync(chatId, new List<ChatMessage>(messages));
         }
 
         /// <summary>
@@ -2034,6 +2298,15 @@ namespace WhatsappApp.Services
             // contact uses, and - for a LID whose pair is known - the real phone number.
             string known = NameCache.Book.NameFor(jid);
             if (!string.IsNullOrEmpty(known)) return known;
+
+            // And when the wire named nobody, the phone's own address book: it is the name
+            // the person saved for that number, and it is what the official app shows in
+            // place of the digits. Asked here and not only when a row is made, because the
+            // rows that never go through `SavedNameFor` - a status author, a group's
+            // participant, a conversation given back from its tail - were the ones left as
+            // numbers while the book on the same phone had a name for them.
+            string saved = SavedNameFor(jid);
+            if (!string.IsNullOrEmpty(saved)) return saved;
 
             string phone = NameCache.Book.PhoneNumberFor(jid);
             if (phone != null) jid = phone;
@@ -2365,7 +2638,7 @@ namespace WhatsappApp.Services
                 if (message.IsIncoming)
                 {
                     contact.UnreadCount++;
-                    NotificationService.SetUnread(TotalUnread());
+                    PublishBadge();
                     PublishUnread(contact);
                 }
 
@@ -2399,7 +2672,7 @@ namespace WhatsappApp.Services
             PublishUnread(contact);
 
             SendRead(chatId);
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
         }
 
         /// <summary>
@@ -2432,7 +2705,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.MarkAllChatsRead();
 
             NotificationService.ForgetAll();
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
             for (int i = 0; i < rows.Count; i++) SendRead(rows[i].Id);
 
             Diag.Ok("read all: " + rows.Count + " chat(s)");
@@ -2656,7 +2929,7 @@ namespace WhatsappApp.Services
 
             ChatPreferences.Hide(chatId);
             NotificationService.Forget(chatId);
-            NotificationService.SetUnread(TotalUnread());
+            PublishBadge();
 
 #pragma warning disable 4014
             MessageCache.DeleteAsync(chatId);
@@ -2685,8 +2958,21 @@ namespace WhatsappApp.Services
             return total;
         }
 
+        /// <summary>
+        /// The badge of the Calls tab: the missed calls that arrived since the log was last
+        /// on screen.
+        ///
+        /// Why not every missed call in the log: that log is WhatsApp's and it keeps them
+        /// for good, so the count never went down - a badge that says the same number every
+        /// time somebody looks at it is a badge nobody looks at. `SessionService.MarkOpened`
+        /// writes the visit (`HomePage.Show`), and the number falls to zero when the tab is
+        /// opened - which is also the moment the route that sends a tap there stops applying
+        /// (`LaunchRoute` uses the same mark).
+        /// </summary>
         public int MissedCalls()
         {
+            DateTime seen = SessionService.OpenedAt(AppSection.Calls);
+
             int total = 0;
             for (int i = 0; i < _calls.Count; i++)
             {
@@ -2694,10 +2980,55 @@ namespace WhatsappApp.Services
                 // Two vocabularies meet here: the old server said `timeout`, the native
                 // client says `missed`. A badge that only knew the first was a badge that
                 // never counted a missed call.
-                if (row != null && (string.Equals(row.Reason, "timeout", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(row.Reason, "missed", StringComparison.OrdinalIgnoreCase))) total++;
+                if (row == null || !row.IsMissed) continue;
+                if (row.Timestamp > seen) total++;
             }
             return total;
+        }
+
+        /// <summary>
+        /// The call log has been read: the badge that counts the missed calls arrived since
+        /// the last visit goes to zero - the overflow's "mark all as seen" on the Calls tab.
+        ///
+        /// The log itself is WhatsApp's and keeps every row; what this moves is the mark the
+        /// badge is measured against, the same one `HomePage.Show` writes when somebody opens
+        /// the tab. So the rows stay, and the number on the tab stops being news.
+        /// </summary>
+        public void MarkCallsSeen()
+        {
+            SessionService.MarkOpened(AppSection.Calls);
+            PublishBadge();
+            Diag.Ok("calls: the log counted as seen");
+        }
+
+        /// <summary>
+        /// One toast per missed call the phone has not announced yet, oldest first, so a
+        /// wake that found two tells them in the order they happened.
+        ///
+        /// The watermark is `NotificationService`'s own (`ShowMissedCall`); this only reads
+        /// the log in order, because the log lives here.
+        /// </summary>
+        private void AnnounceMissedCalls()
+        {
+            var missed = new List<CallLogEntry>();
+            for (int i = 0; i < _calls.Count; i++)
+            {
+                CallLogEntry row = _calls[i];
+                if (row != null && row.IsMissed) missed.Add(row);
+            }
+
+            missed.Sort(delegate (CallLogEntry left, CallLogEntry right)
+            {
+                return left.Timestamp.CompareTo(right.Timestamp);
+            });
+
+            for (int i = 0; i < missed.Count; i++)
+            {
+                CallLogEntry row = missed[i];
+                string name = row.Name;
+                if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(row.ChatId);
+                NotificationService.ShowMissedCall(name, row.Timestamp);
+            }
         }
 
         /// <summary>Sum of the unread: it is the number that goes on the icon.</summary>
@@ -2709,6 +3040,70 @@ namespace WhatsappApp.Services
                 if (contact != null) total += contact.UnreadCount;
             }
             return total;
+        }
+
+        /// <summary>
+        /// The newest update nobody has watched, or `default(DateTime)` when there is none.
+        ///
+        /// It is what `LaunchRoute` compares against the last time the Status tab was on
+        /// screen: the tile is the only thing a tap on the Start screen can carry, so what
+        /// arrived after that moment is the whole of the signal.
+        /// </summary>
+        public DateTime NewestUnseenStatus()
+        {
+            DateTime newest = default(DateTime);
+            for (int i = 0; i < _statuses.Count; i++)
+            {
+                ChatMessage row = _statuses[i];
+                if (row != null && !row.IsStatusViewed && row.Timestamp > newest) newest = row.Timestamp;
+            }
+            return newest;
+        }
+
+        /// <summary>The newest missed call in the log, or `default(DateTime)` when there is none.</summary>
+        public DateTime NewestMissedCall()
+        {
+            DateTime newest = default(DateTime);
+            for (int i = 0; i < _calls.Count; i++)
+            {
+                CallLogEntry row = _calls[i];
+                if (row != null && row.IsMissed && row.Timestamp > newest) newest = row.Timestamp;
+            }
+            return newest;
+        }
+
+        /// <summary>
+        /// Writes down where a tap on the tile - or on the lock screen, which shows the
+        /// same thing - should land, for the start that consumes it.
+        ///
+        /// Called with the badge, because that is the moment the phone starts advertising
+        /// something new. The rule itself is `LaunchRoute.Decide`, which is tested on the
+        /// desktop; this only feeds it the two dates and the two "last looked at" marks,
+        /// and the clock it compares them in is the one the rows carry.
+        /// </summary>
+        public void RefreshLaunchRoute()
+        {
+            SessionService.RememberRoute(LaunchRoute.Decide(
+                NewestUnseenStatus(), SessionService.OpenedAt(AppSection.Status),
+                NewestMissedCall(), SessionService.OpenedAt(AppSection.Calls)));
+        }
+
+        /// <summary>
+        /// What the phone shows about the unread, in one place: the tile, the badge, and the
+        /// destination recorded for the next tap on them. The count and the route are the
+        /// same fact seen twice, so they are written together - eight call sites that each
+        /// remembered one of the two is how they would come to disagree.
+        /// </summary>
+        private void PublishBadge()
+        {
+            NotificationService.SetUnread(TotalUnread());
+
+            // The tile has a turn for the updates nobody has watched, and a wake draws it too:
+            // a check that found an update and said nothing left the phone showing only the
+            // messages, which is what a person would read as "nothing new".
+            NotificationService.SetStatuses(UnseenStatuses());
+
+            RefreshLaunchRoute();
         }
 
         /// <summary>

@@ -47,6 +47,24 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void NotificationReadFindsTokenAndJid()
+        {
+            var token = new BinaryNode("token");
+            token.Attrs.Add("type", "trusted_contact");
+            token.Attrs.Add("t", "1793522412");
+            token.Content = new byte[] { 4, 5 };
+
+            var notification = new BinaryNode("notification");
+            notification.Attrs.Add("from", "16982334263338@lid");
+            notification.Content = new List<BinaryNode> { token };
+
+            PrivacyToken read = PrivacyTokens.ReadNotification(notification);
+            Assert.IsTrue(read != null);
+            Assert.AreEqual("16982334263338@lid", read.Jid);
+            Assert.AreEqual(2, read.Bytes.Length);
+        }
+
+        [Test]
         public static void DirectNodeCarriesTrustedContactToken()
         {
             var token = new PrivacyToken();

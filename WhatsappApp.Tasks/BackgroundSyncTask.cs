@@ -66,8 +66,10 @@ namespace WhatsappApp.Tasks
         /// </summary>
         private static void OnCanceled(IBackgroundTaskInstance sender, BackgroundTaskCancellationReason reason)
         {
-            Diag.OkNow("background: the system canceled the check after "
-                + BackgroundSync.ElapsedMilliseconds + " ms (" + reason + ")");
+            // The line, and the record the diagnostics page reads: a wake the system took
+            // down has no ending of its own, so this handler is the only place that can
+            // say it was canceled rather than still running.
+            BackgroundSync.MarkCanceled(reason.ToString());
 
             Diag.FlushAndWait(FlushLimit);
         }

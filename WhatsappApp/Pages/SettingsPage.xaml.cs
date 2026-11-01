@@ -42,8 +42,63 @@ namespace WhatsappApp.Pages
             Diag.Ok("settings: " + ThemeService.Choices.Count + " theme(s), current " + ThemeService.Current);
 
             _loading = true;
+            MessagesToggle.IsOn = SettingsService.MessageAlertsEnabled;
+            StatusesToggle.IsOn = SettingsService.StatusAlertsEnabled;
+            CallsToggle.IsOn = SettingsService.CallAlertsEnabled;
             BackgroundToggle.IsOn = SettingsService.BackgroundCheckEnabled;
             _loading = false;
+
+            ShowBackgroundState();
+        }
+
+        /// <summary>
+        /// What the phone says about the switch above it.
+        ///
+        /// The switch is this app's own choice, and the phone has one of its own: the user
+        /// can take background work away from the app in the phone's settings, and battery
+        /// saver does it for a while by itself. The registration then stays and nothing
+        /// wakes, so the switch would read "on" for a check that never runs. The line is
+        /// read on every visit - it is the answer of the moment, not a flag.
+        /// </summary>
+        private void ShowBackgroundState()
+        {
+            bool permitted = BackgroundSync.IsPermitted();
+
+            BackgroundState.Visibility = permitted ? Visibility.Collapsed : Visibility.Visible;
+
+            if (!permitted)
+            {
+                Diag.Ok("settings: the phone refuses background work, the check cannot wake");
+            }
+        }
+
+        /// <summary>
+        /// Which alerts arrive. Each switch is its own question and its own key: they are
+        /// read where the alert is raised (`NotificationService`), so a change here is
+        /// in force from the next message - no restart and no re-registration.
+        /// </summary>
+        private void MessagesToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.MessageAlertsEnabled = MessagesToggle.IsOn;
+            Diag.Ok("settings: message alerts " + (MessagesToggle.IsOn ? "on" : "off"));
+        }
+
+        private void StatusesToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.StatusAlertsEnabled = StatusesToggle.IsOn;
+            Diag.Ok("settings: status alerts " + (StatusesToggle.IsOn ? "on" : "off"));
+        }
+
+        private void CallsToggle_Toggled(object sender, RoutedEventArgs e)
+        {
+            if (_loading) return;
+
+            SettingsService.CallAlertsEnabled = CallsToggle.IsOn;
+            Diag.Ok("settings: call alerts " + (CallsToggle.IsOn ? "on" : "off"));
         }
 
         /// <summary>
@@ -62,6 +117,11 @@ namespace WhatsappApp.Pages
             Guarded.RunGuardedAsync("SettingsPage/background",
                 BackgroundSync.SetEnabledAsync(BackgroundToggle.IsOn));
 #pragma warning restore 4014
+
+            // Registering asks the phone again, and the answer may have changed while
+            // this page was open: the line follows the switch instead of waiting for the
+            // next visit.
+            ShowBackgroundState();
         }
 
         /// <summary>

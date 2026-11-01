@@ -44,6 +44,35 @@ const NAMED = `
         }
 `;
 
+/** The same, with the address book asked before the digits: the app's shape now. */
+const NAMED_WITH_BOOK = NAMED.replace(
+  '            string user = jid.Split(\'@\')[0];',
+  '            string saved = SavedNameFor(jid);\r\n'
+  + '            if (!string.IsNullOrEmpty(saved)) return saved;\r\n\r\n'
+  + '            string user = jid.Split(\'@\')[0];');
+
+/** The defect: the book is asked only when a row is made, never when a name is chosen. */
+const NAMED_WITHOUT_BOOK = NAMED;
+
+/** The other order: the number is printed first, so the fallback under it is dead. */
+const BOOK_AFTER_THE_NUMBER = `
+        public static string DisplayNameForJid(string jid)
+        {
+            if (string.IsNullOrEmpty(jid)) return "?";
+            jid = JidUtils.Normalize(jid);
+
+            string user = jid.Split('@')[0];
+            if (jid.EndsWith("@g.us")) return string.Format("Group {0}", user);
+            if (JidUtils.IsLid(jid)) return user;
+            if (user.Length >= 8 && user.All(char.IsDigit)) return "+" + user;
+
+            string saved = SavedNameFor(jid);
+            if (!string.IsNullOrEmpty(saved)) return saved;
+
+            return user;
+        }
+`;
+
 /** The defect of 2026-10-23: the digits test above the guard, so the guard is dead. */
 const DIGITS_FIRST = `
         public static string DisplayNameForJid(string jid)
@@ -85,7 +114,7 @@ const DISPLAY_NUMBER_WITHOUT_RULE = `
 function goodTree(overrides) {
   const tree = {
     [JID]: RULE_LID,
-    [DATA]: NAMED,
+    [DATA]: NAMED_WITH_BOOK,
     [CHAT]: DISPLAY_NUMBER,
     [CONTACT]: DISPLAY_NUMBER
   };
@@ -133,6 +162,18 @@ test('senza IsLid la regola manca', () => {
   const problems = guard.lidNameProblems(goodTree({ [JID]: '' }));
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /JidUtils\.IsLid is missing/);
+});
+
+test('un nome che non chiede la rubrica del telefono mostra il numero', () => {
+  const problems = guard.lidNameProblems(goodTree({ [DATA]: NAMED_WITHOUT_BOOK }));
+  assert.ok(problems.some((p) => /never asks the phone's address book \(SavedNameFor\)/.test(p)),
+    problems.join('\n'));
+});
+
+test('la rubrica chiesta dopo il numero non puo mai rispondere', () => {
+  const problems = guard.lidNameProblems(goodTree({ [DATA]: BOOK_AFTER_THE_NUMBER }));
+  assert.ok(problems.some((p) => /prints "\+number" before it asks the address book/.test(p)),
+    problems.join('\n'));
 });
 
 test('un altro file che costruisce "+numero" da un JID e un problema', () => {

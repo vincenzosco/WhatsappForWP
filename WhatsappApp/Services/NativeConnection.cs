@@ -105,6 +105,10 @@ namespace WhatsappApp.Services
         /// </summary>
         private readonly HashSet<string> _refusalIsAnswer = new HashSet<string>();
 
+        /// <summary>Trusted-contact tokens pushed by WhatsApp, keyed by their recipient JID.</summary>
+        private readonly Dictionary<string, PrivacyToken> _privacyTokens =
+            new Dictionary<string, PrivacyToken>(StringComparer.OrdinalIgnoreCase);
+
         /// <summary>
         /// The messages this phone has written to the socket and the server has not yet
         /// acknowledged, by id.
@@ -311,6 +315,13 @@ namespace WhatsappApp.Services
         /// was read.
         /// </summary>
         public event EventHandler<MessageStatusUpdate> MessageStatusChanged;
+
+        /// <summary>
+        /// Somebody took a message back. The stanza is a message like any other whose payload
+        /// is the revoke, so it is read on the same loop and announced here; the row it names
+        /// is the listener's to remove.
+        /// </summary>
+        public event EventHandler<MessageRevocation> MessageRevoked;
 
         /// <summary>How long a query the server never answers is waited for before it is given up on.</summary>
         public const int AnswerSeconds = 20;
@@ -724,6 +735,33 @@ namespace WhatsappApp.Services
                         + "to be linked again to receive the history (WhatsApp sends it once, at the pairing)");
                 }
 
+                // The status day is the other half of what a link is supposed to bring, and the
+                // one list a person checks in the morning was the one nothing named: with the
+                // link of 28 October 2026 the server sent sync type 5 and type 0 and no status
+                // sync at all, so the tab opened on whatever the phone had kept. There is no
+                // request to ask for it - the reference clients have none either - so the line
+                // is what turns "gli stati non compaiono" into a fact about this login.
+                if (_statuses.Count == 0)
+                {
+                    Diag.Ok("native: this login brought no status at all (no type 1 sync and nothing "
+                        + "live): the day of updates is sent once, with the link, and this one had none");
+                }
+
+                return;
+            }
+
+            if (type == "tokens" || type == "privacy_token")
+            {
+                PrivacyToken pushed = PrivacyTokens.ReadNotification(node);
+                if (pushed == null || string.IsNullOrEmpty(pushed.Jid))
+                {
+                    Diag.Ok("native: privacy token notification had no usable token");
+                }
+                else
+                {
+                    lock (_privacyTokens) _privacyTokens[pushed.Jid] = pushed;
+                    Diag.Ok("native: stored privacy token for " + pushed.Jid);
+                }
                 return;
             }
 
@@ -931,6 +969,26 @@ namespace WhatsappApp.Services
             // phone writes it), and dropping it was dropping the only way to read the account's
             // own app state - the names saved in the primary's address book.
             LearnAppStateKeys(session, incoming, account);
+
+            // A message taken back: its payload is the `ProtocolMessage` of type revoke and
+            // the only thing it says is the id of another message. It has no bubble of its
+            // own - the row it names is what goes. Read before the echo rule below would
+            // matter and before the empty-content rule after it: a revoke carries no text and
+            // no media, so every later check would treat it as a stanza with nothing in it.
+            string revoked = MessageProtocol.RevokedId(
+                incoming.Content == null ? null : incoming.Content.ProtocolMessage);
+            if (revoked != null)
+            {
+                Diag.Ok("native: " + incoming.From + " took back " + revoked + " in " + incoming.Chat);
+
+                var revocation = new MessageRevocation();
+                revocation.Jid = incoming.Chat;
+                revocation.Id = revoked;
+
+                var listener = MessageRevoked;
+                if (listener != null) listener(this, revocation);
+                return;
+            }
 
             // A copy of something this account sent from another device: shown by the phone
             // that wrote it, never by this one (see IncomingMessage.IsOurEcho).
@@ -1257,8 +1315,9 @@ namespace WhatsappApp.Services
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
-
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
+            Diag.Ok("native: direct text " + id + " has privacy token="
+                + (privacyToken == null ? "no" : "yes"));
 
             await WriteAsync(session, id, OutgoingMessage.Node(jid, id, message, OutgoingMessage.TextType, null,
                 devices, timestamp, _random, privacyToken));
@@ -1266,6 +1325,44 @@ namespace WhatsappApp.Services
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
 
+            return id;
+        }
+
+        /// <summary>
+        /// Takes a message back for everybody: a stanza of its own whose payload is the
+        /// `ProtocolMessage` of type revoke, sent the way a text is.
+        ///
+        /// Why it goes through the same write: a revoke is an ordinary message to the
+        /// server. It has an id, it is encrypted device by device, and the bubble that stays
+        /// on screen while it is on its way is the one that already showed the message. Its
+        /// id is not added to the chat's preview: the preview is stepped back when the
+        /// message is deleted locally, and a row saying nothing would be worse than the
+        /// sentence it replaces.
+        /// </summary>
+        public async Task<string> RevokeAsync(string jid, string messageId)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a revoke needs the chat it happened in");
+            if (string.IsNullOrEmpty(messageId)) throw new ProtocolException("a revoke needs the message it takes back");
+
+            NativeSession session = OpenSession();
+            Message payload = Message.Revoke(jid, messageId);
+
+            // A group takes the sender key and the distribution; one person takes the device
+            // list. Both end in one stanza, which is the same one a text would be.
+            if (OutgoingMessage.IsGroup(jid))
+            {
+                return await SendGroupAsync(session, jid, payload, OutgoingMessage.TextType, null, "");
+            }
+
+            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload,
+                OutgoingMessage.TextType, null, devices, timestamp, _random));
+
+            Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
             return id;
         }
 
@@ -1327,8 +1424,9 @@ namespace WhatsappApp.Services
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
-
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
+            Diag.Ok("native: direct media " + id + " has privacy token="
+                + (privacyToken == null ? "no" : "yes"));
 
             await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
                 mediaWord, devices, timestamp, _random, privacyToken));
@@ -1346,17 +1444,39 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task<PrivacyToken> PrivacyTokenAsync(NativeSession session, string jid, uint timestamp)
         {
+            string tokenJid = NameCache.Book.LidFor(jid);
+            if (string.IsNullOrEmpty(tokenJid)) tokenJid = jid;
+
+            lock (_privacyTokens)
+            {
+                PrivacyToken cached;
+                if (_privacyTokens.TryGetValue(tokenJid, out cached))
+                {
+                    Diag.Ok("native: reusing privacy token for " + tokenJid);
+                    return cached;
+                }
+            }
+
             try
             {
                 BinaryNode answer = await RequestAsync(session,
-                    PrivacyTokens.Query(jid, OutgoingMessage.Id(_random), timestamp));
+                    PrivacyTokens.Query(tokenJid, OutgoingMessage.Id(_random), timestamp));
                 PrivacyToken token = PrivacyTokens.Read(answer);
-                if (token == null) Diag.Ok("native: privacy token answer had no trusted-contact token for " + jid);
+                if (token == null)
+                {
+                    Diag.Ok("native: privacy token answer had no trusted-contact token for " + tokenJid);
+                }
+                else
+                {
+                    token.Jid = tokenJid;
+                    lock (_privacyTokens) _privacyTokens[tokenJid] = token;
+                    Diag.Ok("native: received privacy token for " + tokenJid);
+                }
                 return token;
             }
             catch (Exception error)
             {
-                Diag.Failed("native: privacy token request for " + jid, error);
+                Diag.Failed("native: privacy token request for " + tokenJid, error);
                 return null;
             }
         }
@@ -1641,7 +1761,45 @@ namespace WhatsappApp.Services
             BinaryNode bundleAnswer = null;
             if (missing.Count > 0)
             {
-                bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
+                // Two shapes, because one of them can be ignored in silence: on
+                // 2026-10-30 the per-device query went out and no answer ever came for its
+                // id (`diag.log`: the device list answered, the bundle query did not), so
+                // every one-to-one message ended in `the server did not answer`. A query a
+                // server ignores is not a refusal - it is a dead end - so the same question
+                // is asked again per person, which is the shape WhatsApp answers with the
+                // bundles of every device that person has.
+                // The catch does not await (C# 5 answers CS1985): it records why the
+                // first shape failed, and the second ask happens after it.
+                ProtocolException silent = null;
+
+                try
+                {
+                    bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
+                }
+                catch (ProtocolException error)
+                {
+                    silent = error;
+                }
+
+                if (silent != null)
+                {
+                    Diag.Failed("native: the per-device bundle query", silent);
+
+                    var people = new List<string>();
+                    for (int i = 0; i < missing.Count; i++)
+                    {
+                        string person = DeviceDirectory.UserJid(missing[i]);
+                        if (string.IsNullOrEmpty(person) || people.Contains(person)) continue;
+
+                        people.Add(person);
+                    }
+
+                    Diag.Ok("native: asking the bundles per person instead (" + people.Count
+                        + " of them), because a query with no answer is not a no");
+
+                    bundleAnswer = await RequestAsync(session,
+                        DeviceDirectory.BundleQueryForUser(people, _random));
+                }
             }
 
             DirectSendPlan plan = DirectSend.Plan(targets, bundleAnswer, _account, store, _random);
@@ -2115,6 +2273,11 @@ namespace WhatsappApp.Services
             IList<HistoryMessage> fromTheSync = _chats.ApplyHistory(sync);
             Diag.Ok("native: history sync type " + sync.SyncType + " carried "
                 + sync.Conversations.Count + " conversation(s), " + _chats.Rows.Count + " row(s) now");
+
+            if (sync.Conversations.Count == 0)
+            {
+                Diag.Ok("native: this history sync carried no conversations; existing chat rows were kept");
+            }
 
             AnnounceRows();
 
@@ -2720,6 +2883,12 @@ namespace WhatsappApp.Services
             post.Id = incoming.Id;
             post.Timestamp = incoming.Timestamp;
             post.Text = incoming.Text;
+
+            // The poster's own name, off the same stanza: a status often arrives from a
+            // `@lid`, and the feed showing fourteen digits where the official app shows a
+            // name is the report of 28 October 2026.
+            post.Name = incoming.PushName;
+
             if (incoming.Content != null) post.Encoded = incoming.Content.Encode();
 
             if (!KnownStatus(post.Id)) _statuses.Insert(0, post);
@@ -3068,5 +3237,21 @@ namespace WhatsappApp.Services
 
         /// <summary>True when that answer is a refusal: the server would not take it.</summary>
         public bool IsRefused;
+    }
+
+    /// <summary>
+    /// A message somebody took back: the chat it happened in and the id of the message.
+    ///
+    /// The id is the whole of it - a revoke carries no words, no media and no hint of who
+    /// wrote the message it names - which is why the row is found by the id inside the chat
+    /// and not by anything else.
+    /// </summary>
+    public sealed class MessageRevocation
+    {
+        /// <summary>The chat the revoked message belongs to.</summary>
+        public string Jid;
+
+        /// <summary>The message that was taken back.</summary>
+        public string Id;
     }
 }

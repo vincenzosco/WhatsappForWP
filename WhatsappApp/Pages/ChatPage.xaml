@@ -161,7 +161,10 @@
             </ListView.ItemsPanel>
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Margin="4,2,4,2" HorizontalAlignment="Stretch">
+                    <!-- The long press is on the whole bubble, incoming and outgoing: it
+                         is the only way to reach a message's own actions (copy the text,
+                         delete it on this phone) without a button on every row. -->
+                    <Grid Margin="4,2,4,2" HorizontalAlignment="Stretch" Holding="Bubble_Holding">
                         <!-- Incoming bubble. Radius 3 and the little tail are the
                              shape of the official MessageBubble: a corner that is
                              barely rounded, not the pill of the phone's chat. -->
@@ -355,7 +358,7 @@
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
-                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
                                 <TextBlock Text="{Binding FormattedTime}"
@@ -560,7 +563,7 @@
                                      dark (the usual case), #333 when it is light, which is what
                                      Accent.Apply puts in WhatsAppAccentTextBrush. A fixed white
                                      was unreadable on a light accent. -->
-                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap"
+                                <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="16"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0"
@@ -571,6 +574,27 @@
                                                Foreground="{StaticResource WhatsAppAccentTextBrush}"
                                                FontSize="11" Margin="4,0,0,0"/>
                                 </StackPanel>
+                                <!-- The send failed and the bubble says it: the way out is
+                                     here and not in the keyboard. It sends the same text or
+                                     the same file again on the same bubble, so a retry is not
+                                     a second message; `CanRetry` hides it when the file a
+                                     media retry needs is gone, and when the status changes
+                                     back to sending. No Width: the WP8.1 theme minimums
+                                     (109 x 57.5) would otherwise decide the bubble's size,
+                                     hence the two zeroes. -->
+                                <Button x:Name="RetryMessageButton"
+                                        HorizontalAlignment="Right"
+                                        Margin="0,2,0,0"
+                                        Padding="0"
+                                        MinWidth="0" MinHeight="0"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        Click="RetryMessageButton_Click"
+                                        Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibility}}">
+                                    <TextBlock x:Uid="ChatPage_Retry" Text="Try again"
+                                               FontSize="12"
+                                               Foreground="{StaticResource WhatsAppAccentTextBrush}"/>
+                                </Button>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -862,7 +886,20 @@
                          BorderThickness="0"
                          KeyDown="MessageTextBox_KeyDown"
                          TextChanged="MessageTextBox_TextChanged"
-                         Margin="0,0,4,0"/>
+                         Margin="0,0,4,0">
+                    <!-- The scope is what puts the emoji key on the keyboard: Windows
+                         Phone 8.1 shows the smiley next to the space bar only for `Chat`,
+                         and with it the keyboard turns a typed `:)` into the emoji it has.
+                         Without the scope the composer was a plain text box, so the one
+                         keyboard everybody types on offered neither. -->
+                    <TextBox.InputScope>
+                        <InputScope>
+                            <InputScope.Names>
+                                <InputScopeName NameValue="Chat"/>
+                            </InputScope.Names>
+                        </InputScope>
+                    </TextBox.InputScope>
+                </TextBox>
 
                 <Button x:Name="RecordButton" Grid.Column="3"
                         Background="Transparent"

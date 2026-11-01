@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Text;
 using System.Threading.Tasks;
 using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;
@@ -35,6 +36,14 @@ namespace WhatsappApp.Pages
         private bool _ready;
         private int _section;
 
+        // The rows a search is showing, and whether one is showing: the list's source
+        // switches between this and DataService's own collection, which stays the truth.
+        // Filtering `Contacts` in place was not an option - it is the list's data and the
+        // counts and the order are computed from it.
+        private readonly ObservableCollection<Contact> _matches =
+            new ObservableCollection<Contact>();
+        private bool _searching;
+
         public HomePage()
         {
             this.InitializeComponent();
@@ -48,6 +57,7 @@ namespace WhatsappApp.Pages
                 Loc.Get("Nav_Calls", "calls"));
 
             NewChatLabel.Text = Loc.Get("ChatsPage_NewChatTooltip", "New chat");
+            SearchLabel.Text = Loc.Get("ChatsPage_SearchTooltip", "Search");
             MoreLabel.Text = Loc.Get("ChatsPage_MoreTooltip", "More");
             SettingsLabel.Text = Loc.Get("ChatsPage_SettingsTooltip", "Settings");
             RefreshStatusLabel.Text = Loc.Get("Common_Refresh", "refresh");
@@ -56,12 +66,16 @@ namespace WhatsappApp.Pages
             // Icon-only buttons do not take x:Uid (it would overwrite the Path):
             // the tooltip and the spoken name are set here.
             ToolTipService.SetToolTip(NewChatButton, NewChatLabel.Text);
+            ToolTipService.SetToolTip(SearchButton, SearchLabel.Text);
+            ToolTipService.SetToolTip(CloseSearchButton, Loc.Get("ChatsPage_SearchClose", "Close the search"));
             ToolTipService.SetToolTip(MoreButton, MoreLabel.Text);
             ToolTipService.SetToolTip(SettingsButton, SettingsLabel.Text);
             ToolTipService.SetToolTip(RefreshStatusButton, RefreshStatusLabel.Text);
             ToolTipService.SetToolTip(RefreshCallsButton, RefreshCallsLabel.Text);
 
             AutomationProperties.SetName(NewChatButton, NewChatLabel.Text);
+            AutomationProperties.SetName(SearchButton, SearchLabel.Text);
+            AutomationProperties.SetName(CloseSearchButton, Loc.Get("ChatsPage_SearchClose", "Close the search"));
             AutomationProperties.SetName(MoreButton, MoreLabel.Text);
             AutomationProperties.SetName(SettingsButton, SettingsLabel.Text);
             AutomationProperties.SetName(RefreshStatusButton, RefreshStatusLabel.Text);
@@ -109,6 +123,12 @@ namespace WhatsappApp.Pages
 
             if (index == 1) StatusView.Activate(); else StatusView.Deactivate();
             if (index == 2) CallsView.Activate(); else CallsView.Deactivate();
+
+            // The section is on screen now, so what is in it is no longer news: the tile's
+            // destination is "what arrived since the last look" (`LaunchRoute`), and this
+            // is the look. Written for whichever section is shown, so switching tabs by
+            // hand also keeps a stale route from winning the next start.
+            SessionService.MarkOpened(SectionOf(index));
 
             if (index == 0)
             {
@@ -169,12 +189,15 @@ namespace WhatsappApp.Pages
             // return from that page passes through.
             ApplyTheme();
 
-            int index = SectionIndex(SessionService.Section);
-            Show(index, true);
+            // A start is the chats. It used to be "the section you left", and on
+            // 28 October 2026 that was the Status tab - the app opened on somebody's updates
+            // instead of on the conversations. The other two tabs are one tap away and their
+            // badges are what say they have something new.
+            Show(0, true);
 
             // Show() only activates the chats when it moves to them: coming back
             // from a chat it may already be on index 0 while the tab was stopped.
-            if (index == 0) ActivateChats();
+            ActivateChats();
 
             EvaluateChats();
             ShowConnectionBar();
@@ -346,6 +369,63 @@ namespace WhatsappApp.Pages
             ConnectionBar.Visibility = Visibility.Visible;
         }
 
+        /// <summary>
+        /// The overflow of the Status tab. One entry today - the whole day watched at once,
+        /// which is the official app's "mark all as viewed" - and the flyout is built here
+        /// and not in XAML because the words are localized and the menu is empty-headed
+        /// otherwise.
+        /// </summary>
+        private void StatusMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var flyout = new MenuFlyout();
+
+            var seen = new MenuFlyoutItem
+            {
+                Text = Loc.Get("StatusPage_MarkAllViewed", "Mark all as viewed")
+            };
+            seen.Click += MarkAllStatusesMenuItem_Click;
+            flyout.Items.Add(seen);
+
+            flyout.ShowAt(StatusMoreButton);
+        }
+
+        /// <summary>
+        /// Every update of the day stops being new: the rings drop, the receipts go out and
+        /// the badge on the tab goes with them. The rows stay - a status is watched, not
+        /// erased - and the viewer still plays them if the tap comes.
+        /// </summary>
+        private void MarkAllStatusesMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            int changed = DataService.Instance.MarkAllStatusesViewed();
+
+            // Nothing to watch is not a failure: the tap says so in the log and the list is
+            // left exactly as it was.
+            if (changed == 0) Diag.Ok("status: mark all, nothing was unwatched");
+
+            RefreshBadges();
+        }
+
+        /// <summary>The overflow of the Calls tab: the same single entry, over the call log.</summary>
+        private void CallsMoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var flyout = new MenuFlyout();
+
+            var seen = new MenuFlyoutItem
+            {
+                Text = Loc.Get("CallsPage_MarkAllSeen", "Mark all as seen")
+            };
+            seen.Click += MarkCallsSeenMenuItem_Click;
+            flyout.Items.Add(seen);
+
+            flyout.ShowAt(CallsMoreButton);
+        }
+
+        private void MarkCallsSeenMenuItem_Click(object sender, RoutedEventArgs e)
+        {
+            DataService.Instance.MarkCallsSeen();
+            RefreshBadges();
+        }
+
         private void OnAttachmentReady()
         {
             UpdatePendingAttachment();
@@ -360,8 +440,90 @@ namespace WhatsappApp.Pages
 
         private void Contacts_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
+            // A row that arrives while the search is open has to be filtered like the
+            // others: the matches are a copy, and a copy nobody refreshes is a search that
+            // stops finding the newest message.
+            if (_searching) ApplyFilter(SearchBox.Text);
+
             EvaluateChats();
             RefreshBadges();
+        }
+
+        // ------------------------------------------------------------- search
+
+        /// <summary>
+        /// The magnifier in the app bar: the search row in, and the cursor in the box.
+        /// </summary>
+        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            SearchPanel.Visibility = Visibility.Visible;
+            SearchBox.Focus(FocusState.Programmatic);
+        }
+
+        /// <summary>
+        /// The x on the right of the box: the filter and the row are both put away, and the
+        /// keyboard goes with them.
+        /// </summary>
+        private void CloseSearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Text = "";
+            SearchPanel.Visibility = Visibility.Collapsed;
+        }
+
+        private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            ApplyFilter(SearchBox.Text);
+        }
+
+        /// <summary>
+        /// The chat list, narrowed to the rows that match - or the whole list again when the
+        /// box is empty.
+        ///
+        /// What is matched: the name, the preview of the last message, and the address, so a
+        /// number typed in finds the conversation that has no name yet. Case is ignored,
+        /// because a phone is typed on with a keyboard that capitalizes.
+        /// </summary>
+        private void ApplyFilter(string text)
+        {
+            string needle = text == null ? "" : text.Trim();
+
+            if (needle.Length == 0)
+            {
+                if (!_searching) return;
+
+                _searching = false;
+                ChatListView.ItemsSource = DataService.Instance.Contacts;
+                _matches.Clear();
+                Diag.Ok("chat search: closed, the whole list is back");
+                return;
+            }
+
+            _searching = true;
+            _matches.Clear();
+
+            for (int i = 0; i < DataService.Instance.Contacts.Count; i++)
+            {
+                Contact contact = DataService.Instance.Contacts[i];
+                if (contact == null || !SearchMatches(contact, needle)) continue;
+                _matches.Add(contact);
+            }
+
+            ChatListView.ItemsSource = _matches;
+            Diag.Ok("chat search: " + _matches.Count + " of " + DataService.Instance.Contacts.Count
+                + " row(s) for " + needle.Length + " char(s)");
+        }
+
+        private static bool SearchMatches(Contact contact, string needle)
+        {
+            return Contains(contact.Name, needle)
+                || Contains(contact.LastMessage, needle)
+                || Contains(contact.Id, needle);
+        }
+
+        private static bool Contains(string value, string needle)
+        {
+            return !string.IsNullOrEmpty(value)
+                && value.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         /// <summary>The empty state and the connection bar, in one place.</summary>

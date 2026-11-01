@@ -81,6 +81,30 @@ namespace WhatsappApp.Services
         /// <summary>How long a run waits for the login before it gives up.</summary>
         private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(8);
 
+        // What the last wake left on the phone, for the diagnostics page: a wake that
+        // read nothing and a wake that never ran look the same from the outside, and the
+        // one question a report has to answer is which of the two happened.
+        private const string KeyLastWake = "BackgroundCheck.LastWakeAt";
+        private const string KeyLastOutcome = "BackgroundCheck.LastOutcome";
+        private const string KeyLastUnread = "BackgroundCheck.LastUnread";
+        private const string KeyLastMilliseconds = "BackgroundCheck.LastMilliseconds";
+
+        /// <summary>Written when a wake starts, so a wake taken down reads as one.</summary>
+        public const string OutcomeRunning = "running";
+
+        /// <summary>The wake went through: it connected, read, saved and closed.</summary>
+        public const string OutcomeDone = "done";
+
+        /// <summary>The wake threw. The log has the exception; this is that it happened.</summary>
+        public const string OutcomeFailed = "failed";
+
+        /// <summary>
+        /// The phone took the wake down in the middle - the 30-second ceiling of a WP8.1
+        /// background task, on its own thread. This is the outcome of 23-24 October 2026,
+        /// which until now was indistinguishable from a wake that never arrived.
+        /// </summary>
+        public const string OutcomeCanceled = "canceled";
+
         /// <summary>
         /// How long a run lets the backlog arrive before it reports. Clamped to what is
         /// left of the budget: eight for the login plus six here is over the twenty.
@@ -124,7 +148,23 @@ namespace WhatsappApp.Services
         public static void Start()
         {
             if (!SettingsService.BackgroundCheckEnabled) return;
-            if (IsRegistered() && RegisteredInterval() == IntervalMinutes && RegisteredEntryPoint() == EntryPoint) return;
+
+            // A registration is not the same thing as a check that runs. The phone can
+            // take the permission away after it was given - the user turns background
+            // work off for this app, or battery saver does it for a while - and the
+            // registration stays exactly where it was: `IsRegistered` keeps saying yes
+            // while nothing ever wakes. It is the failure the scheduled agents of this
+            // platform are written against (`IsScheduled` false means the system took
+            // the task away and it has to be made again), and the same reading is what
+            // lets the settings page say the truth instead of showing a switch that is
+            // on while the phone has already refused.
+            if (!IsPermitted())
+            {
+                Diag.Ok("background: the phone is not letting this app work in the background, nothing will wake");
+            }
+
+            if (IsRegistered() && RegisteredInterval() == IntervalMinutes
+                && RegisteredEntryPoint() == EntryPoint && IsPermitted()) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("BackgroundSync/register", SetEnabledAsync(true));
@@ -153,8 +193,14 @@ namespace WhatsappApp.Services
                 // for a shorter check would keep the old one forever - which is a phone
                 // that keeps waking every half hour whatever the source says. The entry
                 // point is remembered for the same reason: a task keeps that too.
+                //
+                // The permission is part of the question: a registration that is still
+                // there while the system has refused background work is a task that will
+                // not run, so it is asked for again here - which is also the only way the
+                // app finds out that the user has turned it back on in the phone's own
+                // settings, since nothing tells it when that happens.
                 if (IsRegistered() && RegisteredInterval() == IntervalMinutes
-                    && RegisteredEntryPoint() == EntryPoint) return;
+                    && RegisteredEntryPoint() == EntryPoint && IsPermitted()) return;
                 if (IsRegistered())
                 {
                     Unregister();
@@ -208,6 +254,7 @@ namespace WhatsappApp.Services
             try
             {
                 Diag.Ok("background: woke");
+                RememberWake(OutcomeRunning, LastUnread, 0);
 
                 // What the last run left on the tile is read back first: this process
                 // starts with nothing in memory, and a check that drew a tile without it
@@ -238,6 +285,10 @@ namespace WhatsappApp.Services
                 int unread = DataService.Instance.UnreadChats();
                 NotificationService.SetUnread(unread);
 
+                // And the updates that arrived with this wake say so on the tile: a check that
+                // read one and drew nothing leaves the phone saying only that no message came.
+                NotificationService.SetStatuses(DataService.Instance.UnseenStatuses());
+
                 // And what it read goes to the phone before this process ends. The tile
                 // is not a record of anything: WhatsApp counts these messages as
                 // delivered when they are acknowledged, and never sends them again, so a
@@ -258,6 +309,8 @@ namespace WhatsappApp.Services
 
                 Diag.OkNow("background: the snapshot is on the phone after " + watch.ElapsedMilliseconds + " ms");
 
+                RememberWake(OutcomeDone, unread, watch.ElapsedMilliseconds);
+
                 // One line the next run can learn from: how much of the 30 seconds this
                 // took, and whether it went over what the code budgeted for itself.
                 Diag.Ok("background: checked in " + watch.ElapsedMilliseconds + " ms, "
@@ -267,6 +320,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
+                RememberWake(OutcomeFailed, LastUnread, Watch.ElapsedMilliseconds);
                 Diag.Failed("BackgroundSync/RunNow", ex);
             }
             finally
@@ -329,6 +383,141 @@ namespace WhatsappApp.Services
             }
 
             return "";
+        }
+
+        /// <summary>When the last wake started, in UTC, or `default(DateTime)` for never.</summary>
+        public static DateTime LastWake
+        {
+            get
+            {
+                long ticks = LastNumber(KeyLastWake, 0);
+                if (ticks <= 0) return default(DateTime);
+                return new DateTime(ticks, DateTimeKind.Utc);
+            }
+        }
+
+        /// <summary>
+        /// How the last wake ended: one of the `Outcome*` words, or empty when the phone
+        /// has never recorded one. `running` is a wake that started and left no ending,
+        /// which on this platform means the system took it down.
+        /// </summary>
+        public static string LastOutcome
+        {
+            get { return LastText(KeyLastOutcome); }
+        }
+
+        /// <summary>The unread count the last wake put on the tile.</summary>
+        public static int LastUnread
+        {
+            get { return (int)LastNumber(KeyLastUnread, 0); }
+        }
+
+        /// <summary>How long the last wake took, in milliseconds.</summary>
+        public static int LastMilliseconds
+        {
+            get { return (int)LastNumber(KeyLastMilliseconds, 0); }
+        }
+
+        /// <summary>
+        /// Says on the phone how a wake is going, in the same place the diagnostics page
+        /// reads: written at the start as `running` and overwritten with the ending, so a
+        /// wake the system cut in half is still visible after the process is gone.
+        /// </summary>
+        private static void RememberWake(string outcome, int unread, long milliseconds)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeyLastWake] = DateTime.UtcNow.Ticks;
+                ApplicationData.Current.LocalSettings.Values[KeyLastOutcome] = outcome;
+                ApplicationData.Current.LocalSettings.Values[KeyLastUnread] = unread;
+                ApplicationData.Current.LocalSettings.Values[KeyLastMilliseconds] = (int)milliseconds;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/RememberWake", ex);
+            }
+        }
+
+        /// <summary>
+        /// The system is taking the wake down, and the task that owns the deferral says so.
+        /// Called from the component's `Canceled` handler, which runs on a thread of the
+        /// system's choosing while `RunNow` is still blocked in a wait - so this only
+        /// writes its own line and does not touch anything the run is using.
+        /// </summary>
+        public static void MarkCanceled(string reason)
+        {
+            lock (Gate)
+            {
+                // A cancellation callback can race the end of RunNow. Once the run has
+                // recorded a terminal outcome, it must remain the last outcome shown by
+                // diagnostics; only an interrupted run may be marked canceled.
+                if (!_running || LastOutcome != OutcomeRunning) return;
+
+                RememberWake(OutcomeCanceled, LastUnread, ElapsedMilliseconds);
+            }
+
+            Diag.OkNow("background: the system canceled the check after "
+                + ElapsedMilliseconds + " ms (" + reason + ")");
+        }
+
+        private static long LastNumber(string key, long fallback)
+        {
+            try
+            {
+                object stored;
+                long value;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out stored) && stored != null
+                    && long.TryParse(stored.ToString(), out value)) return value;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/LastNumber", ex);
+            }
+
+            return fallback;
+        }
+
+        private static string LastText(string key)
+        {
+            try
+            {
+                object stored;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out stored) && stored != null)
+                {
+                    return stored.ToString();
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/LastText", ex);
+            }
+
+            return "";
+        }
+
+        /// <summary>
+        /// Whether the phone lets this app run in the background at all.
+        ///
+        /// Asked of the system and never remembered: the answer changes without the app
+        /// being told anything - the user can turn it off while the app is suspended, and
+        /// battery saver does it on its own - so a remembered yes would be a check that
+        /// never wakes and a settings page that keeps promising it does. `Denied` is the
+        /// one answer a registration cannot overrule; everything else on this platform is
+        /// a permission the user granted, with the system free to delay the moment.
+        /// </summary>
+        public static bool IsPermitted()
+        {
+            try
+            {
+                return BackgroundExecutionManager.GetAccessStatus() != BackgroundAccessStatus.Denied;
+            }
+            catch (Exception ex)
+            {
+                // Not knowing is not a refusal: the line under the switch must not accuse
+                // the phone of something it never said.
+                Diag.Failed("BackgroundSync/IsPermitted", ex);
+                return true;
+            }
         }
 
         /// <summary>True when this app already has the task registered.</summary>

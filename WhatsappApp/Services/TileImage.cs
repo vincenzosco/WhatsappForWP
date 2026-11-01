@@ -189,6 +189,167 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// The app's own card: the background the user chose - a wallpaper, or one pixel of the
+        /// accent colour - with the app mark over it, at each shape the tile has.
+        ///
+        /// Why not `StoreAsync`: that one draws its picture the way a **chat's** picture is
+        /// drawn - edge to edge, nothing on top, because a face is the tile's subject. A
+        /// background is not the subject: handed to that path, the wallpaper covered the tile
+        /// and the app's logo disappeared with it, which is what the phone showed on
+        /// 28 October 2026. Here the picture is a background: dimmed so a white mark reads on
+        /// it, with the mark drawn in the middle at half the tile, and the wide card filled
+        /// with the same background instead of framing a square in teal.
+        ///
+        /// `null` when the picture cannot be decoded, and the caller keeps the app mark.
+        /// </summary>
+        public static async Task<TileCard> StoreThemeAsync(string fileName, string themeData)
+        {
+            if (string.IsNullOrEmpty(fileName)) return null;
+
+            TileCard have = Cached(fileName, themeData);
+            if (have != null) return have;
+
+            return await Writes.RunAsync(delegate { return ComposeThemeAsync(fileName, themeData); });
+        }
+
+        /// <summary>The theme card, composed and written - inside the queue, like every card.</summary>
+        private static async Task<TileCard> ComposeThemeAsync(string fileName, string themeData)
+        {
+            TileCard have = Cached(fileName, themeData);
+            if (have != null) return have;
+
+            string picture = themeData ?? "";
+            TileCard card = null;
+
+            try
+            {
+                TilePixels background = await WholeAsync(themeData);
+                TilePicture decodedMark = await PictureAsync(null);
+
+                if (background != null && decodedMark != null)
+                {
+                    // A third of the tile, so the shell's two lines of text have a band of
+                    // their own under it (`TileCanvas.ThemeMark`).
+                    byte[] markBytes = TileCanvas.ResizeSquare(decodedMark.Bytes, decodedMark.Side,
+                        TileCanvas.ThemeMark);
+                    int markSide = TileCanvas.ThemeMark;
+                    int markInset = (TileCanvas.Size - markSide) / 2;
+
+                    string name = TileCanvas.CardFileName(fileName, picture);
+                    string wide = TileCanvas.WideFileName(name);
+
+                    // The tile's own shapes, each filled by the background: a wallpaper is a
+                    // texture, and cropping it loses nothing a person would miss.
+                    byte[] square = TileCanvas.CoverPixels(background.Bytes, background.Width,
+                        background.Height, TileCanvas.Size, TileCanvas.Size);
+                    TileCanvas.Dim(square, TileCanvas.ThemeDim);
+                    TileCanvas.DrawOnto(square, TileCanvas.Size, TileCanvas.Size,
+                        markBytes, markSide, markSide, markInset,
+                        // Above the middle: the bottom of the tile is where the text goes.
+                        (TileCanvas.Size - markSide) / 3);
+
+                    if (!await ExistsAsync(name))
+                    {
+                        await WriteAsync(name, square, TileCanvas.Size, TileCanvas.Size);
+                    }
+
+                    byte[] wideCard = TileCanvas.CoverPixels(background.Bytes, background.Width,
+                        background.Height, TileCanvas.WideWidth, TileCanvas.WideHeight);
+                    TileCanvas.Dim(wideCard, TileCanvas.ThemeDim);
+                    TileCanvas.DrawOnto(wideCard, TileCanvas.WideWidth, TileCanvas.WideHeight,
+                        markBytes, markSide, markSide,
+                        (TileCanvas.WideWidth - markSide) / 2, (TileCanvas.WideHeight - markSide) / 2);
+
+                    if (!await ExistsAsync(wide))
+                    {
+                        await WriteAsync(wide, wideCard, TileCanvas.WideWidth, TileCanvas.WideHeight);
+                    }
+
+                    // The 71x71 tile: the composed square, smaller. The mark is already on it.
+                    string small = TileCanvas.SmallFileName(name);
+                    if (!await ExistsAsync(small))
+                    {
+                        byte[] smallCard = TileCanvas.ResizeSquare(square, TileCanvas.Size, TileCanvas.SmallSize);
+                        await WriteAsync(small, smallCard, TileCanvas.SmallSize, TileCanvas.SmallSize);
+                    }
+
+                    card = CardOf(name, wide, small);
+
+                    Diag.Ok("tile: theme card v" + TileCanvas.CardVersion + " for " + fileName
+                        + " from a " + background.Width + "x" + background.Height
+                        + " picture, mark " + markSide + " px");
+                }
+            }
+            catch (Exception ex)
+            {
+                // Named and survived: the caller falls back to the app mark, which is the
+                // tile every build before this one drew.
+                Diag.Failed("TileImage/StoreTheme", ex);
+            }
+
+            if (card == null) return null;
+
+            TileCard stale = Remember(fileName, picture, card);
+            if (stale != null) await ForgetAsync(stale);
+
+            return card;
+        }
+
+        /// <summary>The picture exactly as it arrived: its pixels, its width and its height.</summary>
+        private sealed class TilePixels
+        {
+            public byte[] Bytes;
+            public int Width;
+            public int Height;
+        }
+
+        /// <summary>
+        /// Decodes a picture without cropping it to a square: a wallpaper is 768x768 or not,
+        /// and the wide card needs its own rectangle.
+        ///
+        /// Null when there is nothing to decode, or when it is not a picture at all - both are
+        /// the caller's answer (the app mark), not a failure.
+        /// </summary>
+        private static async Task<TilePixels> WholeAsync(string pictureData)
+        {
+            if (string.IsNullOrEmpty(pictureData)) return null;
+
+            byte[] bytes;
+            try
+            {
+                bytes = Convert.FromBase64String(pictureData);
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+
+            if (bytes.Length == 0 || bytes.Length > MaxImageBytes) return null;
+
+            using (var stream = new InMemoryRandomAccessStream())
+            {
+                using (var writer = new DataWriter(stream))
+                {
+                    writer.WriteBytes(bytes);
+                    await writer.StoreAsync();
+                    await writer.FlushAsync();
+                    writer.DetachStream();
+                }
+
+                stream.Seek(0);
+
+                BitmapDecoder decoder = await BitmapDecoder.CreateAsync(stream);
+
+                var pixels = new TilePixels();
+                pixels.Width = (int)decoder.PixelWidth;
+                pixels.Height = (int)decoder.PixelHeight;
+                pixels.Bytes = await PixelsAsync(decoder, new BitmapTransform());
+
+                return pixels;
+            }
+        }
+
+        /// <summary>
         /// Records the card as this chat's, and answers the generation it displaces.
         ///
         /// Two are kept - the one the tile draws and the one before it - because a file is

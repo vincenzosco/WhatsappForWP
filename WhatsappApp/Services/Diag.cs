@@ -523,7 +523,14 @@ namespace WhatsappApp.Services
             lock (Gate)
             {
                 long now = DateTime.Now.Ticks;
-                if (!force && now - _lastFlushTicks < TimeSpan.TicksPerSecond) return null;
+
+                // A delta that is negative is not "too soon": the wall clock moved back
+                // under the mark (a phone syncing its time, a timezone change), and the
+                // difference then stays negative until the clock passes the old mark -
+                // an hour of ordinary lines with no file behind them. Only a small
+                // positive delta is the interval this is here for.
+                long since = now - _lastFlushTicks;
+                if (!force && since >= 0 && since < TimeSpan.TicksPerSecond) return null;
                 if (_written >= History.Count) return null;
 
                 _lastFlushTicks = now;

@@ -11,6 +11,7 @@ namespace WhatsappApp.Protocol.Client
     {
         public byte[] Bytes;
         public string Timestamp;
+        public string Jid;
     }
 
     public static class PrivacyTokens
@@ -46,29 +47,64 @@ namespace WhatsappApp.Protocol.Client
         {
             if (answer == null) return null;
 
-            BinaryNode tokens = answer.Child("tokens");
-            if (tokens == null) return null;
+            return ReadFromChildren(answer);
+        }
 
-            IList<BinaryNode> children = tokens.Children();
+        /// <summary>Reads a token pushed in a privacy_token notification.</summary>
+        public static PrivacyToken ReadNotification(BinaryNode notification)
+        {
+            if (notification == null) return null;
+
+            PrivacyToken token = ReadFromChildren(notification);
+            if (token == null) return null;
+            if (string.IsNullOrEmpty(token.Jid)) token.Jid = notification.Attrs["from"];
+            return token;
+        }
+
+        private static PrivacyToken ReadFromChildren(BinaryNode parent)
+        {
+            if (parent == null) return null;
+
+            BinaryNode tokens = parent.Tag == "tokens" ? parent : parent.Child("tokens");
+            if (tokens != null)
+            {
+                PrivacyToken token = ReadTokenList(tokens.Children());
+                if (token != null) return token;
+            }
+
+            PrivacyToken direct = ReadToken(parent.Child("token"));
+            if (direct != null) return direct;
+
+            return ReadTokenList(parent.Children());
+        }
+
+        private static PrivacyToken ReadTokenList(IList<BinaryNode> children)
+        {
             if (children == null) return null;
 
             for (int i = 0; i < children.Count; i++)
             {
-                BinaryNode token = children[i];
-                if (token == null || token.Tag != "token") continue;
-                if (token.Attrs["type"] != Type) continue;
-
-                byte[] bytes = token.Bytes();
-                string timestamp = token.Attrs["t"];
-                if (bytes == null || bytes.Length == 0 || string.IsNullOrEmpty(timestamp)) continue;
-
-                var result = new PrivacyToken();
-                result.Bytes = bytes;
-                result.Timestamp = timestamp;
-                return result;
+                PrivacyToken token = ReadToken(children[i]);
+                if (token != null) return token;
             }
 
             return null;
+        }
+
+        private static PrivacyToken ReadToken(BinaryNode token)
+        {
+            if (token == null || token.Tag != "token") return null;
+            if (token.Attrs["type"] != Type) return null;
+
+            byte[] bytes = token.Bytes();
+            string timestamp = token.Attrs["t"];
+            if (bytes == null || bytes.Length == 0 || string.IsNullOrEmpty(timestamp)) return null;
+
+            var result = new PrivacyToken();
+            result.Bytes = bytes;
+            result.Timestamp = timestamp;
+            result.Jid = token.Attrs["jid"];
+            return result;
         }
     }
 }

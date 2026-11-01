@@ -53,10 +53,12 @@ fissa con la barra di WP8. Una conversazione è una pagina a parte.
 
 Cosa funziona oggi:
 
-- messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto
+- messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto, e una riga **Riprova** sotto il fumetto di un invio che non è passato
+- una ricerca sull'elenco chat, per nome, per quello che la chat ha detto l'ultima volta, o per il numero
+- una pressione prolungata su un messaggio ne copia le parole, lo elimina su questo telefono, o lo prende indietro per tutti entro due giorni - e un messaggio che un altro dispositivo prende indietro sparisce anche da questo
 - l'elenco chat vero, dalla sync della history: avatar, non letti, gruppi, e i nomi salvati nella rubrica WhatsApp del telefono principale, che arrivano cifrati nell'app state dell'account
 - indicatore "sta scrivendo" nelle due direzioni
-- il feed degli stati: quello che i contatti hanno pubblicato, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
+- il feed degli stati: quello che i contatti hanno pubblicato, con la foto dell'autore e il nome che WhatsApp manda con l'aggiornamento, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, l'anteprima di un aggiornamento lascia la riga quando la giornata è stata guardata, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
 - il registro delle chiamate, nelle due direzioni, con le perse scritte per esteso
 - una tile viva che ruota fra le persone in attesa - nome e messaggio, e fra un messaggio e l'altro la sola foto di chi aspetta una risposta - più la tile di una chat fissata, il testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
 - selettore del tema con gli sfondi del pacchetto ufficiale, più il doodle e il bianco
@@ -70,8 +72,8 @@ C# 5; un telefono che non è il numero principale.
 **Non va bene per:** sostituire WhatsApp sul telefono principale. È un client non ufficiale,
 viola i Termini di servizio di WhatsApp, e il numero che colleghi può essere bannato. Usa un numero
 di prova o secondario. Non è nemmeno un client completo: i vocali in Ogg/Opus non si sentono, la
-history vecchia non viene chiesta su richiesta, le cancellazioni e le modifiche fatte da altri
-dispositivi non vengono lette.
+history vecchia non viene chiesta su richiesta, e le modifiche fatte da altri dispositivi non
+vengono lette.
 
 ## Compilarlo
 
@@ -130,6 +132,29 @@ Consigli:
   lascia sulla schermata Start la card di quella precedente. La foto che disegna è quella
   profilo a piena risoluzione, chiesta a WhatsApp quando la chat viene fissata, non l'anteprima
   piccola che usa la lista: la tile è l'unico posto che mostra una faccia alla misura della tile.
+  Quando qualcuno ha pubblicato uno stato che nessuno ha guardato, un turno della tile lo dice
+  ("Stati" sopra "3 nuovi stati"): il badge della scheda si vede solo con l'app aperta, e il numero
+  sull'icona sono i messaggi in attesa, che uno stato non è. I turni dove non c'è la faccia di
+  nessuno sono dipinti con lo sfondo scelto in Impostazioni - Tema: quella foto, o il colore di
+  accento del telefono quando la scelta è il bianco - così la tile ha lo stesso aspetto della lista.
+  Il marchio WhatsApp è disegnato su quello sfondo, scurito perché una sagoma bianca si legga, e la
+  tile grande è riempita con lo stesso sfondo invece di incorniciare un quadrato sul verde.
+- Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
+  stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
+  Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda
+  l'intera giornata di stati e l'intero log delle chiamate a ogni login. Messaggi, stati e
+  chiamate perse hanno un interruttore ciascuno nelle impostazioni; la tile e il numero
+  sull'icona non sono uno di loro.
+- Il badge di Chiamate conta le chiamate perse arrivate da quando il log è stato guardato l'ultima
+  volta, quindi torna a zero quando la scheda si apre invece di mostrare per sempre lo stesso numero.
+- Le emoji funzionano come questo telefono sa. Una faccia che il font di Windows Phone 8.1 non ha
+  mai avuto - il cuore azzurro, il braccio meccanico, il pianeta con l'anello - si disegna come la
+  più vecchia che ha, e una senza cugina più vecchia si omette invece di restare un quadratino.
+  Quello che parte è quello che è stato scritto, quindi un telefono più nuovo dall'altra parte vede
+  esattamente quello. Scrivere la faccina alla vecchia maniera manda comunque una faccia: la casella
+  di testo chiede alla tastiera lo scope chat, che è quello che le mette il tasto emoji accanto alla
+  barra spaziatrice, e `:)` - o `:(`, `;)`, `:D`, `:P`, `:O`, `:|`, `<3`, `</3` - diventa la faccia
+  stessa in uscita, anche da una tastiera che non fa né l'una né l'altra.
 - Il controllo in background è attivo di default. Spegnilo nelle impostazioni se il telefono deve
   stare zitto.
 - Se l'app apre un elenco vuoto e resta lì, apri la pagina Diagnostics dallo stato vuoto: mostra le
@@ -198,6 +223,23 @@ c'è nessun servizio cloud per il push, quindi `BackgroundSync` si sveglia con u
 connette, legge quello che aspetta, aggiorna tile e schermata di blocco, e chiude. 15 minuti è
 l'intervallo più breve che un `TimeTrigger` accetta; il momento esatto lo decide il sistema e può
 rimandarlo. Spegnilo nelle impostazioni se preferisci che in background non faccia niente.
+
+Il permesso è del telefono, non dell'interruttore: l'utente può togliere il lavoro in background
+all'app dalle impostazioni del telefono, e il risparmio energetico lo fa da sé per un po'. La
+registrazione resta e niente si sveglia, quindi le impostazioni rileggono il permesso a ogni
+visita e lo dicono sotto l'interruttore, invece di mostrare acceso un controllo che non parte.
+
+Diagnostica risponde alla stessa domanda per un rapporto: l'intervallo, se il task è registrato, se
+il telefono lo permette, e cosa ha fatto l'ultimo risveglio - quando è partito, come è finito,
+quanto ci ha messo e cosa ha messo sulla tile. `running` senza finale è un risveglio che il sistema
+ha preso in mezzo, al suo tetto di 30 secondi.
+
+Un avvio atterra sempre sulle chat. Prima atterrava sulla sezione lasciata aperta, e il 28 ottobre
+2026 quella era la scheda Stati: l'app si apriva sugli aggiornamenti di qualcuno invece che sulle
+conversazioni. WP8.1 dà al tocco sulla tile gli stessi argomenti vuoti dell'elenco delle app,
+quindi l'app scrive ancora quello che il telefono sta mostrando quando disegna il badge e lo
+riprende una volta sola all'avvio dopo - lo nomina nel log, e non sceglie più la scheda: i badge su
+Stati e Chiamate sono quello che dice che quelle due hanno qualcosa di nuovo.
 </details>
 
 <details>
@@ -246,12 +288,16 @@ node tools/check-xaml-names.js      un x:Name per namescope
 node tools/check-client-state.js    le frasi passive/attive del login e il canale notifiche
 node tools/check-background-task.js la classe attivabile del task e il suo budget di 30 s
 node tools/check-diagnostics.js     il log che sopravvive a un crash
+node tools/check-launch-route.js    un tocco sulla tile: cosa registra e l'unico avvio che lo usa
+node tools/check-notification-alerts.js  un aggiornamento e una chiamata persa annunciati una volta, e un badge che scende
 node tools/check-held-group.js       un messaggio di gruppo che aspetta la sua sender key invece di un retry
 node tools/check-avatar-refusal.js   una chat che rifiuta la foto, distinta da un login mancante
 node tools/check-no-exception-probes.js  il padding si legge, non si indovina a eccezioni
 node tools/check-app-state.js       i nomi salvati: le chiavi si conservano, la sync si chiede, le righe lo sanno
 node tools/check-chat-list-refresh.js  una sola chat per persona, e una lista che si aggiorna
 node tools/check-one-row-per-chat.js  una riga per chat, canonica e una sola: lista, gruppi, stati
+node tools/check-emoji.js           le emoji che il font non ha, e un :) digitato che parte come faccia
+node tools/check-send-path.js       un tocco che l'invio scarta dice perché in diag.log
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
@@ -264,7 +310,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` compila ed esegue i 376 test del protocollo in `ProtocolTests/`. Sono C#
+`tools/test-protocol.js` compila ed esegue i 418 test del protocollo in `ProtocolTests/`. Sono C#
 puro con un runner minimo, perché il toolchain WP8.1 non può ospitare un framework di test moderno.
 
 ## Da sapere

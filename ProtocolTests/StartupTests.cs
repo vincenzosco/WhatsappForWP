@@ -11,6 +11,10 @@ namespace ProtocolTests
     /// case below is a state a real install can be in, and the two that matter most are
     /// the ones that must **not** reach the chats: no session at all, and a session the
     /// server has already revoked - a chat list behind either of them can never load.
+    ///
+    /// The third rule is the one 28 October 2026 added: with a session, a start is always
+    /// the chats. It used to be the section the app was last on, and that was the Status
+    /// tab - the app opened on somebody's updates instead of on the conversations.
     /// </summary>
     public static class StartupTests
     {
@@ -18,7 +22,7 @@ namespace ProtocolTests
         [Test]
         public static void NoSessionStartsOnThePairingPage()
         {
-            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(false, false, false, true));
+            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(false, false));
         }
 
         /// <summary>
@@ -29,7 +33,7 @@ namespace ProtocolTests
         [Test]
         public static void AnUpgradedInstallWithNoSessionStartsOnThePairingPage()
         {
-            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(false, false, true, true));
+            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(false, false));
         }
 
         /// <summary>
@@ -40,32 +44,18 @@ namespace ProtocolTests
         [Test]
         public static void AnExpiredSessionStartsOnThePairingPage()
         {
-            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(true, true, false, true));
-            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(true, true, true, false));
-        }
-
-        /// <summary>A terminated app coming back: it resumes the section the user was in.</summary>
-        [Test]
-        public static void ResumingOutsideTheChatsKeepsTheSection()
-        {
-            Assert.AreEqual(StartTarget.LastSection, StartDecision.Decide(true, false, true, false));
+            Assert.AreEqual(StartTarget.Pair, StartDecision.Decide(true, true));
         }
 
         /// <summary>
-        /// Resuming inside the chats is the chats: `LastSection` would have to name the
-        /// section too, and the caller already knows it is not the one it wants.
+        /// A start with a session is the chat list, and that is the whole of the rule: the
+        /// argument list has no "where was the app last" and no "what was the tile showing",
+        /// so no stored section and no tile tap can put the app on another tab.
         /// </summary>
         [Test]
-        public static void ResumingInTheChatsIsTheChats()
+        public static void AStartWithASessionIsTheChats()
         {
-            Assert.AreEqual(StartTarget.Chats, StartDecision.Decide(true, false, true, true));
-        }
-
-        /// <summary>A cold start with a session goes to the chat list, which is the app's front door.</summary>
-        [Test]
-        public static void AColdStartWithASessionIsTheChats()
-        {
-            Assert.AreEqual(StartTarget.Chats, StartDecision.Decide(true, false, false, false));
+            Assert.AreEqual(StartTarget.Chats, StartDecision.Decide(true, false));
         }
     }
 }

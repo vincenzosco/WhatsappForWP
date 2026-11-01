@@ -9,6 +9,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage.Streams;
 using Windows.UI.Xaml.Media.Imaging;
+using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Models
@@ -101,7 +102,23 @@ namespace WhatsappApp.Models
                 _text = value;
                 OnPropertyChanged();
                 OnPropertyChanged("ShowsText");
+                OnPropertyChanged("ShownText");
             }
+        }
+
+        /// <summary>
+        /// The same text, as this phone can draw it: the emoji whose code point it has no
+        /// glyph for are the older ones `EmojiText` names, instead of the boxes they used
+        /// to be (`Benny🩵` read as `Benny` and a box).
+        ///
+        /// Why it is a second property and not the setter: `Text` is the message. It goes
+        /// to the wire, into the cache and back out on a forward, and substituting it at
+        /// the door would send a different emoji from the one that was written. Only what
+        /// the screen draws asks this, and it is computed and not stored.
+        /// </summary>
+        public string ShownText
+        {
+            get { return EmojiText.Compatible(_text); }
         }
 
         [DataMember]
@@ -117,7 +134,10 @@ namespace WhatsappApp.Models
             get { return _senderName; }
             set
             {
-                _senderName = value;
+                // A name is on screen too, and the names carry emoji: `Benny🩵` was a row
+                // with a box in it. The initials are the first letter of the result, so a
+                // replaced emoji at the front still gives a letter this phone can draw.
+                _senderName = EmojiText.Compatible(value);
                 OnPropertyChanged();
                 // The avatar circle is drawn from the first letter of this one.
                 OnPropertyChanged("Initials");
@@ -185,7 +205,17 @@ namespace WhatsappApp.Models
         public MessageStatus Status
         {
             get { return _status; }
-            set { _status = value; OnPropertyChanged(); }
+            set
+            {
+                _status = value;
+                OnPropertyChanged();
+
+                // The retry line under the bubble follows the status: it is there
+                // while the send is failed and gone the moment it is tried again,
+                // and without this the bubble keeps a button for a send that is
+                // already on its way.
+                OnPropertyChanged("CanRetry");
+            }
         }
 
         [DataMember]
@@ -491,6 +521,30 @@ namespace WhatsappApp.Models
         public bool IsOutgoing
         {
             get { return !IsIncoming; }
+        }
+
+        /// <summary>
+        /// This bubble's send failed and it can be tried again from the bubble itself.
+        ///
+        /// Why a property and not two bindings: the answer is "failed, and the thing a
+        /// retry needs is still here". Text is always here. A media message needs its
+        /// file, and a bubble rebuilt from the cache no longer has the bytes - the cache
+        /// keeps the name, not the file - so it says no rather than offering a button that
+        /// can only fail a second time.
+        /// </summary>
+        public bool CanRetry
+        {
+            get
+            {
+                if (IsIncoming || Status != MessageStatus.Failed) return false;
+
+                // A document is not IsMedia - its Type is Text and only the media type
+                // says what it is - so it is named here as well, or a failed document
+                // would be retried as a text message carrying its own file name.
+                if (!IsMedia && !IsDocument) return !string.IsNullOrEmpty(Text);
+
+                return !string.IsNullOrEmpty(MediaFilePath);
+            }
         }
 
         /// <summary>

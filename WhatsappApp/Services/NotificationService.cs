@@ -105,6 +105,11 @@ namespace WhatsappApp.Services
                 {
                     _unread = (int)value;
                 }
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyStatuses, out value)
+                    && value is int)
+                {
+                    _unseenStatuses = (int)value;
+                }
             }
             catch (Exception ex)
             {
@@ -237,28 +242,52 @@ namespace WhatsappApp.Services
                 try { updater.Clear(); }
                 catch (Exception ex) { Diag.Failed("NotificationService.RenderTile/clear", ex); }
 
-                if (_unread <= 0) return;
+                _tileDrawn = true;
+
+                // A background run draws this before anything could compose a wallpaper: the
+                // card the last run wrote is read back, or the tile would change picture at
+                // every wake. Three stored paths, once per process.
+                TileTheme.Restore();
+
+                if (_unread <= 0 && _unseenStatuses <= 0) return;
+
+                // The updates turn: one of the five slots, in front, when somebody has posted
+                // and nobody has looked. It is drawn from the live count like everything else
+                // here, so a queue walked twice cannot show a number that has moved.
+                TileEntry statuses = _unseenStatuses > 0 ? StatusTurn(_unseenStatuses) : null;
 
                 IList<TileEntry> waiting = _waiting;
+                IList<TileEntry> turns;
                 if (waiting == null || waiting.Count == 0)
                 {
                     // Nobody named in this process - a count read back from the local copy
                     // before any message: one notification with the last person the phone
                     // knows, which is what the lock screen shows too.
-                    Post(updater, Entry(_senderName, _senderBody, _senderImage));
-                    return;
+                    turns = _unread > 0
+                        ? new List<TileEntry> { Entry(_senderName, _senderBody, _senderImage) }
+                        : new List<TileEntry>();
+                }
+                else
+                {
+                    // Not one notification per conversation, but the turns `TileCycle` makes
+                    // of them: the message of each person, and a picture alone in the slots
+                    // the messages leave over. The tile then does not say the same thing on
+                    // every pass through the queue.
+                    //
+                    // The updates take their slot first: a person waiting must not lose
+                    // their turn to a number, but a number that is not on the tile at all is
+                    // the defect this turn exists for - so the messages are asked for one
+                    // fewer slot and nobody is dropped.
+                    int slots = statuses == null ? TileCycle.MaxEntries : TileCycle.MaxEntries - 1;
+                    turns = TileCycle.Turns(waiting, slots);
                 }
 
-                // Not one notification per conversation, but the turns `TileCycle` makes of
-                // them: the message of each person, and a picture alone in the slots the
-                // messages leave over. The tile then does not say the same thing on every
-                // pass through the queue.
-                //
+                turns = TileCycle.WithStatuses(turns, statuses, TileCycle.MaxEntries);
+
                 // Posted back to front: the shell shows the notification it was given last
                 // first, so the first turn of the list - the newest person's message, the
                 // one this tile has always opened with - is the last one handed over. In
                 // order, the first thing on screen would be the picture turn.
-                IList<TileEntry> turns = TileCycle.Turns(waiting, TileCycle.MaxEntries);
                 for (int i = turns.Count - 1; i >= 0; i--)
                 {
                     Post(updater, turns[i]);
@@ -293,11 +322,11 @@ namespace WhatsappApp.Services
             if (visual == null) return;
 
             var medium = visual.SelectSingleNode("binding") as XmlElement;
-            string wide = entry.Image == null ? TileWideIconUri : TileImage.WideOf(entry.Image);
+            string wide = entry.Image == null ? WideMarkUri : TileImage.WideOf(entry.Image);
 
             if (entry.PictureOnly)
             {
-                SetImage(xml, medium, entry.Image ?? TileIconUri);
+                SetImage(xml, medium, entry.Image ?? MarkUri);
                 AddWidePicture(xml, visual, wide);
             }
             else
@@ -310,7 +339,7 @@ namespace WhatsappApp.Services
 
             // 71x71 carries the person's picture whenever there is one - it is the only
             // thing that size has room for - and the app mark when the chat has no picture.
-            AddSmallBinding(xml, visual, entry.Image == null ? TileIconUri : TileImage.SmallOf(entry.Image));
+            AddSmallBinding(xml, visual, entry.Image == null ? MarkUri : TileImage.SmallOf(entry.Image));
 
             updater.Update(new TileNotification(xml));
         }
@@ -344,7 +373,7 @@ namespace WhatsappApp.Services
             if (binding == null) return;
 
             FillText(xml, binding, TileText.For(senderName, bodyText, UnreadText(_unread)));
-            SetImage(xml, binding, image ?? TileIconUri);
+            SetImage(xml, binding, image ?? MarkUri);
         }
 
         /// <summary>The two lines of one binding, as `TileText` decided them.</summary>
@@ -422,13 +451,13 @@ namespace WhatsappApp.Services
 
                 if (entry.PictureOnly)
                 {
-                    SetImage(xml, binding, entry.Image ?? TileIconUri);
+                    SetImage(xml, binding, entry.Image ?? MarkUri);
                     return;
                 }
 
                 TileLines lines = TileText.For(entry.Sender, entry.Body, UnreadText(_unread));
                 FillText(xml, binding, lines);
-                SetImage(xml, binding, entry.Image ?? TileIconUri);
+                SetImage(xml, binding, entry.Image ?? MarkUri);
             }
             catch (Exception ex)
             {
@@ -497,7 +526,7 @@ namespace WhatsappApp.Services
             // The wide tile has its own asset: the square one is scaled to fill
             // 310x150 and loses its top and bottom, which cut the mark. This one is
             // drawn at the tile's proportion, so the mark is whole.
-            SetImage(xml, binding, image ?? TileWideIconUri);
+            SetImage(xml, binding, image ?? WideMarkUri);
         }
 
         /// <summary>
@@ -509,6 +538,27 @@ namespace WhatsappApp.Services
         {
             if (count == 1) return Loc.Get("TileUnreadOne", "1 unread message");
             return string.Format(Loc.Get("TileUnreadMany", "{0} unread messages"), count);
+        }
+
+        /// <summary>The second line of the updates turn: how many, in words.</summary>
+        public static string StatusesText(int count)
+        {
+            if (count == 1) return Loc.Get("TileStatusOne", "1 new update");
+            return string.Format(Loc.Get("TileStatusMany", "{0} new updates"), count);
+        }
+
+        /// <summary>
+        /// The turn that says how many updates are waiting: the app mark over a label and a
+        /// count, because there is no face to put there - an update belongs to a person, but
+        /// the turn is about all of them.
+        /// </summary>
+        private static TileEntry StatusTurn(int count)
+        {
+            var entry = new TileEntry();
+            entry.Sender = Loc.Get("TileStatusLabel", "Updates");
+            entry.Body = StatusesText(count);
+
+            return entry;
         }
 
         /// <summary>
@@ -540,6 +590,9 @@ namespace WhatsappApp.Services
         private const string KeyBody = "Tile.Body";
         private const string KeyImage = "Tile.Image";
         private const string KeyUnread = "Tile.Unread";
+
+        /// <summary>The updates nobody has watched, as the next process will find them.</summary>
+        private const string KeyStatuses = "Tile.Statuses";
 
         /// <summary>
         /// The wide template. WP8.1 has `PeekImageAndText01` and `02`, and only the
@@ -576,6 +629,12 @@ namespace WhatsappApp.Services
         private static int _unread;
 
         /// <summary>
+        /// The updates nobody has watched. They are a turn of the tile and not part of the
+        /// number: the badge is messages waiting for an answer, and an update is not one.
+        /// </summary>
+        private static int _unseenStatuses;
+
+        /// <summary>
         /// True after the notification queue has been turned on. It is a property of the
         /// updater, not of a single update, and the tile it belongs to is drawn again on
         /// every change.
@@ -584,6 +643,99 @@ namespace WhatsappApp.Services
 
         /// <summary>An alert for a message that arrived in a closed chat.</summary>
         public static void ShowMessage(string title, string body)
+        {
+            if (!SettingsService.MessageAlertsEnabled) return;
+
+            Toast(title, body);
+        }
+
+        /// <summary>
+        /// A contact posted an update. One line, like the official client: who posted it and
+        /// not what it says - a status is a photo or a sentence meant to be read where it
+        /// is, and a toast that quoted it would be the message in the middle of another app.
+        ///
+        /// `postedAt` is what keeps the sync from being a storm: WhatsApp re-sends the day on
+        /// every login, so a toast per row would fire a dozen for updates posted yesterday -
+        /// on each wake of the background task, too. The watermark below is the newest update
+        /// this phone has already told the user about, and the first run on a phone only
+        /// writes it (`IsToastNews`), because what the login brought the first time is that
+        /// phone's history and not news.
+        /// </summary>
+        public static void ShowStatus(string name, DateTime postedAt)
+        {
+            if (!SettingsService.StatusAlertsEnabled) return;
+            if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;
+
+            Toast(Loc.Get("Notification_Status", "New status"), name);
+        }
+
+        /// <summary>
+        /// A call nobody answered arrived. Same watermark, its own key: the log is re-read
+        /// whole on every scan, and a toast per row on every scan would be that log read
+        /// aloud each time the tab was opened.
+        /// </summary>
+        public static void ShowMissedCall(string name, DateTime arrivedAt)
+        {
+            if (!SettingsService.CallAlertsEnabled) return;
+            if (!IsToastNews(KeyMissedCallSeenAt, arrivedAt)) return;
+
+            Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);
+        }
+
+        /// <summary>The newest update this phone has already announced.</summary>
+        private const string KeyStatusSeenAt = "Notifications.StatusSeenAt";
+
+        /// <summary>The newest missed call this phone has already announced.</summary>
+        private const string KeyMissedCallSeenAt = "Notifications.MissedCallSeenAt";
+
+        /// <summary>
+        /// Whether a row of `moment` is worth a toast, and the answer moves the watermark
+        /// forward when it is.
+        ///
+        /// The first answer on a phone is always no: with no mark every row read is the
+        /// history that came with the login, and announcing it would greet a new install
+        /// with a dozen alerts about things that happened before it existed.
+        /// </summary>
+        private static bool IsToastNews(string key, DateTime moment)
+        {
+            if (moment == default(DateTime)) return false;
+            if (!SettingsService.NotificationsEnabled) return false;
+
+            try
+            {
+                long ticks = 0;
+                object stored;
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(key, out stored) && stored != null)
+                {
+                    long.TryParse(stored.ToString(), out ticks);
+                }
+
+                if (ticks <= 0)
+                {
+                    ApplicationData.Current.LocalSettings.Values[key] = moment.Ticks;
+                    Diag.Ok("notification: " + key + " starts at " + moment.ToString("dd/MM HH:mm")
+                        + ", nothing said");
+                    return false;
+                }
+
+                if (moment.Ticks <= ticks) return false;
+
+                ApplicationData.Current.LocalSettings.Values[key] = moment.Ticks;
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/IsToastNews", ex);
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// The one place a toast is built: two lines, the title in the larger text. Every
+        /// alert of this app goes through here, so the permission and the refusal are
+        /// handled once instead of once per caller.
+        /// </summary>
+        private static void Toast(string title, string body)
         {
             if (!SettingsService.NotificationsEnabled) return;
 
@@ -597,7 +749,7 @@ namespace WhatsappApp.Services
             }
             catch (Exception ex)
             {
-                Diag.Failed("NotificationService.ShowMessage", ex);
+                Diag.Failed("NotificationService.Toast", ex);
             }
         }
 
@@ -629,12 +781,74 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// How many updates nobody has watched, which the tile shows as its own turn
+        /// ("Updates" over "3 new updates").
+        ///
+        /// Why it is here and not in the badge: the badge is one number and it is the
+        /// messages waiting - an update is a thing to look at later, and mixing it in would
+        /// make the icon say a number that no list adds up to. Why a turn: it is what the
+        /// tile has to show it with, and the status tab's own badge is only visible with the
+        /// app open.
+        ///
+        /// The same rule as the unread count applies to a background check: that run reads
+        /// nothing about what was already watched, so a number below the one on the screen is
+        /// its copy and not the updates being seen.
+        /// </summary>
+        public static void SetStatuses(int count)
+        {
+            count = count < 0 ? 0 : count;
+            if (_backgroundCheck && count < _unseenStatuses) count = _unseenStatuses;
+
+            // Unchanged **and** already drawn is the one case that has nothing to do:
+            // the first call of a process has to draw even when the number the local
+            // copy carries is the one on the screen, or the updates turn is missing
+            // until something else redraws the queue. The condition was written the
+            // other way round, so every status refresh cleared and reposted all five
+            // slots while a first call with an unchanged count drew nothing.
+            if (count == _unseenStatuses && _tileDrawn) return;
+
+            _unseenStatuses = count;
+            RememberStatuses(count);
+
+            RenderTile();
+        }
+
+        /// <summary>
+        /// True once a tile has been drawn in this process: the first call of either count
+        /// draws it, so an unchanged number does not have to.
+        /// </summary>
+        private static bool _tileDrawn;
+
+        /// <summary>The count as the next process will find it, as `RememberUnread` does.</summary>
+        private static void RememberStatuses(int count)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeyStatuses] = count;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("NotificationService/RememberStatuses", ex);
+            }
+        }
+
+        /// <summary>
         /// A conversation was read: its message leaves the tile's queue. The count that
         /// follows comes from the caller, which is what draws the tile again.
         /// </summary>
         public static void Forget(string chatId)
         {
             _waiting = TileCycle.Forget(_waiting, chatId);
+        }
+
+        /// <summary>
+        /// Draws the tile again from what the process already holds. Called when the picture
+        /// under it changed - the theme was chosen and its card composed - so the tile on
+        /// screen is the one the new choice asks for without waiting for a message.
+        /// </summary>
+        public static void Refresh()
+        {
+            RenderTile();
         }
 
         /// <summary>Everything was read: no conversation is waiting for a turn.</summary>
@@ -709,6 +923,21 @@ namespace WhatsappApp.Services
         /// that padding eats the drawing.
         /// </summary>
         private const string TileIconUri = "ms-appx:///Assets/TileIcon.png";
+
+        /// <summary>
+        /// The app mark, or the card of the theme the user chose (`TileTheme`): the picture a
+        /// turn gets when there is nobody's face to put there.
+        /// </summary>
+        private static string MarkUri
+        {
+            get { return TileTheme.Square ?? TileIconUri; }
+        }
+
+        /// <summary>The same, at the wide size the 310x150 tile draws.</summary>
+        private static string WideMarkUri
+        {
+            get { return TileTheme.Wide ?? TileWideIconUri; }
+        }
 
         /// <summary>
         /// The same mark, drawn at the wide tile's proportion (310x150 and its 240%

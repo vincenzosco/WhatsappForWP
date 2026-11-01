@@ -462,6 +462,52 @@ function fallbackProblems(source) {
   return problems;
 }
 
+/**
+ * Problemi del turno degli aggiornamenti: la guardia del conteggio invariato.
+ *
+ * Perche' esiste: `SetStatuses` salta il disegno quando il numero non e' cambiato e la
+ * tile e' GIA' stata disegnata. Con la condizione invertita (`!_tileDrawn`) ogni
+ * aggiornamento degli stati svuotava e ripubblicava i cinque slot della coda per un
+ * numero che non si era mosso, mentre una prima chiamata con lo stesso numero non
+ * disegnava niente - il turno degli aggiornamenti mancava fino al publish successivo.
+ * La differenza non si vede in un test del protocollo: `NotificationService` e' codice
+ * WinRT che il runner desktop non compila, quindi la regola sta qui.
+ */
+function statusesProblems(source) {
+  const problems = [];
+  const where = 'WhatsappApp/Services/NotificationService.cs';
+  const body = methodBody(stripComments(source), 'SetStatuses');
+
+  if (!body) {
+    problems.push(where + ': no SetStatuses - the updates turn has nothing that draws it');
+    return problems;
+  }
+
+  // The `&& ...` is optional so a guard that forgot to ask about the tile at all is
+  // told apart from one that is missing, and gets the rule that says what to add.
+  const guard = /if\s*\(\s*count\s*==\s*_unseenStatuses\s*((?:&&[^)]*)?)\)\s*return\s*;/.exec(body);
+  if (!guard) {
+    problems.push(where + ': SetStatuses has no "unchanged" guard - every publish clears and ' +
+      'reposts the whole queue for a number that did not move');
+    return problems;
+  }
+
+  if (/!\s*_tileDrawn/.test(guard[1])) {
+    problems.push(where + ': the guard of SetStatuses is inverted (`!_tileDrawn`): an unchanged ' +
+      'count then clears and reposts a tile that was already drawn, while the first draw of a ' +
+      'process is skipped when the count is unchanged');
+  } else if (!/_tileDrawn/.test(guard[1])) {
+    problems.push(where + ': the guard of SetStatuses does not ask whether a tile was drawn - ' +
+      'the first call of a process has to draw even when the count is unchanged');
+  }
+
+  if (!/RenderTile\s*\(\s*\)/.test(body)) {
+    problems.push(where + ': SetStatuses does not render the tile');
+  }
+
+  return problems;
+}
+
 /** Problemi di un asset: misura minima, limiti del sistema, esistenza. */
 function assetProblems(asset) {
   const problems = [];
@@ -540,6 +586,7 @@ function main() {
   problems.push(...refusalProblems(fs.readFileSync(PINNED, 'utf8')));
   problems.push(...requestProblems(tileImage));
   problems.push(...fallbackProblems(tileImage));
+  problems.push(...statusesProblems(source));
 
   const images = declaredImages(source);
   if (images.length === 0) {
@@ -571,5 +618,5 @@ if (require.main === module) main();
 module.exports = {
   pngSize, declaredImages, bindingProblems, decodeProblems, writeProblems, smallProblems,
   pictureProblems, loginProblems, refusalProblems, requestProblems, fallbackProblems, methodBody,
-  assetProblems, stripComments, DATA_SERVICE, PINNED
+  statusesProblems, assetProblems, stripComments, DATA_SERVICE, PINNED
 };

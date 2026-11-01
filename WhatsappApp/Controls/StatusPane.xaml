@@ -6,7 +6,7 @@
 
     <UserControl.Resources>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
-        <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
+        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
 
         <Style x:Key="StatusItemContainerStyle" TargetType="ListViewItem">
             <Setter Property="Padding" Value="0"/>
@@ -38,28 +38,54 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid Grid.Column="0" Width="48" Height="48"
-                              Margin="0,12,0,12" VerticalAlignment="Top">
+                        <Grid Grid.Column="0" Width="52" Height="52"
+                              Margin="-2,10,-2,10" VerticalAlignment="Top">
+                            <!-- The ring is what the row says about itself: a person with
+                                 anything unwatched is ringed in the accent, and the ring goes
+                                 when the viewer has sent its `read` for the last of them.
+                                 Without it a list of yesterday's updates looks exactly like
+                                 a list of new ones. -->
+                            <Ellipse Width="52" Height="52" StrokeThickness="2"
+                                     Stroke="{StaticResource WhatsAppAccentBrush}"
+                                     Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                             <Ellipse Width="48" Height="48"
                                      Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+
+                            <!-- The author's picture, when the chat list knows one: the same
+                                 face the conversation shows, drawn in the circle the initial
+                                 was in. An ellipse and not an Image with a clip, because
+                                 WP8.1 has no circular clip and the brush fills it. -->
+                            <Ellipse Width="48" Height="48"
+                                     Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                <Ellipse.Fill>
+                                    <ImageBrush ImageSource="{Binding Owner.Avatar}" Stretch="UniformToFill"/>
+                                </Ellipse.Fill>
+                            </Ellipse>
+
                             <TextBlock Text="{Binding Initials}"
                                        Foreground="White" FontSize="18" FontWeight="SemiBold"
+                                       Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
                                        VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
 
+                        <!-- One row per person: `Latest` is their newest update, and
+                             `Detail` says either "3 updates" or the words of the only one. -->
                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,10,0,10">
-                            <TextBlock Text="{Binding SenderName}" Foreground="#FF333333" FontSize="20"
+                            <TextBlock Text="{Binding Latest.SenderName}" Foreground="#FF333333" FontSize="20"
                                        FontWeight="SemiBold" TextTrimming="WordEllipsis"/>
-                            <TextBlock Text="{Binding Text}" Foreground="#FF939393" FontSize="17"
+                            <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="17"
                                        TextWrapping="Wrap" MaxLines="3" TextTrimming="WordEllipsis"/>
+                            <!-- Only while something here is still unwatched: a thumbnail of an
+                                 update already seen is the row promising a first look that
+                                 has happened. -->
                             <Border CornerRadius="4" Margin="0,4,0,0"
-                                    Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
+                                    Visibility="{Binding ShowPreview, Converter={StaticResource BoolToVisibility}}"
                                     MaxWidth="220" MaxHeight="160" HorizontalAlignment="Left">
-                                <Image Source="{Binding MediaImage}" Stretch="UniformToFill"/>
+                                <Image Source="{Binding Latest.MediaImage}" Stretch="UniformToFill"/>
                             </Border>
                         </StackPanel>
 
-                        <TextBlock Grid.Column="2" Text="{Binding FormattedTime}" Foreground="#FF939393"
+                        <TextBlock Grid.Column="2" Text="{Binding Latest.FormattedTime}" Foreground="#FF939393"
                                    FontSize="17" VerticalAlignment="Top" Margin="8,16,0,0"/>
                     </Grid>
                 </DataTemplate>

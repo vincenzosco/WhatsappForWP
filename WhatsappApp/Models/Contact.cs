@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using Windows.UI.Xaml.Media.Imaging;
+using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Models
@@ -26,16 +27,23 @@ namespace WhatsappApp.Models
             set { _id = value; OnPropertyChanged(); }
         }
 
+        /// <summary>
+        /// The name the row shows, with the emoji this phone cannot draw replaced by the
+        /// older ones (`EmojiText`). Every row of the list, the conversation's header, the
+        /// tile and the notification read this one, so the substitution is here and not in
+        /// six callers: it is a display value, and a name is never sent anywhere.
+        /// </summary>
         public string Name
         {
             get { return _name; }
-            set { _name = value; OnPropertyChanged(); }
+            set { _name = EmojiText.Compatible(value); OnPropertyChanged(); }
         }
 
+        /// <summary>The last message, for the same reason and with the same rule.</summary>
         public string LastMessage
         {
             get { return _lastMessage; }
-            set { _lastMessage = value; OnPropertyChanged(); }
+            set { _lastMessage = EmojiText.Compatible(value); OnPropertyChanged(); }
         }
 
         public string LastMessageTime
