@@ -1429,7 +1429,8 @@ namespace WhatsappApp.Services
         /// (`WhatsappApp.Protocol.Media.MediaUpload`).
         /// </summary>
         public async Task<string> SendMediaAsync(string jid, byte[] file, string mediaType, string mimeType,
-            string fileName, string caption, uint seconds, bool voiceNote)
+            string fileName, string caption, uint seconds, bool voiceNote,
+            int width, int height, byte[] thumbnail)
         {
             if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a message needs a chat to go to");
             if (file == null || file.Length == 0) throw new ProtocolException("there is no file to send");
@@ -1456,7 +1457,7 @@ namespace WhatsappApp.Services
             MediaConnInfo conn = MediaConn.Read(answer);
 
             UploadedMedia uploaded = await MediaUpload.SendAsync(new WinRtMediaFetcher(), conn, file,
-                mediaType, mimeType, fileName, _random);
+                mediaType, mimeType, fileName, _random, width, height, thumbnail);
 
             Message payload = MessageFor(uploaded, caption, seconds, voiceNote);
             string mediaWord = MediaWord(mediaType, voiceNote);
@@ -1482,7 +1483,10 @@ namespace WhatsappApp.Services
             KeepSessions(target.Devices, await SessionsAsync());
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
-            Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + target.To
+            Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes"
+                + (width > 0 ? ", " + width + "x" + height : ", no size")
+                + (thumbnail != null ? ", " + thumbnail.Length + " byte(s) of thumbnail" : "")
+                + ") to " + target.To
                 + " over " + target.Devices.Count + " device(s) " + SealedFor(target.Devices));
 
             return id;

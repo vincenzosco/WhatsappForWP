@@ -39,6 +39,13 @@ namespace WhatsappApp.Protocol.WaProto
         public bool IsVoiceNote;
         public byte[] Thumbnail;
 
+        /// <summary>
+        /// A picture's own size, which is what a bubble is laid out from: `height` 6 and
+        /// `width` 7 in a photo, 9 and 10 in a video. Zero when the sender left them out.
+        /// </summary>
+        public int Width;
+        public int Height;
+
         /// <summary>Whether this media can be fetched at all: a key and a place to go.</summary>
         public bool IsFetchable
         {
@@ -98,7 +105,7 @@ namespace WhatsappApp.Protocol.WaProto
             return info;
         }
 
-        /// <summary>A photo: url 1, mimetype 2, caption 3, fileSha256 4, fileLength 5, height 6, width 7, mediaKey 8, fileEncSha256 9, directPath 11, mediaKeyTimestamp 12, jpegThumbnail 16.</summary>
+        /// <summary>A photo: url 1, mimetype 2, caption 3, fileSha256 4, fileLength 5, height 6, width 7, mediaKey 8, fileEncSha256 9, directPath 11, mediaKeyTimestamp 12, jpegThumbnail 13.</summary>
         private static void ReadImage(MediaInfo info, byte[] encoded)
         {
             var reader = new ProtoReader(encoded);
@@ -114,11 +121,13 @@ namespace WhatsappApp.Protocol.WaProto
                     case 3: info.Caption = Text(reader); break;
                     case 4: info.FileSha256 = reader.ReadBytes(); break;
                     case 5: info.FileLength = (long)reader.ReadVarint(); break;
+                    case 6: info.Height = (int)reader.ReadVarint(); break;
+                    case 7: info.Width = (int)reader.ReadVarint(); break;
                     case 8: info.MediaKey = reader.ReadBytes(); break;
                     case 9: info.FileEncSha256 = reader.ReadBytes(); break;
                     case 11: info.DirectPath = Text(reader); break;
                     case 12: info.MediaKeyTimestamp = (long)reader.ReadVarint(); break;
-                    case 16: info.Thumbnail = reader.ReadBytes(); break;
+                    case 13: info.Thumbnail = reader.ReadBytes(); break;
                     default: reader.SkipField(field.WireType); break;
                 }
             }
@@ -177,7 +186,7 @@ namespace WhatsappApp.Protocol.WaProto
             }
         }
 
-        /// <summary>A video: url 1, mimetype 2, fileSha256 3, fileLength 4, seconds 5, mediaKey 6, caption 7, fileEncSha256 11, directPath 13, mediaKeyTimestamp 14, jpegThumbnail 16.</summary>
+        /// <summary>A video: url 1, mimetype 2, fileSha256 3, fileLength 4, seconds 5, mediaKey 6, caption 7, height 9, width 10, fileEncSha256 11, directPath 13, mediaKeyTimestamp 14, jpegThumbnail 15.</summary>
         private static void ReadVideo(MediaInfo info, byte[] encoded)
         {
             var reader = new ProtoReader(encoded);
@@ -195,10 +204,12 @@ namespace WhatsappApp.Protocol.WaProto
                     case 5: info.Seconds = (uint)reader.ReadVarint(); break;
                     case 6: info.MediaKey = reader.ReadBytes(); break;
                     case 7: info.Caption = Text(reader); break;
+                    case 9: info.Height = (int)reader.ReadVarint(); break;
+                    case 10: info.Width = (int)reader.ReadVarint(); break;
                     case 11: info.FileEncSha256 = reader.ReadBytes(); break;
                     case 13: info.DirectPath = Text(reader); break;
                     case 14: info.MediaKeyTimestamp = (long)reader.ReadVarint(); break;
-                    case 16: info.Thumbnail = reader.ReadBytes(); break;
+                    case 15: info.Thumbnail = reader.ReadBytes(); break;
                     default: reader.SkipField(field.WireType); break;
                 }
             }

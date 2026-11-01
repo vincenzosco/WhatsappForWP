@@ -89,7 +89,7 @@ namespace ProtocolTests
             try
             {
                 MediaUpload.SendAsync(fetcher, conn, plaintext, MediaKeys.Image, "image/jpeg", null,
-                    new FixedRandom()).GetAwaiter().GetResult();
+                    new FixedRandom(), 0, 0, null).GetAwaiter().GetResult();
             }
             catch (ProtocolException error)
             {
@@ -115,7 +115,7 @@ namespace ProtocolTests
 
             UploadedMedia media = MediaUpload.SendAsync(fetcher, conn,
                 System.Text.Encoding.UTF8.GetBytes("a file"), MediaKeys.Image, "image/jpeg", null,
-                new FixedRandom()).GetAwaiter().GetResult();
+                new FixedRandom(), 0, 0, null).GetAwaiter().GetResult();
 
             Assert.IsTrue(media.Url != null, "the second host took it");
             Assert.IsTrue(fetcher.LastUrl.StartsWith("https://media-b.whatsapp.net/"), "and the address says so");
@@ -180,12 +180,116 @@ namespace ProtocolTests
         private static UploadedMedia Upload(ScriptedUploader fetcher, byte[] plaintext, string mediaType,
             string mimeType, string fileName)
         {
+            return Upload(fetcher, plaintext, mediaType, mimeType, fileName, 0, 0, null);
+        }
+
+        private static UploadedMedia Upload(ScriptedUploader fetcher, byte[] plaintext, string mediaType,
+            string mimeType, string fileName, int width, int height, byte[] thumbnail)
+        {
             var conn = new MediaConnInfo();
             conn.Auth = "tok3n";
             conn.Hosts.Add("media-a.whatsapp.net");
 
             return MediaUpload.SendAsync(fetcher, conn, plaintext, mediaType, mimeType, fileName,
-                new FixedRandom()).GetAwaiter().GetResult();
+                new FixedRandom(), width, height, thumbnail).GetAwaiter().GetResult();
+        }
+
+        /// <summary>
+        /// A photo's size and its thumbnail, where the receiver's own table says they are:
+        /// `height` 6, `width` 7 and `jpegThumbnail` 13.
+        ///
+        /// Why the numbers are read off the encoded bytes and not only through
+        /// `MediaMessages`: the reader and the writer are two tables, and they were wrong in
+        /// the same place - both said 16 for the thumbnail - so a round trip through them
+        /// agreed with itself and a real phone drew nothing. The reference is
+        /// `.tools/ref/package/WAProto/index.d.ts`, `IImageMessage`, in field order.
+        /// </summary>
+        [Test]
+        public static void APhotoCarriesItsSizeAndItsThumbnailWhereTheReceiverLooks()
+        {
+            var fetcher = new ScriptedUploader();
+            byte[] thumbnail = { 0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10 };
+            byte[] plaintext = System.Text.Encoding.UTF8.GetBytes("un ritratto");
+
+            UploadedMedia media = Upload(fetcher, plaintext, MediaKeys.Image, "image/jpeg", null,
+                1200, 800, thumbnail);
+
+            byte[] encoded = MediaUpload.Image(media, "ciao").ImageMessage;
+
+            Assert.AreEqual(1200L, (long)Varint(encoded, 7), "width is 7");
+            Assert.AreEqual(800L, (long)Varint(encoded, 6), "height is 6");
+            Assert.ByteArraysEqual(thumbnail, Bytes(encoded, 13));
+            Assert.IsTrue(Bytes(encoded, 16) == null,
+                "16 in a photo is firstScanLength, a varint: a thumbnail there is a photo the "
+                + "receiver cannot parse");
+
+            MediaInfo read = MediaMessages.Of(Message.Decode(MediaUpload.Image(media, "ciao").Encode()));
+            Assert.AreEqual(1200, read.Width);
+            Assert.AreEqual(800, read.Height);
+            Assert.ByteArraysEqual(thumbnail, read.Thumbnail);
+        }
+
+        /// <summary>A video's table is its own: the cover is 15, and the size is 9 and 10.</summary>
+        [Test]
+        public static void AVideoCarriesItsCoverInFieldFifteen()
+        {
+            var fetcher = new ScriptedUploader();
+            byte[] thumbnail = { 0xFF, 0xD8, 0xFF, 0xDB };
+
+            UploadedMedia media = Upload(fetcher, System.Text.Encoding.UTF8.GetBytes("un filmato"),
+                MediaKeys.Video, "video/mp4", null, 640, 360, thumbnail);
+
+            byte[] encoded = MediaUpload.Video(media, "", 7).VideoMessage;
+
+            Assert.ByteArraysEqual(thumbnail, Bytes(encoded, 15));
+            Assert.AreEqual(640L, (long)Varint(encoded, 10), "width is 10 in a video");
+            Assert.AreEqual(360L, (long)Varint(encoded, 9), "height is 9 in a video");
+            Assert.IsTrue(Bytes(encoded, 16) == null,
+                "16 in a video is contextInfo, which is not a cover");
+        }
+
+        /// <summary>One length-delimited field of an encoded media message, or null.</summary>
+        private static byte[] Bytes(byte[] encoded, int number)
+        {
+            var reader = new ProtoReader(encoded);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == number)
+                {
+                    if (field.WireType != 2) return null;
+
+                    return reader.ReadBytes();
+                }
+
+                reader.SkipField(field.WireType);
+            }
+
+            return null;
+        }
+
+        /// <summary>One varint field of an encoded media message, or -1 when it carries none.</summary>
+        private static long Varint(byte[] encoded, int number)
+        {
+            var reader = new ProtoReader(encoded);
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+
+                if (field.Number == number)
+                {
+                    if (field.WireType != 0) return -1;
+
+                    return (long)reader.ReadVarint();
+                }
+
+                reader.SkipField(field.WireType);
+            }
+
+            return -1;
         }
 
         /// <summary>

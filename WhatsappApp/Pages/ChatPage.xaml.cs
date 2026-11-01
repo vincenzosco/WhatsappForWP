@@ -1470,13 +1470,44 @@ namespace WhatsappApp.Pages
             bool voiceNote = message.MediaIsVoiceNote;
             uint seconds = message.MediaDurationSeconds > 0 ? (uint)message.MediaDurationSeconds : 0;
 
+            // A photo carries its own size and a small copy of itself, because the phone at
+            // the other end lays the bubble out from both (`height` 6, `width` 7 and
+            // `jpegThumbnail` 13 in an `ImageMessage`). Without them the photo of
+            // 1 November 2026 was taken by the server and drawn by nobody.
+            //
+            // Both are best effort: a picture this phone cannot measure is still a picture,
+            // and the send is not the place to fail over its decoration.
+            int width = 0;
+            int height = 0;
+            byte[] thumbnail = null;
+
+            if (kind == "image")
+            {
+                try
+                {
+                    PhotoMeasure.Sides sides = await PhotoMeasure.OfAsync(file);
+                    if (sides != null)
+                    {
+                        width = sides.Width;
+                        height = sides.Height;
+                    }
+
+                    thumbnail = await PhotoMeasure.ThumbnailAsync(file, PhotoMeasure.ThumbnailSide);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("ChatPage/photo size", ex);
+                }
+            }
+
             // The same address the text path writes to, and not the row's own spelling:
             // a contact filed under a `@lid`, or under the `@c.us` an older build wrote,
             // asked the server for the devices of an address it does not route, and the
             // attachment was refused before a stanza existed.
             string id = await NativeConnection.Instance.SendMediaAsync(
                 DataService.Instance.ChatIdFor(_contact.Id), file, kind,
-                mimeType, fileName, caption ?? "", seconds, voiceNote);
+                mimeType, fileName, caption ?? "", seconds, voiceNote,
+                width, height, thumbnail);
 
             // The wire id becomes the bubble's: a receipt names the message by it, and
             // a bubble with a random id of its own never sees its ticks turn blue.

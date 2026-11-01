@@ -28,6 +28,16 @@ namespace WhatsappApp.Protocol.Media
         public byte[] FileEncSha256;
         public long FileLength;
         public long MediaKeyTimestamp;
+
+        /// <summary>
+        /// The picture's own size, which the message has to carry: `height` is 6 and `width`
+        /// is 7 in a photo, and a receiving client lays the bubble out from them. A photo of
+        /// 1 November 2026 left with both at zero and drew nothing on the other phone.
+        /// Zero means "not measured", and then no field is written.
+        /// </summary>
+        public int Width;
+        public int Height;
+
         public byte[] JpegThumbnail;
 
         /// <summary>
@@ -89,7 +99,7 @@ namespace WhatsappApp.Protocol.Media
         /// it without a server.
         /// </summary>
         public static UploadedMedia Prepare(byte[] plaintext, string mediaType, string mimeType,
-            string fileName, IRandomSource random)
+            string fileName, IRandomSource random, int width, int height, byte[] thumbnail)
         {
             if (plaintext == null || plaintext.Length == 0) throw new ProtocolException("there is no file to send");
             if (random == null) throw new ProtocolException("a media key needs randomness");
@@ -106,6 +116,9 @@ namespace WhatsappApp.Protocol.Media
             media.FileLength = plaintext.Length;
             media.MediaKey = random.Bytes(MediaKeyLength);
             media.MediaKeyTimestamp = NowSeconds();
+            media.Width = width;
+            media.Height = height;
+            media.JpegThumbnail = thumbnail;
 
             byte[] iv = MediaKeys.Iv(media.MediaKey, mediaType);
             byte[] cipherKey = MediaKeys.CipherKey(media.MediaKey, mediaType);
@@ -150,7 +163,8 @@ namespace WhatsappApp.Protocol.Media
         /// host that did not take the file.
         /// </summary>
         public static async Task<UploadedMedia> SendAsync(IMediaFetcher fetcher, MediaConnInfo conn,
-            byte[] plaintext, string mediaType, string mimeType, string fileName, IRandomSource random)
+            byte[] plaintext, string mediaType, string mimeType, string fileName, IRandomSource random,
+            int width, int height, byte[] thumbnail)
         {
             if (fetcher == null) throw new ProtocolException("an upload needs something to upload with");
             if (conn == null || string.IsNullOrEmpty(conn.Auth)) throw new ProtocolException("there is no media host to upload to");
@@ -164,7 +178,8 @@ namespace WhatsappApp.Protocol.Media
                     + " bytes and WhatsApp accepts " + conn.MaxContentLength);
             }
 
-            UploadedMedia media = Prepare(plaintext, mediaType, mimeType, fileName, random);
+            UploadedMedia media = Prepare(plaintext, mediaType, mimeType, fileName, random,
+                width, height, thumbnail);
             byte[] body = Body(plaintext, media);
 
             string name = ForUrl(media.FileEncSha256);
@@ -216,19 +231,29 @@ namespace WhatsappApp.Protocol.Media
         {
             Check(media);
 
-            var message = new Message();
-            message.ImageMessage = new ProtoWriter()
+            // The numbers are `Message.ImageMessage`'s own: url 1, mimetype 2, caption 3,
+            // fileSha256 4, fileLength 5, **height 6**, **width 7**, mediaKey 8,
+            // fileEncSha256 9, directPath 11, mediaKeyTimestamp 12, **jpegThumbnail 13**.
+            // The thumbnail used to be written at 16, which is `firstScanLength`: a varint,
+            // so a photo with a thumbnail in it was a photo the receiver could not parse.
+            ProtoWriter image = new ProtoWriter()
                 .Text(1, media.Url)
                 .Text(2, media.MimeType)
                 .Text(3, caption)
                 .Bytes(4, media.FileSha256)
-                .Varint(5, (ulong)media.FileLength)
-                .Bytes(8, media.MediaKey)
+                .Varint(5, (ulong)media.FileLength);
+
+            if (media.Height > 0) image.Varint(6, (ulong)media.Height);
+            if (media.Width > 0) image.Varint(7, (ulong)media.Width);
+
+            image.Bytes(8, media.MediaKey)
                 .Bytes(9, media.FileEncSha256)
                 .Text(11, media.DirectPath)
                 .Varint(12, (ulong)media.MediaKeyTimestamp)
-                .Bytes(16, media.JpegThumbnail)
-                .ToArray();
+                .Bytes(13, media.JpegThumbnail);
+
+            var message = new Message();
+            message.ImageMessage = image.ToArray();
 
             return message;
         }
@@ -255,25 +280,35 @@ namespace WhatsappApp.Protocol.Media
             return message;
         }
 
-        /// <summary>A video: `fileSha256` is 3 here, `mediaKey` 6 and `directPath` 13.</summary>
+        /// <summary>
+        /// A video: `fileSha256` is 3 here, `mediaKey` 6, `directPath` 13, and the size is
+        /// `height` 9 and `width` 10 - a table of its own, which is why the numbers are
+        /// repeated and not shared. The cover is `jpegThumbnail` 15; 16 is `contextInfo`,
+        /// where a cover written by this client used to land.
+        /// </summary>
         public static Message Video(UploadedMedia media, string caption, uint seconds)
         {
             Check(media);
 
-            var message = new Message();
-            message.VideoMessage = new ProtoWriter()
+            ProtoWriter video = new ProtoWriter()
                 .Text(1, media.Url)
                 .Text(2, media.MimeType)
                 .Bytes(3, media.FileSha256)
                 .Varint(4, (ulong)media.FileLength)
                 .Varint(5, seconds)
                 .Bytes(6, media.MediaKey)
-                .Text(7, caption)
-                .Bytes(11, media.FileEncSha256)
+                .Text(7, caption);
+
+            if (media.Height > 0) video.Varint(9, (ulong)media.Height);
+            if (media.Width > 0) video.Varint(10, (ulong)media.Width);
+
+            video.Bytes(11, media.FileEncSha256)
                 .Text(13, media.DirectPath)
                 .Varint(14, (ulong)media.MediaKeyTimestamp)
-                .Bytes(16, media.JpegThumbnail)
-                .ToArray();
+                .Bytes(15, media.JpegThumbnail);
+
+            var message = new Message();
+            message.VideoMessage = video.ToArray();
 
             return message;
         }
