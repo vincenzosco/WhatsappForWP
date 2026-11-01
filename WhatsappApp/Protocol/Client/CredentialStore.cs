@@ -60,6 +60,13 @@ namespace WhatsappApp.Protocol.Client
         public const string PushNameKey = KeyPrefix + "PushName";
 
         /// <summary>
+        /// The account's signature over this device, in the form a message carries it. Optional
+        /// like `PushName`: an account linked by an older build has none, and that is a
+        /// sentence in the log, not a reason to refuse the session.
+        /// </summary>
+        public const string DeviceIdentityKey = KeyPrefix + "DeviceIdentity";
+
+        /// <summary>
         /// The app-state keys the primary shared, in one value: `id=base64;id=base64`.
         ///
         /// One key of the flat map rather than one per key, because how many there are is the
@@ -95,7 +102,8 @@ namespace WhatsappApp.Protocol.Client
         {
             NoisePrivateKey, NoisePublicKey, IdentityPrivateKey, IdentityPublicKey, AdvSecretKey,
             RegistrationIdKey, SignedPreKeyIdKey, SignedPreKeyPublicKey, SignedPreKeyPrivateKey,
-            SignedPreKeySignatureKey, JidKey, LidKey, PlatformKey, PushNameKey, AppStateKeysKey
+            SignedPreKeySignatureKey, JidKey, LidKey, PlatformKey, PushNameKey, AppStateKeysKey,
+            DeviceIdentityKey
         };
 
         private readonly ICredentialStorage _storage;
@@ -172,6 +180,11 @@ namespace WhatsappApp.Protocol.Client
             // removes the key).
             credentials.PushName = ReadOptionalText(PushNameKey);
 
+            // Optional for the same reason, and the one value a message cannot be sent
+            // correctly without: the account's signature over this device, which the server
+            // sends only in `pair-success`.
+            credentials.DeviceIdentity = ReadOptionalBytes(DeviceIdentityKey);
+
             // Optional, and empty until the primary shares them: a device can be linked and
             // never receive a key, and that is not a reason to refuse the account.
             credentials.AppStateKeys = ReadAppStateKeys();
@@ -209,6 +222,9 @@ namespace WhatsappApp.Protocol.Client
             _storage.Write(PlatformKey, Value(credentials.Platform));
             _storage.Write(PushNameKey, Value(credentials.PushName));
             _storage.Write(AppStateKeysKey, AppStateKeysValue(credentials.AppStateKeys));
+            _storage.Write(DeviceIdentityKey, Value(credentials.DeviceIdentity == null
+                ? null
+                : Convert.ToBase64String(credentials.DeviceIdentity)));
         }
 
         /// <summary>
@@ -283,6 +299,26 @@ namespace WhatsappApp.Protocol.Client
             }
 
             return keys;
+        }
+
+        /// <summary>
+        /// An optional byte run: null when it is not there, and null when what is there is not
+        /// base64 - a value this device cannot read is one it treats as absent, at the place
+        /// that names it (`ReadAppStateKeys` reads its own for the same reason).
+        /// </summary>
+        private byte[] ReadOptionalBytes(string key)
+        {
+            string value = ReadOptionalText(key);
+            if (string.IsNullOrEmpty(value)) return null;
+
+            try
+            {
+                return Convert.FromBase64String(value);
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
         }
 
         private byte[] ReadKey(string key, int expectedLength)

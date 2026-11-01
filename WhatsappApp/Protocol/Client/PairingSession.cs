@@ -341,6 +341,14 @@ namespace WhatsappApp.Protocol.Client
             identity.DeviceSignature = AdvSignatures.SignDevice(
                 identity, _credentials.IdentityPrivateKey, _credentials.IdentityPublicKey, hosted);
 
+            // Kept, because this is the only moment the server hands it over: every message
+            // that opens a session carries it (`OutgoingMessage.DeviceIdentity`), and a
+            // device that lost it cannot be trusted by a recipient it has never written to.
+            // The certificate form keeps the account's signature key - the server's own
+            // `pair-device-sign` leaves it out because the server already has it, a message
+            // to a peer does not have that luxury.
+            _credentials.DeviceIdentity = identity.Encode();
+
             BinaryNode device = pairSuccess.Child("device");
             if (device != null)
             {

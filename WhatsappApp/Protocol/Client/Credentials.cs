@@ -64,6 +64,28 @@ namespace WhatsappApp.Protocol.Client
         public string PushName;
 
         /// <summary>
+        /// The device identity as the **account** signed it, in the form a message carries it
+        /// (`ADVSignedDeviceIdentity`, the account's signature key included).
+        ///
+        /// Why it is kept with the account and not in memory: the server hands it over once,
+        /// in `pair-success`, and never again. A build that kept it only in memory could not
+        /// put it on a message after a restart, and the phone of 2026-11-01 shows what a
+        /// message without it looks like - the server takes the stanza (`ack class=\"message\"`,
+        /// the one tick this app draws as "sent") and **none of the recipient's devices shows
+        /// anything**, because a receiving client has no proof that the identity key inside
+        /// the pre-key message belongs to this account. Both reference clients attach it to
+        /// every message that opens a session (`Socket/messages-send.js`, `relayMessage`, where
+        /// `shouldIncludeDeviceIdentity` is set the moment an `enc` is a `pkmsg`; the ExWapp
+        /// protocol reference, "the `device-identity` child is included when any target
+        /// receives `pkmsg`").
+        ///
+        /// Empty for an account linked by a build that did not keep it: such a device has to
+        /// be linked again, which is also what brings back the history - WhatsApp sends that
+        /// once, at the pairing.
+        /// </summary>
+        public byte[] DeviceIdentity;
+
+        /// <summary>
         /// The app-state keys the primary has shared with this device, by id.
         ///
         /// Kept with the account and not in memory: the phone sends the share **once**, when

@@ -123,6 +123,56 @@ namespace ProtocolTests
             Assert.AreEqual("Hello, WhatsApp!", Message.Inner(onOurTablet.DeviceSentMessage).Body());
         }
 
+        /// <summary>
+        /// A message that opens a session carries the account's signature over this device.
+        ///
+        /// It is the one child that says "the identity key inside this pre-key message
+        /// belongs to this account", and without it the two references agree that a
+        /// recipient may ignore the message: `Socket/messages-send.js` sets
+        /// `shouldIncludeDeviceIdentity` the moment an `enc` is a `pkmsg`, and ExWapp's
+        /// protocol reference says the child "is included when any target receives `pkmsg`".
+        /// The phone of 2026-11-01 is what the missing child looks like from the outside: the
+        /// server takes the stanza, and no device of the recipient draws anything.
+        /// </summary>
+        [Test]
+        public static void APreKeyMessageCarriesTheAccountSSignatureOverThisDevice()
+        {
+            Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
+            us.Jid = OurPhone;
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            var store = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+
+            var identity = new byte[] { 0x0A, 0x02, 0x08, 0x01, 0x12, 0x00 };
+
+            BinaryNode node = OutgoingMessage.Node(
+                PeerBundleFixture.Peer, "0123456789ABCDEF", Message.Text("ciao"),
+                OutgoingMessage.TextType, null, TwoSessions(us, peer, store), 1760000000, Random,
+                null, new List<string> { us.Jid }, identity);
+
+            BinaryNode carried = node.Child("device-identity");
+            Assert.IsTrue(carried != null,
+                "a first message on a new session has to say who this device is, or a recipient may ignore it");
+            Assert.ByteArraysEqual(identity, carried.Bytes());
+
+            // And it sits beside the participants, not inside them: it is the message's, not
+            // a device's.
+            Assert.AreEqual("participants", node.Children()[0].Tag);
+            Assert.AreEqual("device-identity", node.Children()[1].Tag);
+        }
+
+        /// <summary>
+        /// An account that has no signed identity - one linked by a build that did not keep
+        /// it - sends without the child rather than with an empty one: the node is what a
+        /// recipient checks, and an empty one is a lie dressed as an answer.
+        /// </summary>
+        [Test]
+        public static void AnEmptyIdentityIsNoNodeAtAll()
+        {
+            Assert.IsTrue(OutgoingMessage.DeviceIdentityNode(null) == null);
+            Assert.IsTrue(OutgoingMessage.DeviceIdentityNode(new byte[0]) == null);
+            Assert.IsTrue(OutgoingMessage.DeviceIdentityNode(new byte[] { 1 }) != null);
+        }
+
         [Test]
         public static void TheIdIsSixteenUpperHexCharactersAndNotTwiceTheSame()
         {

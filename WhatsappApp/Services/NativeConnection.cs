@@ -1351,7 +1351,7 @@ namespace WhatsappApp.Services
             Diag.Ok("native: direct text " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
             await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, message, OutgoingMessage.TextType, null,
-                target.Devices, timestamp, _random, privacyToken, OurJids()));
+                target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + target.To + " over " + target.Devices.Count + " device(s) "
@@ -1393,7 +1393,7 @@ namespace WhatsappApp.Services
 
             await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload,
                 OutgoingMessage.TextType, null, target.Devices, timestamp, _random,
-                CachedPrivacyToken(jid), OurJids()));
+                CachedPrivacyToken(jid), OurJids(), OurIdentity()));
 
             Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
             return id;
@@ -1461,7 +1461,7 @@ namespace WhatsappApp.Services
             Diag.Ok("native: direct media " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
             await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload, OutgoingMessage.MediaType,
-                mediaWord, target.Devices, timestamp, _random, privacyToken, OurJids()));
+                mediaWord, target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + target.To
@@ -1527,6 +1527,35 @@ namespace WhatsappApp.Services
 
             return null;
         }
+
+        /// <summary>
+        /// This device's identity as the account signed it, for a stanza that opens a session -
+        /// or null when the account was linked by a build that did not keep it.
+        ///
+        /// The null is named once per process on purpose: it is the one reason a send can be
+        /// taken by the server and reach nobody, and an account in that state needs to be
+        /// linked again (`OutgoingMessage.DeviceIdentityNode`).
+        /// </summary>
+        private byte[] OurIdentity()
+        {
+            if (_account != null && _account.DeviceIdentity != null && _account.DeviceIdentity.Length > 0)
+            {
+                return _account.DeviceIdentity;
+            }
+
+            if (!_identityMissingSaid)
+            {
+                _identityMissingSaid = true;
+                Diag.Ok("native: this account carries no signed device identity, so a message that "
+                    + "opens a session goes out without it - a recipient is entitled to ignore it. "
+                    + "Linking this phone again is what brings it back (and the history with it)");
+            }
+
+            return null;
+        }
+
+        /// <summary>Whether the missing identity has already been named, so it is said once.</summary>
+        private bool _identityMissingSaid;
 
         /// <summary>
         /// This account's two JIDs, which the stanza builder needs to tell this phone's own
@@ -1677,7 +1706,7 @@ namespace WhatsappApp.Services
             uint timestamp = NowSeconds();
 
             await WriteAsync(session, id, OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
-                group.AddressingMode, distributions, timestamp, _random));
+                group.AddressingMode, distributions, timestamp, _random, OurIdentity()));
 
             // The chain has moved: `Encrypt` advanced the iteration in memory, and this file
             // is the only thing that says which one the next message uses. A record that is

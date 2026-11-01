@@ -128,7 +128,8 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static BinaryNode Group(string to, string id, Message message, string type, string mediaType,
             SenderKeyRecord record, string addressingMode,
-            IList<KeyValuePair<string, SessionRecord>> distributions, uint timestamp, IRandomSource random)
+            IList<KeyValuePair<string, SessionRecord>> distributions, uint timestamp, IRandomSource random,
+            byte[] deviceIdentity)
         {
             if (!GroupDirectory.IsGroup(to)) throw new ProtocolException("not a group: " + to);
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
@@ -138,6 +139,7 @@ namespace WhatsappApp.Protocol.Client
             byte[] distribution = SenderKeys.DistributionMessage(to, record);
 
             var content = new List<BinaryNode>();
+            bool preKey = false;
 
             if (distributions != null && distributions.Count > 0)
             {
@@ -156,6 +158,8 @@ namespace WhatsappApp.Protocol.Client
                     enc.Attrs.Add("type", session.PreKeyPending ? PreKeyType : ExistingType);
                     enc.Content = session.Encrypt(Pad(distribution, random));
 
+                    if (session.PreKeyPending) preKey = true;
+
                     BinaryNode device = new BinaryNode("to");
                     device.Attrs.Add("jid", deviceJid);
                     device.Content = new List<BinaryNode> { enc };
@@ -167,6 +171,13 @@ namespace WhatsappApp.Protocol.Client
                 participants.Content = nodes;
                 content.Add(participants);
             }
+
+            // The identity belongs to the message, not to the group ciphertext: it is what
+            // proves this device to the members that are being handed the sender key for the
+            // first time, and the reference puts it after `participants` for both shapes
+            // (ExWapp's protocol reference, "Group fanout").
+            BinaryNode identity = preKey ? DeviceIdentityNode(deviceIdentity) : null;
+            if (identity != null) content.Add(identity);
 
             BinaryNode group = new BinaryNode("enc");
             group.Attrs.Add("v", KeyVersion);
@@ -242,6 +253,30 @@ namespace WhatsappApp.Protocol.Client
             IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random,
             PrivacyToken privacyToken, IList<string> ownJids)
         {
+            return Node(to, id, message, type, mediaType, devices, timestamp, random, privacyToken,
+                ownJids, null);
+        }
+
+        /// <summary>
+        /// The same stanza, carrying the account's signature over this device when one of the
+        /// ciphertexts opens a session.
+        ///
+        /// Why the node is not optional on a `pkmsg`: a device the recipient has never heard
+        /// of has to be told, by the account, that the identity key inside the pre-key message
+        /// is this device's - that signature is the whole content of `device-identity`. The
+        /// reference attaches it the moment an `enc` is a `pkmsg` (`Socket/messages-send.js`,
+        /// `shouldIncludeDeviceIdentity`), and a message that goes out without it is taken by
+        /// the server and shown to nobody: `ack class="message"`, one tick, and no device of
+        /// the recipient draws anything - the phone of 2026-11-01, twice, in both address
+        /// families.
+        ///
+        /// An established session carries no node, and that is the reference's rule too: the
+        /// identity is what opens a session, and a `msg` is already inside one.
+        /// </summary>
+        public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random,
+            PrivacyToken privacyToken, IList<string> ownJids, byte[] deviceIdentity)
+        {
             if (string.IsNullOrEmpty(to)) throw new ProtocolException("a message needs somebody to go to");
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
             if (message == null) throw new ProtocolException("there is no message to send");
@@ -254,6 +289,7 @@ namespace WhatsappApp.Protocol.Client
             // padding is random bytes, so two plaintexts cannot share one envelope.
             byte[] forRecipient = null;
             byte[] forOurDevices = null;
+            bool preKey = false;
 
             var participants = new List<BinaryNode>();
             for (int i = 0; i < devices.Count; i++)
@@ -282,6 +318,8 @@ namespace WhatsappApp.Protocol.Client
                 if (!string.IsNullOrEmpty(mediaType)) enc.Attrs.Add("mediatype", mediaType);
                 enc.Content = session.Encrypt(plaintext);
 
+                if (session.PreKeyPending) preKey = true;
+
                 BinaryNode device = new BinaryNode("to");
                 device.Attrs.Add("jid", deviceJid);
                 device.Content = new List<BinaryNode> { enc };
@@ -297,6 +335,9 @@ namespace WhatsappApp.Protocol.Client
 
             var content = new List<BinaryNode>();
             content.Add(devicesNode);
+
+            BinaryNode identity = preKey ? DeviceIdentityNode(deviceIdentity) : null;
+            if (identity != null) content.Add(identity);
 
             if (privacyToken != null && privacyToken.Bytes != null && privacyToken.Bytes.Length > 0)
             {
@@ -314,6 +355,24 @@ namespace WhatsappApp.Protocol.Client
             stanza.Content = content;
 
             return stanza;
+        }
+
+        /// <summary>
+        /// The `device-identity` child of a message that opens a session, or null when this
+        /// account has no signed identity to show.
+        ///
+        /// Null is a possibility the caller cannot fix and the log has to name: an account
+        /// linked by a build that did not keep the identity has to be linked again, and a
+        /// send without the node is a message a recipient is entitled to ignore.
+        /// </summary>
+        public static BinaryNode DeviceIdentityNode(byte[] deviceIdentity)
+        {
+            if (deviceIdentity == null || deviceIdentity.Length == 0) return null;
+
+            var node = new BinaryNode("device-identity");
+            node.Content = deviceIdentity;
+
+            return node;
         }
 
         /// <summary>

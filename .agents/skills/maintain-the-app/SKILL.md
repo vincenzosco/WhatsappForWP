@@ -353,6 +353,19 @@ waiting) and the message is marked read when the reader reaches it.
   `privacy` query with an empty result for most contacts, and both reference
   clients send anyway. Blocking the send until a token arrives sent nothing at
   all (2026-11-01).
+- **A pre-key message has to say whose identity key it opened.** `pkmsg` is the
+  copy of a message whose session does not exist yet, and it carries a
+  `<device-identity>` node - a sibling of `<enc>` inside the message, holding the
+  `ADVSignedDeviceIdentity` protobuf that the account signed for this device at
+  pairing (`PairingSession`, the content of the `pair-success` node's own
+  `device-identity` child). The server takes the stanza and delivers it to
+  nobody without it: `ack` arrives, the message reaches no device of either
+  account, and no `retry` comes back - which is what the app showed on
+  2026-11-01, a text that stayed invisible everywhere. `Credentials`
+  `.SignedDeviceIdentity` keeps it across restarts and
+  `OutgoingMessage.DeviceIdentityNode` attaches it whenever the copy is a
+  pre-key one; a device linked by a build that did not keep it has to be linked
+  again, because nothing on the wire can rebuild the signature.
 
 - **A notification is answered, and the answer goes out first.** `<notification>` stanzas
   that carry an `id` are questions: the answer is `IncomingMessage.Ack`, which is
