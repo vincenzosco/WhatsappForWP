@@ -69,7 +69,10 @@ namespace WhatsappApp.Protocol.Client
 
             PrivacyToken token = ReadFromChildren(notification);
             if (token == null) return null;
-            if (string.IsNullOrEmpty(token.Jid)) token.Jid = notification.Attrs["from"];
+            // In a pushed token notification, token@jid is this phone's own device
+            // address. The notification sender is the contact whose token was issued.
+            string sender = notification.Attrs["from"];
+            if (!string.IsNullOrEmpty(sender)) token.Jid = sender;
             return token;
         }
 

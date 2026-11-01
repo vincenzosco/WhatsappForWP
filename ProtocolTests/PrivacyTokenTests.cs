@@ -68,6 +68,7 @@ namespace ProtocolTests
             var token = new BinaryNode("token");
             token.Attrs.Add("type", "trusted_contact");
             token.Attrs.Add("t", "1793522412");
+            token.Attrs.Add("jid", "150375613116620:31@lid");
             token.Content = new byte[] { 4, 5 };
 
             var notification = new BinaryNode("notification");

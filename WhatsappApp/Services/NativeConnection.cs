@@ -1316,8 +1316,8 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
-            Diag.Ok("native: direct text " + id + " has privacy token="
-                + (privacyToken == null ? "no" : "yes"));
+            RequirePrivacyToken(privacyToken, jid);
+            Diag.Ok("native: direct text " + id + " has privacy token=yes");
 
             await WriteAsync(session, id, OutgoingMessage.Node(jid, id, message, OutgoingMessage.TextType, null,
                 devices, timestamp, _random, privacyToken));
@@ -1425,8 +1425,8 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
-            Diag.Ok("native: direct media " + id + " has privacy token="
-                + (privacyToken == null ? "no" : "yes"));
+            RequirePrivacyToken(privacyToken, jid);
+            Diag.Ok("native: direct media " + id + " has privacy token=yes");
 
             await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
                 mediaWord, devices, timestamp, _random, privacyToken));
@@ -1440,8 +1440,9 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// Requests the trusted-contact token required by current one-to-one relays.
-        /// A token service outage is logged but does not hide the original send attempt.
         /// </summary>
+        private const int PrivacyTokenWaitMilliseconds = 8000;
+
         private async Task<PrivacyToken> PrivacyTokenAsync(NativeSession session, string jid, uint timestamp)
         {
             string phoneJid = NameCache.Book.Canonical(jid);
@@ -1467,6 +1468,8 @@ namespace WhatsappApp.Services
                     if (token == null)
                     {
                         Diag.Ok("native: privacy token answer had no trusted-contact token for " + tokenJid);
+                        token = await WaitForPrivacyTokenAsync(tokenJid, phoneJid);
+                        if (token != null) return token;
                         continue;
                     }
 
@@ -1482,6 +1485,36 @@ namespace WhatsappApp.Services
             }
 
             return null;
+        }
+
+        private async Task<PrivacyToken> WaitForPrivacyTokenAsync(string tokenJid, string phoneJid)
+        {
+            DateTime deadline = DateTime.UtcNow.AddMilliseconds(PrivacyTokenWaitMilliseconds);
+
+            while (DateTime.UtcNow < deadline)
+            {
+                PrivacyToken token = CachedPrivacyToken(tokenJid);
+                if (token == null) token = CachedPrivacyToken(phoneJid);
+                if (token != null)
+                {
+                    Diag.Ok("native: privacy token notification arrived for " + tokenJid);
+                    return token;
+                }
+
+                await Task.Delay(250);
+            }
+
+            Diag.Ok("native: privacy token notification timed out for " + tokenJid);
+            return null;
+        }
+
+        private static void RequirePrivacyToken(PrivacyToken token, string jid)
+        {
+            if (token == null)
+            {
+                throw new ProtocolException(
+                    "trusted-contact token unavailable for " + jid + "; message was not sent");
+            }
         }
 
         private PrivacyToken CachedPrivacyToken(string jid)
