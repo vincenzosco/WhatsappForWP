@@ -67,6 +67,20 @@ const SESSION = 'WhatsappApp/Protocol/Client/NativeSession.cs';
 const PAIRING = 'WhatsappApp/Pages/PairPage.xaml.cs';
 
 /**
+ * Il corpo di un metodo: dalla firma alla `/// <summary>` del successivo, che e'
+ * dove comincia il metodo dopo. Serve perche' una regola su un metodo non e' una
+ * regola sul file: la stessa chiamata in un altro handler non la rispetta ne' la
+ * rompe.
+ */
+function bodyOf(source, signature) {
+  const start = source.indexOf(signature);
+  if (start < 0) return null;
+
+  const next = source.indexOf('\n        /// <summary>', start + signature.length);
+  return source.slice(start, next < 0 ? source.length : next);
+}
+
+/**
  * I problemi dei due file. Un array di frasi, vuoto quando non c'e' niente di
  * storto.
  */
@@ -122,12 +136,18 @@ function clientStateProblems(files) {
       '(2026-10-18)');
   }
 
-  const readAt = connection.indexOf('IncomingMessage.Read(node');
-  const ackAt = connection.indexOf('IncomingMessage.Ack(node)');
+  // The rule is about a *message*: the ack that answers one lives in `ReadMessageAsync`,
+  // next to the read it proves. Asked of the whole file, this check read the first ack of
+  // any kind - and the notification ack (which goes out **before** a notification is read,
+  // because C# 5 cannot await in a `catch`) came first and failed a rule it never broke.
+  const messageReader = bodyOf(connection, 'private async Task ReadMessageAsync(');
+  const readAt = messageReader == null ? -1 : messageReader.indexOf('IncomingMessage.Read(node');
+  const ackAt = messageReader == null ? -1 : messageReader.indexOf('IncomingMessage.Ack(node)');
   if (readAt < 0 || ackAt < 0 || ackAt < readAt) {
     problems.push(`${CONNECTION}: a message must be acknowledged only after it has been read ` +
-      '(`IncomingMessage.Read(node` before `IncomingMessage.Ack(node)`): the ack is what stops ' +
-      'the server re-sending, so acknowledging a stanza whose open threw loses it forever');
+      '(`IncomingMessage.Read(node` before `IncomingMessage.Ack(node)` in `ReadMessageAsync`): ' +
+      'the ack is what stops the server re-sending, so acknowledging a stanza whose open threw ' +
+      'loses it forever');
   }
   if (!connection.includes('IncomingMessage.RetryReceipt(node')) {
     problems.push(`${CONNECTION}: a message that did not read must be answered with a retry ` +

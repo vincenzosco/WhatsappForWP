@@ -687,12 +687,38 @@ namespace WhatsappApp.Services
         /// `edge_routing`, `downgrade_webclient` and the rest), so it is what this log names
         /// now, together with the node itself.
         ///
-        /// No acknowledgement goes out for these: the reference acks the stanzas that carry a
-        /// message and leaves `ib` to its own handlers, which either answer with a node (the
-        /// backlog preview) or with nothing at all.
+        /// Every notification that carries an `id` is acknowledged, which the reference does
+        /// too, in the `finally` of its own handler (`Socket/messages-recv.js`,
+        /// `handleNotification`): without it the server keeps the node and hands it back at
+        /// the next login.
         /// </summary>
         private async Task ReadNotificationAsync(NativeSession session, BinaryNode node)
         {
+            // The `ack` goes out **first**, and the reason is the language: C# 5 may not
+            // await in a `catch`, so a notification whose reading throws could never be
+            // acknowledged afterwards - and the acknowledgement is what stops the server
+            // sending it again. An `ack` means "arrived", not "understood", so it is also
+            // the honest answer for one this build does not read yet.
+            //
+            // What the server was made to repeat: the `privacy_token` of 1 November 2026,
+            // `<notification ... id="535878910" offline="1|2|4|11|12">`, the same node in
+            // every backlog five times over, because nothing ever answered it.
+            //
+            // A node with no `id` - an `ib` carrying `offline`, `edge_routing`, `dirty` -
+            // asks for no answer and is left alone.
+            string ackId = node == null ? null : node.Attrs["id"];
+            if (!string.IsNullOrEmpty(ackId))
+            {
+                try
+                {
+                    await session.SendAsync(IncomingMessage.Ack(node));
+                }
+                catch (Exception error)
+                {
+                    Diag.Failed("NativeConnection/notification-ack", error);
+                }
+            }
+
             string type = InboundRouter.NotificationType(node);
             string text = node == null ? "" : node.ToString();
             if (text.Length > 240) text = text.Substring(0, 240) + "...";

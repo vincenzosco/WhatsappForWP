@@ -354,6 +354,16 @@ waiting) and the message is marked read when the reader reaches it.
   clients send anyway. Blocking the send until a token arrives sent nothing at
   all (2026-11-01).
 
+- **A notification is answered, and the answer goes out first.** `<notification>` stanzas
+  that carry an `id` are questions: the answer is `IncomingMessage.Ack`, which is
+  `<ack class="notification" id to type>`. The reference acks every one of them
+  (`Socket/messages-recv.js`, `handleNotification`, in the `finally` that wraps the
+  handler), and a client that does not keeps the node: the `privacy_token` of
+  1 November 2026 was redelivered on every login, `offline="1"` to `"12"`. In
+  `ReadNotificationAsync` the ack therefore precedes the reading - C# 5 cannot await in
+  a `catch`, so an ack placed after it never leaves for a notification whose reading
+  throws - it asks `Attrs["id"]` first (`ib` carries none), and it has its own `try`.
+  `tools/check-notification-ack.js` holds the three rules.
 - **Presence carries the state it was asked for.** `SendPresenceAsync("unavailable")`
   used to send `available`, so the suspension that exists to take this phone off
   the account's online list said the opposite. The type goes through
