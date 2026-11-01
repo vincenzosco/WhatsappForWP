@@ -265,6 +265,77 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A padded message whose protobuf carries a **group** reads.
+        ///
+        /// The walk and the parser must answer the same question about the same bytes:
+        /// `SkipField` has always stepped over a group (`SkipGroup`), and `Measure` used to
+        /// stop where one began. With the walk stopping there, no candidate tail of the
+        /// plaintext was whole, `DecodePadded` fell back to the padded buffer, and the
+        /// padding's own bytes announced lengths nobody sent: `a protobuf field announces 16
+        /// bytes with 14 left`, three messages on the phone of 1 November 2026, each asked
+        /// for again and each lost.
+        /// </summary>
+        [Test]
+        public static void APaddedMessageWithAGroupReads()
+        {
+            byte[] grouped = GroupedMessage(MessageFixture.TextBody, true);
+
+            Assert.AreEqual(grouped.Length, ProtoReader.Measure(grouped),
+                "the walk crosses the group the parser crosses");
+
+            var plaintext = new byte[grouped.Length + 3];
+            Buffer.BlockCopy(grouped, 0, plaintext, 0, grouped.Length);
+            plaintext[grouped.Length] = 0xaa;
+            plaintext[grouped.Length + 1] = 0xbb;
+            plaintext[grouped.Length + 2] = 0x03;
+
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(plaintext).Conversation,
+                "three bytes of padding behind a group are still padding");
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(grouped).Conversation,
+                "and a group with no padding behind it is a whole message");
+        }
+
+        /// <summary>
+        /// A group that never closes ends the walk at its opening, and the fields in front of
+        /// it are still the message: nothing behind a group this reader cannot walk is read as
+        /// a field of its own, and the words that arrived before it are not thrown away.
+        /// </summary>
+        [Test]
+        public static void AnUnclosedGroupEndsTheWalkAndWhatCameBeforeItReads()
+        {
+            byte[] unclosed = GroupedMessage(MessageFixture.TextBody, false);
+
+            int measured = ProtoReader.Measure(unclosed);
+            Assert.IsTrue(measured > 0 && measured < unclosed.Length,
+                "a group with no end-group ends the protobuf where it begins");
+
+            Assert.AreEqual(MessageFixture.TextBody, Message.DecodePadded(unclosed).Conversation,
+                "the text in front of the group is still the message");
+        }
+
+        /// <summary>
+        /// A length-delimited text, then a group at field 100 (wire 3) holding one varint,
+        /// then - when `closed` - the end-group at field 100 (wire 4).
+        /// </summary>
+        private static byte[] GroupedMessage(string body, bool closed)
+        {
+            var bytes = new List<byte>(Message.Text(body).Encode());
+
+            bytes.Add(0xa3); // field 100, wire type 3: the group opens
+            bytes.Add(0x06);
+            bytes.Add(0x08); // field 1, wire type 0: one varint inside it
+            bytes.Add(0x01);
+
+            if (closed)
+            {
+                bytes.Add(0xa4); // field 100, wire type 4: the group closes
+                bytes.Add(0x06);
+            }
+
+            return bytes.ToArray();
+        }
+
+        /// <summary>
         /// A damaged plaintext still fails, and names itself: the exception is the one worth
         /// seeing, and a reader that swallowed it would put an empty message in the chat.
         /// </summary>

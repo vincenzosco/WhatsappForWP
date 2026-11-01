@@ -41,6 +41,7 @@ namespace WhatsappApp.Pages
         private string _selectedMediaFileName;
         private string _selectedMediaMimeType;
         private bool _selectedIsVoiceNote;
+        private uint _selectedSeconds;
         // The conversation's view state: the bind, the scroll and the viewer.
         // It is a module because all three touch the same three things, and the
         // E_UNEXPECTED that left a chat empty lived exactly there.
@@ -1373,7 +1374,11 @@ namespace WhatsappApp.Pages
                 MediaFilePath = localFileName,
                 MediaMimeType = mimeType,
                 MediaFileName = fileName,
-                MediaType = kind
+                MediaType = kind,
+                // What it is and how long it lasts, carried by the bubble: the retry sends
+                // this same message, and the waiting slot is empty by then.
+                MediaIsVoiceNote = _selectedIsVoiceNote,
+                MediaDurationSeconds = (int)_selectedSeconds
             };
 
             // Local decoding: the sender sees their own image.
@@ -1459,7 +1464,11 @@ namespace WhatsappApp.Pages
 
             message.MediaSizeBytes = file.Length;
 
-            bool voiceNote = kind == "audio";
+            // A recorded note is `ptt` and a picked track is `audio`: the flag travels with
+            // the bubble (`MediaIsVoiceNote`), because `kind == "audio"` answered yes for both
+            // and every track a person picked reached the other end as a voice note.
+            bool voiceNote = message.MediaIsVoiceNote;
+            uint seconds = message.MediaDurationSeconds > 0 ? (uint)message.MediaDurationSeconds : 0;
 
             // The same address the text path writes to, and not the row's own spelling:
             // a contact filed under a `@lid`, or under the `@c.us` an older build wrote,
@@ -1467,7 +1476,7 @@ namespace WhatsappApp.Pages
             // attachment was refused before a stanza existed.
             string id = await NativeConnection.Instance.SendMediaAsync(
                 DataService.Instance.ChatIdFor(_contact.Id), file, kind,
-                mimeType, fileName, caption ?? "", 0, voiceNote);
+                mimeType, fileName, caption ?? "", seconds, voiceNote);
 
             // The wire id becomes the bubble's: a receipt names the message by it, and
             // a bubble with a random id of its own never sees its ticks turn blue.
@@ -2120,6 +2129,7 @@ namespace WhatsappApp.Pages
             _selectedMediaFileName = AttachmentInbox.FileName;
             _selectedMediaMimeType = AttachmentInbox.MimeType;
             _selectedIsVoiceNote = AttachmentInbox.IsVoiceNote;
+            _selectedSeconds = AttachmentInbox.Seconds;
             AttachmentInbox.Clear();
 
             if (!string.IsNullOrEmpty(note) && string.IsNullOrEmpty(MessageTextBox.Text))
@@ -2197,6 +2207,7 @@ namespace WhatsappApp.Pages
             _selectedMediaFileName = null;
             _selectedMediaMimeType = null;
             _selectedIsVoiceNote = false;
+            _selectedSeconds = 0;
             SelectedImagePreview.Source = null;
             SelectedAudioPreview.Visibility = Visibility.Collapsed;
             SelectedDocumentPreview.Visibility = Visibility.Collapsed;

@@ -712,6 +712,12 @@ namespace WhatsappApp.Services
                 try
                 {
                     await session.SendAsync(IncomingMessage.Ack(node));
+
+                    // Named, because the log otherwise shows only what arrived: `whatsapp:
+                    // read <notification ...>` is the way in, and there is no line for the
+                    // way out. The id is what the server stops re-sending, so it is the one
+                    // worth printing.
+                    Diag.Step("native: acked notification " + ackId + " (" + node.Attrs["type"] + ")");
                 }
                 catch (Exception error)
                 {
@@ -1748,6 +1754,26 @@ namespace WhatsappApp.Services
             return devices;
         }
 
+        /// <summary>
+        /// This account's own address, without its device, in the family `jid` is addressed
+        /// in - or null when the account has no address of that family.
+        ///
+        /// The two are not interchangeable: `usync` answers with devices of the family it was
+        /// asked about, and a direct stanza has to keep one family from the `to` down to every
+        /// `to[jid]` (the server refuses the mixed shape with 479).
+        /// </summary>
+        private string OwnUserFor(string jid)
+        {
+            if (_account == null) return null;
+
+            if (JidUtils.IsLid(jid))
+            {
+                return string.IsNullOrEmpty(_account.Lid) ? null : DeviceDirectory.UserJid(_account.Lid);
+            }
+
+            return string.IsNullOrEmpty(_account.Jid) ? null : DeviceDirectory.UserJid(_account.Jid);
+        }
+
         /// <summary>Whether a device JID is this phone: nobody sends a message to themselves.</summary>
         private bool IsOurDevice(string deviceJid)
         {
@@ -1841,7 +1867,20 @@ namespace WhatsappApp.Services
             // The rule itself is `DirectSend`, in the protocol core: the desktop runner
             // tests it end to end, because this service needs the Windows Phone runtime
             // and the runner cannot build it.
-            BinaryNode devicesAnswer = await RequestAsync(session, DeviceDirectory.Query(jid, _random));
+            //
+            // Two people are asked in one query, and the second one is this account. The
+            // recipient's devices get the message, ours get the device-sent copy that makes
+            // the words appear as sent on the phone (`Socket/messages-send.js`,
+            // `getUSyncDevices([meId, jid])`): a send that skipped them left the phone's own
+            // chat with no trace of anything written here. Both in the **same family** as the
+            // destination: a phone-number stanza carrying `@lid` devices under it is the
+            // mixed shape the server answers with 479.
+            string ours = OwnUserFor(jid);
+            var asked = new List<string>();
+            if (!string.IsNullOrEmpty(ours)) asked.Add(ours);
+            asked.Add(jid);
+
+            BinaryNode devicesAnswer = await RequestAsync(session, DeviceDirectory.Query(asked, _random));
 
             string ourJid = _account == null ? null : _account.Jid;
             string ourLid = _account == null ? null : _account.Lid;

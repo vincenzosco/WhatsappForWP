@@ -49,11 +49,25 @@ namespace WhatsappApp.Services
         private static string _mimeType;
         private static string _note;
         private static bool _voiceNote;
+        private static uint _seconds;
 
         /// <summary>True when the attachment is a voice note the user recorded, not a picked file.</summary>
         public static bool IsVoiceNote
         {
             get { return _voiceNote; }
+        }
+
+        /// <summary>
+        /// How long the audio plays, in whole seconds, or 0 when the phone cannot say.
+        ///
+        /// Why it is read from the file and not from a stopwatch: a recorded note and a
+        /// picked track are both audio, the same measurement answers both, and the number the
+        /// receiver draws is the length of the bytes that were actually sent. A voice note
+        /// sent with no duration arrived as 0:00 (`SendMediaAsync(..., 0, ...)`).
+        /// </summary>
+        public static uint Seconds
+        {
+            get { return _seconds; }
         }
 
         /// <summary>An attachment nobody has taken yet.</summary>
@@ -103,7 +117,33 @@ namespace WhatsappApp.Services
                 NextCopyName(extension),
                 NameCollisionOption.ReplaceExisting);
 
-            PutLocal(copy.Name, file.Name, mimeType, note, voiceNote);
+            uint seconds = 0;
+            if (mimeType.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+            {
+                seconds = await SecondsOfAsync(copy);
+            }
+
+            PutLocal(copy.Name, file.Name, mimeType, note, voiceNote, seconds);
+        }
+
+        /// <summary>
+        /// The length of an audio file, in whole seconds, or 0 when this phone will not read
+        /// it: a property the platform refuses is an unknown duration, not a lost attachment.
+        /// </summary>
+        private static async Task<uint> SecondsOfAsync(StorageFile file)
+        {
+            try
+            {
+                Windows.Storage.FileProperties.MusicProperties music =
+                    await file.Properties.GetMusicPropertiesAsync();
+                if (music == null || music.Duration.TotalSeconds <= 0) return 0;
+
+                return (uint)Math.Round(music.Duration.TotalSeconds);
+            }
+            catch (Exception)
+            {
+                return 0;
+            }
         }
 
         /// <summary>Deposits the bytes already read (a shared bitmap).</summary>
@@ -116,16 +156,18 @@ namespace WhatsappApp.Services
                 NextCopyName(extension), CreationCollisionOption.ReplaceExisting);
             await FileIO.WriteBytesAsync(file, buffer);
 
-            PutLocal(file.Name, fileName, mimeType, note, false);
+            PutLocal(file.Name, fileName, mimeType, note, false, 0);
         }
 
-        private static void PutLocal(string localName, string fileName, string mimeType, string note, bool voiceNote)
+        private static void PutLocal(string localName, string fileName, string mimeType, string note,
+            bool voiceNote, uint seconds)
         {
             _localFileName = localName;
             _fileName = fileName;
             _mimeType = string.IsNullOrEmpty(mimeType) ? "image/jpeg" : mimeType;
             _note = note;
             _voiceNote = voiceNote;
+            _seconds = seconds;
 
             var handler = Ready;
             if (handler != null) handler();
@@ -139,6 +181,7 @@ namespace WhatsappApp.Services
             _mimeType = null;
             _note = null;
             _voiceNote = false;
+            _seconds = 0;
         }
 
         /// <summary>

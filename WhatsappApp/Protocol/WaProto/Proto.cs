@@ -290,61 +290,89 @@ namespace WhatsappApp.Protocol.WaProto
                 // *this*, not where the reading stopped: the protobuf ends at the last field
                 // that was whole, and a half field's bytes belong to whatever is behind it -
                 // the padding, on this phone.
-                int fieldStart = index;
+                int after = FieldEnd(bytes, index, limit);
+                if (after < 0) return index;
 
-                ulong tag;
-                int afterTag = VarintAt(bytes, fieldStart, limit, out tag);
-                if (afterTag < 0) return fieldStart;
-
-                ulong number = tag >> 3;
-                int wireType = (int)(tag & 7);
-
-                // The same three refusals `ReadField` makes: field zero does not exist, a
-                // number past 2^29-1 does not fit a tag, and wire types 6 and 7 are not in
-                // the format. Where `ReadField` throws, this walk ends.
-                if (number == 0 || number > 536870911UL || wireType > 5) return fieldStart;
-
-                index = afterTag;
-
-                if (wireType == 0)
-                {
-                    ulong value;
-                    int afterValue = VarintAt(bytes, index, limit, out value);
-                    if (afterValue < 0) return fieldStart;
-                    index = afterValue;
-                    continue;
-                }
-
-                if (wireType == 2)
-                {
-                    ulong length;
-                    int afterLength = VarintAt(bytes, index, limit, out length);
-                    if (afterLength < 0) return fieldStart;
-                    if (length > (ulong)(limit - afterLength)) return fieldStart;
-                    index = afterLength + (int)length;
-                    continue;
-                }
-
-                if (wireType == 1)
-                {
-                    if (index + 8 > limit) return fieldStart;
-                    index += 8;
-                    continue;
-                }
-
-                if (wireType == 5)
-                {
-                    if (index + 4 > limit) return fieldStart;
-                    index += 4;
-                    continue;
-                }
-
-                // Wire types 3 and 4, the deprecated groups: `SkipField` refuses them, and a
-                // protobuf this reader cannot walk ends where one begins.
-                return fieldStart;
+                index = after;
             }
 
             return index;
+        }
+
+        /// <summary>
+        /// Where the field that starts at `index` ends, or -1 where this reader cannot walk
+        /// it - which is where `ReadField` and `SkipField` would refuse.
+        ///
+        /// Why it walks **groups** (wire types 3 and 4): `SkipField` always did (`SkipGroup`),
+        /// and this walk used to stop at one. The two answer the same question about the same
+        /// bytes, so a message that carried a group was measured as ending where the group
+        /// began, no candidate tail of `EndOfPadded` was whole, and `DecodePadded` fell back to
+        /// decoding the *padded* buffer - which is the row of `a protobuf field announces 16
+        /// bytes with 14 left` on the phone of 1 November 2026, three messages that could never
+        /// be read and were asked for again.
+        /// </summary>
+        private static int FieldEnd(byte[] bytes, int index, int limit)
+        {
+            ulong tag;
+            int afterTag = VarintAt(bytes, index, limit, out tag);
+            if (afterTag < 0) return -1;
+
+            ulong number = tag >> 3;
+            int wireType = (int)(tag & 7);
+
+            // The same three refusals `ReadField` makes: field zero does not exist, a number
+            // past 2^29-1 does not fit a tag, and wire types 6 and 7 are not in the format.
+            if (number == 0 || number > 536870911UL || wireType > 5) return -1;
+
+            if (wireType == 0)
+            {
+                ulong value;
+                return VarintAt(bytes, afterTag, limit, out value);
+            }
+
+            if (wireType == 2)
+            {
+                ulong length;
+                int afterLength = VarintAt(bytes, afterTag, limit, out length);
+                if (afterLength < 0) return -1;
+                if (length > (ulong)(limit - afterLength)) return -1;
+
+                return afterLength + (int)length;
+            }
+
+            if (wireType == 1) return afterTag + 8 <= limit ? afterTag + 8 : -1;
+            if (wireType == 5) return afterTag + 4 <= limit ? afterTag + 4 : -1;
+
+            // A group opens with 3 and closes with 4; the end of the field is the byte after
+            // its matching end-group. An end-group with no group open is not a field.
+            if (wireType == 3) return GroupEnd(bytes, afterTag, limit);
+
+            return -1;
+        }
+
+        /// <summary>
+        /// The index just past the end-group that closes the group whose fields begin at
+        /// `index`, or -1 when the group never closes - the same walk `SkipGroup` makes, with
+        /// the same depth count, because groups nest.
+        /// </summary>
+        private static int GroupEnd(byte[] bytes, int index, int limit)
+        {
+            while (index < limit)
+            {
+                ulong tag;
+                int afterTag = VarintAt(bytes, index, limit, out tag);
+                if (afterTag < 0) return -1;
+
+                int wireType = (int)(tag & 7);
+                if (wireType == 4) return afterTag;
+
+                int after = FieldEnd(bytes, index, limit);
+                if (after < 0) return -1;
+
+                index = after;
+            }
+
+            return -1;
         }
 
         /// <summary>

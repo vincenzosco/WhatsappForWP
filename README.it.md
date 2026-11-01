@@ -310,7 +310,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` compila ed esegue i 418 test del protocollo in `ProtocolTests/`. Sono C#
+`tools/test-protocol.js` compila ed esegue i 438 test del protocollo in `ProtocolTests/`. Sono C#
 puro con un runner minimo, perché il toolchain WP8.1 non può ospitare un framework di test moderno.
 
 ## Da sapere

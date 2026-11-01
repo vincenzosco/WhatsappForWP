@@ -119,6 +119,10 @@ namespace WhatsappApp.Protocol.Client
                 // the last day inside it. None of it is a chat, so none of it becomes a row.
                 if (StatusFeed.IsStatus(chunk.Jid)) continue;
 
+                // And the names in it, before the row is called anything: a message is signed
+                // by whoever wrote it (`LearnMessageNames`).
+                LearnMessageNames(chunk);
+
                 HistoryConversation row = EnsureRow(chunk.Jid);
 
                 // The count is the server's, but only on a chunk that brought something new.
@@ -158,12 +162,13 @@ namespace WhatsappApp.Protocol.Client
                 HistoryConversation row = Find(name.Jid);
                 if (row == null) continue;
 
-                // A push name never overwrites a saved one: the address book is the person's
-                // own word for the contact and the push name is the contact's word for
-                // themselves. The book already resolves that order, so the row asks it.
-                string known = _names.NameFor(row.Jid);
-                if (known != null) row.Name = known;
-                else if (name.Name != null) row.Name = name.Name;
+                // A saved name never loses to a push name, and a push name does not replace a
+                // name the conversation itself carried: the book resolves the first pair
+                // (`NameBook.NameFor`), and the row is only renamed here when it has nothing
+                // of its own - the same rule the learned names follow (`LearnMessageNames`).
+                string saved = _names.SavedNameFor(row.Jid);
+                if (saved != null) row.Name = saved;
+                else if (string.IsNullOrEmpty(row.Name) && name.Name != null) row.Name = name.Name;
             }
 
             if (sync.SyncType == HistorySync.InitialBootstrap || sync.Progress >= 100) IsSyncComplete = true;
@@ -428,6 +433,51 @@ namespace WhatsappApp.Protocol.Client
                 if (push == null) continue;
 
                 _names.RememberPushName(push.Jid, push.Name);
+            }
+        }
+
+        /// <summary>
+        /// The push names a chunk's own messages carry, written down before its row is named.
+        ///
+        /// Why: every message of a history is signed with its writer's push name
+        /// (`WebMessageInfo.pushName`, field 19, which this client already reads into
+        /// `HistoryMessage.SenderName`), and the row used only the conversation's own
+        /// `name`/`displayName` and the sync's separate `pushnames` list. On the account of
+        /// 2026-10-25 that list arrived empty - `native: the sync named 143 LID pair(s), 0
+        /// saved contact(s), 0 push name(s)` - so forty chats out of a hundred and sixty-eight,
+        /// every one of them with messages in it, were drawn as their number while each of
+        /// those messages carried the name WhatsApp shows for the same person.
+        ///
+        /// A group is what this guards: its messages are signed by the participants, and a
+        /// participant's name remembered under the group's address would call the group after
+        /// whoever wrote first. So a group needs the writer's own address, and a message of
+        /// this account's own says nothing about what to call the chat.
+        /// </summary>
+        private void LearnMessageNames(HistoryConversation chunk)
+        {
+            bool group = GroupDirectory.IsGroup(chunk.Jid);
+
+            for (int i = 0; i < chunk.Messages.Count; i++)
+            {
+                HistoryMessage message = chunk.Messages[i];
+                if (message == null || message.IsFromMe) continue;
+
+                string name = NameBook.Clean(message.SenderName);
+                if (name == null) continue;
+
+                string sender = message.Sender;
+                if (string.IsNullOrEmpty(sender))
+                {
+                    // Nobody is named on it, so the only address it could belong to is the
+                    // chat's - which is the group's, and that is the name of one member.
+                    if (group) continue;
+                    sender = chunk.Jid;
+                }
+
+                sender = _names.Canonical(sender);
+                if (sender == null) continue;
+
+                _names.RememberPushName(sender, name);
             }
         }
 

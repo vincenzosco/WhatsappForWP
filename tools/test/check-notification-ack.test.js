@@ -17,6 +17,7 @@ function method(parts) {
     + '\n        /// <summary>il metodo dopo</summary>\n';
 }
 
+/** L'ack come lo scrive il progetto: protetto, nominato, e dopo il controllo dell'id. */
 const GUARDED_ACK = [
   '            string ackId = node == null ? null : node.Attrs["id"];',
   '            if (!string.IsNullOrEmpty(ackId))',
@@ -24,6 +25,7 @@ const GUARDED_ACK = [
   '                try',
   '                {',
   '                    await session.SendAsync(IncomingMessage.Ack(node));',
+  '                    Diag.Step("native: acked notification " + ackId);',
   '                }',
   '                catch (Exception error)',
   '                {',
@@ -60,6 +62,7 @@ test('un ack senza il controllo dell id e un problema', () => {
     '            try',
     '            {',
     '                await session.SendAsync(IncomingMessage.Ack(node));',
+    '                Diag.Step("native: acked notification " + node.Attrs["id"]);',
     '            }',
     '            catch (Exception error)',
     '            {',
@@ -78,6 +81,7 @@ test('un ack non protetto e un problema', () => {
   const source = method([
     '            string ackId = node.Attrs["id"];',
     '            await session.SendAsync(IncomingMessage.Ack(node));',
+    '            Diag.Step("native: acked notification " + ackId);',
     '            if (ClientState.IsClientRefusal(node)) return;'
   ]);
 
@@ -85,6 +89,29 @@ test('un ack non protetto e un problema', () => {
 
   assert.strictEqual(problems.length, 1);
   assert.match(problems[0], /not .*protected|is not/);
+});
+
+test('un ack che non si nomina nel log e un problema', () => {
+  const source = method([
+    '            string ackId = node.Attrs["id"];',
+    '            if (!string.IsNullOrEmpty(ackId))',
+    '            {',
+    '                try',
+    '                {',
+    '                    await session.SendAsync(IncomingMessage.Ack(node));',
+    '                }',
+    '                catch (Exception error)',
+    '                {',
+    '                    Diag.Failed("NativeConnection/notification-ack", error);',
+    '                }',
+    '            }',
+    '            if (ClientState.IsClientRefusal(node)) return;'
+  ]);
+
+  const problems = guard.problemsFor(source);
+
+  assert.strictEqual(problems.length, 1);
+  assert.match(problems[0], /not named in the log/);
 });
 
 test('un commento che nomina l ack non conta come un ack', () => {

@@ -298,6 +298,103 @@ namespace ProtocolTests
             Assert.AreEqual(before, chats.Rows.Count, "the status list is not a conversation");
         }
 
+        /// <summary>
+        /// A person's chat with no name of its own is named after the person: every message of
+        /// a history is signed with its writer's push name (`WebMessageInfo.pushName`, 19).
+        ///
+        /// This is the phone of 2026-10-25: the sync carried no `pushnames` list at all
+        /// (`0 push name(s)`, beside `143 LID pair(s)` in the same chunk), so forty chats of a
+        /// hundred and sixty-eight were drawn as "+39..." while every message inside them
+        /// carried the name WhatsApp shows for that person.
+        /// </summary>
+        [Test]
+        public static void AChatWithNoNameTakesTheNameItsMessagesAreSignedWith()
+        {
+            var chats = new NativeChats();
+            chats.ApplyHistory(Sync(Signed("393666666666@s.whatsapp.net", null, "Giulia")));
+
+            Assert.AreEqual(1, chats.Rows.Count);
+            Assert.AreEqual("Giulia", chats.Rows[0].Name, "the writer's own name is the chat's name");
+            Assert.AreEqual("Giulia", chats.Names.PushNameFor("393666666666@s.whatsapp.net"),
+                "and it is remembered, so the row keeps it after the next start");
+        }
+
+        /// <summary>
+        /// A group is never named after whoever happened to write first: its messages are
+        /// signed by the participants, and the name belongs to them.
+        /// </summary>
+        [Test]
+        public static void AGroupIsNotNamedAfterItsFirstWriter()
+        {
+            var chats = new NativeChats();
+            chats.ApplyHistory(Sync(Signed("120363222222222222@g.us", "393111111111@s.whatsapp.net", "Luca")));
+
+            Assert.AreEqual(1, chats.Rows.Count);
+            Assert.IsTrue(string.IsNullOrEmpty(chats.Rows[0].Name),
+                "the group's subject is not a participant's name");
+            Assert.AreEqual("Luca", chats.Names.PushNameFor("393111111111@s.whatsapp.net"),
+                "the participant is named all the same");
+        }
+
+        /// <summary>
+        /// A message this phone sent says nothing about what to call the chat: the name on it
+        /// is this account's own.
+        /// </summary>
+        [Test]
+        public static void AMessageOfMineDoesNotNameTheChat()
+        {
+            byte[] key = new ProtoWriter()
+                .Text(1, "393777777777@s.whatsapp.net")
+                .Varint(2, 1)
+                .Text(3, "3EB0MINE0001")
+                .ToArray();
+            byte[] web = new ProtoWriter()
+                .Bytes(1, key)
+                .Bytes(2, new ProtoWriter().Text(WhatsappApp.Protocol.WaProto.Message.ConversationField, "ehi").ToArray())
+                .Varint(3, 1791610000L)
+                .Text(19, "Vincenzo")
+                .ToArray();
+
+            var chats = new NativeChats();
+            chats.ApplyHistory(Sync(new ProtoWriter()
+                .Text(1, "393777777777@s.whatsapp.net")
+                .Bytes(2, new ProtoWriter().Bytes(1, web).ToArray())
+                .ToArray()));
+
+            Assert.AreEqual(1, chats.Rows.Count);
+            Assert.IsTrue(string.IsNullOrEmpty(chats.Rows[0].Name), "my own name is not the chat's");
+        }
+
+        /// <summary>One conversation whose single message is signed by <paramref name="signer"/>.</summary>
+        private static byte[] Signed(string chatJid, string participant, string writer)
+        {
+            byte[] key = new ProtoWriter()
+                .Text(1, chatJid)
+                .Text(3, "3EB0HIST0001")
+                .ToArray();
+
+            var web = new ProtoWriter()
+                .Bytes(1, key)
+                .Bytes(2, new ProtoWriter().Text(WhatsappApp.Protocol.WaProto.Message.ConversationField, "ciao").ToArray())
+                .Varint(3, 1791610000L);
+
+            if (participant != null) web.Text(5, participant);
+            web.Text(19, writer);
+
+            return new ProtoWriter()
+                .Text(1, chatJid)
+                .Bytes(2, new ProtoWriter().Bytes(1, web.ToArray()).ToArray())
+                .ToArray();
+        }
+
+        private static HistorySync Sync(byte[] conversation)
+        {
+            return HistorySync.Decode(new ProtoWriter()
+                .Varint(1, HistorySync.Recent)
+                .Bytes(2, conversation)
+                .ToArray());
+        }
+
         private static HistoryMessage Message(string jid, string id, string text, long timestamp)
         {
             var message = new HistoryMessage();

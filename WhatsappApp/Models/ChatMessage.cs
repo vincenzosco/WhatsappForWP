@@ -311,6 +311,34 @@ namespace WhatsappApp.Models
             }
         }
 
+        private bool _mediaIsVoiceNote;
+
+        /// <summary>
+        /// Whether this audio left as a **recorded** note, which is what `ptt` means at the
+        /// other end: a recorded note is a voice note, a picked track is `audio`. Kept with
+        /// the bubble because a retry must send the same message, and by then the waiting
+        /// slot in `AttachmentInbox` has been cleared.
+        /// </summary>
+        [DataMember]
+        public bool MediaIsVoiceNote
+        {
+            get { return _mediaIsVoiceNote; }
+            set { _mediaIsVoiceNote = value; OnPropertyChanged(); }
+        }
+
+        private int _mediaDurationSeconds;
+
+        /// <summary>
+        /// How long this audio plays, in whole seconds, as the file says: a voice note sent
+        /// with no duration arrives at 0:00, and a picked track with none looks broken.
+        /// </summary>
+        [DataMember]
+        public int MediaDurationSeconds
+        {
+            get { return _mediaDurationSeconds; }
+            set { _mediaDurationSeconds = value; OnPropertyChanged(); }
+        }
+
         /// <summary>
         /// The local file with the bytes of a received video. It is not a
         /// [DataMember]: a video does not travel in the model (too much for one

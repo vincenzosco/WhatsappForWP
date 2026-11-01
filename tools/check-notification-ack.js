@@ -17,7 +17,10 @@
  *    potrebbe piu' essere riconosciuta, e resterebbe in coda per sempre;
  *  - solo i nodi con un `id` si riconoscono: `ib` (che porta `offline`,
  *    `edge_routing`, `dirty`) non chiede niente, e un `ack` senza id non
- *    risponde a nessuno.
+ *    risponde a nessuno;
+ *  - l'`ack` si nomina nel log (`native: acked notification <id>`): il log del
+ *    telefono scrive le stanze in arrivo e niente di quelle in partenza, quindi
+ *    senza questa riga "l'ack e' partito" non e' verificabile in nessun run.
  *
  * Usage:
  *   node tools/check-notification-ack.js
@@ -77,6 +80,13 @@ function problemsFor(source) {
     problems.push('WhatsappApp/Services/NativeConnection.cs: the notification ack is not '
       + 'protected; a send that fails on a closing socket must not take the notification down '
       + 'with it');
+  }
+
+  const named = body.indexOf('native: acked notification');
+  if (named < 0 || named < ack) {
+    problems.push('WhatsappApp/Services/NativeConnection.cs: the notification ack is not named '
+      + 'in the log (`native: acked notification <id>`); the read of a stanza is logged and the '
+      + 'answer is not, so a device run cannot say whether the ack left');
   }
 
   return problems;

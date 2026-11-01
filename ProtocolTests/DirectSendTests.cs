@@ -109,6 +109,23 @@ namespace ProtocolTests
             Assert.IsTrue(failed != null, "a list of nothing but this phone cannot be sent to");
         }
 
+        /// <summary>
+        /// The device list is asked for both parties, so it names this account's other
+        /// devices too: they are targets - the device-sent copy is what makes the words
+        /// appear as sent on the phone - and this phone alone is not.
+        /// </summary>
+        [Test]
+        public static void OurOwnOtherDevicesAreWrittenToAndThisPhoneIsNot()
+        {
+            IList<string> targets = DirectSend.Targets(BothPartiesAnswer(), OurJid, null);
+
+            Assert.AreEqual(3, targets.Count, "our other device and the peer's two");
+            Assert.AreEqual("15559990000:0@s.whatsapp.net", targets[0],
+                "the phone gets the copy that shows the message as sent");
+            Assert.AreEqual(PeerPhone, targets[1]);
+            Assert.AreEqual(PeerTablet, targets[2]);
+        }
+
         [Test]
         public static void TheSecondTextUsesTheEstablishedSession()
         {
@@ -257,6 +274,26 @@ namespace ProtocolTests
             var users = new List<BinaryNode>();
             users.Add(UserDevices(OurUser, "3"));
             users.Add(UserDevices(PeerUser, peerDeviceIds));
+
+            var list = new BinaryNode("list");
+            list.Content = users;
+
+            var usync = new BinaryNode("usync");
+            usync.Content = new List<BinaryNode> { list };
+
+            var iq = new BinaryNode("iq");
+            iq.Attrs.Add("type", "result");
+            iq.Content = new List<BinaryNode> { usync };
+
+            return iq;
+        }
+
+        /// <summary>The answer to a query that named both parties: this account and the peer.</summary>
+        private static BinaryNode BothPartiesAnswer()
+        {
+            var users = new List<BinaryNode>();
+            users.Add(UserDevices(OurUser, "3", "0"));
+            users.Add(UserDevices(PeerUser, "0", "5"));
 
             var list = new BinaryNode("list");
             list.Content = users;
