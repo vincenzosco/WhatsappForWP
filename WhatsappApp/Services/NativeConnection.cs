@@ -1343,19 +1343,19 @@ namespace WhatsappApp.Services
                 return await SendGroupAsync(session, jid, message, OutgoingMessage.TextType, null, body);
             }
 
-            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+            DirectTarget target = await DevicesAsync(session, jid);
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
             Diag.Ok("native: direct text " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
-            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, message, OutgoingMessage.TextType, null,
-                devices, timestamp, _random, privacyToken, OurJids()));
+            await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, message, OutgoingMessage.TextType, null,
+                target.Devices, timestamp, _random, privacyToken, OurJids()));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
-            Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s) "
-                + SealedFor(devices));
+            Diag.Ok("native: " + id + " to " + target.To + " over " + target.Devices.Count + " device(s) "
+                + SealedFor(target.Devices));
 
             return id;
         }
@@ -1386,13 +1386,13 @@ namespace WhatsappApp.Services
                 return await SendGroupAsync(session, jid, payload, OutgoingMessage.TextType, null, "");
             }
 
-            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+            DirectTarget target = await DevicesAsync(session, jid);
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload,
-                OutgoingMessage.TextType, null, devices, timestamp, _random,
+            await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload,
+                OutgoingMessage.TextType, null, target.Devices, timestamp, _random,
                 CachedPrivacyToken(jid), OurJids()));
 
             Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
@@ -1453,19 +1453,19 @@ namespace WhatsappApp.Services
                 return await SendGroupAsync(session, jid, payload, OutgoingMessage.MediaType, mediaWord, rowText);
             }
 
-            IList<KeyValuePair<string, SessionRecord>> devices = await DevicesAsync(session, jid);
+            DirectTarget target = await DevicesAsync(session, jid);
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
             Diag.Ok("native: direct media " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
-            await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
-                mediaWord, devices, timestamp, _random, privacyToken, OurJids()));
+            await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload, OutgoingMessage.MediaType,
+                mediaWord, target.Devices, timestamp, _random, privacyToken, OurJids()));
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
-            Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + jid
-                + " over " + devices.Count + " device(s) " + SealedFor(devices));
+            Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + target.To
+                + " over " + target.Devices.Count + " device(s) " + SealedFor(target.Devices));
 
             return id;
         }
@@ -1876,7 +1876,42 @@ namespace WhatsappApp.Services
         /// re-done is the session itself: an established one is what the ratchet is for
         /// (`DeviceDirectory.Session`).
         /// </summary>
-        private async Task<IList<KeyValuePair<string, SessionRecord>>> DevicesAsync(NativeSession session, string jid)
+        private async Task<DirectTarget> DevicesAsync(NativeSession session, string jid)
+        {
+            // The address on the wire, which is not always the address of the row: a chat
+            // whose `@lid` this phone knows is sent by that LID, because a device list for
+            // the number it used to have is a list of devices nobody reads (`WireAddress`).
+            string address = DirectSend.WireAddress(jid, NameCache.Book.LidFor(jid));
+            Diag.Ok("native: " + jid + " is addressed by "
+                + (address == jid ? "its number" : "its lid") + " " + address);
+
+            // And when the number is the only address there is a device behind: a LID this
+            // phone knows the pair of may still answer nothing (an account that has moved
+            // back, a pair learned from a message and never used). A send that fails loudly
+            // on the address that is only a guess is worse than one that falls back to the
+            // address that did work, so the number is tried again before the send is given
+            // up - and both answers are named in the log.
+            if (address != jid)
+            {
+                try
+                {
+                    return await ResolveDevicesAsync(session, address);
+                }
+                catch (ProtocolException error)
+                {
+                    Diag.Failed("native: no devices behind the lid of " + jid, error);
+                    Diag.Ok("native: asking the number " + jid + " instead");
+                }
+            }
+
+            return await ResolveDevicesAsync(session, jid);
+        }
+
+        /// <summary>
+        /// The same question asked of one address: who is behind it, what their keys are, and
+        /// the sessions to seal for.
+        /// </summary>
+        private async Task<DirectTarget> ResolveDevicesAsync(NativeSession session, string address)
         {
             // Two questions, and they are two different answers. `Query` is the `usync`
             // device list (`user > devices > device-list > device[id]`); only
@@ -1897,10 +1932,10 @@ namespace WhatsappApp.Services
             // chat with no trace of anything written here. Both in the **same family** as the
             // destination: a phone-number stanza carrying `@lid` devices under it is the
             // mixed shape the server answers with 479.
-            string ours = OwnUserFor(jid);
+            string ours = OwnUserFor(address);
             var asked = new List<string>();
             if (!string.IsNullOrEmpty(ours)) asked.Add(ours);
-            asked.Add(jid);
+            asked.Add(address);
 
             BinaryNode devicesAnswer = await RequestAsync(session, DeviceDirectory.Query(asked, _random));
 
@@ -1964,9 +1999,13 @@ namespace WhatsappApp.Services
                 Diag.Ok("native: no bundle for " + plan.Skipped[i] + ", so it is not written to");
             }
 
-            if (plan.Devices.Count == 0) throw new ProtocolException("the server handed no key for " + jid);
+            if (plan.Devices.Count == 0) throw new ProtocolException("the server handed no key for " + address);
 
-            return plan.Devices;
+            var target = new DirectTarget();
+            target.To = address;
+            target.Devices = plan.Devices;
+
+            return target;
         }
 
         /// <summary>

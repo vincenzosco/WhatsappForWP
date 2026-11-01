@@ -20,6 +20,37 @@ namespace WhatsappApp.Protocol.Client
     public static class DirectSend
     {
         /// <summary>
+        /// The address a one-to-one send names: the chat's `@lid` when this phone knows the
+        /// pair, and the chat itself otherwise.
+        ///
+        /// Why the LID and not the number: WhatsApp moves accounts to LIDs, and the phone
+        /// of 2026-11-01 showed what happens when a chat is addressed by the number it used
+        /// to have. The message to `393492556507@s.whatsapp.net` - correct spelling, device
+        /// 0 written bare - was taken by the server (`ack class="message"`, the single tick
+        /// this app draws as "sent"), no delivery receipt came back, no retry receipt came
+        /// back, and the other phone showed nothing at all. The same person writes from
+        /// `179585517920463@lid` and every receipt the server sends names devices in
+        /// `@lid`. A device list for an address that has moved is a list of devices nobody
+        /// reads.
+        ///
+        /// The chat **row** stays keyed on the number: `NameBook.Canonical` is what folds
+        /// the two spellings into one conversation, its pin and its cache, and that has not
+        /// changed. What changes is the address on the wire, which is a different question
+        /// from the key of a row.
+        /// </summary>
+        public static string WireAddress(string jid, string lid)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a send needs somebody to go to");
+            if (string.IsNullOrEmpty(lid)) return jid;
+
+            // Only the pair of *this* chat is used: a LID handed in for another account
+            // would address a message to the wrong person, which is worse than a number.
+            if (!lid.EndsWith("@lid", StringComparison.OrdinalIgnoreCase)) return jid;
+
+            return lid;
+        }
+
+        /// <summary>
         /// The devices a one-to-one message goes to: the peer's, without this phone's own
         /// (nobody writes to themselves) and without the server-side ones.
         ///
@@ -170,6 +201,24 @@ namespace WhatsappApp.Protocol.Client
 
             return null;
         }
+    }
+
+    /// <summary>
+    /// Where a one-to-one send goes and what it was sealed for: the address the stanza
+    /// names, and the devices standing behind it.
+    ///
+    /// The two travel together because they have to agree: a stanza whose `to` is the
+    /// number and whose `enc` nodes are `@lid` devices is the mixed shape the server
+    /// refuses, and a send that heard the wrong family is a send that can be taken and
+    /// never delivered (`DirectSend.WireAddress`).
+    /// </summary>
+    public sealed class DirectTarget
+    {
+        /// <summary>The JID the `message` node names, in the family the devices are in.</summary>
+        public string To { get; set; }
+
+        /// <summary>The device and the session to seal for it, one per device.</summary>
+        public IList<KeyValuePair<string, SessionRecord>> Devices { get; set; }
     }
 
     /// <summary>

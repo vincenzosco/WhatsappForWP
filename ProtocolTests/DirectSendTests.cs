@@ -31,6 +31,68 @@ namespace ProtocolTests
         public const string PeerTablet = "15551230000:5@s.whatsapp.net";
         public const string PeerOldPhone = "15551230000:7@s.whatsapp.net";
 
+        /// <summary>The same person, as WhatsApp now addresses them: by a LID.</summary>
+        public const string PeerLid = "179585517920463@lid";
+        public const string PeerLidTablet = "179585517920463:5@lid";
+
+        /// <summary>This account's own LID, and this phone's device under it.</summary>
+        public const string OurLid = "150375613116620@lid";
+        public const string OurLidDevice = "150375613116620:32@lid";
+
+        /// <summary>
+        /// A chat whose number this phone also knows by its `@lid` is sent **by the LID**.
+        ///
+        /// Why: on 2026-11-01 a text reached `393492556507@s.whatsapp.net` - spellt right,
+        /// device 0 bare - and the server took it (`ack class="message"`) while the other
+        /// phone showed nothing: no delivery receipt, no retry receipt. The person writes
+        /// from their LID and every receipt the server sends names devices in `@lid`, so a
+        /// device list for the number is a list of devices nobody reads. The row stays keyed
+        /// on the number; the address on the wire is the LID.
+        /// </summary>
+        [Test]
+        public static void AChatWithAKnownLidIsAddressedByIt()
+        {
+            Assert.AreEqual(PeerLid, DirectSend.WireAddress(PeerUser, PeerLid),
+                "the pair is one account, and the LID is the address the server uses");
+            Assert.AreEqual(PeerUser, DirectSend.WireAddress(PeerUser, null), "no pair, no switch");
+            Assert.AreEqual(PeerUser, DirectSend.WireAddress(PeerUser, "179585517920463@s.whatsapp.net"),
+                "only an @lid switches the family: a number is not an address to switch to");
+        }
+
+        /// <summary>
+        /// And the stanza that comes out of it names the LID, seals for the LID's devices, and
+        /// is still read by the peer on the other side - the whole path, not just the label.
+        /// </summary>
+        [Test]
+        public static void ALidSendSealsForTheLidDevicesAndNamesTheLid()
+        {
+            Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
+            us.Jid = OurJid;
+            us.Lid = OurLidDevice;
+
+            var phone = new Device(PeerLid);
+            var tablet = new Device(PeerLidTablet);
+
+            IList<string> targets = DirectSend.Targets(LidAnswer("0", "5"), OurJid, OurLidDevice);
+
+            Assert.AreEqual(2, targets.Count, "the peer's two devices, in the LID family");
+            Assert.AreEqual(PeerLid, targets[0], "device 0 is the bare lid, exactly as for a number");
+            Assert.AreEqual(PeerLidTablet, targets[1]);
+
+            var store = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+            DirectSendPlan plan = DirectSend.Plan(targets, BundleAnswer(phone, tablet), us, store,
+                new SignalSessions.CounterRandom());
+
+            BinaryNode stanza = OutgoingMessage.Node(PeerLid, "3EB0LID000001", "ciao", plan.Devices,
+                1760000000, new SignalSessions.CounterRandom());
+            stanza.Attrs.Add("from", OurJid);
+
+            Assert.AreEqual(PeerLid, stanza.Attrs["to"], "the stanza names the lid and nothing else");
+            Assert.AreEqual(PeerLid, stanza.Child("participants").Children()[0].Attrs["jid"],
+                "and the device nodes are in the same family as the address");
+            Assert.AreEqual("ciao", phone.Read(stanza).Text, "the other phone reads its copy");
+        }
+
         [Test]
         public static void AOneToOneTextReachesEveryDeviceOfThePeer()
         {
@@ -273,12 +335,19 @@ namespace ProtocolTests
         /// </summary>
         private static BinaryNode DeviceAnswer(params string[] peerDeviceIds)
         {
-            var users = new List<BinaryNode>();
-            users.Add(UserDevices(OurUser, "3"));
-            users.Add(UserDevices(PeerUser, peerDeviceIds));
+            return Answer(UserDevices(OurUser, "3"), UserDevices(PeerUser, peerDeviceIds));
+        }
 
+        /// <summary>The same answer in the LID family, which is what the server sends now.</summary>
+        private static BinaryNode LidAnswer(params string[] peerDeviceIds)
+        {
+            return Answer(UserDevices(OurLid, "32"), UserDevices(PeerLid, peerDeviceIds));
+        }
+
+        private static BinaryNode Answer(params BinaryNode[] users)
+        {
             var list = new BinaryNode("list");
-            list.Content = users;
+            list.Content = new List<BinaryNode>(users);
 
             var usync = new BinaryNode("usync");
             usync.Content = new List<BinaryNode> { list };
