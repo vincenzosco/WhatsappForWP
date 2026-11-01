@@ -366,6 +366,7 @@ waiting) and the message is marked read when the reader reaches it.
   `OutgoingMessage.DeviceIdentityNode` attaches it whenever the copy is a
   pre-key one; a device linked by a build that did not keep it has to be linked
   again, because nothing on the wire can rebuild the signature.
+  `tools/check-device-identity.js` holds the four cables.
 
 - **A notification is answered, and the answer goes out first.** `<notification>` stanzas
   that carry an `id` are questions: the answer is `IncomingMessage.Ack`, which is

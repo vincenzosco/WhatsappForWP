@@ -291,6 +291,7 @@ node tools/check-chat-list-refresh.js  one chat per person, and a list that asks
 node tools/check-one-row-per-chat.js  a chat row is created canonical and once: list, groups, statuses
 node tools/check-emoji.js           emoji the font lacks, and a typed smile that leaves as a face
 node tools/check-send-path.js       a tap the send path drops says why in diag.log
+node tools/check-device-identity.js a message that opens a session carries the account's signature over this device
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```

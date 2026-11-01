@@ -298,6 +298,7 @@ node tools/check-chat-list-refresh.js  una sola chat per persona, e una lista ch
 node tools/check-one-row-per-chat.js  una riga per chat, canonica e una sola: lista, gruppi, stati
 node tools/check-emoji.js           le emoji che il font non ha, e un :) digitato che parte come faccia
 node tools/check-send-path.js       un tocco che l'invio scarta dice perché in diag.log
+node tools/check-device-identity.js un messaggio che apre una sessione porta la firma dell'account su questo device
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
