@@ -24,6 +24,10 @@ namespace WhatsappApp.Protocol.Media
         public byte[] MediaKey;
         public string DirectPath;
         public string Url;
+
+        /// <summary>The host that took the file: named in the log, because a send that leaves
+        /// without an address and a send that leaves with one look identical from here.</summary>
+        public string Host;
         public byte[] FileSha256;
         public byte[] FileEncSha256;
         public long FileLength;
@@ -207,6 +211,7 @@ namespace WhatsappApp.Protocol.Media
                     {
                         media.Url = uploadedUrl;
                         media.DirectPath = directPath;
+                        media.Host = conn.Hosts[i];
                         return media;
                     }
 

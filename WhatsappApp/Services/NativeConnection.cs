@@ -1471,6 +1471,13 @@ namespace WhatsappApp.Services
             UploadedMedia uploaded = await MediaUpload.SendAsync(new WinRtMediaFetcher(), conn, file,
                 mediaType, mimeType, fileName, _random, width, height, thumbnail);
 
+            // Named, because it is the half of a media send that leaves no other trace: a
+            // stanza that carries an address and one that carries none look the same from
+            // the ack.
+            Diag.Ok("native: upload: " + (uploaded.Host == null ? "no host" : uploaded.Host)
+                + " answered url=" + (string.IsNullOrEmpty(uploaded.Url) ? "no" : "yes")
+                + ", direct path=" + (string.IsNullOrEmpty(uploaded.DirectPath) ? "no" : "yes"));
+
             Message payload = MessageFor(uploaded, caption, seconds, voiceNote);
             string mediaWord = MediaWord(mediaType, voiceNote);
             string rowText = RowText(uploaded, caption);
@@ -1947,11 +1954,17 @@ namespace WhatsappApp.Services
         /// </summary>
         private static string SealedFor(IList<KeyValuePair<string, SessionRecord>> devices)
         {
+            // And how the ciphertext for each of them is shaped: `pkmsg` opens a session and
+            // carries the pre-keys, `msg` rides the one that is there. A device that answers
+            // one and not the other is the difference between "the phone cannot read this" and
+            // "the phone never got it", and a count of devices cannot say which.
             var text = new System.Text.StringBuilder("[");
             for (int i = 0; i < devices.Count; i++)
             {
                 if (i > 0) text.Append(", ");
                 text.Append(devices[i].Key);
+                text.Append(devices[i].Value == null ? "=?"
+                    : (devices[i].Value.PreKeyPending ? "=pkmsg" : "=msg"));
             }
 
             return text.Append("]").ToString();
