@@ -111,13 +111,20 @@ namespace WhatsappApp.Protocol.Client
                     string device = entries[d].Attrs["id"];
                     if (string.IsNullOrEmpty(device)) continue;
 
-                    // The device goes inside the JID, not after it: `name:device@server`
-                    // is the address the server knows, and `name@server:device` is a
-                    // string nobody has a device for.
-                    int at = jid.IndexOf('@');
-                    devices.Add(at < 0
-                        ? jid + ":" + device
-                        : jid.Substring(0, at) + ":" + device + jid.Substring(at));
+                    // On the address of the user node, never on a string glued by hand:
+                    // `JidUtils.Encode` is what knows that **device 0 is written without
+                    // the suffix** (`jid-utils.ts`, `!!device`). Gluing it produced
+                    // `15551230000:0@s.whatsapp.net` - the phone itself - and the server
+                    // has no device at that address: it answered `ack class="message"` and
+                    // delivered the message to nobody, which on the phone of 2026-11-01
+                    // was "it says sent but it is not".
+                    int id;
+                    if (!int.TryParse(device, out id)) continue;
+
+                    DecodedJid user = JidUtils.Decode(jid);
+                    if (!user.IsJid) continue;
+
+                    devices.Add(JidUtils.Encode(user.User, user.Server, id));
                 }
             }
 
@@ -343,15 +350,22 @@ namespace WhatsappApp.Protocol.Client
             return bundle;
         }
 
-        /// <summary>`number@server` and a device id as `number:id@server`, or null when there is no id.</summary>
+        /// <summary>
+        /// `number@server` and a device id as the address that device has: `number:id@server`,
+        /// and the bare `number@server` for device 0 - the phone, which WhatsApp never
+        /// writes with a suffix (`JidUtils.Encode`). Null when there is no id or no JID.
+        /// </summary>
         private static string WithDevice(string userJid, string deviceId)
         {
-            if (string.IsNullOrEmpty(deviceId)) return null;
+            if (string.IsNullOrEmpty(userJid) || string.IsNullOrEmpty(deviceId)) return null;
 
-            int at = userJid.IndexOf('@');
-            if (at < 0) return userJid + ":" + deviceId;
+            int id;
+            if (!int.TryParse(deviceId, out id)) return null;
 
-            return userJid.Substring(0, at) + ":" + deviceId + userJid.Substring(at);
+            DecodedJid user = JidUtils.Decode(userJid);
+            if (!user.IsJid) return null;
+
+            return JidUtils.Encode(user.User, user.Server, id);
         }
 
         /// <summary>

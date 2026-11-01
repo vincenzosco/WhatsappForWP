@@ -28,6 +28,59 @@ namespace ProtocolTests
             Assert.AreEqual(PeerBundleFixture.PeerTablet, devices[1]);
         }
 
+        /// <summary>
+        /// Device 0 - the phone, the one that shows the chat - is written as the bare user
+        /// address, and never as `…:0@…`.
+        ///
+        /// Why it is a test and not a detail: the address was glued by hand
+        /// (`user + ":" + id`), so every message to a person carried one `enc` addressed to
+        /// `15551230000:0@s.whatsapp.net`, an address the server has no device at. The
+        /// server answered `ack class="message"` - the single tick this app draws as "sent" -
+        /// and the recipient's phone received nothing at all (the phone of 2026-11-01:
+        /// "it says sent but it is not"). `JidUtils.Encode` is the one place that knows the
+        /// rule (`jid-utils.ts`: `device ? ':' + device : ''`).
+        /// </summary>
+        [Test]
+        public static void DeviceZeroIsTheBareUserAddress()
+        {
+            IList<string> devices = DeviceDirectory.Devices(PeerBundleFixture.DevicesAnswer());
+
+            for (int i = 0; i < devices.Count; i++)
+            {
+                Assert.IsFalse(devices[i].Contains(":0@"),
+                    "device 0 has no suffix, and this one did: " + devices[i]);
+            }
+
+            Assert.AreEqual("15551230000@s.whatsapp.net", devices[0], "the phone is the user address");
+            Assert.AreEqual("15551230000:5@s.whatsapp.net", devices[1], "a companion keeps its device id");
+        }
+
+        /// <summary>
+        /// A bundle answer that names its device by `id` and not by `jid` - which is the
+        /// shape the per-person answer has - is filed under the address that device actually
+        /// has, so the same `Plan` that reads the device list finds its keys.
+        /// </summary>
+        [Test]
+        public static void ABundleNamedOnlyByItsDeviceIdKeepsTheSameAddress()
+        {
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+
+            BinaryNode answer = PeerBundleFixture.BundleAnswer(peer, PeerBundleFixture.Peer, true);
+            BinaryNode user = answer.Child("list").Child("user");
+
+            var device = new BinaryNode("device");
+            device.Attrs.Add("id", "0");
+            device.Content = user.Children();
+            user.Content = new List<BinaryNode> { device };
+
+            IList<KeyValuePair<string, PreKeyBundle>> bundles = DeviceDirectory.Bundles(answer);
+
+            Assert.AreEqual(1, bundles.Count);
+            Assert.AreEqual(PeerBundleFixture.Peer, bundles[0].Key,
+                "device 0 is the user address here too, or the session is stored under a device nobody has");
+            Assert.IsTrue(bundles[0].Value.HasPreKey, "and it is the bundle that was in the answer");
+        }
+
         [Test]
         public static void AFixtureAnswerBecomesOneBundlePerDevice()
         {

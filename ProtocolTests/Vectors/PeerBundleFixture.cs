@@ -24,7 +24,14 @@ namespace ProtocolTests
     public static class PeerBundleFixture
     {
         public const string Peer = "15551230000@s.whatsapp.net";
-        public const string PeerPhone = "15551230000:0@s.whatsapp.net";
+
+        /// <summary>
+        /// The peer's phone, which is device 0 - and WhatsApp writes device 0 as the bare
+        /// user address, never as `…:0@…` (`JidUtils.Encode`, `jid-utils.ts`, `!!device`).
+        /// The answer below lists it as `id="0"` and this is what a reader has to make of it.
+        /// </summary>
+        public const string PeerPhone = Peer;
+
         public const string PeerTablet = "15551230000:5@s.whatsapp.net";
 
         /// <summary>The one-time pre-key inside <see cref="BundleAnswer"/>, as the peer drew it.</summary>

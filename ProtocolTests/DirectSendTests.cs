@@ -25,7 +25,9 @@ namespace ProtocolTests
         public const string OurJid = "15559990000:3@s.whatsapp.net";
         public const string OurUser = "15559990000@s.whatsapp.net";
         public const string PeerUser = "15551230000@s.whatsapp.net";
-        public const string PeerPhone = "15551230000:0@s.whatsapp.net";
+
+        /// <summary>Device 0 is the phone, and WhatsApp spells it as the bare user address.</summary>
+        public const string PeerPhone = PeerUser;
         public const string PeerTablet = "15551230000:5@s.whatsapp.net";
         public const string PeerOldPhone = "15551230000:7@s.whatsapp.net";
 
@@ -120,8 +122,8 @@ namespace ProtocolTests
             IList<string> targets = DirectSend.Targets(BothPartiesAnswer(), OurJid, null);
 
             Assert.AreEqual(3, targets.Count, "our other device and the peer's two");
-            Assert.AreEqual("15559990000:0@s.whatsapp.net", targets[0],
-                "the phone gets the copy that shows the message as sent");
+            Assert.AreEqual(OurUser, targets[0],
+                "the phone gets the copy that shows the message as sent, and device 0 has no suffix");
             Assert.AreEqual(PeerPhone, targets[1]);
             Assert.AreEqual(PeerTablet, targets[2]);
         }

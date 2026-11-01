@@ -220,6 +220,39 @@ function strayProblems(files) {
   return problems;
 }
 
+/**
+ * No JID is put together by hand.
+ *
+ * Why: a device JID is `user[:device]@server`, and the device is **left out when it is
+ * zero** (`jid-utils.ts`, `!!device`) because zero is the phone and WhatsApp never writes
+ * it. A statement that glues `user + ":" + device` therefore produces
+ * `15551230000:0@s.whatsapp.net`, an address the server has no device at: it answers
+ * `ack class="message"` - the single tick the app draws as "sent" - and every message to
+ * that chat is delivered to nobody. That is the phone of 2026-11-01, whose log read
+ * "it says sent but it is not". `JidUtils.Encode` is the one place that knows the rule.
+ */
+function deviceJidProblems(files) {
+  const problems = [];
+
+  for (const file of Object.keys(files).sort()) {
+    if (file === JID) continue;
+
+    const statements = String(files[file] || '').split(';');
+    for (const statement of statements) {
+      if (!/"\s*:\s*"\s*\+/.test(statement)) continue;
+      if (!/Substring\(/.test(statement)) continue;
+      if (!/\b(jid|Jid|device|Device)/.test(statement)) continue;
+
+      problems.push(`${file}: puts a JID together by hand (\`… + ":" + …\`) instead of asking `
+        + 'JidUtils.Encode: device 0 is the phone, and WhatsApp writes it without the suffix, '
+        + 'so `x:0@…` is an address no device has - the server acks it and delivers it to nobody');
+      break;
+    }
+  }
+
+  return problems;
+}
+
 /** Every `.cs` under WhatsappApp, keyed by its path relative to the project. */
 function appSources(dir, out) {
   out = out || {};
@@ -258,6 +291,7 @@ function lidNameProblems(files) {
 
   problems.push(...addressBookProblems(code[DATA] || ''));
   problems.push(...strayProblems(code));
+  problems.push(...deviceJidProblems(code));
 
   return problems;
 }
@@ -272,9 +306,10 @@ function main() {
   }
 
   console.log('OK: a LID is never read as a phone number - the rule lives in JidUtils.IsLid and '
-    + 'the three names built from a JID ask it before they print digits.');
+    + 'the three names built from a JID ask it before they print digits; and every device '
+    + 'JID is composed by JidUtils.Encode, so device 0 stays the bare user address.');
 }
 
 if (require.main === module) main();
 
-module.exports = { lidNameProblems, methodBody };
+module.exports = { lidNameProblems, deviceJidProblems, methodBody };

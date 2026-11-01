@@ -1354,7 +1354,8 @@ namespace WhatsappApp.Services
                 devices, timestamp, _random, privacyToken, OurJids()));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
-            Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
+            Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s) "
+                + SealedFor(devices));
 
             return id;
         }
@@ -1464,7 +1465,7 @@ namespace WhatsappApp.Services
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + jid
-                + " over " + devices.Count + " device(s)");
+                + " over " + devices.Count + " device(s) " + SealedFor(devices));
 
             return id;
         }
@@ -1817,6 +1818,27 @@ namespace WhatsappApp.Services
             if (uploaded.MediaType == MediaKeys.Audio) return MediaUpload.Audio(uploaded, seconds, voiceNote);
 
             return MediaUpload.Document(uploaded, caption);
+        }
+
+        /// <summary>
+        /// The addresses a send was sealed for, as the log prints them.
+        ///
+        /// Why the addresses and not only their number: on 2026-11-01 the line said `over 2
+        /// device(s)` and every one of them was spelled `…:0@…` - an address no device has -
+        /// so the server took the stanza and nothing arrived. A count cannot be checked
+        /// against what the phone should have received; an address can, and the phone is the
+        /// bare user address.
+        /// </summary>
+        private static string SealedFor(IList<KeyValuePair<string, SessionRecord>> devices)
+        {
+            var text = new System.Text.StringBuilder("[");
+            for (int i = 0; i < devices.Count; i++)
+            {
+                if (i > 0) text.Append(", ");
+                text.Append(devices[i].Key);
+            }
+
+            return text.Append("]").ToString();
         }
 
         /// <summary>The `mediatype` attribute: the reference's `getMediaType`, `ptt` included.</summary>

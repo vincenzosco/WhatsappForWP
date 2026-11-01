@@ -216,6 +216,38 @@ test('un commento non conta come chiamata alla regola', () => {
     problems.join('\n'));
 });
 
+test('un JID di device composto a mano e un problema', () => {
+  const handBuilt = `
+        private static string WithDevice(string userJid, string deviceId)
+        {
+            int at = userJid.IndexOf('@');
+            return userJid.Substring(0, at) + ":" + deviceId + userJid.Substring(at);
+        }
+`;
+  const problems = guard.lidNameProblems(goodTree({ 'WhatsappApp/Protocol/Client/Somewhere.cs': handBuilt }));
+  assert.ok(problems.some((p) => /puts a JID together by hand/.test(p)), problems.join('\n'));
+});
+
+test('composto con JidUtils.Encode non e un problema, e neppure un orario', () => {
+  const encoded = `
+        private static string WithDevice(string userJid, string deviceId)
+        {
+            DecodedJid user = JidUtils.Decode(userJid);
+            return JidUtils.Encode(user.User, user.Server, 0);
+        }
+`;
+  const clock = `
+        private static string Duration(int total)
+        {
+            return (total / 60) + ":" + (total % 60).ToString("00");
+        }
+`;
+  assert.deepStrictEqual(guard.lidNameProblems(goodTree({
+    'WhatsappApp/Protocol/Client/Somewhere.cs': encoded,
+    'WhatsappApp/Services/SomewhereElse.cs': clock
+  })), []);
+});
+
 test('il corpo di un metodo con "{0}" dentro una stringa si chiude dove deve', () => {
   const body = guard.methodBody(NAMED, 'public static string DisplayNameForJid');
   assert.ok(body.includes('return string.IsNullOrEmpty(user) ? "?" : user;'),
