@@ -67,7 +67,10 @@ namespace ProtocolTests
             Assert.AreEqual("text", stanza.Attrs["type"]);
             Assert.AreEqual("3EB0D1EC70001", stanza.Attrs["id"]);
 
-            var to = stanza.Children();
+            BinaryNode participants = stanza.Child("participants");
+            Assert.IsTrue(participants != null, "the per-device nodes travel inside `participants`");
+
+            var to = participants.Children();
             Assert.AreEqual(2, to.Count, "one `to` per device of the peer");
             Assert.AreEqual(PeerPhone, to[0].Attrs["jid"]);
             Assert.AreEqual(PeerTablet, to[1].Attrs["jid"]);
@@ -128,7 +131,8 @@ namespace ProtocolTests
             // the state the reference calls `pendingPreKey`, and a `msg` here would be a
             // stanza the peer cannot open with the session it has.
             BinaryNode second = Text(plan, "3EB0D1EC70003", "secondo");
-            Assert.AreEqual(OutgoingMessage.PreKeyType, second.Children()[0].Child("enc").Attrs["type"],
+            Assert.AreEqual(OutgoingMessage.PreKeyType,
+                second.Child("participants").Children()[0].Child("enc").Attrs["type"],
                 "a session nobody has answered on is still a `pkmsg`");
             Assert.AreEqual("secondo", phone.Read(second).Text);
 
@@ -159,7 +163,8 @@ namespace ProtocolTests
             Assert.AreEqual(2, answered.Devices.Count, "the stored sessions are enough");
 
             BinaryNode third = Text(answered, "3EB0D1EC70005", "terzo");
-            Assert.AreEqual(OutgoingMessage.ExistingType, third.Children()[0].Child("enc").Attrs["type"],
+            Assert.AreEqual(OutgoingMessage.ExistingType,
+                third.Child("participants").Children()[0].Child("enc").Attrs["type"],
                 "once the peer has answered, the stanza is a `msg`");
             Assert.AreEqual("terzo", phone.Read(third).Text);
         }

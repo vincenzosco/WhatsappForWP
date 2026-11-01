@@ -20,6 +20,10 @@ namespace ProtocolTests
         /// <summary>The source for everything a send draws: a ratchet key and the padding's bytes.</summary>
         private static readonly SignalSessions.CounterRandom Random = new SignalSessions.CounterRandom();
 
+        /// <summary>This account's number, and a tablet of it.</summary>
+        private const string OurPhone = "15559990000@s.whatsapp.net";
+        private const string OurTablet = "15559990000:9@s.whatsapp.net";
+
         [Test]
         public static void TheNodeCarriesOneEncPerDevice()
         {
@@ -40,7 +44,11 @@ namespace ProtocolTests
             Assert.AreEqual("0123456789ABCDEF", node.Attrs["id"]);
             Assert.AreEqual("1760000000", node.Attrs["t"]);
 
-            IList<BinaryNode> devices = node.Children();
+            // The per-device nodes sit in `participants`, as both reference clients write a
+            // direct stanza (`Socket/messages-send.js`, `relayMessage`; `whatsmeow`, `send.go`).
+            Assert.AreEqual(1, node.Children().Count, "the stanza carries one node: the participants");
+
+            IList<BinaryNode> devices = node.Child("participants").Children();
             Assert.AreEqual(2, devices.Count);
             Assert.AreEqual(PeerBundleFixture.PeerPhone, devices[0].Attrs["jid"]);
             Assert.AreEqual(PeerBundleFixture.PeerTablet, devices[1].Attrs["jid"]);
@@ -55,7 +63,7 @@ namespace ProtocolTests
         }
 
         [Test]
-        public static void EachDeviceReadsBackTheWordsInsideTheDeviceSentForm()
+        public static void TheRecipientReadsTheMessageItselfAndNotTheSendersCopy()
         {
             Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
             Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
@@ -65,42 +73,54 @@ namespace ProtocolTests
                 PeerBundleFixture.Peer, "ABCDEF0123456789", "Hello, WhatsApp!",
                 TwoSessions(us, peer, store), 1760000000, Random);
 
-            IList<BinaryNode> devices = node.Children();
+            IList<BinaryNode> devices = node.Child("participants").Children();
             for (int i = 0; i < devices.Count; i++)
             {
                 string deviceJid = devices[i].Attrs["jid"];
-                byte[] enc = devices[i].Child("enc").Bytes();
+                Message read = ReadAs(peer, devices[i].Child("enc"));
 
-                // What the other side does with it: the pre-key wrapper is opened, the
-                // session it describes is started, and the sealed message inside comes out
-                // as the device-sent form.
-                byte[] wrapper = SignalEnvelope.Unwrap(enc);
-                PreKeySignalMessage opened = PreKeySignalMessage.Decode(wrapper);
+                // The device-sent form is the sender's own copy: ours other devices read the
+                // words out of it, and the recipient's phone answers a copy it never asked
+                // for with `ack error="479"` - which is what this stanza used to be.
+                Assert.IsTrue(read.DeviceSentMessage == null,
+                    deviceJid + " is the recipient's, so it has to read the message, not our sent copy");
 
-                SessionRecord responder = SessionRecord.StartAsResponder(
-                    peer.IdentityPrivateKey,
-                    peer.SignedPreKeyPrivate,
-                    PeerBundleFixture.OneTimePrivate(),
-                    peer.RegistrationId,
-                    opened,
-                    new SignalSessions.CounterRandom());
-
-                // Decrypt takes the whole `enc`, not the sealed message inside it: the
-                // wrapper is what it unwraps to find the fields the agreement was run on.
-                byte[] plaintext = responder.Decrypt(enc, true);
-
-                // The plaintext carries the WhatsApp padding the sender appended
-                // (`OutgoingMessage.Pad`), so the receiver strips it the way a phone does.
-                Message read = Message.DecodePadded(plaintext);
-
-                string destination = Message.Destination(read.DeviceSentMessage);
-                Assert.IsTrue(PeerBundleFixture.Peer == destination,
-                    deviceJid + " has to see which JID the copy was for, and saw " + destination);
-
-                string words = Message.Inner(read.DeviceSentMessage).Body();
+                string words = read.Body();
                 Assert.IsTrue("Hello, WhatsApp!" == words,
                     deviceJid + " has to read the words, and read " + words);
             }
+        }
+
+        [Test]
+        public static void ThisAccountsOtherDevicesReadTheDeviceSentForm()
+        {
+            Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
+            us.Jid = OurPhone;
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            var store = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+
+            var sessions = new List<KeyValuePair<string, SessionRecord>>();
+            sessions.Add(new KeyValuePair<string, SessionRecord>(PeerBundleFixture.PeerPhone,
+                Session(us, peer, PeerBundleFixture.PeerPhone, store)));
+            sessions.Add(new KeyValuePair<string, SessionRecord>(OurTablet,
+                Session(us, us, OurTablet, store)));
+
+            BinaryNode node = OutgoingMessage.Node(
+                PeerBundleFixture.Peer, "ABCDEF0123456789", Message.Text("Hello, WhatsApp!"),
+                OutgoingMessage.TextType, null, sessions, 1760000000, Random, null,
+                new List<string> { us.Jid });
+
+            IList<BinaryNode> devices = node.Child("participants").Children();
+
+            Message onPeer = ReadAs(peer, devices[0].Child("enc"));
+            Assert.IsTrue(onPeer.DeviceSentMessage == null, "the recipient's copy is the message");
+            Assert.AreEqual("Hello, WhatsApp!", onPeer.Body());
+
+            Message onOurTablet = ReadAs(us, devices[1].Child("enc"));
+            Assert.IsTrue(onOurTablet.DeviceSentMessage != null,
+                "our own device reads the copy we sent, wrapped so it can tell it from an incoming message");
+            Assert.AreEqual(PeerBundleFixture.Peer, Message.Destination(onOurTablet.DeviceSentMessage));
+            Assert.AreEqual("Hello, WhatsApp!", Message.Inner(onOurTablet.DeviceSentMessage).Body());
         }
 
         [Test]
@@ -144,14 +164,47 @@ namespace ProtocolTests
 
             for (int i = 0; i < devices.Length; i++)
             {
-                SessionRecord session = DeviceDirectory.Session(devices[i],
-                    PeerBundleFixture.Bundle(peer, devices[i], true),
-                    us, store, new SignalSessions.CounterRandom());
-
-                sessions.Add(new KeyValuePair<string, SessionRecord>(devices[i], session));
+                sessions.Add(new KeyValuePair<string, SessionRecord>(devices[i],
+                    Session(us, peer, devices[i], store)));
             }
 
             return sessions;
+        }
+
+        /// <summary>A session to one device, opened from the keys that device published.</summary>
+        private static SessionRecord Session(Credentials us, Credentials owner, string deviceJid,
+            SessionStore store)
+        {
+            return DeviceDirectory.Session(deviceJid,
+                PeerBundleFixture.Bundle(owner, deviceJid, true),
+                us, store, new SignalSessions.CounterRandom());
+        }
+
+        /// <summary>
+        /// What the other side does with one `enc`: the pre-key wrapper is opened, the session
+        /// it describes is started, and the sealed message inside is decrypted. `owner` holds
+        /// the private pre-keys that wrapper was sealed to.
+        /// </summary>
+        private static Message ReadAs(Credentials owner, BinaryNode enc)
+        {
+            byte[] wrapper = SignalEnvelope.Unwrap(enc.Bytes());
+            PreKeySignalMessage opened = PreKeySignalMessage.Decode(wrapper);
+
+            SessionRecord responder = SessionRecord.StartAsResponder(
+                owner.IdentityPrivateKey,
+                owner.SignedPreKeyPrivate,
+                PeerBundleFixture.OneTimePrivate(),
+                owner.RegistrationId,
+                opened,
+                new SignalSessions.CounterRandom());
+
+            // Decrypt takes the whole `enc`, not the sealed message inside it: the wrapper is
+            // what it unwraps to find the fields the agreement was run on.
+            byte[] plaintext = responder.Decrypt(enc.Bytes(), true);
+
+            // The plaintext carries the WhatsApp padding the sender appended
+            // (`OutgoingMessage.Pad`), so the receiver strips it the way a phone does.
+            return Message.DecodePadded(plaintext);
         }
 
         private sealed class Memory : ISessionStorage

@@ -338,9 +338,22 @@ waiting) and the message is marked read when the reader reaches it.
   `key`). Handing the device list to `Bundles` reads a `user` with no `skey` and
   the send dies in a `NullReferenceException` before a stanza exists - which is
   what the one-to-one path did while the group path already did the two in
-  order. `DevicesAsync` now asks the list, drops this phone and hosted devices,
+  order.  `DevicesAsync` now asks the list, drops this phone and hosted devices,
   asks bundles only for devices with no session, and names a device the server
   hands no key for.
+- **A direct stanza carries two payload forms, and only one of them is for the
+  recipient.** The recipient's devices get the message as it was written; this
+  account's other devices get a `deviceSentMessage` wrapping it, which is what
+  makes the words appear as sent on the phone (`Socket/messages-send.js`,
+  `relayMessage`; `whatsmeow`, `send.go`). Every copy used to be the wrapper, so
+  the peer's phone received a copy of our own sent history and answered
+  `ack error="479"` - the refusal the device log carried on every direct send.
+  The per-device nodes sit in `participants`, and the trusted-contact token
+  (`<tctoken>`) is their **sibling** and is optional: the server answers the
+  `privacy` query with an empty result for most contacts, and both reference
+  clients send anyway. Blocking the send until a token arrives sent nothing at
+  all (2026-11-01).
+
 - **Presence carries the state it was asked for.** `SendPresenceAsync("unavailable")`
   used to send `available`, so the suspension that exists to take this phone off
   the account's online list said the opposite. The type goes through

@@ -110,6 +110,43 @@ namespace ProtocolTests
             Assert.AreEqual(3, wireToken.Bytes().Length);
         }
 
+        [Test]
+        public static void TheTokenSitsBesideTheDevicesAndIsNotRequired()
+        {
+            Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            var store = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+            var devices = new List<KeyValuePair<string, SessionRecord>>();
+            devices.Add(new KeyValuePair<string, SessionRecord>(
+                PeerBundleFixture.PeerPhone,
+                DeviceDirectory.Session(PeerBundleFixture.PeerPhone,
+                    PeerBundleFixture.Bundle(peer, PeerBundleFixture.PeerPhone, true),
+                    us, store, new SignalSessions.CounterRandom())));
+
+            var token = new PrivacyToken();
+            token.Timestamp = "1793522412";
+            token.Bytes = new byte[] { 9, 8, 7 };
+
+            BinaryNode withToken = OutgoingMessage.Node(
+                PeerBundleFixture.Peer, "TOKENMSG2", Message.Text("hello"),
+                OutgoingMessage.TextType, null, devices, 1793522412,
+                new SignalSessions.CounterRandom(), token);
+
+            Assert.IsTrue(withToken.Child("participants") != null, "the devices are still in `participants`");
+            Assert.IsTrue(withToken.Child("tctoken") != null, "and the token is its sibling, not its child");
+
+            // The server issues no token for most contacts, and both reference clients send
+            // anyway (`Socket/messages-send.js`, `getPrivacyTokens` is asked and not waited
+            // on). A stanza without one is the ordinary case, not a refusal.
+            BinaryNode without = OutgoingMessage.Node(
+                PeerBundleFixture.Peer, "TOKENMSG3", Message.Text("hello"),
+                OutgoingMessage.TextType, null, devices, 1793522412,
+                new SignalSessions.CounterRandom(), null);
+
+            Assert.IsTrue(without.Child("tctoken") == null, "no token means no `tctoken` node");
+            Assert.IsTrue(without.Child("participants") != null, "and the message goes out all the same");
+        }
+
         private sealed class Memory : ISessionStorage
         {
             private readonly Dictionary<string, byte[]> _blobs = new Dictionary<string, byte[]>();

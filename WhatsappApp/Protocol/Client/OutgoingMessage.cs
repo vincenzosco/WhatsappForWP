@@ -200,16 +200,47 @@ namespace WhatsappApp.Protocol.Client
         public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
             IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random)
         {
-            return Node(to, id, message, type, mediaType, devices, timestamp, random, null);
+            return Node(to, id, message, type, mediaType, devices, timestamp, random, null, null);
         }
 
         /// <summary>
-        /// The direct-message stanza with an optional trusted-contact token. Current
-        /// one-to-one relays reject otherwise valid ciphertext with error 479.
+        /// The same stanza with an optional trusted-contact token.
+        ///
+        /// The token is **optional**: both reference clients ask the server for one and
+        /// attach it when it answers, and neither makes a send wait for it
+        /// (`Socket/messages-send.js`, `getPrivacyTokens`; `whatsmeow`, `tctoken`). A client
+        /// that refused to send without one sent nothing at all: the server answers the
+        /// privacy query with no token for a contact it has not issued one for, and this
+        /// device saw that empty answer on every attempt.
         /// </summary>
         public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
             IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random,
             PrivacyToken privacyToken)
+        {
+            return Node(to, id, message, type, mediaType, devices, timestamp, random, privacyToken, null);
+        }
+
+        /// <summary>
+        /// The direct-message stanza: one `enc` per device, inside a `participants` node,
+        /// and a `<tctoken>` when this phone has one for the chat.
+        ///
+        /// **Who gets which plaintext** is the thing this method had wrong. A one-to-one
+        /// send has two payload forms (`Socket/messages-send.js`, `relayMessage`): the
+        /// recipient's devices get the message as it was written, and this account's other
+        /// devices get a `deviceSentMessage` wrapping it - the sender's own copy, which is
+        /// what makes the words appear as sent on the phone. Every copy used to be the
+        /// wrapper, so the one device that matters, the recipient's, received a copy of our
+        /// own sent history instead of a message to it. The phone answers that with an
+        /// `ack error="479"`, which is the refusal this app has been collecting on every
+        /// direct send.
+        ///
+        /// `ownJids` is this account's JIDs (the number and the LID). When it is null no
+        /// device in the list is ours, which is the ordinary case: the list comes from the
+        /// recipient's `usync`.
+        /// </summary>
+        public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random,
+            PrivacyToken privacyToken, IList<string> ownJids)
         {
             if (string.IsNullOrEmpty(to)) throw new ProtocolException("a message needs somebody to go to");
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
@@ -219,11 +250,12 @@ namespace WhatsappApp.Protocol.Client
                 throw new ProtocolException("a message needs at least one device to encrypt for");
             }
 
-            // The device-sent form, built once for every device: the same message, the same
-            // id, the same JID, in every copy - and the padding added once, behind all of it.
-            byte[] plaintext = Pad(Message.DeviceSent(to, message).Encode(), random);
+            // One padding per form, drawn when the first device of that kind needs it: the
+            // padding is random bytes, so two plaintexts cannot share one envelope.
+            byte[] forRecipient = null;
+            byte[] forOurDevices = null;
 
-            var content = new List<BinaryNode>();
+            var participants = new List<BinaryNode>();
             for (int i = 0; i < devices.Count; i++)
             {
                 string deviceJid = devices[i].Key;
@@ -231,6 +263,18 @@ namespace WhatsappApp.Protocol.Client
 
                 if (string.IsNullOrEmpty(deviceJid)) throw new ProtocolException("a message goes to a device, not to nothing");
                 if (session == null) throw new ProtocolException("the session for " + deviceJid + " is missing");
+
+                byte[] plaintext;
+                if (IsOurs(deviceJid, ownJids))
+                {
+                    if (forOurDevices == null) forOurDevices = Pad(Message.DeviceSent(to, message).Encode(), random);
+                    plaintext = forOurDevices;
+                }
+                else
+                {
+                    if (forRecipient == null) forRecipient = Pad(message.Encode(), random);
+                    plaintext = forRecipient;
+                }
 
                 BinaryNode enc = new BinaryNode("enc");
                 enc.Attrs.Add("v", KeyVersion);
@@ -242,15 +286,17 @@ namespace WhatsappApp.Protocol.Client
                 device.Attrs.Add("jid", deviceJid);
                 device.Content = new List<BinaryNode> { enc };
 
-                content.Add(device);
+                participants.Add(device);
             }
 
-            var stanza = new BinaryNode("message");
-            stanza.Attrs.Add("to", to);
-            stanza.Attrs.Add("type", string.IsNullOrEmpty(type) ? TextType : type);
-            stanza.Attrs.Add("id", id);
-            stanza.Attrs.Add("t", timestamp.ToString());
-            stanza.Content = content;
+            // The per-device nodes sit in `participants` for a direct message too: both
+            // reference clients write it that way, and the reader here already accepts both
+            // shapes on the way in (`IncomingMessage.PairwiseEnc`).
+            var devicesNode = new BinaryNode("participants");
+            devicesNode.Content = participants;
+
+            var content = new List<BinaryNode>();
+            content.Add(devicesNode);
 
             if (privacyToken != null && privacyToken.Bytes != null && privacyToken.Bytes.Length > 0)
             {
@@ -260,7 +306,38 @@ namespace WhatsappApp.Protocol.Client
                 content.Add(token);
             }
 
+            var stanza = new BinaryNode("message");
+            stanza.Attrs.Add("to", to);
+            stanza.Attrs.Add("type", string.IsNullOrEmpty(type) ? TextType : type);
+            stanza.Attrs.Add("id", id);
+            stanza.Attrs.Add("t", timestamp.ToString());
+            stanza.Content = content;
+
             return stanza;
+        }
+
+        /// <summary>
+        /// Whether a device JID is this account's, by user part: the number and the LID are
+        /// two names for the same account, and a device of it is one of ours whichever name
+        /// the device list used.
+        /// </summary>
+        private static bool IsOurs(string deviceJid, IList<string> ownJids)
+        {
+            if (ownJids == null || ownJids.Count == 0) return false;
+
+            DecodedJid device = JidUtils.Decode(deviceJid);
+            if (!device.IsJid) return false;
+
+            for (int i = 0; i < ownJids.Count; i++)
+            {
+                if (string.IsNullOrEmpty(ownJids[i])) continue;
+
+                DecodedJid own = JidUtils.Decode(ownJids[i]);
+                if (!own.IsJid) continue;
+                if (string.Equals(own.User, device.User, StringComparison.OrdinalIgnoreCase)) return true;
+            }
+
+            return false;
         }
     }
 }

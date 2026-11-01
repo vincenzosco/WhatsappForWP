@@ -173,7 +173,7 @@ namespace ProtocolTests
 
             // The ciphertext is inside the `to` this stanza names, which is the shape the
             // server forwards and the shape this test therefore moves a byte in.
-            byte[] enc = sent.Node.Child("to").Child("enc").Bytes();
+            byte[] enc = sent.Node.Child("participants").Child("to").Child("enc").Bytes();
             enc[enc.Length - 1] = (byte)(enc[enc.Length - 1] ^ 0x01);
 
             string failed = Failed(delegate
@@ -350,7 +350,7 @@ namespace ProtocolTests
             IncomingMessage.Read(sent.Node, world.Us, world.Sessions, world.PreKeys,
                 new SeenMessages(64), new SignalSessions.CounterRandom());
 
-            BinaryNode enc = sent.Node.Child("to").Child("enc");
+            BinaryNode enc = sent.Node.Child("participants").Child("to").Child("enc");
             Assert.AreEqual(OutgoingMessage.PreKeyType, enc.Attrs["type"],
                 "the first message of a conversation is a pre-key message");
 

@@ -695,15 +695,12 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>
         /// The ciphertext for this device: the `enc` at the top of the stanza, or the one
-        /// inside the `to` that names us.
+        /// inside the `to` that names us - under the stanza or inside its `participants`.
         /// </summary>
         private static BinaryNode EncFor(BinaryNode message, Credentials credentials)
         {
             BinaryNode direct = message.Child("enc");
             if (direct != null) return direct;
-
-            IList<BinaryNode> children = message.Children();
-            if (children == null) return null;
 
             // The account has two addresses and a stanza may name either: the number, and the
             // LID. `IsMine` has known that for a while; this lookup knew only the number, so a
@@ -714,6 +711,24 @@ namespace WhatsappApp.Protocol.Client
             string mine = User(credentials == null ? null : credentials.Jid);
             string lid = User(credentials == null ? null : credentials.Lid);
             bool known = mine != null || lid != null;
+
+            BinaryNode found = EncNamed(message.Children(), mine, lid, known);
+            if (found != null) return found;
+
+            // Both shapes travel: one client puts the per-device nodes straight under the
+            // stanza, and one wraps them in `participants` - which is the shape this app now
+            // writes, because both reference clients do (`Socket/messages-send.js`,
+            // `relayMessage`; `whatsmeow`, `send.go`). A reader that knew only the first
+            // refused every stanza of the second with "no enc for this device".
+            BinaryNode participants = message.Child("participants");
+
+            return participants == null ? null : EncNamed(participants.Children(), mine, lid, known);
+        }
+
+        /// <summary>The `enc` of the first `to[jid]` in `children` that names this account.</summary>
+        private static BinaryNode EncNamed(IList<BinaryNode> children, string mine, string lid, bool known)
+        {
+            if (children == null) return null;
 
             for (int i = 0; i < children.Count; i++)
             {
