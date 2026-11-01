@@ -632,7 +632,7 @@ namespace WhatsappApp.Services
         {
             try
             {
-                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                IStorageItem item = await ExistingItemAsync(FileName);
                 if (item == null) return "";
                 return await FileIO.ReadTextAsync((StorageFile)item);
             }
@@ -720,9 +720,9 @@ namespace WhatsappApp.Services
 
         private static async Task<bool> MarkerExistsAsync()
         {
-            // TryGetItemAsync: a normal start has no marker, and that is not a failure. Any
-            // other fault still reaches the caller, as it did before.
-            return await ApplicationData.Current.LocalFolder.TryGetItemAsync(MarkerName) != null;
+            // A normal start has no marker, and that is not a failure. Any other
+            // fault still reaches the caller, as it did before.
+            return await ExistingItemAsync(MarkerName) != null;
         }
 
         private static async Task WriteMarkerAsync()
@@ -745,12 +745,24 @@ namespace WhatsappApp.Services
             {
                 // Nothing to remove when there is no marker: the marker is gone, which is what
                 // was wanted.
-                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(MarkerName);
+                IStorageItem item = await ExistingItemAsync(MarkerName);
                 if (item != null) await item.DeleteAsync();
             }
             catch (Exception ex)
             {
                 Diag.Failed("Diag/alive-delete", ex);
+            }
+        }
+
+        private static async Task<IStorageItem> ExistingItemAsync(string name)
+        {
+            try
+            {
+                return await ApplicationData.Current.LocalFolder.GetFileAsync(name);
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
             }
         }
 
