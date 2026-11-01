@@ -134,7 +134,7 @@ namespace WhatsappApp.Protocol.Client
 
             if (random == null) throw new ProtocolException("a bundle query needs randomness for its id");
 
-            var keys = new List<BinaryNode>();
+            var requests = new List<BinaryNode>();
             for (int i = 0; i < deviceJids.Count; i++)
             {
                 string deviceJid = deviceJids[i];
@@ -146,17 +146,19 @@ namespace WhatsappApp.Protocol.Client
                 var deviceNode = new BinaryNode("device");
                 deviceNode.Attrs.Add("jid", deviceJid);
 
-                var key = new BinaryNode("key");
-                key.Content = new List<BinaryNode> { userNode, deviceNode };
-                keys.Add(key);
+                userNode.Content = new List<BinaryNode> { deviceNode };
+                requests.Add(userNode);
             }
+
+            var key = new BinaryNode("key");
+            key.Content = requests;
 
             var iq = new BinaryNode("iq");
             iq.Attrs.Add("to", PairingSession.ServerJid);
             iq.Attrs.Add("type", "get");
             iq.Attrs.Add("xmlns", "encrypt");
             iq.Attrs.Add("id", Hex(random.Bytes(8)));
-            iq.Content = keys;
+            iq.Content = new List<BinaryNode> { key };
 
             return iq;
         }
@@ -181,27 +183,27 @@ namespace WhatsappApp.Protocol.Client
 
             if (random == null) throw new ProtocolException("a bundle query needs randomness for its id");
 
-            var keys = new List<BinaryNode>();
+            var users = new List<BinaryNode>();
             for (int i = 0; i < userJids.Count; i++)
             {
                 if (string.IsNullOrEmpty(userJids[i])) continue;
 
                 var userNode = new BinaryNode("user");
                 userNode.Attrs.Add("jid", userJids[i]);
-
-                var key = new BinaryNode("key");
-                key.Content = new List<BinaryNode> { userNode };
-                keys.Add(key);
+                users.Add(userNode);
             }
 
-            if (keys.Count == 0) throw new ProtocolException("a bundle query asks about at least one person");
+            if (users.Count == 0) throw new ProtocolException("a bundle query asks about at least one person");
+
+            var key = new BinaryNode("key");
+            key.Content = users;
 
             var iq = new BinaryNode("iq");
             iq.Attrs.Add("to", PairingSession.ServerJid);
             iq.Attrs.Add("type", "get");
             iq.Attrs.Add("xmlns", "encrypt");
             iq.Attrs.Add("id", Hex(random.Bytes(8)));
-            iq.Content = keys;
+            iq.Content = new List<BinaryNode> { key };
 
             return iq;
         }

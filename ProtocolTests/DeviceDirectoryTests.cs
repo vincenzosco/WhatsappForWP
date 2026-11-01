@@ -137,11 +137,14 @@ namespace ProtocolTests
             Assert.AreEqual("iq", iq.Tag);
             Assert.AreEqual("encrypt", iq.Attrs["xmlns"]);
             Assert.AreEqual("get", iq.Attrs["type"]);
-            Assert.AreEqual(2, iq.Children().Count);
+            Assert.AreEqual(1, iq.Children().Count);
+            BinaryNode key = iq.Children()[0];
+            Assert.AreEqual("key", key.Tag);
+            Assert.AreEqual(2, key.Children().Count);
             Assert.AreEqual(PeerBundleFixture.Peer,
-                iq.Children()[1].Child("user").Attrs["jid"]);
+                key.Children()[0].Attrs["jid"]);
             Assert.AreEqual(PeerBundleFixture.PeerTablet,
-                iq.Children()[1].Child("device").Attrs["jid"]);
+                key.Children()[1].Child("device").Attrs["jid"]);
         }
 
         [Test]
