@@ -1258,8 +1258,10 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
+            PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
+
             await WriteAsync(session, id, OutgoingMessage.Node(jid, id, message, OutgoingMessage.TextType, null,
-                devices, timestamp, _random));
+                devices, timestamp, _random, privacyToken));
 
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + jid + " over " + devices.Count + " device(s)");
@@ -1326,14 +1328,37 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
+            PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
+
             await WriteAsync(session, id, OutgoingMessage.Node(jid, id, payload, OutgoingMessage.MediaType,
-                mediaWord, devices, timestamp, _random));
+                mediaWord, devices, timestamp, _random, privacyToken));
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + jid
                 + " over " + devices.Count + " device(s)");
 
             return id;
+        }
+
+        /// <summary>
+        /// Requests the trusted-contact token required by current one-to-one relays.
+        /// A token service outage is logged but does not hide the original send attempt.
+        /// </summary>
+        private async Task<PrivacyToken> PrivacyTokenAsync(NativeSession session, string jid, uint timestamp)
+        {
+            try
+            {
+                BinaryNode answer = await RequestAsync(session,
+                    PrivacyTokens.Query(jid, OutgoingMessage.Id(_random), timestamp));
+                PrivacyToken token = PrivacyTokens.Read(answer);
+                if (token == null) Diag.Ok("native: privacy token answer had no trusted-contact token for " + jid);
+                return token;
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("native: privacy token request for " + jid, error);
+                return null;
+            }
         }
 
         /// <summary>

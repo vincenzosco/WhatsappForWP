@@ -200,6 +200,17 @@ namespace WhatsappApp.Protocol.Client
         public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
             IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random)
         {
+            return Node(to, id, message, type, mediaType, devices, timestamp, random, null);
+        }
+
+        /// <summary>
+        /// The direct-message stanza with an optional trusted-contact token. Current
+        /// one-to-one relays reject otherwise valid ciphertext with error 479.
+        /// </summary>
+        public static BinaryNode Node(string to, string id, Message message, string type, string mediaType,
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random,
+            PrivacyToken privacyToken)
+        {
             if (string.IsNullOrEmpty(to)) throw new ProtocolException("a message needs somebody to go to");
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a message needs an id: it is what a receipt answers");
             if (message == null) throw new ProtocolException("there is no message to send");
@@ -240,6 +251,14 @@ namespace WhatsappApp.Protocol.Client
             stanza.Attrs.Add("id", id);
             stanza.Attrs.Add("t", timestamp.ToString());
             stanza.Content = content;
+
+            if (privacyToken != null && privacyToken.Bytes != null && privacyToken.Bytes.Length > 0)
+            {
+                var token = new BinaryNode("tctoken");
+                token.Attrs.Add("t", privacyToken.Timestamp);
+                token.Content = privacyToken.Bytes;
+                content.Add(token);
+            }
 
             return stanza;
         }
