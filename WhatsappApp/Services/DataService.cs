@@ -2135,9 +2135,34 @@ namespace WhatsappApp.Services
             foreach (var message in messages)
             {
                 if (message.Id != messageId) continue;
+                if (!IsForward(message.Status, status)) return;
                 message.Status = status;
                 return;
             }
+        }
+
+        /// <summary>
+        /// Whether a status is a step forward from the one the row already carries.
+        ///
+        /// Why it exists: the answers a sent message gets - the server's ack (`Sent`) and the
+        /// recipient's receipts (`Delivered`, `Read`) - are separate frames, and nothing
+        /// orders them. A `delivered` that arrived behind the `read` it belongs with, or an
+        /// ack behind both, rewrote the bubble backwards: a message the person had already
+        /// read went back to one tick, and the row said so until the next receipt. A status
+        /// is a ladder here, not a value.
+        ///
+        /// `Failed` is not a rung: only a message still on its way can be declared failed.
+        /// A late ack must still be able to repair one, because a refusal is the server's
+        /// first word and not its last.
+        /// </summary>
+        private static bool IsForward(MessageStatus current, MessageStatus wanted)
+        {
+            // The rule itself is `StatusLadder`, in the core: the same question is asked
+            // there and pinned by a protocol test (`ProtocolTests/StatusLadderTests.cs`),
+            // which is the only place in this repository that runs without a phone. The
+            // numbers are the model's own - `MessageStatus` is stored as that number in
+            // the message cache, so the order is a contract and not an accident.
+            return StatusLadder.IsForward((int)current, (int)wanted);
         }
 
         /// <summary>
@@ -2154,6 +2179,7 @@ namespace WhatsappApp.Services
                 foreach (var message in chat.Value)
                 {
                     if (message.Id != messageId) continue;
+                    if (!IsForward(message.Status, status)) return;
                     message.Status = status;
                     return;
                 }

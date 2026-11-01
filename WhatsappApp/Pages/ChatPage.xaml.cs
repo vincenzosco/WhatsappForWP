@@ -64,11 +64,70 @@ namespace WhatsappApp.Pages
         private DispatcherTimer _recordTimer;
 
         /// <summary>
-        /// True while a tap's send is running. The attachment slot is cleared only
-        /// after the local decode, and a second tap in that window added a second
-        /// bubble for the same file.
+        /// The two lanes a send belongs to, and when each one started. Two flags and not one:
+        /// a text typed while a video is uploading must leave now - the upload is a minute of
+        /// work on a Lumia, and waiting behind it was a message that never went - while two
+        /// sends of the same kind still wait for each other, which is what the flag is for
+        /// (the attachment slot stays filled until the local decode is done, so a double tap
+        /// used to add two bubbles for one file).
         /// </summary>
-        private bool _sending;
+        private bool _sendingText;
+        private DateTime _textSince;
+
+        private bool _sendingAttachment;
+        private DateTime _attachmentSince;
+
+        /// <summary>
+        /// How long a lane may stay taken. Past this the send is stuck, and the lane is
+        /// released instead of keeping the composer deaf until the page is left.
+        /// </summary>
+        private const int SendStallSeconds = 90;
+
+        /// <summary>
+        /// Takes the lane for a send, or says in the log why the tap is dropped: "a send of
+        /// this kind is already in flight" and "the lane was stuck and is now free" are two
+        /// different things to read in `diag.log`, and both used to be a silent `return`.
+        /// </summary>
+        private bool BeginSend(bool attachment)
+        {
+            bool busy = attachment ? _sendingAttachment : _sendingText;
+            DateTime since = attachment ? _attachmentSince : _textSince;
+            string kind = attachment ? "an attachment" : "a text";
+
+            if (busy)
+            {
+                int waited = (int)(DateTime.Now - since).TotalSeconds;
+
+                if (waited < SendStallSeconds)
+                {
+                    Diag.Ok("send: ignored, " + kind + " has been in flight for " + waited + " s");
+                    return false;
+                }
+
+                Diag.Ok("send: " + kind + " was still in flight after " + waited
+                    + " s, so that lane is released");
+            }
+
+            if (attachment)
+            {
+                _sendingAttachment = true;
+                _attachmentSince = DateTime.Now;
+            }
+            else
+            {
+                _sendingText = true;
+                _textSince = DateTime.Now;
+            }
+
+            return true;
+        }
+
+        /// <summary>Releases the lane the send took, whatever it did.</summary>
+        private void EndSend(bool attachment)
+        {
+            if (attachment) _sendingAttachment = false;
+            else _sendingText = false;
+        }
 
         /// <summary>
         /// True once the page has been left. A start or a capture that finishes after
@@ -1184,18 +1243,22 @@ namespace WhatsappApp.Pages
 
         private async void SendMessage()
         {
-            // One send at a time: the attachment slot stays filled until the local
-            // decode is done, so a double tap used to add two bubbles for one file.
-            if (_sending) return;
+            // The lane is decided before the recording is stopped: a tap on Send while
+            // recording ends the note, and that note uploads in the attachment lane. A text
+            // and an upload therefore never wait for each other - a minute of video on a
+            // wireless connection used to hold every message typed meanwhile - and a tap
+            // this refuses is named in `diag.log` instead of vanishing.
+            bool attachment = _recording.IsRecording || _selectedLocalFileName != null;
 
-            _sending = true;
+            if (!BeginSend(attachment)) return;
+
             try
             {
                 await SendMessageCoreAsync();
             }
             finally
             {
-                _sending = false;
+                EndSend(attachment);
             }
         }
 
@@ -1208,7 +1271,11 @@ namespace WhatsappApp.Pages
             if (_recording.IsRecording)
             {
                 await StopRecordingAsync();
-                if (string.IsNullOrEmpty(_selectedLocalFileName)) return;
+                if (string.IsNullOrEmpty(_selectedLocalFileName))
+                {
+                    Diag.Ok("send: the recording stopped with no file, so nothing goes");
+                    return;
+                }
             }
 
             // The face a keyboard would have made, when it did not make it: the composer
@@ -1225,8 +1292,13 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            // Text-only message
-            if (string.IsNullOrEmpty(text)) return;
+            // Text-only message. An empty composer is a tap with nothing behind it, and
+            // the log says so rather than leaving a tap and no message.
+            if (string.IsNullOrEmpty(text))
+            {
+                Diag.Ok("send: nothing to send");
+                return;
+            }
 
             var message = new ChatMessage
             {
@@ -1262,7 +1334,11 @@ namespace WhatsappApp.Pages
         private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
             string localFileName = _selectedLocalFileName;
-            if (string.IsNullOrEmpty(localFileName)) return;
+            if (string.IsNullOrEmpty(localFileName))
+            {
+                Diag.Ok("send: an attachment was asked for and there is no file to read");
+                return;
+            }
 
             string fileName = _selectedMediaFileName;
             string mimeType = _selectedMediaMimeType ?? "image/jpeg";
@@ -1305,11 +1381,14 @@ namespace WhatsappApp.Pages
 
             if (!NativeConnection.Instance.IsConnected)
             {
+                Diag.Failed("ChatPage/send attachment", new WhatsappApp.Protocol.ProtocolException(
+                    "the socket is not open, so " + message.Id + " did not leave"));
                 message.Status = MessageStatus.Failed;
                 return;
             }
 
             message.Status = MessageStatus.Sending;
+            Diag.Ok("send: " + kind + " " + fileName + " to " + message.ChatId);
 
             // The video is made smaller here, after the bubble is on screen: the
             // bubble says "sending" while the conversion runs, and what is uploaded
@@ -1424,11 +1503,14 @@ namespace WhatsappApp.Pages
             // leaving. Now it shows as failed and can be rewritten.
             if (!NativeConnection.Instance.IsConnected)
             {
+                Diag.Failed("ChatPage/send", new WhatsappApp.Protocol.ProtocolException(
+                    "the socket is not open, so " + message.Id + " did not leave"));
                 message.Status = MessageStatus.Failed;
                 return;
             }
 
             message.Status = MessageStatus.Sending;
+            Diag.Ok("send: text " + message.Id + " to " + message.ChatId);
 
             // The send is on the phone's own protocol now. A failure is named and the bubble
             // says so: a message that did not leave must not read as sent.

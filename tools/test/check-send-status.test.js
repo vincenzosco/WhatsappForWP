@@ -55,6 +55,13 @@ test('un connessione che non riconosce l ack lo lascia cadere', () => {
   assert.match(sendStatusProblems(broken).join('\n'), /AnnounceAck/);
 });
 
+test('un receipt fuori ordine non deve riportare la bolla indietro', () => {
+  const broken = files();
+  broken.data = broken.data.replace('if (!IsForward(message.Status, status)) return;', '');
+
+  assert.match(sendStatusProblems(broken).join('\n'), /IsForward/);
+});
+
 test('un servizio che ignora il flag dell ack non puo dire inviato', () => {
   const broken = files();
   broken.data = broken.data.replace('if (update.IsAck)', 'if (false)');

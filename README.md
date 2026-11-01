@@ -290,6 +290,7 @@ node tools/check-app-state.js       the saved names: the shared keys are kept, t
 node tools/check-chat-list-refresh.js  one chat per person, and a list that asks for its rows again
 node tools/check-one-row-per-chat.js  a chat row is created canonical and once: list, groups, statuses
 node tools/check-emoji.js           emoji the font lacks, and a typed smile that leaves as a face
+node tools/check-send-path.js       a tap the send path drops says why in diag.log
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
@@ -302,7 +303,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` builds and runs the 411 protocol tests in `ProtocolTests/`. The protocol
+`tools/test-protocol.js` builds and runs the 418 protocol tests in `ProtocolTests/`. The protocol
 tests are plain C# with a tiny runner, because the WP8.1 toolchain cannot host a modern test
 framework.
 

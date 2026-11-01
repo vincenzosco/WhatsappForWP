@@ -144,6 +144,82 @@ namespace ProtocolTests
                 iq.Children()[1].Child("device").Attrs["jid"]);
         }
 
+        /// <summary>
+        /// The other shape of the same question: one `key` naming a person, with no
+        /// `device` in it, which is what is asked when the per-device query stays silent.
+        /// </summary>
+        [Test]
+        public static void TheBundleQueryPerPersonNamesPeopleNotDevices()
+        {
+            BinaryNode iq = DeviceDirectory.BundleQueryForUser(
+                new string[] { PeerBundleFixture.Peer }, new SignalSessions.CounterRandom());
+
+            Assert.AreEqual("iq", iq.Tag);
+            Assert.AreEqual("encrypt", iq.Attrs["xmlns"]);
+            Assert.AreEqual("get", iq.Attrs["type"]);
+            Assert.AreEqual(1, iq.Children().Count);
+
+            BinaryNode key = iq.Children()[0];
+            Assert.AreEqual("key", key.Tag);
+            Assert.AreEqual(PeerBundleFixture.Peer, key.Child("user").Attrs["jid"],
+                "the person and not the device: this is the shape WhatsApp answers with every device's bundle");
+            Assert.IsTrue(key.Child("device") == null, "a per-person key names no device");
+        }
+
+        /// <summary>
+        /// The answer a `key` query gets: the users at the top of the iq, with no `list` in
+        /// between. A parser that only knew the fixture's shape would refuse a real answer
+        /// with "the answer has no list in it" - a send dying after the keys had arrived.
+        /// </summary>
+        [Test]
+        public static void ABundleAnswerWithoutAListIsStillABundle()
+        {
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            BinaryNode full = PeerBundleFixture.BundleAnswer(peer, PeerBundleFixture.PeerPhone, true);
+            BinaryNode user = full.Child("list").Child("user");
+
+            var answer = new BinaryNode("iq");
+            answer.Attrs.Add("type", "result");
+            answer.Content = new List<BinaryNode> { user };
+
+            IList<KeyValuePair<string, PreKeyBundle>> bundles = DeviceDirectory.Bundles(answer);
+
+            Assert.AreEqual(1, bundles.Count,
+                "a bundle answer that carries its user at the top of the iq is still an answer");
+            Assert.AreEqual(PeerBundleFixture.PeerPhone, bundles[0].Key);
+        }
+
+        /// <summary>
+        /// And the same when the query named only the person: the keys hang off a `device`
+        /// child, and the bundle is filed under that device's JID - which is what a session
+        /// is stored by, so the wrong key here is a session nobody finds again.
+        /// </summary>
+        [Test]
+        public static void ABundleAnswerPerPersonIsFiledUnderItsDevices()
+        {
+            Credentials peer = Credentials.Create(new SignalSessions.CounterRandom());
+            BinaryNode full = PeerBundleFixture.BundleAnswer(peer, PeerBundleFixture.PeerPhone, true);
+            BinaryNode inside = full.Child("list").Child("user");
+
+            var device = new BinaryNode("device");
+            device.Attrs.Add("jid", PeerBundleFixture.PeerPhone);
+            device.Content = inside.Children();
+
+            var user = new BinaryNode("user");
+            user.Attrs.Add("jid", PeerBundleFixture.Peer);
+            user.Content = new List<BinaryNode> { device };
+
+            var answer = new BinaryNode("iq");
+            answer.Attrs.Add("type", "result");
+            answer.Content = new List<BinaryNode> { user };
+
+            IList<KeyValuePair<string, PreKeyBundle>> bundles = DeviceDirectory.Bundles(answer);
+
+            Assert.AreEqual(1, bundles.Count);
+            Assert.AreEqual(PeerBundleFixture.PeerPhone, bundles[0].Key,
+                "the bundle belongs to the device that signed it, not to the person who was asked about");
+        }
+
         [Test]
         public static void TheDeviceQueryAsksForTheDevicesProtocol()
         {

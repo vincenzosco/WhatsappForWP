@@ -156,6 +156,22 @@ function dataProblems(data) {
     problems.push(`${DATA}: OnNativeStatus never writes MessageStatus.Failed for a refusal`);
   }
 
+  // The two answers arrive as separate frames and nothing orders them: a receipt that
+  // lands behind a later one used to rewrite the bubble backwards (a message already
+  // read went back to one tick). The ladder lives in the setters, and both must ask it.
+  for (const signature of ['public void SetMessageStatus(', 'private void SetMessageStatusEverywhere(']) {
+    const setter = methodBody(data, signature);
+
+    if (!setter) {
+      problems.push(`${DATA}: ${signature.replace('(', '')} is missing: a status from the wire has ` +
+        'nowhere to be written');
+    } else if (!setter.includes('IsForward(')) {
+      problems.push(`${DATA}: ${signature.replace('(', '')} writes the status it is given without ` +
+        'asking IsForward: an out-of-order receipt puts a message the person has read back ' +
+        'to one tick, and an ack behind it does the same');
+    }
+  }
+
   return problems;
 }
 

@@ -799,7 +799,13 @@ namespace WhatsappApp.Services
             count = count < 0 ? 0 : count;
             if (_backgroundCheck && count < _unseenStatuses) count = _unseenStatuses;
 
-            if (count == _unseenStatuses && !_tileDrawn) return;
+            // Unchanged **and** already drawn is the one case that has nothing to do:
+            // the first call of a process has to draw even when the number the local
+            // copy carries is the one on the screen, or the updates turn is missing
+            // until something else redraws the queue. The condition was written the
+            // other way round, so every status refresh cleared and reposted all five
+            // slots while a first call with an unchanged count drew nothing.
+            if (count == _unseenStatuses && _tileDrawn) return;
 
             _unseenStatuses = count;
             RememberStatuses(count);

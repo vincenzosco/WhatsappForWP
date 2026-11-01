@@ -319,6 +319,29 @@ test('il corpo di un metodo si ferma alla sua graffa', () => {
   assert.doesNotMatch(tile.methodBody(source, 'A'), /return 2/);
 });
 
+test('la guardia degli aggiornamenti invertita si segnala', () => {
+  const found = tile.statusesProblems(
+    'public static void SetStatuses(int count)\n        {\n' +
+    '            if (count == _unseenStatuses && !_tileDrawn) return;\n' +
+    '            RenderTile();\n        }').join('\n');
+  assert.match(found, /inverted/,
+    'con !_tileDrawn un numero invariato ridisegna la tile e la prima chiamata non disegna');
+});
+
+test('una guardia degli aggiornamenti senza il disegno si segnala', () => {
+  const found = tile.statusesProblems(
+    'public static void SetStatuses(int count)\n        {\n' +
+    '            if (count == _unseenStatuses) return;\n' +
+    '            RenderTile();\n        }').join('\n');
+  assert.match(found, /does not ask whether a tile was drawn/);
+});
+
+test('il SetStatuses vero salta il disegno solo su una tile gia disegnata', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs'), 'utf8');
+  assert.deepStrictEqual(tile.statusesProblems(source), []);
+});
+
 test('il modello largo che WP8.1 non ha si segnala', () => {
   const problems = tile.bindingProblems(
     'var t = TileTemplateType.TileWide310x150IconWithBadge;');

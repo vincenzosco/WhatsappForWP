@@ -1636,7 +1636,45 @@ namespace WhatsappApp.Services
             BinaryNode bundleAnswer = null;
             if (missing.Count > 0)
             {
-                bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
+                // Two shapes, because one of them can be ignored in silence: on
+                // 2026-10-30 the per-device query went out and no answer ever came for its
+                // id (`diag.log`: the device list answered, the bundle query did not), so
+                // every one-to-one message ended in `the server did not answer`. A query a
+                // server ignores is not a refusal - it is a dead end - so the same question
+                // is asked again per person, which is the shape WhatsApp answers with the
+                // bundles of every device that person has.
+                // The catch does not await (C# 5 answers CS1985): it records why the
+                // first shape failed, and the second ask happens after it.
+                ProtocolException silent = null;
+
+                try
+                {
+                    bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
+                }
+                catch (ProtocolException error)
+                {
+                    silent = error;
+                }
+
+                if (silent != null)
+                {
+                    Diag.Failed("native: the per-device bundle query", silent);
+
+                    var people = new List<string>();
+                    for (int i = 0; i < missing.Count; i++)
+                    {
+                        string person = DeviceDirectory.UserJid(missing[i]);
+                        if (string.IsNullOrEmpty(person) || people.Contains(person)) continue;
+
+                        people.Add(person);
+                    }
+
+                    Diag.Ok("native: asking the bundles per person instead (" + people.Count
+                        + " of them), because a query with no answer is not a no");
+
+                    bundleAnswer = await RequestAsync(session,
+                        DeviceDirectory.BundleQueryForUser(people, _random));
+                }
             }
 
             DirectSendPlan plan = DirectSend.Plan(targets, bundleAnswer, _account, store, _random);
