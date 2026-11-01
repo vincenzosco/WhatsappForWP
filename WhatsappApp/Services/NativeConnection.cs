@@ -759,7 +759,7 @@ namespace WhatsappApp.Services
                 }
                 else
                 {
-                    lock (_privacyTokens) _privacyTokens[pushed.Jid] = pushed;
+                    StorePrivacyToken(pushed, pushed.Jid);
                     Diag.Ok("native: stored privacy token for " + pushed.Jid);
                 }
                 return;
@@ -1444,40 +1444,80 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task<PrivacyToken> PrivacyTokenAsync(NativeSession session, string jid, uint timestamp)
         {
-            string tokenJid = NameCache.Book.LidFor(jid);
-            if (string.IsNullOrEmpty(tokenJid)) tokenJid = jid;
+            string phoneJid = NameCache.Book.Canonical(jid);
+            if (string.IsNullOrEmpty(phoneJid)) phoneJid = jid;
 
-            lock (_privacyTokens)
+            IList<string> queryJids = PrivacyTokens.QueryJids(phoneJid, NameCache.Book.LidFor(phoneJid));
+            for (int i = 0; i < queryJids.Count; i++)
             {
-                PrivacyToken cached;
-                if (_privacyTokens.TryGetValue(tokenJid, out cached))
+                string tokenJid = queryJids[i];
+                if (i > 0) Diag.Ok("native: retrying privacy token with " + tokenJid);
+                PrivacyToken cached = CachedPrivacyToken(tokenJid);
+                if (cached != null)
                 {
                     Diag.Ok("native: reusing privacy token for " + tokenJid);
                     return cached;
                 }
+
+                try
+                {
+                    BinaryNode answer = await RequestAsync(session,
+                        PrivacyTokens.Query(tokenJid, OutgoingMessage.Id(_random), timestamp));
+                    PrivacyToken token = PrivacyTokens.Read(answer);
+                    if (token == null)
+                    {
+                        Diag.Ok("native: privacy token answer had no trusted-contact token for " + tokenJid);
+                        continue;
+                    }
+
+                    if (string.IsNullOrEmpty(token.Jid)) token.Jid = tokenJid;
+                    StorePrivacyToken(token, tokenJid);
+                    Diag.Ok("native: received privacy token for " + tokenJid);
+                    return token;
+                }
+                catch (Exception error)
+                {
+                    Diag.Failed("native: privacy token request for " + tokenJid, error);
+                }
             }
 
-            try
+            return null;
+        }
+
+        private PrivacyToken CachedPrivacyToken(string jid)
+        {
+            lock (_privacyTokens)
             {
-                BinaryNode answer = await RequestAsync(session,
-                    PrivacyTokens.Query(tokenJid, OutgoingMessage.Id(_random), timestamp));
-                PrivacyToken token = PrivacyTokens.Read(answer);
-                if (token == null)
-                {
-                    Diag.Ok("native: privacy token answer had no trusted-contact token for " + tokenJid);
-                }
-                else
-                {
-                    token.Jid = tokenJid;
-                    lock (_privacyTokens) _privacyTokens[tokenJid] = token;
-                    Diag.Ok("native: received privacy token for " + tokenJid);
-                }
-                return token;
+                PrivacyToken cached;
+                if (_privacyTokens.TryGetValue(jid, out cached)) return cached;
+
+                string canonical = NameCache.Book.Canonical(jid);
+                if (!string.IsNullOrEmpty(canonical)
+                    && _privacyTokens.TryGetValue(canonical, out cached)) return cached;
+
+                string lid = NameCache.Book.LidFor(jid);
+                if (!string.IsNullOrEmpty(lid) && _privacyTokens.TryGetValue(lid, out cached)) return cached;
             }
-            catch (Exception error)
+
+            return null;
+        }
+
+        private void StorePrivacyToken(PrivacyToken token, string fallbackJid)
+        {
+            if (token == null) return;
+
+            string tokenJid = string.IsNullOrEmpty(token.Jid) ? fallbackJid : token.Jid;
+            if (string.IsNullOrEmpty(tokenJid)) return;
+
+            token.Jid = tokenJid;
+            string canonical = NameCache.Book.Canonical(tokenJid);
+            string lid = NameCache.Book.LidFor(canonical);
+
+            lock (_privacyTokens)
             {
-                Diag.Failed("native: privacy token request for " + tokenJid, error);
-                return null;
+                _privacyTokens[tokenJid] = token;
+                if (!string.IsNullOrEmpty(canonical)) _privacyTokens[canonical] = token;
+                if (!string.IsNullOrEmpty(lid)) _privacyTokens[lid] = token;
             }
         }
 

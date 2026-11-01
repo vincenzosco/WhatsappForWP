@@ -27,6 +27,22 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void QueryJidsTryLidThenPhoneWithoutDuplicates()
+        {
+            IList<string> jids = PrivacyTokens.QueryJids(
+                "393761539975@s.whatsapp.net", "16982334263338@lid");
+
+            Assert.AreEqual(2, jids.Count);
+            Assert.AreEqual("16982334263338@lid", jids[0]);
+            Assert.AreEqual("393761539975@s.whatsapp.net", jids[1]);
+
+            IList<string> one = PrivacyTokens.QueryJids(
+                "16982334263338@lid", "16982334263338@lid");
+            Assert.AreEqual(1, one.Count);
+            Assert.AreEqual("16982334263338@lid", one[0]);
+        }
+
+        [Test]
         public static void ReadFindsTrustedContactToken()
         {
             var token = new BinaryNode("token");

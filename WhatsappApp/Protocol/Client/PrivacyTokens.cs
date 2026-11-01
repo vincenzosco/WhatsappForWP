@@ -19,6 +19,18 @@ namespace WhatsappApp.Protocol.Client
         public const string Namespace = "privacy";
         public const string Type = "trusted_contact";
 
+        /// <summary>
+        /// The privacy endpoint has accepted both spellings over time. Try the LID first
+        /// when it is known, then the phone-number JID, without asking the same address twice.
+        /// </summary>
+        public static IList<string> QueryJids(string phoneJid, string lidJid)
+        {
+            var result = new List<string>();
+            AddQueryJid(result, lidJid);
+            AddQueryJid(result, phoneJid);
+            return result;
+        }
+
         /// <summary>Asks WhatsApp to issue a trusted-contact token for one person.</summary>
         public static BinaryNode Query(string jid, string id, uint timestamp)
         {
@@ -105,6 +117,18 @@ namespace WhatsappApp.Protocol.Client
             result.Timestamp = timestamp;
             result.Jid = token.Attrs["jid"];
             return result;
+        }
+
+        private static void AddQueryJid(IList<string> result, string jid)
+        {
+            if (string.IsNullOrEmpty(jid)) return;
+
+            for (int i = 0; i < result.Count; i++)
+            {
+                if (string.Equals(result[i], jid, StringComparison.OrdinalIgnoreCase)) return;
+            }
+
+            result.Add(jid);
         }
     }
 }
