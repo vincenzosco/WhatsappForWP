@@ -836,9 +836,12 @@ waiting) and the message is marked read when the reader reaches it.
   same read path: a `previousCounter` beyond 2000 is refused instead of walked to
   (`SkipTo`, the reference's `fillMessageKeys` - the alternative is the sixty seconds the
   watchdog logged), and the plaintext is unpadded before it is parsed
-  (`Message.DecodePadded`), because WhatsApp appends one to fifteen bytes behind every
-  message and a reader that skipped them reads a length field out of the tail
-  (`a protobuf field announces 12095 bytes with 52 left`). The pairing wipe is pinned by
+  (`Message.DecodePadded`), because WhatsApp appends one to **sixteen** bytes - a whole
+  block - behind every message and a reader that skipped them reads a length field out of
+  the tail (`a protobuf field announces 12095 bytes with 52 left`). Sixteen and not fifteen
+  is a message lost: the copy the re-link of 1 November 2026 received had a count of
+  sixteen, the walk searched fifteen tails and found none, and the padded buffer was read
+  as a message with `a protobuf field announces 16 bytes with 14 left`. The pairing wipe is pinned by
   `check-client-state.js`; the other four have protocol tests.
 - **The signed pre-key in the store has to be the account's, not merely *a* signed
   pre-key.** Signed pre-keys are numbered from one, so a store left by a previous pairing

@@ -304,7 +304,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` builds and runs the 449 protocol tests in `ProtocolTests/`. The protocol
+`tools/test-protocol.js` builds and runs the 451 protocol tests in `ProtocolTests/`. The protocol
 tests are plain C# with a tiny runner, because the WP8.1 toolchain cannot host a modern test
 framework.
 

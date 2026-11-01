@@ -54,13 +54,19 @@ namespace WhatsappApp.Protocol.WaProto
         /// The longest padding a phone appends to a message's plaintext before encrypting it.
         ///
         /// Not the cipher's block padding - that one is the cipher's own business - but the
-        /// WhatsApp layer's: between one and fifteen bytes whose **last byte is their own
+        /// WhatsApp layer's: between one and **sixteen** bytes whose **last byte is their own
         /// count**, appended to the serialized `Message` (`baileys`, `writeRandomPadMax16` /
-        /// `unpadRandomMax16`; `whatsmeow`, `padMessage` / `unpadMessage`). Every message a
-        /// phone sends carries it, pairwise as well as group, which is why a reader that strips
-        /// it only for groups cannot read a `status` or a `msg` it has decrypted correctly.
+        /// `unpadRandomMax16` - the name says the block; `whatsmeow`, `padMessage` /
+        /// `unpadMessage`). Every message a phone sends carries it, pairwise as well as group,
+        /// which is why a reader that strips it only for groups cannot read a `status` or a
+        /// `msg` it has decrypted correctly.
+        ///
+        /// Sixteen and not fifteen, and the difference is a message lost: the padding is a
+        /// whole block, so a count of sixteen is ordinary, and a walk that searched fifteen
+        /// tails answered `a protobuf field announces 16 bytes with 14 left` for the copy the
+        /// re-link of 1 November 2026 received (`ProtoReader.MaxPadding` mirrors this).
         /// </summary>
-        public const int MaxPadding = 15;
+        public const int MaxPadding = 16;
 
         /// <summary>`conversation`, field 1.</summary>
         public string Conversation;

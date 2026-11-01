@@ -7,7 +7,7 @@ description: How to verify a change to the WhatsApp WP8.1 app - the static guard
 
 ## The fast gate (runs on any machine, seconds)
 
-Current expected counts: 449 protocol tests, 162 keys in each `.resw`, 417 tests in
+Current expected counts: 451 protocol tests, 162 keys in each `.resw`, 417 tests in
 `tools/test`, 38 buttons and 2 button styles. The counts printed by the guards
 themselves are the source of truth; these are what to expect when nothing is out of
 step.
@@ -136,7 +136,7 @@ for (const dir of ['Pages','Controls']) for (const f of fs.readdirSync('Whatsapp
 node tools/test-protocol.js
 ```
 
-Expected `OK: 449 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
+Expected `OK: 451 protocol test(s)`, exit 0. It compiles `ProtocolTests/` against
 the app's own sources and runs them: the binary node reader and writer, the Noise
 handshake, the Signal sessions (X3DH, the double ratchet, the sender key of a
 group), the media key schedule and the four media protobufs, the credential store,

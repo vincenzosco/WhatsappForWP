@@ -135,6 +135,45 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A whole block of padding - sixteen bytes, count sixteen - is ordinary, and it is
+        /// the copy the re-link of 1 November 2026 could not read.
+        ///
+        /// Why sixteen and not fifteen: the padding is a block of sixteen with its count
+        /// behind it, so the count is `1..16`. A walk that searched fifteen tails found none,
+        /// fell back to the padded buffer, and the sixteen bytes read as a field of the
+        /// message: `a protobuf field announces 16 bytes with 14 left`.
+        /// </summary>
+        [Test]
+        public static void ASixteenBytePaddingIsRead()
+        {
+            byte[] padded = Padded(Message.Text("a whole block").Encode(), 16);
+
+            Assert.AreEqual("a whole block", Message.DecodePadded(padded).Conversation,
+                "the longest padding WhatsApp writes is a whole block, not one byte less");
+        }
+
+        /// <summary>And the refusal itself, on the bytes of that copy.</summary>
+        [Test]
+        public static void TheSixteenBytePaddingIsTheRefusalOfTheRelink()
+        {
+            byte[] padded = Padded(Message.Text("a whole block").Encode(), 16);
+
+            try
+            {
+                Message.Decode(padded);
+            }
+            catch (ProtocolException refused)
+            {
+                Assert.IsTrue(refused.Message.IndexOf("announces 16 bytes with 14 left",
+                    StringComparison.Ordinal) >= 0,
+                    "the block of padding is what the reader tripped over: " + refused.Message);
+                return;
+            }
+
+            throw new AssertionException("sixteen bytes of padding behind a message were read as a field");
+        }
+
+        /// <summary>
         /// The wrapper's own content may carry the padding too - one client pads what it puts
         /// inside the field - and the destination and the words are still read.
         /// </summary>

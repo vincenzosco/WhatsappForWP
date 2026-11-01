@@ -430,8 +430,15 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>
         /// The longest padding a phone appends, mirrored here so this walk and the message
         /// reader cannot disagree about how many tails there are.
+        ///
+        /// It is **sixteen**, not fifteen: the padding is a whole block of sixteen with a
+        /// count of one to sixteen behind it (the shape `unpadRandomMax16` names). Eight
+        /// extra bytes of the re-link of 1 November 2026 were searched for in fifteen tails
+        /// and found in none, and the copy was refused with `a protobuf field announces 16
+        /// bytes with 14 left` - the sixteen bytes of padding read as one of the message's
+        /// own fields.
         /// </summary>
-        private const int MaxPadding = 15;
+        private const int MaxPadding = 16;
 
         /// <summary>
         /// `ReadVarint` without the exception: the index after the number, or -1 when it runs
