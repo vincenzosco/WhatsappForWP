@@ -1362,10 +1362,17 @@ namespace WhatsappApp.Services
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
             Diag.Ok("native: direct text " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
-            await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, message, OutgoingMessage.TextType, null,
-                target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
-
-            KeepSessions(target.Devices, await SessionsAsync());
+            try
+            {
+                await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, message, OutgoingMessage.TextType, null,
+                    target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
+            }
+            finally
+            {
+                // The chains moved while that stanza was being built, whether it left or not
+                // (`KeepSessions`).
+                KeepSessions(target.Devices, await SessionsAsync());
+            }
 
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + target.To + " over " + target.Devices.Count + " device(s) "
@@ -1405,11 +1412,16 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload,
-                OutgoingMessage.TextType, null, target.Devices, timestamp, _random,
-                CachedPrivacyToken(jid), OurJids(), OurIdentity()));
-
-            KeepSessions(target.Devices, await SessionsAsync());
+            try
+            {
+                await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload,
+                    OutgoingMessage.TextType, null, target.Devices, timestamp, _random,
+                    CachedPrivacyToken(jid), OurJids(), OurIdentity()));
+            }
+            finally
+            {
+                KeepSessions(target.Devices, await SessionsAsync());
+            }
 
             Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
             return id;
@@ -1477,10 +1489,19 @@ namespace WhatsappApp.Services
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
             Diag.Ok("native: direct media " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
-            await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload, OutgoingMessage.MediaType,
-                mediaWord, target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
-
-            KeepSessions(target.Devices, await SessionsAsync());
+            try
+            {
+                await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload, OutgoingMessage.MediaType,
+                    mediaWord, target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
+            }
+            finally
+            {
+                // The media path is where a throw between the encryption and the store was
+                // seen for real: 1 November 2026, `the platform's generator returned no
+                // entropy` while the stanza was being built, and the next send re-encrypted a
+                // key the receiver had already spent.
+                KeepSessions(target.Devices, await SessionsAsync());
+            }
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes"
@@ -1570,6 +1591,13 @@ namespace WhatsappApp.Services
         ///
         /// The group path had this rule for its sender key and not for these; the direct paths
         /// had it nowhere.
+        ///
+        /// It is called from a `finally` and not after the write, because a send can throw
+        /// *after* the encryption: `the platform's generator returned no entropy` came out of
+        /// building the stanza on 1 November 2026, and the store - the only thing that says
+        /// where the chain is - was never told. The next message then re-encrypted a key the
+        /// receiver had already spent, and was dropped as a duplicate. `tools/check-session-save.js`
+        /// refuses a call that is not in a `finally`.
         /// </summary>
         private static void KeepSessions(IList<KeyValuePair<string, SessionRecord>> devices, SessionStore store)
         {
@@ -1752,18 +1780,26 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
-            await WriteAsync(session, id, OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
-                group.AddressingMode, distributions, timestamp, _random, OurIdentity()));
+            try
+            {
+                await WriteAsync(session, id, OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
+                    group.AddressingMode, distributions, timestamp, _random, OurIdentity()));
+            }
+            finally
+            {
+                // The same rule the sender key follows below, for the pairwise copies: each
+                // `SessionRecord` was advanced by the encryption above, and only the file
+                // knows it. In a `finally`, because a stanza that throws after encrypting has
+                // moved that chain anyway and a store left behind re-sends a spent key.
+                KeepSessions(distributions, store);
 
-            // The same rule the sender key follows below, for the pairwise copies: each
-            // `SessionRecord` was advanced by the encryption above, and only the file knows it.
-            KeepSessions(distributions, store);
-
-            // The chain has moved: `Encrypt` advanced the iteration in memory, and this file
-            // is the only thing that says which one the next message uses. A record that is
-            // not written back leaves every later message at iteration 0 - the same key and
-            // the same IV as the first - which the other members refuse as already read.
-            store.SaveSenderKey(SenderKeyName(jid, _account == null ? null : _account.Jid), record);
+                // The chain has moved: `Encrypt` advanced the iteration in memory, and this
+                // file is the only thing that says which one the next message uses. A record
+                // that is not written back leaves every later message at iteration 0 - the
+                // same key and the same IV as the first - which the other members refuse as
+                // already read.
+                store.SaveSenderKey(SenderKeyName(jid, _account == null ? null : _account.Jid), record);
+            }
 
             lock (_senderKeysSent)
             {
