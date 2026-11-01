@@ -1151,7 +1151,9 @@ namespace WhatsappApp.Services
 
             if (!ours) return;
 
-            bool refused = node.Attrs["type"] == "error";
+            bool refused = node.Attrs["type"] == "error"
+                || !string.IsNullOrEmpty(node.Attrs["error"])
+                || !string.IsNullOrEmpty(node.Attrs["code"]);
 
             if (refused)
             {
