@@ -4,10 +4,12 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Diagnostics;
 using System.IO;
+using Windows.ApplicationModel.DataTransfer;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using Windows.System;
 using Windows.UI;
+using Windows.UI.Input;
 using Windows.UI.Popups;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
@@ -67,11 +69,70 @@ namespace WhatsappApp.Pages
         private DispatcherTimer _recordTimer;
 
         /// <summary>
-        /// True while a tap's send is running. The attachment slot is cleared only
-        /// after the local decode, and a second tap in that window added a second
-        /// bubble for the same file.
+        /// The two lanes a send belongs to, and when each one started. Two flags and not one:
+        /// a text typed while a video is uploading must leave now - the upload is a minute of
+        /// work on a Lumia, and waiting behind it was a message that never went - while two
+        /// sends of the same kind still wait for each other, which is what the flag is for
+        /// (the attachment slot stays filled until the local decode is done, so a double tap
+        /// used to add two bubbles for one file).
         /// </summary>
-        private bool _sending;
+        private bool _sendingText;
+        private DateTime _textSince;
+
+        private bool _sendingAttachment;
+        private DateTime _attachmentSince;
+
+        /// <summary>
+        /// How long a lane may stay taken. Past this the send is stuck, and the lane is
+        /// released instead of keeping the composer deaf until the page is left.
+        /// </summary>
+        private const int SendStallSeconds = 90;
+
+        /// <summary>
+        /// Takes the lane for a send, or says in the log why the tap is dropped: "a send of
+        /// this kind is already in flight" and "the lane was stuck and is now free" are two
+        /// different things to read in `diag.log`, and both used to be a silent `return`.
+        /// </summary>
+        private bool BeginSend(bool attachment)
+        {
+            bool busy = attachment ? _sendingAttachment : _sendingText;
+            DateTime since = attachment ? _attachmentSince : _textSince;
+            string kind = attachment ? "an attachment" : "a text";
+
+            if (busy)
+            {
+                int waited = (int)(DateTime.Now - since).TotalSeconds;
+
+                if (waited < SendStallSeconds)
+                {
+                    Diag.Ok("send: ignored, " + kind + " has been in flight for " + waited + " s");
+                    return false;
+                }
+
+                Diag.Ok("send: " + kind + " was still in flight after " + waited
+                    + " s, so that lane is released");
+            }
+
+            if (attachment)
+            {
+                _sendingAttachment = true;
+                _attachmentSince = DateTime.Now;
+            }
+            else
+            {
+                _sendingText = true;
+                _textSince = DateTime.Now;
+            }
+
+            return true;
+        }
+
+        /// <summary>Releases the lane the send took, whatever it did.</summary>
+        private void EndSend(bool attachment)
+        {
+            if (attachment) _sendingAttachment = false;
+            else _sendingText = false;
+        }
 
         /// <summary>
         /// True once the page has been left. A start or a capture that finishes after
@@ -1189,18 +1250,22 @@ namespace WhatsappApp.Pages
 
         private async void SendMessage()
         {
-            // One send at a time: the attachment slot stays filled until the local
-            // decode is done, so a double tap used to add two bubbles for one file.
-            if (_sending) return;
+            // The lane is decided before the recording is stopped: a tap on Send while
+            // recording ends the note, and that note uploads in the attachment lane. A text
+            // and an upload therefore never wait for each other - a minute of video on a
+            // wireless connection used to hold every message typed meanwhile - and a tap
+            // this refuses is named in `diag.log` instead of vanishing.
+            bool attachment = _recording.IsRecording || _selectedLocalFileName != null;
 
-            _sending = true;
+            if (!BeginSend(attachment)) return;
+
             try
             {
                 await SendMessageCoreAsync();
             }
             finally
             {
-                _sending = false;
+                EndSend(attachment);
             }
         }
 
@@ -1213,10 +1278,19 @@ namespace WhatsappApp.Pages
             if (_recording.IsRecording)
             {
                 await StopRecordingAsync();
-                if (string.IsNullOrEmpty(_selectedLocalFileName)) return;
+                if (string.IsNullOrEmpty(_selectedLocalFileName))
+                {
+                    Diag.Ok("send: the recording stopped with no file, so nothing goes");
+                    return;
+                }
             }
 
-            string text = (MessageTextBox.Text ?? "").Trim();
+            // The face a keyboard would have made, when it did not make it: the composer
+            // has the `Chat` scope, and a keyboard without the emoji key - or with its own
+            // conversion off - leaves `:)` a colon and a bracket. It is done here, on the
+            // way out, and not as the text is typed: what is sent is the face, and the box
+            // still holds what was typed until the send clears it.
+            string text = EmojiText.Emoticons((MessageTextBox.Text ?? "").Trim());
 
             // If we have a selected image or video, send it as an attachment
             if (_selectedLocalFileName != null)
@@ -1225,8 +1299,13 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            // Text-only message
-            if (string.IsNullOrEmpty(text)) return;
+            // Text-only message. An empty composer is a tap with nothing behind it, and
+            // the log says so rather than leaving a tap and no message.
+            if (string.IsNullOrEmpty(text))
+            {
+                Diag.Ok("send: nothing to send");
+                return;
+            }
 
             var message = new ChatMessage
             {
@@ -1262,7 +1341,11 @@ namespace WhatsappApp.Pages
         private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
             string localFileName = _selectedLocalFileName;
-            if (string.IsNullOrEmpty(localFileName)) return;
+            if (string.IsNullOrEmpty(localFileName))
+            {
+                Diag.Ok("send: an attachment was asked for and there is no file to read");
+                return;
+            }
 
             string fileName = _selectedMediaFileName;
             string mimeType = _selectedMediaMimeType ?? "image/jpeg";
@@ -1305,11 +1388,14 @@ namespace WhatsappApp.Pages
 
             if (!NativeConnection.Instance.IsConnected)
             {
+                Diag.Failed("ChatPage/send attachment", new WhatsappApp.Protocol.ProtocolException(
+                    "the socket is not open, so " + message.Id + " did not leave"));
                 message.Status = MessageStatus.Failed;
                 return;
             }
 
             message.Status = MessageStatus.Sending;
+            Diag.Ok("send: " + kind + " " + fileName + " to " + message.ChatId);
 
             // The video is made smaller here, after the bubble is on screen: the
             // bubble says "sending" while the conversion runs, and what is uploaded
@@ -1331,34 +1417,7 @@ namespace WhatsappApp.Pages
 
             try
             {
-                byte[] file = await ReadWholeFileAsync(localFileName);
-                Diag.Ok("send attachment: " + kind + " " + fileName + " "
-                    + (file == null ? 0 : file.Length) + " bytes");
-
-                if (file == null || file.Length == 0)
-                {
-                    // A file with nothing in it: it would be a message with no media at the
-                    // other end, and the bubble keeps its checkmark forever.
-                    Diag.Failed("ChatPage.SendAttachmentAsync/empty",
-                        new InvalidOperationException(fileName + " is 0 bytes"));
-                    message.Status = MessageStatus.Failed;
-                    return;
-                }
-
-                message.MediaSizeBytes = file.Length;
-
-                bool voiceNote = kind == "audio" && _selectedIsVoiceNote;
-
-                string id = await NativeConnection.Instance.SendMediaAsync(_contact.Id, file, kind,
-                    mimeType, fileName, caption ?? "", 0, voiceNote);
-
-                // The wire id becomes the bubble's: a receipt names the message by it, and
-                // a bubble with a random id of its own never sees its ticks turn blue.
-                message.Id = id;
-
-                // Written is not sent. The circle stays until the server's ack for this id
-                // arrives, or the wait below turns it into a failure.
-                WaitForAck(message);
+                await UploadAndSendAsync(message, localFileName, fileName, mimeType, kind, caption);
             }
             catch (WhatsappApp.Protocol.ProtocolException refused)
             {
@@ -1373,6 +1432,50 @@ namespace WhatsappApp.Pages
                 Diag.Failed("ChatPage.SendAttachmentAsync", ex);
                 message.Status = MessageStatus.Failed;
             }
+        }
+
+        /// <summary>
+        /// The file read, encrypted, uploaded, and sent as the bubble's message: the half of
+        /// the attachment path the first send and a retry have in common.
+        ///
+        /// Why it is a method: a retry has to be the same message, with the same bubble and
+        /// the same file, and two copies of these lines drift - the retry would keep an
+        /// address the first send has stopped using, which is exactly what happened with the
+        /// canonical chat id. What is *not* here is the video conversion: that belongs to the
+        /// moment the bubble appears, and doing it again on a retry would re-encode a file
+        /// that was already made smaller.
+        /// </summary>
+        private async System.Threading.Tasks.Task UploadAndSendAsync(ChatMessage message, string localFileName,
+            string fileName, string mimeType, string kind, string caption)
+        {
+            byte[] file = await ReadWholeFileAsync(localFileName);
+            Diag.Ok("send attachment: " + kind + " " + fileName + " "
+                + (file == null ? 0 : file.Length) + " bytes");
+
+            // A file with nothing in it would be a message with no media at the other end,
+            // and the bubble would keep its checkmark forever.
+            if (file == null || file.Length == 0)
+                throw new WhatsappApp.Protocol.ProtocolException(fileName + " is 0 bytes");
+
+            message.MediaSizeBytes = file.Length;
+
+            bool voiceNote = kind == "audio";
+
+            // The same address the text path writes to, and not the row's own spelling:
+            // a contact filed under a `@lid`, or under the `@c.us` an older build wrote,
+            // asked the server for the devices of an address it does not route, and the
+            // attachment was refused before a stanza existed.
+            string id = await NativeConnection.Instance.SendMediaAsync(
+                DataService.Instance.ChatIdFor(_contact.Id), file, kind,
+                mimeType, fileName, caption ?? "", 0, voiceNote);
+
+            // The wire id becomes the bubble's: a receipt names the message by it, and
+            // a bubble with a random id of its own never sees its ticks turn blue.
+            message.Id = id;
+
+            // Written is not sent. The circle stays until the server's ack for this id
+            // arrives, or the wait below turns it into a failure.
+            WaitForAck(message);
         }
 
         /// <summary>
@@ -1458,11 +1561,14 @@ namespace WhatsappApp.Pages
             // leaving. Now it shows as failed and can be rewritten.
             if (!NativeConnection.Instance.IsConnected)
             {
+                Diag.Failed("ChatPage/send", new WhatsappApp.Protocol.ProtocolException(
+                    "the socket is not open, so " + message.Id + " did not leave"));
                 message.Status = MessageStatus.Failed;
                 return;
             }
 
             message.Status = MessageStatus.Sending;
+            Diag.Ok("send: text " + message.Id + " to " + message.ChatId);
 
             // The send is on the phone's own protocol now. A failure is named and the bubble
             // says so: a message that did not leave must not read as sent.
@@ -1491,6 +1597,250 @@ namespace WhatsappApp.Pages
                 // leaves it is the app closing with the bubble stuck on its circle. The
                 // attachment path right above has always caught both.
                 Diag.Failed("ChatPage/send", ex);
+                message.Status = MessageStatus.Failed;
+            }
+        }
+
+        /// <summary>
+        /// A long press on a bubble: what can be done with that one message.
+        ///
+        /// Why a menu and not a button on the row: a conversation is mostly bubbles, and a
+        /// button on every one of them is furniture. The actions belong to the message the
+        /// finger is on, and only the ones it can actually do are listed - a bubble with no
+        /// words has nothing to copy - because an entry that does nothing teaches the wrong
+        /// thing.
+        /// </summary>
+        private void Bubble_Holding(object sender, HoldingRoutedEventArgs e)
+        {
+            if (e.HoldingState != HoldingState.Started) return;
+
+            var element = sender as FrameworkElement;
+            var message = element == null ? null : element.DataContext as ChatMessage;
+            if (message == null) return;
+
+            e.Handled = true;
+            ShowMessageMenu(element, message);
+        }
+
+        private void ShowMessageMenu(FrameworkElement bubble, ChatMessage message)
+        {
+            var flyout = new MenuFlyout();
+
+            // No "copy" entry: WP8.1's Windows Runtime has no clipboard
+            // (`Windows.winmd` of the phone kit names no `Clipboard` at all, and the build
+            // answers CS0103), so an entry for it would be a menu item that does nothing.
+            // The limit is stated in the README pair instead.
+
+            // Taking the message back from everybody: only what this phone sent, and only
+            // while WhatsApp still accepts it. Above "delete here" because it is the stronger
+            // of the two, and a person reaching for it should not hit the weaker one first.
+            if (CanRevokeForEveryone(message))
+            {
+                var everyone = new MenuFlyoutItem
+                {
+                    Text = Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone")
+                };
+                // Guarded and not an `async (s, a) =>`: an event handler's task has nobody
+                // to observe it, and a dialog that failed to open would take the app down.
+                everyone.Click += (s, a) => Guarded.RunGuardedAsync("ChatPage/revoke", ConfirmRevokeAsync(message));
+                flyout.Items.Add(everyone);
+            }
+
+            // On this phone only: the other side keeps its copy. The wire has a message
+            // for the other kind of deletion, and this one is not it.
+            var delete = new MenuFlyoutItem { Text = Loc.Get("ChatPage_DeleteHere", "Delete here") };
+            delete.Click += (s, a) => Guarded.RunGuardedAsync("ChatPage/delete here", ConfirmDeleteHereAsync(message));
+            flyout.Items.Add(delete);
+
+            flyout.ShowAt(bubble);
+        }
+
+        /// <summary>
+        /// How long WhatsApp lets a sender take a message back: two days. The shorter of the
+        /// numbers the reference names, because a revoke the server refuses has already cost
+        /// the bubble here - the message would be gone on this phone and still there on the
+        /// other one, which is the worst of the two failures.
+        /// </summary>
+        private const int RevokeHours = 48;
+
+        /// <summary>
+        /// Whether "delete for everyone" applies: a message this phone sent, still on the
+        /// wire, and young enough for the server to accept the revoke. A failed send has
+        /// nothing on the other side to take back, and a message with no id was never sent.
+        /// </summary>
+        private static bool CanRevokeForEveryone(ChatMessage message)
+        {
+            if (message == null || message.IsIncoming) return false;
+            if (string.IsNullOrEmpty(message.Id)) return false;
+            if (message.Status == MessageStatus.Sending || message.Status == MessageStatus.Failed) return false;
+
+            return (DateTime.Now - message.Timestamp).TotalHours < RevokeHours;
+        }
+
+        /// <summary>
+        /// Taking a message back from everybody: asked first, then the revoke goes out as a
+        /// message of its own (see `NativeConnection.RevokeAsync`), and only when the server
+        /// has it does the bubble go. A revoke that failed leaves the message where it was,
+        /// because nothing was taken back anywhere.
+        /// </summary>
+        private async System.Threading.Tasks.Task ConfirmRevokeAsync(ChatMessage message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = Loc.Get("ChatPage_DeleteEveryoneTitle", "Delete for everyone?"),
+                Content = new TextBlock
+                {
+                    Text = Loc.Get("ChatPage_DeleteEveryoneBody",
+                        "It disappears for everybody in this chat, on every device they use."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = Loc.Get("ChatPage_DeleteConfirm", "Delete"),
+                SecondaryButtonText = Loc.Get("ChatPage_Cancel", "Cancel")
+            };
+
+            var answer = await dialog.ShowAsync();
+            if (answer != ContentDialogResult.Primary) return;
+
+            string chatId = DataService.Instance.ChatIdFor(_contact.Id);
+
+            // C# 5 refuses an await inside a catch, so the failure is carried out of it and
+            // answered after: the same shape `NativeConnection.ReadMessageAsync` uses.
+            bool failed = false;
+            try
+            {
+                await NativeConnection.Instance.RevokeAsync(chatId, message.Id);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/revoke", ex);
+                failed = true;
+            }
+
+            if (failed)
+            {
+                await ExplainRevokeFailureAsync();
+                return;
+            }
+
+            // Gone here too: WhatsApp removes the message from every device that reads the
+            // revoke, this one included, and a bubble kept "just in case" would be the only
+            // copy left anywhere.
+            DataService.Instance.RemoveMessage(chatId, message.Id);
+            Diag.Ok("message revoked for everybody: " + message.Id);
+        }
+
+        private static async System.Threading.Tasks.Task ExplainRevokeFailureAsync()
+        {
+            var dialog = new ContentDialog
+            {
+                Title = Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone"),
+                Content = new TextBlock
+                {
+                    Text = Loc.Get("ChatPage_DeleteEveryoneFailed",
+                        "WhatsApp did not take the message back. The message is still here; try again when the phone is connected."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                // Not CloseButtonText: WP8.1's ContentDialog has no such property.
+                SecondaryButtonText = Loc.Get("Common_Ok", "OK")
+            };
+
+            await dialog.ShowAsync();
+        }
+
+        /// <summary>
+        /// Deleting a message here is asked first, and the question says what it means: the
+        /// bubble goes from this phone, the other side keeps its copy.
+        /// </summary>
+        private async System.Threading.Tasks.Task ConfirmDeleteHereAsync(ChatMessage message)
+        {
+            var dialog = new ContentDialog
+            {
+                Title = Loc.Get("ChatPage_DeleteHereTitle", "Delete this message?"),
+                Content = new TextBlock
+                {
+                    Text = Loc.Get("ChatPage_DeleteHereBody",
+                        "It disappears from this phone. The other person keeps their copy."),
+                    TextWrapping = TextWrapping.Wrap
+                },
+                PrimaryButtonText = Loc.Get("ChatPage_DeleteConfirm", "Delete"),
+                SecondaryButtonText = Loc.Get("ChatPage_Cancel", "Cancel")
+            };
+
+            var answer = await dialog.ShowAsync();
+            if (answer != ContentDialogResult.Primary) return;
+
+            DataService.Instance.RemoveMessage(DataService.Instance.ChatIdFor(_contact.Id), message.Id);
+            Diag.Ok("message deleted here: " + message.Id);
+        }
+
+        /// <summary>
+        /// The line under a failed bubble was tapped: send the same message again.
+        ///
+        /// Why the same bubble and not a new one: a retry is one message the phone failed to
+        /// hand over, not a second copy of it. The id it carries on the wire is replaced by
+        /// the new one, so a receipt finds this bubble and not a ghost, and nothing is added
+        /// to the list.
+        /// </summary>
+        private void RetryMessageButton_Click(object sender, RoutedEventArgs e)
+        {
+            var element = sender as FrameworkElement;
+            var message = element == null ? null : element.DataContext as ChatMessage;
+            if (message == null || !message.CanRetry) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("ChatPage/retry", RetryAsync(message));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The send, tried again: the text through the text path, the media through the same
+        /// upload the first attempt used (see `UploadAndSendAsync`).
+        ///
+        /// A socket that is down is not a retry: the bubble stays failed and the log says
+        /// why, because a message written offline must not look like one on its way.
+        /// </summary>
+        private async System.Threading.Tasks.Task RetryAsync(ChatMessage message)
+        {
+            if (!NativeConnection.Instance.IsConnected)
+            {
+                Diag.Failed("ChatPage/retry", new WhatsappApp.Protocol.ProtocolException(
+                    "the socket is down, so " + message.Id + " waits"));
+                return;
+            }
+
+            message.Status = MessageStatus.Sending;
+
+            try
+            {
+                // A document is not IsMedia: its Type is Text and only the media type says
+                // what it is. Retried as text it would send the file name as the message.
+                if (message.IsMedia || message.IsDocument)
+                {
+                    string kind = string.IsNullOrEmpty(message.MediaType) ? "image" : message.MediaType;
+                    string fileName = string.IsNullOrEmpty(message.MediaFileName)
+                        ? message.MediaFilePath
+                        : message.MediaFileName;
+                    string mimeType = string.IsNullOrEmpty(message.MediaMimeType)
+                        ? "image/jpeg"
+                        : message.MediaMimeType;
+
+                    await UploadAndSendAsync(message, message.MediaFilePath, fileName, mimeType, kind, message.Text);
+                }
+                else
+                {
+                    message.Id = await NativeConnection.Instance.SendTextAsync(
+                        DataService.Instance.ChatIdFor(_contact.Id), message.Text);
+                    WaitForAck(message);
+                }
+            }
+            catch (WhatsappApp.Protocol.ProtocolException refused)
+            {
+                Diag.Failed("ChatPage/retry", refused);
+                message.Status = MessageStatus.Failed;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/retry", ex);
                 message.Status = MessageStatus.Failed;
             }
         }

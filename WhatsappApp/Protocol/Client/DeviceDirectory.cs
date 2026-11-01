@@ -162,10 +162,66 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
+        /// The same question asked per person instead of per device: one `key` naming a
+        /// `user`, and WhatsApp answers with the bundles of every device that person has.
+        ///
+        /// Why it exists at all: on 2026-10-30 the per-device query went out and was never
+        /// answered - `diag.log` shows the device list arriving and the bundle query's id
+        /// never answered at all, so a one-to-one message died in `the server did not
+        /// answer` for every send. A shape the server ignores is not a refusal and cannot
+        /// be treated as one; this is the other shape, tried when the first one stays
+        /// silent.
+        /// </summary>
+        public static BinaryNode BundleQueryForUser(IList<string> userJids, IRandomSource random)
+        {
+            if (userJids == null || userJids.Count == 0)
+            {
+                throw new ProtocolException("a bundle query asks about at least one person");
+            }
+
+            if (random == null) throw new ProtocolException("a bundle query needs randomness for its id");
+
+            var keys = new List<BinaryNode>();
+            for (int i = 0; i < userJids.Count; i++)
+            {
+                if (string.IsNullOrEmpty(userJids[i])) continue;
+
+                var userNode = new BinaryNode("user");
+                userNode.Attrs.Add("jid", userJids[i]);
+
+                var key = new BinaryNode("key");
+                key.Content = new List<BinaryNode> { userNode };
+                keys.Add(key);
+            }
+
+            if (keys.Count == 0) throw new ProtocolException("a bundle query asks about at least one person");
+
+            var iq = new BinaryNode("iq");
+            iq.Attrs.Add("to", PairingSession.ServerJid);
+            iq.Attrs.Add("type", "get");
+            iq.Attrs.Add("xmlns", "encrypt");
+            iq.Attrs.Add("id", Hex(random.Bytes(8)));
+            iq.Content = keys;
+
+            return iq;
+        }
+
+        /// <summary>`393202178869:29@s.whatsapp.net` as the person the server keys on.</summary>
+        public static string UserJid(string deviceJid)
+        {
+            return string.IsNullOrEmpty(deviceJid) ? deviceJid : User(deviceJid);
+        }
+
+        /// <summary>
         /// The bundles in an answer, keyed by the device JID each one belongs to, with
         /// every signed pre-key verified. A bundle whose signature does not verify stops
         /// the whole answer with the device named: a message encrypted to it is a message
         /// the other side's real device cannot read.
+        ///
+        /// Two shapes are read, because two queries can produce an answer: the keys hang
+        /// off the `user` when the query named a device, and off a `device` child when it
+        /// named only the person. Reading one and refusing the other is what turned a real
+        /// answer into `the answer has no list in it`.
         /// </summary>
         public static IList<KeyValuePair<string, PreKeyBundle>> Bundles(BinaryNode answer)
         {
@@ -196,42 +252,82 @@ namespace WhatsappApp.Protocol.Client
                     throw new ProtocolException("the server answered an error for " + jid);
                 }
 
-                PreKeyBundle bundle;
-                try
+                // Where the keys are decides how the answer is read: on the user when the
+                // query named a device, on a `device` child when it named the person. An
+                // answer with neither is still read as one bundle, so that the refusal
+                // names the node it lacks ("no registration") instead of answering an
+                // empty list - which is what a device list handed in by mistake looks like,
+                // and what two tests reported when this branch swallowed it.
+                IList<BinaryNode> children = user.Children();
+                bool perDevice = false;
+
+                if (user.Child("registration") == null && children != null)
                 {
-                    bundle = ReadBundle(jid, user);
+                    for (int d = 0; d < children.Count; d++)
+                    {
+                        if (children[d].Tag == "device") { perDevice = true; break; }
+                    }
                 }
-                catch (ProtocolException)
+
+                if (!perDevice)
                 {
-                    if (!skipIncomplete) throw;
-                    if (skipped != null) skipped.Add(jid);
+                    try
+                    {
+                        bundles.Add(new KeyValuePair<string, PreKeyBundle>(jid, ReadBundle(jid, user)));
+                    }
+                    catch (ProtocolException)
+                    {
+                        if (!skipIncomplete) throw;
+                        if (skipped != null) skipped.Add(jid);
+                    }
                     continue;
                 }
 
-                bundles.Add(new KeyValuePair<string, PreKeyBundle>(jid, bundle));
+                for (int d = 0; d < children.Count; d++)
+                {
+                    if (children[d].Tag != "device") continue;
+
+                    string deviceJid = children[d].Attrs["jid"];
+                    if (string.IsNullOrEmpty(deviceJid)) deviceJid = WithDevice(jid, children[d].Attrs["id"]);
+                    if (string.IsNullOrEmpty(deviceJid)) continue;
+
+                    try
+                    {
+                        bundles.Add(new KeyValuePair<string, PreKeyBundle>(
+                            deviceJid, ReadBundle(deviceJid, children[d])));
+                    }
+                    catch (ProtocolException)
+                    {
+                        if (!skipIncomplete) throw;
+                        if (skipped != null) skipped.Add(deviceJid);
+                    }
+                }
             }
 
             return bundles;
         }
 
-        private static PreKeyBundle ReadBundle(string jid, BinaryNode user)
+        /// <summary>
+        /// One bundle: the four nodes and the signature check, wherever the answer put them.
+        ///
+        /// Every node is named before it is read. `Child` answers null for a tag that is
+        /// not there, and a `.Bytes()` on it is a NullReferenceException that escapes the
+        /// caller's `catch (ProtocolException)` - a failure with no name and no device on
+        /// it, for an answer that is simply incomplete.
+        /// </summary>
+        private static PreKeyBundle ReadBundle(string jid, BinaryNode carrier)
         {
-            // Every node is named before it is read. `Child` answers null for a
-            // tag that is not there, and a `.Bytes()` on it is a
-            // NullReferenceException that escapes the caller's `catch
-            // (ProtocolException)` - a failure with no name and no device on it,
-            // for an answer that is simply incomplete.
             var bundle = new PreKeyBundle();
-            bundle.RegistrationId = Number(Required(jid, user, "registration").Bytes());
-            bundle.IdentityKey = Required(jid, user, "identity").Bytes();
+            bundle.RegistrationId = Number(Required(jid, carrier, "registration").Bytes());
+            bundle.IdentityKey = Required(jid, carrier, "identity").Bytes();
 
-            BinaryNode signedPreKey = Required(jid, user, "skey");
+            BinaryNode signedPreKey = Required(jid, carrier, "skey");
             bundle.SignedPreKeyId = Number(Required(jid, signedPreKey, "id").Bytes());
             bundle.SignedPreKeyPublic = Required(jid, signedPreKey, "value").Bytes();
             bundle.SignedPreKeySignature = Required(jid, signedPreKey, "signature").Bytes();
             bundle.HasSignedPreKey = bundle.SignedPreKeyId != 0;
 
-            BinaryNode oneTime = user.Child("key");
+            BinaryNode oneTime = carrier.Child("key");
             if (oneTime != null)
             {
                 bundle.PreKeyId = Number(Required(jid, oneTime, "id").Bytes());
@@ -241,7 +337,19 @@ namespace WhatsappApp.Protocol.Client
 
             bundle.Check();
             Verify(jid, bundle);
+
             return bundle;
+        }
+
+        /// <summary>`number@server` and a device id as `number:id@server`, or null when there is no id.</summary>
+        private static string WithDevice(string userJid, string deviceId)
+        {
+            if (string.IsNullOrEmpty(deviceId)) return null;
+
+            int at = userJid.IndexOf('@');
+            if (at < 0) return userJid + ":" + deviceId;
+
+            return userJid.Substring(0, at) + ":" + deviceId + userJid.Substring(at);
         }
 
         /// <summary>
@@ -328,10 +436,30 @@ namespace WhatsappApp.Protocol.Client
                 list = usync == null ? null : usync.Child("list");
             }
 
+            // A bundle answer may carry its users at the top of the iq, with no `list`
+            // between: WhatsApp answers a `key` query that way. `list` is the shape of a
+            // usync answer and of the fixtures, not of every answer there is.
+            bool bare = false;
+            if (list == null && answer.Child("user") != null)
+            {
+                list = answer;
+                bare = true;
+            }
+
             if (list == null) throw new ProtocolException("the answer has no list in it");
 
             IList<BinaryNode> users = list.Children();
-            return users == null ? new List<BinaryNode>() : users;
+            if (users == null) return new List<BinaryNode>();
+
+            if (!bare) return users;
+
+            var only = new List<BinaryNode>();
+            for (int i = 0; i < users.Count; i++)
+            {
+                if (users[i].Tag == "user") only.Add(users[i]);
+            }
+
+            return only;
         }
 
         /// <summary>`name:device@server` without the device, which is the user the server keys on.</summary>

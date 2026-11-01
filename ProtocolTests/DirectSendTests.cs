@@ -187,6 +187,31 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ABundleCanUseDeviceZeroOrTheCorrespondingLid()
+        {
+            Credentials us = Credentials.Create(new SignalSessions.CounterRandom());
+            us.Jid = OurJid;
+
+            IList<string> targets = new List<string> { PeerPhone };
+
+            var zeroStore = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+            DirectSendPlan zero = DirectSend.Plan(targets,
+                BundleAnswer(new Device(PeerUser.Replace("@s.whatsapp.net", "@lid"))),
+                us, zeroStore, new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(1, zero.Devices.Count,
+                "a device-less per-user bundle is device zero");
+
+            var lidStore = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
+            DirectSendPlan lid = DirectSend.Plan(targets,
+                BundleAnswer(new Device(PeerPhone.Replace("@s.whatsapp.net", "@lid"))),
+                us, lidStore, new SignalSessions.CounterRandom());
+
+            Assert.AreEqual(1, lid.Devices.Count,
+                "a bundle for the corresponding LID device still belongs to the target");
+        }
+
+        [Test]
         public static void TheDeviceListIsNotABundleAnswer()
         {
             // The mistake that made the one-to-one send impossible: the usync answer has

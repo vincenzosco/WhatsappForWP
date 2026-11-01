@@ -140,6 +140,34 @@ namespace WhatsappApp.Protocol.Client
                 if (bundles[i].Key == deviceJid) return bundles[i].Value;
             }
 
+            // A per-user bundle response is not always written back with the exact
+            // spelling used by the device list. The server may omit device zero, or
+            // answer a phone-number target with the corresponding LID device JID.
+            // Sessions are still stored under the device-list JID; associate only the
+            // same device number, never an arbitrary bundle from the answer.
+            DecodedJid target = JidUtils.Decode(deviceJid);
+            if (!target.IsJid) return null;
+
+            for (int i = 0; i < bundles.Count; i++)
+            {
+                DecodedJid candidate = JidUtils.Decode(bundles[i].Key);
+                if (!candidate.IsJid) continue;
+
+                int targetDevice = target.HasDevice ? target.Device : 0;
+                int candidateDevice = candidate.HasDevice ? candidate.Device : 0;
+                if (targetDevice != candidateDevice) continue;
+
+                if (target.User == candidate.User && target.Server == candidate.Server)
+                {
+                    return bundles[i].Value;
+                }
+
+                if (JidUtils.IsLid(deviceJid) != JidUtils.IsLid(bundles[i].Key))
+                {
+                    return bundles[i].Value;
+                }
+            }
+
             return null;
         }
     }
