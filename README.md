@@ -60,7 +60,7 @@ What works today:
 - typing indicators in both directions
 - the status feed: what contacts posted, with the author's picture and the name WhatsApp sends with the update, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, the preview of an update leaves the row once the day is watched, and an update whose photo did not arrive has a **Try again** button instead of a dead end
 - the call log, both directions, with missed calls spelled out
-- a live tile that rotates the people waiting - their name and their message, and between one message and the next the picture alone of somebody still unanswered - plus a pinned-chat tile, lock screen text, and a background check about every 15 minutes
+- a live tile whose 71x71 and 150x150 sizes show the WhatsApp logo and unread count, whose wide size keeps the sender and message, and whose large square size shows status updates when available; missing profile pictures use the selected Home-screen theme, plus a pinned-chat tile, lock screen text, and a background check about every 15 minutes
 - theme picker with the wallpapers the released package ships, plus the doodle and plain white
 - English and Italian, following the phone's language
 
@@ -329,6 +329,10 @@ framework.
   app closed nothing is sent or received.
 - The live tile needs the app to have run since the count changed; a message that arrives while
   the app is suspended is counted by the background check.
+- The live tile uses the WhatsApp logo and unread count on its two smallest sizes. The wide tile
+  keeps the sender and message, while the large square tile reserves its text for status updates;
+  when no profile picture may be shown, the selected Home-screen wallpaper or accent colour is
+  used instead.
 - A file shared into the app from another app is read at the moment the share is handed over,
   because the app can be terminated while the picker is open. A very large video may not fit in
   memory on a 512 MB phone.

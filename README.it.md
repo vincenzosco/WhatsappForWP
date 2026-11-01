@@ -60,7 +60,7 @@ Cosa funziona oggi:
 - indicatore "sta scrivendo" nelle due direzioni
 - il feed degli stati: quello che i contatti hanno pubblicato, con la foto dell'autore e il nome che WhatsApp manda con l'aggiornamento, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, l'anteprima di un aggiornamento lascia la riga quando la giornata è stata guardata, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
 - il registro delle chiamate, nelle due direzioni, con le perse scritte per esteso
-- una tile viva che ruota fra le persone in attesa - nome e messaggio, e fra un messaggio e l'altro la sola foto di chi aspetta una risposta - più la tile di una chat fissata, il testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
+- una tile viva che nelle misure 71x71 e 150x150 mostra il logo WhatsApp e il numero dei non letti, mantiene mittente e messaggio nella misura larga, e riserva gli stati alla misura quadrata grande quando disponibili; se una foto profilo non può essere mostrata usa il tema scelto per la schermata Start, più la tile di una chat fissata, il testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
 - selettore del tema con gli sfondi del pacchetto ufficiale, più il doodle e il bianco
 - inglese e italiano, seguendo la lingua del telefono
 
@@ -335,6 +335,10 @@ puro con un runner minimo, perché il toolchain WP8.1 non può ospitare un frame
   vedono come online. Con l'app chiusa non si manda e non si riceve niente.
 - La tile viva ha bisogno che l'app sia stata eseguita da quando il conteggio è cambiato; un
   messaggio arrivato con l'app sospesa lo conta il controllo in background.
+- La tile viva usa logo WhatsApp e numero dei non letti nelle due misure più piccole. La misura
+  larga mantiene mittente e messaggio, mentre quella quadrata grande riserva il testo agli stati;
+  quando non si può mostrare una foto profilo usa lo sfondo o il colore scelto per la schermata
+  Start.
 - Un file condiviso dentro l'app da un'altra app viene letto nel momento in cui la condivisione
   viene consegnata, perché l'app può essere terminata mentre il selettore è aperto. Un video molto
   grande può non stare in memoria su un telefono da 512 MB.

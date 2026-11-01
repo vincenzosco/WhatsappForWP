@@ -139,7 +139,7 @@ test('la tile piccola con la card quadrata si segnala', () => {
     'AddSmallBinding(xml, visual, entry.Image ?? TileIconUri);');
   assert.strictEqual(problems.length, 2);
   assert.ok(problems.some((p) => /card\.Small/.test(p)));
-  assert.ok(problems.some((p) => /TileImage\.SmallOf/.test(p)));
+  assert.ok(problems.some((p) => /WhatsApp logo/.test(p)));
 });
 
 test('i due servizi veri danno la card piccola al binding 71x71', () => {
