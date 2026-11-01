@@ -67,8 +67,16 @@ namespace WhatsappApp.Services
         /// <summary>The ceiling of a single picture, in base64 characters (~110 KB).</summary>
         public const int MaxEntryChars = 150000;
 
-        /// <summary>The ceiling of the whole file, in base64 characters (~1.1 MB).</summary>
-        public const int MaxTotalChars = 1500000;
+        /// <summary>
+        /// The ceiling of the whole file, in base64 characters (~3 MB).
+        ///
+        /// It was 1.5 million (1.1 MB), which held about 200 previews and no more: scrolling
+        /// the list past the rows it covered asked the server for pictures it had already
+        /// downloaded. Four million characters is roughly 3 MB of base64 - under two percent
+        /// of the 185 MB budget the log reports - and it covers the list with room for the
+        /// chats a person actually opens.
+        /// </summary>
+        public const int MaxTotalChars = 4000000;
 
         private static readonly DataContractJsonSerializer Serializer =
             new DataContractJsonSerializer(typeof(AvatarCacheFile));

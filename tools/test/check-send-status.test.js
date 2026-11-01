@@ -57,7 +57,9 @@ test('un connessione che non riconosce l ack lo lascia cadere', () => {
 
 test('un receipt fuori ordine non deve riportare la bolla indietro', () => {
   const broken = files();
-  broken.data = broken.data.replace('if (!IsForward(message.Status, status)) return;', '');
+  // Ogni punto in cui uno dei due setter scrive lo stato: il primo cerca il messaggio nella
+  // chat, il secondo in tutte.
+  broken.data = broken.data.replace(/if \(!IsForward\([^)]*\)\) return;/g, '');
 
   assert.match(sendStatusProblems(broken).join('\n'), /IsForward/);
 });

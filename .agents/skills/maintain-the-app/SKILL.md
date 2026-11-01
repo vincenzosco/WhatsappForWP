@@ -367,6 +367,29 @@ waiting) and the message is marked read when the reader reaches it.
   pre-key one; a device linked by a build that did not keep it has to be linked
   again, because nothing on the wire can rebuild the signature.
   `tools/check-device-identity.js` holds the four cables.
+- **A send owes the store the sessions it just moved.** `Encrypt` advances the sending
+  chain and the store is the only thing that says where it is; a send that does not write
+  the record back reloads it at its pre-send state and re-encrypts the **same** message
+  key. The server takes every copy (`the server has message`), the recipient's device has
+  already spent that key on the first one, and it drops the rest as duplicates without a
+  receipt and without a `retry` - the phone of 1 November 2026, three messages sent and one
+  delivery. The group path had this rule for its sender key and not for the pairwise
+  copies (`distributions`); the direct paths had it nowhere. `NativeConnection.KeepSessions`
+  runs after every stanza that encrypts - text, revoke, media, group - and
+  `ProtocolTests/SessionSaveTests.cs` pins both halves, the failure and the fix.
+- **A receipt names the chat in the wire's spelling, and the bubble is filed under the
+  canonical one.** `SetMessageStatus` looked the conversation up by the receipt's `from`
+  (`393492556507:0@s.whatsapp.net`, or a `@lid` while the row is the number), missed, and
+  returned in silence: the second and third ticks never appeared, and the bubble said "sent"
+  for ever. It asks `ChatIdFor` first and falls back to the by-id search the server's ack
+  already uses (`SetMessageStatusEverywhere`) - an id is unique in the account - and a
+  receipt that finds no bubble at all is named in `diag.log` instead of vanishing.
+- **A conversation is filled by four arrivals and only one of them is the history.**
+  `MessageOrder.InsertIndex` is the rule: after the last row the new one is not older than,
+  wherever that row is - not "after the first newer one", which keeps a list that is already
+  mixed mixed. `AddHistoryMessage`, the live path and `AddMessage` all use it, and
+  `OrderConversation` straightens a tail read back from the disk that a previous build
+  appended. `ProtocolTests/MessageOrderTests.cs` pins it.
 - **The copy inside the wrapper is a plaintext, and WhatsApp pads it too.**
   `deviceSentMessage` holds `destinationJid` (field 1) and the message (field 2),
   and the message inside it arrives with the sender's padding behind it - nine

@@ -42,7 +42,14 @@ namespace WhatsappApp.Services
         // the chat asks for the history again. Without it a busy chat grows for as
         // long as the session lasts, which is the last unbounded allocation on a
         // 512 MB phone.
-        private const int MaxMessagesPerChat = 200;
+        //
+        // It was 200, which on this phone was about 1 MB of bubbles - a fraction of the
+        // 185 MB the budget line reports - and it meant that scrolling back through a
+        // conversation re-read the same rows from disk. A text message is a few hundred
+        // bytes in memory; 600 of them is a couple of MB and covers a whole day of a busy
+        // chat (`MemoryWatcher` is what keeps the ceiling honest, and it trims before the
+        // system would).
+        private const int MaxMessagesPerChat = 600;
 
         // How long the list waits after the last row changed before it is written. Long
         // enough that a burst of messages is one write, short enough that a run killed a
@@ -1539,13 +1546,19 @@ namespace WhatsappApp.Services
             // Without this, a chat deleted by mistake would never come back.
             if (ChatPreferences.IsHidden(message.ChatId)) ChatPreferences.Reveal(message.ChatId);
 
-            // Add to the appropriate chat's message list
+            // Add to the appropriate chat's message list, in time order and not at the end:
+            // a live message can be older than the rows already there - the echo of something
+            // another device of this account sent, a message the server re-delivered - and an
+            // append put it under messages it came before (2026-11-01: a conversation with
+            // yesterday's rows under today's).
             if (!_chatMessages.ContainsKey(message.ChatId))
             {
                 _chatMessages[message.ChatId] = new ObservableCollection<ChatMessage>();
             }
-            _chatMessages[message.ChatId].Add(message);
-            TrimToCeiling(_chatMessages[message.ChatId]);
+
+            ObservableCollection<ChatMessage> conversation = _chatMessages[message.ChatId];
+            conversation.Insert(InOrderIndex(conversation, message), message);
+            TrimToCeiling(conversation);
 
             // Find or create contact for this chat
             var contact = FindContact(message.ChatId);
@@ -2129,17 +2142,38 @@ namespace WhatsappApp.Services
         /// </summary>
         public void SetMessageStatus(string chatId, string messageId, MessageStatus status)
         {
-            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+            if (string.IsNullOrEmpty(messageId)) return;
 
-            ObservableCollection<ChatMessage> messages;
-            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+            // The chat is canonicalised and then, if the key still misses, given up on: a
+            // receipt names the chat as the *wire* spells it - the sender's device
+            // (`393492556507:0@s.whatsapp.net`), a `@lid` whose number this list files the
+            // chat under - while the conversations are keyed by `ChatIdFor`. The lookup
+            // therefore missed and the second and third ticks of 1 November 2026 were dropped
+            // in silence: the bubble said "sent" for ever.
+            ObservableCollection<ChatMessage> messages = null;
 
-            foreach (var message in messages)
+            string canonical = ChatIdFor(chatId);
+            if (!string.IsNullOrEmpty(canonical) && _chatMessages.TryGetValue(canonical, out messages)) { }
+            else if (!string.IsNullOrEmpty(chatId)) _chatMessages.TryGetValue(chatId, out messages);
+
+            if (messages != null)
             {
-                if (message.Id != messageId) continue;
-                if (!IsForward(message.Status, status)) return;
-                message.Status = status;
-                return;
+                for (int i = 0; i < messages.Count; i++)
+                {
+                    if (messages[i] == null || messages[i].Id != messageId) continue;
+                    if (!IsForward(messages[i].Status, status)) return;
+                    messages[i].Status = status;
+                    return;
+                }
+            }
+
+            // The chat was named in a spelling this list has no row for, or the bubble is in
+            // one it did not name: the id is unique in the account, which is the rule the
+            // server's own ack already relies on below.
+            if (!SetMessageStatusEverywhere(messageId, status))
+            {
+                Diag.Ok("receipt: no bubble for " + messageId + " in " + chatId
+                    + ", so the status " + status + " was not written");
             }
         }
 
@@ -2172,20 +2206,22 @@ namespace WhatsappApp.Services
         /// is: the server answers our stanza, not a conversation, and the id is the only name
         /// it carries. Ids are minted by this device, so one match is the whole search.
         /// </summary>
-        private void SetMessageStatusEverywhere(string messageId, MessageStatus status)
+        private bool SetMessageStatusEverywhere(string messageId, MessageStatus status)
         {
-            if (string.IsNullOrEmpty(messageId)) return;
+            if (string.IsNullOrEmpty(messageId)) return false;
 
             foreach (var chat in _chatMessages)
             {
                 foreach (var message in chat.Value)
                 {
-                    if (message.Id != messageId) continue;
-                    if (!IsForward(message.Status, status)) return;
+                    if (message == null || message.Id != messageId) continue;
+                    if (!IsForward(message.Status, status)) return true;
                     message.Status = status;
-                    return;
+                    return true;
                 }
             }
+
+            return false;
         }
 
         /// <summary>
@@ -2540,6 +2576,11 @@ namespace WhatsappApp.Services
             }
 
             Diag.Ok("cache restored " + cached.Count + " message(s)");
+
+            // The copy on the phone may have been written by a build that appended every
+            // arrival, so it is put in order once, here, and not left for the next message to
+            // sort around: that is the conversation that opened with yesterday under today.
+            OrderConversation(chatId);
         }
 
         /// <summary>
@@ -2594,16 +2635,65 @@ namespace WhatsappApp.Services
                 }
             }
 
-            int index = 0;
-            while (index < list.Count
-                && list[index] != null
-                && list[index].Timestamp <= message.Timestamp)
+            list.Insert(InOrderIndex(list, message), message);
+            TrimToCeiling(list);
+        }
+
+        /// <summary>
+        /// Where a message goes in a conversation, whether or not that conversation is in order
+        /// yet. The rule itself is `MessageOrder`, which the protocol tests compile by name.
+        ///
+        /// Why a copy of the times: the rule asks "after the last row this is not older than",
+        /// and asking the rows themselves would put the answer in a class that also touches
+        /// the UI-bound model - the one thing `ProtocolTests` cannot compile.
+        /// </summary>
+        private static int InOrderIndex(ObservableCollection<ChatMessage> list, ChatMessage message)
+        {
+            var times = new List<DateTime>(list.Count);
+            for (int i = 0; i < list.Count; i++)
             {
-                index++;
+                times.Add(list[i] == null ? DateTime.MinValue : list[i].Timestamp);
             }
 
-            list.Insert(index, message);
-            TrimToCeiling(list);
+            return MessageOrder.InsertIndex(times, message.Timestamp);
+        }
+
+        /// <summary>
+        /// A conversation read back from the phone, put in time order once.
+        ///
+        /// The insert above keeps every new arrival in place, but a file written by a build
+        /// that appended is already mixed, and a list that is only sorted on the next arrival
+        /// would show it mixed until then. It runs where the tail is restored and nowhere else:
+        /// a list that is already in order is left exactly as it is.
+        /// </summary>
+        public void OrderConversation(string chatId)
+        {
+            chatId = ChatIdFor(chatId);
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages) || messages.Count < 2) return;
+
+            var ordered = new List<ChatMessage>(messages);
+            ordered.Sort(delegate (ChatMessage left, ChatMessage right)
+            {
+                return left.Timestamp.CompareTo(right.Timestamp);
+            });
+
+            bool moved = false;
+            for (int i = 0; i < ordered.Count; i++)
+            {
+                if (ReferenceEquals(ordered[i], messages[i])) continue;
+
+                moved = true;
+                break;
+            }
+
+            if (!moved) return;
+
+            for (int i = 0; i < ordered.Count; i++) messages[i] = ordered[i];
+
+            Diag.Ok("cache: " + chatId + " read back in time order, " + messages.Count + " message(s)");
         }
 
         private static void TrimToCeiling(ObservableCollection<ChatMessage> list)
@@ -2620,8 +2710,9 @@ namespace WhatsappApp.Services
             {
                 _chatMessages[chatId] = new ObservableCollection<ChatMessage>();
             }
-            _chatMessages[chatId].Add(message);
-            TrimToCeiling(_chatMessages[chatId]);
+            ObservableCollection<ChatMessage> conversation = _chatMessages[chatId];
+            conversation.Insert(InOrderIndex(conversation, message), message);
+            TrimToCeiling(conversation);
 
             // A message this phone is adding has just happened: when its own time is not
             // one that can be true (a corrupt `t`, a clock that jumped), it happened now, and

@@ -1365,6 +1365,8 @@ namespace WhatsappApp.Services
             await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, message, OutgoingMessage.TextType, null,
                 target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
 
+            KeepSessions(target.Devices, await SessionsAsync());
+
             _chats.AddOutgoing(jid, id, body, timestamp);
             Diag.Ok("native: " + id + " to " + target.To + " over " + target.Devices.Count + " device(s) "
                 + SealedFor(target.Devices));
@@ -1406,6 +1408,8 @@ namespace WhatsappApp.Services
             await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload,
                 OutgoingMessage.TextType, null, target.Devices, timestamp, _random,
                 CachedPrivacyToken(jid), OurJids(), OurIdentity()));
+
+            KeepSessions(target.Devices, await SessionsAsync());
 
             Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
             return id;
@@ -1474,6 +1478,8 @@ namespace WhatsappApp.Services
 
             await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload, OutgoingMessage.MediaType,
                 mediaWord, target.Devices, timestamp, _random, privacyToken, OurJids(), OurIdentity()));
+
+            KeepSessions(target.Devices, await SessionsAsync());
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " (" + mediaType + ", " + file.Length + " bytes) to " + target.To
@@ -1548,6 +1554,31 @@ namespace WhatsappApp.Services
         /// taken by the server and reach nobody, and an account in that state needs to be
         /// linked again (`OutgoingMessage.DeviceIdentityNode`).
         /// </summary>
+        /// <summary>
+        /// The pairwise sessions a stanza was encrypted against, written back to the store.
+        ///
+        /// Why: `Encrypt` advances the sending chain, and the store is the only thing that says
+        /// where that chain is. A session left at its pre-send state re-encrypts the *same*
+        /// message key on the next send, the recipient's device has already spent that key on
+        /// the first copy, and it drops the second as a duplicate without answering anything -
+        /// no receipt, no retry. That is the phone of 1 November 2026: three messages sent,
+        /// `the server has message` for all three, one delivery and one read receipt.
+        ///
+        /// The group path had this rule for its sender key and not for these; the direct paths
+        /// had it nowhere.
+        /// </summary>
+        private static void KeepSessions(IList<KeyValuePair<string, SessionRecord>> devices, SessionStore store)
+        {
+            if (devices == null || store == null) return;
+
+            for (int i = 0; i < devices.Count; i++)
+            {
+                if (devices[i].Value == null) continue;
+
+                store.Save(devices[i].Key, devices[i].Value);
+            }
+        }
+
         private byte[] OurIdentity()
         {
             if (_account != null && _account.DeviceIdentity != null && _account.DeviceIdentity.Length > 0)
@@ -1719,6 +1750,10 @@ namespace WhatsappApp.Services
 
             await WriteAsync(session, id, OutgoingMessage.Group(jid, id, payload, type, mediaType, record,
                 group.AddressingMode, distributions, timestamp, _random, OurIdentity()));
+
+            // The same rule the sender key follows below, for the pairwise copies: each
+            // `SessionRecord` was advanced by the encryption above, and only the file knows it.
+            KeepSessions(distributions, store);
 
             // The chain has moved: `Encrypt` advanced the iteration in memory, and this file
             // is the only thing that says which one the next message uses. A record that is

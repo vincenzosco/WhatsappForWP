@@ -159,7 +159,10 @@ function dataProblems(data) {
   // The two answers arrive as separate frames and nothing orders them: a receipt that
   // lands behind a later one used to rewrite the bubble backwards (a message already
   // read went back to one tick). The ladder lives in the setters, and both must ask it.
-  for (const signature of ['public void SetMessageStatus(', 'private void SetMessageStatusEverywhere(']) {
+  // `SetMessageStatusEverywhere` answers whether it found the bubble: the receipt's chat may
+  // be spelled in a way this list has no row for, and the fallback is what writes the status
+  // when it does. Its ladder rule is the same one.
+  for (const signature of ['public void SetMessageStatus(', 'private bool SetMessageStatusEverywhere(']) {
     const setter = methodBody(data, signature);
 
     if (!setter) {

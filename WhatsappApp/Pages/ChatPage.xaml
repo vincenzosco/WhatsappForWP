@@ -570,8 +570,12 @@
                                             Opacity="0.7">
                                     <TextBlock Text="{Binding FormattedTime}"
                                                Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="11"/>
+                                    <!-- One tick sent, two delivered, two blue read: the glyph
+                                         comes from the status converter and the colour from
+                                         `MsgStatusToColor`, which is why this used to stay
+                                         white for "read" too (2026-11-01). -->
                                     <TextBlock Text="{Binding Status, Converter={StaticResource MsgStatusToString}}"
-                                               Foreground="{StaticResource WhatsAppAccentTextBrush}"
+                                               Foreground="{Binding Status, Converter={StaticResource MsgStatusToColor}}"
                                                FontSize="11" Margin="4,0,0,0"/>
                                 </StackPanel>
                                 <!-- The send failed and the bubble says it: the way out is

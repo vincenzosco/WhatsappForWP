@@ -58,16 +58,31 @@ namespace WhatsappApp.Converters
     /// <summary>
     /// Converts message status to color brush for read receipts
     /// </summary>
+    /// <remarks>
+    /// The ticks sit on the bubble, whose background *is* the accent: sent and delivered take
+    /// the text colour that accent already uses (white on a dark accent, #333 on a light one -
+    /// `Accent.Apply` decides), and read takes a dark blue. That was asked for on 1 November
+    /// 2026, and it is not WhatsApp's own light blue: the accent here is periwinkle, where
+    /// #0B3D91 reads as "read" without being the same tone as the bubble.
+    /// </remarks>
     public class MessageStatusToColorConverter : IValueConverter
     {
+        /// <summary>The two ticks of a message that was read.</summary>
+        public static readonly Windows.UI.Color Read = Windows.UI.Color.FromArgb(255, 11, 61, 145);
+
         public object Convert(object value, Type targetType, object parameter, string language)
         {
             var status = (Models.MessageStatus)value;
-            if (status == Models.MessageStatus.Read)
-                return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 52, 167, 237)); // Blue
-            if (status == Models.MessageStatus.Delivered)
-                return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128)); // Gray
-            return new SolidColorBrush(Windows.UI.Color.FromArgb(255, 128, 128, 128));
+            if (status == Models.MessageStatus.Read) return new SolidColorBrush(Read);
+
+            // Everything before "read" is the bubble's own text colour, and asking the accent
+            // is what keeps the ticks legible when the accent is light; a fixed white was
+            // invisible there.
+            Windows.UI.Color text = Services.Accent.IsLight(Services.Accent.Color)
+                ? Windows.UI.Color.FromArgb(255, 51, 51, 51)
+                : Windows.UI.Color.FromArgb(255, 255, 255, 255);
+
+            return new SolidColorBrush(text);
         }
 
         public object ConvertBack(object value, Type targetType, object parameter, string language)
