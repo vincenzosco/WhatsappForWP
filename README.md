@@ -239,9 +239,13 @@ Calls are what say those two have something new.
 <summary><strong>A voice note from WhatsApp does not play</strong></summary>
 <br>
 
-WhatsApp's own voice notes are Ogg/Opus, and WP8.1 has no Opus decoder. A note recorded here goes
-out as M4A/AAC, which this phone records and plays. The server that used to convert both ways is
-gone with the rest of the backend.
+WhatsApp's own voice notes are Ogg/Opus, and WP8.1 has neither an Opus decoder nor an encoder: a
+note that arrives cannot be played here. One recorded here does go out as a real voice note,
+because the conversion happens **on the phone**: the recording is PCM (`AudioRecorder`),
+`waopus.dll` encodes it to Opus (libopus built for ARM by `tools/build-opus-arm.bat`) and
+`Protocol/Media/OggOpus.cs` writes the Ogg container. When the phone cannot record WAV, or the DLL
+is not in the package, the note leaves as an M4A audio message: it plays, but it is not a voice
+note.
 </details>
 
 <details>

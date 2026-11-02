@@ -698,25 +698,32 @@ waiting) and the message is marked read when the reader reaches it.
   true from `MediaType` alone, so it is tappable before the bytes arrive - the first tap
   downloads them, and `ChatMessage.IsMediaLoading` turns the ring in the bubble while
   they do.
-- **WP8.1 has no Opus codec at all.** WhatsApp voice notes are Ogg/Opus, and Opus
+- **WP8.1 has no Opus codec of its own.** WhatsApp voice notes are Ogg/Opus, and Opus
   only arrived on Windows 10: the phone can play MP3, AAC/M4A, AMR and WAV, so a note
-  that arrives cannot be decoded here, and one recorded here is M4A. There used to be
-  a server in the middle that converted both ways with `ffmpeg`; it is gone, and the
-  README pair's Limiti/Limitations section is where that is written down rather than
-  quietly dropped. Anything that converts audio in the future has to do it **on the
-  phone**, against a platform with no Opus. Audio and documents are `MediaType` values,
+  that arrives cannot be decoded here. The outgoing direction is solved **on the
+  phone** - the encoder is `WhatsappApp/waopus.dll`, built by
+  `tools/build-opus-arm.bat` from libopus and `tools/opus/waopus.c` - and the README
+  pair's Limiti/Limitations section says what that does and does not cover. Audio and
+  documents are `MediaType` values,
   not `MessageType` values:
   `MessageType` has no `Document` and adding one would change what every older
   frame deserializes to, so `ChatMessage.IsAudio` and `ChatMessage.IsDocument`
   derive from `MediaType` the way `IsVideo` does. A downloaded document is opened
   with `Launcher.LaunchFileAsync` on the file in `LocalFolder`, so the extension
   must be the real one (it comes from the file name in `MediaFileName`).
-- **A recorded voice note is M4A, and it leaves through `/send/audio`.**
-  `Services/AudioRecorder.cs` records AAC in an M4A container
-  (`MediaEncodingProfile.CreateM4a`) because it is the format this phone records
-  and decodes without help; WP8.1 has no Opus encoder. The M4A file goes into `LocalFolder` and then
-  through the same `AttachmentInbox` slot as a picked photo, so
-  `ChatPage.SendAttachmentAsync` streams it with the existing frames.
+- **A recorded voice note is PCM WAV, then Ogg/Opus, and never an M4A.**
+  `Services/AudioRecorder.cs` asks for `MediaEncodingProfile.CreateWav` because the
+  encoder takes samples, not an AAC stream: WP8.1 plays Opus and cannot encode it, and
+  an M4A would have to be AAC-decoded by a decoder this app cannot reach.
+  `Services/VoiceNoteEncoder.cs` parses the WAV, encodes 20 ms frames through
+  `waopus.dll` (`wa_opus_create`/`wa_opus_frame`, one C function each) and
+  `Protocol/Media/OggOpus.cs` writes the container - the two headers, the granule at
+  48 kHz and Ogg's CRC, which `ProtocolTests/OggOpusTests.cs` pins. The `.ogg` goes
+  into `LocalFolder` under a name of its own and is handed to the same `AttachmentInbox`
+  slot as a picked photo (`PutExisting`), so `ChatPage.SendAttachmentAsync` streams it
+  with the existing frames. `MediaUpload.CanBeVoiceNote` is what decides `ptt`: only
+  `audio/ogg`/`audio/opus` may carry it, and anything else - the M4A fallback of a phone
+  whose projection has no WAV profile - goes as an ordinary audio message, which plays.
   `AttachmentInbox.KindName` must answer `audio` for an audio MIME type or
   extension: without that branch a voice note is sent as a document, and the
   receiver sees a file to download instead of a note to play. That word is the one

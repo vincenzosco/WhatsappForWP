@@ -246,9 +246,12 @@ Stati e Chiamate sono quello che dice che quelle due hanno qualcosa di nuovo.
 <summary><strong>Un vocale di WhatsApp non si sente</strong></summary>
 <br>
 
-I vocali di WhatsApp sono Ogg/Opus, e WP8.1 non ha un decoder Opus. Un vocale registrato qui esce
-in M4A/AAC, che questo telefono registra e riproduce. Il server che convertiva nei due sensi è
-sparito con il resto del backend.
+I vocali di WhatsApp sono Ogg/Opus, e WP8.1 non ha né un decoder né un encoder Opus: un vocale che
+arriva non si sente qui. Uno registrato qui invece parte come vocale vero, perché la conversione
+avviene **sul telefono**: la registrazione è PCM (`AudioRecorder`), `waopus.dll` la codifica in Opus
+(libopus compilata per ARM da `tools/build-opus-arm.bat`) e `Protocol/Media/OggOpus.cs` scrive il
+contenitore Ogg. Se il telefono non sa registrare in WAV, o la DLL non è nel pacchetto, il vocale
+esce come messaggio audio M4A: si ascolta, ma non è un vocale.
 </details>
 
 <details>

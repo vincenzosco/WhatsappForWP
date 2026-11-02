@@ -26,8 +26,21 @@ namespace WhatsappApp.Services
     /// </summary>
     public static class AudioRecorder
     {
-        /// <summary>The recorded file, inside LocalFolder. One at a time.</summary>
-        public const string FileName = "voice_note.m4a";
+        /// <summary>
+        /// The recorded file, inside LocalFolder. One at a time, and in PCM.
+        ///
+        /// PCM WAV and not M4A: the note is turned into the Ogg/Opus WhatsApp plays
+        /// (`VoiceNoteEncoder`), and that encoder takes samples, not an AAC stream - the
+        /// platform's own decoder is not reachable from this app. `M4aFileName` is the
+        /// fallback for a phone whose projection refuses the WAV profile.
+        /// </summary>
+        public const string WavFileName = "voice_note.wav";
+
+        /// <summary>The recording of a phone that cannot write WAV: it goes out as an audio message.</summary>
+        public const string M4aFileName = "voice_note.m4a";
+
+        /// <summary>The file this process recorded, since the two profiles have two names.</summary>
+        private static string _fileName = WavFileName;
 
         private static MediaCapture _capture;
 
@@ -84,11 +97,19 @@ namespace WhatsappApp.Services
                     return false;
                 }
 
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileName, CreationCollisionOption.ReplaceExisting);
+                string name = WavFileName;
+                MediaEncodingProfile profile = ProfileFor(ref name);
+                if (profile == null)
+                {
+                    Fail("AudioRecorder.StartAsync/profile", "MediaEncodingProfile");
+                    Release(capture);
+                    return false;
+                }
 
-                if (!await InTimeAsync(capture.StartRecordToStorageFileAsync(
-                        MediaEncodingProfile.CreateM4a(AudioEncodingQuality.Auto), file)))
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    name, CreationCollisionOption.ReplaceExisting);
+
+                if (!await InTimeAsync(capture.StartRecordToStorageFileAsync(profile, file)))
                 {
                     Fail("AudioRecorder.StartAsync/record", "StartRecordToStorageFileAsync");
                     Release(capture);
@@ -96,6 +117,7 @@ namespace WhatsappApp.Services
                 }
 
                 _capture = capture;
+                _fileName = name;
                 return true;
             }
             catch (Exception ex)
@@ -108,6 +130,39 @@ namespace WhatsappApp.Services
             {
                 _starting = false;
             }
+        }
+
+        /// <summary>
+        /// The recording profile to ask the microphone for, and the name of the file it will
+        /// write.
+        ///
+        /// WAV first because the note has to become Ogg/Opus, and the encoder takes PCM.
+        /// The WAV profile is not in every projection of this platform (`CreateWav` is a
+        /// Windows 8.1 member), so a refusal is not a lost recording: the M4A is what this
+        /// app recorded before, and the note then goes out as an audio message - which
+        /// arrives and plays, just not as a voice note.
+        /// </summary>
+        private static MediaEncodingProfile ProfileFor(ref string name)
+        {
+            try
+            {
+                MediaEncodingProfile wav = MediaEncodingProfile.CreateWav(AudioEncodingQuality.Low);
+                if (wav != null)
+                {
+                    name = WavFileName;
+                    return wav;
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("AudioRecorder/ProfileFor", ex);
+            }
+
+            Diag.Ok("AudioRecorder: this phone cannot record WAV, so the note is an M4A "
+                + "and it will arrive as an audio message");
+
+            name = M4aFileName;
+            return MediaEncodingProfile.CreateM4a(AudioEncodingQuality.Auto);
         }
 
         /// <summary>
@@ -179,7 +234,7 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
+                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(_fileName);
                 var properties = await file.GetBasicPropertiesAsync();
                 if (properties.Size == 0) return null;
             }
@@ -189,7 +244,7 @@ namespace WhatsappApp.Services
                 return null;
             }
 
-            return FileName;
+            return _fileName;
         }
 
         /// <summary>

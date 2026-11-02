@@ -299,6 +299,14 @@
       <Name>WhatsappApp.Tasks</Name>
     </ProjectReference>
   </ItemGroup>
+  <ItemGroup>
+    <!-- The Opus encoder (`tools/build-opus-arm.bat`, from libopus): WhatsApp plays a
+         voice note only as Ogg/Opus and this platform has no Opus encoder. It has to sit
+         at the package root, which is where P/Invoke looks for it. -->
+    <Content Include="waopus.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
   <PropertyGroup Condition=" '$(VisualStudioVersion)' == '' or '$(VisualStudioVersion)' &lt; '12.0' ">
     <VisualStudioVersion>12.0</VisualStudioVersion>
   </PropertyGroup>

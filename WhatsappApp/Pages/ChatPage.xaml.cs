@@ -2058,8 +2058,21 @@ namespace WhatsappApp.Pages
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
-                await AttachmentInbox.PutAsync(file, null, true);
+                // A note becomes the Ogg/Opus WhatsApp plays, so it arrives as a voice
+                // note and not as a file with a player that refuses it. When this phone
+                // cannot encode, the recording goes out as the audio file it is - which
+                // plays, because it is an audio message and not a `ptt`.
+                VoiceNoteEncoder.Encoded encoded = await VoiceNoteEncoder.FromWavAsync(fileName);
+                if (encoded != null)
+                {
+                    AttachmentInbox.PutExisting(encoded.FileName, encoded.FileName,
+                        "audio/ogg", null, true, encoded.Seconds);
+                }
+                else
+                {
+                    StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(fileName);
+                    await AttachmentInbox.PutAsync(file, null, true);
+                }
 
                 // The slot is taken here and not only by the Ready handler: Send
                 // keeps going in the same tap that stopped the recording, and the

@@ -146,6 +146,21 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>
+        /// Deposits a file that is already in the app folder under its own name.
+        ///
+        /// Why and not `PutAsync`: the voice note is written there by the encoder
+        /// (`VoiceNoteEncoder`), one file per recording, and copying it again would be the
+        /// same bytes twice on a phone with 512 MB.
+        /// </summary>
+        public static void PutExisting(string localName, string fileName, string mimeType,
+            string note, bool voiceNote, uint seconds)
+        {
+            if (string.IsNullOrEmpty(localName)) return;
+
+            PutLocal(localName, fileName, mimeType, note, voiceNote, seconds);
+        }
+
         /// <summary>Deposits the bytes already read (a shared bitmap).</summary>
         public static async Task PutBytesAsync(byte[] buffer, string fileName, string mimeType, string note)
         {
