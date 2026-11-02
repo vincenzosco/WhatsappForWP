@@ -670,6 +670,14 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// <summary>A call is ringing: the alert that reaches a phone whose app is not in front.</summary>
+        public static void ShowIncomingCall(string name)
+        {
+            if (!SettingsService.CallAlertsEnabled) return;
+
+            Toast(Loc.Get("Notification_IncomingCall", "Incoming call"), name);
+        }
+
         /// A call nobody answered arrived. Same watermark, its own key: the log is re-read
         /// whole on every scan, and a toast per row on every scan would be that log read
         /// aloud each time the tab was opened.

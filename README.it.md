@@ -274,6 +274,21 @@ prima volta che lo tocchi, poi lo tiene. Una foto di uno stato che non compare n
 scaricamento di solito è scaduta: gli stati vivono un giorno.
 </details>
 
+<details>
+<summary><strong>Una chiamata squilla ma la voce non passa</strong></summary>
+<br>
+
+La chiamata è segnalata, non trasportata. `Protocol/Client/CallSignaling.cs` costruisce e legge il
+nodo `call`, `Services/CallSession.cs` sono i cinque stati e `Pages/CallPage.xaml` è la schermata:
+un'offerta squilla, il telefono risponde, rifiuta e chiude, il registro prende una riga per la
+chiamata fatta da questo telefono, e una chiamata che nessuno prende finisce da sola dopo 45
+secondi invece di tenere occupata la sessione. Manca il media: DTLS 1.2 per accordare le chiavi e
+SRTP per portare l'audio, che WP8.1 non ha. I pezzi che si possono scrivere e provare senza un peer
+sono in `Protocol/Media/` - l'intestazione RTP, la sessione SRTP, il jitter buffer, l'espansione
+della chiave di chiamata, e `CallMediaSession`, che sono i tre messi insieme - e nessuno di loro è
+ancora su un socket. La schermata della chiamata dice la stessa frase mentre la chiamata è su.
+</details>
+
 ## Comandi
 
 Da eseguire dalla radice del repository prima di una pull request. Le guardie sono il contratto:

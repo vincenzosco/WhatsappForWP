@@ -267,6 +267,21 @@ first time you tap it, then keeps it. A status photo that still does not appear 
 has usually expired: statuses live for a day.
 </details>
 
+<details>
+<summary><strong>A call rings but no voice comes through</strong></summary>
+<br>
+
+The call is signalled, not carried. `Protocol/Client/CallSignaling.cs` builds and reads the `call`
+node, `Services/CallSession.cs` is the five states, and `Pages/CallPage.xaml` is the screen: an
+offer rings, the phone answers, refuses and hangs up, the call log gets a row for the call this
+phone made, and a call nobody picks up ends by itself after 45 seconds instead of holding the
+session. What is missing is the media: DTLS 1.2 to agree the keys and SRTP to carry the audio,
+neither of which WP8.1 has. The pieces that can be written and tested without a peer are in
+`Protocol/Media/` - the RTP header, the SRTP session, the jitter buffer, the call key expansion,
+and `CallMediaSession`, which is the three wired together - and none of them is on a socket yet.
+The call screen says the same sentence while a call is up.
+</details>
+
 ## Commands
 
 Run these from the repository root before a pull request. The guards are the contract: each one

@@ -115,6 +115,9 @@
     <Compile Include="Pages\ContactInfoPage.xaml.cs">
       <DependentUpon>ContactInfoPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Pages\CallPage.xaml.cs">
+      <DependentUpon>CallPage.xaml</DependentUpon>
+    </Compile>
     <Compile Include="Pages\DiagnosticsPage.xaml.cs">
       <DependentUpon>DiagnosticsPage.xaml</DependentUpon>
     </Compile>
@@ -269,6 +272,10 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Include="Pages\ContactInfoPage.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Pages\CallPage.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

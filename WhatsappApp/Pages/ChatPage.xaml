@@ -84,6 +84,7 @@
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
             <Button x:Name="BackButton" Grid.Column="0"
@@ -142,6 +143,39 @@
                                Foreground="#B0FFFFFF" FontSize="13" Margin="0,-2,0,0"/>
                 </StackPanel>
             </Grid>
+
+            <!-- Il pulsante della chiamata, dove lo mette il client ufficiale: a
+                 destra del nome e del numero, nella barra della chat. Chiama la
+                 persona di questa conversazione; per un gruppo il pulsante sparisce
+                 (il codice lo nasconde), perche' questo client chiama uno alla volta. -->
+            <Button x:Name="CallHeaderButton" Grid.Column="3"
+                    Background="Transparent" BorderThickness="0"
+                    MinWidth="0" MinHeight="0"
+                    Width="48" Height="48" Margin="0,0,12,0" Padding="0"
+                    VerticalAlignment="Center"
+                    Click="CallHeaderButton_Click">
+                <Path Fill="White" Width="24" Height="24"
+                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- IconCall -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="19.5,20" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
+                                        <LineSegment Point="7.5,4.5"/>
+                                        <LineSegment Point="9,9"/>
+                                        <LineSegment Point="7,11"/>
+                                        <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
+                                        <LineSegment Point="15,15"/>
+                                        <LineSegment Point="19.5,16.5"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+            </Button>
         </Grid>
 
         <!-- Messages -->

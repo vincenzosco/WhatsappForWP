@@ -577,5 +577,14 @@
   <data name="Call_Start" xml:space="preserve">
     <value>Chiama</value>
   </data>
+  <data name="Call_Calling" xml:space="preserve">
+    <value>Chiamata in corso...</value>
+  </data>
+  <data name="Call_Close" xml:space="preserve">
+    <value>Chiudi</value>
+  </data>
+  <data name="Notification_IncomingCall" xml:space="preserve">
+    <value>Chiamata in arrivo</value>
+  </data>
 </root>
 

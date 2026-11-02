@@ -59,6 +59,49 @@ namespace WhatsappApp.Services
         /// <summary>When the call started ringing or dialling, for the duration on screen.</summary>
         public DateTime StartedAt { get; private set; }
 
+        /// <summary>
+        /// The moment the call was answered, or `default` while nobody has. It is what a
+        /// duration counts from: a call that rang for a minute and then connected lasted a
+        /// second, not a minute.
+        /// </summary>
+        public DateTime ConnectedAt { get; private set; }
+
+        /// <summary>True when somebody answered: the moment a duration starts to exist.</summary>
+        public bool WasAnswered
+        {
+            get { return ConnectedAt != default(DateTime); }
+        }
+
+        /// <summary>
+        /// How long the call has been up, in whole seconds; zero for one that never connected.
+        /// It is read off the clock rather than incremented by a timer, so a call that was
+        /// suspended with the app still counts the time it was gone.
+        /// </summary>
+        public int ConnectedSeconds
+        {
+            get
+            {
+                if (ConnectedAt == default(DateTime)) return 0;
+
+                int seconds = (int)(DateTime.UtcNow - ConnectedAt).TotalSeconds;
+                return seconds < 0 ? 0 : seconds;
+            }
+        }
+
+        /// <summary>
+        /// Whether an unanswered call has waited long enough to be called over
+        /// (`DataService.CallSetupSeconds`). Only `Ringing` and `Connecting` can expire: an
+        /// answered call is waiting for nobody, and a deadline of zero seconds is no deadline
+        /// at all rather than an immediate miss.
+        /// </summary>
+        public bool Expired(DateTime now, int seconds)
+        {
+            if (seconds <= 0) return false;
+            if (State != CallState.Ringing && State != CallState.Connecting) return false;
+
+            return (now - StartedAt).TotalSeconds >= seconds;
+        }
+
         public CallSession()
         {
             State = CallState.Idle;
@@ -97,6 +140,7 @@ namespace WhatsappApp.Services
             IsIncoming = true;
             EndedReason = null;
             StartedAt = DateTime.UtcNow;
+            ConnectedAt = default(DateTime);
             State = CallState.Ringing;
 
             return true;
@@ -114,6 +158,7 @@ namespace WhatsappApp.Services
             IsIncoming = false;
             EndedReason = null;
             StartedAt = DateTime.UtcNow;
+            ConnectedAt = default(DateTime);
             State = CallState.Connecting;
 
             return true;
@@ -128,6 +173,8 @@ namespace WhatsappApp.Services
         {
             if (!SpeaksOf(callId)) return false;
             if (State != CallState.Ringing && State != CallState.Connecting) return false;
+
+            if (ConnectedAt == default(DateTime)) ConnectedAt = DateTime.UtcNow;
 
             State = CallState.Active;
             return true;
@@ -169,6 +216,7 @@ namespace WhatsappApp.Services
             IsIncoming = false;
             EndedReason = null;
             StartedAt = default(DateTime);
+            ConnectedAt = default(DateTime);
             State = CallState.Idle;
         }
 

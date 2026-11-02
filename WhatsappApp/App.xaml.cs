@@ -437,6 +437,12 @@ namespace WhatsappApp
             // meanwhile (or the synced contacts) had no listener.
             DataService.Instance.Start();
 
+            // A call that rings is a call screen wherever the app was left, and this is the
+            // only listener that outlives every page: a call that was a banner on the home
+            // tab was a call nobody saw while a conversation was open.
+            DataService.Instance.CallChanged -= this.OnCallChanged;
+            DataService.Instance.CallChanged += this.OnCallChanged;
+
             // The phone memory budget is watched from here on: it is the only
             // way to know the app is about to be closed because of memory, and to
             // free early what can be rebuilt.
@@ -465,6 +471,22 @@ namespace WhatsappApp
         }
 
         /// <summary>
+        /// <summary>A call is ringing: its screen comes to the front, once.</summary>
+        private void OnCallChanged(object sender, EventArgs e)
+        {
+            CallSession call = DataService.Instance.Call;
+            if (call == null || call.State != CallState.Ringing) return;
+
+            Frame root = EnsureFrame();
+            if (root == null) return;
+
+            // The same event reaches the home page's banner, which asks this same question:
+            // one of the two navigates and the other finds the call page already in front.
+            if (root.CurrentSourcePageType == typeof(CallPage)) return;
+
+            root.Navigate(typeof(CallPage));
+        }
+
         /// The ui thread answered: the watchdog's silence counter starts again.
         /// </summary>
         private void OnUiHeartbeat(object sender, object e)

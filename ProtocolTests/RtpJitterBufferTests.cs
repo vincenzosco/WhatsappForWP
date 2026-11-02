@@ -21,15 +21,15 @@ namespace ProtocolTests
             var buffer = new RtpJitterBuffer(3);
 
             Assert.IsTrue(buffer.Push(Packet(0)), "the first packet is kept");
-            Assert.IsTrue(buffer.Take() == null, "one packet is not enough to start: it is the wait");
+            Assert.IsTrue(buffer.Next() == null, "one packet is not enough to start: it is the wait");
             Assert.IsTrue(buffer.Push(Packet(1)), "the second is kept");
-            Assert.IsTrue(buffer.Take() == null, "two are still filling");
+            Assert.IsTrue(buffer.Next() == null, "two are still filling");
             Assert.IsTrue(buffer.Push(Packet(2)), "the third");
 
-            Assert.AreEqual(0, buffer.Take().SequenceNumber, "the first three release in order");
-            Assert.AreEqual(1, buffer.Take().SequenceNumber);
-            Assert.AreEqual(2, buffer.Take().SequenceNumber);
-            Assert.IsTrue(buffer.Take() == null, "and then the buffer is empty");
+            Assert.AreEqual(0, buffer.Next().SequenceNumber, "the first three release in order");
+            Assert.AreEqual(1, buffer.Next().SequenceNumber);
+            Assert.AreEqual(2, buffer.Next().SequenceNumber);
+            Assert.IsTrue(buffer.Next() == null, "and then the buffer is empty");
         }
 
         [Test]
@@ -41,9 +41,9 @@ namespace ProtocolTests
             Assert.IsTrue(buffer.Push(Packet(2)), "two overtook one");
             Assert.IsTrue(buffer.Push(Packet(1)), "one arrived after two");
 
-            Assert.AreEqual(0, buffer.Take().SequenceNumber);
-            Assert.AreEqual(1, buffer.Take().SequenceNumber, "the reordered packet is played in its place");
-            Assert.AreEqual(2, buffer.Take().SequenceNumber);
+            Assert.AreEqual(0, buffer.Next().SequenceNumber);
+            Assert.AreEqual(1, buffer.Next().SequenceNumber, "the reordered packet is played in its place");
+            Assert.AreEqual(2, buffer.Next().SequenceNumber);
         }
 
         [Test]
@@ -56,9 +56,9 @@ namespace ProtocolTests
             Assert.IsFalse(buffer.Push(Packet(1)), "the relay delivered it twice");
             Assert.AreEqual(1, buffer.Dropped, "the copy is counted as dropped");
 
-            Assert.AreEqual(0, buffer.Take().SequenceNumber);
-            Assert.AreEqual(1, buffer.Take().SequenceNumber);
-            Assert.IsTrue(buffer.Take() == null, "and the duplicate is not played a second time");
+            Assert.AreEqual(0, buffer.Next().SequenceNumber);
+            Assert.AreEqual(1, buffer.Next().SequenceNumber);
+            Assert.IsTrue(buffer.Next() == null, "and the duplicate is not played a second time");
         }
 
         [Test]
@@ -67,13 +67,13 @@ namespace ProtocolTests
             var buffer = new RtpJitterBuffer(1);
 
             buffer.Push(Packet(0));
-            Assert.AreEqual(0, buffer.Take().SequenceNumber, "the playout is now waiting on one");
+            Assert.AreEqual(0, buffer.Next().SequenceNumber, "the playout is now waiting on one");
 
             Assert.IsFalse(buffer.Push(Packet(0)), "a packet for audio already heard is not deliverable");
             Assert.AreEqual(1, buffer.Dropped);
 
             Assert.IsTrue(buffer.Push(Packet(1)), "the one it wants is still accepted");
-            Assert.AreEqual(1, buffer.Take().SequenceNumber);
+            Assert.AreEqual(1, buffer.Next().SequenceNumber);
         }
 
         [Test]
@@ -88,10 +88,10 @@ namespace ProtocolTests
 
             Assert.AreEqual(0, buffer.Dropped, "the wrap is not a hole");
 
-            Assert.AreEqual(65534, buffer.Take().SequenceNumber);
-            Assert.AreEqual(65535, buffer.Take().SequenceNumber);
-            Assert.AreEqual(0, buffer.Take().SequenceNumber, "the call continues across the wrap");
-            Assert.AreEqual(1, buffer.Take().SequenceNumber);
+            Assert.AreEqual(65534, buffer.Next().SequenceNumber);
+            Assert.AreEqual(65535, buffer.Next().SequenceNumber);
+            Assert.AreEqual(0, buffer.Next().SequenceNumber, "the call continues across the wrap");
+            Assert.AreEqual(1, buffer.Next().SequenceNumber);
         }
 
         [Test]
@@ -101,8 +101,8 @@ namespace ProtocolTests
 
             buffer.Push(Packet(0));
             buffer.Push(Packet(1));
-            buffer.Take();
-            buffer.Take();
+            buffer.Next();
+            buffer.Next();
 
             Assert.IsFalse(buffer.Push(Packet(65535)), "65535 after zero is the packet from before it");
             Assert.AreEqual(1, buffer.Dropped);
@@ -114,15 +114,15 @@ namespace ProtocolTests
             var buffer = new RtpJitterBuffer(1);
 
             buffer.Push(Packet(0));
-            Assert.AreEqual(0, buffer.Take().SequenceNumber);
+            Assert.AreEqual(0, buffer.Next().SequenceNumber);
 
             buffer.Push(Packet(2));
-            Assert.IsTrue(buffer.Take() == null, "the one at the head of the wait is missing");
+            Assert.IsTrue(buffer.Next() == null, "the one at the head of the wait is missing");
 
-            Assert.IsTrue(buffer.Skip(), "the playout gave up on it");
+            Assert.IsTrue(buffer.SkipGap(), "the playout gave up on it");
             Assert.AreEqual(1, buffer.Lost, "one packet lost");
 
-            Assert.AreEqual(2, buffer.Take().SequenceNumber, "and what was held behind it plays");
+            Assert.AreEqual(2, buffer.Next().SequenceNumber, "and what was held behind it plays");
         }
 
         [Test]
@@ -130,12 +130,12 @@ namespace ProtocolTests
         {
             var buffer = new RtpJitterBuffer(1);
 
-            Assert.IsFalse(buffer.Skip(), "nothing held, nothing to skip");
+            Assert.IsFalse(buffer.SkipGap(), "nothing held, nothing to skip");
 
             buffer.Push(Packet(0));
-            Assert.IsFalse(buffer.Skip(), "the packet the playout wants is here: this is a Take");
+            Assert.IsFalse(buffer.SkipGap(), "the packet the playout wants is here: this is a Take");
             Assert.AreEqual(0, buffer.Lost);
-            Assert.AreEqual(0, buffer.Take().SequenceNumber);
+            Assert.AreEqual(0, buffer.Next().SequenceNumber);
         }
 
         [Test]
@@ -168,7 +168,7 @@ namespace ProtocolTests
             Assert.AreEqual(0, buffer.Dropped);
             Assert.AreEqual(0, buffer.Lost);
             Assert.IsTrue(buffer.Push(Packet(0)), "the next call starts again from wherever it starts");
-            Assert.AreEqual(0, buffer.Take().SequenceNumber);
+            Assert.AreEqual(0, buffer.Next().SequenceNumber);
         }
 
         /// <summary>One packet with its sequence number carried in the payload, so a test can see which it got.</summary>

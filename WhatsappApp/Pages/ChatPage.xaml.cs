@@ -188,6 +188,13 @@ namespace WhatsappApp.Pages
 
                 ContactNameText.Text = contact.Name;
 
+                // Un gruppo non si chiama da qui: `CallSignaling` costruisce un'offerta a un
+                // solo indirizzo, e un pulsante che lanciasse una chiamata di gruppo che
+                // l'app non sa fare sarebbe una promessa sbagliata.
+                CallHeaderButton.Visibility = GroupDirectory.IsGroup(contact.Id)
+                    ? Visibility.Collapsed
+                    : Visibility.Visible;
+
                 // No presence: WhatsApp does not expose it through the server we
                 // use, and saying "online" or "last seen at HH:mm" was a lie. What
                 // is left is the only true extra thing we have: the chat number,
@@ -329,6 +336,27 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
+        /// <summary>
+        /// Calls the person in this chat from the app bar, as the official client does: the
+        /// offer goes out and the call page comes to the front. A call placed from a
+        /// conversation with no call screen over it is a press that seems to do nothing.
+        /// </summary>
+        private void CallHeaderButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contact == null || string.IsNullOrEmpty(_contact.Id)) return;
+
+            if (GroupDirectory.IsGroup(_contact.Id))
+            {
+                Diag.Ok("calls: a group is not called from the chat header");
+                return;
+            }
+
+            Guarded.RunGuardedAsync("ChatPage/call",
+                DataService.Instance.StartCallAsync(_contact.Id, false));
+
+            Frame.Navigate(typeof(CallPage));
+        }
+
         /// Readable number of a JID (e.g. +393401234567 for people). Empty for
         /// groups, for a LID, and for everything that is not a number.
         ///

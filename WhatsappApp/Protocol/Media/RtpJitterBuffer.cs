@@ -134,7 +134,7 @@ namespace WhatsappApp.Protocol.Media
         /// has not filled, or the packet the playout wants has not arrived (and the playout
         /// has not yet decided to call it lost).
         /// </summary>
-        public RtpPacket Take()
+        public RtpPacket Next()
         {
             if (_packets.Count == 0) return null;
 
@@ -167,7 +167,7 @@ namespace WhatsappApp.Protocol.Media
         /// Answers false when there is nothing to skip - no packet held, or the one the
         /// playout wants is already here (in which case `Take` is the call to make).
         /// </summary>
-        public bool Skip()
+        public bool SkipGap()
         {
             if (_packets.Count == 0) return false;
 

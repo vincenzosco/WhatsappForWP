@@ -307,6 +307,24 @@ namespace WhatsappApp.Services
         /// </summary>
         private readonly CallSession _call = new CallSession();
 
+        /// <summary>
+        /// How long a call may ring with nobody answering before this phone calls it over.
+        ///
+        /// Why it is not zero and not forever: an offer that never got an answer used to keep
+        /// the session occupied for good - the phone's own log of 2 November 2026 has
+        /// "a call is already up, so ... was not called" on the dial after it, and no new call
+        /// could be placed until the app was restarted. Forty-five seconds is longer than any
+        /// person lets a phone ring and shorter than the wait that had no end.
+        /// </summary>
+        public const int CallSetupSeconds = 45;
+
+        /// <summary>
+        /// The calls this phone made or answered itself, kept apart from the log the history
+        /// brought: that log is rebuilt from scratch at every sync, so without this a call made
+        /// a minute ago disappeared the moment the next chunk arrived.
+        /// </summary>
+        private readonly List<CallLogEntry> _localCalls = new List<CallLogEntry>();
+
         public CallSession Call
         {
             get { return _call; } }
@@ -519,8 +537,139 @@ namespace WhatsappApp.Services
 
         private void RaiseCallChanged()
         {
+            FollowCallState();
+
             var handler = CallChanged;
             if (handler != null) handler(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// What follows the call's state rather than the button that moved it: the ringer goes
+        /// on while a call rings and off the moment it stops, and a call that ended becomes a
+        /// row in the log.
+        ///
+        /// Why here and not in each of `AcceptCallAsync`, `DeclineCallAsync`, `EndCallAsync`
+        /// and the read loop: there are four ways out of `Ringing` and five into a logged row,
+        /// and a fifth path added later would quietly not ring and not log. The state is the
+        /// one fact they all agree on.
+        /// </summary>
+        private void FollowCallState()
+        {
+            if (_call.State == CallState.Ringing)
+            {
+                CallRinger.Start(Named(_call.PeerJid));
+            }
+            else
+            {
+                CallRinger.Stop();
+            }
+
+            if (_call.State == CallState.Ended) RememberCall();
+        }
+
+        /// <summary>
+        /// The call that just ended, as a row of this phone's log. Once per call: the same end
+        /// can be raised twice (the far end's `terminate` after a local hang-up), and a log that
+        /// grew a copy per raise would show one call twice.
+        /// </summary>
+        private void RememberCall()
+        {
+            if (string.IsNullOrEmpty(_call.CallId) || string.IsNullOrEmpty(_call.PeerJid)) return;
+
+            for (int i = 0; i < _localCalls.Count; i++)
+            {
+                if (_localCalls[i].CallId == _call.CallId) return;
+            }
+
+            var row = new CallLogEntry();
+            row.ChatId = _call.PeerJid;
+            row.Name = Named(_call.PeerJid);
+            row.Timestamp = _call.StartedAt;
+            row.CallId = _call.CallId;
+            row.Reason = ReasonOf(_call);
+            row.DurationSeconds = _call.ConnectedSeconds;
+            row.IsVideo = _call.IsVideo;
+
+            _localCalls.Add(row);
+            InsertCall(row);
+
+            Diag.Ok("calls: logged a " + row.Reason + " call with " + row.ChatId
+                + " after " + row.DurationSeconds + " s");
+        }
+
+        /// <summary>
+        /// The word a row shows for how a call went. The vocabulary is `CallLogEntry.Detail`'s:
+        /// a call that was answered has a duration and says nothing else, a refusal keeps the
+        /// reason it was refused with, an incoming call nobody answered is `missed`, and a call
+        /// this phone dialled that nobody took is `outgoing` - not a missed call, which is the
+        /// red row on the screen of the person who was being called.
+        /// </summary>
+        private static string ReasonOf(CallSession call)
+        {
+            if (call.WasAnswered) return "accepted";
+
+            string ended = (call.EndedReason ?? "").Trim().ToLowerInvariant();
+            if (ended == "reject" || ended == "busy" || ended == "cancel") return ended;
+
+            return call.IsIncoming ? "missed" : "outgoing";
+        }
+
+        /// <summary>
+        /// One row in the list, where its time says: the sync's rows are already newest first
+        /// and a local call belongs among them by its own moment, not at the end.
+        /// </summary>
+        private void InsertCall(CallLogEntry row)
+        {
+            int at = 0;
+            while (at < _calls.Count && _calls[at].Timestamp > row.Timestamp) at++;
+
+            _calls.Insert(at, row);
+        }
+
+        /// <summary>
+        /// The calls this phone made, put back into the list a sync just rebuilt. Called after
+        /// the sync's own rows: the local ones keep their place by time (`InsertCall`), and one
+        /// the sync also carries is not added twice.
+        /// </summary>
+        private void ReplayLocalCalls()
+        {
+            for (int i = 0; i < _localCalls.Count; i++)
+            {
+                CallLogEntry row = _localCalls[i];
+
+                bool known = false;
+                for (int k = 0; k < _calls.Count; k++)
+                {
+                    if (_calls[k].CallId == row.CallId) { known = true; break; }
+                }
+
+                if (!known) InsertCall(row);
+            }
+        }
+
+        /// <summary>
+        /// A call nobody answered is over. It says so on the wire and then on the screen, in
+        /// that order: a banner that ended a call the other phone still believes is ringing
+        /// would leave the two logs disagreeing about the same call.
+        /// </summary>
+        public async Task EndUnansweredCallAsync()
+        {
+            if (!_call.Occupied) return;
+
+            string callId = _call.CallId;
+            string peer = _call.PeerJid;
+            bool incoming = _call.IsIncoming;
+
+            try
+            {
+                await NativeConnection.Instance.TerminateCallAsync(callId, peer, "timeout");
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/call timeout", ex);
+            }
+
+            if (_call.End(callId, incoming ? "missed" : "timeout")) RaiseCallChanged();
         }
 
         /// <summary>
@@ -1212,6 +1361,10 @@ namespace WhatsappApp.Services
 
                 AddCall(row);
             }
+
+            // The calls this phone made itself: the sync rebuilds the list from its own
+            // records, and one made a minute ago is not in them yet.
+            ReplayLocalCalls();
 
             Diag.Ok("native: " + _calls.Count + " call(s) in the log");
             RaiseCallsScanCompleted();

@@ -239,6 +239,13 @@ namespace WhatsappApp.Pages
 
         // ----------------------------------------------------------------- calls
 
+        /// <summary>
+        /// The one-second clock of the call banner: it moves the duration of an answered call
+        /// and it ends a call nobody picked up (`DataService.CallSetupSeconds`). It runs while
+        /// there is a call and not otherwise.
+        /// </summary>
+        private DispatcherTimer _callTicker;
+
         private void OnCallChanged(object sender, EventArgs e)
         {
             ShowCall();
@@ -259,6 +266,7 @@ namespace WhatsappApp.Pages
 
             if (call == null || !call.Shows)
             {
+                StopCallTicker();
                 CallBanner.Visibility = Visibility.Collapsed;
                 return;
             }
@@ -288,6 +296,7 @@ namespace WhatsappApp.Pages
             }
 
             string detail = kind + " · " + state;
+            if (call.WasAnswered) detail = detail + " · " + CallDuration(call.ConnectedSeconds);
             if (call.State == CallState.Active)
             {
                 // Said plainly, on the call itself: the signalling is what this build does,
@@ -303,6 +312,15 @@ namespace WhatsappApp.Pages
             CallDetailText.Text = detail;
 
             bool ringing = call.State == CallState.Ringing;
+
+            // A call that rings is a call screen, as on a phone: the banner below is the strip
+            // that stays for a call whose screen has been closed with the back button.
+            if (ringing && Frame != null && Frame.CurrentSourcePageType != typeof(CallPage))
+            {
+                Frame.Navigate(typeof(CallPage));
+                return;
+            }
+
             bool live = call.State == CallState.Connecting || call.State == CallState.Active;
 
             AcceptCallButton.Content = Loc.Get("Call_Accept", "Accept");
@@ -312,6 +330,63 @@ namespace WhatsappApp.Pages
             AcceptCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             DeclineCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             EndCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+
+            StartCallTicker();
+        }
+
+        /// <summary>
+        /// Starts the banner's clock, once. A second start would be a second timer drawing the
+        /// same line.
+        /// </summary>
+        private void StartCallTicker()
+        {
+            if (_callTicker == null)
+            {
+                _callTicker = new DispatcherTimer();
+                _callTicker.Interval = TimeSpan.FromSeconds(1);
+                _callTicker.Tick += OnCallTick;
+            }
+
+            if (!_callTicker.IsEnabled) _callTicker.Start();
+        }
+
+        private void StopCallTicker()
+        {
+            if (_callTicker != null && _callTicker.IsEnabled) _callTicker.Stop();
+        }
+
+        /// <summary>
+        /// Once a second while the banner is up: the duration moves, and a call that nobody
+        /// answered is ended instead of holding the session for good.
+        /// </summary>
+        private void OnCallTick(object sender, object e)
+        {
+            CallSession call = DataService.Instance.Call;
+
+            if (call == null || !call.Shows)
+            {
+                StopCallTicker();
+                CallBanner.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            if (call.Expired(DateTime.UtcNow, DataService.CallSetupSeconds))
+            {
+                Guarded.RunGuardedAsync("HomePage/no answer",
+                    DataService.Instance.EndUnansweredCallAsync());
+                return;
+            }
+
+            ShowCall();
+        }
+
+        /// <summary>The time as a call screen writes it: minutes and seconds.</summary>
+        private static string CallDuration(int seconds)
+        {
+            if (seconds < 0) seconds = 0;
+
+            int minutes = seconds / 60;
+            return minutes + ":" + (seconds % 60).ToString("00");
         }
 
         /// <summary>A call's name: the contact's, or the address as it is.</summary>
