@@ -37,6 +37,7 @@ namespace WhatsappApp.Pages
             ToolTipService.SetToolTip(BackButton, Loc.Get("ContactInfoPage_BackTooltip", "Back"));
 
             TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info");
+            CallButton.Content = Loc.Get("Call_Start", "Call");
             NumberLabel.Text = Loc.Get("ContactInfoPage_Number", "Phone number");
             AboutLabel.Text = Loc.Get("ContactInfoPage_About", "About");
             BusinessLabel.Text = Loc.Get("ContactInfoPage_Business", "Business");
@@ -64,6 +65,11 @@ namespace WhatsappApp.Pages
             DataContext = _contact;
             NameText.Text = _contact.Name;
 
+            // A group is not called from here: this client's call signalling is one-to-one
+            // (`CallSignaling` builds an offer to one address), and a button that offered a
+            // group call the app cannot place would be the wrong promise.
+            CallButton.Visibility = IsGroup(_contact.Id) ? Visibility.Collapsed : Visibility.Visible;
+
             RequestInfo();
         }
 
@@ -80,6 +86,28 @@ namespace WhatsappApp.Pages
         /// the source, and this is the same contact object. The picture is a query with
         /// an answer, and it is guarded like every other network call.
         /// </summary>
+        /// <summary>
+        /// Calls this person: the offer goes out and the page steps back, because the call
+        /// banner lives on the home screen - a call placed from here with no banner in front
+        /// of it would be a press that seemed to do nothing.
+        /// </summary>
+        private void CallButton_Click(object sender, RoutedEventArgs e)
+        {
+            if (_contact == null) return;
+
+            Guarded.RunGuardedAsync("ContactInfoPage/start call",
+                DataService.Instance.StartCallAsync(_contact.Id, false));
+
+            if (Frame.CanGoBack) Frame.GoBack();
+        }
+
+        private static bool IsGroup(string jid)
+        {
+            if (string.IsNullOrEmpty(jid)) return false;
+
+            return jid.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
+        }
+
         private void RequestInfo()
         {
             var known = new ContactInfo();

@@ -606,6 +606,16 @@ namespace WhatsappApp.Services
                     continue;
                 }
 
+                // A call node is read before the message path and never inside it: the verb
+                // is a child of the node, the node carries no ciphertext, and an offer that
+                // arrives while a message is being decrypted is still a phone that must ring
+                // now. Nothing here throws - `AnnounceCall` reads and reports.
+                if (kind == InboundKind.Call)
+                {
+                    AnnounceCall(node);
+                    continue;
+                }
+
                 if (kind == InboundKind.Receipt)
                 {
                     AnnounceReceipt(node);
@@ -3147,6 +3157,106 @@ namespace WhatsappApp.Services
 
             await session.SendAsync(Calls.Reject(callId, jid));
             Diag.Ok("native: refused the call " + callId + " from " + jid);
+        }
+
+        /// <summary>
+        /// A call node arrived: read it, say it in the log, and hand it to whoever is
+        /// watching (the call banner, through `DataService`).
+        ///
+        /// The log line is the diagnostic this feature needs most: the shape of an offer is
+        /// the part of the protocol this client is least sure of, and a line naming the verb,
+        /// the id and whether it is video is what turns "the phone did not ring" into "the
+        /// node said `transport`". Nothing here answers the node: the answer is a decision
+        /// the user makes, in the banner.
+        /// </summary>
+        private void AnnounceCall(BinaryNode node)
+        {
+            CallSignal signal = CallSignaling.Read(node);
+
+            if (signal == null || string.IsNullOrEmpty(signal.CallId))
+            {
+                Diag.Ok("native: a call node this client cannot read: " + (node == null ? "no node" : node.ToString()));
+                return;
+            }
+
+            Diag.Ok("native: call " + signal.CallId + " " + signal.Kind
+                + (signal.IsVideo ? " (video)" : "")
+                + (string.IsNullOrEmpty(signal.From) ? "" : " from " + signal.From)
+                + (string.IsNullOrEmpty(signal.Reason) ? "" : " reason " + signal.Reason));
+
+            if (CallSignalled != null) CallSignalled(this, signal);
+        }
+
+        /// <summary>
+        /// A call node that arrived, for whoever draws the banner. Raised on the read loop:
+        /// a handler must hand its work to the page, not wait for it (see `Guarded`).
+        /// </summary>
+        public event EventHandler<CallSignal> CallSignalled;
+
+        /// <summary>
+        /// Places a call: the `offer` node, and the id this app invents for it.
+        ///
+        /// The id is generated here and not by the page, because every later node of the
+        /// call - the answer, the end - is addressed by it, and a page that made its own
+        /// would be a second place the identity of a call can be wrong.
+        ///
+        /// What this does **not** do is set up the media: see
+        /// `docs/superpowers/specs/2026-11-02-voice-and-video-calls-design.md`. The other
+        /// phone rings on the strength of this stanza; whether it accepts a call whose
+        /// offer carries no negotiation is the open question this feature exists to answer.
+        /// </summary>
+        public async Task<string> OfferCallAsync(string jid, bool video)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a call is made to somebody");
+
+            string callId = NewCallId();
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(CallSignaling.Offer(callId, jid, video));
+            Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId + " to " + jid);
+
+            return callId;
+        }
+
+        /// <summary>The callee's phone says it has the offer and is preparing its side.</summary>
+        public async Task PreAcceptCallAsync(string callId, string jid)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(CallSignaling.PreAccept(callId, jid));
+            Diag.Ok("native: pre-accepted the call " + callId);
+        }
+
+        /// <summary>This phone answers a call that is ringing.</summary>
+        public async Task AcceptCallAsync(string callId, string jid)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(CallSignaling.Accept(callId, jid));
+            Diag.Ok("native: accepted the call " + callId + " from " + jid);
+        }
+
+        /// <summary>
+        /// Hangs up, with the reason the other side's log reads: `timeout` for a call that
+        /// was never answered, `reject` for a refusal, and whatever the end of a live call
+        /// is called - the word matters, because it is what the two logs agree on.
+        /// </summary>
+        public async Task TerminateCallAsync(string callId, string jid, string reason)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(CallSignaling.Terminate(callId, jid, reason));
+            Diag.Ok("native: ended the call " + callId + " reason " + reason);
+        }
+
+        /// <summary>
+        /// A call's id: sixteen upper-case hex characters, made the same way the rest of this
+        /// client names a stanza. It is not a message id and does not go through the message
+        /// id path: a call id only has to be unique among calls.
+        /// </summary>
+        private static string NewCallId()
+        {
+            return System.Guid.NewGuid().ToString("N").Substring(0, 16).ToUpperInvariant();
         }
 
         /// <summary>

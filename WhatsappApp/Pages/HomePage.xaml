@@ -318,6 +318,43 @@
             <controls:CallsPane x:Name="CallsView"/>
         </FlipView>
 
+        <!-- The call, over every tab: a call is not a section of the app, and a phone that
+             rang only while the Calls tab was open would be a phone that did not ring. Three
+             buttons and no picture of anybody: this is a banner, and the page it covers is
+             still the conversation. -->
+        <Border x:Name="CallBanner" Grid.RowSpan="3"
+                Background="#E6202020" Padding="16,10,16,10"
+                VerticalAlignment="Top" Visibility="Collapsed">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock x:Name="CallTitleText" Foreground="White" FontSize="19"
+                               FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock x:Name="CallDetailText" Foreground="#FFCFCFCF" FontSize="13"
+                               TextWrapping="Wrap" MaxHeight="34"/>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="AcceptCallButton" Click="AcceptCall_Click"
+                            Background="#FF25D366" Foreground="White" BorderThickness="0"
+                            MinWidth="0" MinHeight="0" Height="40" Padding="14,0"
+                            FontSize="15" Margin="4,0"/>
+                    <Button x:Name="DeclineCallButton" Click="DeclineCall_Click"
+                            Background="#FFD32F2F" Foreground="White" BorderThickness="0"
+                            MinWidth="0" MinHeight="0" Height="40" Padding="14,0"
+                            FontSize="15" Margin="4,0"/>
+                    <Button x:Name="EndCallButton" Click="EndCall_Click"
+                            Background="#FFD32F2F" Foreground="White" BorderThickness="0"
+                            MinWidth="0" MinHeight="0" Height="40" Padding="14,0"
+                            FontSize="15" Margin="4,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
         <!-- The app bar. One bar, three sets of actions: the panel follows the tab.
              It is a *minimum* 72 px, not a fixed height: the WP bar is 72, and a bar
              that grows with its content can never cut the icons when the label font

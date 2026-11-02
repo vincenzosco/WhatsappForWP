@@ -164,6 +164,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.MessageRevoked += OnMessageRevoked;
             NativeConnection.Instance.MediaArrived += OnNativeMedia;
             NativeConnection.Instance.CallsScanned += OnNativeCalls;
+            NativeConnection.Instance.CallSignalled += OnNativeCall;
             NativeConnection.Instance.StatusArrived += OnNativeStatusPost;
             NativeConnection.Instance.StatusMediaArrived += OnNativeStatusMedia;
 
@@ -298,6 +299,229 @@ namespace WhatsappApp.Services
 
         /// <summary>The scan is done: the page can stop waiting.</summary>
         public event EventHandler CallsScanCompleted;
+
+        /// <summary>
+        /// The call that is on screen, if any. One object for the whole app, because a call
+        /// is one thing: the banner, the answer and the end all have to be talking about the
+        /// same call, and a page that kept its own copy would be a second opinion.
+        /// </summary>
+        private readonly CallSession _call = new CallSession();
+
+        public CallSession Call
+        {
+            get { return _call; } }
+
+        /// <summary>The call changed state: the banner redraws.</summary>
+        public event EventHandler CallChanged;
+
+        /// <summary>
+        /// A call node arrived. The state machine decides whether it is news - a repeat of
+        /// the call already ringing is not - and only a real change is told to the page.
+        /// </summary>
+        private void OnNativeCall(object sender, CallSignal signal)
+        {
+            if (signal == null || string.IsNullOrEmpty(signal.CallId)) return;
+
+            bool changed = false;
+
+            try
+            {
+                switch (signal.Kind)
+                {
+                    case CallKind.Offer:
+                        // An offer while another call is up is refused as busy: the caller
+                        // deserves a reason, and a banner that replaced a live call would
+                        // lose the call it was showing.
+                        if (_call.Occupied && _call.CallId != signal.CallId)
+                        {
+                            // Sent, not waited for: this runs on the read loop, and a
+                            // socket write the loop is blocked on is the phone that stops
+                            // reading while it says no. The refusal is about the *offered*
+                            // call, not about the one on screen - the id and the peer are the
+                            // offer's own.
+                            string offered = JidUtils.Normalize(string.IsNullOrEmpty(signal.From)
+                                ? signal.To : signal.From);
+
+                            // The refusal runs on its own, as every guarded run does here:
+                            // this is the read loop, and the loop does not wait for a socket
+                            // write to say no.
+#pragma warning disable 4014
+                            Guarded.RunGuardedAsync("DataService/busy call",
+                                RefuseAsync(signal.CallId, offered, "busy"));
+#pragma warning restore 4014
+                            return;
+                        }
+
+                        changed = _call.Ring(signal.CallId, JidUtils.Normalize(Named(
+                            string.IsNullOrEmpty(signal.From) ? signal.To : signal.From)), signal.IsVideo);
+                        break;
+
+                    case CallKind.PreAccept:
+                        changed = _call.PreAccept(signal.CallId);
+                        break;
+
+                    case CallKind.Accept:
+                        changed = _call.Connect(signal.CallId);
+                        break;
+
+                    case CallKind.Reject:
+                    case CallKind.Terminate:
+                        changed = _call.End(signal.CallId, signal.Reason);
+                        break;
+                }
+            }
+            catch (Exception ex)
+            {
+                // A call node must not take the read loop down: one stanza it cannot act on
+                // is one stanza, exactly as a message is.
+                Diag.Failed("DataService/incoming call", ex);
+                return;
+            }
+
+            if (changed) RaiseCallChanged();
+        }
+
+        /// <summary>
+        /// Answers the call that is ringing. The signal goes out first and the state follows
+        /// it: a banner that said "in call" for an `accept` the socket never carried would be
+        /// a promise this client cannot keep.
+        /// </summary>
+        public async Task AcceptCallAsync()
+        {
+            if (_call.State != CallState.Ringing) return;
+
+            string callId = _call.CallId;
+            string peer = _call.PeerJid;
+
+            try
+            {
+                await NativeConnection.Instance.AcceptCallAsync(callId, peer);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/accept call", ex);
+                _call.End(callId, "failed");
+                RaiseCallChanged();
+                return;
+            }
+
+            if (_call.Connect(callId)) RaiseCallChanged();
+        }
+
+        /// <summary>
+        /// Refuses the call that is ringing. `busy` is the reason a refusal carries when
+        /// another call is already up, and `reject` when the person said no: the other log
+        /// shows the two differently.
+        /// </summary>
+        public Task DeclineCallAsync()
+        {
+            if (_call.State != CallState.Ringing) return Task.FromResult(0);
+
+            return RefuseAsync(_call.CallId, _call.PeerJid, "reject");
+        }
+
+        /// <summary>
+        /// Refuses one call by its id. It is not `DeclineCallAsync` with a parameter because
+        /// the two callers mean different things: the banner refuses the call on screen, and
+        /// the read loop refuses an offer for a call that could not be shown at all (the id
+        /// is the offer's, and the session never had it).
+        /// </summary>
+        private async Task RefuseAsync(string callId, string peer, string reason)
+        {
+            if (string.IsNullOrEmpty(callId) || string.IsNullOrEmpty(peer)) return;
+
+            try
+            {
+                await NativeConnection.Instance.RejectCallAsync(callId, peer);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/decline call", ex);
+            }
+
+            if (_call.End(callId, reason)) RaiseCallChanged();
+        }
+
+        /// <summary>
+        /// Hangs up. `timeout` is a call that was never answered and `reject` one that was
+        /// declined; anything else is a call that had been up, and the word for that is the
+        /// one the log already shows.
+        /// </summary>
+        public async Task EndCallAsync()
+        {
+            if (!_call.Occupied) return;
+
+            string callId = _call.CallId;
+            string peer = _call.PeerJid;
+            string reason = _call.State == CallState.Ringing ? "reject"
+                : _call.State == CallState.Connecting ? "timeout"
+                : "accepted";
+
+            try
+            {
+                await NativeConnection.Instance.TerminateCallAsync(callId, peer, reason);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/end call", ex);
+            }
+
+            if (_call.End(callId, reason)) RaiseCallChanged();
+        }
+
+        /// <summary>
+        /// Calls somebody. The id comes back from the client, and the state starts at
+        /// `Connecting`: this phone is the one waiting now.
+        /// </summary>
+        public async Task StartCallAsync(string jid, bool video)
+        {
+            if (string.IsNullOrEmpty(jid))
+                throw new ArgumentException("a call is made to somebody", "jid");
+
+            if (_call.Occupied)
+            {
+                Diag.Ok("calls: a call is already up, so " + jid + " was not called");
+                return;
+            }
+
+            string callId;
+
+            try
+            {
+                callId = await NativeConnection.Instance.OfferCallAsync(jid, video);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("DataService/start call", ex);
+                return;
+            }
+
+            if (_call.Dial(callId, JidUtils.Normalize(jid), video)) RaiseCallChanged();
+        }
+
+        /// <summary>Takes the ended call off the screen.</summary>
+        public void DismissCall()
+        {
+            _call.Clear();
+            RaiseCallChanged();
+        }
+
+        /// <summary>
+        /// The name a call banner shows: the contact's, or the address without its device.
+        /// It goes through the same name book as a chat row, so a call and its conversation
+        /// cannot disagree about who it is.
+        /// </summary>
+        private static string Named(string jid)
+        {
+            string name = NameCache.Book.NameFor(jid);
+            return string.IsNullOrEmpty(name) ? jid : name;
+        }
+
+        private void RaiseCallChanged()
+        {
+            var handler = CallChanged;
+            if (handler != null) handler(this, EventArgs.Empty);
+        }
 
         /// <summary>
         /// The status feed: one row per update, newest first.

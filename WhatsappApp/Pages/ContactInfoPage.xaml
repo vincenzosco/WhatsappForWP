@@ -57,6 +57,15 @@
         <ScrollViewer Grid.Row="1">
             <StackPanel Margin="0,0,0,24">
 
+                <!-- The way out of this page and into a call. One button, and its
+                     word is written by the handler: the label is a string of the app,
+                     like every other label here. -->
+                <Button x:Name="CallButton" Click="CallButton_Click"
+                        Background="#FF25D366" Foreground="White" BorderThickness="0"
+                        MinWidth="0" MinHeight="0" Height="44" Padding="20,0"
+                        FontSize="16" Margin="24,12,24,0"
+                        HorizontalAlignment="Stretch"/>
+
                 <!-- The big picture. It is a Border and not an Image for the same
                      reason as the list row: WP8.1 clips a circle only with the
                      CornerRadius of a background. -->

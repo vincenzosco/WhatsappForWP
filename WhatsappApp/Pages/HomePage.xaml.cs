@@ -15,6 +15,7 @@ using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Controls;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.WABinary;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
@@ -210,6 +211,12 @@ namespace WhatsappApp.Pages
             DataService.Instance.CallsScanCompleted -= OnCallsScanCompleted;
             DataService.Instance.CallsScanCompleted += OnCallsScanCompleted;
 
+            // The call banner: a call can arrive on any tab, and this page is the one place
+            // all three tabs live at once.
+            DataService.Instance.CallChanged -= OnCallChanged;
+            DataService.Instance.CallChanged += OnCallChanged;
+            ShowCall();
+
             // A tile on the Start screen asked for a chat before this page existed: the
             // arguments are read by `App`, and this is the first moment there is a page to
             // open it on.
@@ -227,6 +234,118 @@ namespace WhatsappApp.Pages
             DataService.Instance.MessageArrived -= OnBadgeChanged;
             DataService.Instance.StatusesChanged -= OnStatusesChanged;
             DataService.Instance.CallsScanCompleted -= OnCallsScanCompleted;
+            DataService.Instance.CallChanged -= OnCallChanged;
+        }
+
+        // ----------------------------------------------------------------- calls
+
+        private void OnCallChanged(object sender, EventArgs e)
+        {
+            ShowCall();
+        }
+
+        /// <summary>
+        /// Draws the call banner from the one `CallSession` the app has.
+        ///
+        /// The three buttons are not a menu of what is possible: `Accept` and `Decline` only
+        /// exist while a call is ringing, `End` only while one is up. The detail line says
+        /// the state, and when the call is up it says the thing this build cannot do - the
+        /// voice does not travel yet - so a silent call is a sentence on screen and not a
+        /// bug report.
+        /// </summary>
+        private void ShowCall()
+        {
+            CallSession call = DataService.Instance.Call;
+
+            if (call == null || !call.Shows)
+            {
+                CallBanner.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            CallBanner.Visibility = Visibility.Visible;
+            CallTitleText.Text = NameOf(call.PeerJid);
+
+            string kind = call.IsVideo
+                ? Loc.Get("Call_Video", "Video call")
+                : Loc.Get("Call_Voice", "Voice call");
+
+            string state;
+            switch (call.State)
+            {
+                case CallState.Ringing:
+                    state = Loc.Get("Call_Incoming", "Incoming call");
+                    break;
+                case CallState.Connecting:
+                    state = Loc.Get("Call_Connecting", "Connecting...");
+                    break;
+                case CallState.Active:
+                    state = Loc.Get("Call_Active", "In call");
+                    break;
+                default:
+                    state = Loc.Get("Call_Ended", "Call ended");
+                    break;
+            }
+
+            string detail = kind + " · " + state;
+            if (call.State == CallState.Active)
+            {
+                // Said plainly, on the call itself: the signalling is what this build does,
+                // and the media is the next piece (see the calls design document).
+                detail = detail + "\n" + Loc.Get("Call_NoAudio",
+                    "No audio yet: this build only signals the call.");
+            }
+            else if (call.State == CallState.Ended && !string.IsNullOrEmpty(call.EndedReason))
+            {
+                detail = detail + " (" + call.EndedReason + ")";
+            }
+
+            CallDetailText.Text = detail;
+
+            bool ringing = call.State == CallState.Ringing;
+            bool live = call.State == CallState.Connecting || call.State == CallState.Active;
+
+            AcceptCallButton.Content = Loc.Get("Call_Accept", "Accept");
+            DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
+            EndCallButton.Content = Loc.Get("Call_End", "End");
+
+            AcceptCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
+            DeclineCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
+            EndCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        /// <summary>A call's name: the contact's, or the address as it is.</summary>
+        private static string NameOf(string jid)
+        {
+            if (string.IsNullOrEmpty(jid)) return "";
+
+            string name = NameCache.Book.NameFor(jid);
+            return string.IsNullOrEmpty(name) ? JidUtils.Normalize(jid) : name;
+        }
+
+        private void AcceptCall_Click(object sender, RoutedEventArgs e)
+        {
+            Guarded.RunGuardedAsync("HomePage/accept call", DataService.Instance.AcceptCallAsync());
+        }
+
+        private void DeclineCall_Click(object sender, RoutedEventArgs e)
+        {
+            Guarded.RunGuardedAsync("HomePage/decline call", DataService.Instance.DeclineCallAsync());
+        }
+
+        /// <summary>
+        /// The red button: it hangs up a call that is up, and takes an ended one off the
+        /// screen - the same button, because it is the same gesture to a person.
+        /// </summary>
+        private void EndCall_Click(object sender, RoutedEventArgs e)
+        {
+            if (DataService.Instance.Call.State == CallState.Ended)
+            {
+                DataService.Instance.DismissCall();
+                return;
+            }
+
+            Guarded.RunGuardedAsync("HomePage/end call", DataService.Instance.EndCallAsync());
         }
 
         private static int SectionIndex(AppSection section)

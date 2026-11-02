@@ -145,16 +145,11 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static BinaryNode Reject(string callId, string jid)
         {
-            if (string.IsNullOrEmpty(callId)) throw new ProtocolException("a call is refused by its id");
-            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a call is refused to somebody");
-
-            var node = new BinaryNode("call");
-            node.Attrs.Add("to", jid);
-            node.Attrs.Add("id", callId);
-
-            node.Content = new List<BinaryNode> { new BinaryNode("reject") };
-
-            return node;
+            // Built by `CallSignaling` and not here, because the rest of the family
+            // (`offer`, `preaccept`, `accept`, `terminate`) lives there now: one node with
+            // one verb child is a shape with one author, and a `reject` built by a second
+            // one is how the two answers drift apart.
+            return CallSignaling.Reject(callId, jid, null);
         }
     }
 }
