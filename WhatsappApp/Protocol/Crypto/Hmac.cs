@@ -46,6 +46,42 @@ namespace WhatsappApp.Protocol.Crypto
         }
 
         /// <summary>
+        /// HMAC-SHA1, which exists for one caller: SRTP authenticates every media packet
+        /// with it, truncated to 80 bits (RFC 3711, section 4.2). The block is 64 bytes, as
+        /// for SHA-256, so a key of 20 bytes is padded and never hashed.
+        /// </summary>
+        public static byte[] ComputeSha1(byte[] key, byte[] data)
+        {
+            if (key == null) throw new ProtocolException("HMAC needs a key");
+            if (data == null) data = new byte[0];
+
+            byte[] block = new byte[BlockLength];
+            if (key.Length > BlockLength)
+            {
+                byte[] hashed = Sha1.Hash(key);
+                Buffer.BlockCopy(hashed, 0, block, 0, hashed.Length);
+            }
+            else
+            {
+                Buffer.BlockCopy(key, 0, block, 0, key.Length);
+            }
+
+            var inner = new byte[BlockLength + data.Length];
+            var outer = new byte[BlockLength + Sha1.DigestLength];
+
+            for (int i = 0; i < BlockLength; i++)
+            {
+                inner[i] = (byte)(block[i] ^ 0x36);
+                outer[i] = (byte)(block[i] ^ 0x5c);
+            }
+
+            Buffer.BlockCopy(data, 0, inner, BlockLength, data.Length);
+            Buffer.BlockCopy(Sha1.Hash(inner), 0, outer, BlockLength, Sha1.DigestLength);
+
+            return Sha1.Hash(outer);
+        }
+
+        /// <summary>
         /// HMAC-SHA512, for the one place that needs a wider digest: the app-state sync's
         /// mutation MAC, which the reference signs with sha512 and keeps the **first 32
         /// bytes** of (`Utils/chat-utils.js`, `generateMac`, and `hmacSign(total, key,
