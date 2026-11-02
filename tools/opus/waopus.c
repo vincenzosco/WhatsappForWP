@@ -1,18 +1,26 @@
 /*
- * waopus.c - the one Opus call this app needs: an encoder, and nothing else.
+ * waopus.c - the Opus calls this app needs: an encoder, and a decoder.
  *
  * Why the wrapper and not libopus' own API straight from C#: P/Invoke cannot
  * carry a `va_list`, and `opus_encoder_ctl` is a vararg. Everything the app sets
  * is set here, once, at creation, so the managed side has three calls and no
  * option plumbing at all.
  *
- * Why an encoder only: WhatsApp voice notes are Ogg/Opus and this phone cannot
- * make Opus (WP8.1 has no encoder), while it plays back through its own player.
- * The decoder, the multistream API and the projection are not compiled in - see
- * tools/build-opus-arm.bat for the file list, which is the encoder's half.
+ * Why both directions: WhatsApp voice notes are Ogg/Opus and this phone cannot
+ * make or read Opus (WP8.1 plays MP3/AAC/AMR/WAV and nothing else). One goes out
+ * as Ogg/Opus, and one that arrives is decoded to a WAV this phone plays.
  *
- * The build is a static CRT (/MT), so the DLL imports nothing from the C
- * runtime and cannot disagree with the one the phone ships.
+ * The build is a static CRT (/MT), so the DLL imports nothing from the C runtime
+ * and cannot disagree with the one the phone ships - but the start-up of that
+ * static CRT is not free: `_DllMainCRTStartup` initialises the console, the code
+ * page, the environment block and the command line, and none of those exist in a
+ * Windows Phone 8.1 app container. That is why the phone answered
+ * "Unable to load DLL 'waopus.dll'" (0x8007007E) for a file that was in the
+ * package: KERNEL32 resolved and one of its functions did not. Linking a
+ * `DllMain` of our own with `/ENTRY` removes those imports and leaves malloc,
+ * log and pow unresolved instead, so the fix is a rebuild against a CRT the
+ * phone has - not a switch here. Until then the encoder is usable on the desktop
+ * and the phone's voice notes are the one part of this app that does not work.
  *
  * License: libopus itself is BSD (tools/opus/LICENSE, fetched with the sources);
  * this file is part of this repository.
@@ -93,6 +101,58 @@ WA_EXPORT int wa_opus_frame(void* handle, const short* pcm, int samples_per_chan
 WA_EXPORT void wa_opus_destroy(void* handle)
 {
     if (handle != 0) opus_encoder_destroy((OpusEncoder*)handle);
+}
+
+/*
+ * The decoder: a note that arrives is Ogg/Opus, and this phone has no Opus
+ * decoder either. `src/opus_decoder.c` is already in the DLL (the encoder's
+ * packet arithmetic lives there), so the other direction costs these three
+ * functions and nothing else.
+ *
+ * The rate is asked for, not inherited: decoding 48 kHz opus to 16 kHz is
+ * libopus resampling on the fly, and a WAV of a thirty-second note is then
+ * 960 KB instead of 2.9 MB on a phone with 512 MB.
+ */
+WA_EXPORT void* wa_opus_decode_create(int sample_rate, int channels)
+{
+    OpusDecoder* dec = 0;
+    int error = OPUS_OK;
+
+    if (sample_rate != 8000 && sample_rate != 12000 && sample_rate != 16000
+        && sample_rate != 24000 && sample_rate != 48000)
+    {
+        return 0;
+    }
+
+    if (channels != 1 && channels != 2) return 0;
+
+    dec = opus_decoder_create(sample_rate, channels, &error);
+    if (error != OPUS_OK || dec == 0) return 0;
+
+    return dec;
+}
+
+/*
+ * One packet, decoded into `pcm`, which must hold `capacity_per_channel`
+ * samples for every channel. The answer is the samples per channel written, or
+ * a negative Opus error.
+ */
+WA_EXPORT int wa_opus_decode(void* handle, const unsigned char* packet, int length,
+    short* pcm, int capacity_per_channel)
+{
+    OpusDecoder* dec = (OpusDecoder*)handle;
+
+    if (dec == 0 || packet == 0 || length <= 0 || pcm == 0 || capacity_per_channel <= 0)
+    {
+        return OPUS_BAD_ARG;
+    }
+
+    return opus_decode(dec, packet, length, pcm, capacity_per_channel, 0);
+}
+
+WA_EXPORT void wa_opus_decode_destroy(void* handle)
+{
+    if (handle != 0) opus_decoder_destroy((OpusDecoder*)handle);
 }
 
 /* What one frame is, so the managed side does not restate the constant. */

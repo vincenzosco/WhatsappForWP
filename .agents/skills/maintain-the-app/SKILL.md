@@ -698,13 +698,16 @@ waiting) and the message is marked read when the reader reaches it.
   true from `MediaType` alone, so it is tappable before the bytes arrive - the first tap
   downloads them, and `ChatMessage.IsMediaLoading` turns the ring in the bubble while
   they do.
-- **WP8.1 has no Opus codec of its own.** WhatsApp voice notes are Ogg/Opus, and Opus
-  only arrived on Windows 10: the phone can play MP3, AAC/M4A, AMR and WAV, so a note
-  that arrives cannot be decoded here. The outgoing direction is solved **on the
-  phone** - the encoder is `WhatsappApp/waopus.dll`, built by
-  `tools/build-opus-arm.bat` from libopus and `tools/opus/waopus.c` - and the README
-  pair's Limiti/Limitations section says what that does and does not cover. Audio and
-  documents are `MediaType` values,
+- **WP8.1 has no Opus codec of its own, so the app carries one.** WhatsApp voice notes
+  are Ogg/Opus and Opus only arrived on Windows 10; this platform plays MP3, AAC/M4A,
+  AMR and WAV. Both directions are therefore codec work **on the phone**, in
+  `WhatsappApp/waopus.dll` - built by `tools/build-opus-arm.bat` from libopus and
+  `tools/opus/waopus.c`, and listed in `WhatsApp.csproj` as `Content` at the package
+  root, which is where P/Invoke looks. A `DllNotFoundException` from
+  `wa_opus_api` means exactly one thing: the DLL is not in the installed package
+  (`unzip -l` the `.appx` and look), not that the code is wrong. `AudioCodecCheck.Run()`
+  says which half a package has, once per start, in the `voice:` line; it is the first
+  thing to read when a note is silent. Audio and documents are `MediaType` values,
   not `MessageType` values:
   `MessageType` has no `Document` and adding one would change what every older
   frame deserializes to, so `ChatMessage.IsAudio` and `ChatMessage.IsDocument`
@@ -726,7 +729,14 @@ waiting) and the message is marked read when the reader reaches it.
   whose projection has no WAV profile - goes as an ordinary audio message, which plays.
   `AttachmentInbox.KindName` must answer `audio` for an audio MIME type or
   extension: without that branch a voice note is sent as a document, and the
-  receiver sees a file to download instead of a note to play. That word is the one
+  receiver sees a file to download instead of a note to play. **An arriving note is
+  decoded where it is stored**: `Services/IncomingMediaStore.cs` hands the bytes to
+  `Services/VoiceNoteDecoder.cs` before writing them, so the file in `LocalFolder` and
+  the `MediaFilePath` the one `VoicePlayer` opens are a 16 kHz WAV and not the Ogg.
+  `Protocol/Media/OggOpus.Read` is the reader that makes that possible - it walks the
+  pages, rebuilds the packets from their lacing and reads `OpusHead`; a note that is
+  not Opus, or a package with no DLL, keeps the original bytes and the bubble shows
+  the failure it always showed. That word is the one
   `Protocol/Media/MediaUpload.cs` derives the keys with (`image`, `video`, `audio`,
   `document`) and the one the message carries, so the two sides of the wire have to
   agree on it.

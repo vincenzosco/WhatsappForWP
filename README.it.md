@@ -71,9 +71,8 @@ C# 5; un telefono che non è il numero principale.
 
 **Non va bene per:** sostituire WhatsApp sul telefono principale. È un client non ufficiale,
 viola i Termini di servizio di WhatsApp, e il numero che colleghi può essere bannato. Usa un numero
-di prova o secondario. Non è nemmeno un client completo: i vocali in Ogg/Opus non si sentono, la
-history vecchia non viene chiesta su richiesta, e le modifiche fatte da altri dispositivi non
-vengono lette.
+di prova o secondario. Non è nemmeno un client completo: la history vecchia non viene chiesta su
+richiesta, e le modifiche fatte da altri dispositivi non vengono lette.
 
 ## Compilarlo
 
@@ -246,12 +245,15 @@ Stati e Chiamate sono quello che dice che quelle due hanno qualcosa di nuovo.
 <summary><strong>Un vocale di WhatsApp non si sente</strong></summary>
 <br>
 
-I vocali di WhatsApp sono Ogg/Opus, e WP8.1 non ha né un decoder né un encoder Opus: un vocale che
-arriva non si sente qui. Uno registrato qui invece parte come vocale vero, perché la conversione
-avviene **sul telefono**: la registrazione è PCM (`AudioRecorder`), `waopus.dll` la codifica in Opus
-(libopus compilata per ARM da `tools/build-opus-arm.bat`) e `Protocol/Media/OggOpus.cs` scrive il
-contenitore Ogg. Se il telefono non sa registrare in WAV, o la DLL non è nel pacchetto, il vocale
-esce come messaggio audio M4A: si ascolta, ma non è un vocale.
+I vocali di WhatsApp sono Ogg/Opus, e WP8.1 non ha né un decoder né un encoder Opus: tutte e due le
+direzioni sono lavoro sul codec fatto **sul telefono**, in `waopus.dll` (libopus compilata per ARM
+da `tools/build-opus-arm.bat`). Registrazione: `AudioRecorder` scrive PCM,
+`Services/VoiceNoteEncoder.cs` lo codifica e `Protocol/Media/OggOpus.cs` scrive il contenitore. Un
+vocale che arriva: `Services/VoiceNoteDecoder.cs` decodifica i pacchetti in un WAV a 16 kHz, che è
+un file che questa piattaforma sa suonare, e la bolla punta a quello. Se la DLL non è nel
+pacchetto non si sente niente: la riga `voice:` del log all'avvio dice quale delle due metà manca.
+Se invece il telefono non sa registrare in WAV, il vocale esce come messaggio audio M4A: si
+ascolta, ma non è un vocale.
 </details>
 
 <details>

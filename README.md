@@ -71,8 +71,8 @@ C# 5; a phone that is not your main number.
 
 **Not for:** replacing WhatsApp on your main phone. This is an unofficial client, it breaks
 WhatsApp's Terms of Service, and the number that links it can be banned. Use a test or secondary
-number. It is also not a complete client yet: voice notes in Ogg/Opus do not play, older history
-is not fetched on demand, and edits made from other devices are not read.
+number. It is also not a complete client yet: older history is not fetched on demand, and edits
+made from other devices are not read.
 
 ## Build it
 
@@ -239,13 +239,14 @@ Calls are what say those two have something new.
 <summary><strong>A voice note from WhatsApp does not play</strong></summary>
 <br>
 
-WhatsApp's own voice notes are Ogg/Opus, and WP8.1 has neither an Opus decoder nor an encoder: a
-note that arrives cannot be played here. One recorded here does go out as a real voice note,
-because the conversion happens **on the phone**: the recording is PCM (`AudioRecorder`),
-`waopus.dll` encodes it to Opus (libopus built for ARM by `tools/build-opus-arm.bat`) and
-`Protocol/Media/OggOpus.cs` writes the Ogg container. When the phone cannot record WAV, or the DLL
-is not in the package, the note leaves as an M4A audio message: it plays, but it is not a voice
-note.
+WhatsApp's own voice notes are Ogg/Opus, and WP8.1 has neither an Opus decoder nor an encoder, so
+both directions are codec work done **on the phone**, in `waopus.dll` (libopus built for ARM by
+`tools/build-opus-arm.bat`). Recording: `AudioRecorder` writes PCM,
+`Services/VoiceNoteEncoder.cs` encodes it and `Protocol/Media/OggOpus.cs` writes the container. A
+note that arrives: `Services/VoiceNoteDecoder.cs` decodes the packets to a 16 kHz WAV, which is a
+file this platform plays, and that is the file the bubble points at. Nothing plays if the DLL is
+not in the package - the last paragraph of this list says how that shows. When the phone cannot
+record WAV, the note leaves as an M4A audio message: it plays, but it is not a voice note.
 </details>
 
 <details>

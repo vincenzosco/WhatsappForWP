@@ -191,6 +191,114 @@ namespace WhatsappApp.Protocol.Media
             return crc;
         }
 
+        /// <summary>
+        /// One file, read back: the packets a decoder has to decode, and the two fields
+        /// that tell it how.
+        /// </summary>
+        public sealed class Content
+        {
+            /// <summary>The audio packets, in order. The two headers are not in here.</summary>
+            public List<byte[]> Packets;
+
+            /// <summary>One or two.</summary>
+            public int Channels;
+
+            /// <summary>The encoder's start-up delay, at 48 kHz, to drop before playing.</summary>
+            public int PreSkip;
+
+            /// <summary>The rate the note was recorded at, which is not the rate it decodes at.</summary>
+            public int InputSampleRate;
+        }
+
+        /// <summary>
+        /// The inverse of `Build`: the pages walked, the packets from their lacing, and the
+        /// identification header read.
+        ///
+        /// Why a reader of this client's own and not a library: what it has to accept is a
+        /// note another client recorded, so the walk is the specification's - a page is
+        /// `OggS`, a count of lacing values, those values, and a body whose length is their
+        /// sum - and the CRC is not checked, because a note that plays is worth more than a
+        /// note rejected over a field the decoder never reads.
+        ///
+        /// Answers null for anything that is not Ogg/Opus: a Vorbis `.ogg`, a truncated
+        /// file, an empty one.
+        /// </summary>
+        public static Content Read(byte[] file)
+        {
+            if (file == null || file.Length < 28) return null;
+            if (Text(file, 0, 4) != "OggS") return null;
+
+            var packets = new List<byte[]>();
+            var open = new List<byte>();
+            int at = 0;
+
+            while (at + 27 <= file.Length)
+            {
+                if (Text(file, at, 4) != "OggS") return null;
+
+                int segments = file[at + 26];
+                int headerLength = 27 + segments;
+                if (at + headerLength > file.Length) return null;
+
+                int payload = 0;
+                for (int i = 0; i < segments; i++) payload += file[at + 27 + i];
+
+                int body = at + headerLength;
+                if (body + payload > file.Length) return null;
+
+                // The lacing table says where the packets end. 255 means "goes on", and a
+                // packet can go on into the next page, which is why the tail is carried.
+                int cursor = body;
+
+                for (int i = 0; i < segments; i++)
+                {
+                    int lace = file[at + 27 + i];
+
+                    for (int b = 0; b < lace; b++) open.Add(file[cursor + b]);
+                    cursor += lace;
+
+                    if (lace < 255)
+                    {
+                        packets.Add(open.ToArray());
+                        open.Clear();
+                    }
+                }
+
+                at = body + payload;
+            }
+
+            // Two headers and at least one frame: a file without the first has no audio.
+            if (packets.Count < 3) return null;
+
+            byte[] head = packets[0];
+            if (head.Length < 19 || Text(head, 0, 8) != "OpusHead") return null;
+            if (head[8] != 1) return null;
+
+            int channels = head[9];
+            if (channels != 1 && channels != 2) return null;
+
+            var content = new Content();
+            content.Channels = channels;
+            content.PreSkip = (int)Little(head, 10, 2);
+            content.InputSampleRate = (int)Little(head, 12, 4);
+            content.Packets = packets.GetRange(2, packets.Count - 2);
+
+            return content;
+        }
+
+        private static long Little(byte[] bytes, int at, int length)
+        {
+            long value = 0;
+            for (int i = length - 1; i >= 0; i--) value = (value << 8) | bytes[at + i];
+
+            return value;
+        }
+
+        private static string Text(byte[] bytes, int at, int length)
+        {
+            return System.Text.Encoding.UTF8.GetString(bytes, at, length);
+        }
+
         private static void Text(byte[] into, int at, string text)
         {
             byte[] bytes = System.Text.Encoding.UTF8.GetBytes(text);

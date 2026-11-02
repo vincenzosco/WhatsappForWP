@@ -442,6 +442,14 @@ namespace WhatsappApp
             // free early what can be rebuilt.
             MemoryWatcher.Instance.Start();
 
+            // Whether this package carries the Opus codec, said once per run. It is a
+            // native file no compiler can miss: without it the app starts, records and
+            // sends, and only the voice notes are wrong - one goes out as M4A and one
+            // that arrives does not play (see AudioCodecCheck).
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("App/audio codec", AudioCodecCheck.RunAsync());
+#pragma warning restore 4014
+
             // The account this phone is linked as, brought online. This is the only
             // connection there is: the login WhatsApp needs after a pairing, the
             // client that keeps it, and the one that brings it back after a suspend

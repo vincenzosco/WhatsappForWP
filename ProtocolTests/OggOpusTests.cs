@@ -118,6 +118,71 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void TheFileReadsBackAsThePacketsItWasBuiltFrom()
+        {
+            // The reader is what the decoder walks a note another client recorded, so what
+            // it must answer is the packets and the two fields the decoder needs - and not
+            // the two headers, which are not audio.
+            var packets = new List<byte[]>();
+            for (int i = 0; i < 5; i++)
+            {
+                var packet = new byte[40];
+                for (int b = 0; b < packet.Length; b++) packet[b] = (byte)(i + b);
+                packets.Add(packet);
+            }
+
+            byte[] file = OggOpus.Build(packets, Rate, 1, 99);
+            OggOpus.Content content = OggOpus.Read(file);
+
+            Assert.IsTrue(content != null, "the file reads");
+            Assert.AreEqual(5, content.Packets.Count, "five frames, and not the two headers");
+            Assert.AreEqual(1, content.Channels);
+            Assert.AreEqual(OggOpus.DefaultPreSkip, content.PreSkip);
+            Assert.AreEqual(Rate, content.InputSampleRate);
+
+            for (int i = 0; i < packets.Count; i++)
+            {
+                Assert.AreEqual(packets[i].Length, content.Packets[i].Length, "frame " + i + " keeps its length");
+                for (int b = 0; b < packets[i].Length; b++)
+                {
+                    Assert.AreEqual(packets[i][b], content.Packets[i][b], "frame " + i + " byte " + b);
+                }
+            }
+        }
+
+        [Test]
+        public static void APacketLongerThanOnePageComesBackInOnePiece()
+        {
+            // 255 is "goes on", so a packet the reader must not split is the one whose
+            // lacing is 255 and then a remainder.
+            var packets = new List<byte[]>();
+            packets.Add(new byte[600]);
+            packets.Add(new byte[17]);
+
+            OggOpus.Content content = OggOpus.Read(OggOpus.Build(packets, Rate, 2, 5));
+
+            Assert.IsTrue(content != null, "the file reads");
+            Assert.AreEqual(2, content.Packets.Count, "two frames");
+            Assert.AreEqual(600, content.Packets[0].Length, "the long one is whole");
+            Assert.AreEqual(17, content.Packets[1].Length);
+            Assert.AreEqual(2, content.Channels, "and the header's channel count came with it");
+        }
+
+        [Test]
+        public static void WhatIsNotOggOpusIsNotRead()
+        {
+            Assert.IsTrue(OggOpus.Read(null) == null, "nothing");
+            Assert.IsTrue(OggOpus.Read(new byte[0]) == null, "an empty file");
+            Assert.IsTrue(OggOpus.Read(new byte[400]) == null, "a file of zeros is not Ogg");
+
+            // Half a file: a page that runs past the end is not read and not guessed.
+            byte[] file = Build(3, Frame);
+            var half = new byte[file.Length / 2];
+            System.Buffer.BlockCopy(file, 0, half, 0, half.Length);
+            Assert.IsTrue(OggOpus.Read(half) == null, "a truncated file is refused, not guessed");
+        }
+
+        [Test]
         public static void AnEmptyNoteIsRefused()
         {
             Assert.Throws<ProtocolException>(delegate

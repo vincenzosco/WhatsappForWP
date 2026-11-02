@@ -86,12 +86,32 @@ namespace WhatsappApp.Services
                 return result;
             }
 
+            // A voice note arrives as Ogg/Opus and this phone has no Opus decoder, so the
+            // bytes become a WAV here, once, and the chat page's one player opens a file the
+            // platform knows. A note that cannot be converted is written as it came: an
+            // unplayable file is still better than a bubble with nothing in it.
+            string playableMime = mimeType;
+            byte[] playable = bytes;
+
+            if (string.Equals(type, "audio", StringComparison.OrdinalIgnoreCase))
+            {
+                byte[] wav = VoiceNoteDecoder.ToWav(bytes);
+                if (wav != null)
+                {
+                    playable = wav;
+                    // The file on disk is a WAV and its name has to say so: the player picks
+                    // the decoder from the extension, and the cached row keeps that name.
+                    playableMime = "audio/wav";
+                    result.MimeType = playableMime;
+                }
+            }
+
             try
             {
                 StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    LocalNameFor(messageId, mimeType, fileName), CreationCollisionOption.ReplaceExisting);
+                    LocalNameFor(messageId, playableMime, fileName), CreationCollisionOption.ReplaceExisting);
 
-                await FileIO.WriteBytesAsync(file, bytes);
+                await FileIO.WriteBytesAsync(file, playable);
 
                 result.LocalFileName = file.Name;
                 return result;

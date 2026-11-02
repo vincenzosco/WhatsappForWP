@@ -205,6 +205,16 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Whether this package's `waopus.dll` loads at all: the encoder and the decoder
+        /// are the same file, so this one answer covers both (asked at start-up by
+        /// `AudioCodecCheck`).
+        /// </summary>
+        public static bool IsAvailable
+        {
+            get { return Available(); }
+        }
+
+        /// <summary>
         /// Whether the encoder can be loaded, asked once per process. A package without the
         /// DLL (a build before the encoder landed) is a fallback, not a crash: the call
         /// throws `DllNotFoundException` the first time and nothing after.
