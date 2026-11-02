@@ -193,6 +193,13 @@ namespace WhatsappApp.Services
         private static string MimeFor(string extension)
         {
             string value = (extension ?? "").ToLower();
+            // A photo from the camera roll is a JPEG, and it was the one extension the list
+            // did not name: every photo left as `application/octet-stream`, in a message that
+            // said it was an image. The receiving clients take the type from this field, so
+            // the photo of 1 November 2026 was a bubble nobody could draw - and one that no
+            // device acknowledged at all.
+            if (value == ".jpg") return "image/jpeg";
+            if (value == ".jpeg") return "image/jpeg";
             if (value == ".png") return "image/png";
             if (value == ".gif") return "image/gif";
             if (value == ".bmp") return "image/bmp";

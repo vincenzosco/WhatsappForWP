@@ -36,6 +36,74 @@ const INBOX = 'WhatsappApp/Services/AttachmentInbox.cs';
 const CHAT = 'WhatsappApp/Pages/ChatPage.xaml.cs';
 
 /**
+ * Le due tabelle di AttachmentInbox.cs: quella che classifica un'estensione
+ * (KindName) e quella che le da' un MIME (MimeFor).
+ *
+ * Perche' esiste: `.jpg` e `.jpeg` non erano in MimeFor, quindi ogni foto della
+ * galleria usciva come `application/octet-stream` in un messaggio che diceva di
+ * essere un'immagine. KindName la classificava lo stesso, dal nome del file, e
+ * quindi nulla in questo repository se ne accorgeva: la bolla locale la foto la
+ * mostrava, e i telefoni che la ricevevano non la disegnavano e non la
+ * confermavano. Un'estensione che l'app sa classificare e che la tabella dei MIME
+ * non conosce e' un file che parte con il tipo sbagliato.
+ */
+function untypedExtensions(text, file) {
+  const problems = [];
+  const mimeBody = between(text, 'string MimeFor(string extension)', 'string ExtensionFor(');
+  const kindBody = between(text, 'string KindName(string mimeType, string fileName)', null);
+
+  const table = {};
+  const entry = /if \(value == "(\.[a-z0-9]+)"\) return "([^"]+)";/g;
+  let match;
+
+  while ((match = entry.exec(mimeBody))) table[match[1]] = match[2];
+
+  const seen = {};
+  const extension = /name\.EndsWith\("(\.[a-z0-9]+)"\)/g;
+
+  while ((match = extension.exec(kindBody))) {
+    const ext = match[1];
+    if (seen[ext]) continue;
+    seen[ext] = true;
+
+    // The kind of this extension is the first `return "..."` after it: KindName's
+    // branches are lists of EndsWith followed by their answer.
+    const answer = kindBody.slice(match.index).match(/return "(image|video|audio|document)"/);
+    const kind = answer ? answer[1] : 'document';
+    const mime = table[ext];
+
+    if (!mime) {
+      problems.push(`${file}: KindName knows ${ext} and MimeFor does not, so a file with ` +
+        'that extension leaves as application/octet-stream: the receiving phones take the ' +
+        'type from the message and do not draw it, and no device acknowledges it');
+      continue;
+    }
+
+    const family = mime.indexOf('image/') === 0 ? 'image'
+      : mime.indexOf('video/') === 0 ? 'video'
+      : mime.indexOf('audio/') === 0 ? 'audio'
+      : 'document';
+
+    if (family !== kind) {
+      problems.push(`${file}: ${ext} is a ${kind} to KindName and "${mime}" to MimeFor: ` +
+        'the message says one thing and the bubble another');
+    }
+  }
+
+  return problems;
+}
+
+/** The text between two signatures, or to the end of the file when there is no second. */
+function between(text, from, to) {
+  const at = text.indexOf(from);
+  if (at < 0) return '';
+
+  const end = to ? text.indexOf(to, at + from.length) : -1;
+
+  return text.slice(at, end < 0 ? text.length : end);
+}
+
+/**
  * I problemi del file di un allegato in uscita e del suo lettore.
  * Restituisce un array di frasi, vuoto quando non c'e' niente di storto.
  */
@@ -58,6 +126,8 @@ function attachmentFileProblems(source, file) {
       problems.push(`${file}: the copy target is the shared name "outgoing_attachment": ` +
         'the next attachment replaces this one under every bubble that used it');
     }
+
+    problems.push(...untypedExtensions(text, file));
   }
 
   if (file === CHAT) {
@@ -100,4 +170,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { attachmentFileProblems };
+module.exports = { attachmentFileProblems, untypedExtensions };

@@ -171,6 +171,24 @@ namespace ProtocolTests
             Assert.IsTrue(info.IsVoiceNote, "ptt is 6 in a voice note and it survives the round trip");
         }
 
+        /// <summary>
+        /// `ptt` only for Opus in Ogg, because that is what the other end plays. A recording
+        /// of this phone is AAC in an MP4: flagged as a voice note it is a bubble that plays
+        /// nothing, and as an audio message it plays.
+        /// </summary>
+        [Test]
+        public static void OnlyOpusInOggCanBeAVoiceNote()
+        {
+            Assert.IsTrue(MediaUpload.CanBeVoiceNote("audio/ogg; codecs=opus"));
+            Assert.IsTrue(MediaUpload.CanBeVoiceNote("audio/ogg"));
+            Assert.IsTrue(MediaUpload.CanBeVoiceNote("AUDIO/OGG"), "the case of a file name is not a decision");
+
+            Assert.IsFalse(MediaUpload.CanBeVoiceNote("audio/mp4"),
+                "a recording of this phone is AAC in an MP4: it travels as an audio message");
+            Assert.IsFalse(MediaUpload.CanBeVoiceNote("audio/amr"));
+            Assert.IsFalse(MediaUpload.CanBeVoiceNote(null));
+        }
+
         private static UploadedMedia Upload(ScriptedUploader fetcher, string text, string mediaType,
             string mimeType, string fileName)
         {

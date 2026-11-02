@@ -1478,8 +1478,20 @@ namespace WhatsappApp.Services
                 + " answered url=" + (string.IsNullOrEmpty(uploaded.Url) ? "no" : "yes")
                 + ", direct path=" + (string.IsNullOrEmpty(uploaded.DirectPath) ? "no" : "yes"));
 
-            Message payload = MessageFor(uploaded, caption, seconds, voiceNote);
-            string mediaWord = MediaWord(mediaType, voiceNote);
+            // A voice note is only a voice note when the phone at the other end can play it
+            // (`MediaUpload.CanBeVoiceNote`): a `ptt` that is not Ogg/Opus arrives as a
+            // bubble nothing can play. This phone records AAC, so its notes go as ordinary
+            // audio messages - the same seconds, the same bytes, and the receiver's player
+            // opens them.
+            bool asVoiceNote = voiceNote && MediaUpload.CanBeVoiceNote(mimeType);
+            if (voiceNote && !asVoiceNote)
+            {
+                Diag.Ok("native: " + mimeType + " is not a voice note WhatsApp can play, "
+                    + "so it goes as an audio message");
+            }
+
+            Message payload = MessageFor(uploaded, caption, seconds, asVoiceNote);
+            string mediaWord = MediaWord(mediaType, asVoiceNote);
             string rowText = RowText(uploaded, caption);
 
             // The upload comes first and the routing after it: a group message is the same

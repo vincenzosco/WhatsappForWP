@@ -263,6 +263,29 @@ namespace WhatsappApp.Protocol.Media
             return message;
         }
 
+        /// <summary>
+        /// Whether these bytes can go out as a WhatsApp voice note (`ptt`).
+        ///
+        /// WhatsApp's own clients play a voice note as **Ogg/Opus** and nothing else, so a
+        /// `ptt` carrying anything else is a bubble with a play button that does nothing:
+        /// the note of 2 November 2026, delivered, read, and silent. The phone records AAC
+        /// in an MP4 (WP8.1 has no Opus encoder), and the same bytes sent as an ordinary
+        /// audio message do play, because there the receiver's player decodes the file.
+        /// </summary>
+        public static bool CanBeVoiceNote(string mimeType)
+        {
+            if (string.IsNullOrEmpty(mimeType)) return false;
+
+            // Lowered and trimmed: the type comes off a file name and a share, so its case
+            // is not something to trust. The `codecs` parameter is part of the same string
+            // (`audio/ogg; codecs=opus`), which is the shape a picked file carries.
+            string mime = mimeType.Trim().ToLowerInvariant();
+
+            return mime == "audio/ogg" || mime == "audio/opus"
+                || mime.StartsWith("audio/ogg;", StringComparison.Ordinal)
+                || mime.StartsWith("audio/opus;", StringComparison.Ordinal);
+        }
+
         /// <summary>A voice note: `ptt` is 6 and the seconds are 5, and it has no caption.</summary>
         public static Message Audio(UploadedMedia media, uint seconds, bool voiceNote)
         {

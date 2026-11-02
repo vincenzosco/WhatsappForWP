@@ -32,6 +32,24 @@ test('un lettore che si fida del solo nome e un problema', () => {
   assert.match(found, /anotherMessage/);
 });
 
+test('ogni estensione che KindName sa classificare ha il suo MIME', () => {
+  // Il file vero: se questa riga si rompe, un tipo di file esce con
+  // application/octet-stream e il telefono che lo riceve non lo disegna.
+  assert.deepStrictEqual(attachmentFileProblems(read(INBOX), INBOX), []);
+});
+
+test('una foto .jpg senza il suo MIME e un problema', () => {
+  const broken = read(INBOX).replace(/if \(value == "\.jpg"\) return "image\/jpeg";/, '');
+  const found = attachmentFileProblems(broken, INBOX).join('\n');
+  assert.match(found, /\.jpg/);
+});
+
+test('un MIME di un altra famiglia e un problema', () => {
+  const broken = read(INBOX).replace(/(if \(value == "\.mp4"\) return )"video\/mp4"/, '$1"image/jpeg"');
+  const found = attachmentFileProblems(broken, INBOX).join('\n');
+  assert.match(found, /\.mp4/);
+});
+
 test('un Downloadable che rifiuta ogni messaggio in uscita e un problema', () => {
   const broken = read(CHAT)
     .replace(/!\s*message\.IsIncoming\s*&&\s*!\s*message\.IsHistory/, '!message.IsIncoming');
