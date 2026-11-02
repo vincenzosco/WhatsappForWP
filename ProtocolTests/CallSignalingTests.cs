@@ -151,6 +151,68 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ACallIdInThePayloadIsRead()
+        {
+            // The shape the official client's own log describes: "no call-id in the payload
+            // of incoming <call> node". An offer whose id is on the verb, not on the node.
+            var offer = new BinaryNode("offer");
+            offer.Attrs.Add("call-id", CallId);
+            offer.Content = new List<BinaryNode> { new BinaryNode("audio") };
+
+            var node = new BinaryNode("call");
+            node.Attrs.Add("from", Peer);
+            node.Content = new List<BinaryNode> { offer };
+
+            CallSignal signal = CallSignaling.Read(node);
+
+            Assert.AreEqual(CallId, signal.CallId, "the id is what an answer would need");
+            Assert.AreEqual(CallKind.Offer, signal.Kind);
+            Assert.AreEqual(Peer, signal.From);
+            Assert.IsTrue(signal.Rings, "and an offer with its id is a call that rings");
+        }
+
+        [Test]
+        public static void ACallIdOnTheNodeAsCallIdIsReadToo()
+        {
+            var node = new BinaryNode("call");
+            node.Attrs.Add("call-id", CallId);
+            node.Attrs.Add("to", Peer);
+            node.Content = new List<BinaryNode> { new BinaryNode("terminate") };
+
+            CallSignal signal = CallSignaling.Read(node);
+
+            Assert.AreEqual(CallId, signal.CallId);
+            Assert.AreEqual(CallKind.Terminate, signal.Kind);
+        }
+
+        [Test]
+        public static void AnEmptyIdFallsThroughToTheSpellingThatHasOne()
+        {
+            var offer = new BinaryNode("offer");
+            offer.Attrs.Add("call-id", CallId);
+
+            var node = new BinaryNode("call");
+            node.Attrs.Add("id", "");
+            node.Content = new List<BinaryNode> { offer };
+
+            Assert.AreEqual(CallId, CallSignaling.Read(node).CallId, "an empty attribute is not an id");
+        }
+
+        [Test]
+        public static void TheNodesOwnIdWinsOverThePayload()
+        {
+            var offer = new BinaryNode("offer");
+            offer.Attrs.Add("call-id", "SOMEONEELSES");
+
+            var node = new BinaryNode("call");
+            node.Attrs.Add("id", CallId);
+            node.Content = new List<BinaryNode> { offer };
+
+            Assert.AreEqual(CallId, CallSignaling.Read(node).CallId,
+                "two ids in one node is a node to read by the outer one");
+        }
+
+        [Test]
         public static void BuildingACallWithNoIdOrNoPeerIsRefused()
         {
             Assert.Throws<ProtocolException>(delegate { CallSignaling.Offer(null, Peer, false); });

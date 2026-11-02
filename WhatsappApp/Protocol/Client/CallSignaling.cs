@@ -168,16 +168,12 @@ namespace WhatsappApp.Protocol.Client
         {
             if (node == null || node.Tag != Tag) return null;
 
-            string callId = node.Attrs["id"];
-            string from = node.Attrs["from"];
-            string to = node.Attrs["to"];
-
             BinaryNode verb = FirstChild(node);
 
             var signal = new CallSignal();
-            signal.CallId = callId;
-            signal.From = from;
-            signal.To = to;
+            signal.CallId = IdOf(node, verb);
+            signal.From = node.Attrs["from"];
+            signal.To = node.Attrs["to"];
             signal.Kind = verb == null ? CallKind.Unknown : KindOf(verb.Tag);
 
             if (verb != null)
@@ -194,6 +190,46 @@ namespace WhatsappApp.Protocol.Client
             }
 
             return signal;
+        }
+
+        /// <summary>
+        /// The call's id as this sender wrote it.
+        ///
+        /// Why more than one spelling: the official client logs **"no call-id in the payload
+        /// of incoming &lt;call&gt; node"** - read out of its DEX on 2 November 2026 - so in its
+        /// own traffic the id travels in the payload (the verb child) under `call-id`, while
+        /// this client writes `id` on the node. A reader that insisted on `id` alone answers
+        /// null for a real offer, and `AnnounceCall` drops it as unreadable: the phone simply
+        /// never rings. The spellings are tried in order, the first non-empty one wins, and
+        /// nothing is guessed beyond the ones the reference names.
+        /// </summary>
+        private static string IdOf(BinaryNode node, BinaryNode verb)
+        {
+            string id = First(node, "id");
+            if (id != null) return id;
+
+            id = First(node, "call-id");
+            if (id != null) return id;
+
+            id = First(node, "callId");
+            if (id != null) return id;
+
+            id = First(verb, "call-id");
+            if (id != null) return id;
+
+            id = First(verb, "callId");
+            if (id != null) return id;
+
+            return First(verb, "id");
+        }
+
+        /// <summary>An attribute that is present and says something, or null.</summary>
+        private static string First(BinaryNode node, string key)
+        {
+            if (node == null) return null;
+
+            string value = node.Attrs[key];
+            return string.IsNullOrEmpty(value) ? null : value;
         }
 
         /// <summary>A child's tag as the verb it is, or `Unknown`.</summary>
