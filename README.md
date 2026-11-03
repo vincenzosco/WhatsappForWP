@@ -138,6 +138,12 @@ Tips:
   phone's accent colour when the choice is plain white - so the tile is the same look as the list.
   The WhatsApp mark is drawn on that background, dimmed so a white glyph reads on it, and the wide
   tile is filled with the same background instead of framing a square in teal.
+- A message raises an alert only while this app is **not** the thing on screen: the background
+  check wakes, a message arrives, and the notification area says who wrote. With the app in front
+  there is no alert at all - in the open chat the bubble is already there, and for any other chat
+  the row is already in the list - so the same news is never said twice. A muted chat stays silent
+  either way, and the tile and the number on the icon move as usual: those are what is left when
+  nobody is looking.
 - An update somebody posted and a call nobody answered each raise a notification, in the same
   area as a message: the author's name, and nothing else - the update itself is opened where it is.
   Each is announced once, from a mark kept on the phone, because WhatsApp re-sends the whole day

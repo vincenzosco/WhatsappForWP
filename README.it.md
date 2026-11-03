@@ -138,6 +138,12 @@ Consigli:
   accento del telefono quando la scelta è il bianco - così la tile ha lo stesso aspetto della lista.
   Il marchio WhatsApp è disegnato su quello sfondo, scurito perché una sagoma bianca si legga, e la
   tile grande è riempita con lo stesso sfondo invece di incorniciare un quadrato sul verde.
+- Un messaggio solleva un avviso solo mentre questa app **non** è quella che si sta guardando: il
+  controllo in background si sveglia, il messaggio arriva, e l'area delle notifiche dice chi ha
+  scritto. Con l'app davanti non c'è nessun avviso - nella chat aperta la bolla è già lì, e per
+  ogni altra chat la riga è già nella lista - così la stessa notizia non si dice due volte. Una
+  chat silenziata resta muta in entrambi i casi, e la tile e il numero sull'icona si muovono come
+  sempre: sono quello che resta quando nessuno sta guardando.
 - Un aggiornamento pubblicato e una chiamata che nessuno ha risposto sollevano una notifica, nella
   stessa area di un messaggio: il nome di chi, e niente altro - l'aggiornamento si apre dove sta.
   Ognuno si annuncia una volta sola, da un marchio tenuto sul telefono, perché WhatsApp rimanda
