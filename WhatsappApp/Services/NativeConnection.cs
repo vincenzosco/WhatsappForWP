@@ -3195,7 +3195,11 @@ namespace WhatsappApp.Services
             Diag.Ok("native: call " + signal.CallId + " " + signal.Kind
                 + (signal.IsVideo ? " (video)" : "")
                 + (string.IsNullOrEmpty(signal.From) ? "" : " from " + signal.From)
-                + (string.IsNullOrEmpty(signal.Reason) ? "" : " reason " + signal.Reason));
+                + (string.IsNullOrEmpty(signal.Reason) ? "" : " reason " + signal.Reason)
+                + (signal.Key == null ? "" : " with its key (" + signal.Key.Type + " v" + signal.Key.Version + ")")
+                + (signal.Candidates == null ? "" : " and " + signal.Candidates.Count + " candidate(s)")
+                + (signal.Audio == null ? "" : ", " + signal.Audio.Count + " audio")
+                + (signal.RelayLatency == null ? "" : ", " + signal.RelayLatency.Count + " relay(s)"));
 
             if (CallSignalled != null) CallSignalled(this, signal);
         }
@@ -3225,8 +3229,54 @@ namespace WhatsappApp.Services
             string callId = NewCallId();
             NativeSession session = OpenSession();
 
-            await session.SendAsync(CallSignaling.Offer(callId, jid, video));
-            Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId + " to " + jid);
+            // The offer the official client sends: the media this phone can do, and the
+            // 32-byte call key sealed into one `<enc>` per device of the peer. The key is the
+            // difference between a phone that rings and a phone that rings and can decrypt
+            // the media - without it the offer names streams nobody can open.
+            var audio = new List<CallAudio>();
+            audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.DefaultAudioRate });
+
+            var videos = new List<CallVideoDescription>();
+            if (video)
+            {
+                videos.Add(new CallVideoDescription
+                {
+                    Codec = "h.264", ScreenWidth = 480, ScreenHeight = 800, Orientation = 0
+                });
+            }
+
+            CallKeyOffer keys = null;
+            try
+            {
+                DirectTarget target = await ResolveDevicesAsync(session, jid);
+                keys = CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(_random), target.Devices, _random);
+
+                for (int i = 0; i < keys.Skipped.Count; i++)
+                {
+                    Diag.Ok("native: no established session with " + keys.Skipped[i]
+                        + ", so its copy of the call key is not sealed (the server drops a "
+                        + "pkmsg offer)");
+                }
+            }
+            catch (Exception ex)
+            {
+                // C# 5 cannot await inside catch (CS1985), so the failure is only recorded
+                // here and the fallback offer goes out below, on its own await.
+                Diag.Failed("native: the call key for " + jid, ex);
+            }
+
+            if (keys == null)
+            {
+                await session.SendAsync(CallSignaling.Offer(callId, jid, video));
+                Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
+                    + " to " + jid + " with no key");
+            }
+            else
+            {
+                await session.SendAsync(Calls.Offer(callId, jid, audio, videos, keys.Payloads, null));
+                Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
+                    + " to " + jid + " with " + keys.Payloads.Count + " key(s)");
+            }
 
             return callId;
         }
@@ -3260,6 +3310,146 @@ namespace WhatsappApp.Services
 
             await session.SendAsync(CallSignaling.Terminate(callId, jid, reason));
             Diag.Ok("native: ended the call " + callId + " reason " + reason);
+        }
+
+        /// <summary>
+        /// Hangs up with the two facts the official node adds to a live call: how long it
+        /// lasted and what the video was doing when it ended. They are what the other phone's
+        /// call log shows, and a terminate without them is a zero-second call that never had
+        /// video - even when it had both.
+        /// </summary>
+        public async Task TerminateCallAsync(
+            string callId, string jid, string reason, int durationSeconds, int videoState)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Terminate(callId, jid, reason, durationSeconds, videoState));
+            Diag.Ok("native: ended the call " + callId + " reason " + reason
+                + " after " + durationSeconds + " s");
+        }
+
+        /// <summary>
+        /// A call placed with the media the engine negotiated, the call key encrypted to the
+        /// peer's devices and the candidates that reach this phone. The official offer is this
+        /// node; the shorter `OfferCallAsync` is what a caller without keys sends.
+        /// </summary>
+        public async Task<string> OfferCallAsync(
+            string jid,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            CallKeyPayload key,
+            IList<CallCandidate> candidates)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a call is made to somebody");
+
+            string callId = NewCallId();
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Offer(callId, jid, audio, video, key, candidates));
+            Diag.Ok("native: offered the call " + callId + " to " + jid
+                + (key == null ? " with no key" : " with its key")
+                + (candidates == null ? "" : " and " + candidates.Count + " candidate(s)"));
+
+            return callId;
+        }
+
+        /// <summary>A pre-accept that says the media this side will use.</summary>
+        public async Task PreAcceptCallAsync(
+            string callId, string jid, IList<CallAudio> audio, IList<CallVideoDescription> video)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.PreAccept(callId, jid, audio, video));
+            Diag.Ok("native: pre-accepted the call " + callId);
+        }
+
+        /// <summary>This phone answers, naming its stream and how it can be reached.</summary>
+        public async Task AcceptCallAsync(
+            string callId,
+            string jid,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallCandidate> candidates)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Accept(callId, jid, audio, video, candidates));
+            Diag.Ok("native: accepted the call " + callId + " from " + jid);
+        }
+
+        /// <summary>
+        /// Refuses a call whose key this phone could not decrypt, and asks for it again with
+        /// the registration id the other side's session needs (`reason="enc"`).
+        /// </summary>
+        public async Task RejectUndecryptableCallAsync(
+            string callId, string jid, uint retryCount, uint registrationId)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.RejectUndecryptable(callId, jid, retryCount, registrationId));
+            Diag.Ok("native: refused the call " + callId + " as undecryptable, retry " + retryCount);
+        }
+
+        /// <summary>Fresh candidates, once the engine has measured them.</summary>
+        public async Task SendCallTransportAsync(string callId, string jid, IList<CallCandidate> candidates)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Transport(callId, jid, candidates));
+            Diag.Ok("native: sent " + candidates.Count + " candidate(s) for the call " + callId);
+        }
+
+        /// <summary>What each relay answered: the election is decided on these numbers.</summary>
+        public async Task SendRelayLatencyAsync(string callId, string jid, IList<CallRelayLatency> relays)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.RelayLatency(callId, jid, relays));
+            Diag.Ok("native: measured " + relays.Count + " relay(s) for the call " + callId);
+        }
+
+        /// <summary>The relay this side elects, with the token the other side sends to.</summary>
+        public async Task SendRelayElectionAsync(string callId, string jid, int latency, byte[] token)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.RelayElection(callId, jid, latency, token));
+            Diag.Ok("native: elected a relay at " + latency + " ms for the call " + callId);
+        }
+
+        /// <summary>Video on, off, or turned: the other phone redraws its screen on this.</summary>
+        public async Task SendVideoStateAsync(string callId, string jid, int state, int orientation)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Video(callId, jid, state, orientation));
+            Diag.Ok("native: video state " + state + " for the call " + callId);
+        }
+
+        /// <summary>This phone's battery, which the other side shows during a call.</summary>
+        public async Task SendBatteryAsync(string callId, string jid, int batteryState)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Notify(callId, jid, batteryState));
+        }
+
+        /// <summary>The call was put on hold, or picked up again.</summary>
+        public async Task SendCallInterruptionAsync(string callId, string jid, bool begin)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Interruption(callId, jid, begin));
+            Diag.Ok("native: call " + callId + (begin ? " interrupted" : " resumed"));
+        }
+
+        /// <summary>The call was muted, or unmuted.</summary>
+        public async Task SendCallMuteAsync(string callId, string jid, bool muted)
+        {
+            NativeSession session = OpenSession();
+
+            await session.SendAsync(Calls.Mute(callId, jid, muted));
+            Diag.Ok("native: call " + callId + (muted ? " muted" : " unmuted"));
         }
 
         /// <summary>

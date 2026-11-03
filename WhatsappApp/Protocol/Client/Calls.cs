@@ -29,13 +29,18 @@ namespace WhatsappApp.Protocol.Client
     }
 
     /// <summary>
-    /// The call log, and the one control a call log has: refusing a call that is ringing.
+    /// The call log, and the words of the call protocol.
     ///
     /// The rows come from the **history sync** and from nowhere else: WhatsApp puts the call
-    /// log in `HistorySync.callLogRecords` (`Conversation.cs`'s neighbour in the reference,
-    /// `HistorySync` in `WAProto`), which is why a call made while the phone was off is in the
-    /// list the next time the app opens and a call made while it was on arrives with the next
-    /// sync. That is also why there is no `query` here: there is nothing to ask.
+    /// log in `HistorySync.callLogRecords`, which is why a call made while the phone was off
+    /// is in the list the next time the app opens and a call made while it was on arrives with
+    /// the next sync. That is also why there is no `query` here: there is nothing to ask.
+    ///
+    /// The node builders are here as one family, and they are `CallSignaling`'s: this file is
+    /// where the rest of the client looks for "the call protocol" (`Calls.Reject` was its first
+    /// member), not a second author of the shapes. Every verb the official client's
+    /// `VoipSignaling.WriteVoipNode` writes is reachable from here, so a page or the connection
+    /// never has to build a call node by hand.
     /// </summary>
     public static class Calls
     {
@@ -150,6 +155,111 @@ namespace WhatsappApp.Protocol.Client
             // one verb child is a shape with one author, and a `reject` built by a second
             // one is how the two answers drift apart.
             return CallSignaling.Reject(callId, jid, null);
+        }
+
+        /// <summary>
+        /// The refusal that carries the reason the official client has for a call it could not
+        /// decrypt: `reason="enc"`, the retry count, and this phone's registration id.
+        /// </summary>
+        public static BinaryNode RejectUndecryptable(
+            string callId, string jid, uint retryCount, uint registrationId)
+        {
+            return CallSignaling.RejectUndecryptable(callId, jid, retryCount, registrationId);
+        }
+
+        /// <summary>
+        /// The offer the official client sends: the audio streams, the video descriptions, the
+        /// encrypted call key and the transport candidates. Without the last two the other
+        /// phone rings and can neither decrypt the media nor reach this one.
+        /// </summary>
+        public static BinaryNode Offer(
+            string callId,
+            string jid,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            CallKeyPayload key,
+            IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Offer(callId, jid, audio, video, key, candidates);
+        }
+
+        /// <summary>The same offer with one `<enc>` per recipient device.</summary>
+        public static BinaryNode Offer(
+            string callId,
+            string jid,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallKeyPayload> keys,
+            IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Offer(callId, jid, audio, video, keys, candidates);
+        }
+
+        /// <summary>The answer that names the stream it will receive and how to reach this phone.</summary>
+        public static BinaryNode Accept(
+            string callId,
+            string jid,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Accept(callId, jid, audio, video, candidates);
+        }
+
+        /// <summary>The pre-accept, with the same media description the answer will use.</summary>
+        public static BinaryNode PreAccept(
+            string callId, string jid, IList<CallAudio> audio, IList<CallVideoDescription> video)
+        {
+            return CallSignaling.PreAccept(callId, jid, audio, video);
+        }
+
+        /// <summary>A terminate that says how long the call lasted and what the video was doing.</summary>
+        public static BinaryNode Terminate(
+            string callId, string jid, string reason, int durationSeconds, int videoState)
+        {
+            return CallSignaling.Terminate(callId, jid, reason, durationSeconds, videoState);
+        }
+
+        /// <summary>Fresh candidates for the other side: `<transport call-id><te/></transport>`.</summary>
+        public static BinaryNode Transport(string callId, string jid, IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Transport(callId, jid, candidates);
+        }
+
+        /// <summary>What each relay answered, to be elected with `RelayElection`.</summary>
+        public static BinaryNode RelayLatency(string callId, string jid, IList<CallRelayLatency> relays)
+        {
+            return CallSignaling.RelayLatency(callId, jid, relays);
+        }
+
+        /// <summary>The relay this side elects, with the token the media is sent to.</summary>
+        public static BinaryNode RelayElection(string callId, string jid, int latency, byte[] token)
+        {
+            return CallSignaling.RelayElection(callId, jid, latency, token);
+        }
+
+        /// <summary>Video on, off, or turned.</summary>
+        public static BinaryNode Video(string callId, string jid, int state, int orientation)
+        {
+            return CallSignaling.Video(callId, jid, state, orientation);
+        }
+
+        /// <summary>The other phone's battery, which the official client sends during a call.</summary>
+        public static BinaryNode Notify(string callId, string jid, int batteryState)
+        {
+            return CallSignaling.Notify(callId, jid, batteryState);
+        }
+
+        /// <summary>The call was put on hold (`begin`) or picked up again (`end`).</summary>
+        public static BinaryNode Interruption(string callId, string jid, bool begin)
+        {
+            return CallSignaling.Interruption(callId, jid, begin);
+        }
+
+        /// <summary>The call was muted (`begin`) or unmuted (`end`).</summary>
+        public static BinaryNode Mute(string callId, string jid, bool muted)
+        {
+            return CallSignaling.Mute(callId, jid, muted);
         }
     }
 }

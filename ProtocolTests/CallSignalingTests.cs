@@ -235,5 +235,190 @@ namespace ProtocolTests
             Assert.AreEqual(now.Children()[0].Tag, old.Children()[0].Tag, "the same verb");
             Assert.AreEqual(1, old.Children().Count, "and nothing else in it");
         }
+
+        /// <summary>
+        /// The offer the official client sends, byte for byte in shape: media, then the
+        /// encrypted key, then the candidates. This is the node a call needs to be answerable -
+        /// without `enc` the other phone cannot decrypt the media, and without `te` it cannot
+        /// reach this one.
+        /// </summary>
+        [Test]
+        public static void AnOfferCarriesItsKeyItsCandidatesAndItsMedia()
+        {
+            var audio = new List<CallAudio> { new CallAudio { Codec = "opus", Rate = 16000 } };
+            var video = new List<CallVideoDescription>
+            {
+                new CallVideoDescription
+                {
+                    Codec = "h.264", ScreenWidth = 480, ScreenHeight = 800, Orientation = 0
+                }
+            };
+            var key = new CallKeyPayload { Type = "msg", Version = 2, Ciphertext = new byte[] { 1, 2, 3 } };
+            var candidates = new List<CallCandidate>
+            {
+                new CallCandidate { Priority = 0, Data = new byte[] { 9, 8 } }
+            };
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, audio, video, key, candidates).Children()[0];
+
+            Assert.AreEqual(CallId, offer.Attrs["call-id"], "the verb says which call it is about");
+            Assert.AreEqual("opus", offer.Child("audio").Attrs["enc"]);
+            Assert.AreEqual("16000", offer.Child("audio").Attrs["rate"]);
+            Assert.AreEqual("h.264", offer.Child("video").Attrs["enc"]);
+            Assert.AreEqual("480", offer.Child("video").Attrs["screen_width"]);
+
+            BinaryNode enc = offer.Child("enc");
+            Assert.AreEqual("msg", enc.Attrs["type"], "the ciphertext type is the Signal one");
+            Assert.AreEqual("2", enc.Attrs["v"], "the call-key version the server expects");
+            Assert.IsTrue(enc.Bytes() != null && enc.Bytes().Length == 3, "the ciphertext is the content");
+
+            BinaryNode te = offer.Child("te");
+            Assert.AreEqual("0", te.Attrs["priority"], "a candidate has its priority");
+            Assert.IsTrue(te.Bytes() != null && te.Bytes().Length == 2, "and its bytes");
+        }
+
+        /// <summary>Everything an offer carried comes back out of `Read`, not just its verb.</summary>
+        [Test]
+        public static void ReadingAnOfferGivesBackEverythingItCarried()
+        {
+            var audio = new List<CallAudio>
+            {
+                new CallAudio { Codec = "opus", Rate = 48000 },
+                new CallAudio { Codec = "opus", Rate = 16000 }
+            };
+            var video = new List<CallVideoDescription>
+            {
+                new CallVideoDescription { Codec = "vp8", ScreenWidth = 720, ScreenHeight = 1280, Orientation = 1 }
+            };
+            var key = new CallKeyPayload { Type = "pkmsg", Version = 2, RetryCount = 1, Ciphertext = new byte[] { 7 } };
+            var candidates = new List<CallCandidate>
+            {
+                new CallCandidate { Priority = 1, Data = new byte[] { 4, 5, 6 } }
+            };
+
+            CallSignal signal = CallSignaling.Read(
+                CallSignaling.Offer(CallId, Peer, audio, video, key, candidates));
+
+            Assert.AreEqual(CallKind.Offer, signal.Kind);
+            Assert.IsTrue(signal.IsVideo, "a video description is what makes it a video call");
+            Assert.AreEqual(2, signal.Audio.Count, "both streams are read");
+            Assert.AreEqual(48000, signal.Audio[0].Rate);
+            Assert.AreEqual("vp8", signal.Video[0].Codec);
+            Assert.AreEqual(720, signal.Video[0].ScreenWidth);
+            Assert.AreEqual("pkmsg", signal.Key.Type);
+            Assert.AreEqual(1u, signal.Key.RetryCount, "a retry is part of the key");
+            Assert.AreEqual(1, signal.Key.Ciphertext.Length);
+            Assert.AreEqual(1, signal.Candidates.Count);
+            Assert.AreEqual(3, signal.Candidates[0].Data.Length);
+        }
+
+        /// <summary>
+        /// The refusal of a call whose key this phone could not decrypt: the reason, the retry
+        /// count and the registration id the other side rebuilds its session from.
+        /// </summary>
+        [Test]
+        public static void ARejectForAnUndecryptableKeyCarriesTheRegistrationId()
+        {
+            BinaryNode node = CallSignaling.RejectUndecryptable(CallId, Peer, 2, 0x01020304u);
+            BinaryNode reject = node.Children()[0];
+
+            Assert.AreEqual("enc", reject.Attrs["reason"]);
+            Assert.AreEqual("2", reject.Attrs["count"]);
+
+            BinaryNode registration = reject.Child("registration");
+            Assert.IsTrue(registration != null, "the registration id is a child, not an attribute");
+
+            CallSignal signal = CallSignaling.Read(node);
+            Assert.AreEqual(CallKind.Reject, signal.Kind);
+            Assert.AreEqual(0x01020304u, signal.RegistrationId, "four bytes, big-endian, as the official writes them");
+            Assert.IsTrue(signal.HasRegistration);
+        }
+
+        /// <summary>The end of a call that connected: how long it lasted, and the video's state.</summary>
+        [Test]
+        public static void ATerminateCarriesTheDurationAndTheVideoState()
+        {
+            CallSignal signal = CallSignaling.Read(
+                CallSignaling.Terminate(CallId, Peer, "accepted", 75, 2));
+
+            Assert.AreEqual(CallKind.Terminate, signal.Kind);
+            Assert.AreEqual("accepted", signal.Reason);
+            Assert.AreEqual(75, signal.DurationSeconds);
+            Assert.AreEqual(2, signal.VideoState, "`videostate` is the video's state at the end");
+        }
+
+        /// <summary>
+        /// The relay exchange: latencies out, an elected relay back. The token is bytes in the
+        /// node's content, which is what the other side sends its media to.
+        /// </summary>
+        [Test]
+        public static void TheRelayExchangeKeepsItsLatenciesAndItsToken()
+        {
+            var relays = new List<CallRelayLatency>
+            {
+                new CallRelayLatency { Latency = 42, Data = new byte[] { 1 } },
+                new CallRelayLatency { Latency = 61, Data = new byte[] { 2 } }
+            };
+
+            CallSignal measured = CallSignaling.Read(CallSignaling.RelayLatency(CallId, Peer, relays));
+
+            Assert.AreEqual(CallKind.RelayLatency, measured.Kind);
+            Assert.AreEqual(2, measured.RelayLatency.Count, "one entry per relay");
+            Assert.AreEqual(42, measured.RelayLatency[0].Latency);
+            Assert.AreEqual(61, measured.RelayLatency[1].Latency);
+
+            CallSignal elected = CallSignaling.Read(
+                CallSignaling.RelayElection(CallId, Peer, 38, new byte[] { 3, 4 }));
+
+            Assert.AreEqual(CallKind.RelayElection, elected.Kind);
+            Assert.AreEqual(1, elected.RelayLatency.Count);
+            Assert.AreEqual(38, elected.RelayLatency[0].Latency);
+            Assert.AreEqual(2, elected.RelayLatency[0].Data.Length, "the token is the content");
+        }
+
+        /// <summary>Video on, off and turned is a verb of its own, with a number for each fact.</summary>
+        [Test]
+        public static void AVideoStateChangeIsItsOwnVerb()
+        {
+            CallSignal signal = CallSignaling.Read(CallSignaling.Video(CallId, Peer, 1, 3));
+
+            Assert.AreEqual(CallKind.Video, signal.Kind, "the verb is `video`, not a description inside an offer");
+            Assert.AreEqual(1, signal.VideoState);
+            Assert.AreEqual(3, signal.Orientation);
+        }
+
+        /// <summary>The three small verbs: battery, hold, mute.</summary>
+        [Test]
+        public static void BatteryHoldAndMuteAreRead()
+        {
+            CallSignal notify = CallSignaling.Read(CallSignaling.Notify(CallId, Peer, 2));
+            Assert.AreEqual(CallKind.Notify, notify.Kind);
+            Assert.AreEqual(2, notify.BatteryState);
+
+            CallSignal held = CallSignaling.Read(CallSignaling.Interruption(CallId, Peer, true));
+            Assert.AreEqual(CallKind.Interruption, held.Kind);
+            Assert.AreEqual("begin", held.State);
+
+            CallSignal resumed = CallSignaling.Read(CallSignaling.Interruption(CallId, Peer, false));
+            Assert.AreEqual("end", resumed.State);
+
+            CallSignal muted = CallSignaling.Read(CallSignaling.Mute(CallId, Peer, true));
+            Assert.AreEqual(CallKind.Mute, muted.Kind);
+            Assert.AreEqual("begin", muted.State);
+        }
+
+        /// <summary>The family the connection sends is `Calls`', and it is `CallSignaling`'s.</summary>
+        [Test]
+        public static void TheCallFamilyIsBuiltByOneAuthor()
+        {
+            var candidates = new List<CallCandidate> { new CallCandidate { Priority = 0, Data = new byte[] { 1 } } };
+
+            BinaryNode viaCalls = Calls.Transport(CallId, Peer, candidates);
+            BinaryNode direct = CallSignaling.Transport(CallId, Peer, candidates);
+
+            Assert.AreEqual(direct.Children()[0].Tag, viaCalls.Children()[0].Tag);
+            Assert.AreEqual(direct.Children()[0].Attrs["call-id"], viaCalls.Children()[0].Attrs["call-id"]);
+            Assert.AreEqual(direct.Children()[0].Children().Count, viaCalls.Children()[0].Children().Count);
+        }
     }
 }

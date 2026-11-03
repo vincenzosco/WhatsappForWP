@@ -47,6 +47,16 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>The encoded `ProtocolMessage`: revoke, ephemeral, edit.</summary>
         public const int ProtocolField = 12;
 
+        /// <summary>
+        /// The encoded `Call` sub-message: the 32-byte media key of a call, field 10
+        /// (`Message.Call.encode`, `writer.uint32(/* id 10 */ 82)`). It travels as the
+        /// plaintext of each `<enc>` child of a call offer, one per recipient device.
+        /// </summary>
+        public const int CallField = 10;
+
+        /// <summary>The `callKey` inside `Call`, field 1, as the reference writes it.</summary>
+        public const int CallKeyField = 1;
+
         /// <summary>The encoded `DeviceSentMessage`: a copy for our own other devices.</summary>
         public const int DeviceSentField = 31;
 
@@ -95,6 +105,45 @@ namespace WhatsappApp.Protocol.WaProto
 
         /// <summary>`deviceSentMessage`, field 31, kept encoded.</summary>
         public byte[] DeviceSentMessage;
+
+        /// <summary>`call`, field 10, kept encoded: a call offer's media key.</summary>
+        public byte[] Call;
+
+        /// <summary>
+        /// The message a call offer's `<enc>` carries: `Message.call.callKey`, and nothing
+        /// else. It is the plaintext that goes through the Signal session to one device - so
+        /// each device gets its own ciphertext of the same 32 bytes.
+        ///
+        /// Why a `Message` and not the bare key: the reference's own offer encrypts
+        /// `Message.CreateForCall(key)`, and a receiving phone reads it as a message before
+        /// it reads the key out of it. Sending the raw 32 bytes would let the MAC verify and
+        /// then fail at the first field read.
+        /// </summary>
+        public static Message ForCall(byte[] callKey)
+        {
+            if (callKey == null || callKey.Length == 0)
+            {
+                throw new ProtocolException("a call key needs bytes");
+            }
+
+            var message = new Message();
+            message.Call = new ProtoWriter().Bytes(CallKeyField, callKey).ToArray();
+            return message;
+        }
+
+        /// <summary>
+        /// The call key inside a decrypted `Message`, or null when the message carries no
+        /// call at all - which is what every ordinary message answers.
+        /// </summary>
+        public byte[] CallKey()
+        {
+            if (Call == null) return null;
+
+            Dictionary<int, byte[]> call = Fields(Call);
+            if (!call.ContainsKey(CallKeyField)) return null;
+
+            return call[CallKeyField];
+        }
 
         /// <summary>A message that is only words.</summary>
         public static Message Text(string body)
@@ -264,6 +313,7 @@ namespace WhatsappApp.Protocol.WaProto
                 .Bytes(AudioField, AudioMessage)
                 .Bytes(VideoField, VideoMessage)
                 .Bytes(ProtocolField, ProtocolMessage)
+                .Bytes(CallField, Call)
                 .Bytes(DeviceSentField, DeviceSentMessage)
                 .ToArray();
         }
@@ -312,6 +362,10 @@ namespace WhatsappApp.Protocol.WaProto
 
                     case ProtocolField:
                         message.ProtocolMessage = reader.ReadBytes();
+                        break;
+
+                    case CallField:
+                        message.Call = reader.ReadBytes();
                         break;
 
                     case DeviceSentField:
