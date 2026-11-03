@@ -60,10 +60,10 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- The chosen wallpaper, behind every section and under a white veil: the
-             list keeps reading as white paper, and the same image the conversation
-             carries is still there. Collapsed for the plain white theme, where the
-             page background is the whole answer. -->
+        <!-- The chosen wallpaper, behind every section and under a half-white veil
+             (`WhatsAppHomeVeilBrush`): the list still reads as paper, and the same
+             image the conversation carries is visible through it. Collapsed for the
+             plain white theme, where the page background is the whole answer. -->
         <Image x:Name="HomeWallpaper" Grid.RowSpan="3"
                Stretch="UniformToFill"
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
@@ -151,41 +151,45 @@
                         </ListView.ItemsPanel>
                         <ListView.ItemTemplate>
                             <DataTemplate>
-                                <Grid Height="76" Background="Transparent" Holding="ChatRow_Holding">
+                                <Grid Height="68" Background="Transparent" Holding="ChatRow_Holding">
                                     <Grid.ColumnDefinitions>
-                                        <!-- 24 + the 62 px avatar + a 12 px gap: the
-                                             word starts clear of the picture, as in
-                                             the released row (ChatItemControl). -->
-                                        <ColumnDefinition Width="98"/>
+                                        <!-- 68 px of picture + its 6 px gap: the word starts at 74,
+                                              which is ItemControlBase (iconPanel 68, margin 0,0,6,0). -->
+                                        <ColumnDefinition Width="74"/>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <!-- Avatar circle with initials. 62 px and a 24 px
-                                         leading margin: the official row's numbers. -->
-                                    <Grid Grid.Column="0" Width="62" Height="62"
-                                          Margin="24,7,0,7" VerticalAlignment="Center">
-                                        <Ellipse Width="62" Height="62"
+                                    <!-- Avatar circle with initials: 68 px, the item height, with the
+                                         6 px gap ItemControlBase puts after it. -->
+                                    <Grid Grid.Column="0" Width="68" Height="68"
+                                          Margin="0,0,6,0" VerticalAlignment="Center">
+                                        <Ellipse Width="68" Height="68"
                                                  Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                                        <Border Width="62" Height="62" CornerRadius="31"
+                                        <Border Width="68" Height="68" CornerRadius="34"
                                                 Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
                                             <Border.Background>
                                                 <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
                                             </Border.Background>
                                         </Border>
                                         <TextBlock Text="{Binding Initials}"
-                                                   Foreground="White" FontSize="22" FontWeight="SemiBold"
+                                                   Foreground="White" FontSize="24" FontWeight="SemiBold"
                                                    VerticalAlignment="Center" HorizontalAlignment="Center"
                                                    Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                                     </Grid>
 
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                        <TextBlock Text="{Binding Name}" Foreground="#FF333333" FontSize="20" FontWeight="SemiBold"
+                                        <!-- No MaxHeight here: the official 28 belongs to the
+                                             subtitle row (`ItemControlBase.subtitleRow`), not to the
+                                             title, whose `RichTextBlock` declares none. A 28 on a
+                                             26.667 title is shorter than the line box (~35 px) and
+                                             cut the descenders of a name like "Giuseppe". -->
+                                        <TextBlock Text="{Binding Name}" Foreground="#FF333333" FontSize="26.667" FontWeight="SemiBold"
                                                    TextTrimming="WordEllipsis" Margin="0,0,0,2"/>
-                                        <!-- The preview is the same 20 px as the name, in the
-                                             secondary grey: the released row reads as two
-                                             lines of one size, not a title and a caption. -->
-                                        <TextBlock Text="{Binding LastMessage}" Foreground="#FF939393" FontSize="20"
+                                        <!-- Title at PhoneFontSizeLarge and preview at PhoneFontSizeNormal,
+                                             as ItemControlBase sets them: a title and its line, not two
+                                             equal rows. -->
+                                        <TextBlock Text="{Binding LastMessage}" Foreground="#FF939393" FontSize="18.667"
                                                    TextTrimming="WordEllipsis" MaxHeight="26"/>
                                     </StackPanel>
 
@@ -242,20 +246,16 @@
                                                     </PathGeometry>
                                                 </Path.Data>
                                             </Path>
-                                            <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF939393" FontSize="20"
+                                            <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF939393" FontSize="15.333"
                                                        VerticalAlignment="Center"
                                                        HorizontalAlignment="Right"/>
                                         </StackPanel>
-                                        <Border MinWidth="25" Height="18"
-                                                CornerRadius="9"
-                                                Background="{StaticResource WhatsAppAccentBrush}"
+                                        <TextBlock Text="{Binding UnreadCount}" Foreground="{StaticResource WhatsAppAccentBrush}"
+                                                FontSize="20"
                                                 HorizontalAlignment="Right"
-                                                Margin="0,4,0,0"
-                                                Visibility="{Binding UnreadCount, Converter={StaticResource UnreadToVisibility}}">
-                                            <TextBlock Text="{Binding UnreadCount}" Foreground="White" FontSize="11"
-                                                       FontWeight="Bold" HorizontalAlignment="Center"
-                                                       VerticalAlignment="Center"/>
-                                        </Border>
+                                                VerticalAlignment="Top"
+                                                Margin="18,0,0,0"
+                                                Visibility="{Binding UnreadCount, Converter={StaticResource UnreadToVisibility}}"/>
                                     </StackPanel>
 
                                     <Rectangle Grid.Column="1" Grid.ColumnSpan="2" Height="1" Fill="#14000000"
