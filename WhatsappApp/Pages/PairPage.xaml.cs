@@ -5,6 +5,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Protocol.Client;
@@ -92,9 +93,23 @@ namespace WhatsappApp.Pages
             this.InitializeComponent();
         }
 
+        /// <summary>
+        /// The chosen background, under the veil the home list uses. The page that links a
+        /// phone is the first screen of a new install, so it is also the first place the
+        /// background is seen. Plain white is the absence of an image.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
+            PageWallpaper.Source = image;
+            PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            ApplyTheme();
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("PairPage/pairing", RunAsync());

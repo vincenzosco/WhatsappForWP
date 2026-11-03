@@ -10,8 +10,18 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Grid Grid.Row="0" Background="White" Height="72">
+        <!-- The chosen wallpaper, under the same veil the home list uses: the account
+             screen is part of the app too. Collapsed for the plain white theme, where
+             the page background is the whole answer. -->
+        <Image x:Name="PageWallpaper" Grid.RowSpan="2"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <Rectangle Grid.RowSpan="2"
+                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+
+        <!-- Header: the 54 px SemiLight title of the released `PageTitlePanel`, on the
+             page's own background rather than a second white bar in front of it. -->
+        <Grid Grid.Row="0" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -20,7 +30,7 @@
             <Button x:Name="BackButton" Grid.Column="0"
                     Background="Transparent"
                     MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,4,0,0" Padding="0"
+                    Width="48" Height="48" Margin="0,6,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
                 <Path Stroke="#FF333333" StrokeThickness="2.4"
@@ -42,8 +52,9 @@
             </Button>
 
             <TextBlock x:Name="PageTitleText" Grid.Column="1" Text=""
-                       Foreground="#FF333333" FontSize="40" FontFamily="Segoe WP Semilight"
-                       VerticalAlignment="Center" Margin="8,0,0,4"/>
+                       Foreground="#FF333333" FontSize="54" FontFamily="Segoe WP Semilight"
+                       VerticalAlignment="Bottom" Margin="8,-10,0,-6"
+                       TextTrimming="CharacterEllipsis"/>
         </Grid>
 
         <!-- What this screen is: the account this phone is linked as, what the client
@@ -53,8 +64,8 @@
             <StackPanel Margin="16,16,16,16">
 
                 <TextBlock x:Uid="ConnectionPage_LinkedLabel" Text="Linked number"
-                           Foreground="{StaticResource WhatsAppAccentBrush}"
-                           FontSize="14" FontWeight="SemiBold"/>
+                           Foreground="#FF333333"
+                           FontSize="18" FontWeight="SemiBold"/>
 
                 <Border x:Name="NumberPanel" Background="White" CornerRadius="8"
                         Margin="0,6,0,0" Visibility="Collapsed">
@@ -70,8 +81,8 @@
                            Visibility="Collapsed" Margin="0,6,0,0"/>
 
                 <TextBlock x:Uid="ConnectionPage_StatusLabel" Text="Connection"
-                           Foreground="{StaticResource WhatsAppAccentBrush}"
-                           FontSize="14" FontWeight="SemiBold"
+                           Foreground="#FF333333"
+                           FontSize="18" FontWeight="SemiBold"
                            Margin="0,20,0,0"/>
 
                 <!-- The client's own sentence about what it is doing. It is written by

@@ -21,10 +21,15 @@
             <SolidColorBrush x:Key="WhatsAppLightGreenBrush" Color="#FFDCF8C6"/>
             <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFFFFFFF"/>
 
-            <!-- The veil the home list puts over the chosen wallpaper: the image
-                 keeps the page on the same theme as the conversation, and 72% white
-                 keeps a busy photo from turning the two lines of a chat row grey. -->
-            <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#B8FFFFFF"/>
+            <!-- The veil the lists put over the chosen wallpaper: the image keeps
+                 the page on the same theme as the conversation, and 60% white leaves
+                 it visible while the two lines of a chat row keep their contrast.
+                 The range is measured, not guessed: #B8 (72%) hid the picture - the
+                 list looked white whatever was chosen - and #80 (50%) buried the grey
+                 preview (#939393) on a busy or dark wallpaper, where it sat at about
+                 1.1:1. At #99 the preview is above 2:1 on anything but a mid-grey
+                 photo, and the picture still reads as a picture. -->
+            <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#99FFFFFF"/>
             <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF34A7ED"/>
 
             <!-- The accent-driven brushes. Their Color is replaced at start with

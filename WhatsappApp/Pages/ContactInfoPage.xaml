@@ -16,9 +16,19 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <!-- The chosen wallpaper, under the same veil the home list uses: opening a
+             person's details is not leaving the app, and a white page here reads as
+             another app. Collapsed for the plain white theme. -->
+        <Image x:Name="PageWallpaper" Grid.RowSpan="2"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <Rectangle Grid.RowSpan="2"
+                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+
         <!-- Header: back + title. As on the other pages, the bar is drawn here
              and the handler writes the title with Loc.Get. -->
-        <Grid Grid.Row="0" Background="White" Height="72">
+        <!-- Transparent and not white: the header sits on the wallpaper and its veil. -->
+        <Grid Grid.Row="0" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -49,8 +59,8 @@
             </Button>
 
             <TextBlock x:Name="TitleText" Grid.Column="1"
-                       VerticalAlignment="Center" Margin="8,0,0,4"
-                       Foreground="#FF333333" FontSize="40" FontFamily="Segoe WP Semilight"
+                       VerticalAlignment="Bottom" Margin="8,-10,0,-6"
+                       Foreground="#FF333333" FontSize="54" FontFamily="Segoe WP Semilight"
                        TextTrimming="WordEllipsis"/>
         </Grid>
 
@@ -66,45 +76,57 @@
                         FontSize="16" Margin="24,12,24,0"
                         HorizontalAlignment="Stretch"/>
 
-                <!-- The big picture. It is a Border and not an Image for the same
+                <!-- The header of the released profile page: the picture 128 px at
+                     24 from the edge, a 24 px gap, and the name sitting on the
+                     picture's baseline. It is a Border and not an Image for the same
                      reason as the list row: WP8.1 clips a circle only with the
                      CornerRadius of a background. -->
-                <Border x:Name="BigAvatar" Width="160" Height="160" CornerRadius="80"
-                        Margin="0,20,0,12" HorizontalAlignment="Center"
-                        Tapped="BigAvatar_Tapped">
-                    <Grid>
-                        <Ellipse Width="160" Height="160"
-                                 Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                        <Border Width="160" Height="160" CornerRadius="80"
-                                Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
-                            <Border.Background>
-                                <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
-                            </Border.Background>
-                        </Border>
-                        <TextBlock Text="{Binding Initials}"
-                                   Foreground="White" FontSize="56" FontWeight="SemiBold"
-                                   VerticalAlignment="Center" HorizontalAlignment="Center"
-                                   Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-                    </Grid>
-                </Border>
+                <Grid Margin="24,20,24,4">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
 
-                <TextBlock x:Name="NameText" FontSize="24" FontWeight="SemiBold"
-                           Foreground="#FF333333" HorizontalAlignment="Center"
-                           TextTrimming="WordEllipsis" Margin="16,0,16,0"/>
+                    <Border x:Name="BigAvatar" Grid.Column="0"
+                            Width="128" Height="128" CornerRadius="64"
+                            VerticalAlignment="Bottom" Margin="0,0,24,0"
+                            Tapped="BigAvatar_Tapped">
+                        <Grid>
+                            <Ellipse Width="128" Height="128"
+                                     Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                            <Border Width="128" Height="128" CornerRadius="64"
+                                    Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                <Border.Background>
+                                    <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                                </Border.Background>
+                            </Border>
+                            <TextBlock Text="{Binding Initials}"
+                                       Foreground="White" FontSize="44" FontWeight="SemiBold"
+                                       VerticalAlignment="Center" HorizontalAlignment="Center"
+                                       Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+                        </Grid>
+                    </Border>
 
-                <TextBlock x:Name="NumberLabel" FontSize="13" Foreground="#FF939393"
-                           HorizontalAlignment="Center" Margin="16,8,16,0"
+                    <TextBlock x:Name="NameText" Grid.Column="1"
+                               FontSize="24" FontWeight="SemiBold"
+                               Foreground="#FF333333"
+                               VerticalAlignment="Bottom" Margin="0,0,0,2"
+                               TextTrimming="WordEllipsis"/>
+                </Grid>
+
+                <TextBlock x:Name="NumberLabel" FontSize="24" FontWeight="SemiBold"
+                           Foreground="#FF333333" Margin="24,24,24,0"
                            Visibility="Collapsed"/>
-                <TextBlock x:Name="NumberText" FontSize="18" Foreground="#FF333333"
-                           HorizontalAlignment="Center" Margin="16,0,16,0"
+                <TextBlock x:Name="NumberText" FontSize="24" Foreground="#FF333333"
+                           Margin="24,2,24,0"
                            Visibility="Collapsed"/>
 
-                <TextBlock x:Name="AboutLabel" FontSize="13" Foreground="#FF939393"
-                           Margin="16,20,16,0" Visibility="Collapsed"/>
-                <TextBlock x:Name="AboutText" FontSize="17" Foreground="#FF333333"
-                           TextWrapping="Wrap" Margin="16,2,16,0" Visibility="Collapsed"/>
+                <TextBlock x:Name="AboutLabel" FontSize="24" FontWeight="SemiBold"
+                           Foreground="#FF333333" Margin="24,24,24,0" Visibility="Collapsed"/>
+                <TextBlock x:Name="AboutText" FontSize="24" Foreground="#FF333333"
+                           TextWrapping="Wrap" Margin="24,2,24,0" Visibility="Collapsed"/>
 
-                <StackPanel x:Name="BusinessPanel" Visibility="Collapsed" Margin="16,24,16,0">
+                <StackPanel x:Name="BusinessPanel" Visibility="Collapsed" Margin="24,24,24,0">
                     <TextBlock x:Name="BusinessLabel" FontSize="18" FontWeight="SemiBold"
                                Foreground="#FF333333"/>
                     <TextBlock x:Name="BusinessEmailLabel" FontSize="13" Foreground="#FF939393"
@@ -132,7 +154,7 @@
                     </ListView>
                 </StackPanel>
 
-                <StackPanel x:Name="GroupPanel" Visibility="Collapsed" Margin="16,24,16,0">
+                <StackPanel x:Name="GroupPanel" Visibility="Collapsed" Margin="24,24,24,0">
                     <TextBlock x:Name="GroupDescriptionLabel" FontSize="18" FontWeight="SemiBold"
                                Foreground="#FF333333" Visibility="Collapsed"/>
                     <TextBlock x:Name="GroupDescriptionText" FontSize="16" Foreground="#FF333333"
@@ -162,7 +184,7 @@
                 </StackPanel>
 
                 <TextBlock x:Name="EmptyText" FontSize="15" Foreground="#FF939393"
-                           TextWrapping="Wrap" Margin="16,24,16,0" Visibility="Collapsed"/>
+                           TextWrapping="Wrap" Margin="24,24,24,0" Visibility="Collapsed"/>
             </StackPanel>
         </ScrollViewer>
 

@@ -1,6 +1,7 @@
 using System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Services;
 
@@ -39,6 +40,12 @@ namespace WhatsappApp.Pages
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+
+            // Painted on every navigation, and not once in the constructor: this page is
+            // where the choice is made, so it also has to show the new one when somebody
+            // comes back to it rather than the one it was built with.
+            ApplyTheme();
+
             Diag.Ok("settings: " + ThemeService.Choices.Count + " theme(s), current " + ThemeService.Current);
 
             _loading = true;
@@ -49,6 +56,18 @@ namespace WhatsappApp.Pages
             _loading = false;
 
             ShowBackgroundState();
+        }
+
+        /// <summary>
+        /// Puts the chosen background behind this page, under the same veil the home
+        /// list uses. Plain white is the absence of an image, not a white picture: the
+        /// veil over nothing is the page's own background.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
+            PageWallpaper.Source = image;
+            PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
         /// <summary>

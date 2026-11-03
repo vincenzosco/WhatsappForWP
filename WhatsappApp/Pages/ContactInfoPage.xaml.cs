@@ -3,6 +3,7 @@ using System.Collections.ObjectModel;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
 using WhatsappApp.Services;
@@ -57,6 +58,11 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
+            // The page is part of the app, so it carries the background the rest of it
+            // carries: the wallpaper and its veil, read on every navigation because the
+            // choice can have changed while this page was off screen.
+            ApplyTheme();
+
             _contact = e.Parameter as Contact;
             if (_contact == null) return;
 
@@ -99,6 +105,17 @@ namespace WhatsappApp.Pages
                 DataService.Instance.StartCallAsync(_contact.Id, false));
 
             if (Frame.CanGoBack) Frame.GoBack();
+        }
+
+        /// <summary>
+        /// The chosen background, under the veil the home list uses. Plain white is the
+        /// absence of an image: the veil over nothing is the page's own background.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
+            PageWallpaper.Source = image;
+            PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private static bool IsGroup(string jid)

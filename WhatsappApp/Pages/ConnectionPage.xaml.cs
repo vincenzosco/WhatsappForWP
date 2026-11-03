@@ -1,6 +1,7 @@
 using System;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
@@ -34,6 +35,10 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
+            // The background is read on every navigation: the choice can have changed
+            // while this page was off screen, and the account screen carries it too.
+            ApplyTheme();
+
             PageTitleText.Text = Loc.Get("ConnectionPage_AccountTitle", "Account");
             ShowNumber();
             ShowStatus();
@@ -48,6 +53,17 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedFrom(e);
             NativeConnection.Instance.ConnectionStatusChanged -= OnStatusChanged;
+        }
+
+        /// <summary>
+        /// The chosen background, under the veil the home list uses. Plain white is the
+        /// absence of an image: the veil over nothing is the page's own background.
+        /// </summary>
+        private void ApplyTheme()
+        {
+            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
+            PageWallpaper.Source = image;
+            PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
         /// <summary>

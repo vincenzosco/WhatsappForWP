@@ -12,12 +12,21 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Title bar, the same green as the sections: this is a page of the app,
-             not a dialog in front of one. -->
-        <Grid Grid.Row="0" Background="White" Height="72">
+        <!-- The chosen wallpaper, under the same veil the home list uses: the page that
+             links a phone is the first one a new install shows, and a white screen here
+             was the one place the background stopped. Collapsed for the plain white theme. -->
+        <Image x:Name="PageWallpaper" Grid.RowSpan="4"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <Rectangle Grid.RowSpan="4"
+                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+
+        <!-- Title bar: the 54 px SemiLight title of the released `PageTitlePanel`,
+             on the page's own background and not on a second white bar. -->
+        <Grid Grid.Row="0" Background="Transparent">
             <TextBlock x:Uid="PairPage_Title" Text="Link this phone"
-                       Margin="16,0,16,0" VerticalAlignment="Center"
-                       FontSize="40" FontFamily="Segoe WP Semilight" Foreground="#FF333333" TextTrimming="CharacterEllipsis"/>
+                       Margin="16,-10,16,-6" VerticalAlignment="Bottom"
+                       FontSize="54" FontFamily="Segoe WP Semilight" Foreground="#FF333333" TextTrimming="CharacterEllipsis"/>
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">

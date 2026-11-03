@@ -123,6 +123,14 @@ namespace WhatsappApp.Services
             if (choice == null || string.IsNullOrEmpty(choice.ImageUri)) return null;
 
             var image = new BitmapImage();
+
+            // Decoded at a bounded size, not at the file's own: a wallpaper is a full-screen
+            // picture, the pages that paint it are cached and re-entered, and this phone has
+            // been seen running out of memory (`ChatCache.Save: OutOfMemoryException` in the
+            // 3 November 2026 log). A decode that does not fit is a background that silently
+            // never appears, which is what "the background does not apply" looks like.
+            image.DecodePixelType = DecodePixelType.Physical;
+            image.DecodePixelWidth = WallpaperWidth;
             image.UriSource = new Uri(choice.ImageUri);
             return image;
         }
@@ -213,6 +221,13 @@ namespace WhatsappApp.Services
         }
 
         private const int WallpaperCount = 41;
+
+        /// <summary>
+        /// The width a wallpaper is decoded at, in physical pixels: 720 is the phone this
+        /// app was measured on, and a 1080-wide file at 720 is a background that costs a
+        /// third of the memory and still fills the screen.
+        /// </summary>
+        private const int WallpaperWidth = 720;
 
         /// <summary>The six PNG wallpapers in the package; the rest are JPEG.</summary>
         private static bool IsPng(int number)

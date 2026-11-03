@@ -27,10 +27,22 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- The same secondary header as the account page: white, a back arrow and
-             the title, so a page reached from the app bar does not look like part
-             of another app. -->
-        <Grid Grid.Row="0" Background="White" Height="72">
+        <!-- The chosen wallpaper, under the same veil the home list uses. The settings
+             screen belongs to the app too, and a background that stopped at the chat
+             list made this page look like a different one. Collapsed for the plain
+             white theme, where the page background is the whole answer. -->
+        <Image x:Name="PageWallpaper" Grid.RowSpan="2"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <Rectangle Grid.RowSpan="2"
+                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+
+        <!-- The official secondary header: the back arrow, and the title in the
+             54 px SemiLight of the released `PageTitlePanel`, the panel every
+             settings screen of WhatsApp 2.17 draws. -->
+        <!-- Transparent and not white: the header sits on the page's own background,
+             which is the wallpaper and its veil, not a second white bar in front of it. -->
+        <Grid Grid.Row="0" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -39,7 +51,7 @@
             <Button x:Name="BackButton" Grid.Column="0"
                     Background="Transparent"
                     MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,12,0,0" Padding="0"
+                    Width="48" Height="48" Margin="0,6,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
                 <Path Stroke="#FF333333" StrokeThickness="2.4"
@@ -61,8 +73,9 @@
             </Button>
 
             <TextBlock x:Uid="Settings_Title" Grid.Column="1" Text="Impostazioni"
-                       Foreground="#FF333333" FontSize="40" FontFamily="Segoe WP Semilight"
-                       VerticalAlignment="Center" Margin="8,0,0,4"/>
+                       Foreground="#FF333333" FontSize="54" FontFamily="Segoe WP Semilight"
+                       VerticalAlignment="Bottom" Margin="8,-10,0,-6"
+                       TextTrimming="CharacterEllipsis"/>
         </Grid>
 
         <!-- The wallpapers are the released package's own (Images/Wallpapers),
@@ -86,8 +99,8 @@
             <GridView.Header>
                 <StackPanel Margin="4,8,4,6">
                     <TextBlock x:Uid="Settings_ThemeLabel" Text="Tema"
-                               Foreground="{StaticResource WhatsAppAccentBrush}"
-                               FontSize="15" FontWeight="SemiBold"/>
+                               Foreground="#FF333333"
+                               FontSize="24" FontWeight="SemiBold"/>
                     <TextBlock x:Uid="Settings_ThemeHint"
                                Text="Lo sfondo delle chat e dell'elenco. La scelta vale per tutta l'app."
                                Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
@@ -156,8 +169,8 @@
                          The tile and the number on the icon are not here: they are a
                          summary, not an alert. -->
                     <TextBlock x:Uid="Settings_AlertsLabel" Text="Avvisi"
-                               Foreground="{StaticResource WhatsAppAccentBrush}"
-                               FontSize="15" FontWeight="SemiBold"/>
+                               Foreground="#FF333333"
+                               FontSize="24" FontWeight="SemiBold"/>
                     <TextBlock x:Uid="Settings_AlertsHint"
                                Text="Quali avvisi compaiono nell'area notifiche. La tile e il numero sull'icona non cambiano."
                                Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
@@ -185,8 +198,8 @@
                          bare: the two lines above it carry the words, so there is no
                          Header or On/Off Content to translate twice. -->
                     <TextBlock x:Uid="Settings_BackgroundLabel" Text="Controllo in background"
-                               Foreground="{StaticResource WhatsAppAccentBrush}"
-                               FontSize="15" FontWeight="SemiBold"/>
+                               Foreground="#FF333333"
+                               FontSize="24" FontWeight="SemiBold"/>
                     <TextBlock x:Uid="Settings_BackgroundHint"
                                Text="Ogni 15 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. 15 minuti e' l'intervallo piu' breve che Windows permette: il momento esatto lo decide lui e puo' rimandarlo."
                                Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
@@ -204,19 +217,45 @@
                                x:Name="BackgroundState"/>
 
                     <TextBlock x:Uid="Settings_AccountLabel" Text="Account"
-                               Foreground="{StaticResource WhatsAppAccentBrush}"
-                               FontSize="15" FontWeight="SemiBold"/>
+                               Foreground="#FF333333"
+                               FontSize="24" FontWeight="SemiBold"/>
                     <TextBlock x:Uid="Settings_AccountHint"
                                Text="Il numero collegato, lo stato della connessione e il collegamento di un altro telefono."
                                Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
                                Margin="0,2,0,8"/>
-                    <Button x:Name="AccountButton" x:Uid="Settings_AccountButton"
-                            Content="Account e connessione"
-                            Background="{StaticResource WhatsAppAccentBrush}"
-                            Foreground="White" FontSize="18" FontWeight="SemiBold"
-                            Height="52" BorderThickness="0"
-                            HorizontalAlignment="Stretch"
-                            Click="AccountButton_Click"/>
+                    <!-- A settings row, not a coloured primary button: the released
+                         settings screens are plain 24 px text over a hairline, and
+                         the chevron says the row opens a page of its own. -->
+                    <Grid>
+                        <Rectangle Height="1" Fill="#14000000" VerticalAlignment="Top"
+                                   Margin="0,-8,0,0"/>
+                        <Button x:Name="AccountButton" x:Uid="Settings_AccountButton"
+                                Content="Account e connessione"
+                                Background="Transparent"
+                                Foreground="#FF333333" FontSize="24" FontFamily="Segoe WP Semilight"
+                                MinWidth="0" MinHeight="0" Height="56" BorderThickness="0"
+                                Padding="0" HorizontalAlignment="Stretch"
+                                HorizontalContentAlignment="Left"
+                                Click="AccountButton_Click"/>
+                        <Path Stroke="#FF939393" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                              Width="12" Height="20" HorizontalAlignment="Right"
+                              VerticalAlignment="Center" IsHitTestVisible="False">
+                            <!-- IconChevron -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="2,2">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="10,10 2,18"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <Rectangle Height="1" Fill="#14000000" VerticalAlignment="Bottom"/>
+                    </Grid>
                 </StackPanel>
             </GridView.Footer>
         </GridView>
