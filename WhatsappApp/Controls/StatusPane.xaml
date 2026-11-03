@@ -36,7 +36,7 @@
                          StatusItemControl is given. -->
                     <Grid MinHeight="68" Background="Transparent" Margin="30,12,24,12">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="62"/>
+                            <ColumnDefinition Width="68"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
@@ -50,9 +50,10 @@
                             <!-- The official SegmentedCircle laid round the picture:
                                  radius 34 + 5, so a 78 px circle pulled 5 px up and
                                  left, which leaves it centred on the 68 px face. -->
+                            <!-- Centred on the 68 px face: the 78 px ring hangs 5 px over
+                                 each side, which is what the official control draws. -->
                             <Ellipse Width="78" Height="78" StrokeThickness="2"
-                                     HorizontalAlignment="Left" VerticalAlignment="Top"
-                                     Margin="-5,-5,0,0"
+                                     HorizontalAlignment="Center" VerticalAlignment="Center"
                                      Stroke="{StaticResource WhatsAppAccentBrush}"
                                      Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                             <Ellipse Width="68" Height="68"
