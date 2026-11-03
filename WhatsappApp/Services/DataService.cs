@@ -370,8 +370,12 @@ namespace WhatsappApp.Services
                             return;
                         }
 
-                        changed = _call.Ring(signal.CallId, JidUtils.Normalize(Named(
-                            string.IsNullOrEmpty(signal.From) ? signal.To : signal.From)), signal.IsVideo);
+                        // The address, never the name: `PeerJid` is what an `accept` or a
+                        // `reject` is sent to, and a display name put here answered a call
+                        // to "Mario". The banner and the toast resolve the name themselves,
+                        // from the same book, at the moment they draw it.
+                        changed = _call.Ring(signal.CallId, JidUtils.Normalize(
+                            string.IsNullOrEmpty(signal.From) ? signal.To : signal.From), signal.IsVideo);
                         break;
 
                     case CallKind.PreAccept:
@@ -524,17 +528,6 @@ namespace WhatsappApp.Services
             RaiseCallChanged();
         }
 
-        /// <summary>
-        /// The name a call banner shows: the contact's, or the address without its device.
-        /// It goes through the same name book as a chat row, so a call and its conversation
-        /// cannot disagree about who it is.
-        /// </summary>
-        private static string Named(string jid)
-        {
-            string name = NameCache.Book.NameFor(jid);
-            return string.IsNullOrEmpty(name) ? jid : name;
-        }
-
         private void RaiseCallChanged()
         {
             FollowCallState();
@@ -557,7 +550,10 @@ namespace WhatsappApp.Services
         {
             if (_call.State == CallState.Ringing)
             {
-                CallRinger.Start(Named(_call.PeerJid));
+                // A name, not an address: `DisplayNameForJid` asks the book, then the LID
+                // pair, then the number, so a call from a `@lid` stops announcing itself as
+                // its fourteen digits (`5479483...`, seen on the phone on 3 November 2026).
+                CallRinger.Start(DisplayNameForJid(_call.PeerJid));
             }
             else
             {
@@ -583,7 +579,7 @@ namespace WhatsappApp.Services
 
             var row = new CallLogEntry();
             row.ChatId = _call.PeerJid;
-            row.Name = Named(_call.PeerJid);
+            row.Name = DisplayNameForJid(_call.PeerJid);
             row.Timestamp = _call.StartedAt;
             row.CallId = _call.CallId;
             row.Reason = ReasonOf(_call);
@@ -3333,8 +3329,16 @@ namespace WhatsappApp.Services
         {
             if (MemoryWatcher.Instance.IsUnderPressure) return;
 
+            // The budget, not the list: a 512 MB phone rebuilds one screenful of pictures and
+            // leaves the rest on their initials. Decoding the whole list is what put the app
+            // under pressure in the first place, and restoring it would undo the trim.
+            int limit = MemoryProfile.Instance.MaxDecodedAvatars;
+            int restored = 0;
+
             for (int i = 0; i < _contacts.Count; i++)
             {
+                if (restored >= limit) return;
+
                 var contact = _contacts[i];
                 if (contact == null || contact.Avatar != null) continue;
 
@@ -3343,6 +3347,7 @@ namespace WhatsappApp.Services
                 if (string.IsNullOrEmpty(data)) continue;
 
                 contact.AvatarData = data;
+                restored++;
 #pragma warning disable 4014
                 contact.LoadAvatarAsync();
 #pragma warning restore 4014

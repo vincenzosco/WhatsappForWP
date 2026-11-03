@@ -392,13 +392,19 @@ namespace WhatsappApp.Pages
             return minutes + ":" + (seconds % 60).ToString("00");
         }
 
-        /// <summary>A call's name: the contact's, or the address as it is.</summary>
+        /// <summary>
+        /// A call's name: the contact's, the phone number behind a `@lid`, or the address.
+        ///
+        /// Why not the book alone: it answers null for somebody this phone has no name for,
+        /// and the banner then said `5479483...` - an identifier, not a number anybody can
+        /// call back. `DisplayNameForJid` is the one resolver a chat row already uses, so the
+        /// banner and the conversation cannot disagree about who is calling.
+        /// </summary>
         private static string NameOf(string jid)
         {
             if (string.IsNullOrEmpty(jid)) return "";
 
-            string name = NameCache.Book.NameFor(jid);
-            return string.IsNullOrEmpty(name) ? JidUtils.Normalize(jid) : name;
+            return DataService.DisplayNameForJid(jid);
         }
 
         private void AcceptCall_Click(object sender, RoutedEventArgs e)
