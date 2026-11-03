@@ -205,15 +205,13 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The tile: the turns `TileCycle` makes - one per conversation, who wrote and what
-        /// they said, and a picture alone between them when the slots allow.
+        /// The tile: the turns `TileCycle` makes - one per conversation, with the WhatsApp
+        /// logo and unread badge on the two smallest sizes, the conversation on the wide
+        /// size, and status text reserved for the large square size.
         ///
-        /// The number is not written in the medium tile any more. The two lines of a 150 px
-        /// tile are the only text it has, and the request of 23 October 2026 was to spend
-        /// them on the person and the message, in the larger font, instead of on a count
-        /// the badge already draws in the corner. A count that the shell does not draw is
-        /// still visible on the wide size, which falls back to it when there is nothing to
-        /// name.
+        /// The profile picture is used only where there is room to recognize it. When it is
+        /// unavailable or must not be shown, the selected Home-screen theme is the fallback
+        /// for the large and wide bindings.
         ///
         /// Every turn is drawn from the **live** total and the live list: the queue rotates,
         /// the truth under it does not belong to a moment. That is the difference between
@@ -251,11 +249,6 @@ namespace WhatsappApp.Services
 
                 if (_unread <= 0 && _unseenStatuses <= 0) return;
 
-                // The updates turn: one of the five slots, in front, when somebody has posted
-                // and nobody has looked. It is drawn from the live count like everything else
-                // here, so a queue walked twice cannot show a number that has moved.
-                TileEntry statuses = _unseenStatuses > 0 ? StatusTurn(_unseenStatuses) : null;
-
                 IList<TileEntry> waiting = _waiting;
                 IList<TileEntry> turns;
                 if (waiting == null || waiting.Count == 0)
@@ -265,7 +258,9 @@ namespace WhatsappApp.Services
                     // knows, which is what the lock screen shows too.
                     turns = _unread > 0
                         ? new List<TileEntry> { Entry(_senderName, _senderBody, _senderImage) }
-                        : new List<TileEntry>();
+                        : _unseenStatuses > 0
+                            ? new List<TileEntry> { StatusTurn(_unseenStatuses) }
+                            : new List<TileEntry>();
                 }
                 else
                 {
@@ -274,15 +269,8 @@ namespace WhatsappApp.Services
                     // the messages leave over. The tile then does not say the same thing on
                     // every pass through the queue.
                     //
-                    // The updates take their slot first: a person waiting must not lose
-                    // their turn to a number, but a number that is not on the tile at all is
-                    // the defect this turn exists for - so the messages are asked for one
-                    // fewer slot and nobody is dropped.
-                    int slots = statuses == null ? TileCycle.MaxEntries : TileCycle.MaxEntries - 1;
-                    turns = TileCycle.Turns(waiting, slots);
+                    turns = TileCycle.Turns(waiting, TileCycle.MaxEntries);
                 }
-
-                turns = TileCycle.WithStatuses(turns, statuses, TileCycle.MaxEntries);
 
                 // Posted back to front: the shell shows the notification it was given last
                 // first, so the first turn of the list - the newest person's message, the
@@ -317,7 +305,7 @@ namespace WhatsappApp.Services
 
             var xml = TileUpdateManager.GetTemplateContent(entry.PictureOnly
                 ? TileTemplateType.TileSquare150x150Image
-                : TileSquareTemplate);
+                : TileTemplateType.TileSquare150x150IconWithBadge);
             var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
             if (visual == null) return;
 
@@ -331,15 +319,15 @@ namespace WhatsappApp.Services
             }
             else
             {
-                FillBinding(xml, medium, entry.Sender, entry.Body, entry.Image);
+                SetImage(xml, medium, TileIconUri);
                 AddWideBinding(xml, visual, entry.Sender, entry.Body, wide);
             }
 
             AddLargeBinding(xml, visual, entry);
 
-            // 71x71 carries the person's picture whenever there is one - it is the only
-            // thing that size has room for - and the app mark when the chat has no picture.
-            AddSmallBinding(xml, visual, entry.Image == null ? MarkUri : TileImage.SmallOf(entry.Image));
+            // The two smallest sizes are the app's unread indicator: WhatsApp mark and
+            // badge count. A person's picture belongs only to the large binding.
+            AddSmallBinding(xml, visual);
 
             updater.Update(new TileNotification(xml));
         }
@@ -353,27 +341,6 @@ namespace WhatsappApp.Services
             entry.Image = image;
 
             return entry;
-        }
-
-        /// <summary>
-        /// The medium tile: who wrote on the template's large line, and what they said
-        /// wrapped under it.
-        ///
-        /// The count used to take the large line and the name the small one, which put the
-        /// number where the eye lands and the message nowhere at all: at 150 px the two
-        /// lines are all the text there is, and the one a person reads is the message. The
-        /// count is still on the tile - the badge draws it over the corner, and the second
-        /// line says it when there is nothing to quote.
-        ///
-        /// One rule for both sizes (`TileText`), so the medium tile and the wide one cannot
-        /// start disagreeing about who wrote.
-        /// </summary>
-        private static void FillBinding(XmlDocument xml, XmlElement binding, string senderName, string bodyText, string image)
-        {
-            if (binding == null) return;
-
-            FillText(xml, binding, TileText.For(senderName, bodyText, UnreadText(_unread)));
-            SetImage(xml, binding, image ?? MarkUri);
         }
 
         /// <summary>The two lines of one binding, as `TileText` decided them.</summary>
@@ -455,9 +422,11 @@ namespace WhatsappApp.Services
                     return;
                 }
 
-                TileLines lines = TileText.For(entry.Sender, entry.Body, UnreadText(_unread));
+                TileLines lines = _unseenStatuses > 0
+                    ? TileText.For(Loc.Get("TileStatusLabel", "Updates"), StatusesText(_unseenStatuses), "")
+                    : TileText.For(entry.Sender, entry.Body, UnreadText(_unread));
                 FillText(xml, binding, lines);
-                SetImage(xml, binding, entry.Image ?? MarkUri);
+                SetImage(xml, binding, _unseenStatuses > 0 ? MarkUri : entry.Image ?? MarkUri);
             }
             catch (Exception ex)
             {
@@ -485,25 +454,17 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The small tile, pinned at 71x71: it carries the app mark, whatever the
-        /// other sizes are showing.
-        ///
-        /// The size has no line of text to write the count in, and no room for one
-        /// either, so the only thing it can be is the app itself. Its template is
-        /// the one that does not ship an `image` element: `SetImage` creates it.
-        ///
-        /// The picture of the sender is not used here on purpose. At 71 px a face
-        /// is a smear, and the size is meant to say "this app has something for
-        /// you", while the medium and the wide tile next to it say what and who.
+        /// The small tile, pinned at 71x71: it carries the app mark and the badge count.
+        /// The template has no text element, so the badge is the only readable count here.
         /// </summary>
-        private static void AddSmallBinding(XmlDocument xml, XmlElement visual, string image)
+        private static void AddSmallBinding(XmlDocument xml, XmlElement visual)
         {
             try
             {
                 var binding = ImportBinding(xml, visual, TileTemplateType.TileSquare71x71IconWithBadge);
                 if (binding == null) return;
 
-                SetImage(xml, binding, image);
+                SetImage(xml, binding, TileIconUri);
             }
             catch (Exception ex)
             {
@@ -512,16 +473,17 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The wide tile is the lock screen's detailed status: it says **who** and
-        /// **what**, and the number is left to the badge (the quick status). That is
-        /// the pair Windows offers in Settings -> Lock screen, and the reason the two
-        /// bindings say different things.
+        /// The wide tile keeps the detailed conversation view: it says who wrote and what
+        /// they said. Statuses are reserved for the large square binding.
         /// </summary>
         private static void FillWide(XmlDocument xml, XmlElement binding, string senderName, string bodyText, string image)
         {
             if (binding == null) return;
 
-            FillText(xml, binding, TileText.For(senderName, bodyText, UnreadText(_unread)));
+            TileLines lines = senderName == null && bodyText == null
+                ? TileText.For("", "", "")
+                : TileText.For(senderName, bodyText, UnreadText(_unread));
+            FillText(xml, binding, lines);
 
             // The wide tile has its own asset: the square one is scaled to fill
             // 310x150 and loses its top and bottom, which cut the mark. This one is
@@ -554,11 +516,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private static TileEntry StatusTurn(int count)
         {
-            var entry = new TileEntry();
-            entry.Sender = Loc.Get("TileStatusLabel", "Updates");
-            entry.Body = StatusesText(count);
-
-            return entry;
+            return Entry(null, null, null);
         }
 
         /// <summary>
@@ -602,15 +560,6 @@ namespace WhatsappApp.Services
         /// </summary>
         private static readonly TileTemplateType TileWideTemplate =
             TileTemplateType.TileWide310x150PeekImageAndText02;
-
-        /// <summary>
-        /// The medium template of a message turn: one header string in larger text over one
-        /// string of regular text that wraps over up to three lines. It is the shape of the
-        /// two lines the tile has, which is why the person is in the header and the message
-        /// in the wrapping one.
-        /// </summary>
-        private static readonly TileTemplateType TileSquareTemplate =
-            TileTemplateType.TileSquare150x150PeekImageAndText02;
 
         /// <summary>
         /// The large template: the same two lines over the same picture, at the size the

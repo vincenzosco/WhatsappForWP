@@ -240,9 +240,10 @@ function smallProblems(pinned, notifications) {
       'card.Small - the square card there is the centre of the face, magnified');
   }
 
-  if (!/TileImage\.SmallOf\s*\(/.test(note)) {
-    problems.push('WhatsappApp/Services/NotificationService.cs: the 71x71 binding is not given ' +
-      'TileImage.SmallOf(...) - the square card there is the centre of the face, magnified');
+  if (!/AddSmallBinding\s*\(\s*xml\s*,\s*visual\s*\)/.test(note)
+      || !/SetImage\s*\(\s*xml\s*,\s*binding\s*,\s*TileIconUri\s*\)/.test(note)) {
+    problems.push('WhatsappApp/Services/NotificationService.cs: the 71x71 binding must use ' +
+      'the WhatsApp logo, not a contact picture');
   }
 
   return problems;
