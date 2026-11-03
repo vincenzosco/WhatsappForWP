@@ -154,7 +154,12 @@ namespace WhatsappApp.Models
 
             try
             {
-                Avatar = await ImageHelper.FromBase64Async(_avatarData, AvatarDecodePixels);
+                // The width comes from the phone's own budget: 52 px is the row box, and on a
+                // 512 MB phone the picture is decoded at 40 instead - a third of the pixels,
+                // and the difference is not visible at that size. The box stays 52 either
+                // way; only the bitmap is smaller.
+                Avatar = await ImageHelper.FromBase64Async(
+                    _avatarData, WhatsappApp.Services.MemoryProfile.Instance.AvatarDecodePx);
             }
             catch (Exception ex)
             {

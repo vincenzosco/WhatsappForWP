@@ -299,3 +299,35 @@ test('ContactDirectory che legge CoreApplication.MainView si segnala', () => {
 test('la regola della finestra vale solo per ContactDirectory', () => {
   assert.deepStrictEqual(memory.windowProblems('var view = CoreApplication.MainView;', FILE), []);
 });
+
+const MEMORY_PROFILE = 'WhatsappApp/Services/MemoryProfile.cs';
+const ENRICHER = 'WhatsappApp/Services/AvatarEnricher.cs';
+const DATA = 'WhatsappApp/Services/DataService.cs';
+
+test('un profilo di memoria che non legge il limite si segnala', () => {
+  const found = memory.memoryProfileProblems(
+    'public int MaxDecodedAvatars { get { return 24; } }', MEMORY_PROFILE).join('\n');
+  assert.match(found, /AppMemoryUsageLimit/);
+  assert.match(found, /LowTierLimitBytes/);
+});
+
+test('il ripristino degli avatar senza il budget del profilo si segnala', () => {
+  const found = memory.memoryProfileProblems(
+    'for (int i = 0; i < _contacts.Count; i++) contact.LoadAvatarAsync();', DATA).join('\n');
+  assert.match(found, /MaxDecodedAvatars/);
+});
+
+test('il pass degli avatar senza il budget del profilo si segnala', () => {
+  const found = memory.memoryProfileProblems(
+    'while (Wanted(generation)) { }', ENRICHER).join('\n');
+  assert.match(found, /AvatarsToEnrich/);
+});
+
+test('i tre file veri del progetto passano la regola del budget', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const read = (rel) => fs.readFileSync(path.join(__dirname, '..', '..', rel), 'utf8');
+  assert.deepStrictEqual(memory.memoryProfileProblems(read(MEMORY_PROFILE), MEMORY_PROFILE), []);
+  assert.deepStrictEqual(memory.memoryProfileProblems(read(DATA), DATA), []);
+  assert.deepStrictEqual(memory.memoryProfileProblems(read(ENRICHER), ENRICHER), []);
+});

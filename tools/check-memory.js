@@ -364,6 +364,56 @@ function historyCeilingProblems(source, file) {
   return problems;
 }
 
+const MEMORY_PROFILE = 'WhatsappApp/Services/MemoryProfile.cs';
+const AVATAR_ENRICHER = 'WhatsappApp/Services/AvatarEnricher.cs';
+
+/**
+ * Problemi del lavoro che deve scalare con la memoria del telefono.
+ *
+ * Perche' esiste: `MemoryWatcher` reagisce quando il sistema dice che l'app e' sotto
+ * pressione, cioe' dopo il danno - la lista ha gia' decodificato centosettanta
+ * immagini e il trim arriva quando il GC non ha piu' niente da restituire. Il limite
+ * invece si sa prima del primo frame (`AppMemoryUsageLimit`), e su un telefono da
+ * 512 MB la difesa giusta e' fare meno lavoro, non fare tutto e poi buttarlo.
+ *
+ * Le due regole qui sotto sono i due posti dove il lavoro era senza tetto: il
+ * ripristino degli avatar dopo un trim (che rimetteva ogni immagine che il trim
+ * aveva appena buttato) e il pass che chiede una figura per ogni chat (due round
+ * trip ciascuna). Su un telefono piccolo entrambi devono fermarsi al budget del
+ * profilo.
+ */
+function memoryProfileProblems(source, file) {
+  const problems = [];
+  const code = stripComments(source);
+
+  if (file === MEMORY_PROFILE) {
+    if (!/AppMemoryUsageLimit/.test(code)) {
+      problems.push(`${file}: does not read MemoryManager.AppMemoryUsageLimit: the budget is the ` +
+        'one thing the platform tells before the first frame, and without it a 512 MB phone ' +
+        'is only discovered when the system is already closing the app');
+    }
+    if (!/LowTierLimitBytes\s*=\s*\d+/.test(code)) {
+      problems.push(`${file}: has no LowTierLimitBytes: without a threshold every phone is ` +
+        'either low or normal by accident');
+    }
+    return problems;
+  }
+
+  if (file === DATA_SERVICE && !/MaxDecodedAvatars/.test(code)) {
+    problems.push(`${file}: RestoreAvatars is not bounded by MemoryProfile.MaxDecodedAvatars: ` +
+      'it rebuilds every picture TrimForMemory dropped, which puts the phone straight back ' +
+      'under the pressure that caused the trim');
+  }
+
+  if (file === AVATAR_ENRICHER && !/AvatarsToEnrich/.test(code)) {
+    problems.push(`${file}: the pass is not bounded by MemoryProfile.AvatarsToEnrich: it asks ` +
+      'for a picture of every conversation, two round trips each, on the phone that cannot ' +
+      'hold them');
+  }
+
+  return problems;
+}
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -386,6 +436,7 @@ function main() {
     problems.push(...avatarCacheProblems(source, rel));
     problems.push(...cachedRowsProblems(source, rel));
     problems.push(...historyCeilingProblems(source, rel));
+    problems.push(...memoryProfileProblems(source, rel));
     if (rel === HELPER) problems.push(...sourceShapeProblems(source, rel));
     problems.push(...threadProblems(source, rel));
     problems.push(...windowProblems(source, rel));
@@ -412,6 +463,7 @@ module.exports = {
   cachedRowsProblems,
   sourceShapeProblems,
   historyCeilingProblems,
+  memoryProfileProblems,
   splitArguments,
   MAX_DECODE
 };

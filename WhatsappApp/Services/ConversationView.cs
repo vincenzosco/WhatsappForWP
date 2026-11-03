@@ -28,6 +28,14 @@ namespace WhatsappApp.Services
         /// </summary>
         private const int BottomFollowMargin = 80;
 
+        /// <summary>
+        /// How close to the top the reader has to be for the page to load the next older
+        /// chunk. A screenful is about 600 px: 160 is close enough to run while the reader
+        /// is still looking at the row above, and far enough that a small scroll does not
+        /// ask for a page it does not need.
+        /// </summary>
+        private const int NearTopMargin = 160;
+
         private readonly ListView _list;
         private readonly CoreDispatcher _dispatcher;
 
@@ -38,6 +46,8 @@ namespace WhatsappApp.Services
         private Action<bool> _onPosition;
         private bool? _lastAtBottom;
         private bool _watched;
+        private Action _onNearTop;
+        private bool _nearTopSaid;
         // The position was asked for before the list had a ScrollViewer, and the
         // layout pass that gives it one has not run yet: LayoutUpdated is where
         // the wait ends.
@@ -121,6 +131,22 @@ namespace WhatsappApp.Services
         {
             _onPosition = atBottom;
             _lastAtBottom = null;
+            AttachViewChanged();
+        }
+
+        /// <summary>
+        /// Tells the caller when the reader reaches the top, once per visit to the top: the
+        /// chat page answers by putting the next older page in front of the rows already
+        /// shown, keeping the row that was first where it was (`ShowOlderPage` scrolls to
+        /// it again).
+        ///
+        /// Edge, not level: without `_nearTopSaid` every scroll event at the top would ask
+        /// for another page, and a slow drag would load the whole conversation in one go.
+        /// </summary>
+        public void WatchNearTop(Action loadOlder)
+        {
+            _onNearTop = loadOlder;
+            _nearTopSaid = false;
             AttachViewChanged();
         }
 
@@ -224,6 +250,8 @@ namespace WhatsappApp.Services
             // more.
             _onPosition = null;
             _lastAtBottom = null;
+            _onNearTop = null;
+            _nearTopSaid = false;
         }
 
         private void QueueScroll(ChatMessage message)
@@ -276,6 +304,12 @@ namespace WhatsappApp.Services
             ChatMessage target = _pendingScroll;
             _pendingScroll = null;
             if (target == null && _items != null && _items.Count > 0)
+                target = _items[_items.Count - 1];
+
+            // A row the list is not showing (the page binds the newest chunk only) cannot
+            // be scrolled to: ScrollIntoView on an item outside the source answers nothing
+            // useful. The newest row shown is where the reader wanted to be.
+            if (target != null && _items != null && !_items.Contains(target) && _items.Count > 0)
                 target = _items[_items.Count - 1];
 
             // ScrollIntoView, not a move to ScrollableHeight. A ListView that has
@@ -368,8 +402,33 @@ namespace WhatsappApp.Services
 
         private void OnViewChanged(object sender, ScrollViewerViewChangedEventArgs e)
         {
+            ReportNearTop();
+
             if (_onPosition == null) return;
             ReportPosition();
+        }
+
+        /// <summary>The reader reached the top: the page has older rows to put in front.</summary>
+        private void ReportNearTop()
+        {
+            if (_onNearTop == null) return;
+
+            ScrollViewer viewer = Viewer();
+            if (viewer == null) return;
+
+            bool near = viewer.VerticalOffset <= NearTopMargin;
+            if (!near)
+            {
+                _nearTopSaid = false;
+                return;
+            }
+
+            if (_nearTopSaid) return;
+
+            _nearTopSaid = true;
+
+            try { _onNearTop(); }
+            catch (Exception ex) { Diag.Failed("ConversationView/nearTop", ex); }
         }
 
         /// <summary>

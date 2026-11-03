@@ -117,10 +117,19 @@ namespace WhatsappApp.Services
             int failures = 0;
             int refused = 0;
 
+            // The budget, not the account: on a 512 MB phone this pass covers the rows a
+            // person can see and leaves the rest on their initials. Two round trips per chat
+            // at 350 ms is the most expensive background work the list starts, and a hundred
+            // and seventy of them is what a small phone cannot afford while it scrolls.
+            int fetched = 0;
+            int limit = MemoryProfile.Instance.AvatarsToEnrich;
+
             try
             {
                 while (Wanted(generation))
                 {
+                    if (fetched >= limit) break;
+
                     IList<Contact> rows = DataService.Instance.Contacts;
 
                     if (rows.Count == 0 || index >= rows.Count)
@@ -229,6 +238,7 @@ namespace WhatsappApp.Services
                     {
                         string base64 = Convert.ToBase64String(jpeg);
                         AvatarCache.Remember(id, base64);
+                        fetched++;
 
                         if (row != null)
                         {

@@ -30,6 +30,21 @@ namespace WhatsappApp.Pages
         // The members picked from the @ menu for the message being written.
         private readonly List<string> _pendingMentions = new List<string>();
         private ObservableCollection<ChatMessage> _messages;
+
+        /// <summary>
+        /// The rows the list shows: the newest page of the conversation, and the older pages
+        /// the reader pulls in.
+        ///
+        /// Why a second collection: `_messages` is the whole conversation (`DataService`
+        /// ceilings it at `MaxMessagesPerChat`), and binding it means asking XAML to measure
+        /// every row of it before the newest is on screen. On a 512 MB phone that is the most
+        /// expensive thing this page does, and the reader is looking at one screenful.
+        /// `_shown` is what is bound; `_messages` stays the truth.
+        /// </summary>
+        private ObservableCollection<ChatMessage> _shown;
+
+        /// <summary>The index in `_messages` of `_shown[0]`: everything before it is older.</summary>
+        private int _shownFrom;
         // The handler put on ConnectionEstablished while this chat is open: a
         // chat opened before the socket is up asks for nothing, and this is what
         // gives it its history when the connection arrives.
@@ -335,6 +350,12 @@ namespace WhatsappApp.Pages
             DataService.Instance.ActiveChatId = null;
             // The viewer belongs to the tree this page is leaving: a cached one
             // would be scrolled through after the next navigation.
+            // The page is leaving: the mirror of the conversation is not the next page's,
+            // and a handler left on `_messages` would fill a list nobody shows.
+            if (_messages != null) _messages.CollectionChanged -= OnMessagesChanged;
+            _shown = null;
+            _shownFrom = 0;
+
             _view.Reset();
             HideFullScreen();
             StopVideo();
@@ -662,7 +683,8 @@ namespace WhatsappApp.Pages
             bool isActiveChat = DataService.Instance.ActiveChatId == chatId;
             if (!isActiveChat) Diag.Ok("conversation bind skipped for " + chatId);
 
-            _view.Bind(_messages);
+            ShowNewestPage();
+            _view.Bind(_shown);
 
             // What the bind cost, next to how many rows it took. The row count on
             // its own cannot tell a burst that never arrived from a list that was
@@ -671,17 +693,118 @@ namespace WhatsappApp.Pages
             // On disk at once: this is the line that has to survive the crash it
             // measures, and the memory it names is what tells a fail-fast of the
             // runtime from the phone terminating the app on its budget.
-            Diag.OkNow("bound " + _messages.Count + " rows, memory "
+            Diag.OkNow("bound " + _shown.Count + " of " + _messages.Count + " rows, memory "
                 + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
 
-            if (isActiveChat && _messages.Count > 0)
-                _view.ScrollTo(_messages[_messages.Count - 1]);
+            if (isActiveChat)
+            {
+                if (_shown.Count > 0) _view.ScrollTo(_shown[_shown.Count - 1]);
+
+                // Older rows come in when the reader reaches the top, one page at a time.
+                _view.WatchNearTop(ShowOlderPage);
+            }
 
             // The burst closed and the conversation is still empty: this account has
             // nothing older in that chat.
             if (historyRequested && _messages.Count == 0)
             {
                 Diag.Ok("history arrived empty for " + chatId);
+            }
+        }
+
+        /// <summary>
+        /// The newest page of the conversation, in `_shown`, ready for the list.
+        ///
+        /// The page size is the phone's (`MemoryProfile.MessagePageSize`): 30 rows on a
+        /// 512 MB device, 100 elsewhere. The collection is created once and then refilled,
+        /// because the list watches this instance.
+        /// </summary>
+        private void ShowNewestPage()
+        {
+            int page = MemoryProfile.Instance.MessagePageSize;
+
+            if (_shown == null)
+            {
+                _shown = new ObservableCollection<ChatMessage>();
+                _messages.CollectionChanged += OnMessagesChanged;
+            }
+
+            _shown.Clear();
+            _shownFrom = _messages.Count > page ? _messages.Count - page : 0;
+
+            for (int i = _shownFrom; i < _messages.Count; i++) _shown.Add(_messages[i]);
+        }
+
+        /// <summary>
+        /// One older page in front of the rows already shown, with the row that was first
+        /// left where it is: the view scrolls back to it, so the reader's place does not move
+        /// when the page above appears.
+        /// </summary>
+        private void ShowOlderPage()
+        {
+            if (_shown == null || _shownFrom <= 0) return;
+
+            int page = MemoryProfile.Instance.MessagePageSize;
+            int from = _shownFrom - page;
+            if (from < 0) from = 0;
+
+            ChatMessage anchor = _shown.Count > 0 ? _shown[0] : null;
+
+            for (int i = _shownFrom - 1; i >= from; i--) _shown.Insert(0, _messages[i]);
+            _shownFrom = from;
+
+            if (anchor != null) _view.ScrollTo(anchor);
+
+            Diag.Ok("conversation page: " + _shown.Count + " of " + _messages.Count + " row(s)");
+        }
+
+        /// <summary>
+        /// `_messages` changed: a new message goes on screen, an older one stays where it is
+        /// until paging reaches it, and a removal is taken off the list as well.
+        /// </summary>
+        private void OnMessagesChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (_shown == null) return;
+
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Reset)
+            {
+                ShowNewestPage();
+                return;
+            }
+
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Remove)
+            {
+                if (e.OldItems == null) return;
+
+                for (int i = 0; i < e.OldItems.Count; i++)
+                {
+                    var gone = e.OldItems[i] as ChatMessage;
+                    if (gone == null) continue;
+                    if (_shown.Remove(gone) && e.OldStartingIndex >= 0 && e.OldStartingIndex < _shownFrom)
+                        _shownFrom--;
+                }
+
+                return;
+            }
+
+            if (e.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Add) return;
+            if (e.NewItems == null || e.NewItems.Count == 0) return;
+
+            // Inserted above the shown page: the page has one more row in front of it, and
+            // the index it starts at moves with it. Nothing is added to the list.
+            if (e.NewStartingIndex >= 0 && e.NewStartingIndex + e.NewItems.Count <= _shownFrom)
+            {
+                _shownFrom += e.NewItems.Count;
+                return;
+            }
+
+            for (int i = 0; i < e.NewItems.Count; i++)
+            {
+                var arrived = e.NewItems[i] as ChatMessage;
+                if (arrived == null) continue;
+                if (_shown.Contains(arrived)) continue;
+
+                _shown.Add(arrived);
             }
         }
 
