@@ -60,6 +60,11 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
+            // A page that is navigated to again is on screen again: `_left` is one page's
+            // lifetime, not one call's, and leaving it true here made the second visit draw
+            // nothing, tick nothing and never leave (the picture stayed as it was).
+            _left = false;
+
             AcceptCallButton.Content = Loc.Get("Call_Accept", "Accept");
             DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
             EndCallButton.Content = Loc.Get("Call_End", "End");
