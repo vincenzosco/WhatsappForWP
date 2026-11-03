@@ -61,7 +61,9 @@ What works today:
 - the status feed: what contacts posted, with the author's picture and the name WhatsApp sends with the update, a tap opens the photo, the video or the words, and the view receipt goes back to `status@broadcast`. The feed of the last day is kept on the phone, so it is still there after a restart, the preview of an update leaves the row once the day is watched, and an update whose photo did not arrive has a **Try again** button instead of a dead end
 - the call log, both directions, with missed calls spelled out
 - a live tile that rotates the people waiting - their name and their message, and between one message and the next the picture alone of somebody still unanswered - plus a pinned-chat tile, lock screen text, and a background check about every 15 minutes
-- theme picker with the wallpapers the released package ships, plus the doodle and plain white
+- theme picker with the wallpapers the released package ships, plus the doodle and plain white; the chosen one paints every screen - the three tabs, the conversation, the settings, the contact info, the account and the pair page - and the lists keep it behind a 60% white veil so the rows stay readable
+- a conversation is drawn a page at a time (thirty rows on a 512 MB phone, a hundred above that), and the pictures are decoded to the same budget, so a long history does not load every bubble at once
+- calls in both directions: the offer carries the call key encrypted to each of the other phone's devices, the phone rings and vibrates, and the call lands in the log; the audio does not travel yet
 - English and Italian, following the phone's language
 
 ## Good for, not for

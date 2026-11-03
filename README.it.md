@@ -61,7 +61,9 @@ Cosa funziona oggi:
 - il feed degli stati: quello che i contatti hanno pubblicato, con la foto dell'autore e il nome che WhatsApp manda con l'aggiornamento, il tocco apre la foto, il video o le parole, e la ricevuta di visione torna a `status@broadcast`. Il feed dell'ultimo giorno resta sul telefono, quindi c'è ancora dopo un riavvio, l'anteprima di un aggiornamento lascia la riga quando la giornata è stata guardata, e uno stato la cui foto non è arrivata ha un pulsante **Riprova** invece di un vicolo cieco
 - il registro delle chiamate, nelle due direzioni, con le perse scritte per esteso
 - una tile viva che ruota fra le persone in attesa - nome e messaggio, e fra un messaggio e l'altro la sola foto di chi aspetta una risposta - più la tile di una chat fissata, il testo sulla schermata di blocco, e un controllo in background ogni 15 minuti circa
-- selettore del tema con gli sfondi del pacchetto ufficiale, più il doodle e il bianco
+- selettore del tema con gli sfondi del pacchetto ufficiale, più il doodle e il bianco; quello scelto dipinge ogni schermo - le tre schede, la conversazione, le impostazioni, le info del contatto, l'account e la pagina di collegamento - e gli elenchi lo tengono dietro un velo bianco al 60% perché le righe restino leggibili
+- una conversazione si disegna una pagina per volta (trenta righe su un telefono da 512 MB, cento sopra), e le foto si decodificano dentro lo stesso budget, così una history lunga non carica ogni fumetto in una volta
+- chiamate nelle due direzioni: l'offerta porta la chiave della chiamata cifrata verso ogni dispositivo dell'altro telefono, il telefono suona e vibra, e la chiamata finisce nel registro; l'audio non viaggia ancora
 - inglese e italiano, seguendo la lingua del telefono
 
 ## Va bene per, non va bene per
