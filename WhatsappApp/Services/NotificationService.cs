@@ -646,7 +646,31 @@ namespace WhatsappApp.Services
         {
             if (!SettingsService.MessageAlertsEnabled) return;
 
+            // The app is open: the message is already in front of the reader - in the
+            // bubble when this is the chat on screen, in the list when it is not - so a
+            // toast over it is the same news twice. The tile, the badge and the lock
+            // screen still move: they are what is left when the app is not looked at.
+            if (_foreground) return;
+
             Toast(title, body);
+        }
+
+        /// <summary>
+        /// True while the app is on screen. It is the one fact the toast needs and the
+        /// tile does not: a message nobody has to be told about while they are looking
+        /// at it.
+        ///
+        /// False by default, because this class is also loaded by the background check,
+        /// which on WP8.1 is a process of its own: a wake that inherited "the app is in
+        /// front" would stay silent exactly when it is the only thing the phone has.
+        /// The app turns it on at launch and on resume, and off when it is suspended.
+        /// </summary>
+        private static bool _foreground;
+
+        /// <summary>The app is, or is no longer, the thing on screen.</summary>
+        public static void SetForeground(bool foreground)
+        {
+            _foreground = foreground;
         }
 
         /// <summary>

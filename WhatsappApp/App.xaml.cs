@@ -127,6 +127,12 @@ namespace WhatsappApp
 
             StartServicesOnce();
 
+            // The app is what the user is looking at until the OS says otherwise
+            // (`OnSuspending`), and while it is, a message toast is noise: the message
+            // is already on the screen. The background wake is another process and
+            // starts with the opposite answer (see `NotificationService.SetForeground`).
+            NotificationService.SetForeground(true);
+
             // A tile on the Start screen names the chat it opens, and it arrives here as the
             // launch arguments: the same launch entry point, with a reason attached. The page
             // that can act on it is the home page, which is built below on a cold start and
@@ -251,6 +257,11 @@ namespace WhatsappApp
             bool leaving = false;
             try
             {
+                // Nothing is looked at from here on: a message that reaches the socket
+                // in the last moments before the process is frozen is worth a toast
+                // again, exactly like the one the background wake raises.
+                NotificationService.SetForeground(false);
+
                 // If the OS terminates the process while the app is suspended,
                 // OnLaunched restarts from here.
                 SessionService.Section = CurrentSection();
@@ -342,6 +353,9 @@ namespace WhatsappApp
             // The run is alive again: the marker its suspension removed is put back,
             // or a crash after this point would look like a run that ended cleanly.
             Diag.MarkAlive();
+
+            // Suspension took the toast away; being in front is what gives it back.
+            NotificationService.SetForeground(true);
 
             // The other half of the suspension frame: the socket is asked whether it is
             // still there **before** the phone says it is here. WP8.1 freezes the process
@@ -541,6 +555,11 @@ namespace WhatsappApp
             if (Window.Current.Content == null)
             {
                 StartServicesOnce();
+
+                // This activation is a process start, and the window about to be built
+                // is the one on screen: same rule as `OnLaunched`.
+                NotificationService.SetForeground(true);
+
                 var frame = EnsureFrame();
                 if (!(frame.Content is HomePage)) frame.Navigate(typeof(HomePage));
                 Window.Current.Activate();
@@ -590,6 +609,11 @@ namespace WhatsappApp
             // This activation can be the process start: the services and the frame
             // do not exist yet.
             StartServicesOnce();
+
+            // A share target is a start of this process too, and what it starts is the
+            // app in front: a message arriving now is on the screen, not in a toast.
+            NotificationService.SetForeground(true);
+
             var rootFrame = EnsureFrame();
             if (!(rootFrame.Content is HomePage))
             {
