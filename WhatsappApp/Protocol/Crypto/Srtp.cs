@@ -3,19 +3,23 @@ using System;
 namespace WhatsappApp.Protocol.Crypto
 {
     /// <summary>
-    /// SRTP: RTP packets encrypted and authenticated (RFC 3711), AES-CM-128 with an
-    /// HMAC-SHA1 tag truncated to 80 bits.
+    /// SRTP: RTP packets encrypted and authenticated (RFC 3711), AES-CM with a
+    /// 128- or 256-bit master key and an HMAC-SHA1 tag truncated to 80 bits.
+    ///
+    /// Both key lengths are here because two callers need them: `Dtls` exports a 16-byte
+    /// master key (the SRTP profile it negotiates), and a WhatsApp call's expanded key
+    /// material hands out 32 (`CallKeys.SplitMedia`, AES-256-CM per RFC 6188). The cipher key
+    /// is as long as the master key; the salt is 14 in both cases.
     ///
     /// Why it is here: a WhatsApp call carries its audio as SRTP, and Windows Phone 8.1 has
-    /// no SRTP, no DTLS and no RTP. This is the half that can be written and checked without
-    /// a peer: given a master key and salt - which the call's signalling is supposed to
-    /// deliver in `enc_key`, and which this client does not negotiate yet - it turns an RTP
-    /// packet into what goes on the wire and back.
+    /// no SRTP, no DTLS and no RTP. Given a master key and salt - from the DTLS exporter in
+    /// `DtlsClient`, or from `CallKeys.SplitMedia` when the call's own key material is what
+    /// keys the media - it turns an RTP packet into what goes on the wire and back.
     ///
     /// What it deliberately is **not**:
-    /// - **not DTLS.** The master key has to come from somewhere, and in WhatsApp's calls it
-    ///   comes from a DTLS handshake. That is the missing piece between this file and a
-    ///   working call; nothing here pretends to have it.
+    /// - **not DTLS, and not the negotiation.** It takes a key already agreed; `DtlsClient`
+    ///   is the half that agrees one. What is still missing for a working call is the media
+    ///   transport (ICE and the relay), not the key.
     /// - **not a full SRTP stack.** No SRTCP, no rekeying, no replay list beyond the rollover
     ///   counter, and no MKI. A call needs the rollover counter to keep the keystream
     ///   aligned across a sequence wrap, which is why that one is here.
