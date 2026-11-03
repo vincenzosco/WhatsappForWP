@@ -29,34 +29,42 @@
             </ListView.ItemsPanel>
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <Grid Height="76" Background="Transparent" Margin="24,0,24,0">
+                    <!-- The row of WhatsApp's own call log (CallLogItemControl): a 68 px
+                         circle 6 px from the details, which start 12 px later still, the
+                         name at 32 px SemiLight and the outcome under it at 20, and the
+                         whole item 24 px down and 24 px in from the sides. -->
+                    <Grid Background="Transparent" Margin="24,24,24,0">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="62"/>
+                            <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid Grid.Column="0" Width="48" Height="48"
-                              Margin="0,14,0,14" VerticalAlignment="Center">
-                            <Ellipse Width="48" Height="48"
+                        <Grid Grid.Column="0" Width="68" Height="68"
+                              Margin="0,0,6,0" VerticalAlignment="Top">
+                            <Ellipse Width="68" Height="68"
                                      Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
                             <TextBlock Text="{Binding Initials}"
-                                       Foreground="White" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="White" FontSize="26" FontWeight="SemiBold"
                                        VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
 
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <!-- The name sits high and the outcome right under it: the 32 px
+                             title is lifted by the same 6 px its own control uses, so the
+                             two lines read as one column against the 68 px picture. -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Top"
+                                    Margin="12,0,0,0" MaxHeight="68">
                             <!-- A missed call is the red name: the row a person scans the log
                                  for, and the colour the released app gives it. -->
-                            <TextBlock Text="{Binding Name}" FontSize="20" FontWeight="SemiBold"
+                            <TextBlock Text="{Binding Name}" FontSize="32" FontFamily="Segoe WP Semilight"
                                        Foreground="{Binding IsMissed, Converter={StaticResource MissedToBrush}}"
-                                       TextTrimming="WordEllipsis" Margin="0,0,0,2"/>
-                            <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="17"
-                                       TextTrimming="WordEllipsis" MaxHeight="22"/>
+                                       TextTrimming="WordEllipsis" Margin="0,-6,0,0"/>
+                            <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="20"
+                                       TextTrimming="WordEllipsis" MaxHeight="28"/>
                         </StackPanel>
 
-                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="#FF939393" FontSize="17"
-                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
+                        <TextBlock Grid.Column="2" Text="{Binding TimeText}" Foreground="#FF939393" FontSize="20"
+                                   VerticalAlignment="Top" Margin="8,0,0,0"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

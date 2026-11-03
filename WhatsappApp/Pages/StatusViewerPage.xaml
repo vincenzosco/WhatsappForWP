@@ -5,79 +5,111 @@
     Background="Black">
 
     <!-- One person's updates, full screen: what they posted, who they are and when.
-         The update is the screen; the bars are only what a person needs to know
-         whose it is, where they are in the day, and a way out. Black is the ground
-         the released app puts a status on, and it is also what makes a photo read
-         at a glance. -->
+         The numbers are WaStatusViewControl's: an 84 px header over a gradient that
+         fades the photo into the status, a 52 px circular picture 12 px in and 20 px
+         down, the name at 22 and the time at 18 at 65%, a 24 px caption in the
+         #201e21 panel at half opacity, and a 74 px bar at the bottom. Black is the
+         ground the released app puts a status on, and it is also what makes a photo
+         read at a glance. -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="84"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- One bar per update of the day, the watched ones filled: the segments are
-             built in code (`RenderSegments`), because how many there are is not known
-             when this file is compiled. A lone update gets no bar at all. -->
-        <Grid x:Name="Segments" Grid.Row="0" Height="3"
-              Margin="8,10,8,6" Visibility="Collapsed"/>
+        <!-- The header band. The gradient is the one the official control draws: 84 px
+             of #99000000 fading to nothing, so a bright photo cannot swallow the name. -->
+        <Grid Grid.Row="0">
+            <Rectangle Height="84" VerticalAlignment="Top">
+                <Rectangle.Fill>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                        <GradientStop Color="#99000000" Offset="0.0"/>
+                        <GradientStop Color="#00000000" Offset="1.0"/>
+                    </LinearGradientBrush>
+                </Rectangle.Fill>
+            </Rectangle>
 
-        <!-- Whose update it is: the name the row already carries (a contact's
-             saved name, a push name, or the number) and the time it was posted.
-             The number is not repeated under the name: the pane had no name to
-             give when it built the row, and a second line of digits says less
-             than the first. -->
-        <Grid Grid.Row="1" Margin="16,0,8,8">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+            <!-- One bar per update of the day, the watched ones filled: the segments are
+                 built in code (`RenderSegments`), because how many there are is not known
+                 when this file is compiled. A lone update gets no bar at all. -->
+            <Grid x:Name="Segments" Height="3" Margin="8,10,8,0"
+                  VerticalAlignment="Top" Visibility="Collapsed"/>
 
-            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                <TextBlock x:Name="AuthorText" Text=""
-                           Foreground="White" FontSize="20" FontWeight="SemiBold"
-                           TextTrimming="WordEllipsis"/>
-                <TextBlock x:Name="TimeText" Text=""
-                           Foreground="#FFB0B0B0" FontSize="14"/>
-            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-            <!-- The way out that does not need the hardware key. 48 px and no
-                 theme minimums, like every other icon button in the app. -->
-            <Button x:Name="CloseButton" Grid.Column="1"
-                    Background="Transparent" BorderThickness="0"
-                    MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
-                    Click="CloseButton_Click">
-                <Path Stroke="White" StrokeThickness="2.4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24">
-                    <!-- IconClose -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="6,6">
-                                    <PathFigure.Segments>
-                                        <LineSegment Point="18,18"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                                <PathFigure StartPoint="18,6">
-                                    <PathFigure.Segments>
-                                        <LineSegment Point="6,18"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
+                <!-- Whose update it is, as a 52 px circle: the author's picture when the
+                     chat list knows one, their initial in a grey circle otherwise (the
+                     page fills both; WP8.1 has no circular clip for an Image, so the
+                     circle is an Ellipse the brush paints). -->
+                <Grid x:Name="HeaderAvatar" Grid.Column="0" Width="52" Height="52"
+                      Margin="12,20,0,0" VerticalAlignment="Top" HorizontalAlignment="Left">
+                    <Ellipse Width="52" Height="52" Fill="#FF2A2A2A"/>
+                    <Ellipse x:Name="HeaderAvatarPicture" Width="52" Height="52"
+                             Visibility="Collapsed"/>
+                    <TextBlock x:Name="HeaderAvatarInitials"
+                               Foreground="White" FontSize="20" FontWeight="SemiBold"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Visibility="Collapsed"/>
+                </Grid>
+
+                <!-- The name the row already carries (a contact's saved name, a push name,
+                     or the number) and the time it was posted: 22 and 18, the sizes of
+                     NameBlock and InfoBlock in the official control. -->
+                <StackPanel Grid.Column="1" Margin="12,20,0,0"
+                            VerticalAlignment="Top" HorizontalAlignment="Left">
+                    <TextBlock x:Name="AuthorText" Text=""
+                               Foreground="White" FontSize="22"
+                               TextTrimming="WordEllipsis"/>
+                    <TextBlock x:Name="TimeText" Text=""
+                               Foreground="White" Opacity="0.65" FontSize="18"/>
+                </StackPanel>
+
+                <!-- The way out that does not need the hardware key. 48 px and no
+                     theme minimums, like every other icon button in the app; the
+                     official control puts its own action 12 px from the right edge. -->
+                <Button x:Name="CloseButton" Grid.Column="2"
+                        Background="Transparent" BorderThickness="0"
+                        MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
+                        Margin="0,20,8,0"
+                        VerticalAlignment="Top" HorizontalAlignment="Right"
+                        Click="CloseButton_Click">
+                    <Path Stroke="White" StrokeThickness="2.4"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="24" Height="24">
+                        <!-- IconClose -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="6,6">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="18,18"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="18,6">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="6,18"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
+            </Grid>
         </Grid>
 
         <!-- The update itself. Only one of these five is ever shown: the photo,
              the video, the words of a status that is words alone, the spinner
              while the bytes are on their way, and the line that says they did
              not come. -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <Image x:Name="StatusImage" Stretch="Uniform" Visibility="Collapsed"/>
 
             <MediaElement x:Name="StatusVideo"
@@ -88,11 +120,13 @@
                           MediaFailed="StatusVideo_MediaFailed"
                           MediaEnded="StatusVideo_MediaEnded"/>
 
+            <!-- The words of a status with no media: 24 and 24 px in from the sides,
+                 the size the official placeholder block gives a sentence. -->
             <TextBlock x:Name="StatusText" Text=""
-                       Foreground="White" FontSize="28" FontFamily="Segoe WP Semilight"
+                       Foreground="White" FontSize="24" FontFamily="Segoe WP Semilight"
                        TextWrapping="Wrap" TextAlignment="Center"
                        VerticalAlignment="Center" HorizontalAlignment="Center"
-                       Margin="32,0,32,0" Visibility="Collapsed"/>
+                       Margin="24,0,24,0" Visibility="Collapsed"/>
 
             <ProgressRing x:Name="Loading" IsActive="False"
                           Width="48" Height="48" Foreground="White"
@@ -107,7 +141,7 @@
                         MaxWidth="360" Margin="24,0,24,0">
                 <TextBlock x:Name="MissingText" x:Uid="StatusViewer_Missing"
                            Text="This update could not be loaded."
-                           Foreground="#FFB0B0B0" FontSize="16" TextWrapping="Wrap"
+                           Foreground="White" Opacity="0.65" FontSize="18" TextWrapping="Wrap"
                            TextAlignment="Center"/>
                 <Button x:Name="RetryButton" x:Uid="StatusViewer_Retry"
                         Content="Try again"
@@ -119,72 +153,89 @@
             </StackPanel>
         </Grid>
 
-        <!-- The caption of a photo or a video, on its own band so a bright
-             picture cannot swallow the words. -->
-        <Border x:Name="CaptionBar" Grid.Row="3"
-                Background="#99000000" Visibility="Collapsed">
-            <TextBlock x:Name="CaptionText" Text=""
-                       Foreground="White" FontSize="18" TextWrapping="Wrap"
-                       Margin="16,12,16,16"/>
+        <!-- The caption of a photo or a video, in the panel the official control puts
+             under the picture: #201e21 at half opacity, the words at 24 and up to 120 px
+             of them, so a long caption scrolls instead of pushing the photo off screen.
+             The rectangle is behind the text, not the text's own opacity, or the words
+             would go grey with it. -->
+        <Border x:Name="CaptionBar" Grid.Row="2" Visibility="Collapsed">
+            <Grid>
+                <Rectangle Fill="#201E21" Opacity="0.5"/>
+
+                <ScrollViewer MaxHeight="120" VerticalAlignment="Bottom"
+                              HorizontalScrollMode="Disabled"
+                              VerticalScrollBarVisibility="Auto">
+                    <TextBlock x:Name="CaptionText" Text=""
+                               Foreground="White" FontSize="24" TextWrapping="Wrap"
+                               Margin="16,8,16,8"/>
+                </ScrollViewer>
+            </Grid>
         </Border>
 
         <!-- Where they are in the day, and the two taps that move: a person's updates
              play one after the other, and the arrows are what a phone without a swipe
-             gesture uses to go back to one already seen. Hidden when there is only one. -->
-        <Grid x:Name="Pager" Grid.Row="4" Margin="8,4,8,8" Visibility="Collapsed">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
+             gesture uses to go back to one already seen. It is the 74 px bottom bar of
+             the official page, hidden when there is only one update. -->
+        <Grid x:Name="Pager" Grid.Row="3" Height="74" Visibility="Collapsed">
+            <Rectangle Fill="#201E21" Opacity="0.5"/>
 
-            <Button x:Name="PreviousButton" Grid.Column="0"
-                    Background="Transparent" BorderThickness="0"
-                    MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
-                    Click="PreviousButton_Click">
-                <Path Stroke="White" StrokeThickness="2.4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24">
-                    <!-- IconChevronLeft -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="15,4">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="7,12 15,20"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
+            <Grid Margin="8,0,8,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
 
-            <TextBlock x:Name="CounterText" Grid.Column="1" Text=""
-                       Foreground="#FFB0B0B0" FontSize="14"
-                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                <Button x:Name="PreviousButton" Grid.Column="0"
+                        Background="Transparent" BorderThickness="0"
+                        MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
+                        VerticalAlignment="Center"
+                        Click="PreviousButton_Click">
+                    <Path Stroke="White" StrokeThickness="2.4"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="24" Height="24">
+                        <!-- IconChevronLeft -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="15,4">
+                                        <PathFigure.Segments>
+                                            <PolyLineSegment Points="7,12 15,20"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
 
-            <Button x:Name="NextButton" Grid.Column="2"
-                    Background="Transparent" BorderThickness="0"
-                    MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
-                    Click="NextButton_Click">
-                <Path Stroke="White" StrokeThickness="2.4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24">
-                    <!-- IconChevronRight -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="9,4">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="17,12 9,20"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
+                <TextBlock x:Name="CounterText" Grid.Column="1" Text=""
+                           Foreground="White" FontSize="18" Opacity="0.65"
+                           VerticalAlignment="Center" HorizontalAlignment="Center"/>
+
+                <Button x:Name="NextButton" Grid.Column="2"
+                        Background="Transparent" BorderThickness="0"
+                        MinWidth="0" MinHeight="0" Width="48" Height="48" Padding="0"
+                        VerticalAlignment="Center"
+                        Click="NextButton_Click">
+                    <Path Stroke="White" StrokeThickness="2.4"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="24" Height="24">
+                        <!-- IconChevronRight -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="9,4">
+                                        <PathFigure.Segments>
+                                            <PolyLineSegment Points="17,12 9,20"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
+            </Grid>
         </Grid>
     </Grid>
 </Page>

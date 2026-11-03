@@ -10,8 +10,8 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Header -->
-        <Grid Grid.Row="0" Background="White" Height="72">
+        <!-- Header: the 54 px SemiLight title of the released `PageTitlePanel`. -->
+        <Grid Grid.Row="0" Background="White">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -20,7 +20,7 @@
             <Button x:Name="BackButton" Grid.Column="0"
                     Background="Transparent"
                     MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,4,0,0" Padding="0"
+                    Width="48" Height="48" Margin="0,6,0,0" Padding="0"
                     Click="BackButton_Click"
                     BorderThickness="0">
                 <Path Stroke="#FF333333" StrokeThickness="2.4"
@@ -43,8 +43,9 @@
 
             <TextBlock x:Name="PageTitleText" Grid.Column="1" Text="Diagnostics"
                        x:Uid="DiagnosticsPage_Title"
-                       Foreground="#FF333333" FontSize="40" FontFamily="Segoe WP Semilight"
-                       VerticalAlignment="Center" Margin="8,0,0,4"/>
+                       Foreground="#FF333333" FontSize="54" FontFamily="Segoe WP Semilight"
+                       VerticalAlignment="Bottom" Margin="8,-10,0,-6"
+                       TextTrimming="CharacterEllipsis"/>
         </Grid>
 
         <Grid Grid.Row="1" Margin="16">

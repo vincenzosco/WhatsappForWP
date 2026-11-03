@@ -97,8 +97,8 @@ templates restyled, not new data.
 name 23 px white, presence 13 px white at 70%. Wallpaper `Assets/ChatBackground.jpg` as the
 page background (already done). Received bubble `#EFEFEF`, sent bubble the accent colour,
 radius and tail measured from `MessageBubble` in `.tools/wa.il` during implementation
-(the colour is the fixed point; the geometry is not guessed here), text 16 px `#333333`,
-time 11 px `#939393` inside the bubble, own time white at 70% on the accent. Media inside the bubble radius 3. Input bar 56 px white, separated by a 1 px
+(the colour is the fixed point; the geometry is not guessed here), text 20 px `#333333`, time 18.667 px `#939393` inside the bubble (the package's
+`Settings.SystemFontSize` body and its `SmallTextFontSizeStatic`), own time white at 70% on the accent. Media inside the bubble radius 3. Input bar 56 px white, separated by a 1 px
 `#14000000` line: attach, emoji/keyboard, mic and send drawn with the official
 `inputbar-*.png` (light/dark variant per theme), send on the accent. The typing bubble uses
 the received bubble colour.

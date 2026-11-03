@@ -31,31 +31,38 @@
             </ListView.ItemsPanel>
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <Grid MinHeight="76" Background="Transparent" Margin="24,0,24,0">
+                    <!-- The item of WaStatusList: 30 px in from the left, 24 from the
+                         right, 12 above and below, which is the margin the official
+                         StatusItemControl is given. -->
+                    <Grid MinHeight="68" Background="Transparent" Margin="30,12,24,12">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="62"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <Grid Grid.Column="0" Width="52" Height="52"
-                              Margin="-2,10,-2,10" VerticalAlignment="Top">
+                        <Grid Grid.Column="0" Width="68" Height="68" VerticalAlignment="Top">
                             <!-- The ring is what the row says about itself: a person with
                                  anything unwatched is ringed in the accent, and the ring goes
                                  when the viewer has sent its `read` for the last of them.
                                  Without it a list of yesterday's updates looks exactly like
                                  a list of new ones. -->
-                            <Ellipse Width="52" Height="52" StrokeThickness="2"
+                            <!-- The official SegmentedCircle laid round the picture:
+                                 radius 34 + 5, so a 78 px circle pulled 5 px up and
+                                 left, which leaves it centred on the 68 px face. -->
+                            <Ellipse Width="78" Height="78" StrokeThickness="2"
+                                     HorizontalAlignment="Left" VerticalAlignment="Top"
+                                     Margin="-5,-5,0,0"
                                      Stroke="{StaticResource WhatsAppAccentBrush}"
                                      Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-                            <Ellipse Width="48" Height="48"
+                            <Ellipse Width="68" Height="68"
                                      Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
 
                             <!-- The author's picture, when the chat list knows one: the same
                                  face the conversation shows, drawn in the circle the initial
                                  was in. An ellipse and not an Image with a clip, because
                                  WP8.1 has no circular clip and the brush fills it. -->
-                            <Ellipse Width="48" Height="48"
+                            <Ellipse Width="68" Height="68"
                                      Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}}">
                                 <Ellipse.Fill>
                                     <ImageBrush ImageSource="{Binding Owner.Avatar}" Stretch="UniformToFill"/>
@@ -63,17 +70,21 @@
                             </Ellipse>
 
                             <TextBlock Text="{Binding Initials}"
-                                       Foreground="White" FontSize="18" FontWeight="SemiBold"
+                                       Foreground="White" FontSize="26" FontWeight="SemiBold"
                                        Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
                                        VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
 
                         <!-- One row per person: `Latest` is their newest update, and
                              `Detail` says either "3 updates" or the words of the only one. -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,10,0,10">
-                            <TextBlock Text="{Binding Latest.SenderName}" Foreground="#FF333333" FontSize="20"
-                                       FontWeight="SemiBold" TextTrimming="WordEllipsis"/>
-                            <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="17"
+                        <!-- The 18 px step is the one StatusItemControl sets on its
+                             details panel; the name and the line under it are the
+                             item's own 32 and 20. -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="18,0,0,0">
+                            <TextBlock Text="{Binding Latest.SenderName}" Foreground="#FF333333" FontSize="32"
+                                       FontFamily="Segoe WP Semilight" TextTrimming="WordEllipsis"
+                                       Margin="0,-6,0,0"/>
+                            <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="20"
                                        TextWrapping="Wrap" MaxLines="3" TextTrimming="WordEllipsis"/>
                             <!-- Only while something here is still unwatched: a thumbnail of an
                                  update already seen is the row promising a first look that
@@ -86,7 +97,7 @@
                         </StackPanel>
 
                         <TextBlock Grid.Column="2" Text="{Binding Latest.FormattedTime}" Foreground="#FF939393"
-                                   FontSize="17" VerticalAlignment="Top" Margin="8,16,0,0"/>
+                                   FontSize="20" VerticalAlignment="Top" Margin="8,0,0,0"/>
                     </Grid>
                 </DataTemplate>
             </ListView.ItemTemplate>

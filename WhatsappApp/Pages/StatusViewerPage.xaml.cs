@@ -204,6 +204,11 @@ namespace WhatsappApp.Pages
             AuthorText.Text = string.IsNullOrEmpty(_status.SenderName) ? _status.ChatId : _status.SenderName;
             TimeText.Text = _status.FormattedTime;
 
+            // The circle changes with the author only when the reader moves to another
+            // person, but asking again costs a dictionary lookup and keeps the header
+            // honest when the picture arrives while the day is playing.
+            ShowHeaderAvatar();
+
             StatusImage.Source = null;
             StatusImage.Visibility = Visibility.Collapsed;
             StatusVideo.Visibility = Visibility.Collapsed;
@@ -225,6 +230,59 @@ namespace WhatsappApp.Pages
                 + " (" + _status.Id + ")");
 
             Refresh();
+        }
+
+        /// <summary>
+        /// The 52 px circle of the header: the author's picture when the chat list knows
+        /// one, their initial otherwise.
+        ///
+        /// The official control draws an Image clipped to a circle; WP8.1 WinRT has no
+        /// EllipseGeometry clip for an Image (UIElement.Clip takes a rectangle), so the
+        /// circle is an Ellipse the brush paints - the same trick the status row uses.
+        /// </summary>
+        private void ShowHeaderAvatar()
+        {
+            Contact owner = DataService.Instance.FindContact(_status.ChatId);
+
+            if (owner != null && owner.HasAvatar && owner.Avatar != null)
+            {
+                HeaderAvatarPicture.Fill = new ImageBrush
+                {
+                    ImageSource = owner.Avatar,
+                    Stretch = Stretch.UniformToFill
+                };
+                HeaderAvatarPicture.Visibility = Visibility.Visible;
+                HeaderAvatarInitials.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            HeaderAvatarPicture.Fill = null;
+            HeaderAvatarPicture.Visibility = Visibility.Collapsed;
+
+            // The name on screen is what the circle answers to, not the jid.
+            HeaderAvatarInitials.Text = Initials(AuthorText.Text);
+            HeaderAvatarInitials.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Two letters for the circle, the same rule the call log and the status row use: a
+        /// name that starts with a `+` keeps its two digits, an emoji keeps both halves of
+        /// its surrogate pair.
+        /// </summary>
+        private static string Initials(string name)
+        {
+            if (string.IsNullOrEmpty(name)) return "?";
+
+            string trimmed = name.Trim();
+            if (trimmed.Length == 0) return "?";
+
+            if (trimmed.StartsWith("+") && trimmed.Length > 1)
+            {
+                return trimmed.Substring(1, Math.Min(2, trimmed.Length - 1)).ToUpper();
+            }
+
+            int first = char.IsHighSurrogate(trimmed[0]) && trimmed.Length > 1 ? 2 : 1;
+            return trimmed.Substring(0, first).ToUpper();
         }
 
         /// <summary>
