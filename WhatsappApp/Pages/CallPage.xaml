@@ -5,9 +5,7 @@
     Background="#FF101010">
 
     <Page.Resources>
-        <!-- The call tiles of callscreenpage.xaml: full-bleed in their cell, the
-             theme minimums zeroed, so the two of the ringing screen split it
-             exactly in half and the end bar takes the whole width. -->
+        <!-- Full-bleed tiles: theme minimums zeroed so the rows split exactly. -->
         <Style x:Key="CallTileStyle" TargetType="Button">
             <Setter Property="Background" Value="#FF2A2A2A"/>
             <Setter Property="Foreground" Value="White"/>
@@ -25,34 +23,26 @@
         </Style>
     </Page.Resources>
 
-    <!-- La chiamata a tutto schermo, sulla geometria della pagina ufficiale: la
-         foto occupa i primi 555 px (il numero e' scritto "Match native" nel
-         decompilato), i due gradienti la fanno scendere nel nero sotto, e il nome
-         sta in basso a sinistra a 88 px sopra lo stato e il tipo di chiamata.
-         Non e' il banner della home page: quello resta per quando questa pagina e'
-         stata chiusa con il tasto indietro, e dice la stessa cosa in una striscia. -->
+    <!-- The call in full screen: picture on top, text below, buttons under it. -->
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="555"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- L'area della foto: al suo posto il cerchio delle iniziali, perche' questa
-             build non ha ancora la foto del contatto da mostrare qui. -->
+        <!-- The picture, or the initials until the picture is decoded. -->
         <Grid Grid.Row="0">
             <Rectangle Fill="#FF1F1F1F"/>
 
             <Grid Width="220" Height="220"
                   HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Ellipse Width="220" Height="220" Fill="#FF2A2A2A"/>
+                <Ellipse x:Name="AvatarCircle" Width="220" Height="220" Fill="#FF2A2A2A"/>
                 <TextBlock x:Name="InitialsText"
                            Foreground="White" FontSize="64" FontWeight="SemiBold"
                            VerticalAlignment="Center" HorizontalAlignment="Center"/>
             </Grid>
 
-            <!-- I due gradienti della pagina ufficiale: 120 px di nero in alto per
-                 lo stato del telefono, 200 px in basso perche' il nome si legga
-                 sopra qualunque foto. -->
+            <!-- The two gradients, so the name reads over any picture. -->
             <Rectangle Height="120" VerticalAlignment="Top">
                 <Rectangle.Fill>
                     <LinearGradientBrush StartPoint="0.5,0" EndPoint="0.5,1">
@@ -72,8 +62,7 @@
             </Rectangle>
         </Grid>
 
-        <!-- Il testo della pagina ufficiale: stato e durata sulla stessa riga a 28
-             px SemiBold, il nome a 88, il numero (qui il tipo di chiamata) sotto. -->
+        <!-- State and duration on one line, the name under them, the kind below. -->
         <StackPanel Grid.Row="0" Margin="24,0,0,30"
                     HorizontalAlignment="Left" VerticalAlignment="Bottom">
 
@@ -93,18 +82,14 @@
             <TextBlock x:Name="KindText"
                        Foreground="White" FontSize="28"/>
 
-            <!-- La frase che dice cosa questa build non fa: una chiamata muta
-                 deve essere una riga sullo schermo, non un bug da cercare. -->
+            <!-- A silent call says so, instead of looking like a bug. -->
             <TextBlock x:Name="NoteText"
                        Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap"
                        MaxWidth="300" Margin="0,10,0,0"
                        Visibility="Collapsed"/>
         </StackPanel>
 
-        <!-- I pulsanti, sulle griglie della pagina ufficiale: righe da 84 px con 6
-             px di cucitura per una chiamata che squilla, 94 per una in corso. Le
-             due griglie stanno una sopra l'altra e a decidere chi si vede e' la
-             visibilita' dei singoli pulsanti, che il codice gia' governa. -->
+        <!-- Two grids, one over the other: the code shows the one the state calls for. -->
         <Grid Grid.Row="1" Margin="0,6,0,0">
 
             <Grid x:Name="CallIncomingButtons">
@@ -144,10 +129,7 @@
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- Nella pagina ufficiale questa barra occupa tre colonne e la
-                     quarta e' il pulsante "messaggio": qui non c'e' un messaggio da
-                     mandare durante la chiamata, quindi la barra prende tutta la
-                     larghezza invece di lasciare un buco. -->
+                <!-- The whole width: there is no message button during a call here. -->
                 <Button x:Name="EndCallButton" Grid.Row="2" Grid.Column="0"
                         Grid.ColumnSpan="5"
                         Style="{StaticResource CallTileStyle}"

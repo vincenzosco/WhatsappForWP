@@ -1,5 +1,6 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Input;
@@ -101,10 +102,19 @@ namespace WhatsappApp.Pages
         {
             if (_contact == null) return;
 
-            Guarded.RunGuardedAsync("ContactInfoPage/start call",
-                DataService.Instance.StartCallAsync(_contact.Id, false));
+            Guarded.RunGuardedAsync("ContactInfoPage/start call", StartCallAndOpenAsync(_contact.Id));
+        }
 
-            if (Frame.CanGoBack) Frame.GoBack();
+        /// <summary>Starts the call and then opens the screen that shows it.</summary>
+        private async Task StartCallAndOpenAsync(string jid)
+        {
+            await DataService.Instance.StartCallAsync(jid, false);
+
+            CallSession call = DataService.Instance.Call;
+            if (Frame == null) return;
+
+            if (call != null && call.Occupied) Frame.Navigate(typeof(CallPage));
+            else if (Frame.CanGoBack) Frame.GoBack();
         }
 
         /// <summary>

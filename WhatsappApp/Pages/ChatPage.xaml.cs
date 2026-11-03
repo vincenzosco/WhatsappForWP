@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Diagnostics;
@@ -381,10 +382,19 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            Guarded.RunGuardedAsync("ChatPage/call",
-                DataService.Instance.StartCallAsync(_contact.Id, false));
+            Guarded.RunGuardedAsync("ChatPage/call", StartCallAndOpenAsync(_contact.Id));
+        }
 
-            Frame.Navigate(typeof(CallPage));
+        /// <summary>
+        /// Starts the call, then opens its screen. Navigating first put the call page over a
+        /// call that did not exist yet.
+        /// </summary>
+        private async Task StartCallAndOpenAsync(string jid)
+        {
+            await DataService.Instance.StartCallAsync(jid, false);
+
+            CallSession call = DataService.Instance.Call;
+            if (Frame != null && call != null && call.Occupied) Frame.Navigate(typeof(CallPage));
         }
 
         /// Readable number of a JID (e.g. +393401234567 for people). Empty for

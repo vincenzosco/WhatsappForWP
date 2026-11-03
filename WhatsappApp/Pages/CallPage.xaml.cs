@@ -1,7 +1,12 @@
 using System;
+using System.Threading.Tasks;
+using Windows.UI;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
+using Windows.UI.Xaml.Media;
+using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
+using WhatsappApp.Models;
 using WhatsappApp.Protocol.WABinary;
 using WhatsappApp.Services;
 
@@ -39,6 +44,12 @@ namespace WhatsappApp.Pages
         /// navigation from a page that has already left is the second call screen.
         /// </summary>
         private bool _left;
+
+        /// <summary>The side of the picture, in the 220 px circle.</summary>
+        private const int PicturePixels = 220;
+
+        /// <summary>Whose picture is on screen, so it is decoded once per call.</summary>
+        private string _avatarJid;
 
         public CallPage()
         {
@@ -115,6 +126,7 @@ namespace WhatsappApp.Pages
 
             NameText.Text = string.IsNullOrEmpty(name) ? "" : name;
             InitialsText.Text = Initials(name);
+            ShowAvatar(call.PeerJid);
 
             KindText.Text = call.IsVideo
                 ? Loc.Get("Call_Video", "Video call")
@@ -155,9 +167,14 @@ namespace WhatsappApp.Pages
             NoteText.Text = Loc.Get("Call_NoAudio", "No audio yet: this build only signals the call.");
             NoteText.Visibility = call.State == CallState.Active ? Visibility.Visible : Visibility.Collapsed;
 
-            bool ringing = call.State == CallState.Ringing;
+            // Accept and Decline are for a call that came in. A call placed from here is
+            // waiting for the other phone, and Answer on it was a button that did nothing.
+            bool ringing = call.State == CallState.Ringing && call.IsIncoming;
             bool live = call.State == CallState.Connecting || call.State == CallState.Active;
             bool over = call.State == CallState.Ended;
+
+            CallIncomingButtons.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
+            CallInProgressButtons.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
 
             AcceptCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             DeclineCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
@@ -175,6 +192,37 @@ namespace WhatsappApp.Pages
 
             _left = true;
             if (Frame != null && Frame.CanGoBack) Frame.GoBack();
+        }
+
+        /// <summary>The picture of the person, from the row or from the copy on the phone.</summary>
+        private void ShowAvatar(string jid)
+        {
+            if (jid == _avatarJid) return;
+
+            _avatarJid = jid;
+            AvatarCircle.Fill = new SolidColorBrush(Color.FromArgb(0xFF, 0x2A, 0x2A, 0x2A));
+            InitialsText.Visibility = Visibility.Visible;
+
+            string data = AvatarCache.Get(jid);
+            if (string.IsNullOrEmpty(data))
+            {
+                Contact row = DataService.Instance.FindContact(jid);
+                if (row != null) data = row.AvatarData;
+            }
+
+            if (!string.IsNullOrEmpty(data))
+            {
+                Guarded.RunGuardedAsync("CallPage/avatar", DecodeAvatarAsync(jid, data));
+            }
+        }
+
+        private async Task DecodeAvatarAsync(string jid, string data)
+        {
+            BitmapImage bitmap = await ImageHelper.FromBase64Async(data, PicturePixels);
+            if (bitmap == null || jid != _avatarJid) return;
+
+            AvatarCircle.Fill = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+            InitialsText.Visibility = Visibility.Collapsed;
         }
 
         private void AcceptCall_Click(object sender, RoutedEventArgs e)
