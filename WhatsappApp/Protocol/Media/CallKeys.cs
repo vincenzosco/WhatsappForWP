@@ -42,8 +42,49 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>What the reference expands it to (`E2E_EXTENDED_V2_KEY_LENGTH`).</summary>
         public const int ExpandedKeyLength = 46;
 
+        /// <summary>
+        /// The cipher key inside the expanded run, for the SRTP session: 32 bytes, which is
+        /// AES-256-CM (RFC 6188).
+        ///
+        /// Why 32 and 14: 32 + 14 is 46, exactly the length the reference expands to, and 14
+        /// is the only salt length SRTP has for AES-CM. That arithmetic is the whole evidence
+        /// for this split - the native engine is what divides the run, and the APK does not
+        /// contain that step - so `SplitMedia` says so, and nothing here pretends the order was
+        /// observed. What it does buy is a call whose 46 bytes can actually seal a packet.
+        /// </summary>
+        public const int MediaKeyLength = 32;
+
+        /// <summary>And the salt beside it: 46 - 32.</summary>
+        public const int MediaSaltLength = 14;
+
         /// <summary>The SSRC derived from the call key (`SECURE_SSRC_LENGTH`).</summary>
         public const int SecureSsrcLength = 4;
+
+        /// <summary>
+        /// The 46 expanded bytes read as one SRTP session's master key and salt: the first 32
+        /// are the AES-256-CM key, the last 14 the salt.
+        ///
+        /// An inference, and named as one: 32 + 14 = 46 is what makes it more than a guess, and
+        /// what makes it less than a fact is that the division happens in the native engine. A
+        /// call that turns out to need the halves in the other order fails its first packet's
+        /// tag rather than misbehaving silently, which is the failure mode to want.
+        /// </summary>
+        public static CallMediaKeys SplitMedia(byte[] expanded)
+        {
+            if (expanded == null || expanded.Length != ExpandedKeyLength)
+            {
+                throw new ProtocolException("the media split takes the " + ExpandedKeyLength
+                    + "-byte expansion, not " + (expanded == null ? "none" : expanded.Length.ToString()));
+            }
+
+            var key = new byte[MediaKeyLength];
+            var salt = new byte[MediaSaltLength];
+
+            Buffer.BlockCopy(expanded, 0, key, 0, MediaKeyLength);
+            Buffer.BlockCopy(expanded, MediaKeyLength, salt, 0, MediaSaltLength);
+
+            return new CallMediaKeys(key, salt);
+        }
 
         /// <summary>
         /// The call key expanded for one call: HKDF-SHA256 with no salt and the call's id as
@@ -113,6 +154,32 @@ namespace WhatsappApp.Protocol.Media
             }
 
             return Hkdf.Derive(key, salt, info, length);
+        }
+    }
+
+    /// <summary>
+    /// One media direction's master key and salt, ready for `SrtpSession`: 32 bytes of
+    /// AES-256-CM key and 14 of salt.
+    /// </summary>
+    public sealed class CallMediaKeys
+    {
+        public readonly byte[] Key;
+        public readonly byte[] Salt;
+
+        public CallMediaKeys(byte[] key, byte[] salt)
+        {
+            if (key == null || key.Length != CallKeys.MediaKeyLength)
+            {
+                throw new ProtocolException("a media key is " + CallKeys.MediaKeyLength + " bytes");
+            }
+
+            if (salt == null || salt.Length != CallKeys.MediaSaltLength)
+            {
+                throw new ProtocolException("a media salt is " + CallKeys.MediaSaltLength + " bytes");
+            }
+
+            Key = key;
+            Salt = salt;
         }
     }
 }

@@ -30,9 +30,6 @@ namespace WhatsappApp.Protocol.Crypto
         /// <summary>The authentication tag SRTP appends: 80 bits (RFC 3711, section 4.2).</summary>
         public const int TagLength = 10;
 
-        private const int EncryptionKeyLength = 16;
-        private const int AuthKeyLength = 20;
-        private const int SaltLength = 14;
         private const int BlockLength = 16;
 
         private readonly byte[] _encryptionKey;
@@ -44,20 +41,23 @@ namespace WhatsappApp.Protocol.Crypto
         private int _highestSequence;
 
         /// <summary>
-        /// A session for one stream. `masterKey` is 16 bytes and `masterSalt` 14, which is
-        /// what AES-CM-128 with a 112-bit salt is; `ssrc` is the stream the packets belong
-        /// to and the value the keystream is tied to.
+        /// A session for one stream. `masterKey` is 16 bytes (AES-128-CM) or 32 (AES-256-CM)
+        /// and `masterSalt` is 14, which is what an SRTP master key pair is; `ssrc` is the
+        /// stream the packets belong to and the value the keystream is tied to.
         /// </summary>
         public SrtpSession(byte[] masterKey, byte[] masterSalt, uint ssrc)
         {
-            if (masterKey == null || masterKey.Length != EncryptionKeyLength)
-                throw new ProtocolException("SRTP needs a 16-byte master key");
-            if (masterSalt == null || masterSalt.Length != SaltLength)
+            if (masterKey == null || (masterKey.Length != 16 && masterKey.Length != 32))
+                throw new ProtocolException("SRTP needs a 16- or 32-byte master key");
+            if (masterSalt == null || masterSalt.Length != 14)
                 throw new ProtocolException("SRTP needs a 14-byte master salt");
 
-            _encryptionKey = DeriveKey(masterKey, masterSalt, 0x00, EncryptionKeyLength);
-            _authKey = DeriveKey(masterKey, masterSalt, 0x01, AuthKeyLength);
-            _salt = DeriveKey(masterKey, masterSalt, 0x02, SaltLength);
+            // The cipher key is as long as the master key: AES-128-CM for 16 bytes and
+            // AES-256-CM (RFC 6188) for 32, which is the length a WhatsApp call's expanded key
+            // material provides.
+            _encryptionKey = DeriveKey(masterKey, masterSalt, 0x00, masterKey.Length);
+            _authKey = DeriveKey(masterKey, masterSalt, 0x01, 20);
+            _salt = DeriveKey(masterKey, masterSalt, 0x02, 14);
             _ssrc = ssrc;
 
             _highestSequence = -1;
@@ -153,7 +153,7 @@ namespace WhatsappApp.Protocol.Crypto
             var counter = new byte[BlockLength];
 
             // k_s * 2^16: the salt in the top 112 bits.
-            Buffer.BlockCopy(_salt, 0, counter, 0, SaltLength);
+            Buffer.BlockCopy(_salt, 0, counter, 0, 14);
 
             // XOR SSRC * 2^64: bits 64..95, which is bytes 4 to 7.
             counter[4] ^= (byte)(_ssrc >> 24);
@@ -262,9 +262,9 @@ namespace WhatsappApp.Protocol.Crypto
         /// </summary>
         public static byte[] Derive(byte[] masterKey, byte[] masterSalt, byte label, int length)
         {
-            if (masterKey == null || masterKey.Length != EncryptionKeyLength)
-                throw new ProtocolException("SRTP needs a 16-byte master key");
-            if (masterSalt == null || masterSalt.Length != SaltLength)
+            if (masterKey == null || (masterKey.Length != 16 && masterKey.Length != 32))
+                throw new ProtocolException("SRTP needs a 16- or 32-byte master key");
+            if (masterSalt == null || masterSalt.Length != 14)
                 throw new ProtocolException("SRTP needs a 14-byte master salt");
             if (length <= 0) throw new ProtocolException("a derived key has a length");
 
@@ -278,7 +278,7 @@ namespace WhatsappApp.Protocol.Crypto
         private static byte[] DeriveKey(byte[] masterKey, byte[] masterSalt, byte label, int length)
         {
             var counter = new byte[BlockLength];
-            Buffer.BlockCopy(masterSalt, 0, counter, 0, SaltLength);
+            Buffer.BlockCopy(masterSalt, 0, counter, 0, 14);
 
             // The label sits at bits 48..55 of the 112-bit salt: byte 7 of a 14-byte
             // big-endian number.

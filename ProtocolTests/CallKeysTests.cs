@@ -1,4 +1,5 @@
 using WhatsappApp.Protocol;
+using WhatsappApp.Protocol.Crypto;
 using WhatsappApp.Protocol.Media;
 
 namespace ProtocolTests
@@ -93,6 +94,33 @@ namespace ProtocolTests
             Assert.AreEqual(ToHex(CallKeys.SecureSsrc(Key(), info, salt)),
                 ToHex(CallKeys.Derive(Key(), salt, info, 4)),
                 "one HKDF, two spellings");
+        }
+
+        [Test]
+        public static void TheMediaSplitIsThirtyTwoBytesOfKeyAndFourteenOfSalt()
+        {
+            byte[] expanded = CallKeys.Expand(Key(), CallId);
+            CallMediaKeys media = CallKeys.SplitMedia(expanded);
+
+            Assert.AreEqual(CallKeys.MediaKeyLength, media.Key.Length, "32 bytes of AES-256-CM key");
+            Assert.AreEqual(CallKeys.MediaSaltLength, media.Salt.Length, "14 bytes of salt");
+            Assert.AreEqual(ToHex(expanded), ToHex(media.Key) + ToHex(media.Salt),
+                "the two halves are the run, in order, with nothing added or dropped");
+
+            var sender = new SrtpSession(media.Key, media.Salt, 0x01020304);
+            var receiver = new SrtpSession(media.Key, media.Salt, 0x01020304);
+            byte[] packet = RtpPacket.Opus(1, 960, 0x01020304, new byte[] { 1, 2, 3, 4 }).ToBytes();
+            byte[] sealedPacket = sender.Seal(packet, packet.Length);
+
+            Assert.IsTrue(receiver.Open(sealedPacket, sealedPacket.Length) != null,
+                "the 46 bytes a call carries seal and open an SRTP packet with AES-256-CM");
+        }
+
+        [Test]
+        public static void ASplitThatIsNotFortySixBytesIsRefused()
+        {
+            Assert.Throws<ProtocolException>(delegate { CallKeys.SplitMedia(null); });
+            Assert.Throws<ProtocolException>(delegate { CallKeys.SplitMedia(new byte[45]); });
         }
 
         /// <summary>The key the vectors were computed with: the bytes 0x00 .. 0x1f.</summary>
