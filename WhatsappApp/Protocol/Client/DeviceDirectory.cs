@@ -145,7 +145,7 @@ namespace WhatsappApp.Protocol.Client
             for (int i = 0; i < deviceJids.Count; i++)
             {
                 string deviceJid = deviceJids[i];
-                string user = User(deviceJid);
+                string user = Person(deviceJid);
 
                 var userNode = new BinaryNode("user");
                 userNode.Attrs.Add("jid", user);
@@ -218,7 +218,7 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>`393202178869:29@s.whatsapp.net` as the person the server keys on.</summary>
         public static string UserJid(string deviceJid)
         {
-            return string.IsNullOrEmpty(deviceJid) ? deviceJid : User(deviceJid);
+            return string.IsNullOrEmpty(deviceJid) ? deviceJid : Person(deviceJid);
         }
 
         /// <summary>
@@ -478,8 +478,8 @@ namespace WhatsappApp.Protocol.Client
             return only;
         }
 
-        /// <summary>`name:device@server` without the device, which is the user the server keys on.</summary>
-        private static string User(string deviceJid)
+        /// <summary>`name:device@server` without the device, which is the account the server keys on.</summary>
+        public static string Person(string deviceJid)
         {
             int colon = deviceJid.IndexOf(':');
             if (colon < 0) return deviceJid;

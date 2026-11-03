@@ -1372,6 +1372,11 @@ namespace WhatsappApp.Services
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
             Diag.Ok("native: direct text " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
+            // The store is fetched before the write and not inside the `finally`: C# 5
+            // answers CS1984 to an `await` in one, and this is the same object either way
+            // (`SessionsAsync` opens it once).
+            SessionStore store = await SessionsAsync();
+
             try
             {
                 await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, message, OutgoingMessage.TextType, null,
@@ -1381,7 +1386,7 @@ namespace WhatsappApp.Services
             {
                 // The chains moved while that stanza was being built, whether it left or not
                 // (`KeepSessions`).
-                KeepSessions(target.Devices, await SessionsAsync());
+                KeepSessions(target.Devices, store);
             }
 
             _chats.AddOutgoing(jid, id, body, timestamp);
@@ -1422,6 +1427,10 @@ namespace WhatsappApp.Services
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
 
+            // The store is fetched before the write: C# 5 answers CS1984 to an `await`
+            // inside a `finally`, and the store is the same object either way.
+            SessionStore store = await SessionsAsync();
+
             try
             {
                 await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload,
@@ -1430,7 +1439,7 @@ namespace WhatsappApp.Services
             }
             finally
             {
-                KeepSessions(target.Devices, await SessionsAsync());
+                KeepSessions(target.Devices, store);
             }
 
             Diag.Ok("native: revoke " + messageId + " as " + id + " to " + jid);
@@ -1518,6 +1527,10 @@ namespace WhatsappApp.Services
             PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
             Diag.Ok("native: direct media " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
+            // The store is fetched before the write: C# 5 answers CS1984 to an `await`
+            // inside a `finally`, and this is the same object either way.
+            SessionStore store = await SessionsAsync();
+
             try
             {
                 await WriteAsync(session, id, OutgoingMessage.Node(target.To, id, payload, OutgoingMessage.MediaType,
@@ -1529,7 +1542,7 @@ namespace WhatsappApp.Services
                 // seen for real: 1 November 2026, `the platform's generator returned no
                 // entropy` while the stanza was being built, and the next send re-encrypted a
                 // key the receiver had already spent.
-                KeepSessions(target.Devices, await SessionsAsync());
+                KeepSessions(target.Devices, store);
             }
 
             _chats.AddOutgoing(jid, id, rowText, timestamp);
