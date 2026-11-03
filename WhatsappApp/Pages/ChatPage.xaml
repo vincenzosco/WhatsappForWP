@@ -198,18 +198,23 @@
                     <!-- The long press is on the whole bubble, incoming and outgoing: it
                          is the only way to reach a message's own actions (copy the text,
                          delete it on this phone) without a button on every row. -->
-                    <Grid Margin="4,2,4,2" HorizontalAlignment="Stretch" Holding="Bubble_Holding">
+                    <!-- Margin 24 a destra e a sinistra: sono le due colonne fisse di
+                         MessageBubbleContainer (24 * zoom), non un margine scelto a
+                         occhio. La bolla ci sta dentro e si ferma a MaxWidth. -->
+                    <Grid Margin="24,0,24,0" HorizontalAlignment="Stretch" Holding="Bubble_Holding">
                         <!-- Incoming bubble. Radius 3 and the little tail are the
                              shape of the official MessageBubble: a corner that is
                              barely rounded, not the pill of the phone's chat. -->
-                        <Polygon Points="0,0 7,0 0,7" Fill="{StaticResource WhatsAppReceivedBubbleBrush}"
+                        <!-- La coda e' il TailSize ufficiale, 15 x 10, e i tre punti
+                             sono quelli di MessageBubble: (0,0), (0,10), (15,10). -->
+                        <Polygon Points="0,0 0,10 15,10" Fill="{StaticResource WhatsAppReceivedBubbleBrush}"
                                  HorizontalAlignment="Left" VerticalAlignment="Top"
-                                 Margin="4,10,0,0"
+                                 Margin="0,0,0,0"
                                  Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}"/>
                         <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
                                 CornerRadius="3"
-                                MaxWidth="400"
-                                Margin="11,2,4,2"
+                                MaxWidth="324"
+                                Margin="0,10,0,0"
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
@@ -394,23 +399,28 @@
                                 </Border>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="16"/>
+                                           Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="20"/>
+                                <!-- 18.667 e' il SmallTextFontSizeStatic del client
+                                     ufficiale, non un valore arrotondato a occhio: e' la
+                                     stessa taglia che MessageBubble da' all'ora. -->
                                 <TextBlock Text="{Binding FormattedTime}"
                                            HorizontalAlignment="Right" Margin="0,4,0,0"
-                                           Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="11"/>
+                                           Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="18.667"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Outgoing bubble: the accent colour, white text, and the
                              same 3 px corner as the received one. -->
-                        <Polygon Points="0,0 7,0 7,7" Fill="{StaticResource WhatsAppSentBubbleBrush}"
+                        <!-- La stessa coda, specchiata: e' il ScaleX = -1 che il
+                             client ufficiale applica alla coda delle sue bolle. -->
+                        <Polygon Points="15,0 15,10 0,10" Fill="{StaticResource WhatsAppSentBubbleBrush}"
                                  HorizontalAlignment="Right" VerticalAlignment="Top"
-                                 Margin="0,10,4,0"
+                                 Margin="0,0,0,0"
                                  Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}"/>
                         <Border Background="{StaticResource WhatsAppSentBubbleBrush}"
                                 CornerRadius="3"
-                                MaxWidth="400"
-                                Margin="4,2,11,2"
+                                MaxWidth="324"
+                                Margin="0,10,0,0"
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
@@ -599,18 +609,18 @@
                                      was unreadable on a light accent. -->
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="16"/>
+                                           Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="20"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0"
                                             Opacity="0.7">
                                     <TextBlock Text="{Binding FormattedTime}"
-                                               Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="11"/>
+                                               Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="18.667"/>
                                     <!-- One tick sent, two delivered, two blue read: the glyph
                                          comes from the status converter and the colour from
                                          `MsgStatusToColor`, which is why this used to stay
                                          white for "read" too (2026-11-01). -->
                                     <TextBlock Text="{Binding Status, Converter={StaticResource MsgStatusToString}}"
                                                Foreground="{Binding Status, Converter={StaticResource MsgStatusToColor}}"
-                                               FontSize="11" Margin="4,0,0,0"/>
+                                               FontSize="18.667" Margin="4,0,0,0"/>
                                 </StackPanel>
                                 <!-- The send failed and the bubble says it: the way out is
                                      here and not in the keyboard. It sends the same text or
@@ -688,7 +698,7 @@
               Background="Transparent"
               Visibility="Collapsed">
             <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
-                    CornerRadius="8"
+                    CornerRadius="3"
                     Padding="14,13,14,11"
                     Margin="4,2,4,2"
                     HorizontalAlignment="Left">
@@ -919,10 +929,12 @@
                          PlaceholderText="Type a message"
                          VerticalAlignment="Center"
                          Height="40"
-                         FontSize="16"
+                         FontSize="20"
                          Background="#FFF2F2F2"
                          BorderThickness="0"
                          KeyDown="MessageTextBox_KeyDown"
+                         KeyUp="MessageTextBox_KeyUp"
+                         AcceptsReturn="False"
                          TextChanged="MessageTextBox_TextChanged"
                          Margin="0,0,4,0">
                     <!-- The scope is what puts the emoji key on the keyboard: Windows

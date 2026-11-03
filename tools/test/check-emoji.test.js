@@ -43,7 +43,8 @@ const GOOD = {
 `,
   [CHAT_XAML]: `
     <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"/>
-    <TextBox x:Name="MessageTextBox">
+    <TextBox x:Name="MessageTextBox" AcceptsReturn="False"
+             KeyDown="MessageTextBox_KeyDown" KeyUp="MessageTextBox_KeyUp">
       <TextBox.InputScope>
         <InputScope>
           <InputScopeName NameValue="Chat"/>
@@ -54,6 +55,11 @@ const GOOD = {
   [CHAT_CODE]: `
     string text = EmojiText.Emoticons((MessageTextBox.Text ?? "").Trim());
     var message = new ChatMessage { Text = text };
+
+    private void SendOnReturn(KeyRoutedEventArgs e)
+    {
+        SendMessage();
+    }
 `,
   [VIEWER]: 'StatusText.Text = _status.ShownText ?? "";',
   [GROUP]: 'Detail = Latest == null ? "" : Latest.ShownText;',
@@ -133,6 +139,24 @@ test('la conversione che nessuno chiama non converte niente', () => {
   const broken = GOOD[CHAT_CODE].replace('EmojiText.Emoticons(', 'EmojiText.Compatible(');
   const problems = guard.emojiProblems(files({ [CHAT_CODE]: broken }));
   assert.match(problems.join('\n'), /the composer sends the text it was given/);
+});
+
+test('senza KeyUp la tastiera su schermo non manda il messaggio', () => {
+  const broken = GOOD[CHAT_XAML].replace(' KeyUp="MessageTextBox_KeyUp"', '');
+  const problems = guard.emojiProblems(files({ [CHAT_XAML]: broken }));
+  assert.match(problems.join('\n'), /no KeyUp/);
+});
+
+test('senza AcceptsReturn un a capo entra nel messaggio', () => {
+  const broken = GOOD[CHAT_XAML].replace('AcceptsReturn="False"', 'AcceptsReturn="True"');
+  const problems = guard.emojiProblems(files({ [CHAT_XAML]: broken }));
+  assert.match(problems.join('\n'), /AcceptsReturn/);
+});
+
+test('i due eventi dell Invio senza un corpo solo', () => {
+  const broken = GOOD[CHAT_CODE].replace('private void SendOnReturn', 'private void SendOnReturnX');
+  const problems = guard.emojiProblems(files({ [CHAT_CODE]: broken }));
+  assert.match(problems.join('\n'), /no SendOnReturn/);
 });
 
 test('lo scope sbagliato non basta: la faccina e del solo Chat', () => {

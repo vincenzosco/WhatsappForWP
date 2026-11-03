@@ -132,6 +132,37 @@ function emojiProblems(files) {
       + 'so the composer offers neither');
   }
 
+  // 5b. Il tasto di ritorno della tastiera manda il messaggio. Su WP8.1 la tastiera su
+  //     schermo consegna il tasto alla pagina solo con `KeyUp` (il `KeyDown` lo consuma
+  //     il TextBox), quella fisica solo con `KeyDown`: con uno solo dei due, l'Invio del
+  //     telefono in mano non manda niente (3 novembre 2026). E `AcceptsReturn="False"`,
+  //     perche' un a capo non deve finire dentro un messaggio che la bolla disegna su una
+  //     riga sola.
+  const composerTag = /<TextBox[^>]*x:Name="MessageTextBox"[^>]*>/.exec(chat);
+  if (!composerTag) {
+    problems.push(`${CHAT_XAML}: no MessageTextBox - the composer this rule is about is gone`);
+  } else {
+    const box = composerTag[0];
+    if (!/KeyUp="MessageTextBox_KeyUp"/.test(box)) {
+      problems.push(`${CHAT_XAML}: the composer has no KeyUp - Windows Phone 8.1's onboard `
+        + 'keyboard gives the return key to the page only through that event, so Enter '
+        + 'sends nothing on a phone without a hardware keyboard');
+    }
+    if (!/KeyDown="MessageTextBox_KeyDown"/.test(box)) {
+      problems.push(`${CHAT_XAML}: the composer has no KeyDown - a hardware keyboard's `
+        + 'return would not send either');
+    }
+    if (!/AcceptsReturn="False"/.test(box)) {
+      problems.push(`${CHAT_XAML}: the composer does not say AcceptsReturn="False" - the `
+        + 'return key could put a newline in a message the bubble draws as one line');
+    }
+  }
+
+  if (!/private void SendOnReturn\s*\(/.test(composer)) {
+    problems.push(`${CHAT_CODE}: no SendOnReturn - the two events the return key arrives `
+      + 'with have no single send to share, so one of them silently does nothing');
+  }
+
   // 6. E quello che la tastiera non fa lo fa l'app: un `:)` digitato parte come faccia.
   if (!/public static string Emoticons\s*\(/.test(rule)) {
     problems.push(`${RULE}: no Emoticons(string) - a keyboard without the emoji key leaves `

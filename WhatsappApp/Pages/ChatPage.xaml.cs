@@ -58,6 +58,15 @@ namespace WhatsappApp.Pages
         private DateTime _lastKeystroke;
         private const int TypingRefreshSeconds = 4;
 
+        /// <summary>
+        /// When the keyboard's return was last taken as a send. One press raises two
+        /// events on a hardware keyboard, and the second one is not a second message.
+        /// </summary>
+        private DateTime _lastReturnAt;
+
+        /// <summary>How long after a return another one is still the same press.</summary>
+        private const int ReturnRepeatMilliseconds = 300;
+
         // A message left below because the conversation was being read somewhere
         // else: it is told to the server when the reader gets to it, not before.
         private bool _markReadPending;
@@ -1959,13 +1968,46 @@ namespace WhatsappApp.Pages
             SendMessage();
         }
 
+        /// <summary>
+        /// The keyboard's return, in the two events the platform delivers it with.
+        ///
+        /// Why both: a hardware keyboard raises `KeyDown`, while on WP8.1 the keyboard on
+        /// the screen hands the return key to the `TextBox` first and the page only hears
+        /// `KeyUp` - a handler on `KeyDown` alone is a composer that sends on a phone with
+        /// a cable and not on the one in a hand, which is the report of 3 November 2026.
+        /// `AcceptsReturn="False"` closes the other half: a return must not put a newline
+        /// in a message the bubble draws as one line.
+        /// </summary>
         private void MessageTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
         {
-            if (e.Key == Windows.System.VirtualKey.Enter)
-            {
-                SendMessage();
-                e.Handled = true;
-            }
+            SendOnReturn(e);
+        }
+
+        /// <summary>The same key, from the event the on-screen keyboard delivers.</summary>
+        private void MessageTextBox_KeyUp(object sender, KeyRoutedEventArgs e)
+        {
+            SendOnReturn(e);
+        }
+
+        /// <summary>
+        /// One return, one send, whichever event carried it. It is named in `diag.log`:
+        /// "the key never reached the page" and "the key reached the page and the send
+        /// refused" are two different failures, and on the phone they used to look the
+        /// same - a return that did nothing at all.
+        /// </summary>
+        private void SendOnReturn(KeyRoutedEventArgs e)
+        {
+            if (e.Key != Windows.System.VirtualKey.Enter) return;
+
+            e.Handled = true;
+
+            // A hardware keyboard raises `KeyDown` and then `KeyUp` for one press; the
+            // second one is the same keystroke, not a second message.
+            if ((DateTime.Now - _lastReturnAt).TotalMilliseconds < ReturnRepeatMilliseconds) return;
+            _lastReturnAt = DateTime.Now;
+
+            Diag.Ok("send: the keyboard's return arrived");
+            SendMessage();
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
