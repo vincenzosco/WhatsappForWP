@@ -43,9 +43,7 @@ namespace WhatsappApp.Protocol.Media
         private DtlsRecordKeys _inKeys;
 
         private ushort _outEpoch;
-        private ushort _inEpoch;
         private ulong _outSequence;
-        private ulong _inSequence;
 
         private int _stage;
         private ushort _outHandshakeSequence;
@@ -94,8 +92,6 @@ namespace WhatsappApp.Protocol.Media
             _stage = StageAwaitingFlight;
             _outEpoch = 0;
             _outSequence = 0;
-            _inEpoch = 0;
-            _inSequence = 0;
 
             return BuildClientHello();
         }
@@ -195,12 +191,7 @@ namespace WhatsappApp.Protocol.Media
                     return null;
                 }
 
-                if (type == Dtls.TypeChangeCipherSpec)
-                {
-                    _inEpoch = 1;
-                    _inSequence = 0;
-                    continue;
-                }
+                if (type == Dtls.TypeChangeCipherSpec) continue;
 
                 if (type != Dtls.TypeHandshake) continue;
 
@@ -354,8 +345,6 @@ namespace WhatsappApp.Protocol.Media
             _srtpAgreed = false;
             _extendedMasterSecret = false;
             _signatureVerified = false;
-            _inEpoch = 0;
-            _inSequence = 0;
 
             return BuildClientHello();
         }
