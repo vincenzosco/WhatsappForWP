@@ -51,6 +51,12 @@ namespace WhatsappApp.Services
         /// <summary>True when the other side offered and this phone has not answered yet.</summary>
         public bool IsIncoming { get; private set; }
 
+        /// <summary>Whether the microphone is switched off. A switch, not a fact of the wire.</summary>
+        public bool Muted { get; private set; }
+
+        /// <summary>Whether the sound goes to the loudspeaker rather than to the earpiece.</summary>
+        public bool SpeakerOn { get; private set; }
+
         public CallState State { get; private set; }
 
         /// <summary>The `reason` the call ended with, or null while it has not ended.</summary>
@@ -138,6 +144,8 @@ namespace WhatsappApp.Services
             PeerJid = peerJid;
             IsVideo = video;
             IsIncoming = true;
+            Muted = false;
+            SpeakerOn = false;
             EndedReason = null;
             StartedAt = DateTime.UtcNow;
             ConnectedAt = default(DateTime);
@@ -156,6 +164,8 @@ namespace WhatsappApp.Services
             PeerJid = peerJid;
             IsVideo = video;
             IsIncoming = false;
+            Muted = false;
+            SpeakerOn = false;
             EndedReason = null;
             StartedAt = DateTime.UtcNow;
             ConnectedAt = default(DateTime);
@@ -205,6 +215,27 @@ namespace WhatsappApp.Services
             return true;
         }
 
+        /// <summary>
+        /// The microphone switch. It belongs to a call that is up or being set up: a switch on
+        /// a call nobody is on is a switch over nothing.
+        /// </summary>
+        public bool SetMuted(bool muted)
+        {
+            if (!Occupied) return false;
+
+            Muted = muted;
+            return true;
+        }
+
+        /// <summary>The speaker switch, with the same rule as the microphone's.</summary>
+        public bool SetSpeaker(bool on)
+        {
+            if (!Occupied) return false;
+
+            SpeakerOn = on;
+            return true;
+        }
+
         /// <summary>Takes the ended call off the screen. Anything still up is left alone.</summary>
         public void Clear()
         {
@@ -214,6 +245,8 @@ namespace WhatsappApp.Services
             PeerJid = null;
             IsVideo = false;
             IsIncoming = false;
+            Muted = false;
+            SpeakerOn = false;
             EndedReason = null;
             StartedAt = default(DateTime);
             ConnectedAt = default(DateTime);

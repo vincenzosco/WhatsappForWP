@@ -180,6 +180,33 @@ namespace WhatsappApp.Pages
             DeclineCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             EndCallButton.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
             EndCallButton.Content = over ? Loc.Get("Call_Close", "Close") : Loc.Get("Call_End", "End");
+
+            // The two switches, and the same rule as the rest: they belong to a call that is
+            // up or being set up. Each tile says which way its switch is, and is lit while it
+            // is the unusual way - the microphone off, the sound on the loudspeaker.
+            MuteCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+            SpeakerCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+
+            MuteCallButton.Content = call.Muted
+                ? Loc.Get("Call_Muted", "Microphone off")
+                : Loc.Get("Call_Mute", "Microphone on");
+            SpeakerCallButton.Content = call.SpeakerOn
+                ? Loc.Get("Call_SpeakerOn", "Speaker on")
+                : Loc.Get("Call_Speaker", "Speaker off");
+
+            PaintSwitch(MuteCallButton, call.Muted);
+            PaintSwitch(SpeakerCallButton, call.SpeakerOn);
+        }
+
+        /// <summary>A switch tile: lit while the switch is engaged, dark while it is not.</summary>
+        private static void PaintSwitch(Button tile, bool engaged)
+        {
+            tile.Background = new SolidColorBrush(engaged
+                ? Color.FromArgb(0xFF, 0xF0, 0xF0, 0xF0)
+                : Color.FromArgb(0xFF, 0x2A, 0x2A, 0x2A));
+            tile.Foreground = new SolidColorBrush(engaged
+                ? Color.FromArgb(0xFF, 0x10, 0x10, 0x10)
+                : Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
         }
 
         /// <summary>
@@ -223,6 +250,21 @@ namespace WhatsappApp.Pages
 
             AvatarCircle.Fill = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
             InitialsText.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// The microphone switch. It changes the call's own state and nothing audible: there is
+        /// no media to cut yet, and the note under the name says exactly that.
+        /// </summary>
+        private void MuteCall_Click(object sender, RoutedEventArgs e)
+        {
+            DataService.Instance.ToggleMute();
+        }
+
+        /// <summary>The speaker switch: the earpiece or the loudspeaker.</summary>
+        private void SpeakerCall_Click(object sender, RoutedEventArgs e)
+        {
+            DataService.Instance.ToggleSpeaker();
         }
 
         private void AcceptCall_Click(object sender, RoutedEventArgs e)

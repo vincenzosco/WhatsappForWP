@@ -525,6 +525,34 @@ namespace WhatsappApp.Services
             if (_call.Dial(callId, JidUtils.Normalize(jid), video)) RaiseCallChanged();
         }
 
+        /// <summary>
+        /// The microphone switch of the call on screen. Nothing is audible to cut yet, so the
+        /// switch records what the media engine will read once it exists - and the call screen
+        /// says so in the note under the name.
+        /// </summary>
+        public void ToggleMute()
+        {
+            if (!_call.Occupied) return;
+
+            bool muted = !_call.Muted;
+            if (!_call.SetMuted(muted)) return;
+
+            Diag.Ok("call: microphone " + (muted ? "muted" : "open"));
+            RaiseCallChanged();
+        }
+
+        /// <summary>Where the sound goes: the earpiece or the loudspeaker.</summary>
+        public void ToggleSpeaker()
+        {
+            if (!_call.Occupied) return;
+
+            bool on = !_call.SpeakerOn;
+            if (!_call.SetSpeaker(on)) return;
+
+            Diag.Ok("call: sound " + (on ? "on the loudspeaker" : "on the earpiece"));
+            RaiseCallChanged();
+        }
+
         /// <summary>Takes the ended call off the screen.</summary>
         public void DismissCall()
         {

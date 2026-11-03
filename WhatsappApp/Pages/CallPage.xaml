@@ -111,7 +111,7 @@
 
                 <Button x:Name="DeclineCallButton" Grid.Row="0" Grid.Column="2"
                         Style="{StaticResource CallTileStyle}"
-                        Click="DeclineCall_Click"/>
+                        Background="#FFE0413A" Click="DeclineCall_Click"/>
             </Grid>
 
             <Grid x:Name="CallInProgressButtons">
@@ -125,15 +125,20 @@
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="6"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="6"/>
-                    <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- The whole width: there is no message button during a call here. -->
+                <!-- The two switches of a call: the microphone and where the sound goes. -->
+                <Button x:Name="MuteCallButton" Grid.Row="0" Grid.Column="0"
+                        Style="{StaticResource CallTileStyle}" Click="MuteCall_Click"/>
+
+                <Button x:Name="SpeakerCallButton" Grid.Row="0" Grid.Column="2"
+                        Style="{StaticResource CallTileStyle}" Click="SpeakerCall_Click"/>
+
+                <!-- Hanging up, across the whole width and red: the one control nobody hunts for. -->
                 <Button x:Name="EndCallButton" Grid.Row="2" Grid.Column="0"
-                        Grid.ColumnSpan="5"
+                        Grid.ColumnSpan="3"
                         Style="{StaticResource CallTileStyle}"
-                        Background="#FF25D366" Click="EndCall_Click"/>
+                        Background="#FFE0413A" Click="EndCall_Click"/>
             </Grid>
         </Grid>
     </Grid>

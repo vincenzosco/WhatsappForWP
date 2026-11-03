@@ -586,6 +586,18 @@
   <data name="Call_Close" xml:space="preserve">
     <value>Close</value>
   </data>
+  <data name="Call_Mute" xml:space="preserve">
+    <value>Microphone on</value>
+  </data>
+  <data name="Call_Muted" xml:space="preserve">
+    <value>Microphone off</value>
+  </data>
+  <data name="Call_Speaker" xml:space="preserve">
+    <value>Speaker off</value>
+  </data>
+  <data name="Call_SpeakerOn" xml:space="preserve">
+    <value>Speaker on</value>
+  </data>
   <data name="Notification_IncomingCall" xml:space="preserve">
     <value>Incoming call</value>
   </data>
