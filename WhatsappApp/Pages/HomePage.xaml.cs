@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Text;
 using System.Threading.Tasks;
 using PickerContact = Windows.ApplicationModel.Contacts.ContactInformation;
+using Windows.Foundation;
 using Windows.UI;
 using Windows.UI.Input;
 using Windows.UI.Xaml;
@@ -989,11 +990,47 @@ namespace WhatsappApp.Pages
             tile.Click += async (s, a) => { await TogglePinnedTileAsync(id, contact.Name, contact.LastMessage); };
             flyout.Items.Add(tile);
 
+            // The person behind the chat opens on the phone's own People card, anchored to
+            // this row. Only a person can be shown: a group and a `@lid` have no number, so
+            // the entry is drawn only when it can do something.
+            if (PeopleHub.CanShow(id))
+            {
+                var people = new MenuFlyoutItem
+                {
+                    Text = Loc.Get("ChatsPage_ShowInPeople", "Show in People")
+                };
+                people.Click += delegate
+                {
+                    PeopleHub.Show(id, contact.Name, BoundsOf(row));
+                };
+                flyout.Items.Add(people);
+            }
+
             var remove = new MenuFlyoutItem { Text = Loc.Get("ChatsPage_Delete", "Delete chat") };
             remove.Click += async (s, a) => { await ConfirmDeleteAsync(id); };
             flyout.Items.Add(remove);
 
             flyout.ShowAt(row);
+        }
+
+        /// <summary>
+        /// Where a row is on screen, in the coordinates a system card is anchored to. A card
+        /// that does not know its anchor opens in the corner, and a menu entry that opens it
+        /// somewhere unrelated reads like the wrong tap.
+        /// </summary>
+        private static Rect BoundsOf(FrameworkElement row)
+        {
+            if (row == null) return new Rect(0, 0, 0, 0);
+
+            try
+            {
+                return row.TransformToVisual(null).TransformBounds(
+                    new Rect(0, 0, row.ActualWidth, row.ActualHeight));
+            }
+            catch (Exception)
+            {
+                return new Rect(0, 0, 0, 0);
+            }
         }
 
         /// <summary>

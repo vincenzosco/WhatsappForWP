@@ -319,6 +319,9 @@
   <data name="ChatsPage_Unmute" xml:space="preserve">
     <value>Togli il silenzio</value>
   </data>
+  <data name="ChatsPage_ShowInPeople" xml:space="preserve">
+    <value>Mostra in People</value>
+  </data>
   <data name="ChatsPage_Delete" xml:space="preserve">
     <value>Elimina chat</value>
   </data>
