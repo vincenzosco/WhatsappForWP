@@ -69,6 +69,7 @@ namespace WhatsappApp.Protocol.Media
         private int _stage;
         private bool _certificateListed;
         private bool _srtpAgreed;
+        private bool _extendedMasterSecret;
         private bool _serverFinishedVerified;
         private string _failure;
 
@@ -224,7 +225,21 @@ namespace WhatsappApp.Protocol.Media
 
                     offset += messageLength;
 
-                    byte[] next = Handle(message, outbound);
+                    // A message this client cannot parse is a peer this client cannot talk to.
+                    // The reader throws by name ("a handshake message ended before its own
+                    // field"), and letting that escape would turn a hostile datagram into an
+                    // exception on the call's thread - so it stops the handshake instead.
+                    byte[] next;
+                    try
+                    {
+                        next = Handle(message, outbound);
+                    }
+                    catch (ProtocolException ex)
+                    {
+                        Fail(ex.Message);
+                        return null;
+                    }
+
                     if (next != null) outbound.AddRange(next);
                     if (_stage == StageFailed) return null;
                 }
@@ -294,6 +309,13 @@ namespace WhatsappApp.Protocol.Media
                 {
                     int type = extensions.UInt16();
                     byte[] extensionBody = extensions.Vector16();
+
+                    // extended_master_secret: the server says it will derive the master secret
+                    // from the handshake and not from the two randoms (RFC 7627). Offering it
+                    // and then ignoring the answer is the worst of both - the two ends derive
+                    // different keys and fail at the Finished with nothing to point at - so the
+                    // answer is read here and used in BuildClientFlight.
+                    if (type == 23) _extendedMasterSecret = true;
 
                     // use_srtp: the profile list the server agreed to, with ours in it.
                     if (type == 14 && extensionBody.Length >= 4)
@@ -388,7 +410,10 @@ namespace WhatsappApp.Protocol.Media
             outbound.AddRange(SendHandshake(Dtls.HandshakeClientKeyExchange, exchange.ToArray()));
 
             byte[] preMaster = Curve25519.SharedSecret(_privateKey, _serverPublicKey);
-            _masterSecret = DtlsPrf.Prf(preMaster, "master secret", Concat(_clientRandom, _serverRandom), 48);
+
+            _masterSecret = _extendedMasterSecret
+                ? DtlsPrf.Prf(preMaster, "extended master secret", TranscriptHash(), 48)
+                : DtlsPrf.Prf(preMaster, "master secret", Concat(_clientRandom, _serverRandom), 48);
 
             byte[] keyBlock = DtlsPrf.Prf(_masterSecret, "key expansion", Concat(_serverRandom, _clientRandom), 40);
 
@@ -535,6 +560,17 @@ namespace WhatsappApp.Protocol.Media
         public bool SrtpAgreed
         {
             get { return _srtpAgreed; }
+        }
+
+        /// <summary>
+        /// Whether the server answered the extended_master_secret extension, which decides how
+        /// the master secret was derived. Not a detail: the two forms give different keys, so a
+        /// client that offers the extension and ignores the answer fails every handshake against
+        /// a server that accepts it.
+        /// </summary>
+        public bool ExtendedMasterSecret
+        {
+            get { return _extendedMasterSecret; }
         }
 
         /// <summary>The certificate's SHA-256, for the log and for a fingerprint check by hand.</summary>

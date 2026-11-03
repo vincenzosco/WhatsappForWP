@@ -409,6 +409,15 @@ namespace WhatsappApp.Protocol.Media
         public void Vector8(byte[] value)
         {
             byte[] bytes = value == null ? new byte[0] : value;
+
+            // The length prefix is one byte: a longer vector would write a truncated length and
+            // the peer would read the wrong bytes - a message that looks sent and does not parse.
+            if (bytes.Length > 255)
+            {
+                throw new ProtocolException("a one-byte vector holds at most 255 bytes, not "
+                    + bytes.Length);
+            }
+
             Byte(bytes.Length);
             Bytes(bytes);
         }

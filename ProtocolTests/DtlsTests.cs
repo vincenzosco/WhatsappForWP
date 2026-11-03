@@ -173,6 +173,62 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void TheExtendedMasterSecretIsUsedWhenTheServerAnswersIt()
+        {
+            var peer = new ScriptedPeer(true);
+            var client = new DtlsClient(ClientPrivateKey, ClientRandom, peer.CertificateSha256);
+
+            client.Receive(peer.ReadClientHello(client.Start()));
+
+            Assert.IsTrue(client.ExtendedMasterSecret, "the server echoed extension 23");
+        }
+
+        [Test]
+        public static void TheClassicMasterSecretStillFinishesWhenTheServerDoesNotOfferIt()
+        {
+            var peer = new ScriptedPeer(false);
+            var client = new DtlsClient(ClientPrivateKey, ClientRandom, peer.CertificateSha256);
+
+            byte[] answer = client.Receive(peer.ReadClientHello(client.Start()));
+            Assert.IsTrue(answer != null, "the client answered a server that does not use EMS");
+
+            byte[] closing = peer.ReadClientFlight(answer);
+            client.Receive(closing);
+
+            Assert.IsFalse(client.ExtendedMasterSecret, "extension 23 was not answered");
+            Assert.IsTrue(client.IsComplete, "and the handshake still completes: " + client.Failure);
+            Assert.AreEqual(ToHex(peer.SrtpClientKey), ToHex(client.SrtpClientKey),
+                "the classic key schedule reaches the same SRTP key");
+        }
+
+        [Test]
+        public static void AMalformedServerHelloIsRefusedAndNotThrown()
+        {
+            var client = new DtlsClient(ClientPrivateKey, ClientRandom, null);
+            client.Start();
+
+            // A ServerHello that stops after its version: a hostile or broken peer, and three
+            // bytes where thirty-four are needed. The reader throws by name; the client must
+            // answer with a failure, not with an exception on the call's thread.
+            var body = new DtlsWriter();
+            body.UInt16(Dtls.Version);
+            byte[] message = new DtlsHandshakeMessage(Dtls.HandshakeServerHello, 0, body.ToArray()).ToBytes();
+
+            byte[] answer = client.Receive(DtlsRecord.Plain(Dtls.TypeHandshake, 0, 0, message));
+
+            Assert.IsTrue(answer == null, "nothing to send back");
+            Assert.IsFalse(client.IsComplete, "and the handshake is over");
+            Assert.IsTrue(client.Failure != null, "with a named failure: " + client.Failure);
+        }
+
+        [Test]
+        public static void AOneByteVectorOfTwoHundredFiftySixBytesIsRefused()
+        {
+            var writer = new DtlsWriter();
+            Assert.Throws<ProtocolException>(delegate { writer.Vector8(new byte[256]); });
+        }
+
+        [Test]
         public static void ATamperedServerFlightIsRefusedAndNotThrown()
         {
             var peer = new ScriptedPeer();
@@ -217,6 +273,7 @@ namespace ProtocolTests
         /// </summary>
         private sealed class ScriptedPeer
         {
+            private readonly bool _extendedMasterSecret;
             private readonly byte[] _privateKey = Sequence(32, 0xB1);
             private readonly byte[] _publicKey;
             private readonly byte[] _serverRandom = Sequence(32, 0x40);
@@ -231,7 +288,13 @@ namespace ProtocolTests
             private int _messageSequence;
 
             public ScriptedPeer()
+                : this(true)
             {
+            }
+
+            public ScriptedPeer(bool extendedMasterSecret)
+            {
+                _extendedMasterSecret = extendedMasterSecret;
                 _publicKey = Curve25519.PublicKey(_privateKey);
             }
 
@@ -277,6 +340,7 @@ namespace ProtocolTests
                 srtp.UInt16(2);
                 srtp.UInt16(Dtls.SrtpProfileAes128CmHmacSha1_80);
                 extensions.Extension(14, srtp.ToArray());
+                if (_extendedMasterSecret) extensions.Extension(23, new byte[0]);
                 hello.Vector16(extensions.ToArray());
 
                 records.Add(Record(Dtls.HandshakeServerHello, hello.ToArray()));
@@ -335,8 +399,11 @@ namespace ProtocolTests
                         _transcript.Add(message.ToBytes());
 
                         byte[] preMaster = Curve25519.SharedSecret(_privateKey, clientPublic);
-                        byte[] seed = Join(new[] { _clientRandom, _serverRandom });
-                        _masterSecret = DtlsPrf.Prf(preMaster, "master secret", seed, 48);
+                        _masterSecret = _extendedMasterSecret
+                            ? DtlsPrf.Prf(preMaster, "extended master secret",
+                                Sha256.Hash(Join(_transcript)), 48)
+                            : DtlsPrf.Prf(preMaster, "master secret",
+                                Join(new[] { _clientRandom, _serverRandom }), 48);
 
                         byte[] keyBlock = DtlsPrf.Prf(_masterSecret, "key expansion",
                             Join(new[] { _serverRandom, _clientRandom }), 40);
