@@ -1467,6 +1467,7 @@ namespace WhatsappApp.Pages
             if (_selectedLocalFileName != null)
             {
                 await SendAttachmentAsync(text);
+                await SendRemainingAttachmentsAsync();
                 return;
             }
 
@@ -1509,6 +1510,32 @@ namespace WhatsappApp.Pages
         /// signature at the end, so a sender that streamed the file could not compute the
         /// MAC before the last block either (`MediaUpload.Body`).
         /// </summary>
+        /// <summary>
+        /// Sends whatever else came with the file the composer showed: several files from the
+        /// picker are several messages, in the order they were picked.
+        /// </summary>
+        private async System.Threading.Tasks.Task SendRemainingAttachmentsAsync()
+        {
+            while (!_left)
+            {
+                AttachmentInbox.PendingAttachment next = AttachmentInbox.TakeNext();
+                if (next == null) break;
+
+                SelectAttachment(next);
+                await SendAttachmentAsync("");
+            }
+        }
+
+        /// <summary>Points the composer's selection at one waiting file.</summary>
+        private void SelectAttachment(AttachmentInbox.PendingAttachment item)
+        {
+            _selectedLocalFileName = item.LocalFileName;
+            _selectedMediaFileName = item.FileName;
+            _selectedMediaMimeType = item.MimeType;
+            _selectedIsVoiceNote = item.IsVoiceNote;
+            _selectedSeconds = item.Seconds;
+        }
+
         private async System.Threading.Tasks.Task SendAttachmentAsync(string caption)
         {
             string localFileName = _selectedLocalFileName;
@@ -2369,15 +2396,20 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void ShowPendingAttachment()
         {
+            // A file is already waiting: another one picked in the same go stays in the
+            // inbox and goes out with it, so the bar does not change under the person.
+            if (!string.IsNullOrEmpty(_selectedLocalFileName)) return;
             if (!AttachmentInbox.HasAttachment) return;
 
-            string note = AttachmentInbox.Note;
-            _selectedLocalFileName = AttachmentInbox.LocalFileName;
-            _selectedMediaFileName = AttachmentInbox.FileName;
-            _selectedMediaMimeType = AttachmentInbox.MimeType;
-            _selectedIsVoiceNote = AttachmentInbox.IsVoiceNote;
-            _selectedSeconds = AttachmentInbox.Seconds;
-            AttachmentInbox.Clear();
+            AttachmentInbox.PendingAttachment picked = AttachmentInbox.TakeNext();
+            if (picked == null) return;
+
+            string note = picked.Note;
+            _selectedLocalFileName = picked.LocalFileName;
+            _selectedMediaFileName = picked.FileName;
+            _selectedMediaMimeType = picked.MimeType;
+            _selectedIsVoiceNote = picked.IsVoiceNote;
+            _selectedSeconds = picked.Seconds;
 
             if (!string.IsNullOrEmpty(note) && string.IsNullOrEmpty(MessageTextBox.Text))
             {
@@ -2445,6 +2477,9 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void ClearImageButton_Click(object sender, RoutedEventArgs e)
         {
+            // Cancelling the bar cancels the rest of the pick too: files nobody showed
+            // would go out with the next attachment, or in another chat.
+            AttachmentInbox.Clear();
             ClearSelectedImage();
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -44,6 +45,20 @@ namespace WhatsappApp.Services
                 + "_" + _copySequence.ToString(CultureInfo.InvariantCulture) + extension;
         }
 
+        /// <summary>One file waiting to go out, with what the composer draws for it.</summary>
+        public sealed class PendingAttachment
+        {
+            public string LocalFileName;
+            public string FileName;
+            public string MimeType;
+            public string Note;
+            public bool IsVoiceNote;
+            public uint Seconds;
+        }
+
+        /// <summary>The files nobody has taken yet, in the order they arrived.</summary>
+        private static readonly List<PendingAttachment> Pending = new List<PendingAttachment>();
+
         private static string _localFileName;
         private static string _fileName;
         private static string _mimeType;
@@ -75,7 +90,13 @@ namespace WhatsappApp.Services
 
         public static bool HasAttachment
         {
-            get { return !string.IsNullOrEmpty(_localFileName); }
+            get { return Pending.Count > 0; }
+        }
+
+        /// <summary>How many files are waiting: a picker can bring several at once.</summary>
+        public static int Count
+        {
+            get { return Pending.Count; }
         }
 
         /// <summary>The name, inside LocalFolder, of the copied file.</summary>
@@ -177,26 +198,50 @@ namespace WhatsappApp.Services
         private static void PutLocal(string localName, string fileName, string mimeType, string note,
             bool voiceNote, uint seconds)
         {
-            _localFileName = localName;
-            _fileName = fileName;
-            _mimeType = string.IsNullOrEmpty(mimeType) ? "image/jpeg" : mimeType;
-            _note = note;
-            _voiceNote = voiceNote;
-            _seconds = seconds;
+            var item = new PendingAttachment();
+            item.LocalFileName = localName;
+            item.FileName = fileName;
+            item.MimeType = string.IsNullOrEmpty(mimeType) ? "image/jpeg" : mimeType;
+            item.Note = note;
+            item.IsVoiceNote = voiceNote;
+            item.Seconds = seconds;
+
+            Pending.Add(item);
+            SyncHead();
 
             var handler = Ready;
             if (handler != null) handler();
         }
 
-        /// <summary>Takes the attachment: whoever shows it does so once.</summary>
+        /// <summary>Points the single-attachment properties at the first file waiting.</summary>
+        private static void SyncHead()
+        {
+            PendingAttachment first = Pending.Count == 0 ? null : Pending[0];
+
+            _localFileName = first == null ? null : first.LocalFileName;
+            _fileName = first == null ? null : first.FileName;
+            _mimeType = first == null ? null : first.MimeType;
+            _note = first == null ? null : first.Note;
+            _voiceNote = first != null && first.IsVoiceNote;
+            _seconds = first == null ? 0u : first.Seconds;
+        }
+
+        /// <summary>Takes the first file waiting, or null when there is none.</summary>
+        public static PendingAttachment TakeNext()
+        {
+            if (Pending.Count == 0) return null;
+
+            PendingAttachment first = Pending[0];
+            Pending.RemoveAt(0);
+            SyncHead();
+            return first;
+        }
+
+        /// <summary>Takes every attachment: whoever shows them does so once.</summary>
         public static void Clear()
         {
-            _localFileName = null;
-            _fileName = null;
-            _mimeType = null;
-            _note = null;
-            _voiceNote = false;
-            _seconds = 0;
+            Pending.Clear();
+            SyncHead();
         }
 
         /// <summary>

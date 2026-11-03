@@ -571,27 +571,30 @@ namespace WhatsappApp
                 return;
             }
 
-            // OnActivated is not async: the file is just deposited, and the page
-            // in front picks it up with the AttachmentInbox event.
+            // OnActivated is not async: the files are just deposited, and the page
+            // in front picks them up with the AttachmentInbox event.
 #pragma warning disable 4014
-            DepositPickedFileAsync(continuation.Files[0]);
+            DepositPickedFilesAsync(continuation.Files);
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// A file chosen from the picker. A failure here has nobody to collect it
-        /// - OnActivated is not async and nobody awaits this Task - so everything
-        /// is caught: an unobserved exception closes the app.
+        /// The files chosen from the picker, copied one after another so the order is the one
+        /// they were picked in. A failure has nobody to collect it - OnActivated is not async
+        /// and nobody awaits this Task - so each copy is caught on its own.
         /// </summary>
-        private async void DepositPickedFileAsync(StorageFile file)
+        private async void DepositPickedFilesAsync(IReadOnlyList<StorageFile> files)
         {
-            try
+            for (int i = 0; i < files.Count; i++)
             {
-                await AttachmentInbox.PutAsync(file, null);
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("App/picker", ex);
+                try
+                {
+                    await AttachmentInbox.PutAsync(files[i], null);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("App/picker", ex);
+                }
             }
         }
 

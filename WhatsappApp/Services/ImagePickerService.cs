@@ -5,7 +5,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Opens the WP8.1 file picker.
     ///
-    /// It uses PickSingleFileAndContinue and NOT PickSingleFileAsync: the
+    /// It uses PickMultipleFilesAndContinue and NOT the Async forms: the
     /// Microsoft documentation says PickSingleFileAsync is not supported on
     /// Windows Phone (neither for Windows Runtime nor for Silverlight) and points
     /// at PickSingleFileAndContinue. On the phone the first one failed, and the
@@ -75,7 +75,7 @@ namespace WhatsappApp.Services
             // CS0618: deprecated since Windows 10, but it is the only one Windows
             // Phone 8.1 implements. It is not a warning to fix, it is the platform.
 #pragma warning disable 618
-            picker.PickSingleFileAndContinue();
+            picker.PickMultipleFilesAndContinue();
 #pragma warning restore 618
         }
     }
