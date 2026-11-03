@@ -194,10 +194,15 @@ namespace ProtocolTests
             BinaryNode key = iq.Children()[0];
             Assert.AreEqual("key", key.Tag);
             Assert.AreEqual(2, key.Children().Count);
-            Assert.AreEqual(PeerBundleFixture.Peer,
+
+            // The device is the `user`'s own jid, which is the shape the reference writes
+            // and the shape the server answers: one `user` per device, no `device` child.
+            Assert.AreEqual(PeerBundleFixture.PeerPhone,
                 key.Children()[0].Attrs["jid"]);
             Assert.AreEqual(PeerBundleFixture.PeerTablet,
-                key.Children()[1].Child("device").Attrs["jid"]);
+                key.Children()[1].Attrs["jid"]);
+            Assert.IsTrue(key.Children()[1].Child("device") == null,
+                "a bundle query names the device in the user's jid, never in a child");
         }
 
         /// <summary>

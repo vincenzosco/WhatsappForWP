@@ -14,9 +14,9 @@ namespace WhatsappApp.Protocol.Client
     ///
     /// - the device list is a `usync` `query` for the `devices` protocol (version 2),
     ///   whose answer is `usync &gt; list &gt; user &gt; devices &gt; device-list &gt; device[id]`;
-    /// - the bundles are one `encrypt` `get` with a `key` per device, `user` and `device`
-    ///   inside it, whose answer carries `registration`, `identity`, `skey` and `key` per
-    ///   device;
+    /// - the bundles are one `encrypt` `get` with a `key` holding one `user` per device,
+    ///   whose `jid` is the device itself, and whose answer carries `registration`,
+    ///   `identity`, `skey` and `key` per device;
     /// - a bundle's signed pre-key is verified here, against the identity key in the same
     ///   bundle, because that is the one check standing between this session and somebody
     ///   else's: a signature that does not verify is a device a message must not be sent
@@ -131,7 +131,17 @@ namespace WhatsappApp.Protocol.Client
             return devices;
         }
 
-        /// <summary>The iq that asks for one pre-key bundle per device.</summary>
+        /// <summary>
+        /// The iq that asks for one pre-key bundle per device: one `user` per device, whose
+        /// `jid` **is** the device (`number:device@s.whatsapp.net`), all inside one `key`.
+        ///
+        /// Why there is no `device` child: the official client's `SendGetPreKeys` builds
+        /// `iq > key > user[jid]` and nothing else, and the per-person shape this file
+        /// already ships - same nodes, only the jid differs - is the one the server answers.
+        /// The `<user><device jid/></user>` written before was a node neither the reference
+        /// nor the server has, which is why its answer never came (diag.log, 2 November
+        /// 2026: "the per-device bundle query ... the server did not answer").
+        /// </summary>
         public static BinaryNode BundleQuery(IList<string> deviceJids, IRandomSource random)
         {
             if (deviceJids == null || deviceJids.Count == 0)
@@ -144,17 +154,19 @@ namespace WhatsappApp.Protocol.Client
             var requests = new List<BinaryNode>();
             for (int i = 0; i < deviceJids.Count; i++)
             {
-                string deviceJid = deviceJids[i];
-                string user = Person(deviceJid);
+                if (string.IsNullOrEmpty(deviceJids[i])) continue;
 
+                // The device address on the user, exactly as the reference writes it: the
+                // server keys the bundle on the jid it is given, and a child it does not
+                // know is a question it never answers.
                 var userNode = new BinaryNode("user");
-                userNode.Attrs.Add("jid", user);
-
-                var deviceNode = new BinaryNode("device");
-                deviceNode.Attrs.Add("jid", deviceJid);
-
-                userNode.Content = new List<BinaryNode> { deviceNode };
+                userNode.Attrs.Add("jid", deviceJids[i]);
                 requests.Add(userNode);
+            }
+
+            if (requests.Count == 0)
+            {
+                throw new ProtocolException("a bundle query asks about at least one device");
             }
 
             var key = new BinaryNode("key");
