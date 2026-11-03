@@ -3,19 +3,9 @@ using System;
 namespace WhatsappApp.Protocol.Crypto
 {
     /// <summary>
-    /// The one thing a DTLS client needs from a certificate: the P-256 public key inside it.
-    ///
-    /// Why so little: verifying the ServerKeyExchange needs the key the server used, and
-    /// nothing else in the certificate - not the names, not the validity, not the chain - is
-    /// checked here, because this client trusts a certificate by fingerprint (the WebRTC way)
-    /// and not by a path to a root it does not have. A fuller X.509 parser would be code that
-    /// looks like it validates and does not.
-    ///
-    /// The walk is structural rather than a scan for the OID: `Certificate` is
-    /// `SEQUENCE { tbsCertificate, ... }`, `tbsCertificate` is `SEQUENCE { [0] version?,
-    /// serialNumber, signature, issuer, validity, subject, subjectPublicKeyInfo, ... }`, and
-    /// the SPKI is the sequence whose first child is `AlgorithmIdentifier` with
-    /// `id-ecPublicKey` + `prime256v1` and whose second is the BIT STRING with the point.
+    /// Reads the P-256 key out of a DER certificate, and nothing else: names, dates and chain
+    /// are not checked here - trust is a fingerprint the caller supplies. The walk follows the
+    /// structure instead of scanning for an OID, so a certificate of another kind answers null.
     /// </summary>
     public static class X509
     {
@@ -27,11 +17,7 @@ namespace WhatsappApp.Protocol.Crypto
         private static readonly byte[] Prime256v1Oid =
             new byte[] { 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07 };
 
-        /// <summary>
-        /// The uncompressed P-256 point (65 bytes) inside this DER certificate, or null when
-        /// the certificate carries any other kind of key. Never an exception: a certificate is
-        /// bytes from the network.
-        /// </summary>
+        /// <summary>The 65-byte P-256 point in this certificate, or null for any other key.</summary>
         public static byte[] P256Point(byte[] certificate)
         {
             if (certificate == null || certificate.Length < 16) return null;

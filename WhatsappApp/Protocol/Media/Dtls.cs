@@ -14,22 +14,12 @@ namespace WhatsappApp.Protocol.Media
     /// is that missing half: the record framing, the TLS 1.2 PRF, the key schedule, and the
     /// RFC 5764 exporter that turns a finished handshake into an SRTP master key and salt.
     ///
-    /// What is implemented, exactly:
-    ///  - the DTLS record layer, 13-byte header, epoch and 48-bit sequence, with
-    ///    `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` (0xC02B) and its RSA twin (0xC02F) as the
-    ///    only two suites, because they are the two an AES-GCM record can serve with the
-    ///    primitives this project already has;
-    ///  - the TLS 1.2 PRF over SHA-256 (`P_hash`), the master secret, the key block and the
-    ///    Finished verify_data;
-    ///  - the `use_srtp` extension (profile `SRTP_AES128_CM_HMAC_SHA1_80`) and the exporter
-    ///    of RFC 5764, section 4.2.
+    /// What is here: the record layer (13-byte header, epoch, 48-bit sequence), the TLS 1.2 PRF
+    /// over SHA-256, the key schedule, the `use_srtp` extension and the RFC 5764 exporter, plus
+    /// fragment reassembly and the HelloVerifyRequest cookie.
     ///
-    /// What is **not** here, and is not pretended: ECDSA/RSA signature verification of the
-    /// ServerKeyExchange. This project has no curve arithmetic for P-256 and no RSA, so a
-    /// client built on this file cannot prove the server owns the certificate it presented.
-    /// `DtlsClient` therefore refuses to call the handshake trusted unless the caller supplies
-    /// the certificate's SHA-256 out of band - the way WebRTC carries a fingerprint in the
-    /// signalling - and it reports that decision instead of assuming it.
+    /// What is not: RSA suites. `EcP256` checks the ECDSA signature, so only the ECDSA suite is
+    /// offered - a certificate with an RSA key is refused by name, not trusted.
     /// </summary>
     public static class Dtls
     {
@@ -397,10 +387,8 @@ namespace WhatsappApp.Protocol.Media
         public int FramedLength;
 
         /// <summary>
-        /// Reads one fragment at `at`. Null when the bytes stop inside it: the rest of that
-        /// record has nothing more this can read, and dropping it is what a lost packet costs.
-        /// A ProtocolException when it contradicts itself - a slice that reaches past the message
-        /// it belongs to is not a message to guess at. It never throws on bytes that merely stop.
+        /// Reads one fragment at `at`. Null when the bytes stop inside it (a truncated record),
+        /// a ProtocolException when the slice reaches past the message it belongs to.
         /// </summary>
         public static DtlsHandshakeFragment Parse(byte[] data, int at, int available)
         {
@@ -435,18 +423,12 @@ namespace WhatsappApp.Protocol.Media
     }
 
     /// <summary>
-    /// Puts handshake messages back together from their fragments, and hands them over in
-    /// message-sequence order - the order the transcript needs (RFC 6347, section 4.2.2).
+    /// Puts handshake messages back together and hands them over in sequence order, which is
+    /// the order the transcript needs: a Certificate hashed after its ServerKeyExchange would
+    /// make every later Finished disagree.
     ///
-    /// Why order and not just completeness: a Certificate handed over after its
-    /// ServerKeyExchange would be hashed in the wrong order, and every Finished computed from
-    /// that transcript disagrees with the peer's for a reason nothing in the failure names. So
-    /// a message that is complete early waits for the ones before it.
-    ///
-    /// What it bounds, because the bytes come from the network: a message larger than
-    /// `MaxMessageLength` is refused, more than a few messages in flight or completed-but-waiting
-    /// are refused, and two fragments that disagree about a byte are refused by name instead of
-    /// one of them quietly winning.
+    /// Bounded, because the bytes come from the network: a message over `MaxMessageLength`, too
+    /// many in flight, or two fragments that disagree about a byte are refused by name.
     /// </summary>
     public sealed class DtlsHandshakeReassembler
     {
@@ -481,9 +463,9 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
-        /// One fragment in. A fragment of a message already handed over is a duplicate and is
-        /// ignored; a fragment that contradicts what is held, or a message past the cap, throws.
-        /// Completing a message does not hand it over - `TakeNext` does, in order.
+        /// One fragment in. A duplicate of a message already handed over is ignored; a fragment
+        /// that contradicts what is held, or a message past the cap, throws. Completion does not
+        /// hand the message over - `TakeNext` does, in order.
         /// </summary>
         public void Accept(DtlsHandshakeFragment fragment)
         {

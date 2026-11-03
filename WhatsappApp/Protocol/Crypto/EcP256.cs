@@ -3,28 +3,11 @@ using System;
 namespace WhatsappApp.Protocol.Crypto
 {
     /// <summary>
-    /// NIST P-256 (secp256r1) and ECDSA over SHA-256, enough to **verify** a signature.
+    /// P-256 and ECDSA-SHA256, for verifying signatures only.
     ///
-    /// Why it exists: `DtlsClient` could complete a handshake and prove nothing, because the
-    /// ServerKeyExchange signature was read and thrown away - this project had no curve
-    /// arithmetic beyond X25519 and Ed25519. With this, `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256`
-    /// is authenticated: the server presented a certificate, and it signed the ephemeral key
-    /// with the key inside it.
-    ///
-    /// Why the arithmetic is hand-written: the phone's profile has no `System.Numerics` this
-    /// project relies on, and the protocol core is compiled once for the phone and once for
-    /// the desktop runner (see `ProtocolTests`). Everything here is a fixed 256-bit integer in
-    /// eight little-endian 32-bit limbs, reduced by binary long division - slow, and obviously
-    /// the modulus it says it is. A verify costs a few tens of milliseconds, once per call.
-    ///
-    /// What it deliberately is **not**:
-    ///  - **not constant time.** It only verifies, and a verification has no secret to leak:
-    ///    the inputs are the peer's public key and the peer's signature.
-    ///  - **not a signer.** Nothing here makes a signature, so nothing here needs a nonce, and
-    ///    the whole class of nonce-reuse faults cannot exist in it.
-    ///  - **not a certificate validator.** It answers "is this signature by the key in this
-    ///    certificate", not "is this certificate trusted" - that stays the caller's decision,
-    ///    by fingerprint (`DtlsClient`).
+    /// Hand-written because WP8.1 has no `System.Numerics` we can rely on: eight 32-bit limbs,
+    /// reduced by binary long division. Not constant time and not a signer - it only checks a
+    /// peer's signature, and trust in the certificate stays the caller's decision.
     /// </summary>
     public static class EcP256
     {
@@ -46,12 +29,8 @@ namespace WhatsappApp.Protocol.Crypto
         private static readonly uint[] CurveB = FromHex("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b");
 
         /// <summary>
-        /// Whether `signature` is a valid ECDSA-SHA256 signature of `message` by the key in
-        /// `publicPoint` (65 bytes, uncompressed: 0x04 || X || Y).
-        ///
-        /// A point that is not on the curve, a signature that does not parse, or `r`/`s` outside
-        /// 1..n-1 all answer false: every one of them is one handshake to refuse, never an
-        /// exception on a path that reads bytes from the network.
+        /// Verifies `signature` over `message` with the key in `publicPoint` (65 bytes,
+        /// 0x04 || X || Y). A bad point, a bad encoding or r/s out of range answer false.
         /// </summary>
         public static bool Verify(byte[] message, byte[] signature, byte[] publicPoint)
         {
@@ -88,11 +67,7 @@ namespace WhatsappApp.Protocol.Crypto
             return Compare(xr, rn) == 0;
         }
 
-        /// <summary>
-        /// Whether the 65 bytes are an uncompressed point that really lies on the curve, with
-        /// both coordinates below p. A point off the curve is the classic way to feed a broken
-        /// key into a verifier, so this is checked before any arithmetic uses it.
-        /// </summary>
+        /// <summary>Whether the 65 bytes are an uncompressed point on the curve.</summary>
         public static bool IsOnCurve(byte[] point)
         {
             if (point == null || point.Length != PointLength || point[0] != 0x04) return false;
@@ -133,10 +108,7 @@ namespace WhatsappApp.Protocol.Crypto
             return IsZero(point.Z);
         }
 
-        /// <summary>
-        /// Jacobian doubling, with the curve's a = -3 folded in as 3(X-Z^2)(X+Z^2): the form
-        /// that avoids a multiplication by a constant nobody would notice was wrong.
-        /// </summary>
+        /// <summary>Jacobian doubling, with a = -3 folded into 3(X-Z^2)(X+Z^2).</summary>
         private static Point Double(Point point)
         {
             if (IsInfinity(point) || IsZero(point.Y)) return Infinity();
@@ -351,12 +323,7 @@ namespace WhatsappApp.Protocol.Crypto
             return product;
         }
 
-        /// <summary>
-        /// Reduces a 512-bit number by binary long division: shift the remainder in a bit at a
-        /// time and subtract the modulus whenever it fits. Slow, and honest - it needs no
-        /// special form of p, so a modulus typed wrong shows up as a wrong answer instead of as
-        /// arithmetic that happens to look plausible.
-        /// </summary>
+        /// <summary>Reduces a 512-bit number by binary long division: slow, and easy to check.</summary>
         private static uint[] Reduce(uint[] wide, uint[] modulus)
         {
             var remainder = new uint[Limbs + 1];
@@ -515,10 +482,7 @@ namespace WhatsappApp.Protocol.Crypto
             return true;
         }
 
-        /// <summary>
-        /// The DER length at `at`, advancing past it, or -1 when it is not one: a length is
-        /// never negative, so the caller has nothing to unpack.
-        /// </summary>
+        /// <summary>The DER length at `at`, advancing past it; -1 when there is none.</summary>
         private static int ReadLength(byte[] der, ref int at)
         {
             if (at >= der.Length) return -1;

@@ -5,43 +5,16 @@ using WhatsappApp.Protocol.Crypto;
 namespace WhatsappApp.Protocol.Media
 {
     /// <summary>
-    /// A DTLS 1.2 client for one media channel: it starts the handshake, answers the server's
-    /// flight, and ends with the SRTP master key and salt the audio is encrypted with.
+    /// A DTLS 1.2 client for one media channel: starts the handshake, answers the server, and
+    /// ends with the SRTP keys the audio is encrypted with.
     ///
-    /// The shape of the exchange, in the order this class follows (RFC 6347 with RFC 5246's
-    /// key schedule):
+    /// Only ECDHE_ECDSA with AES-128-GCM, because its ServerKeyExchange signature is checked
+    /// with `EcP256`: an RSA suite would complete a handshake that proves nothing, and a CBC
+    /// suite is refused by name. Fragments are reassembled in sequence order and a cookie
+    /// request is answered. No resumption, no renegotiation, no retransmission timers.
     ///
-    ///   client                                                 server
-    ///   ClientHello                        ->
-    ///                                      &lt;-  ServerHello, Certificate,
-    ///                                           ServerKeyExchange, ServerHelloDone
-    ///   ClientKeyExchange, CCS, Finished   ->
-    ///                                      &lt;-  CCS, Finished
-    ///   (EXTRACTOR-dtls_srtp)
-    ///
-    /// What it deliberately leaves out, with the reason in each case:
-    ///  - **RSA certificates.** The ServerKeyExchange signature *is* verified, with
-    ///    `EcP256` against the P-256 key inside the certificate - so only
-    ///    `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` is offered, rather than offering an RSA
-    ///    suite whose signature would go unchecked. A server with an RSA certificate is
-    ///    refused by name. And the certificate is still compared against the fingerprint the
-    ///    caller supplies (`expectedCertificateSha256`): the signature says the peer owns the
-    ///    key, the fingerprint says which key is the right one. `IsTrusted` needs both.
-    ///  - **no resumption, no renegotiation.** Neither is offered, and a peer that answers as if
-    ///    one had been agreed is refused. The cookie exchange *is* answered: a HelloVerifyRequest
-    ///    gets the ClientHello back carrying its cookie, and the handshake starts again from an
-    ///    empty transcript - which is how a public DTLS server screens an address before it does
-    ///    any work for it.
-    ///
-    /// Fragmented handshake messages are reassembled (`DtlsHandshakeReassembler`) and handed over
-    /// in message-sequence order, because a Certificate hashed out of order is a transcript the
-    /// server's Finished cannot agree with - and the failure would name the Finished, not the
-    /// order.
-    ///  - **AES-128-GCM only.** CBC suites exist in front of every WP8.1 peer and none of them
-    ///    is implemented here; a server that picks one gets a named refusal.
-    ///
-    /// What is **verified**: the server's Finished, over the whole transcript, so a peer that
-    /// did not derive the same master secret cannot pretend it did.
+    /// `IsTrusted` needs the signature *and* the fingerprint the caller supplies: the signature
+    /// says the peer owns its key, the fingerprint says which key is the right one.
     /// </summary>
     public sealed class DtlsClient
     {
