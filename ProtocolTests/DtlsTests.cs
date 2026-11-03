@@ -26,6 +26,87 @@ namespace ProtocolTests
         private static readonly byte[] ClientPrivateKey = Sequence(32, 0x11);
         private static readonly byte[] ClientRandom = Sequence(32, 0x60);
 
+        // ---- vectors produced by OpenSSL through Node's crypto ----------------------------
+
+        private const string EcdsaMessageHex =
+            "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+
+        private const string EcdsaPointHex =
+            "041b31c823a49fac40e5ab2191ac4f1465af3121490b7dc5d7b178d7739281ca51" +
+            "b89d1a886a2662e6166862ca9c799256445c0654dda8573f85b75068284de5b1";
+
+        private const string EcdsaSignatureHex =
+            "3044022055dc336e9528b0bc3fabc8b7fe4541949391f6aadcf525a66d8edb10ddc1f19a" +
+            "022029fc7712fba8f8b3d9f92fbc0df9165762a454cbc9cc3ea79bb710286444090d";
+
+        /// <summary>The same P-256 key inside a certificate whose SPKI is the real one.</summary>
+        private const string CertificateHex =
+            "3081c13070020101300a06082a8648ce3d0403023000300030003059301306072a8648ce3d020106082a8648ce3d0301070342" +
+            "00041b31c823a49fac40e5ab2191ac4f1465af3121490b7dc5d7b178d7739281ca51b89d1a886a2662e6166862ca9c7992564" +
+            "45c0654dda8573f85b75068284de5b1300a06082a8648ce3d0403020341005a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a" +
+            "5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a";
+
+        /// <summary>The ephemeral X25519 key of the scripted peer, as Node derived it.</summary>
+        private const string ServerX25519PublicHex =
+            "cd700e88f9e99b19c1a8a8dcd58182fd101e5e032a69ce317fde23e8ee265c51";
+
+        /// <summary>
+        /// OpenSSL's signature over client_random || server_random || curve parameters || the
+        /// peer's ephemeral public key, by the P-256 key in `CertificateHex`.
+        /// </summary>
+        private const string HandshakeSignatureHex =
+            "3045022058c54918459782a9996d947ee3984b518fed3a80d8574d6ab15cdd54937d63e1" +
+            "022100b29596d3b7bbcb0a524dbfc96e0909faafca0a587f06433b7e5fdc7fa9d83c35";
+
+        // ---- P-256 and X.509 -------------------------------------------------------------
+
+        [Test]
+        public static void TheEcdsaVerificationMatchesOpenSsl()
+        {
+            byte[] message = Bytes(EcdsaMessageHex);
+            byte[] signature = Bytes(EcdsaSignatureHex);
+            byte[] point = Bytes(EcdsaPointHex);
+
+            Assert.IsTrue(EcP256.Verify(message, signature, point),
+                "the P-256 arithmetic verifies a signature OpenSSL produced");
+
+            byte[] tampered = Bytes(EcdsaMessageHex);
+            tampered[5] = (byte)(tampered[5] ^ 0x01);
+            Assert.IsFalse(EcP256.Verify(tampered, signature, point),
+                "one flipped bit and it is not that signature");
+
+            byte[] wrong = Bytes(EcdsaSignatureHex);
+            wrong[wrong.Length - 1] = (byte)(wrong[wrong.Length - 1] ^ 0x80);
+            Assert.IsFalse(EcP256.Verify(message, wrong, point), "and neither is a changed s");
+        }
+
+        [Test]
+        public static void APointOffTheCurveIsRefused()
+        {
+            byte[] point = Bytes(EcdsaPointHex);
+            point[64] = (byte)(point[64] ^ 0x01);
+
+            Assert.IsFalse(EcP256.IsOnCurve(point), "the point is no longer on the curve");
+            Assert.IsFalse(EcP256.Verify(Bytes(EcdsaMessageHex), Bytes(EcdsaSignatureHex), point),
+                "and a key that is not on the curve verifies nothing");
+        }
+
+        [Test]
+        public static void ACertificateYieldsItsP256Point()
+        {
+            Assert.AreEqual(EcdsaPointHex, ToHex(X509.P256Point(Bytes(CertificateHex))),
+                "the SubjectPublicKeyInfo is walked, not guessed");
+            Assert.IsTrue(X509.P256Point(Sequence(200, 0x30)) == null,
+                "bytes that are not a certificate are not one");
+        }
+
+        [Test]
+        public static void TheFixtureKeyIsTheOneThatWasSigned()
+        {
+            Assert.AreEqual(ServerX25519PublicHex, ToHex(Curve25519.PublicKey(Sequence(32, 0xB1))),
+                "the peer's ephemeral key is the one Node signed over");
+        }
+
         // ---- the PRF, against Node -------------------------------------------------------
 
         [Test]
@@ -132,6 +213,9 @@ namespace ProtocolTests
             Assert.IsTrue(client.IsComplete, "the handshake completed: " + client.Failure);
             Assert.IsTrue(client.ServerFinishedVerified, "the server's Finished verified over the whole transcript");
             Assert.IsTrue(client.SrtpAgreed, "the server agreed to SRTP_AES128_CM_HMAC_SHA1_80");
+            Assert.IsTrue(client.SignatureVerified,
+                "the ServerKeyExchange signature verified against the certificate's P-256 key");
+            Assert.IsTrue(client.IsTrusted, "and the certificate is the fingerprint the caller named");
 
             Assert.AreEqual(ToHex(peer.SrtpClientKey), ToHex(client.SrtpClientKey), "client SRTP key");
             Assert.AreEqual(ToHex(peer.SrtpClientSalt), ToHex(client.SrtpClientSalt), "client SRTP salt");
@@ -229,6 +313,22 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void TheSignatureCoversBothRandoms()
+        {
+            var peer = new ScriptedPeer();
+
+            byte[] otherRandom = Sequence(32, 0x60);
+            otherRandom[0] = 0x61;
+
+            var client = new DtlsClient(ClientPrivateKey, otherRandom, peer.CertificateSha256);
+            byte[] answer = client.Receive(peer.ReadClientHello(client.Start()));
+
+            Assert.IsTrue(answer == null, "a signature made over other randoms is not a signature for this one");
+            Assert.IsTrue(client.Failure != null && client.Failure.IndexOf("signature") >= 0,
+                "and it is named: " + client.Failure);
+        }
+
+        [Test]
         public static void ATamperedServerFlightIsRefusedAndNotThrown()
         {
             var peer = new ScriptedPeer();
@@ -257,6 +357,13 @@ namespace ProtocolTests
             return bytes;
         }
 
+        private static byte[] Bytes(string hex)
+        {
+            var bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < bytes.Length; i++) bytes[i] = Convert.ToByte(hex.Substring(i * 2, 2), 16);
+            return bytes;
+        }
+
         private static string ToHex(byte[] bytes)
         {
             if (bytes == null) return "<null>";
@@ -277,7 +384,7 @@ namespace ProtocolTests
             private readonly byte[] _privateKey = Sequence(32, 0xB1);
             private readonly byte[] _publicKey;
             private readonly byte[] _serverRandom = Sequence(32, 0x40);
-            private readonly byte[] _certificate = Sequence(120, 0x30);
+            private readonly byte[] _certificate = Bytes(CertificateHex);
             private readonly List<byte[]> _transcript = new List<byte[]>();
 
             private byte[] _clientRandom;
@@ -355,8 +462,8 @@ namespace ProtocolTests
                 exchange.Byte(3);                       // named_curve
                 exchange.UInt16(Dtls.GroupX25519);
                 exchange.Vector8(_publicKey);
-                exchange.UInt16(0x0403);                // ecdsa_secp256r1_sha256
-                exchange.Vector16(Sequence(64, 0x5A));  // a signature that is never checked
+                exchange.UInt16(0x0403);                    // ecdsa_secp256r1_sha256
+                exchange.Vector16(Bytes(HandshakeSignatureHex)); // made by OpenSSL over these bytes
                 records.Add(Record(Dtls.HandshakeServerKeyExchange, exchange.ToArray()));
 
                 records.Add(Record(Dtls.HandshakeServerHelloDone, new byte[0]));

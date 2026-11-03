@@ -20,12 +20,13 @@ namespace WhatsappApp.Protocol.Media
     ///   (EXTRACTOR-dtls_srtp)
     ///
     /// What it deliberately leaves out, with the reason in each case:
-    ///  - **the signature on ServerKeyExchange is not verified.** This project has no P-256
-    ///    and no RSA, so `Certificate` is hashed and compared against the fingerprint the
-    ///    caller supplies (`expectedCertificateSha256`) and nothing else. Without that
-    ///    fingerprint the handshake completes but `IsTrusted` is false - the caller decides,
-    ///    it is never assumed. This is the same trust shape WebRTC uses, where the
-    ///    certificate is self-signed and the `a=fingerprint` line is the identity.
+    ///  - **RSA certificates.** The ServerKeyExchange signature *is* verified, with
+    ///    `EcP256` against the P-256 key inside the certificate - so only
+    ///    `TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256` is offered, rather than offering an RSA
+    ///    suite whose signature would go unchecked. A server with an RSA certificate is
+    ///    refused by name. And the certificate is still compared against the fingerprint the
+    ///    caller supplies (`expectedCertificateSha256`): the signature says the peer owns the
+    ///    key, the fingerprint says which key is the right one. `IsTrusted` needs both.
     ///  - **no fragmentation.** A handshake message that arrives in pieces is refused by name
     ///    (`DtlsHandshakeMessage.Parse`), because a message hashed in pieces is a message this
     ///    client would hash wrongly - and a wrong transcript is a Finished that fails anyway,
@@ -55,6 +56,7 @@ namespace WhatsappApp.Protocol.Media
 
         private byte[] _serverRandom;
         private byte[] _serverPublicKey;
+        private byte[] _certificate;
         private byte[] _masterSecret;
         private byte[] _serverSignatureSeen;
 
@@ -70,6 +72,7 @@ namespace WhatsappApp.Protocol.Media
         private bool _certificateListed;
         private bool _srtpAgreed;
         private bool _extendedMasterSecret;
+        private bool _signatureVerified;
         private bool _serverFinishedVerified;
         private string _failure;
 
@@ -118,9 +121,12 @@ namespace WhatsappApp.Protocol.Media
             hello.Bytes(_clientRandom);
             hello.Byte(0); // session id: none, no resumption
             hello.Byte(0); // DTLS cookie: the first hello carries none
-            hello.UInt16(4);
+            // One suite, and not two: an RSA suite would complete the handshake and leave its
+            // ServerKeyExchange signature unverifiable here (no RSA in this project), which is a
+            // handshake that proves nothing. Offering only what can be authenticated is the
+            // difference between "the peer has the key" and "the peer sent bytes".
+            hello.UInt16(2);
             hello.UInt16(Dtls.SuiteEcdheEcdsaAes128GcmSha256);
-            hello.UInt16(Dtls.SuiteEcdheRsaAes128GcmSha256);
             hello.Byte(1);
             hello.Byte(0); // compression: null only
 
@@ -294,9 +300,10 @@ namespace WhatsappApp.Protocol.Media
             int suite = reader.UInt16();
             reader.Byte(); // compression
 
-            if (suite != Dtls.SuiteEcdheEcdsaAes128GcmSha256 && suite != Dtls.SuiteEcdheRsaAes128GcmSha256)
+            if (suite != Dtls.SuiteEcdheEcdsaAes128GcmSha256)
             {
-                Fail("the server chose suite 0x" + suite.ToString("x4") + ", which is not AES-GCM");
+                Fail("the server chose suite 0x" + suite.ToString("x4")
+                    + ", and this client only authenticates ECDHE_ECDSA with AES-128-GCM");
                 return null;
             }
 
@@ -348,6 +355,7 @@ namespace WhatsappApp.Protocol.Media
             byte[] first = certificates.Vector24();
 
             _certificateListed = true;
+            _certificate = first;
             CertificateSha256 = Sha256.Hash(first);
 
             if (_expectedCertificate != null && !Hmac.FixedTimeEquals(CertificateSha256, _expectedCertificate))
@@ -383,12 +391,43 @@ namespace WhatsappApp.Protocol.Media
 
             _serverPublicKey = publicKey;
 
-            // Read and kept, never checked: see the class comment. The alternative - pretending
-            // to verify - is worse than naming the gap.
-            if (reader.Remaining >= 2)
+            // What the signature covers: both randoms and the parameters above, byte for byte.
+            // The length is taken before the signature fields are read, so nothing after the
+            // public key can be slid into the signed run.
+            int signedLength = reader.Position;
+
+            if (reader.Remaining < 4)
             {
-                reader.UInt16();
-                _serverSignatureSeen = reader.Vector16();
+                Fail("the ServerKeyExchange has no signature");
+                return;
+            }
+
+            reader.UInt16(); // the signature algorithm, which the suite already fixes here
+            _serverSignatureSeen = reader.Vector16();
+
+            if (_certificate == null)
+            {
+                Fail("the ServerKeyExchange arrived before any certificate to check it against");
+                return;
+            }
+
+            byte[] publicKeyOfSigner = X509.P256Point(_certificate);
+            if (publicKeyOfSigner == null)
+            {
+                Fail("the certificate carries no P-256 key, and only that one can be checked here");
+                return;
+            }
+
+            var signed = new byte[Dtls.RandomLength * 2 + signedLength];
+            Buffer.BlockCopy(_clientRandom, 0, signed, 0, Dtls.RandomLength);
+            Buffer.BlockCopy(_serverRandom, 0, signed, Dtls.RandomLength, Dtls.RandomLength);
+            Buffer.BlockCopy(body, 0, signed, Dtls.RandomLength * 2, signedLength);
+
+            _signatureVerified = EcP256.Verify(signed, _serverSignatureSeen, publicKeyOfSigner);
+
+            if (!_signatureVerified)
+            {
+                Fail("the ServerKeyExchange signature does not verify against the certificate");
             }
         }
 
@@ -536,13 +575,27 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
-        /// True only when the server's certificate matched the fingerprint the caller supplied.
-        /// A handshake can be complete and untrusted: that is the honest pair of answers, and
-        /// the caller is the one that decides whether to send audio over it.
+        /// Whether the server proved it holds the key in its certificate: the ServerKeyExchange
+        /// signature verified against the P-256 key inside it.
+        /// </summary>
+        public bool SignatureVerified
+        {
+            get { return _signatureVerified; }
+        }
+
+        /// <summary>
+        /// True only when the handshake finished, the signature verified **and** the certificate
+        /// is the one the caller named by fingerprint. A handshake can be complete, signed and
+        /// untrusted: that is the honest set of answers, and the caller decides whether to send
+        /// audio over it.
         /// </summary>
         public bool IsTrusted
         {
-            get { return _stage == StageDone && _certificateListed && _expectedCertificate != null; }
+            get
+            {
+                return _stage == StageDone && _certificateListed && _signatureVerified
+                    && _expectedCertificate != null;
+            }
         }
 
         /// <summary>Why the handshake stopped, or null.</summary>
