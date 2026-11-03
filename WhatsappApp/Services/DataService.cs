@@ -46,10 +46,14 @@ namespace WhatsappApp.Services
         // It was 200, which on this phone was about 1 MB of bubbles - a fraction of the
         // 185 MB the budget line reports - and it meant that scrolling back through a
         // conversation re-read the same rows from disk. A text message is a few hundred
-        // bytes in memory; 600 of them is a couple of MB and covers a whole day of a busy
-        // chat (`MemoryWatcher` is what keeps the ceiling honest, and it trims before the
-        // system would).
-        private const int MaxMessagesPerChat = 600;
+        // bytes in memory, so the ceiling now comes from the phone instead of from the
+        // smallest one: 300 rows on a 512 MB device, 600 on a 1 GB one, 1000 on 2 GB and
+        // 1500 above (`MemoryProfile.MessagesPerChat`). A number picked for a 512 MB phone
+        // made every other phone re-read what it could have kept.
+        private static int MaxMessagesPerChat
+        {
+            get { return MemoryProfile.Instance.MessagesPerChat; }
+        }
 
         // How long the list waits after the last row changed before it is written. Long
         // enough that a burst of messages is one write, short enough that a run killed a

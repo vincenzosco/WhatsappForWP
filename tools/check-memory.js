@@ -346,12 +346,17 @@ function historyCeilingProblems(source, file) {
   if (file !== DATA_SERVICE) return problems;
   const code = stripComments(source);
 
+  // The ceiling is the phone's now (`MemoryProfile.MessagesPerChat`): 300 rows on a 512 MB
+  // device, 1500 on one with room. A literal is therefore no longer the shape - what the
+  // rule asks is that a ceiling exists, that it is the profile's and not a number only the
+  // smallest phone could afford, and that it is applied with a while.
   const declared = /MaxMessagesPerChat\s*=\s*(\d+)/.exec(code);
-  if (declared === null) {
+  const tiered = /MaxMessagesPerChat[\s\S]{0,200}?MemoryProfile\.Instance\.MessagesPerChat/.test(code);
+  if (declared === null && !tiered) {
     problems.push(`${file}: no MaxMessagesPerChat: the in-memory history of a chat ` +
       'grows without a ceiling, and on a 512 MB phone a busy chat is the last ' +
       'unbounded allocation left');
-  } else if (Number(declared[1]) < 100) {
+  } else if (declared !== null && Number(declared[1]) < 100) {
     problems.push(`${file}: MaxMessagesPerChat is ${declared[1]}, too small to be a ` +
       'ceiling: it would drop the conversation the user is reading');
   }
@@ -396,6 +401,16 @@ function memoryProfileProblems(source, file) {
       problems.push(`${file}: has no LowTierLimitBytes: without a threshold every phone is ` +
         'either low or normal by accident');
     }
+    if (!/MediumTierLimitBytes\s*=\s*\d+/.test(code) || !/HighTierLimitBytes\s*=\s*\d+/.test(code)) {
+      problems.push(`${file}: has no MediumTierLimitBytes/HighTierLimitBytes: a 1 GB phone and ` +
+        'a 2 GB one are not a 512 MB one - the platform reports about 185 MB, 390 MB and ' +
+        '780 MB of app limit - and one threshold for all of them makes the bigger phone do ' +
+        'the small phone\'s work while the small one still does too much');
+    }
+    if (!/MemoryTier\.Medium/.test(code) || !/MemoryTier\.High/.test(code)) {
+      problems.push(`${file}: MemoryTier has no Medium/High: two classes cannot tell a 1 GB ` +
+        'phone from a 2 GB one, and the numbers they share are the smallest one\'s');
+    }
     return problems;
   }
 
@@ -403,6 +418,12 @@ function memoryProfileProblems(source, file) {
     problems.push(`${file}: RestoreAvatars is not bounded by MemoryProfile.MaxDecodedAvatars: ` +
       'it rebuilds every picture TrimForMemory dropped, which puts the phone straight back ' +
       'under the pressure that caused the trim');
+  }
+
+  if (file === DATA_SERVICE && !/MemoryProfile\.Instance\.MessagesPerChat/.test(code)) {
+    problems.push(`${file}: the in-memory history ceiling is not the profile\'s ` +
+      '(MemoryProfile.MessagesPerChat): a fixed number is the smallest phone\'s ceiling, ' +
+      'and every bigger phone re-reads from disk what it could have kept');
   }
 
   if (file === AVATAR_ENRICHER && !/AvatarsToEnrich/.test(code)) {

@@ -331,3 +331,25 @@ test('i tre file veri del progetto passano la regola del budget', () => {
   assert.deepStrictEqual(memory.memoryProfileProblems(read(DATA), DATA), []);
   assert.deepStrictEqual(memory.memoryProfileProblems(read(ENRICHER), ENRICHER), []);
 });
+
+test('un profilo con due sole classi si segnala', () => {
+  const found = memory.memoryProfileProblems(
+    'ulong limit = MemoryManager.AppMemoryUsageLimit;\n' +
+    'const ulong LowTierLimitBytes = 200;', MEMORY_PROFILE).join('\n');
+  assert.match(found, /MediumTierLimitBytes/);
+  assert.match(found, /1 GB/);
+  assert.match(found, /MemoryTier has no Medium\/High/);
+});
+
+test('il tetto della cronologia preso dal profilo passa', () => {
+  const source = 'private static int MaxMessagesPerChat\n' +
+    '{\n  get { return MemoryProfile.Instance.MessagesPerChat; }\n}\n' +
+    'while (list.Count > MaxMessagesPerChat) list.RemoveAt(0);';
+  assert.deepStrictEqual(memory.historyCeilingProblems(source, DATA), []);
+});
+
+test('un tetto della cronologia che non viene dal profilo si segnala', () => {
+  const source = 'private const int MaxMessagesPerChat = 600;\n' +
+    'while (list.Count > MaxMessagesPerChat) list.RemoveAt(0);';
+  assert.match(memory.memoryProfileProblems(source, DATA).join('\n'), /MessagesPerChat/);
+});
