@@ -27,12 +27,16 @@ namespace WhatsappApp.Protocol.Media
     ///    refused by name. And the certificate is still compared against the fingerprint the
     ///    caller supplies (`expectedCertificateSha256`): the signature says the peer owns the
     ///    key, the fingerprint says which key is the right one. `IsTrusted` needs both.
-    ///  - **no fragmentation.** A handshake message that arrives in pieces is refused by name
-    ///    (`DtlsHandshakeMessage.Parse`), because a message hashed in pieces is a message this
-    ///    client would hash wrongly - and a wrong transcript is a Finished that fails anyway,
-    ///    later and less clearly.
-    ///  - **no resumption, no renegotiation, no HelloVerifyRequest.** A server that sends a
-    ///    cookie is answered with a failure, not with a silent half-handshake.
+    ///  - **no resumption, no renegotiation.** Neither is offered, and a peer that answers as if
+    ///    one had been agreed is refused. The cookie exchange *is* answered: a HelloVerifyRequest
+    ///    gets the ClientHello back carrying its cookie, and the handshake starts again from an
+    ///    empty transcript - which is how a public DTLS server screens an address before it does
+    ///    any work for it.
+    ///
+    /// Fragmented handshake messages are reassembled (`DtlsHandshakeReassembler`) and handed over
+    /// in message-sequence order, because a Certificate hashed out of order is a transcript the
+    /// server's Finished cannot agree with - and the failure would name the Finished, not the
+    /// order.
     ///  - **AES-128-GCM only.** CBC suites exist in front of every WP8.1 peer and none of them
     ///    is implemented here; a server that picks one gets a named refusal.
     ///
@@ -53,7 +57,9 @@ namespace WhatsappApp.Protocol.Media
         private readonly byte[] _expectedCertificate;
 
         private readonly List<byte[]> _transcript = new List<byte[]>();
+        private readonly DtlsHandshakeReassembler _reassembler = new DtlsHandshakeReassembler();
 
+        private byte[] _cookie;
         private byte[] _serverRandom;
         private byte[] _serverPublicKey;
         private byte[] _certificate;
@@ -69,6 +75,8 @@ namespace WhatsappApp.Protocol.Media
         private ulong _inSequence;
 
         private int _stage;
+        private ushort _outHandshakeSequence;
+        private bool _helloVerifyAnswered;
         private bool _certificateListed;
         private bool _srtpAgreed;
         private bool _extendedMasterSecret;
@@ -116,11 +124,23 @@ namespace WhatsappApp.Protocol.Media
             _inEpoch = 0;
             _inSequence = 0;
 
+            return BuildClientHello();
+        }
+
+        /// <summary>
+        /// The ClientHello, built twice in a handshake: once with no cookie, and once more with
+        /// the one a HelloVerifyRequest demanded. The random is kept, so the ServerKeyExchange
+        /// signature is over the same bytes on both attempts.
+        /// </summary>
+        private byte[] BuildClientHello()
+        {
+            _outHandshakeSequence = 0;
+
             var hello = new DtlsWriter();
             hello.UInt16(Dtls.Version);
             hello.Bytes(_clientRandom);
             hello.Byte(0); // session id: none, no resumption
-            hello.Byte(0); // DTLS cookie: the first hello carries none
+            hello.Vector8(_cookie); // none on the first hello, the demanded one after
             // One suite, and not two: an RSA suite would complete the handshake and leave its
             // ServerKeyExchange signature unverifiable here (no RSA in this project), which is a
             // handshake that proves nothing. Offering only what can be authenticated is the
@@ -214,40 +234,57 @@ namespace WhatsappApp.Protocol.Media
                 int offset = 0;
                 while (offset + Dtls.HandshakeHeaderLength <= fragment.Length)
                 {
-                    int bodyLength = (fragment[offset + 1] << 16) | (fragment[offset + 2] << 8) | fragment[offset + 3];
-                    int messageLength = Dtls.HandshakeHeaderLength + bodyLength;
-                    if (offset + messageLength > fragment.Length) break;
+                    // A fragment, not necessarily a message: a certificate can arrive in pieces,
+                    // in any order, in any number of records. `DtlsHandshakeFragment.Parse`
+                    // answers null when the record ends inside a fragment, which is a truncated
+                    // datagram and not a reason to end the handshake by itself.
+                    DtlsHandshakeFragment piece;
+                    try
+                    {
+                        piece = DtlsHandshakeFragment.Parse(fragment, offset, fragment.Length - offset);
+                    }
+                    catch (ProtocolException ex)
+                    {
+                        Fail(ex.Message);
+                        return null;
+                    }
 
+                    if (piece == null) break;
+                    offset += piece.FramedLength;
+
+                    try
+                    {
+                        _reassembler.Accept(piece);
+                    }
+                    catch (ProtocolException ex)
+                    {
+                        Fail(ex.Message);
+                        return null;
+                    }
+
+                    // Only whole messages, and only in sequence: a fragment that completes
+                    // nothing hands over nothing, and a message that completes early waits.
                     DtlsHandshakeMessage message;
-                    try
+                    while ((message = _reassembler.TakeNext()) != null)
                     {
-                        message = DtlsHandshakeMessage.Parse(fragment, offset, messageLength);
-                    }
-                    catch (ProtocolException ex)
-                    {
-                        Fail(ex.Message);
-                        return null;
-                    }
+                        // A message this client cannot parse is a peer this client cannot talk
+                        // to. The reader throws by name ("a handshake message ended before its
+                        // own field"), and letting that escape would turn a hostile datagram into
+                        // an exception on the call's thread - so it stops the handshake instead.
+                        byte[] next;
+                        try
+                        {
+                            next = Handle(message, outbound);
+                        }
+                        catch (ProtocolException ex)
+                        {
+                            Fail(ex.Message);
+                            return null;
+                        }
 
-                    offset += messageLength;
-
-                    // A message this client cannot parse is a peer this client cannot talk to.
-                    // The reader throws by name ("a handshake message ended before its own
-                    // field"), and letting that escape would turn a hostile datagram into an
-                    // exception on the call's thread - so it stops the handshake instead.
-                    byte[] next;
-                    try
-                    {
-                        next = Handle(message, outbound);
+                        if (next != null) outbound.AddRange(next);
+                        if (_stage == StageFailed) return null;
                     }
-                    catch (ProtocolException ex)
-                    {
-                        Fail(ex.Message);
-                        return null;
-                    }
-
-                    if (next != null) outbound.AddRange(next);
-                    if (_stage == StageFailed) return null;
                 }
             }
 
@@ -256,11 +293,19 @@ namespace WhatsappApp.Protocol.Media
 
         private byte[] Handle(DtlsHandshakeMessage message, List<byte> outbound)
         {
-            // The Finished is the one message whose own bytes are not in its hash.
-            if (message.Type != Dtls.HandshakeFinished) _transcript.Add(message.ToBytes());
+            // The Finished is the one message whose own bytes are not in its hash, and a
+            // HelloVerifyRequest belongs to the handshake that is thrown away, not to the one
+            // that continues.
+            if (message.Type != Dtls.HandshakeFinished && message.Type != Dtls.HandshakeHelloVerifyRequest)
+            {
+                _transcript.Add(message.ToBytes());
+            }
 
             switch (message.Type)
             {
+                case Dtls.HandshakeHelloVerifyRequest:
+                    return ReadHelloVerifyRequest(message.Body);
+
                 case Dtls.HandshakeServerHello:
                     return ReadServerHello(message.Body);
 
@@ -282,6 +327,64 @@ namespace WhatsappApp.Protocol.Media
                 default:
                     return null;
             }
+        }
+
+        /// <summary>
+        /// The cookie exchange: the server asks, without doing any work, whether this address is
+        /// real. The answer is the same ClientHello with the cookie in it, and a handshake that
+        /// starts again from nothing - the transcript did not begin until the server could see
+        /// the client.
+        /// </summary>
+        private byte[] ReadHelloVerifyRequest(byte[] body)
+        {
+            if (_cookie != null)
+            {
+                Fail("the server asked for a cookie twice");
+                return null;
+            }
+
+            if (_serverRandom != null)
+            {
+                Fail("the server asked for a cookie in the middle of a handshake");
+                return null;
+            }
+
+            var reader = new DtlsReader(body);
+
+            int version = reader.UInt16();
+            if (version != Dtls.Version)
+            {
+                Fail("the HelloVerifyRequest speaks version 0x" + version.ToString("x4") + ", not DTLS 1.2");
+                return null;
+            }
+
+            byte[] cookie = reader.Vector8();
+            if (cookie.Length == 0)
+            {
+                Fail("the HelloVerifyRequest carries no cookie");
+                return null;
+            }
+
+            _cookie = cookie;
+            _helloVerifyAnswered = true;
+
+            // A cookie starts a new handshake: the transcript goes, the message numbering goes,
+            // and so does everything the discarded flight had said. The record sequence numbers
+            // stay - they count per epoch, not per handshake (RFC 6347, section 4.2.2).
+            _transcript.Clear();
+            _reassembler.Reset();
+            _serverRandom = null;
+            _serverPublicKey = null;
+            _certificate = null;
+            _certificateListed = false;
+            CertificateSha256 = null;
+            _srtpAgreed = false;
+            _extendedMasterSecret = false;
+            _signatureVerified = false;
+            _inEpoch = 0;
+            _inSequence = 0;
+
+            return BuildClientHello();
         }
 
         private byte[] ReadServerHello(byte[] body)
@@ -528,7 +631,9 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>Frames one handshake message, hashes it, and seals it at the current epoch.</summary>
         private byte[] SendHandshake(byte type, byte[] body)
         {
-            var message = new DtlsHandshakeMessage(type, 0, body);
+            // The client's own messages are numbered too, from zero, and a server reassembling
+            // them drops a message that repeats a number it has already seen.
+            var message = new DtlsHandshakeMessage(type, _outHandshakeSequence++, body);
             byte[] framed = message.ToBytes();
 
             // Every message this client sends belongs to the transcript, its own Finished
@@ -607,6 +712,18 @@ namespace WhatsappApp.Protocol.Media
         public bool ServerFinishedVerified
         {
             get { return _serverFinishedVerified; }
+        }
+
+        /// <summary>Whether the server asked for a cookie and got it: one more round trip.</summary>
+        public bool HelloVerifyAnswered
+        {
+            get { return _helloVerifyAnswered; }
+        }
+
+        /// <summary>The cookie the server demanded, or null. Kept for the log and for a test.</summary>
+        public byte[] Cookie
+        {
+            get { return _cookie; }
         }
 
         /// <summary>Whether the server agreed to the SRTP profile the client offered.</summary>

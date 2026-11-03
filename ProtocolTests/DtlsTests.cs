@@ -343,6 +343,178 @@ namespace ProtocolTests
             Assert.IsTrue(client.Failure != null, "and a named failure: " + client.Failure);
         }
 
+        // ---- fragments and the cookie exchange --------------------------------------------
+
+        [Test]
+        public static void FragmentsOfAMessageArePutBackTogetherInAnyOrder()
+        {
+            byte[] body = Sequence(300, 1);
+            byte[] framed = new DtlsHandshakeMessage(Dtls.HandshakeCertificate, 0, body).ToBytes();
+
+            var reassembler = new DtlsHandshakeReassembler();
+
+            reassembler.Accept(FragmentOf(framed, 200, 100));
+            Assert.IsTrue(reassembler.TakeNext() == null, "a message with holes is not a message");
+
+            reassembler.Accept(FragmentOf(framed, 0, 100));
+            Assert.IsTrue(reassembler.TakeNext() == null, "nor is one with a hole in the middle");
+
+            reassembler.Accept(FragmentOf(framed, 100, 100));
+
+            DtlsHandshakeMessage message = reassembler.TakeNext();
+            Assert.IsTrue(message != null, "the last fragment filled the last hole");
+            Assert.AreEqual(ToHex(body), ToHex(message.Body), "and the bytes are the ones that were sent");
+            Assert.AreEqual(0, (int)message.Sequence, "with the sequence number it was sent under");
+            Assert.AreEqual((byte)Dtls.HandshakeCertificate, message.Type, "and its type");
+            Assert.IsTrue(reassembler.TakeNext() == null, "a message is handed over once");
+        }
+
+        [Test]
+        public static void FragmentsThatDisagreeAreRefused()
+        {
+            byte[] framed = new DtlsHandshakeMessage(Dtls.HandshakeCertificate, 1, Sequence(64, 1)).ToBytes();
+            var reassembler = new DtlsHandshakeReassembler();
+
+            reassembler.Accept(FragmentOf(framed, 0, 32));
+
+            byte[] bytes = FragmentBytes(framed, 16, 32);
+            bytes[Dtls.HandshakeHeaderLength] = (byte)(bytes[Dtls.HandshakeHeaderLength] ^ 0xFF);
+            DtlsHandshakeFragment tampered = DtlsHandshakeFragment.Parse(bytes, 0, bytes.Length);
+
+            Assert.Throws<ProtocolException>(delegate { reassembler.Accept(tampered); });
+        }
+
+        [Test]
+        public static void MessagesAreHandedOverInSequenceAndNotInArrivalOrder()
+        {
+            byte[] first = new DtlsHandshakeMessage(Dtls.HandshakeServerHello, 0, Sequence(20, 1)).ToBytes();
+            byte[] second = new DtlsHandshakeMessage(Dtls.HandshakeCertificate, 1, Sequence(20, 2)).ToBytes();
+
+            var reassembler = new DtlsHandshakeReassembler();
+
+            // The second message is whole long before the first one is: it must still wait.
+            reassembler.Accept(FragmentOf(second, 0, 20));
+            Assert.IsTrue(reassembler.TakeNext() == null, "a complete message waits for the one before it");
+
+            reassembler.Accept(FragmentOf(first, 0, 20));
+
+            Assert.AreEqual(0, (int)reassembler.TakeNext().Sequence, "message 0 first");
+            Assert.AreEqual(1, (int)reassembler.TakeNext().Sequence, "then the one that was already waiting");
+            Assert.IsTrue(reassembler.TakeNext() == null, "and nothing else");
+        }
+
+        [Test]
+        public static void AMessageLargerThanTheCapIsRefused()
+        {
+            byte[] framed = new DtlsHandshakeMessage(Dtls.HandshakeCertificate, 0,
+                new byte[DtlsHandshakeReassembler.MaxMessageLength + 1]).ToBytes();
+
+            var reassembler = new DtlsHandshakeReassembler();
+
+            Assert.Throws<ProtocolException>(delegate
+            {
+                reassembler.Accept(FragmentOf(framed, 0, 16));
+            });
+        }
+
+        [Test]
+        public static void AFragmentThatReachesPastItsMessageIsRefused()
+        {
+            byte[] framed = new DtlsHandshakeMessage(Dtls.HandshakeCertificate, 0, Sequence(16, 1)).ToBytes();
+
+            // The header claims a fragment of twenty bytes that starts at offset ten of a
+            // sixteen-byte message: not a fragment to assemble, a message to refuse.
+            var bytes = new byte[Dtls.HandshakeHeaderLength + 20];
+            Buffer.BlockCopy(framed, 0, bytes, 0, Dtls.HandshakeHeaderLength);
+            bytes[6] = 0;
+            bytes[7] = 0;
+            bytes[8] = 10;
+            bytes[9] = 0;
+            bytes[10] = 0;
+            bytes[11] = 20;
+
+            Assert.Throws<ProtocolException>(delegate { DtlsHandshakeFragment.Parse(bytes, 0, bytes.Length); });
+        }
+
+        [Test]
+        public static void TheHandshakeReassemblesACertificateSplitAcrossTwoRecords()
+        {
+            var peer = new ScriptedPeer(true, true);
+            var client = new DtlsClient(ClientPrivateKey, ClientRandom, peer.CertificateSha256);
+
+            byte[] flight = peer.ReadClientHello(client.Start());
+
+            // One record per call: the tail of the certificate arrives before its head, and in a
+            // datagram of its own.
+            byte[] answer = null;
+            foreach (byte[] record in SplitRecords(flight))
+            {
+                byte[] next = client.Receive(record);
+                if (next != null) answer = next;
+            }
+
+            Assert.IsTrue(answer != null, "the split certificate was reassembled and the flight answered: "
+                + client.Failure);
+            Assert.IsTrue(client.CertificateSha256 != null, "and the certificate is whole");
+            Assert.IsTrue(client.SignatureVerified, "the signature verified against the reassembled certificate");
+
+            byte[] closing = peer.ReadClientFlight(answer);
+            client.Receive(closing);
+
+            Assert.IsTrue(client.IsComplete, "the handshake completes: " + client.Failure);
+        }
+
+        [Test]
+        public static void TheClientAnswersAHelloVerifyRequestWithItsCookie()
+        {
+            var peer = new ScriptedPeer(true, false, true);
+            var client = new DtlsClient(ClientPrivateKey, ClientRandom, peer.CertificateSha256);
+
+            byte[] request = peer.ReadClientHello(client.Start());
+            Assert.IsTrue(peer.Cookie != null && peer.Cookie.Length == 0, "the first hello carries no cookie");
+
+            byte[] secondHello = client.Receive(request);
+            Assert.IsTrue(secondHello != null, "the client answered the cookie request");
+            Assert.IsTrue(client.HelloVerifyAnswered, "and says it did");
+            Assert.AreEqual(ToHex(peer.DemandedCookie), ToHex(client.Cookie),
+                "the cookie is the one it was handed, unchanged");
+
+            byte[] flight = peer.ReadClientHello(secondHello);
+            Assert.AreEqual(ToHex(peer.DemandedCookie), ToHex(peer.Cookie),
+                "and the second hello echoes it, which the peer verifies");
+
+            byte[] answer = client.Receive(flight);
+            Assert.IsTrue(answer != null, "the real flight is accepted after the restart: " + client.Failure);
+
+            byte[] closing = peer.ReadClientFlight(answer);
+            client.Receive(closing);
+
+            Assert.IsTrue(client.IsComplete, "the handshake completes after the restart: " + client.Failure);
+            Assert.IsTrue(client.SignatureVerified,
+                "and the signature still verifies: the client random was kept, not rolled again");
+        }
+
+        [Test]
+        public static void ACookieIsRefusedTwice()
+        {
+            var client = new DtlsClient(ClientPrivateKey, ClientRandom, null);
+            client.Start();
+
+            var request = new DtlsWriter();
+            request.UInt16(Dtls.Version);
+            request.Vector8(Sequence(8, 0xA0));
+            byte[] message = new DtlsHandshakeMessage(Dtls.HandshakeHelloVerifyRequest, 0, request.ToArray()).ToBytes();
+
+            client.Receive(DtlsRecord.Plain(Dtls.TypeHandshake, 0, 0, message));
+
+            // The second request is another handshake on top of one already restarted: nothing
+            // sensible to answer, and guessing is how a loop starts.
+            byte[] again = DtlsRecord.Plain(Dtls.TypeHandshake, 0, 1, message);
+            Assert.IsTrue(client.Receive(again) == null, "nothing to send back");
+            Assert.IsTrue(client.Failure != null && client.Failure.IndexOf("cookie") >= 0,
+                "and it is named: " + client.Failure);
+        }
+
         // ---- helpers ---------------------------------------------------------------------
 
         private static DtlsRecordKeys Keys()
@@ -381,6 +553,9 @@ namespace ProtocolTests
         private sealed class ScriptedPeer
         {
             private readonly bool _extendedMasterSecret;
+            private readonly bool _fragmentCertificate;
+            private readonly bool _helloVerify;
+            private bool _verified;
             private readonly byte[] _privateKey = Sequence(32, 0xB1);
             private readonly byte[] _publicKey;
             private readonly byte[] _serverRandom = Sequence(32, 0x40);
@@ -395,15 +570,33 @@ namespace ProtocolTests
             private int _messageSequence;
 
             public ScriptedPeer()
-                : this(true)
+                : this(true, false, false)
             {
             }
 
             public ScriptedPeer(bool extendedMasterSecret)
+                : this(extendedMasterSecret, false, false)
+            {
+            }
+
+            public ScriptedPeer(bool extendedMasterSecret, bool fragmentCertificate)
+                : this(extendedMasterSecret, fragmentCertificate, false)
+            {
+            }
+
+            public ScriptedPeer(bool extendedMasterSecret, bool fragmentCertificate, bool helloVerify)
             {
                 _extendedMasterSecret = extendedMasterSecret;
+                _fragmentCertificate = fragmentCertificate;
+                _helloVerify = helloVerify;
                 _publicKey = Curve25519.PublicKey(_privateKey);
             }
+
+            /// <summary>The cookie the peer demanded, when it demands one.</summary>
+            public byte[] DemandedCookie { get; private set; }
+
+            /// <summary>The cookie the last ClientHello carried.</summary>
+            public byte[] Cookie { get; private set; }
 
             public byte[] CertificateSha256
             {
@@ -422,11 +615,43 @@ namespace ProtocolTests
                 byte[] body = view.Fragment;
 
                 var hello = DtlsHandshakeMessage.Parse(body, 0, body.Length);
+
+                // A ClientHello starts a handshake: the transcript is this hello and what comes
+                // after it, and the message numbering starts again at zero.
+                _transcript.Clear();
                 _transcript.Add(hello.ToBytes());
+                _messageSequence = 0;
 
                 var reader = new DtlsReader(hello.Body);
                 reader.UInt16();
                 _clientRandom = reader.Bytes(32);
+                reader.Vector8(); // session id
+                Cookie = reader.Vector8();
+
+                if (_helloVerify && !_verified)
+                {
+                    _verified = true;
+                    DemandedCookie = Sequence(40, 0xC0);
+
+                    var request = new DtlsWriter();
+                    request.UInt16(Dtls.Version);
+                    request.Vector8(DemandedCookie);
+
+                    // The flight this hello would have earned is not in the transcript: the
+                    // handshake begins again at message zero with the hello that has the cookie.
+                    _transcript.Clear();
+                    _messageSequence = 0;
+
+                    byte[] requestMessage = new DtlsHandshakeMessage(Dtls.HandshakeHelloVerifyRequest, 0,
+                        request.ToArray()).ToBytes();
+
+                    return DtlsRecord.Plain(Dtls.TypeHandshake, 0, _sequence++, requestMessage);
+                }
+
+                if (_helloVerify && !Hmac.FixedTimeEquals(Cookie, DemandedCookie))
+                {
+                    throw new ProtocolException("the second ClientHello did not echo the cookie");
+                }
 
                 return Flight();
             }
@@ -456,7 +681,9 @@ namespace ProtocolTests
                 var chain = new DtlsWriter();
                 chain.Vector24(_certificate);
                 certificate.Vector24(chain.ToArray());
-                records.Add(Record(Dtls.HandshakeCertificate, certificate.ToArray()));
+
+                if (_fragmentCertificate) AddFragmentedCertificate(records, certificate.ToArray());
+                else records.Add(Record(Dtls.HandshakeCertificate, certificate.ToArray()));
 
                 var exchange = new DtlsWriter();
                 exchange.Byte(3);                       // named_curve
@@ -556,6 +783,24 @@ namespace ProtocolTests
                 SrtpServerSalt = Slice(exporter, 46, 14);
             }
 
+            /// <summary>
+            /// The certificate in two records, the tail first: a client that hashes what arrives
+            /// instead of what it reassembled gets a transcript nothing agrees with.
+            /// </summary>
+            private void AddFragmentedCertificate(List<byte[]> records, byte[] body)
+            {
+                ushort sequence = (ushort)_messageSequence++;
+                byte[] framed = new DtlsHandshakeMessage(Dtls.HandshakeCertificate, sequence, body).ToBytes();
+                _transcript.Add(framed);
+
+                int split = body.Length / 2;
+
+                records.Add(DtlsRecord.Plain(Dtls.TypeHandshake, 0, _sequence++,
+                    FragmentBytes(framed, split, body.Length - split)));
+                records.Add(DtlsRecord.Plain(Dtls.TypeHandshake, 0, _sequence++,
+                    FragmentBytes(framed, 0, split)));
+            }
+
             private byte[] Record(byte type, byte[] body)
             {
                 byte[] framed = new DtlsHandshakeMessage(type, (ushort)_messageSequence++, body).ToBytes();
@@ -570,6 +815,57 @@ namespace ProtocolTests
             var slice = new byte[count];
             Buffer.BlockCopy(source, offset, slice, 0, count);
             return slice;
+        }
+
+        /// <summary>
+        /// One fragment's bytes: the whole message's header, with this slice's offset and length
+        /// written into it, then the slice.
+        /// </summary>
+        private static byte[] FragmentBytes(byte[] framed, int offset, int count)
+        {
+            var fragment = new byte[Dtls.HandshakeHeaderLength + count];
+            Buffer.BlockCopy(framed, 0, fragment, 0, Dtls.HandshakeHeaderLength);
+
+            fragment[6] = (byte)(offset >> 16);
+            fragment[7] = (byte)(offset >> 8);
+            fragment[8] = (byte)offset;
+            fragment[9] = (byte)(count >> 16);
+            fragment[10] = (byte)(count >> 8);
+            fragment[11] = (byte)count;
+
+            Buffer.BlockCopy(framed, Dtls.HandshakeHeaderLength + offset, fragment,
+                Dtls.HandshakeHeaderLength, count);
+            return fragment;
+        }
+
+        private static DtlsHandshakeFragment FragmentOf(byte[] framed, int offset, int count)
+        {
+            byte[] bytes = FragmentBytes(framed, offset, count);
+            DtlsHandshakeFragment fragment = DtlsHandshakeFragment.Parse(bytes, 0, bytes.Length);
+
+            Assert.IsTrue(fragment != null, "the helper built a fragment that parses");
+            return fragment;
+        }
+
+        /// <summary>A datagram cut at its record boundaries, which is how a network splits a flight.</summary>
+        private static List<byte[]> SplitRecords(byte[] datagram)
+        {
+            var records = new List<byte[]>();
+            int at = 0;
+
+            while (at + Dtls.RecordHeaderLength <= datagram.Length)
+            {
+                int declared = (datagram[at + 11] << 8) | datagram[at + 12];
+                int length = Dtls.RecordHeaderLength + declared;
+                if (at + length > datagram.Length) break;
+
+                var record = new byte[length];
+                Buffer.BlockCopy(datagram, at, record, 0, length);
+                records.Add(record);
+                at += length;
+            }
+
+            return records;
         }
 
         private static byte[] Join(IList<byte[]> parts)

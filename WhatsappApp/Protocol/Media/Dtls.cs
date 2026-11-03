@@ -43,6 +43,10 @@ namespace WhatsappApp.Protocol.Media
 
         public const byte HandshakeClientHello = 1;
         public const byte HandshakeServerHello = 2;
+
+        /// <summary>The cookie exchange a server uses to see an address before it works for it.</summary>
+        public const byte HandshakeHelloVerifyRequest = 3;
+
         public const byte HandshakeCertificate = 11;
         public const byte HandshakeServerKeyExchange = 12;
         public const byte HandshakeServerHelloDone = 14;
@@ -67,7 +71,11 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>32 bytes of client or server random, as TLS 1.2 defines it.</summary>
         public const int RandomLength = 32;
 
-        /// <summary>A handshake message that fits one datagram: no fragmentation is reassembled.</summary>
+        /// <summary>
+        /// The fragment size this project writes: small enough that a handshake message fits a
+        /// datagram next to its record header. Reading is not limited to it - a peer may send
+        /// any fragment it likes, and `DtlsHandshakeReassembler` puts them back together.
+        /// </summary>
         public const int MaxPlaintext = 1200;
 
         /// <summary>The verify_data of a Finished message: 12 bytes for every TLS 1.2 suite here.</summary>
@@ -337,9 +345,10 @@ namespace WhatsappApp.Protocol.Media
         }
 
         /// <summary>
-        /// Parses one message. A fragment - an offset that is not zero, or a fragment shorter
-        /// than its declared length - is refused by name rather than half-read: this client does
-        /// not reassemble, and a message it cannot see whole is a message it cannot hash.
+        /// Parses one whole message. A fragment - an offset that is not zero, or a fragment
+        /// shorter than its declared length - is refused by name rather than half-read: callers
+        /// that may receive pieces feed `DtlsHandshakeReassembler` instead, which hands this back
+        /// only a message it holds complete.
         /// </summary>
         public static DtlsHandshakeMessage Parse(byte[] data, int offset, int length)
         {
@@ -369,6 +378,199 @@ namespace WhatsappApp.Protocol.Media
             Buffer.BlockCopy(data, offset + Dtls.HandshakeHeaderLength, body, 0, bodyLength);
 
             return new DtlsHandshakeMessage(data[offset], (ushort)sequence, body);
+        }
+    }
+
+    /// <summary>
+    /// One fragment of a handshake message: the twelve-byte header, which carries the whole
+    /// message's length and this slice's place in it, and then the slice.
+    /// </summary>
+    public sealed class DtlsHandshakeFragment
+    {
+        public byte Type;
+        public ushort Sequence;
+        public int BodyLength;
+        public int Offset;
+        public byte[] Data;
+
+        /// <summary>How many bytes of the record this fragment took: its header and its slice.</summary>
+        public int FramedLength;
+
+        /// <summary>
+        /// Reads one fragment at `at`. Null when the bytes stop inside it: the rest of that
+        /// record has nothing more this can read, and dropping it is what a lost packet costs.
+        /// A ProtocolException when it contradicts itself - a slice that reaches past the message
+        /// it belongs to is not a message to guess at. It never throws on bytes that merely stop.
+        /// </summary>
+        public static DtlsHandshakeFragment Parse(byte[] data, int at, int available)
+        {
+            if (data == null) throw new ProtocolException("a handshake fragment needs bytes");
+            if (at < 0 || available < Dtls.HandshakeHeaderLength) return null;
+            if (at + Dtls.HandshakeHeaderLength > data.Length) return null;
+
+            int bodyLength = (data[at + 1] << 16) | (data[at + 2] << 8) | data[at + 3];
+            int sequence = (data[at + 4] << 8) | data[at + 5];
+            int offset = (data[at + 6] << 16) | (data[at + 7] << 8) | data[at + 8];
+            int length = (data[at + 9] << 16) | (data[at + 10] << 8) | data[at + 11];
+
+            if (offset > bodyLength || length > bodyLength - offset)
+            {
+                throw new ProtocolException("a handshake fragment reaches past the message it belongs to ("
+                    + offset + "+" + length + " of " + bodyLength + ")");
+            }
+
+            if (Dtls.HandshakeHeaderLength + length > available) return null;
+            if (at + Dtls.HandshakeHeaderLength + length > data.Length) return null;
+
+            var fragment = new DtlsHandshakeFragment();
+            fragment.Type = data[at];
+            fragment.Sequence = (ushort)sequence;
+            fragment.BodyLength = bodyLength;
+            fragment.Offset = offset;
+            fragment.FramedLength = Dtls.HandshakeHeaderLength + length;
+            fragment.Data = new byte[length];
+            Buffer.BlockCopy(data, at + Dtls.HandshakeHeaderLength, fragment.Data, 0, length);
+            return fragment;
+        }
+    }
+
+    /// <summary>
+    /// Puts handshake messages back together from their fragments, and hands them over in
+    /// message-sequence order - the order the transcript needs (RFC 6347, section 4.2.2).
+    ///
+    /// Why order and not just completeness: a Certificate handed over after its
+    /// ServerKeyExchange would be hashed in the wrong order, and every Finished computed from
+    /// that transcript disagrees with the peer's for a reason nothing in the failure names. So
+    /// a message that is complete early waits for the ones before it.
+    ///
+    /// What it bounds, because the bytes come from the network: a message larger than
+    /// `MaxMessageLength` is refused, more than a few messages in flight or completed-but-waiting
+    /// are refused, and two fragments that disagree about a byte are refused by name instead of
+    /// one of them quietly winning.
+    /// </summary>
+    public sealed class DtlsHandshakeReassembler
+    {
+        /// <summary>The largest message held: a certificate chain fits, a flood does not.</summary>
+        public const int MaxMessageLength = 16384;
+
+        private const int MaxPending = 8;
+        private const int MaxComplete = 8;
+
+        private sealed class Pending
+        {
+            public ushort Sequence;
+            public byte Type;
+            public int Length;
+            public byte[] Body;
+            public bool[] Present;
+            public int Filled;
+        }
+
+        private readonly List<Pending> _pending = new List<Pending>();
+        private readonly Dictionary<ushort, DtlsHandshakeMessage> _complete =
+            new Dictionary<ushort, DtlsHandshakeMessage>();
+
+        private ushort _next;
+
+        /// <summary>Forgets everything: a new handshake numbers its messages from zero again.</summary>
+        public void Reset()
+        {
+            _pending.Clear();
+            _complete.Clear();
+            _next = 0;
+        }
+
+        /// <summary>
+        /// One fragment in. A fragment of a message already handed over is a duplicate and is
+        /// ignored; a fragment that contradicts what is held, or a message past the cap, throws.
+        /// Completing a message does not hand it over - `TakeNext` does, in order.
+        /// </summary>
+        public void Accept(DtlsHandshakeFragment fragment)
+        {
+            if (fragment == null) throw new ProtocolException("a fragment is needed");
+
+            if (fragment.Sequence < _next) return;
+
+            if (fragment.BodyLength > MaxMessageLength)
+            {
+                throw new ProtocolException("a handshake message of " + fragment.BodyLength
+                    + " bytes is larger than the " + MaxMessageLength + " this client holds");
+            }
+
+            Pending pending = Find(fragment.Sequence);
+
+            if (pending == null)
+            {
+                if (_pending.Count >= MaxPending)
+                {
+                    throw new ProtocolException("too many handshake messages are being reassembled at once");
+                }
+
+                pending = new Pending();
+                pending.Sequence = fragment.Sequence;
+                pending.Type = fragment.Type;
+                pending.Length = fragment.BodyLength;
+                pending.Body = new byte[fragment.BodyLength];
+                pending.Present = new bool[fragment.BodyLength];
+                _pending.Add(pending);
+            }
+            else if (pending.Type != fragment.Type || pending.Length != fragment.BodyLength)
+            {
+                throw new ProtocolException("two fragments of handshake message " + fragment.Sequence
+                    + " disagree about what it is");
+            }
+
+            for (int i = 0; i < fragment.Data.Length; i++)
+            {
+                int at = fragment.Offset + i;
+
+                if (pending.Present[at])
+                {
+                    if (pending.Body[at] != fragment.Data[i])
+                    {
+                        throw new ProtocolException("two fragments of handshake message " + fragment.Sequence
+                            + " disagree at byte " + at);
+                    }
+
+                    continue;
+                }
+
+                pending.Body[at] = fragment.Data[i];
+                pending.Present[at] = true;
+                pending.Filled++;
+            }
+
+            if (pending.Filled < pending.Length) return;
+
+            _pending.Remove(pending);
+
+            if (_complete.Count >= MaxComplete)
+            {
+                throw new ProtocolException("too many complete handshake messages are waiting for an earlier one");
+            }
+
+            _complete[fragment.Sequence] = new DtlsHandshakeMessage(pending.Type, fragment.Sequence, pending.Body);
+        }
+
+        /// <summary>The next message in sequence, or null while the next one has holes.</summary>
+        public DtlsHandshakeMessage TakeNext()
+        {
+            if (!_complete.ContainsKey(_next)) return null;
+
+            DtlsHandshakeMessage message = _complete[_next];
+            _complete.Remove(_next);
+            _next++;
+            return message;
+        }
+
+        private Pending Find(ushort sequence)
+        {
+            for (int i = 0; i < _pending.Count; i++)
+            {
+                if (_pending[i].Sequence == sequence) return _pending[i];
+            }
+
+            return null;
         }
     }
 
