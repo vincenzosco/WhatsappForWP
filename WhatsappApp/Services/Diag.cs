@@ -680,8 +680,29 @@ namespace WhatsappApp.Services
                 Diag.Failed("Diag/StartRun", ex);
             }
 
+            // The file starts over with every run. The previous run's lines are not what
+            // this one did, and on 3 November 2026 a log that grew across runs was the
+            // first thing looked at when the app did not open from the custom tile: a
+            // tail of another run reads as this one's.
+            //
+            // The crash tail is the one thing that survives, and it survives in memory:
+            // it was read off the marker above and `CrashReport.Start` writes it into
+            // this run's log straight after. So nothing is lost, and nothing older than
+            // one run is kept.
+            try
+            {
+                await Writes.RunAsync(delegate { return StartFreshAsync(); });
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("Diag/StartRun/reset", ex);
+            }
+
             lock (Gate)
             {
+                // The file is empty, so the marker of what is written follows it: without
+                // this the first lines of the new run would look already written.
+                _written = 0;
                 AppendLine(RunStarted + Stamp() + " ===");
             }
             Flush(true);
@@ -716,6 +737,29 @@ namespace WhatsappApp.Services
 
             Guarded.RunGuardedAsync("Diag/end-run",
                 delegate { return Writes.RunAsync(delegate { return DeleteMarkerAsync(); }); });
+        }
+
+        /// <summary>
+        /// Empties `diag.log`, so a run starts with its own lines and no other run's.
+        ///
+        /// The create replaces the file, which is one step: a run that dies here leaves an
+        /// empty log rather than a missing one (the same reason `WriteLinesAsync` creates
+        /// before it writes).
+        /// </summary>
+        private static async Task StartFreshAsync()
+        {
+            try
+            {
+                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    FileName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(file, "");
+            }
+            catch (Exception ex)
+            {
+                // A log that cannot be emptied is not worth the run: the lines below still
+                // append, and the file ceiling still cuts it.
+                Diag.Failed("Diag/start-fresh", ex);
+            }
         }
 
         private static async Task<bool> MarkerExistsAsync()
