@@ -3343,6 +3343,27 @@ namespace WhatsappApp.Services
                 + (signal.Audio == null ? "" : ", " + signal.Audio.Count + " audio")
                 + (signal.RelayLatency == null ? "" : ", " + signal.RelayLatency.Count + " relay(s)"));
 
+            // The `te` content is the one field of a call node whose shape this app writes from
+            // the reference and cannot check: the hex of what a real phone sends is the sample
+            // that settles it, so every received candidate is written out byte for byte. Capped
+            // at four, because a candidate list is a handful and a log line per byte is not a
+            // log.
+            if (signal.Candidates != null)
+            {
+                int shown = Math.Min(4, signal.Candidates.Count);
+                for (int i = 0; i < shown; i++)
+                {
+                    Diag.Ok("native: call " + signal.CallId + " candidate " + i + " priority "
+                        + signal.Candidates[i].Priority + " hex " + CandidateHex(signal.Candidates[i].Data));
+                }
+
+                if (signal.Candidates.Count > shown)
+                {
+                    Diag.Ok("native: call " + signal.CallId + " and "
+                        + (signal.Candidates.Count - shown) + " more candidate(s) not written out");
+                }
+            }
+
             if (CallSignalled != null) CallSignalled(this, signal);
         }
 
@@ -3505,6 +3526,17 @@ namespace WhatsappApp.Services
             }
 
             return candidates;
+        }
+
+        /// <summary>A byte string as hex, for the log: the candidates a real phone sends.</summary>
+        private static string CandidateHex(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0) return "(empty)";
+
+            var text = new System.Text.StringBuilder(bytes.Length * 2);
+            for (int i = 0; i < bytes.Length; i++) text.Append(bytes[i].ToString("X2"));
+
+            return text.ToString();
         }
 
         /// <summary>The callee's phone says it has the offer and is preparing its side.</summary>
