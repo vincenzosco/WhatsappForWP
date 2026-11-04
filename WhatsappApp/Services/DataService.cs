@@ -69,6 +69,19 @@ namespace WhatsappApp.Services
         // arrived" apart from "it arrived and the list did not show it".
         private readonly HashSet<string> _historyArrived = new HashSet<string>();
 
+        /// <summary>
+        /// The snapshot, written a couple of seconds after the message that made it stale.
+        ///
+        /// Why not only at the end of a sync and at suspension: on Windows Phone the
+        /// suspension is the promise that often is not kept - the process is terminated for
+        /// memory, or closed from the task switcher - and every message the run had read went
+        /// with it, while WhatsApp had already counted them as delivered and never sent them
+        /// again. The phone of 4 November 2026 is exactly that: the conversation stopped at
+        /// the last clean close, in the list and inside the chat. The message now arms this
+        /// writer, so the window is the quiet period and not the whole run.
+        /// </summary>
+        private readonly SaveSoon _saveSoon;
+
         // The chats the reader has cleared while the socket was not usable. The
         // `read` frame is re-sent for each of them as soon as a connection is
         // established: a frame written into a socket the OS already closed is
@@ -723,6 +736,11 @@ namespace WhatsappApp.Services
             _calls = new ObservableCollection<CallLogEntry>();
             _statuses = new ObservableCollection<ChatMessage>();
             _chatMessages = new Dictionary<string, ObservableCollection<ChatMessage>>();
+
+            // Two seconds: long enough that a burst of messages is one write instead of one
+            // per message, short enough to be inside the window a kill actually hits.
+            _saveSoon = new SaveSoon(TimeSpan.FromSeconds(2), SaveSnapshotAsync,
+                "DataService/save soon");
         }
 
         /// <summary>
@@ -1964,6 +1982,11 @@ namespace WhatsappApp.Services
             ObservableCollection<ChatMessage> conversation = _chatMessages[message.ChatId];
             conversation.Insert(InOrderIndex(conversation, message), message);
             TrimToCeiling(conversation);
+
+            // The message is in the conversation and the row is about to be updated below:
+            // what is written a moment from now is this run's list as it is then, and not the
+            // one the last clean close left on the phone.
+            _saveSoon.Arm();
 
             // Find or create contact for this chat
             var contact = FindContact(message.ChatId);
