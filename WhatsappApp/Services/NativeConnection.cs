@@ -3516,13 +3516,23 @@ namespace WhatsappApp.Services
             Diag.Ok("native: pre-accepted the call " + callId);
         }
 
-        /// <summary>This phone answers a call that is ringing.</summary>
+        /// <summary>
+        /// This phone answers a call that is ringing, and says the same two things the offer
+        /// said: the stream it will receive, and the address the caller sends it to. An accept
+        /// without candidates is a call the other side has up and nowhere to put the audio.
+        /// </summary>
         public async Task AcceptCallAsync(string callId, string jid)
         {
             NativeSession session = OpenSession();
 
-            await session.SendAsync(CallSignaling.Accept(callId, jid));
-            Diag.Ok("native: accepted the call " + callId + " from " + jid);
+            var audio = new List<CallAudio>();
+            audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.DefaultAudioRate });
+
+            IList<CallCandidate> candidates = await CallCandidatesAsync();
+
+            await session.SendAsync(Calls.Accept(callId, jid, audio, null, candidates));
+            Diag.Ok("native: accepted the call " + callId + " from " + jid
+                + " with " + candidates.Count + " candidate(s)");
         }
 
         /// <summary>
