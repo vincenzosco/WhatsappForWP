@@ -34,11 +34,17 @@ namespace WhatsappApp.Protocol.Client
     ///  2. **The plaintext is a `Message`, not the bare key.** `Message.call.callKey` (field
     ///     10, then field 1) is what the reference encrypts (`Message.CreateForCall`), and a
     ///     receiver reads the key out of the message it decrypted.
-    ///  3. **`msg`, never `pkmsg`.** A call offer whose key is a pre-key message is dropped by
-    ///     the server (`whatsmeow` issue 555, 22 March 2024: "the server drops the call offer
-    ///     if the call key is encrypted using pre-keys"). A session that is still pending has
-    ///     to be established by an ordinary message first; until then this device cannot
-    ///     call, and saying so is better than a stanza the server throws away.
+    ///  3. **The key goes out with the session that exists, and the log says which kind.**
+    ///     `msg` for an established session, `pkmsg` for one whose pre-key exchange has not
+    ///     been answered yet. Both are sealed, because an offer with no key is a phone that
+    ///     never rings: the log of 4 November 2026 has exactly that (`offered a call ... to
+    ///     393492556507@s.whatsapp.net with no key`, five devices with no established
+    ///     session, then `ended the call ... reason timeout`). The reference client does the
+    ///     same - `Message.CreateForCall` hands the key to `SessionCipher.encrypt`, which
+    ///     answers a pre-key message for a session that is still pending - and `whatsmeow`
+    ///     issue 555 (22 March 2024) reports the server dropping such an offer, which has not
+    ///     been reproduced here. So the type is logged per device instead of refused: if a
+    ///     phone does not ring, the log names the pre-key offer that is the first suspect.
     ///
     /// The key is 32 bytes (`CallKeys.CallKeyLength`) and the same for every device: it is
     /// the media key of the call, and each device gets its own ciphertext of it.
@@ -51,7 +57,11 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The `enc` type of a call key: an established session, always.</summary>
         public const string EstablishedType = "msg";
 
-        /// <summary>The `enc` type the server refuses for a call key, named for the log.</summary>
+        /// <summary>
+        /// The `enc` type of a call key sealed for a session whose pre-key exchange has not
+        /// been answered. Named for the log rather than refused: an offer without it has no
+        /// key at all, and a call nobody can decrypt is a call that never rings.
+        /// </summary>
         public const string PreKeyType = "pkmsg";
 
         /// <summary>A fresh call key: the 32 bytes the media engine is handed.</summary>
@@ -70,12 +80,12 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// Seals the call key for each device that already has a session.
+        /// Seals the call key for each device that has a session, pending or established.
         ///
         /// `devices` is the same list a one-to-one send uses: device JID to session. A device
-        /// whose session is missing or still pending is skipped and named - it cannot be
-        /// called from here until an ordinary message establishes the session, and a
-        /// `pkmsg` here would make the server drop the whole offer.
+        /// with no session at all is skipped and named - nothing can be sealed for it - while
+        /// a pending one is sealed as `pkmsg` and named in the log by the caller, because an
+        /// offer with no key is a phone that never rings.
         /// </summary>
         public static CallKeyOffer Wrap(
             byte[] callKey, IList<KeyValuePair<string, SessionRecord>> devices, IRandomSource random)
@@ -100,18 +110,23 @@ namespace WhatsappApp.Protocol.Client
 
                 if (string.IsNullOrEmpty(deviceJid)) continue;
 
-                if (session == null || !session.HasSession || session.PreKeyPending)
+                if (session == null || !session.HasSession)
                 {
                     offer.Skipped.Add(string.IsNullOrEmpty(deviceJid) ? "?" : deviceJid);
                     continue;
                 }
+
+                // A session the peer has not answered yet can only be written as a pre-key
+                // message, and that is what the reference client puts in an offer too: the
+                // alternative is no key, which is the failure this app logged on 4 November.
+                bool preKey = session.PreKeyPending;
 
                 // One padding per device: the padding is random bytes, and two ciphertexts
                 // that shared an envelope would share its noise as well.
                 plaintext = OutgoingMessage.Pad(Message.ForCall(callKey).Encode(), random);
 
                 var payload = new CallKeyPayload();
-                payload.Type = EstablishedType;
+                payload.Type = preKey ? PreKeyType : EstablishedType;
                 payload.Version = KeyVersion;
                 payload.RetryCount = 0;
                 payload.Ciphertext = session.Encrypt(plaintext);
@@ -121,9 +136,8 @@ namespace WhatsappApp.Protocol.Client
             if (offer.Payloads.Count == 0)
             {
                 throw new ProtocolException("a call key could not be sealed for any device ("
-                    + offer.Skipped.Count + " had no established session): the server drops an "
-                    + "offer keyed with " + PreKeyType + ", so an ordinary message has to establish "
-                    + "the session first");
+                    + offer.Skipped.Count + " had no session at all): the offer would name streams "
+                    + "nobody can open, and the call would ring nowhere");
             }
 
             return offer;
@@ -134,8 +148,7 @@ namespace WhatsappApp.Protocol.Client
         ///
         /// `session` is this device's session with the **device that sent the offer** - the
         /// payload is addressed to this phone, not to its account. `preKey` is read from the
-        /// payload's own type; a `pkmsg` is readable but is the shape the server refuses on
-        /// an offer, and the answer here is the same 32 bytes.
+        /// payload's own type, so both kinds of offer open to the same 32 bytes.
         /// </summary>
         public static byte[] Unwrap(CallKeyPayload payload, SessionRecord session)
         {

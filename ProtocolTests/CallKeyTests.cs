@@ -104,10 +104,9 @@ namespace ProtocolTests
             SessionRecord bob = SignalSessions.Bob(
                 new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
 
-            // The call key only goes out on an established session: the first messages
-            // between the two are ordinary ones, and the reply is what ends the pending
-            // pre-key state - the same sequence the transcript uses, and the reason a
-            // `pkmsg` offer is not attempted at all.
+            // The established form of the key: the two sides have already exchanged ordinary
+            // messages, the reply is what ends the pending pre-key state - the same sequence
+            // the transcript uses - and the offer says `msg`.
             Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[0], padding);
             Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[1], padding);
             alice.Decrypt(SignalFixture.Hex(SignalFixture.Conversation.Received[0]), false);
@@ -134,15 +133,33 @@ namespace ProtocolTests
         }
 
         [Test]
-        public static void APendingSessionIsSkippedAndSaidSo()
+        public static void APendingSessionIsKeyedWithAPreKeyMessage()
         {
             var random = new SignalSessions.CounterRandom();
 
-            // Alice's session as it is created: the bundle is known, the peer has not
-            // answered, so any message would be a `pkmsg` - and the server drops a call
-            // offer whose key is one of those.
+            // Alice's session as it is created: the bundle is known and the peer has not
+            // answered, so the key can only be written as a `pkmsg`. The offer carries it
+            // anyway: an offer with no key is a phone that never rings, which is the call
+            // of 4 November 2026 in the phone's log (`with no key`, then `reason timeout`).
             var devices = new List<KeyValuePair<string, SessionRecord>>();
             devices.Add(new KeyValuePair<string, SessionRecord>(BobDevice, SignalSessions.Alice(random)));
+
+            CallKeyOffer offer = CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(random), devices, random);
+
+            Assert.AreEqual(1, offer.Payloads.Count, "the key goes out");
+            Assert.AreEqual(CallKeyExchange.PreKeyType, offer.Payloads[0].Type,
+                "a session the peer has not answered is written as a pre-key message");
+            Assert.IsTrue(offer.Payloads[0].Ciphertext.Length > 0, "the ciphertext is the enc content");
+            Assert.AreEqual(0, offer.Skipped.Count, "nobody is left out");
+        }
+
+        [Test]
+        public static void ADeviceWithNoSessionAtAllIsSkippedAndSaidSo()
+        {
+            var random = new SignalSessions.CounterRandom();
+
+            var devices = new List<KeyValuePair<string, SessionRecord>>();
+            devices.Add(new KeyValuePair<string, SessionRecord>(BobDevice, null));
 
             Assert.Throws<ProtocolException>(delegate
             {

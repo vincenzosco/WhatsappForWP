@@ -3386,9 +3386,26 @@ namespace WhatsappApp.Services
 
                 for (int i = 0; i < keys.Skipped.Count; i++)
                 {
-                    Diag.Ok("native: no established session with " + keys.Skipped[i]
-                        + ", so its copy of the call key is not sealed (the server drops a "
-                        + "pkmsg offer)");
+                    Diag.Ok("native: no session at all with " + keys.Skipped[i]
+                        + ", so its copy of the call key is not sealed and that device cannot "
+                        + "open the call");
+                }
+
+                // A key sealed on a session the peer has not answered is the one shape the
+                // `whatsmeow` issue 555 report says the server drops. It is sent anyway - an
+                // offer with no key rings nowhere - and named here, so a phone that does not
+                // ring has a first suspect in the log instead of a wait that times out.
+                int preKeys = 0;
+                for (int i = 0; i < keys.Payloads.Count; i++)
+                {
+                    if (string.Equals(keys.Payloads[i].Type, CallKeyExchange.PreKeyType,
+                        StringComparison.OrdinalIgnoreCase)) preKeys++;
+                }
+
+                if (preKeys > 0)
+                {
+                    Diag.Ok("native: " + preKeys + " of " + keys.Payloads.Count
+                        + " call key(s) go out as a pre-key message");
                 }
             }
             catch (Exception ex)
