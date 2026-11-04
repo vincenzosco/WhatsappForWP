@@ -46,7 +46,7 @@ La **parte deterministica del media** e scritta e provata senza un peer:
 Le classi qui sopra non vengono **mai** istanziate dal codice dell'app:
 
 ```
-grep -rn "new CallMediaSession|new DtlsClient|new SrtpSession" WhatsappApp
+grep -rn "new CallMediaSession|new DtlsClient|new SrtpSession|new IceLiteAgent" WhatsappApp
     -> nessun risultato fuori da Protocol/Media/CallMedia.cs, che e il
        costruttore di se stessa
 ```
@@ -56,10 +56,14 @@ una porta e la tiene, e `CallCandidatesAsync` (riga 3830) offre quell'indirizzo
 nell'offerta e nell'accept. Ma nessuno legge o scrive su quella socket: la porta
 esiste perche un candidato deve nominarla, non perche ci passi l'audio.
 
-### 2. Manca il trasporto: ICE, STUN, TURN, relay
+### 2. Il trasporto c'e a meta: ICE-lite e STUN ora ci sono, il relay no
+
+Dal 4 novembre ci sono `Protocol/Media/Stun.cs` (il messaggio, i due hash, gli attributi) e
+`Protocol/Media/IceLite.cs` (l'agente che risponde ai controlli di connettivita e nomina la
+coppia), fissati ai vettori della RFC 5769. Non sono ancora su una socket e non c'e il relay.
 
 ```
-grep -rni "stun|turnclient|icecandidate" WhatsappApp WhatsappApp.Core -> nessun risultato
+grep -rni "turnclient|allocation" WhatsappApp WhatsappApp.Core -> nessun risultato
 ```
 
 I candidati sono **solo host** (`CallCandidates.Host`, una voce per ogni IPv4 di
@@ -126,8 +130,8 @@ mentre la chiamata e su (`Pages/CallPage.xaml.cs`, riga 174).
 ## Cosa servirebbe, in ordine, se lo si volesse fare davvero
 
 1. **ICE-lite e STUN** (RFC 5389/8445): rispondere ai binding request del peer e
-   usare l'indirizzo riflesso. Standard, quindi scrivibile e provabile con i
-   vettori delle RFC - ed e il primo pezzo che oggi manca del tutto.
+   usare l'indirizzo riflesso. Fatto: `Stun.cs` e `IceLite.cs`, con la RFC 5769
+   come prova. Manca loro la socket, che e il punto 1 di sopra.
 2. **Il relay**: il dialogo con i server WhatsApp e la sua crittografia. Qui
    l'APK non basta: serve una cattura di una chiamata reale.
 3. **Il ruolo DTLS server** e la derivazione delle chiavi verificata contro un

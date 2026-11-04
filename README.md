@@ -291,12 +291,14 @@ The call is signalled, not carried. `Protocol/Client/CallSignaling.cs` builds an
 node, `Services/CallSession.cs` is the five states, and `Pages/CallPage.xaml` is the screen: an
 offer rings, the phone answers, refuses and hangs up, the call log gets a row for the call this
 phone made, and a call nobody picks up ends by itself after 45 seconds instead of holding the
-session. What is missing is the media. DTLS 1.2 and SRTP are written and tested in
-`Protocol/Media/` and `Protocol/Crypto/` - the RTP header, the SRTP session, the jitter buffer,
-the call key expansion and `CallMediaSession` - but none of them is on a socket, and three
-layers are still absent: ICE/STUN/TURN with WhatsApp's relay, the DTLS server role with the
-peer's key schedule, and a live audio path, which WP8.1 does not expose (a capture records to a
-file, and the platform has no audio-frame event).
+session. What is missing is the media. DTLS 1.2, SRTP, STUN and an ICE-lite responder are
+written and tested in `Protocol/Media/` and `Protocol/Crypto/` - the RTP header, the SRTP
+session, the jitter buffer, the call key expansion, `CallMediaSession`, the STUN message with
+its two hashes (pinned to the RFC's own vectors) and the agent that answers a connectivity
+check - but none of them is on a socket, and three things are still absent: the TURN relay
+WhatsApp's calls fall back to, the DTLS server role with the peer's key schedule, and a live
+audio path, which WP8.1 does not expose (a capture records to a file, and the platform has no
+audio-frame event).
 `docs/superpowers/specs/2026-11-04-calls-audio-feasibility.md` says what each of them would take.
 The call screen says the same sentence while a call is up.
 </details>
