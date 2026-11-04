@@ -3488,7 +3488,7 @@ namespace WhatsappApp.Services
                 // closed here instead of being left bound and forgotten, which is what a parse
                 // that threw used to do - one orphaned socket per attempt, and a `_callMediaPort`
                 // still zero so the next call bound another.
-                socket.Close();
+                socket.Dispose();
                 throw new ProtocolException("the call media socket answered no port");
             }
 
