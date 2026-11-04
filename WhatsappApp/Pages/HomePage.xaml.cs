@@ -283,15 +283,15 @@ namespace WhatsappApp.Pages
                 : Loc.Get("Call_Voice", "Voice call");
 
             string state;
-            switch (call.State)
+            switch (call.Phase)
             {
-                case CallState.Ringing:
+                case CallPhase.Ringing:
                     state = Loc.Get("Call_Incoming", "Incoming call");
                     break;
-                case CallState.Connecting:
+                case CallPhase.Connecting:
                     state = Loc.Get("Call_Connecting", "Connecting...");
                     break;
-                case CallState.Active:
+                case CallPhase.Active:
                     state = Loc.Get("Call_Active", "In call");
                     break;
                 default:
@@ -301,21 +301,21 @@ namespace WhatsappApp.Pages
 
             string detail = kind + " · " + state;
             if (call.WasAnswered) detail = detail + " · " + CallDuration(call.ConnectedSeconds);
-            if (call.State == CallState.Active)
+            if (call.Phase == CallPhase.Active)
             {
                 // Said plainly, on the call itself: the signalling is what this build does,
                 // and the media is the next piece (see the calls design document).
                 detail = detail + "\n" + Loc.Get("Call_NoAudio",
                     "No audio yet: this build only signals the call.");
             }
-            else if (call.State == CallState.Ended && !string.IsNullOrEmpty(call.EndedReason))
+            else if (call.Phase == CallPhase.Ended && !string.IsNullOrEmpty(call.EndedReason))
             {
                 detail = detail + " (" + call.EndedReason + ")";
             }
 
             CallDetailText.Text = detail;
 
-            bool ringing = call.State == CallState.Ringing;
+            bool ringing = call.Phase == CallPhase.Ringing;
 
             // A call that rings is a call screen, as on a phone: the banner below is the strip
             // that stays for a call whose screen has been closed with the back button.
@@ -325,7 +325,7 @@ namespace WhatsappApp.Pages
                 return;
             }
 
-            bool live = call.State == CallState.Connecting || call.State == CallState.Active;
+            bool live = call.Phase == CallPhase.Connecting || call.Phase == CallPhase.Active;
 
             AcceptCallButton.Content = Loc.Get("Call_Accept", "Accept");
             DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
@@ -424,7 +424,7 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void EndCall_Click(object sender, RoutedEventArgs e)
         {
-            if (DataService.Instance.Call.State == CallState.Ended)
+            if (DataService.Instance.Call.Phase == CallPhase.Ended)
             {
                 DataService.Instance.DismissCall();
                 return;

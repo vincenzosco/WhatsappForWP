@@ -140,18 +140,18 @@ namespace WhatsappApp.Pages
                 : Loc.Get("Call_Voice", "Voice call");
 
             string state;
-            switch (call.State)
+            switch (call.Phase)
             {
-                case CallState.Ringing:
+                case CallPhase.Ringing:
                     state = Loc.Get("Call_Incoming", "Incoming call");
                     break;
-                case CallState.Connecting:
+                case CallPhase.Connecting:
                     // The same wait from two ends, said the way the caller hears it.
                     state = call.IsIncoming
                         ? Loc.Get("Call_Connecting", "Connecting...")
                         : Loc.Get("Call_Calling", "Calling...");
                     break;
-                case CallState.Active:
+                case CallPhase.Active:
                     state = Loc.Get("Call_Active", "In call");
                     break;
                 default:
@@ -159,7 +159,7 @@ namespace WhatsappApp.Pages
                     break;
             }
 
-            if (call.State == CallState.Ended && !string.IsNullOrEmpty(call.EndedReason))
+            if (call.Phase == CallPhase.Ended && !string.IsNullOrEmpty(call.EndedReason))
             {
                 state = state + " (" + call.EndedReason + ")";
             }
@@ -172,13 +172,13 @@ namespace WhatsappApp.Pages
             DurationText.Visibility = call.WasAnswered ? Visibility.Visible : Visibility.Collapsed;
 
             NoteText.Text = Loc.Get("Call_NoAudio", "No audio yet: this build only signals the call.");
-            NoteText.Visibility = call.State == CallState.Active ? Visibility.Visible : Visibility.Collapsed;
+            NoteText.Visibility = call.Phase == CallPhase.Active ? Visibility.Visible : Visibility.Collapsed;
 
             // Accept and Decline are for a call that came in. A call placed from here is
             // waiting for the other phone, and Answer on it was a button that did nothing.
-            bool ringing = call.State == CallState.Ringing && call.IsIncoming;
-            bool live = call.State == CallState.Connecting || call.State == CallState.Active;
-            bool over = call.State == CallState.Ended;
+            bool ringing = call.Phase == CallPhase.Ringing && call.IsIncoming;
+            bool live = call.Phase == CallPhase.Connecting || call.Phase == CallPhase.Active;
+            bool over = call.Phase == CallPhase.Ended;
 
             CallIncomingButtons.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             CallInProgressButtons.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
@@ -302,7 +302,7 @@ namespace WhatsappApp.Pages
         private void EndCallButton_Click(object sender, RoutedEventArgs e)
         {
             CallSession call = DataService.Instance.Call;
-            if (call != null && call.State == CallState.Ended)
+            if (call != null && call.Phase == CallPhase.Ended)
             {
                 DataService.Instance.DismissCall();
                 return;

@@ -21,15 +21,18 @@ grezzi sono in `.tools/apk/calls/` (cartella ignorata da git).
 | DEX | stringhe, classi, metodi, campi | 13.574 stringhe distinte, 901 classi |
 | nativo (`libs.so`, stream scompattati) | motore `wavoip`, simboli `wa_call_*`/`wa_voip_*` | 9.916 stringhe, 496 simboli |
 | manifest | permessi, servizi, activity, receiver | 62 stringhe, 42 componenti `com.whatsapp` |
-| asset `strings_*.spo` | dizionario delle etichette UI per lingua | 1 pack per lingua, ~1 MB decompresso |
+| asset `strings_*.spo` | etichette UI per lingua, **mai decodificate** | 1 pack per lingua, ~1 MB decompresso |
 | `resources.arsc` | **assente** | — |
 
 La tabella dei file dentro gli `.spo` dichiara un solo membro, `strings_it.pack`
 (1.052.134 byte decompressi, `xxh64 0xacff11057a4c69e2`); il payload però non è
-testo: 50,5% di byte non nulli e nessuna sequenza stampabile di 6 caratteri. È un
-**dizionario indicizzato** (valori u16 piccoli, un prefisso per voce), quindi le
-etichette UI non si estraggono senza decodificare anche quel formato. Le etichette
-che servono all'app restano quelle dei `.resw`.
+testo: 50,5% di byte non nulli e nessuna sequenza stampabile di 6 caratteri. Letta
+come tabella indice non regge, e non per un dettaglio: la somma dei valori u16 BE
+(1.523.030) non eguaglia la dimensione dichiarata, e sia il walk length-prefixed
+BE sia quello LE si fermano alla prima voce. Il corpo è ad alta entropia con un
+prefisso `0xFD` per voce: è il codec **"pack"** proprietario, che sta nel nativo
+(`libsuperpack.so`), non nel contenitore. Quindi le etichette UI non si estraggono
+senza quel decodificatore, e quelle che servono all'app restano quelle dei `.resw`.
 
 ## Il livello Java: 901 classi, per package
 
@@ -228,10 +231,11 @@ Chiavi di preferenze e punti di traccia (formato `dominio/evento`):
 - **`resources.arsc` non esiste** in questo APK: le `res/` hanno nomi offuscati
   (`res/-.xml`, `res/--.png`) e non c'è tabella risorse. Quindi non ci sono layout
   né stringhe di sistema da leggere: la UI va progettata, non copiata.
-- **Gli `.spo` sono un dizionario indicizzato**, non testo: 6 stream xz per
-  l'italiano che rendono 83.459 byte con zero run stampabili e metà byte nulli.
-  Etichette come "Chiamata in arrivo" non sono estraibili senza decodificare quel
-  formato, che è separato da sp2.
+- **Gli `.spo` non sono testo e non sono una tabella indice leggibile**: 6 stream
+  xz per l'italiano che rendono 83.459 byte con zero run stampabili e metà byte
+  nulli, e la tabella indice non torna né in BE né in LE. Il corpo è il codec
+  "pack" proprietario del nativo, quindi etichette come "Chiamata in arrivo" non
+  sono estraibili senza quel decodificatore, che è separato da sp2.
 - **Il media resta da scrivere**: i simboli e le stringhe dicono *quale* stack
   serve e *come si chiama*, non come è implementato. Un `libs.so` scompattato è
   codice, non specifica.

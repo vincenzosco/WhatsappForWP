@@ -427,7 +427,7 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task AcceptCallAsync()
         {
-            if (_call.State != CallState.Ringing) return;
+            if (_call.Phase != CallPhase.Ringing) return;
 
             string callId = _call.CallId;
             string peer = _call.PeerJid;
@@ -454,7 +454,7 @@ namespace WhatsappApp.Services
         /// </summary>
         public Task DeclineCallAsync()
         {
-            if (_call.State != CallState.Ringing) return Task.FromResult(0);
+            if (_call.Phase != CallPhase.Ringing) return Task.FromResult(0);
 
             return RefuseAsync(_call.CallId, _call.PeerJid, "reject");
         }
@@ -492,8 +492,8 @@ namespace WhatsappApp.Services
 
             string callId = _call.CallId;
             string peer = _call.PeerJid;
-            string reason = _call.State == CallState.Ringing ? "reject"
-                : _call.State == CallState.Connecting ? "timeout"
+            string reason = _call.Phase == CallPhase.Ringing ? "reject"
+                : _call.Phase == CallPhase.Connecting ? "timeout"
                 : "accepted";
 
             try
@@ -573,6 +573,10 @@ namespace WhatsappApp.Services
             RaiseCallChanged();
         }
 
+        private CallLogStore _callLog;
+
+        private CallLogStore CallLogStore { get { if (_callLog == null) _callLog = new CallLogStore(); return _callLog; } }
+
         private void RaiseCallChanged()
         {
             FollowCallState();
@@ -593,7 +597,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private void FollowCallState()
         {
-            if (_call.State == CallState.Ringing)
+            if (_call.Phase == CallPhase.Ringing)
             {
                 // A name, not an address: `DisplayNameForJid` asks the book, then the LID
                 // pair, then the number, so a call from a `@lid` stops announcing itself as
@@ -605,7 +609,7 @@ namespace WhatsappApp.Services
                 CallRinger.Stop();
             }
 
-            if (_call.State == CallState.Ended) RememberCall();
+            if (_call.Phase == CallPhase.Ended) RememberCall();
         }
 
         /// <summary>
@@ -632,6 +636,7 @@ namespace WhatsappApp.Services
             row.IsVideo = _call.IsVideo;
 
             _localCalls.Add(row);
+            CallLogStore.Record(row, _call.CallId, !_call.IsIncoming);
             InsertCall(row);
 
             Diag.Ok("calls: logged a " + row.Reason + " call with " + row.ChatId

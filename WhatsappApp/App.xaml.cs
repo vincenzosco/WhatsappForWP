@@ -489,7 +489,7 @@ namespace WhatsappApp
         private void OnCallChanged(object sender, EventArgs e)
         {
             CallSession call = DataService.Instance.Call;
-            if (call == null || call.State != CallState.Ringing) return;
+            if (call == null || call.Phase != CallPhase.Ringing) return;
 
             Frame root = EnsureFrame();
             if (root == null) return;

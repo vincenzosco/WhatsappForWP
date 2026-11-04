@@ -139,3 +139,44 @@ La strada onesta, se si vuole una chiamata che funzioni: prima la segnalazione e
 l'interfaccia (squillo, accetta, rifiuta, chiudi) con il media **dichiaratamente
 assente** — l'app squilla e risponde, e la voce non passa — poi lo stack audio, poi
 il video. Ogni fase è verificabile da sola, e la prima è già quasi tutta qui.
+
+## Cosa è stato implementato il 4 novembre
+
+La segnalazione c'era; il modello no. Questi tre pezzi sono ora nel codice, presi
+dall'APK e non inventati:
+
+- **I quindici stati.** `Services/CallSession.cs` porta i valori di
+  `com.whatsapp.calling.infra.voipcalling.CallState` con i loro nomi
+  (`None`, `PreCalling`, `Calling`, `ReceivedCall`, `PreAcceptReceived`,
+  `AcceptSent`, `AcceptReceived`, `Link`, `Active`, `ConnectedLonely`,
+  `Rejoining`, `Ending`, `ActiveElsewhere`, `Screening`, `BCallStarting`). Le
+  cinque parole che l'app usava prima (`Idle`, `Ringing`, `Connecting`, `Active`,
+  `Ended`) non sono sull'aria: sono ora `CallPhase`, derivata da `State` da
+  `CallSession.PhaseOf`, e le pagine leggono quella. Il motivo per tenerle tutte
+  e due è che gli stati non sono un anello lineare: `Link`, `ActiveElsewhere` e
+  `Screening` dicono *cos'è* la chiamata, e una UI che ne conosce cinque non sa
+  quale delle tre sta guardando.
+- **Gli eventi.** `CallEvent` è il sottoinsieme di `VoipEventCallback` (119
+  metodi) che un client di sola segnalazione ha qualcosa da fare: `CallStateChanged`,
+  `CallOfferReceiptReceived`, `CallOfferAcked`, `CallOfferNacked`,
+  `HandleOfferAckFailed`, `CallRejectReceived`, `CallTerminateReceived`,
+  `CallEnding`, `CallMissed`, `CallWaitingStateChanged`, `CallLinkStateChanged`,
+  `GroupInfoChanged`, `GroupParticipantLeft`, `DataChannelReady`,
+  `DataChannelConnectionTimeout`, `HeartbeatNacked`, `BatteryLevelLow`,
+  `HandleCallFatal`, `AutoVideoPauseStateChanged`. Cinque chiudono la chiamata
+  (`reject`, `terminate`, `ending`, `missed`, `fatal`); gli altri aggiornano
+  `LastEvent` e basta, perché appartengono al motore media che non c'è.
+- **Il registro con lo schema ufficiale.** `Protocol/Client/CallLogTables.cs`
+  riproduce `call_log` (con `call_log_participant_v2`) e `call_link` con gli
+  indici del database ufficiale: per `timestamp` (la lista si legge dal più
+  recente), per `call_id`, per `user_jid`, per `telecom_uuid`, per i partecipanti
+  e `token` **unico** per i link. `Services/CallLogStore.cs` lo tiene in
+  `call-log.json` dentro `LocalFolder`: WP8.1 non ha SQLite, e a questa
+  dimensione gli indici valgono più del motore. `DataService.RememberCall` scrive
+  una riga a ogni chiamata chiusa, con lo stesso id che la chiamata aveva
+  sull'aria: è quello che rende la seconda copia di una chiamata una riga sola.
+
+Quello che il modello sa e l'aria non gli ha ancora detto: `Link`,
+`ConnectedLonely`, `Rejoining`, `ActiveElsewhere`, `Screening`, `BCallStarting`
+sono valori che esistono e che nessun percorso di questo client produce ancora.
+Sono dichiarati, non simulati.
