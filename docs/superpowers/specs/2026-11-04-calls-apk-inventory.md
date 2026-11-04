@@ -30,9 +30,19 @@ testo: 50,5% di byte non nulli e nessuna sequenza stampabile di 6 caratteri. Let
 come tabella indice non regge, e non per un dettaglio: la somma dei valori u16 BE
 (1.523.030) non eguaglia la dimensione dichiarata, e sia il walk length-prefixed
 BE sia quello LE si fermano alla prima voce. Il corpo è ad alta entropia con un
-prefisso `0xFD` per voce: è il codec **"pack"** proprietario, che sta nel nativo
-(`libsuperpack.so`), non nel contenitore. Quindi le etichette UI non si estraggono
-senza quel decodificatore, e quelle che servono all'app restano quelle dei `.resw`.
+prefisso `0xFD` per voce.
+
+Il perché è nel contenitore: è Facebook **Superpack**. `libsuperpack.so`, presente
+in tutte e quattro le ABI, contiene il driver `stringpack_driver` e i suoi messaggi
+(`Error decompressing superpack streams, expected %u but decompressed %u`,
+`No driver found for file type %s, is wrong superpack flavor used?`,
+`The decompressor does not include code for this target, e.g. ... .spo arch is %d`),
+più le classi Java che lo pilotano (`com/facebook/superpack/AssetDecompressor`,
+`com/whatsapp/superpack/WhatsAppOpenboxArchive`, `WhatsAppObiInputStream`). Quindi
+`strings_it.pack` è un archivio Superpack di tipo *string pack*: quei byte non sono
+etichette finché quel driver non li scompatta, e il driver è codice nativo che
+questo repository non esegue. È il motivo per cui le etichette UI non si estraggono,
+e quelle che servono all'app restano quelle dei `.resw`.
 
 ## Il livello Java: 901 classi, per package
 
@@ -233,9 +243,12 @@ Chiavi di preferenze e punti di traccia (formato `dominio/evento`):
   né stringhe di sistema da leggere: la UI va progettata, non copiata.
 - **Gli `.spo` non sono testo e non sono una tabella indice leggibile**: 6 stream
   xz per l'italiano che rendono 83.459 byte con zero run stampabili e metà byte
-  nulli, e la tabella indice non torna né in BE né in LE. Il corpo è il codec
-  "pack" proprietario del nativo, quindi etichette come "Chiamata in arrivo" non
-  sono estraibili senza quel decodificatore, che è separato da sp2.
+  nulli, e la tabella indice non torna né in BE né in LE. Sono archivi Facebook
+  **Superpack** di tipo string pack, e il driver che li scompatta
+  (`stringpack_driver`) è codice nativo in `libsuperpack.so`: etichette come
+  "Chiamata in arrivo" non sono estraibili senza eseguirlo. Il passo successivo,
+  se lo si vuole, è `com.whatsapp.superpack.WhatsAppOpenboxArchive` per la forma
+  dell'archivio interno, poi il driver. È un lavoro separato da sp2.
 - **Il media resta da scrivere**: i simboli e le stringhe dicono *quale* stack
   serve e *come si chiama*, non come è implementato. Un `libs.so` scompattato è
   codice, non specifica.
