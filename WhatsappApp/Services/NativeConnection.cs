@@ -123,6 +123,20 @@ namespace WhatsappApp.Services
         private readonly HashSet<string> _awaitingAck = new HashSet<string>();
 
         /// <summary>
+        /// The last device list the server gave for an address, kept for the send that asks
+        /// again while the server is slow.
+        ///
+        /// Why it is needed: the device list is one of the questions in front of the write, and
+        /// the budget now gives it three seconds. Who a person's devices are does not change
+        /// between two messages, so an answer from a moment ago is the honest fallback - a send
+        /// that fails because the list was slow is a message the person has to write twice.
+        /// </summary>
+        private readonly Dictionary<string, BinaryNode> _lastDevices = new Dictionary<string, BinaryNode>();
+
+        /// <summary>How many device lists are remembered before the map starts again.</summary>
+        private const int MaxRememberedDevices = 64;
+
+        /// <summary>
         /// The same ids in the order they were written, so an overflow forgets the oldest
         /// one instead of the whole table: emptying it dropped the ids of messages still
         /// waiting for their ack, and their ack then matched nothing - the bubble went to
@@ -325,6 +339,27 @@ namespace WhatsappApp.Services
 
         /// <summary>How long a query the server never answers is waited for before it is given up on.</summary>
         public const int AnswerSeconds = 20;
+
+        /// <summary>
+        /// Where the questions in front of a send start counting.
+        ///
+        /// Why a clock and not one wait per question: three questions at `AnswerSeconds` each
+        /// are the minute a message took to leave on 4 November 2026, and what has to be bounded
+        /// is the whole wait in front of the stanza, not each part of it.
+        /// </summary>
+        private static SendBudget SendClock()
+        {
+            return SendBudget.Start(DateTime.UtcNow.Ticks);
+        }
+
+        /// <summary>
+        /// What a question asked now may take of what is left, and never zero: a question with
+        /// no deadline is not a question but a failure decided in advance.
+        /// </summary>
+        private static int SecondsIn(SendBudget budget)
+        {
+            return Math.Max(1, budget.SecondsLeft(DateTime.UtcNow.Ticks));
+        }
 
         /// <summary>
         /// Opens the stored account, if there is one, and starts reading.
@@ -1121,7 +1156,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task<BinaryNode> RequestAsync(NativeSession session, BinaryNode query)
         {
-            return await RequestAsync(session, query, false);
+            return await RequestAsync(session, query, false, AnswerSeconds);
         }
 
         /// <summary>
@@ -1130,6 +1165,21 @@ namespace WhatsappApp.Services
         /// query failed"). See `_refusalIsAnswer`.
         /// </summary>
         private async Task<BinaryNode> RequestAsync(NativeSession session, BinaryNode query, bool refusalIsAnswer)
+        {
+            return await RequestAsync(session, query, refusalIsAnswer, AnswerSeconds);
+        }
+
+        /// <summary>
+        /// The same question with a deadline of its own.
+        ///
+        /// Why the deadline is a parameter: on 4 November 2026 a message took about a minute to
+        /// leave, because every question in front of the write waited `AnswerSeconds` on its own
+        /// and nothing bounded their sum - the device list, the bundles per device, the bundles
+        /// per person, and the privacy token twice. `SendBudget` is that bound, and the only
+        /// question that keeps the ordinary deadline is the one without which no stanza can
+        /// exist at all.
+        /// </summary>
+        private async Task<BinaryNode> RequestAsync(NativeSession session, BinaryNode query, bool refusalIsAnswer, int seconds)
         {
             string id = query.Attrs["id"];
             if (string.IsNullOrEmpty(id)) throw new ProtocolException("a query with no id has no answer to wait for");
@@ -1146,7 +1196,7 @@ namespace WhatsappApp.Services
                 await session.SendAsync(query);
 
                 Task<BinaryNode> answer = completion.Task;
-                Task finished = await Task.WhenAny(answer, Task.Delay(TimeSpan.FromSeconds(AnswerSeconds)));
+                Task finished = await Task.WhenAny(answer, Task.Delay(TimeSpan.FromSeconds(seconds)));
                 if (finished != answer) throw new ProtocolException("the server did not answer " + id);
 
                 return await answer;
@@ -1223,6 +1273,41 @@ namespace WhatsappApp.Services
             if (string.IsNullOrEmpty(id)) return;
 
             lock (_awaitingAck) _awaitingAck.Remove(id);
+        }
+
+        /// <summary>
+        /// Keeps the answer to "who is behind this chat" for the next send that asks while the
+        /// server is slow. The answer is not a secret and not a moment in time: a device list
+        /// from a second ago is the same list.
+        /// </summary>
+        private void RememberDevices(string address, BinaryNode answer)
+        {
+            if (string.IsNullOrEmpty(address) || answer == null) return;
+
+            lock (_lastDevices)
+            {
+                // A ceiling, because this lives as long as the connection and an account can
+                // write to hundreds of chats: past it every answer is older than the next one,
+                // and starting over costs one round trip per chat - not a message.
+                if (_lastDevices.Count >= MaxRememberedDevices && !_lastDevices.ContainsKey(address))
+                {
+                    _lastDevices.Clear();
+                }
+
+                _lastDevices[address] = answer;
+            }
+        }
+
+        /// <summary>The last device list for an address, or null when this phone never had one.</summary>
+        private BinaryNode LastDevices(string address)
+        {
+            if (string.IsNullOrEmpty(address)) return null;
+
+            lock (_lastDevices)
+            {
+                BinaryNode remembered;
+                return _lastDevices.TryGetValue(address, out remembered) ? remembered : null;
+            }
         }
 
         /// <summary>
@@ -1365,11 +1450,14 @@ namespace WhatsappApp.Services
                 return await SendGroupAsync(session, jid, message, OutgoingMessage.TextType, null, body);
             }
 
-            DirectTarget target = await DevicesAsync(session, jid);
+            // The clock starts before the first question: what is bounded is the whole wait in
+            // front of the stanza, not each question on its own (`SendBudget`).
+            SendBudget budget = SendClock();
+            DirectTarget target = await DevicesAsync(session, jid, budget);
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
-            PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
+            PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp, budget);
             Diag.Ok("native: direct text " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
             // The store is fetched before the write and not inside the `finally`: C# 5
@@ -1422,7 +1510,8 @@ namespace WhatsappApp.Services
                 return await SendGroupAsync(session, jid, payload, OutgoingMessage.TextType, null, "");
             }
 
-            DirectTarget target = await DevicesAsync(session, jid);
+            SendBudget budget = SendClock();
+            DirectTarget target = await DevicesAsync(session, jid, budget);
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
@@ -1520,11 +1609,14 @@ namespace WhatsappApp.Services
                 return await SendGroupAsync(session, jid, payload, OutgoingMessage.MediaType, mediaWord, rowText);
             }
 
-            DirectTarget target = await DevicesAsync(session, jid);
+            // The upload above is the slow half and the questions after it are the same the
+            // text path asks, so they share the same bound (`SendBudget`).
+            SendBudget budget = SendClock();
+            DirectTarget target = await DevicesAsync(session, jid, budget);
 
             string id = OutgoingMessage.Id(_random);
             uint timestamp = NowSeconds();
-            PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp);
+            PrivacyToken privacyToken = await PrivacyTokenAsync(session, jid, timestamp, budget);
             Diag.Ok("native: direct media " + id + " has privacy token=" + (privacyToken == null ? "no" : "yes"));
 
             // The store is fetched before the write: C# 5 answers CS1984 to an `await`
@@ -1567,7 +1659,7 @@ namespace WhatsappApp.Services
         /// stanza goes out with the token when there is one and without it when there is
         /// not. Making it a condition meant no direct message left this phone at all.
         /// </summary>
-        private async Task<PrivacyToken> PrivacyTokenAsync(NativeSession session, string jid, uint timestamp)
+        private async Task<PrivacyToken> PrivacyTokenAsync(NativeSession session, string jid, uint timestamp, SendBudget budget)
         {
             string phoneJid = NameCache.Book.Canonical(jid);
             if (string.IsNullOrEmpty(phoneJid)) phoneJid = jid;
@@ -1577,6 +1669,16 @@ namespace WhatsappApp.Services
             {
                 string tokenJid = queryJids[i];
                 if (i > 0) Diag.Ok("native: retrying privacy token with " + tokenJid);
+
+                if (budget.IsSpent(DateTime.UtcNow.Ticks))
+                {
+                    // Optional on the wire: the reference clients send without a token and the
+                    // server answers an empty result for most contacts
+                    // (`Socket/messages-send.js`, `getPrivacyTokens`), so it is the first thing
+                    // given up when the message is the one waiting.
+                    Diag.Ok("native: no time left in front of this message for a privacy token; it goes without one");
+                    return null;
+                }
                 PrivacyToken cached = CachedPrivacyToken(tokenJid);
                 if (cached != null)
                 {
@@ -1587,7 +1689,8 @@ namespace WhatsappApp.Services
                 try
                 {
                     BinaryNode answer = await RequestAsync(session,
-                        PrivacyTokens.Query(tokenJid, OutgoingMessage.Id(_random), timestamp));
+                        PrivacyTokens.Query(tokenJid, OutgoingMessage.Id(_random), timestamp), false,
+                        SecondsIn(budget));
                     PrivacyToken token = PrivacyTokens.Read(answer);
                     if (token == null)
                     {
@@ -2040,7 +2143,7 @@ namespace WhatsappApp.Services
         /// re-done is the session itself: an established one is what the ratchet is for
         /// (`DeviceDirectory.Session`).
         /// </summary>
-        private async Task<DirectTarget> DevicesAsync(NativeSession session, string jid)
+        private async Task<DirectTarget> DevicesAsync(NativeSession session, string jid, SendBudget budget)
         {
             // The address on the wire, which is not always the address of the row: a chat
             // whose `@lid` this phone knows is sent by that LID, because a device list for
@@ -2059,7 +2162,7 @@ namespace WhatsappApp.Services
             {
                 try
                 {
-                    return await ResolveDevicesAsync(session, address);
+                    return await ResolveDevicesAsync(session, address, budget);
                 }
                 catch (ProtocolException error)
                 {
@@ -2068,14 +2171,14 @@ namespace WhatsappApp.Services
                 }
             }
 
-            return await ResolveDevicesAsync(session, jid);
+            return await ResolveDevicesAsync(session, jid, budget);
         }
 
         /// <summary>
         /// The same question asked of one address: who is behind it, what their keys are, and
         /// the sessions to seal for.
         /// </summary>
-        private async Task<DirectTarget> ResolveDevicesAsync(NativeSession session, string address)
+        private async Task<DirectTarget> ResolveDevicesAsync(NativeSession session, string address, SendBudget budget)
         {
             // Two questions, and they are two different answers. `Query` is the `usync`
             // device list (`user > devices > device-list > device[id]`); only
@@ -2101,7 +2204,28 @@ namespace WhatsappApp.Services
             if (!string.IsNullOrEmpty(ours)) asked.Add(ours);
             asked.Add(address);
 
-            BinaryNode devicesAnswer = await RequestAsync(session, DeviceDirectory.Query(asked, _random));
+            // Within the send's budget, and with the last answer for this chat as the way out:
+            // who a person's devices are does not change between two messages, and a send that
+            // fails because the list was slow is worse than one written to the devices this
+            // phone already knows (`RememberDevices`). A chat this phone has never written to
+            // has no copy and the question is worth its whole deadline - but it is an answer
+            // the send will not get twice.
+            int secondsForList = SecondsIn(budget);
+            BinaryNode devicesAnswer = null;
+            try
+            {
+                devicesAnswer = await RequestAsync(session, DeviceDirectory.Query(asked, _random), false,
+                    secondsForList);
+            }
+            catch (ProtocolException silent)
+            {
+                devicesAnswer = LastDevices(address);
+                if (devicesAnswer == null) throw;
+
+                Diag.Failed("native: the device list of " + address + " did not answer within "
+                    + secondsForList + " s, so the last one is used", silent);
+            }
+            RememberDevices(address, devicesAnswer);
 
             string ourJid = _account == null ? null : _account.Jid;
             string ourLid = _account == null ? null : _account.Lid;
@@ -2122,11 +2246,17 @@ namespace WhatsappApp.Services
                 // bundles of every device that person has.
                 // The catch does not await (C# 5 answers CS1985): it records why the
                 // first shape failed, and the second ask happens after it.
+                // The keys a device with no session needs, and the only question allowed to
+                // outlast the budget: when every device of the chat is one this phone has never
+                // written to, there is no message without an answer. One device out of several
+                // is skipped and named instead - the others get the message.
+                int secondsForBundles = missing.Count == targets.Count ? AnswerSeconds : SecondsIn(budget);
                 ProtocolException silent = null;
 
                 try
                 {
-                    bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random));
+                    bundleAnswer = await RequestAsync(session, DeviceDirectory.BundleQuery(missing, _random),
+                        false, secondsForBundles);
                 }
                 catch (ProtocolException error)
                 {
@@ -2150,7 +2280,7 @@ namespace WhatsappApp.Services
                         + " of them), because a query with no answer is not a no");
 
                     bundleAnswer = await RequestAsync(session,
-                        DeviceDirectory.BundleQueryForUser(people, _random));
+                        DeviceDirectory.BundleQueryForUser(people, _random), false, secondsForBundles);
                 }
             }
 
@@ -3248,7 +3378,10 @@ namespace WhatsappApp.Services
             CallKeyOffer keys = null;
             try
             {
-                DirectTarget target = await ResolveDevicesAsync(session, jid);
+                // The same bound the messages get: a call is not a reason to wait a minute on a
+                // question the server may never answer.
+                SendBudget budget = SendClock();
+                DirectTarget target = await ResolveDevicesAsync(session, jid, budget);
                 keys = CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(_random), target.Devices, _random);
 
                 for (int i = 0; i < keys.Skipped.Count; i++)
