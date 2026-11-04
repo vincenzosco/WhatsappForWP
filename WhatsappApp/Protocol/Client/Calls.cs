@@ -211,6 +211,25 @@ namespace WhatsappApp.Protocol.Client
             return CallSignaling.Offer(callId, jid, caller, deviceIdentity, audio, video, keys, candidates);
         }
 
+        /// <summary>
+        /// The same offer with the fields this build cannot invent (`caller_pn`,
+        /// `caller_country_code`, `joinable` and the `metadata`/`rte`/`voip_settings`
+        /// children), from `CallWireProfile`. A null profile is the offer without them.
+        /// </summary>
+        public static BinaryNode Offer(
+            string callId,
+            string jid,
+            string caller,
+            byte[] deviceIdentity,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallKeyPayload> keys,
+            IList<CallCandidate> candidates,
+            CallWireProfile profile)
+        {
+            return CallSignaling.Offer(callId, jid, caller, deviceIdentity, audio, video, keys, candidates, profile);
+        }
+
         /// <summary>The same offer with one key and the identity that proves it.</summary>
         public static BinaryNode Offer(
             string callId,

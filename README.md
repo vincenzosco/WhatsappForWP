@@ -6,6 +6,11 @@
 
 <h1 align="center">WhatsApp for Windows Phone 8.1</h1>
 
+> **A note on the commits.** Some commits in this repository were made by AI agents. They are
+> not a sign that the project was vibecoded: the agents were used to look at WhatsApp's own app
+> and see what the protocol does on the wire. The rest - the client, the protocol stack, the
+> pages - is for the most part the work of a human.
+
 <p align="center">
   <strong>A WhatsApp client that runs on a 2014 phone, written from the protocol up.</strong><br>
   The phone talks to WhatsApp itself: Noise handshake, binary nodes, the Signal ratchet, media.
@@ -335,7 +340,7 @@ node --test tools/test/*.test.js
 node tools/test-protocol.js
 ```
 
-`tools/test-protocol.js` builds and runs the 457 protocol tests in `ProtocolTests/`. The protocol
+`tools/test-protocol.js` builds and runs the 629 protocol tests in `ProtocolTests/`. The protocol
 tests are plain C# with a tiny runner, because the WP8.1 toolchain cannot host a modern test
 framework.
 

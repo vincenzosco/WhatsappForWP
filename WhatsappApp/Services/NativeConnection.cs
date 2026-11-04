@@ -2451,6 +2451,80 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Reads the session store again for every device whose key would go out as a pre-key
+        /// message, and keeps the stored record when the peer has answered since the plan was
+        /// made: `pkmsg` and `msg` carry the same key under two wrappers, and the wrapper is
+        /// what the offer is checked against.
+        ///
+        /// Nothing here can establish a session by itself - only a message the other phone
+        /// sends and this one opens does that (`SessionRecord.Decrypt` lowers the flag). What
+        /// this removes is the *stale* answer: a `pkmsg` written for a session the callee had
+        /// already answered while the device list was being read.
+        /// </summary>
+        private async Task RefreshEstablishedAsync(DirectTarget target)
+        {
+            if (target == null || target.Devices == null) return;
+
+            SessionStore store = await SessionsAsync();
+
+            for (int i = 0; i < target.Devices.Count; i++)
+            {
+                string device = target.Devices[i].Key;
+                SessionRecord planned = target.Devices[i].Value;
+
+                if (string.IsNullOrEmpty(device) || planned == null || !planned.PreKeyPending) continue;
+
+                SessionRecord stored = store.Load(device);
+                if (stored == null || !stored.HasSession || stored.PreKeyPending) continue;
+
+                target.Devices[i] = new KeyValuePair<string, SessionRecord>(device, stored);
+                Diag.Ok("native: " + device + " has answered since its session was planned, so "
+                    + "the call key goes out as a message and not as a pre-key message");
+            }
+        }
+
+        /// <summary>
+        /// The offer fields this build cannot invent, as somebody wrote them down after reading
+        /// a capture: `calls/wire` in the local settings, in the form
+        /// `caller_pn=...;caller_country_code=...;joinable=true`.
+        ///
+        /// Null when nothing has been written down, and null is the offer this app has always
+        /// sent: `CallSignaling.Offer` writes a field only when it has a value. The values are
+        /// deliberately not learned from the callee's own offer - its `caller_pn` is *their*
+        /// number - so they wait for a capture of an offer this account made, which is the
+        /// missing half of the offer of 4 November 2026.
+        /// </summary>
+        private static CallWireProfile CallWireProfileFromStore()
+        {
+            object stored;
+            if (!Windows.Storage.ApplicationData.Current.LocalSettings.Values.TryGetValue(CallWireKey, out stored)) return null;
+
+            string text = stored as string;
+            if (string.IsNullOrEmpty(text)) return null;
+
+            var profile = new CallWireProfile();
+            string[] parts = text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                int at = parts[i].IndexOf('=');
+                if (at <= 0) continue;
+
+                string name = parts[i].Substring(0, at).Trim();
+                string value = parts[i].Substring(at + 1).Trim();
+
+                if (name == "caller_pn") profile.CallerPn = value;
+                else if (name == "caller_country_code") profile.CallerCountryCode = value;
+                else if (name == "joinable") profile.Joinable = value == "true";
+            }
+
+            return profile.IsEmpty ? null : profile;
+        }
+
+        /// <summary>Where the offer's own fields are written down, one line, no key ever.</summary>
+        private const string CallWireKey = "calls/wire";
+
+        /// <summary>
         /// The reader has seen this chat. The chat list keeps its own count so that a message
         /// arriving next is one, not the pile that was already read; the receipt below is the
         /// other half of the same decision.
@@ -3605,6 +3679,14 @@ namespace WhatsappApp.Services
                 // straight to the number costs: five offers on `393492556507@s.whatsapp.net`,
                 // every key sealed as a pre-key message, and no answer of any kind.
                 DirectTarget target = await DevicesAsync(session, jid, budget);
+
+                // The plan was made when the device list was asked, and asking it costs
+                // seconds. A phone that answered in the meantime has established its session
+                // on both sides, and the plan would still seal the key as a pre-key message -
+                // which is the one shape of a call key that leaves the callee's phone silent.
+                // The store is therefore read once more, where the flag is about to be used.
+                await RefreshEstablishedAsync(target);
+
                 keys = CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(_random), target.Devices, _random);
 
                 Diag.Ok("native: the call " + callId + " is sealed for " + target.Devices.Count
@@ -3671,6 +3753,11 @@ namespace WhatsappApp.Services
             // Each stanza also gets its own transport `id`: the `call-id` inside the verb is
             // what ties the copies of one call together, and two stanzas with one id are one
             // stanza to a server that de-duplicates by it.
+            // The fields of an offer this build cannot invent, from the store: `caller_pn`,
+            // `caller_country_code`, `joinable`. Read once for the whole call, and null until
+            // somebody writes down what a capture showed (`calls/wire`).
+            CallWireProfile wire = CallWireProfileFromStore();
+
             for (int i = 0; i < keys.Payloads.Count; i++)
             {
                 string device = i < keys.DeviceJids.Count ? keys.DeviceJids[i] : jid;
@@ -3679,7 +3766,7 @@ namespace WhatsappApp.Services
                 one.Add(keys.Payloads[i]);
 
                 BinaryNode offer = Calls.Offer(callId, device, session.Jid, OurIdentity(),
-                    audio, videos, one, candidates);
+                    audio, videos, one, candidates, wire);
 
                 string stanzaId = NewCallId();
                 offer.Attrs["id"] = stanzaId;

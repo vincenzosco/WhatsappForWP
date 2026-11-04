@@ -94,6 +94,101 @@ namespace WhatsappApp.Protocol.Client
         public byte[] Data;
     }
 
+    /// <summary>
+    /// The parts of an offer this build cannot invent: the caller's own number and country,
+    /// whether the call can be joined, and the three children the official client attaches
+    /// (`metadata`, `rte`, `voip_settings`).
+    ///
+    /// They are one object because they arrive together - the offer captured on 4 November
+    /// 2026 carries all six - and because they are the only fields of an offer whose values
+    /// this build has never seen. `Offer` writes each one only when it has a value, so an empty
+    /// profile produces exactly the offer this app sent before this type existed.
+    /// </summary>
+    public sealed class CallWireProfile
+    {
+        /// <summary>`caller_pn`: the caller's own number, spelled as the official client does.</summary>
+        public string CallerPn;
+
+        /// <summary>`caller_country_code`: the caller's country, spelled as the official client does.</summary>
+        public string CallerCountryCode;
+
+        /// <summary>`joinable`: whether the call can be joined; null leaves the attribute out.</summary>
+        public bool? Joinable;
+
+        /// <summary>The `metadata` child, whole, as a captured node carries it.</summary>
+        public BinaryNode Metadata;
+
+        /// <summary>The `rte` child, whole.</summary>
+        public BinaryNode Rte;
+
+        /// <summary>The `voip_settings` child, whole.</summary>
+        public BinaryNode VoipSettings;
+
+        /// <summary>Whether there is anything to write at all.</summary>
+        public bool IsEmpty
+        {
+            get
+            {
+                return string.IsNullOrEmpty(CallerPn) && string.IsNullOrEmpty(CallerCountryCode)
+                    && !Joinable.HasValue && Metadata == null && Rte == null && VoipSettings == null;
+            }
+        }
+
+        /// <summary>
+        /// The fields one captured `call` node carries, ready to be written on an offer of
+        /// ours.
+        ///
+        /// It reads and never decides: `caller_pn` on the other phone's offer is *their*
+        /// number, and an offer of ours that carried it would name the wrong caller - so this
+        /// hands the values back and the caller says which of them are ours. The three children
+        /// are copied whole because they are the values themselves.
+        /// </summary>
+        public static CallWireProfile FromCallNode(BinaryNode call)
+        {
+            if (call == null) return null;
+
+            BinaryNode offer = call.Child("offer");
+            if (offer == null) return null;
+
+            var profile = new CallWireProfile();
+            profile.CallerPn = offer.Attrs["caller_pn"];
+            profile.CallerCountryCode = offer.Attrs["caller_country_code"];
+
+            string joinable = offer.Attrs["joinable"];
+            bool word;
+            if (!string.IsNullOrEmpty(joinable) && bool.TryParse(joinable, out word)) profile.Joinable = word;
+
+            profile.Metadata = offer.Child("metadata");
+            profile.Rte = offer.Child("rte");
+            profile.VoipSettings = offer.Child("voip_settings");
+
+            return profile.IsEmpty ? null : profile;
+        }
+
+        /// <summary>The attributes, on the verb, after `call-id` and `call-creator`.</summary>
+        internal void ApplyAttrs(BinaryNode verb)
+        {
+            if (verb == null) return;
+
+            if (!string.IsNullOrEmpty(CallerPn)) verb.Attrs.Add("caller_pn", CallerPn);
+            if (!string.IsNullOrEmpty(CallerCountryCode)) verb.Attrs.Add("caller_country_code", CallerCountryCode);
+            if (Joinable.HasValue) verb.Attrs.Add("joinable", Joinable.Value ? "true" : "false");
+        }
+
+        /// <summary>
+        /// The three children, in the order the captured offer has them, before the
+        /// `device-identity` that has to stay last.
+        /// </summary>
+        internal void AppendChildren(IList<BinaryNode> children)
+        {
+            if (children == null) return;
+
+            if (Metadata != null) children.Add(Metadata);
+            if (Rte != null) children.Add(Rte);
+            if (VoipSettings != null) children.Add(VoipSettings);
+        }
+    }
+
     /// <summary>A relay's measured latency: `<te latency="42">bytes</te>`.</summary>
     public sealed class CallRelayLatency
     {
@@ -449,6 +544,51 @@ namespace WhatsappApp.Protocol.Client
             AddDeviceIdentity(children, keys, deviceIdentity);
 
             return Wrap(callId, to, caller, Verb("offer", callId, caller, null, children));
+        }
+
+        /// <summary>
+        /// The offer with the fields this build cannot invent filled in from a capture: the
+        /// caller's own number and country, `joinable`, and the `metadata`, `rte` and
+        /// `voip_settings` children the callee's phone reads.
+        ///
+        /// A null profile - or an empty one - is the offer this app sent before this overload
+        /// existed, byte for byte: each field is written only when it has a value. That is the
+        /// point of the shape: the offer is prepared, and the values arrive when a captured
+        /// node gives them, without a rewrite on the day they do.
+        ///
+        /// Where the names come from: the offer captured on 4 November 2026 carries all six,
+        /// and the same tokens sit in the official client's own dex (`caller_pn`,
+        /// `caller_country_code`, `joinable` in classes2, `metadata` and `voip_settings` beside
+        /// them), so the spelling is read and not guessed. The values are what is still missing.
+        /// </summary>
+        public static BinaryNode Offer(
+            string callId,
+            string to,
+            string caller,
+            byte[] deviceIdentity,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallKeyPayload> keys,
+            IList<CallCandidate> candidates,
+            CallWireProfile profile)
+        {
+            Require(callId, to, "offered");
+
+            var children = new List<BinaryNode>();
+            AddAudio(children, audio);
+            AddVideo(children, video);
+            AddNetwork(children);
+            AddCapability(children);
+            AddDestination(children, candidates);
+            AddKeys(children, keys);
+            AddEncryptionOptions(children);
+            if (profile != null) profile.AppendChildren(children);
+            AddDeviceIdentity(children, keys, deviceIdentity);
+
+            BinaryNode verb = Verb("offer", callId, caller, null, children);
+            if (profile != null) profile.ApplyAttrs(verb);
+
+            return Wrap(callId, to, caller, verb);
         }
 
         /// <summary>The same offer with one key instead of a list of them.</summary>

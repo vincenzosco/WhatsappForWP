@@ -37,6 +37,79 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void AnEmptyWireProfileLeavesTheOfferAsItWas()
+        {
+            BinaryNode without = CallSignaling.Offer(CallId, Peer, "me@lid", null,
+                OneAudio(), NoVideo(), new List<CallKeyPayload>(), NoCandidate());
+            BinaryNode empty = CallSignaling.Offer(CallId, Peer, "me@lid", null,
+                OneAudio(), NoVideo(), new List<CallKeyPayload>(), NoCandidate(), new CallWireProfile());
+
+            Assert.AreEqual(CallSignaling.Dump(without), CallSignaling.Dump(empty));
+        }
+
+        [Test]
+        public static void AWireProfileWritesTheCallerFieldsOnTheVerb()
+        {
+            var profile = new CallWireProfile();
+            profile.CallerPn = "393892672185";
+            profile.CallerCountryCode = "IT";
+            profile.Joinable = true;
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, "me@lid", null,
+                OneAudio(), NoVideo(), new List<CallKeyPayload>(), NoCandidate(), profile);
+            BinaryNode verb = offer.Children()[0];
+
+            Assert.AreEqual("offer", verb.Tag);
+            Assert.AreEqual("393892672185", verb.Attrs["caller_pn"]);
+            Assert.AreEqual("IT", verb.Attrs["caller_country_code"]);
+            Assert.AreEqual("true", verb.Attrs["joinable"]);
+        }
+
+        [Test]
+        public static void AWireProfileReadsTheFieldsOfACapturedOffer()
+        {
+            var metadata = new BinaryNode("metadata");
+            metadata.Content = new byte[] { 1, 2, 3 };
+
+            var verb = new BinaryNode("offer");
+            verb.Attrs.Add("call-creator", "231790946025638@lid");
+            verb.Attrs.Add("call-id", CallId);
+            verb.Attrs.Add("caller_pn", "393492556507");
+            verb.Attrs.Add("caller_country_code", "IT");
+            verb.Attrs.Add("joinable", "false");
+            verb.Content = new List<BinaryNode> { metadata };
+
+            var call = new BinaryNode("call");
+            call.Attrs.Add("from", "231790946025638@lid");
+            call.Content = new List<BinaryNode> { verb };
+
+            CallWireProfile profile = CallWireProfile.FromCallNode(call);
+
+            Assert.IsTrue(profile != null, "the fields of a captured offer are read back");
+            Assert.AreEqual("393492556507", profile.CallerPn);
+            Assert.AreEqual("IT", profile.CallerCountryCode);
+            Assert.AreEqual("false", profile.Joinable.Value ? "true" : "false");
+            Assert.IsTrue(profile.Metadata != null, "metadata comes back whole");
+        }
+
+        private static IList<CallAudio> OneAudio()
+        {
+            var audio = new List<CallAudio>();
+            audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.DefaultAudioRate });
+            return audio;
+        }
+
+        private static IList<CallVideoDescription> NoVideo()
+        {
+            return new List<CallVideoDescription>();
+        }
+
+        private static IList<CallCandidate> NoCandidate()
+        {
+            return new List<CallCandidate>();
+        }
+
+        [Test]
         public static void AnOfferNamesItsMediaAsChildren()
         {
             BinaryNode voice = CallSignaling.Offer(CallId, Peer, false);
