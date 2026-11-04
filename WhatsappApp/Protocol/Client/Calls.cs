@@ -197,6 +197,34 @@ namespace WhatsappApp.Protocol.Client
             return CallSignaling.Offer(callId, jid, caller, audio, video, keys, candidates);
         }
 
+        /// <summary>The same offer with this device's signed identity, for an offer that opens a session.</summary>
+        public static BinaryNode Offer(
+            string callId,
+            string jid,
+            string caller,
+            byte[] deviceIdentity,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallKeyPayload> keys,
+            IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Offer(callId, jid, caller, deviceIdentity, audio, video, keys, candidates);
+        }
+
+        /// <summary>The same offer with one key and the identity that proves it.</summary>
+        public static BinaryNode Offer(
+            string callId,
+            string jid,
+            string caller,
+            byte[] deviceIdentity,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            CallKeyPayload key,
+            IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Offer(callId, jid, caller, deviceIdentity, audio, video, key, candidates);
+        }
+
         /// <summary>The answer that names the stream it will receive and how to reach this phone.</summary>
         public static BinaryNode Accept(
             string callId,

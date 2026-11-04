@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Text;
 using WhatsappApp.Protocol.WABinary;
 
 namespace WhatsappApp.Protocol.Client
@@ -247,6 +249,32 @@ namespace WhatsappApp.Protocol.Client
         /// keys yet (`NativeConnection.OfferCallAsync`). An offer that can actually be
         /// answered is built by the overload below.
         /// </summary>
+        /// <summary>
+        /// The client version a call node announces.
+        ///
+        /// Why it is not this app's own number: the two call nodes captured on 4 November 2026
+        /// from other phones both carry it - `version="2.26.42.74" platform="android"` and
+        /// `version="2.26.42.77" platform="iphone"` - and the callee reads it to decide which
+        /// features the caller can do. A version that reads as an ancient build is a call the
+        /// other phone has no reason to ring for; this is the version of the protocol core the
+        /// shapes here were written against, and it is what a callee is told.
+        /// </summary>
+        public const string ClientVersion = "2.26.42.74";
+
+        /// <summary>
+        /// The platform word a call node announces, for the same reason as the version: the
+        /// captured offers carry `android` and `iphone`, and a call node without either is a
+        /// caller the other phone knows nothing about.
+        /// </summary>
+        public const string ClientPlatform = "android";
+
+        /// <summary>The unix time a call node is stamped with, in seconds.</summary>
+        private static string Now()
+        {
+            long seconds = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+            return seconds.ToString(CultureInfo.InvariantCulture);
+        }
+
         public static BinaryNode Offer(string callId, string to, bool video)
         {
             Require(callId, to, "offered");
@@ -321,6 +349,37 @@ namespace WhatsappApp.Protocol.Client
             IList<CallKeyPayload> keys,
             IList<CallCandidate> candidates)
         {
+            return Offer(callId, to, caller, null, audio, video, keys, candidates);
+        }
+
+        /// <summary>
+        /// The same offer with this device's signed identity, which is the last child of an
+        /// offer that opens any session.
+        ///
+        /// Why it is not optional: the `device-identity` child is what proves this device to a
+        /// recipient whose session is being opened, and an `enc` of type `pkmsg` is exactly
+        /// that. The message path has carried it from the start (`OutgoingMessage`,
+        /// `shouldIncludeDeviceIdentity`); the offer did not, and a call whose five keys were
+        /// all `pkmsg` went out with no identity at all - the log of 4 November 2026, two
+        /// offers, not one ack from the server, both ending `reason timeout`. A recipient is
+        /// entitled to ignore a pre-key message without it, which is a phone that does not
+        /// ring.
+        ///
+        /// The order the server reads is `audio, net, capability, destination, enc, encopt,
+        /// device-identity` (wacrg.org, "Call offer", which pins the same order in both
+        /// reconstructions); the identity is what the callee verifies, so it comes after the
+        /// node it proves and not before it.
+        /// </summary>
+        public static BinaryNode Offer(
+            string callId,
+            string to,
+            string caller,
+            byte[] deviceIdentity,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallKeyPayload> keys,
+            IList<CallCandidate> candidates)
+        {
             Require(callId, to, "offered");
 
             var children = new List<BinaryNode>();
@@ -331,8 +390,9 @@ namespace WhatsappApp.Protocol.Client
             AddDestination(children, candidates);
             AddKeys(children, keys);
             AddEncryptionOptions(children);
+            AddDeviceIdentity(children, keys, deviceIdentity);
 
-            return Wrap(callId, to, Verb("offer", callId, caller, null, children));
+            return Wrap(callId, to, caller, Verb("offer", callId, caller, null, children));
         }
 
         /// <summary>The same offer with one key instead of a list of them.</summary>
@@ -345,10 +405,24 @@ namespace WhatsappApp.Protocol.Client
             CallKeyPayload key,
             IList<CallCandidate> candidates)
         {
+            return Offer(callId, to, caller, null, audio, video, key, candidates);
+        }
+
+        /// <summary>The same offer, one key and the identity that proves it.</summary>
+        public static BinaryNode Offer(
+            string callId,
+            string to,
+            string caller,
+            byte[] deviceIdentity,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            CallKeyPayload key,
+            IList<CallCandidate> candidates)
+        {
             var keys = new List<CallKeyPayload>();
             if (key != null) keys.Add(key);
 
-            return Offer(callId, to, caller, audio, video, keys, candidates);
+            return Offer(callId, to, caller, deviceIdentity, audio, video, keys, candidates);
         }
 
         /// <summary>The callee's phone has the offer: `<call><preaccept call-id/></call>`.</summary>
@@ -796,9 +870,47 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The node around one verb: `to` and `id` on it, and the verb inside.</summary>
         private static BinaryNode Wrap(string callId, string to, BinaryNode verb)
         {
+            return Wrap(callId, to, null, verb);
+        }
+
+        /// <summary>
+        /// The same node with the caller on it: `from`, `to`, `id`.
+        ///
+        /// The attribute is the spec's (`wacrg.org`, "Call offer": `from` is the JID of the
+        /// caller, and the copy the callee receives always carries it); the reference client is
+        /// said to leave it to the server on the way out, and this client writes it because the
+        /// server has already shown it will route nothing at all for a call it cannot attribute
+        /// - the log of 4 November 2026 has two offers and no ack, while an ordinary message
+        /// with the same routing got `class="message"` in under a second.
+        ///
+        /// It goes first, before `to` and `id`, because that is the order the spec's examples
+        /// write and the writer here emits attributes in insertion order.
+        /// </summary>
+        private static BinaryNode Wrap(string callId, string to, string from, BinaryNode verb)
+        {
             var node = new BinaryNode(Tag);
+
+            // The five attributes a real offer carries, in the order both captured nodes write
+            // them (`<call from="…" version="2.26.42.74" platform="android" id="…" offline="0"
+            // t="…">`): the caller, what it is, the id, whether the offer is an offline copy,
+            // and when it was made. Only an offer passes `from` here, so only an offer gets the
+            // four that describe its sender.
+            if (!string.IsNullOrEmpty(from))
+            {
+                node.Attrs.Add("from", from);
+                node.Attrs.Add("version", ClientVersion);
+                node.Attrs.Add("platform", ClientPlatform);
+            }
+
             node.Attrs.Add("to", to);
             node.Attrs.Add("id", callId);
+
+            if (!string.IsNullOrEmpty(from))
+            {
+                node.Attrs.Add("offline", "0");
+                node.Attrs.Add("t", Now());
+            }
+
             node.Content = new List<BinaryNode> { verb };
 
             return node;
@@ -948,6 +1060,97 @@ namespace WhatsappApp.Protocol.Client
             var encopt = new BinaryNode("encopt");
             encopt.Attrs.Add("keygen", Number(KeyGeneration));
             children.Add(encopt);
+        }
+
+        /// <summary>
+        /// The identity child of an offer that opens a session, or nothing when every key is
+        /// `msg` or the account has no identity to show.
+        ///
+        /// The rule is the message path's, verbatim (`OutgoingMessage.DeviceIdentityNode` is
+        /// reused rather than re-shaped here): the node is present exactly when one of the
+        /// `enc` children is a pre-key message, because that is the case in which the callee
+        /// has to verify who this device is before it can use the key.
+        /// </summary>
+        private static void AddDeviceIdentity(
+            IList<BinaryNode> children, IList<CallKeyPayload> keys, byte[] deviceIdentity)
+        {
+            if (!AnyPreKey(keys)) return;
+
+            BinaryNode identity = OutgoingMessage.DeviceIdentityNode(deviceIdentity);
+            if (identity != null) children.Add(identity);
+        }
+
+        /// <summary>Whether any of the keys opens a session rather than using one.</summary>
+        private static bool AnyPreKey(IList<CallKeyPayload> keys)
+        {
+            if (keys == null) return false;
+
+            for (int i = 0; i < keys.Count; i++)
+            {
+                if (keys[i] == null) continue;
+
+                if (string.Equals(keys[i].Type, CallKeyExchange.PreKeyType, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// A node by tag and attribute name, with its children's tags: what the log says about
+        /// an offer, because a shape the server will not route is otherwise a wait that ends
+        /// `reason timeout` with nothing to point at. No ciphertext and no address is in the
+        /// text: the keys are the one thing that must never be logged.
+        /// </summary>
+        public static string Describe(BinaryNode node)
+        {
+            if (node == null) return "nothing";
+
+            var text = new StringBuilder();
+            text.Append(node.Tag).Append(AttrNames(node));
+
+            IList<BinaryNode> children = node.Children();
+            if (children == null || children.Count == 0) return text.ToString();
+
+            // The verb and the shape inside it: the order the server reads lives in the verb's
+            // own children, so a description that stopped at the verb would say nothing about
+            // the one thing the log needs to show.
+            BinaryNode verb = children[0];
+            text.Append(' ').Append(verb.Tag).Append(AttrNames(verb));
+
+            IList<BinaryNode> inner = verb.Children();
+            if (inner != null && inner.Count > 0)
+            {
+                text.Append(" with ");
+                for (int i = 0; i < inner.Count; i++)
+                {
+                    if (i > 0) text.Append(", ");
+                    text.Append(inner[i].Tag);
+                }
+            }
+
+            return text.ToString();
+        }
+
+        /// <summary>The names of a node's attributes, in the order they will be written.</summary>
+        private static string AttrNames(BinaryNode node)
+        {
+            var text = new StringBuilder("[");
+
+            if (node != null)
+            {
+                bool first = true;
+                foreach (KeyValuePair<string, string> attribute in node.Attrs)
+                {
+                    if (!first) text.Append(',');
+                    text.Append(attribute.Key);
+                    first = false;
+                }
+            }
+
+            return text.Append(']').ToString();
         }
 
         private static KeyValuePair<string, string> Key(string key, string value)

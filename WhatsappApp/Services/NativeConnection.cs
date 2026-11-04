@@ -123,6 +123,38 @@ namespace WhatsappApp.Services
         private readonly HashSet<string> _awaitingAck = new HashSet<string>();
 
         /// <summary>
+        /// The call offers this run has sent, by the stanza id they went out with.
+        ///
+        /// Why a set of its own: `_awaitingAck` is the messages' - what the log calls "the
+        /// server has message" - and a call offer is not a message. Two offers went out on 4
+        /// November 2026 and the log had no line for either of them: whether the server took
+        /// them was unknowable, which is why the next step was a guess. An ack that names one
+        /// of these ids is the server answering, and it is now said out loud.
+        /// </summary>
+        private readonly HashSet<string> _offeredCalls = new HashSet<string>();
+
+        /// <summary>Remembers a call offer, so its ack is read as the server's answer to it.</summary>
+        private void KeepOfferedCall(string callId)
+        {
+            if (string.IsNullOrEmpty(callId)) return;
+
+            lock (_offeredCalls)
+            {
+                if (_offeredCalls.Count >= MaxAwaitingAck) _offeredCalls.Clear();
+                _offeredCalls.Add(callId);
+            }
+        }
+
+        /// <summary>Whether this ack names a call offer, forgetting it either way.</summary>
+        private bool TookOfferedCall(string id)
+        {
+            lock (_offeredCalls)
+            {
+                return _offeredCalls.Remove(id);
+            }
+        }
+
+        /// <summary>
         /// The last device list the server gave for an address, kept for the send that asks
         /// again while the server is slow.
         ///
@@ -1361,6 +1393,29 @@ namespace WhatsappApp.Services
             bool refused = node.Attrs["type"] == "error"
                 || !string.IsNullOrEmpty(node.Attrs["error"])
                 || !string.IsNullOrEmpty(node.Attrs["code"]);
+
+            if (!ours && TookOfferedCall(id))
+            {
+                // The server answering the offer itself, accepted or refused: the one line the
+                // log of 4 November 2026 was missing for two calls in a row.
+                if (refused)
+                {
+                    string offerCode = node.Attrs["error"];
+                    if (string.IsNullOrEmpty(offerCode)) offerCode = node.Attrs["code"];
+                    if (string.IsNullOrEmpty(offerCode)) offerCode = "no code";
+
+                    Diag.Failed("native: the server refused the call offer " + id,
+                        new ProtocolException("the server would not take the offer (" + offerCode + ")"));
+                }
+                else
+                {
+                    string offerClass = node.Attrs["class"];
+                    Diag.Ok("native: the server has the call offer " + id
+                        + (string.IsNullOrEmpty(offerClass) ? "" : " (" + offerClass + ")"));
+                }
+
+                return;
+            }
 
             if (!ours)
             {
@@ -3483,21 +3538,31 @@ namespace WhatsappApp.Services
                 Diag.Failed("native: the call key for " + jid, ex);
             }
 
+            BinaryNode offer;
+
             if (keys == null)
             {
-                await session.SendAsync(Calls.Offer(callId, jid, session.Jid, audio, videos,
-                    new List<CallKeyPayload>(), candidates));
+                offer = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, videos,
+                    new List<CallKeyPayload>(), candidates);
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + jid + " with no key and " + candidates.Count + " candidate(s)");
             }
             else
             {
-                await session.SendAsync(Calls.Offer(callId, jid, session.Jid, audio, videos,
-                    keys.Payloads, candidates));
+                offer = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, videos,
+                    keys.Payloads, candidates);
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + jid + " with " + keys.Payloads.Count + " key(s) and "
                     + candidates.Count + " candidate(s)");
             }
+
+            // The shape, by tag and attribute name only. An offer the server will not route and
+            // one it routed look identical in a log that only says "offered": this is the line
+            // that tells the two apart, and it carries no key and no ciphertext.
+            KeepOfferedCall(callId);
+            Diag.Ok("native: the offer " + callId + " is " + CallSignaling.Describe(offer));
+
+            await session.SendAsync(offer);
 
             return callId;
         }
@@ -3658,10 +3723,14 @@ namespace WhatsappApp.Services
             string callId = NewCallId();
             NativeSession session = OpenSession();
 
-            await session.SendAsync(Calls.Offer(callId, jid, session.Jid, audio, video, key, candidates));
+            BinaryNode offer = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, video, key, candidates);
+            KeepOfferedCall(callId);
             Diag.Ok("native: offered the call " + callId + " to " + jid
                 + (key == null ? " with no key" : " with its key")
                 + (candidates == null ? "" : " and " + candidates.Count + " candidate(s)"));
+            Diag.Ok("native: the offer " + callId + " is " + CallSignaling.Describe(offer));
+
+            await session.SendAsync(offer);
 
             return callId;
         }

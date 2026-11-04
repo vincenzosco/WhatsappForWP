@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
@@ -324,6 +325,109 @@ namespace ProtocolTests
             Assert.AreEqual("enc", children[5].Tag, "the key comes after the way back");
             Assert.AreEqual("encopt", children[6].Tag, "and the key schedule is last");
             Assert.AreEqual("2", children[6].Attrs["keygen"], "the v2 schedule");
+        }
+
+        /// <summary>
+        /// An offer that opens a session says who it is, and says it after the keys.
+        ///
+        /// The rule is the message path's, and the offer was the one place it was missing: a
+        /// recipient that has to verify a pre-key session is entitled to ignore the key when
+        /// nothing proves the device that sent it - two offers on 4 November 2026, five
+        /// pre-key keys each, and not one ack from the server.
+        /// </summary>
+        [Test]
+        public static void AnOfferThatOpensASessionCarriesTheDeviceIdentityLast()
+        {
+            var keys = new List<CallKeyPayload>
+            {
+                new CallKeyPayload { Type = "pkmsg", Version = 2, Ciphertext = new byte[] { 1 } }
+            };
+            var identity = new byte[] { 7, 7, 9 };
+            var audio = new List<CallAudio>
+            {
+                new CallAudio { Codec = "opus", Rate = 8000 },
+                new CallAudio { Codec = "opus", Rate = 16000 }
+            };
+            var candidates = new List<CallCandidate>
+            {
+                new CallCandidate { Priority = 0, Data = new byte[] { 9 } }
+            };
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, "39389@s.whatsapp.net", identity,
+                audio, null, keys, candidates).Children()[0];
+
+            IList<BinaryNode> children = offer.Children();
+            BinaryNode last = children[children.Count - 1];
+
+            Assert.AreEqual(8, children.Count, "the seven of the offer and the identity");
+            Assert.AreEqual("device-identity", last.Tag, "the identity a pre-key offer needs comes last");
+            Assert.AreEqual(3, last.Bytes().Length, "and it is this account's signed identity");
+            Assert.AreEqual((byte)7, last.Bytes()[0], "the first byte of it");
+            Assert.AreEqual("encopt", children[6].Tag, "the key schedule stays before it");
+        }
+
+        /// <summary>
+        /// An offer whose every key rides an established session carries no identity: there is
+        /// nothing to verify, and a node the reference does not write is a node the server has
+        /// no reason to have to read.
+        /// </summary>
+        [Test]
+        public static void AnOfferWithSessionKeysOnlyCarriesNoIdentity()
+        {
+            var keys = new List<CallKeyPayload>
+            {
+                new CallKeyPayload { Type = "msg", Version = 2, Ciphertext = new byte[] { 1 } }
+            };
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, "39389@s.whatsapp.net",
+                new byte[] { 7, 7, 9 }, new List<CallAudio>(), null, keys,
+                new List<CallCandidate>()).Children()[0];
+
+            IList<BinaryNode> children = offer.Children();
+            Assert.AreEqual("encopt", children[children.Count - 1].Tag, "no identity to prove");
+        }
+
+        /// <summary>
+        /// The call node names the caller, the callee and the stanza id: the three attributes
+        /// the spec's own examples write and the ones the server routes by.
+        /// </summary>
+        [Test]
+        public static void TheCallNodeNamesTheCallerAndTheCallee()
+        {
+            BinaryNode call = CallSignaling.Offer(CallId, Peer, "39389@s.whatsapp.net:4",
+                new List<CallAudio>(), null, new List<CallKeyPayload>(), null);
+
+            Assert.AreEqual("39389@s.whatsapp.net:4", call.Attrs["from"], "the caller is on the node");
+            Assert.AreEqual(Peer, call.Attrs["to"], "and the callee");
+            Assert.AreEqual(CallId, call.Attrs["id"], "and the id the ack will name");
+            Assert.AreEqual(CallSignaling.ClientVersion, call.Attrs["version"],
+                "the version the callee reads, as both captured offers carry it");
+            Assert.AreEqual(CallSignaling.ClientPlatform, call.Attrs["platform"], "and the platform");
+            Assert.AreEqual("0", call.Attrs["offline"], "an offer that is not an offline copy");
+            Assert.IsTrue(!string.IsNullOrEmpty(call.Attrs["t"]), "and the moment it was made");
+        }
+
+        /// <summary>
+        /// The line the log prints about an offer: tags and attribute names, never a key.
+        /// </summary>
+        [Test]
+        public static void TheShapeOfAnOfferIsDescribedWithoutItsKeys()
+        {
+            var keys = new List<CallKeyPayload>
+            {
+                new CallKeyPayload { Type = "pkmsg", Version = 2, Ciphertext = new byte[] { 4, 2 } }
+            };
+
+            BinaryNode call = CallSignaling.Offer(CallId, Peer, "39389@s.whatsapp.net",
+                new byte[] { 7 }, new List<CallAudio>(), null, keys, new List<CallCandidate>());
+
+            string shape = CallSignaling.Describe(call);
+
+            Assert.IsTrue(shape.StartsWith("call[from,version,platform,to,id,offline,t]", StringComparison.Ordinal),
+                "the node and its attributes, in the order a real offer writes them");
+            Assert.IsTrue(shape.Contains("offer[call-id,call-creator] with "), "the verb and its attributes");
+            Assert.IsTrue(shape.Contains("device-identity"), "and the identity is in the shape");
+            Assert.IsTrue(!shape.Contains("4,2"), "and the ciphertext is not");
         }
 
         /// <summary>Everything an offer carried comes back out of `Read`, not just its verb.</summary>
