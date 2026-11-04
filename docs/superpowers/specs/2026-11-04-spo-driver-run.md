@@ -189,6 +189,33 @@ strada che resta dentro la libreria è l'altra famiglia, `WhatsAppObiInputStream
 `WhatsAppOpenboxArchive` (`openNative(IJJ)J`), che legge lo stesso contenuto come
 archivio Obi invece che come superpack.
 
+### La via Obi, provata
+
+Provata anche quella, sulla stessa `.spo` e sul `payload.bin`, con l'harness
+esteso (`--scenario obi`): il blob viene letto in memoria e il suo indirizzo
+passato al nativo.
+
+| chiamata | esito |
+|---|---|
+| `openNative(0/1/2, ptr, 195086)` | `null`, e `ThrowNew: Could not read openbox archive` |
+| `openNative(0/1/2, ptr, 83454)` su `payload.bin` | idem |
+| `openObArchiveBytesNative(ptr, size, mode)` | `SIGSEGV` a `0x2fa0e` = 195086, cioè la lunghezza |
+| `openObArchiveBytesNative(size, ptr, mode)` | `SIGSEGV` a `0x2fa2e` = 195086 + 32 |
+| `openRawBytesNative(ptr, 195086)` | handle valido, ma `readNative` rende `0` byte |
+
+Il primo `SIGSEGV` sembrava un ordine di argomenti sbagliato; la disassembly dice
+che non lo è. `openNative` (`base+0xc005`) fa `mov %edx,%edi`, `mov %rcx,%rsi`,
+`mov %r8,%rdx` e chiama `base+0x25f70`: i tre argomenti passano così come sono,
+quindi il `null` è un rifiuto, non un errore di chiamata. `openObArchiveBytesNative`
+(`base+0xbe62`) passa i due long in `rdi`/`rsi` a `base+0x27860` e il crash cambia
+indirizzo al cambiare dell'ordine: quella funzione interpreta i due valori in un
+modo che richiede la sua implementazione, non un tentativo.
+
+Conclusione: la `.spo` non è né un superpack accettato da `decompress` (errore
+`1/7/0`) né un archivio openbox (`Could not read openbox archive`). Il lettore Obi
+si aspetta il **membro** `strings_it.pack`, non il contenitore che lo racchiude, e
+quel membro è esattamente ciò che il driver non riesce a tirare fuori.
+
 ## Cosa servirebbe per portarlo a termine
 
 Non è una questione di tempo, è una scelta di strada:
