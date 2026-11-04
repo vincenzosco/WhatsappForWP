@@ -3481,7 +3481,18 @@ namespace WhatsappApp.Services
             Windows.Networking.Sockets.DatagramSocket socket = new Windows.Networking.Sockets.DatagramSocket();
             await socket.BindServiceNameAsync("0");
 
-            _callMediaPort = int.Parse(socket.Information.LocalPort);
+            int port;
+            if (!int.TryParse(socket.Information.LocalPort, out port) || port <= 0)
+            {
+                // A socket the platform cannot name a port for is one nobody can reach: it is
+                // closed here instead of being left bound and forgotten, which is what a parse
+                // that threw used to do - one orphaned socket per attempt, and a `_callMediaPort`
+                // still zero so the next call bound another.
+                socket.Close();
+                throw new ProtocolException("the call media socket answered no port");
+            }
+
+            _callMediaPort = port;
             _callMediaSocket = socket;
             return _callMediaPort;
         }
