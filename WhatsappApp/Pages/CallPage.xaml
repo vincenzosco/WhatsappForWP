@@ -61,19 +61,24 @@
     <!-- The call in full screen: picture on top, text below, buttons under it. -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="575"/>
+            <!-- The picture takes whatever is left once the controls have theirs. A fixed
+                 575 px row asked for more than this screen had after the buttons grew, and
+                 the row of circles was cut at the bottom edge - the glyphs first, because
+                 they sit in the upper half of each tile. The controls are `Auto`, so they
+                 are never the ones that lose. -->
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <!-- The picture, or the initials until the picture is decoded. -->
         <Grid Grid.Row="0">
             <Rectangle Fill="#FF1F1F1F"/>
 
-            <!-- The picture sits a little above the middle: the name is written over the
-                 bottom of it, and a circle centred in the row would put the name on its
-                 chin. -->
-            <Grid Width="260" Height="260" Margin="0,0,0,24"
-                  HorizontalAlignment="Center" VerticalAlignment="Center">
+            <!-- The picture sits near the top and not in the middle of the row: the name is
+                 written under it, and on a short screen a centred circle would be the thing
+                 that gets clipped when the controls claim their height. -->
+            <Grid Width="260" Height="260" Margin="0,20,0,0"
+                  HorizontalAlignment="Center" VerticalAlignment="Top">
                 <Ellipse x:Name="AvatarCircle" Width="260" Height="260" Fill="#FF2A2A2A"/>
                 <TextBlock x:Name="InitialsText"
                            Foreground="White" FontSize="80" FontWeight="SemiBold"
@@ -101,7 +106,7 @@
         </Grid>
 
         <!-- State and duration on one line, the name under them, the kind below. -->
-        <StackPanel Grid.Row="0" Margin="24,0,0,30"
+        <StackPanel Grid.Row="0" Margin="24,0,0,24"
                     HorizontalAlignment="Left" VerticalAlignment="Bottom">
 
             <StackPanel Orientation="Horizontal">
@@ -128,7 +133,7 @@
         </StackPanel>
 
         <!-- The controls: one row each, the code shows the row the state calls for. -->
-        <Grid Grid.Row="1" Margin="0,6,0,0">
+        <Grid Grid.Row="1" Margin="0,10,0,26">
 
             <!--
                 A call that came in: answer on the left, refuse on the right, and nothing
@@ -138,7 +143,7 @@
             <Grid x:Name="CallIncomingButtons">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="136"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -217,7 +222,7 @@
             <Grid x:Name="CallInProgressButtons">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="136"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
