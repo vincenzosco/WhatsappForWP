@@ -45,8 +45,8 @@ namespace WhatsappApp.Pages
         /// </summary>
         private bool _left;
 
-        /// <summary>The side of the picture, in the 220 px circle.</summary>
-        private const int PicturePixels = 220;
+        /// <summary>The side of the picture, in the 260 px circle.</summary>
+        private const int PicturePixels = 260;
 
         /// <summary>Whose picture is on screen, so it is decoded once per call.</summary>
         private string _avatarJid;

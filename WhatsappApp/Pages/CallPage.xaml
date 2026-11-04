@@ -24,9 +24,9 @@
             <Setter Property="Margin" Value="0"/>
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="Width" Value="104"/>
-            <Setter Property="Height" Value="104"/>
-            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Width" Value="116"/>
+            <Setter Property="Height" Value="116"/>
+            <Setter Property="FontSize" Value="16"/>
             <Setter Property="FontFamily" Value="Segoe WP Semilight"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -52,8 +52,8 @@
             <Setter Property="StrokeThickness" Value="1.6"/>
             <Setter Property="StrokeLineJoin" Value="Round"/>
             <Setter Property="Stretch" Value="Uniform"/>
-            <Setter Property="Width" Value="40"/>
-            <Setter Property="Height" Value="40"/>
+            <Setter Property="Width" Value="46"/>
+            <Setter Property="Height" Value="46"/>
             <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
     </Page.Resources>
@@ -61,7 +61,7 @@
     <!-- The call in full screen: picture on top, text below, buttons under it. -->
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="555"/>
+            <RowDefinition Height="575"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -69,11 +69,14 @@
         <Grid Grid.Row="0">
             <Rectangle Fill="#FF1F1F1F"/>
 
-            <Grid Width="220" Height="220"
+            <!-- The picture sits a little above the middle: the name is written over the
+                 bottom of it, and a circle centred in the row would put the name on its
+                 chin. -->
+            <Grid Width="260" Height="260" Margin="0,0,0,24"
                   HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Ellipse x:Name="AvatarCircle" Width="220" Height="220" Fill="#FF2A2A2A"/>
+                <Ellipse x:Name="AvatarCircle" Width="260" Height="260" Fill="#FF2A2A2A"/>
                 <TextBlock x:Name="InitialsText"
-                           Foreground="White" FontSize="64" FontWeight="SemiBold"
+                           Foreground="White" FontSize="80" FontWeight="SemiBold"
                            VerticalAlignment="Center" HorizontalAlignment="Center"/>
             </Grid>
 
@@ -103,24 +106,24 @@
 
             <StackPanel Orientation="Horizontal">
                 <TextBlock x:Name="StateText"
-                           Foreground="White" FontSize="28" FontWeight="SemiBold"/>
+                           Foreground="White" FontSize="32" FontWeight="SemiBold"/>
                 <TextBlock x:Name="DurationText"
-                           Foreground="White" FontSize="28" FontWeight="SemiBold"
+                           Foreground="White" FontSize="32" FontWeight="SemiBold"
                            Margin="12,0,0,0" Visibility="Collapsed"/>
             </StackPanel>
 
             <TextBlock x:Name="NameText"
-                       Foreground="White" FontSize="88" FontWeight="SemiBold"
+                       Foreground="White" FontSize="96" FontWeight="SemiBold"
                        TextWrapping="Wrap" MaxHeight="240"
                        Margin="0,-8,0,-6"/>
 
             <TextBlock x:Name="KindText"
-                       Foreground="White" FontSize="28"/>
+                       Foreground="White" FontSize="32"/>
 
             <!-- A silent call says so, instead of looking like a bug. -->
             <TextBlock x:Name="NoteText"
-                       Foreground="#80FFFFFF" FontSize="13" TextWrapping="Wrap"
-                       MaxWidth="300" Margin="0,10,0,0"
+                       Foreground="#80FFFFFF" FontSize="15" TextWrapping="Wrap"
+                       MaxWidth="330" Margin="0,10,0,0"
                        Visibility="Collapsed"/>
         </StackPanel>
 
@@ -135,7 +138,7 @@
             <Grid x:Name="CallIncomingButtons">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="124"/>
+                    <RowDefinition Height="136"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -167,7 +170,7 @@
                                 </PathGeometry>
                             </Path.Data>
                         </Path>
-                        <TextBlock x:Name="AcceptLabel" FontSize="14" Margin="0,4,0,0"
+                        <TextBlock x:Name="AcceptLabel" FontSize="16" Margin="0,5,0,0"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Button>
@@ -201,7 +204,7 @@
                                 <RotateTransform Angle="135"/>
                             </Path.RenderTransform>
                         </Path>
-                        <TextBlock x:Name="DeclineLabel" FontSize="14" Margin="0,4,0,0"
+                        <TextBlock x:Name="DeclineLabel" FontSize="16" Margin="0,5,0,0"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Button>
@@ -214,7 +217,7 @@
             <Grid x:Name="CallInProgressButtons">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
-                    <RowDefinition Height="124"/>
+                    <RowDefinition Height="136"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -261,7 +264,7 @@
                                 </PathGeometry>
                             </Path.Data>
                         </Path>
-                        <TextBlock x:Name="MuteLabel" FontSize="14" Margin="0,4,0,0"
+                        <TextBlock x:Name="MuteLabel" FontSize="16" Margin="0,5,0,0"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Button>
@@ -299,7 +302,7 @@
                                 </PathGeometry>
                             </Path.Data>
                         </Path>
-                        <TextBlock x:Name="SpeakerLabel" FontSize="14" Margin="0,4,0,0"
+                        <TextBlock x:Name="SpeakerLabel" FontSize="16" Margin="0,5,0,0"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Button>
@@ -333,7 +336,7 @@
                                 <RotateTransform Angle="135"/>
                             </Path.RenderTransform>
                         </Path>
-                        <TextBlock x:Name="EndLabel" FontSize="14" Margin="0,4,0,0"
+                        <TextBlock x:Name="EndLabel" FontSize="16" Margin="0,5,0,0"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Button>
