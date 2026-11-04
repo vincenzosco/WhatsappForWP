@@ -142,6 +142,27 @@ DEX non mostra (lì i byte sono `[B`, qui sono path, `InputStream` e
 
 (`S` sta per `Ljava/lang/String;`, abbreviato per stare nella tabella.)
 
+### I quattro tipi offuscati
+
+Il DEX li definisce tutti e tre in `classes.dex`, quindi non sono nomi inventati:
+
+| tipo | DEX | cosa è |
+|---|---|---|
+| `X/022` | `access 0x601`, super `LX/020;` | interfaccia, un solo `<clinit>` |
+| `X/01J` | `access 0x1` | classe pubblica, `A00(Object)List` è un bridge |
+| `X/00I` | `access 0x401` | classe pubblica finale, `A00()Z` statico |
+| `X/01S` | `access 0x1` | classe pubblica, `A00()LX/01R;`, `A01(LX/01V;)V`, `A02(LX/01o;)V` |
+
+`javac` non può scrivere quei nomi, quindi i class file sono costruiti a mano
+(`mkclass.py`): `this_class` giusto, nessun campo, metodi dichiarati senza codice
+(la classe è astratta, o interfaccia dove il DEX lo dice), più stub vuoti per
+`X/01R`, `X/01V` e `X/01o`, altrimenti `getDeclaredMethods` lancia
+`NoClassDefFoundError`. Si caricano tutti e quattro con `Class.forName`.
+
+Per la registrazione servono a poco — `RegisterNatives` accetta qualsiasi
+`jclass`, e i 19 metodi erano già registrati con il `FindClass` finto — ma sono
+ciò che serve a una dichiarazione Java che usi quei parametri.
+
 ### Cosa cambia rispetto alla prima lettura
 
 1. `decompress_from_so` non prende l'archivio: prende un **`.so` che contiene il
@@ -196,7 +217,9 @@ Resta in `.tools/apk/wsl/` (cartella ignorata da git):
 - `logstub.c`: il `liblog` da preload che stampa i messaggi della libreria;
 - `assethook.c`: l'`AssetManager` su file, guidato da `ASSET_DIR`;
 - `setup.sh` (runtime, NDK, build, prime chiamate) e `decompress.sh` (la via
-  `decompress` con l'asset finto).
+  `decompress` con l'asset finto);
+- `dexinfo.py`, `mkclass.py`, `classes.sh` e `classes/`: i quattro tipi offuscati
+  letti dai `class_def` del DEX e scritti come class file.
 
 Il passo successivo concreto non è più "serve un runtime bionic": è leggere
 `WhatsAppOpenboxArchive.openNative` e vedere se l'archivio Obi è la porta giusta
