@@ -221,6 +221,25 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The Opus stream this client offers: the rate its own encoder produces.</summary>
         public const int DefaultAudioRate = 16000;
 
+        /// <summary>The narrow-band Opus stream, which an offer names before the wide one.</summary>
+        public const int NarrowAudioRate = 8000;
+
+        /// <summary>The `medium` an offer names: 3 in both reconstructions.</summary>
+        private const int NetworkMedium = 3;
+
+        /// <summary>`encopt keygen="2"`: the second SRTP key schedule, which is the one a phone uses.</summary>
+        private const int KeyGeneration = 2;
+
+        /// <summary>
+        /// The capability blob every offer carries: seven bytes with `ver="1"`, the one value
+        /// the reconstructions agree on byte for byte. A real phone's blob says what its build
+        /// supports; the peer reads it as capabilities and not as anything that authenticates.
+        /// </summary>
+        private static readonly byte[] CapabilityBlob = new byte[]
+        {
+            0x01, 0x05, 0xF7, 0x09, 0xE4, 0xBB, 0x13
+        };
+
         /// <summary>
         /// A call this phone places: `<call to id><offer><audio/><video/></offer></call>`.
         ///
@@ -277,15 +296,59 @@ namespace WhatsappApp.Protocol.Client
             IList<CallKeyPayload> keys,
             IList<CallCandidate> candidates)
         {
+            return Offer(callId, to, null, audio, video, keys, candidates);
+        }
+
+        /// <summary>
+        /// The offer with the caller named, and the children in the order the server reads them.
+        ///
+        /// Why this overload exists: the server routes a `call` node only when the offer has the
+        /// shape the official client sends, and a mis-ordered one is refused outright (`error
+        /// 439` in the reconstructions). The offer this app sent until 4 November 2026 had no
+        /// `call-creator`, one audio stream, no `net`, no `capability`, no `encopt`, and its
+        /// `te` were children of the offer instead of children of a `destination` - and the
+        /// other phone never rang for a call the log said was offered.
+        ///
+        /// The order, from the two independent reconstructions: audio (narrow first), `net`,
+        /// `capability`, `destination` with its `te`, one `enc` per recipient device, `encopt`.
+        /// </summary>
+        public static BinaryNode Offer(
+            string callId,
+            string to,
+            string caller,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallKeyPayload> keys,
+            IList<CallCandidate> candidates)
+        {
             Require(callId, to, "offered");
 
             var children = new List<BinaryNode>();
             AddAudio(children, audio);
             AddVideo(children, video);
+            AddNetwork(children);
+            AddCapability(children);
+            AddDestination(children, candidates);
             AddKeys(children, keys);
-            AddCandidates(children, candidates);
+            AddEncryptionOptions(children);
 
-            return Wrap(callId, to, Verb("offer", callId, null, children));
+            return Wrap(callId, to, Verb("offer", callId, caller, null, children));
+        }
+
+        /// <summary>The same offer with one key instead of a list of them.</summary>
+        public static BinaryNode Offer(
+            string callId,
+            string to,
+            string caller,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            CallKeyPayload key,
+            IList<CallCandidate> candidates)
+        {
+            var keys = new List<CallKeyPayload>();
+            if (key != null) keys.Add(key);
+
+            return Offer(callId, to, caller, audio, video, keys, candidates);
         }
 
         /// <summary>The callee's phone has the offer: `<call><preaccept call-id/></call>`.</summary>
@@ -337,7 +400,7 @@ namespace WhatsappApp.Protocol.Client
             var children = new List<BinaryNode>();
             if (audio != null && audio.Count > 0) AddAudio(children, new List<CallAudio> { audio[0] });
             AddVideo(children, video);
-            AddCandidates(children, candidates);
+            AddDestination(children, candidates);
 
             return Wrap(callId, to, Verb("accept", callId, null, children));
         }
@@ -412,7 +475,7 @@ namespace WhatsappApp.Protocol.Client
             Require(callId, to, "sent its transport for");
 
             var children = new List<BinaryNode>();
-            AddCandidates(children, candidates);
+            AddDestination(children, candidates);
 
             return Wrap(callId, to, Verb("transport", callId, null, children));
         }
@@ -550,6 +613,14 @@ namespace WhatsappApp.Protocol.Client
             {
                 BinaryNode child = children[i];
                 if (child == null) continue;
+
+                // The candidates an offer carries travel inside `destination`, so the loop
+                // descends into it: its children are the `te` nodes the branch below reads.
+                if (child.Tag == "destination")
+                {
+                    ReadMedia(child, signal);
+                    continue;
+                }
 
                 if (child.Tag == "audio")
                 {
@@ -743,8 +814,24 @@ namespace WhatsappApp.Protocol.Client
         private static BinaryNode Verb(
             string tag, string callId, IList<KeyValuePair<string, string>> attrs, IList<BinaryNode> children)
         {
+            return Verb(tag, callId, null, attrs, children);
+        }
+
+        /// <summary>
+        /// The same verb with the caller named. `call-creator` goes straight after `call-id`,
+        /// which is where the official client has it and what the server reads to attribute the
+        /// call's later stanzas - a verb without it is an offer nobody can place.
+        /// </summary>
+        private static BinaryNode Verb(
+            string tag,
+            string callId,
+            string caller,
+            IList<KeyValuePair<string, string>> attrs,
+            IList<BinaryNode> children)
+        {
             var verb = new BinaryNode(tag);
             verb.Attrs.Add("call-id", callId);
+            if (!string.IsNullOrEmpty(caller)) verb.Attrs.Add("call-creator", caller);
 
             if (attrs != null)
             {
@@ -815,18 +902,52 @@ namespace WhatsappApp.Protocol.Client
             }
         }
 
-        /// <summary>The transport candidates.</summary>
-        private static void AddCandidates(IList<BinaryNode> children, IList<CallCandidate> candidates)
+        /// <summary>
+        /// The transport candidates, inside the `destination` node that holds them: a `te` at
+        /// the top of an offer is not a candidate the peer's media engine looks for.
+        /// </summary>
+        private static void AddDestination(IList<BinaryNode> children, IList<CallCandidate> candidates)
         {
-            if (candidates == null) return;
+            if (candidates == null || candidates.Count == 0) return;
+
+            var endpoints = new List<BinaryNode>();
 
             for (int i = 0; i < candidates.Count; i++)
             {
                 var node = new BinaryNode("te");
                 node.Attrs.Add("priority", Number(candidates[i].Priority));
                 node.Content = candidates[i].Data;
-                children.Add(node);
+                endpoints.Add(node);
             }
+
+            var destination = new BinaryNode("destination");
+            destination.Content = endpoints;
+            children.Add(destination);
+        }
+
+        /// <summary>The network the offer comes from.</summary>
+        private static void AddNetwork(IList<BinaryNode> children)
+        {
+            var net = new BinaryNode("net");
+            net.Attrs.Add("medium", Number(NetworkMedium));
+            children.Add(net);
+        }
+
+        /// <summary>The capabilities this build has, as the fixed seven-byte blob.</summary>
+        private static void AddCapability(IList<BinaryNode> children)
+        {
+            var capability = new BinaryNode("capability");
+            capability.Attrs.Add("ver", Number(1));
+            capability.Content = CapabilityBlob;
+            children.Add(capability);
+        }
+
+        /// <summary>Which key schedule the media key uses.</summary>
+        private static void AddEncryptionOptions(IList<BinaryNode> children)
+        {
+            var encopt = new BinaryNode("encopt");
+            encopt.Attrs.Add("keygen", Number(KeyGeneration));
+            children.Add(encopt);
         }
 
         private static KeyValuePair<string, string> Key(string key, string value)

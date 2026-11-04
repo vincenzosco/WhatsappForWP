@@ -175,24 +175,26 @@ namespace WhatsappApp.Protocol.Client
         public static BinaryNode Offer(
             string callId,
             string jid,
+            string caller,
             IList<CallAudio> audio,
             IList<CallVideoDescription> video,
             CallKeyPayload key,
             IList<CallCandidate> candidates)
         {
-            return CallSignaling.Offer(callId, jid, audio, video, key, candidates);
+            return CallSignaling.Offer(callId, jid, caller, audio, video, key, candidates);
         }
 
         /// <summary>The same offer with one `<enc>` per recipient device.</summary>
         public static BinaryNode Offer(
             string callId,
             string jid,
+            string caller,
             IList<CallAudio> audio,
             IList<CallVideoDescription> video,
             IList<CallKeyPayload> keys,
             IList<CallCandidate> candidates)
         {
-            return CallSignaling.Offer(callId, jid, audio, video, keys, candidates);
+            return CallSignaling.Offer(callId, jid, caller, audio, video, keys, candidates);
         }
 
         /// <summary>The answer that names the stream it will receive and how to reach this phone.</summary>

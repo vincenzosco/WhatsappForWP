@@ -184,7 +184,7 @@ namespace ProtocolTests
             };
 
             WhatsappApp.Protocol.WABinary.BinaryNode node =
-                Calls.Offer(CallId, Peer, audio, null, keys, null);
+                Calls.Offer(CallId, Peer, Peer, audio, null, keys, null);
             WhatsappApp.Protocol.WABinary.BinaryNode offer = node.Children()[0];
 
             int encs = 0;

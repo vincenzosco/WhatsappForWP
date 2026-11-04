@@ -1358,11 +1358,30 @@ namespace WhatsappApp.Services
                 ours = _awaitingAck.Remove(id);
             }
 
-            if (!ours) return;
-
             bool refused = node.Attrs["type"] == "error"
                 || !string.IsNullOrEmpty(node.Attrs["error"])
                 || !string.IsNullOrEmpty(node.Attrs["code"]);
+
+            if (!ours)
+            {
+                // A call offer is not in `_awaitingAck` - that set is messages - so a refused
+                // offer used to be dropped here as somebody else's ack, and the call then
+                // ended on a timeout with nothing in the log to say why. The class names what
+                // was refused (`call`), and the code is the reason the server gave.
+                string refusedClass = node.Attrs["class"];
+                if (refused && refusedClass != "message")
+                {
+                    string refusedCode = node.Attrs["error"];
+                    if (string.IsNullOrEmpty(refusedCode)) refusedCode = node.Attrs["code"];
+                    if (string.IsNullOrEmpty(refusedCode)) refusedCode = "no code";
+
+                    Diag.Failed("native: the server refused " + id
+                        + (string.IsNullOrEmpty(refusedClass) ? "" : " (" + refusedClass + ")"),
+                        new ProtocolException("the server would not take it (" + refusedCode + ")"));
+                }
+
+                return;
+            }
 
             if (refused)
             {
@@ -3405,7 +3424,11 @@ namespace WhatsappApp.Services
             // 32-byte call key sealed into one `<enc>` per device of the peer. The key is the
             // difference between a phone that rings and a phone that rings and can decrypt
             // the media - without it the offer names streams nobody can open.
+            //
+            // Two streams, narrow then wide, in the order the server reads an offer: the
+            // official client advertises both and lets the callee pick one from the list.
             var audio = new List<CallAudio>();
+            audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.NarrowAudioRate });
             audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.DefaultAudioRate });
 
             var videos = new List<CallVideoDescription>();
@@ -3462,14 +3485,15 @@ namespace WhatsappApp.Services
 
             if (keys == null)
             {
-                await session.SendAsync(CallSignaling.Offer(callId, jid, audio, videos,
+                await session.SendAsync(Calls.Offer(callId, jid, session.Jid, audio, videos,
                     new List<CallKeyPayload>(), candidates));
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + jid + " with no key and " + candidates.Count + " candidate(s)");
             }
             else
             {
-                await session.SendAsync(Calls.Offer(callId, jid, audio, videos, keys.Payloads, candidates));
+                await session.SendAsync(Calls.Offer(callId, jid, session.Jid, audio, videos,
+                    keys.Payloads, candidates));
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + jid + " with " + keys.Payloads.Count + " key(s) and "
                     + candidates.Count + " candidate(s)");
@@ -3576,7 +3600,9 @@ namespace WhatsappApp.Services
         {
             NativeSession session = OpenSession();
 
+            // The same two streams the offer names, in the same order.
             var audio = new List<CallAudio>();
+            audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.NarrowAudioRate });
             audio.Add(new CallAudio { Codec = "opus", Rate = CallSignaling.DefaultAudioRate });
 
             IList<CallCandidate> candidates = await CallCandidatesAsync();
@@ -3632,7 +3658,7 @@ namespace WhatsappApp.Services
             string callId = NewCallId();
             NativeSession session = OpenSession();
 
-            await session.SendAsync(Calls.Offer(callId, jid, audio, video, key, candidates));
+            await session.SendAsync(Calls.Offer(callId, jid, session.Jid, audio, video, key, candidates));
             Diag.Ok("native: offered the call " + callId + " to " + jid
                 + (key == null ? " with no key" : " with its key")
                 + (candidates == null ? "" : " and " + candidates.Count + " candidate(s)"));

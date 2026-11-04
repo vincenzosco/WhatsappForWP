@@ -272,9 +272,58 @@ namespace ProtocolTests
             Assert.AreEqual("2", enc.Attrs["v"], "the call-key version the server expects");
             Assert.IsTrue(enc.Bytes() != null && enc.Bytes().Length == 3, "the ciphertext is the content");
 
-            BinaryNode te = offer.Child("te");
+            BinaryNode te = offer.Child("destination").Child("te");
             Assert.AreEqual("0", te.Attrs["priority"], "a candidate has its priority");
             Assert.IsTrue(te.Bytes() != null && te.Bytes().Length == 2, "and its bytes");
+        }
+
+        /// <summary>
+        /// The offer the server routes: `call-creator` on the verb, and the children in the
+        /// order the reconstructions pin - narrow audio, wide audio, net, capability,
+        /// destination with its candidates, the keys, then `encopt`. A mis-ordered offer is
+        /// refused outright (error 439), and a missing `call-creator` is not a call the server
+        /// can attribute: both were true of the offer that made no phone ring.
+        /// </summary>
+        [Test]
+        public static void AnOfferNamesItsCreatorAndTheChildrenInTheOrderTheServerReads()
+        {
+            const string Caller = "39389@s.whatsapp.net";
+
+            var audio = new List<CallAudio>
+            {
+                new CallAudio { Codec = "opus", Rate = 8000 },
+                new CallAudio { Codec = "opus", Rate = 16000 }
+            };
+            var keys = new List<CallKeyPayload>
+            {
+                new CallKeyPayload { Type = "msg", Version = 2, Ciphertext = new byte[] { 1 } }
+            };
+            var candidates = new List<CallCandidate>
+            {
+                new CallCandidate { Priority = 0, Data = new byte[] { 9 } }
+            };
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, Caller, audio, null, keys, candidates)
+                .Children()[0];
+
+            Assert.AreEqual(Caller, offer.Attrs["call-creator"], "the call says who created it");
+
+            IList<BinaryNode> children = offer.Children();
+            Assert.AreEqual(7, children.Count, "two audio, net, capability, destination, enc, encopt");
+
+            Assert.AreEqual("audio", children[0].Tag);
+            Assert.AreEqual("8000", children[0].Attrs["rate"], "the narrow stream comes first");
+            Assert.AreEqual("16000", children[1].Attrs["rate"], "then the wide one");
+            Assert.AreEqual("net", children[2].Tag);
+            Assert.AreEqual("3", children[2].Attrs["medium"], "the medium the offer names");
+            Assert.AreEqual("capability", children[3].Tag);
+            Assert.AreEqual("1", children[3].Attrs["ver"]);
+            Assert.AreEqual(7, children[3].Bytes().Length, "the blob both reconstructions agree on");
+            Assert.AreEqual("destination", children[4].Tag, "the candidates live inside it");
+            Assert.IsTrue(children[4].Child("te") != null, "and one is an endpoint");
+            Assert.AreEqual("enc", children[5].Tag, "the key comes after the way back");
+            Assert.AreEqual("encopt", children[6].Tag, "and the key schedule is last");
+            Assert.AreEqual("2", children[6].Attrs["keygen"], "the v2 schedule");
         }
 
         /// <summary>Everything an offer carried comes back out of `Read`, not just its verb.</summary>

@@ -64,8 +64,8 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The candidates of an offer reach the node as `te` children: the encoder and the
-        /// writer are two files, and this is where they meet.
+        /// The candidates of an offer reach the node as `te` children of `destination`: the
+        /// encoder and the writer are two files, and this is where they meet.
         /// </summary>
         [Test]
         public static void TheCandidateOfAnOfferIsTheEncodedOne()
@@ -74,10 +74,11 @@ namespace ProtocolTests
             candidates.Add(CallCandidates.Host("1.2.3.4", 5, 0));
 
             WhatsappApp.Protocol.WABinary.BinaryNode offer =
-                CallSignaling.Offer("CALL", "39349@s.whatsapp.net", null, null, (CallKeyPayload)null, candidates)
+                CallSignaling.Offer("CALL", "39349@s.whatsapp.net", "39389@s.whatsapp.net",
+                    null, null, (CallKeyPayload)null, candidates)
                     .Children()[0];
 
-            WhatsappApp.Protocol.WABinary.BinaryNode te = offer.Child("te");
+            WhatsappApp.Protocol.WABinary.BinaryNode te = offer.Child("destination").Child("te");
             Assert.IsTrue(te != null, "the offer carries a candidate");
             Assert.AreEqual("0", te.Attrs["priority"]);
             Assert.AreEqual(Hex(candidates[0].Data), Hex(te.Bytes()));
