@@ -269,7 +269,7 @@
                 <Button x:Name="SpeakerCallButton" Grid.Row="1" Grid.Column="2"
                         Style="{StaticResource CallRoundStyle}" Click="SpeakerCallButton_Click">
                     <StackPanel>
-                        <Path Style="{StaticResource CallGlyphStyle}" Stretch="Fill">
+                        <Path Style="{StaticResource CallGlyphStyle}">
                             <!-- IconSpeaker -->
                             <Path.Data>
                                 <PathGeometry>

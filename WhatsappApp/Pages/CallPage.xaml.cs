@@ -188,6 +188,14 @@ namespace WhatsappApp.Pages
             EndCallButton.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
             EndLabel.Text = over ? Loc.Get("Call_Close", "Close") : Loc.Get("Call_End", "End");
 
+            // A call that is over has one control, "Close": the two switches above are
+            // collapsed, and a button pinned to the fifth column of a five-column row is one
+            // button sitting at the right edge with three empty slots beside it. Across the
+            // whole row is where a single button belongs, and the live call keeps the row of
+            // three it was designed for.
+            Grid.SetColumn(EndCallButton, over ? 0 : 4);
+            Grid.SetColumnSpan(EndCallButton, over ? 5 : 1);
+
             // The two switches, and the same rule as the rest: they belong to a call that is
             // up or being set up. Each tile says which way its switch is, and is lit while it
             // is the unusual way - the microphone off, the sound on the loudspeaker.
