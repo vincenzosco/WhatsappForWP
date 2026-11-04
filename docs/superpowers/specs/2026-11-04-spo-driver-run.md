@@ -251,3 +251,50 @@ Resta in `.tools/apk/wsl/` (cartella ignorata da git):
 Il passo successivo concreto non è più "serve un runtime bionic": è leggere
 `WhatsAppOpenboxArchive.openNative` e vedere se l'archivio Obi è la porta giusta
 per una `.spo` di tipo `pack`.
+
+## Cosa passa davvero il DEX
+
+`dexcalls.py` decodifica il bytecode con la tabella delle lunghezze Dalvik e
+filtra le `invoke` per **classe dichiarata** (`Lcom/facebook/superpack/AssetDecompressor;`),
+non per nome: un metodo omonimo in un'altra classe non entra nei risultati. Poi
+risale nei registri precedenti cercando `const-string`, `const/16`, `const/4` e
+`new-instance`, e riporta anche tutte le costanti stringa del metodo chiamante.
+
+Su tutto l'APK le chiamate sono **tre**:
+
+- `decompress` in `LX/0GL;->A00(Landroid/content/Context;Landroid/content/res/Resources;Ljava/lang/String;Ljava/util/Locale;Z)LX/0Pq;`
+  (`classes.dex`). Il metodo è il caricatore delle traduzioni: le sue costanti
+  sono `compressed/`, `strings`, `/`, `.spo`, `decompressed`,
+  `_extracted_pack_file.pack.tmp`, `Renaming temp file failed` e il log
+  `translations/loadData error:`. Il nome dell'asset è quindi costruito a runtime
+  (`compressed/strings/strings_<locale>.spo`) e il `.pack` è solo il file
+  temporaneo del ripiego, non il formato da aprire.
+- `decompress_range_from_so` in `LX/0ET;->A03(Landroid/content/Context;)Z`, con
+  `libs.spo`, `decompressed`, `libs.so` e i nomi ABI (`arm64-v8a`, `armeabi-v7a`,
+  `x86`, `x86_64`), piu' `libwhatsapp.so` e `libvlc.so`. Non riguarda le stringhe:
+  decompressione a pezzi dei **libs** nativi, con partenza a 0.
+- `decompress_range_from_so` in `LX/KUE;->run()V` (`classes10.dex`), ancora
+  `libs.so` e partenza a 15.
+
+`decompress_with_ref` non ha **nessun** chiamante, e nemmeno `decompress_legacy`,
+`decompress_range` e `decompress_from_so`: la via con il riferimento (delta) non è
+quella che l'app percorre, e inseguirla non porta alle etichette.
+
+## Il file che il driver rifiuta è quello giusto
+
+`assets/compressed/strings/` contiene 62 `.spo` (una per locale) e un `.pack`.
+`strings_it.spo` misura 195086 byte, sha256 `e620cae0...4d13a503`, ed è
+**identico byte per byte** al file passato al driver (`cmp` sul contenuto
+nell'APK contro la copia in `.tools/apk/spo/`). Comincia con
+`00 01 c0 50  01 af ab 05  81 00 00 00  01 00 00 00`.
+
+Quindi input e punto d'ingresso erano quelli veri, e il `Could not open archive:
+1/7/0` non è un errore di chiamata: è il driver di questa APK che non accetta
+questi byte. Restano due letture possibili, entrambe verificabili senza indovinare:
+confrontare quei primi byte con la costante di magic che il driver confronta prima
+di aprire l'archivio, oppure far girare `decompress` su un dispositivo reale, dove
+l'asset passa dall'`AssetManager` di sistema e non dal finto.
+
+Nota di metodo: la risalita dei registri non segue `move*`, quindi l'abbinamento
+registro-parametro e' approssimativo; i **metodi chiamati** invece sono certi,
+perche' il filtro e' sulla classe dichiarata della `invoke`.
