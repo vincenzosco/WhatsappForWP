@@ -173,11 +173,42 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The updates nobody has watched get one turn, in front, and it costs the messages
-        /// exactly one slot: four people waiting are still four turns beside it.
+        /// The updates come after every message: two people waiting are two turns, and the
+        /// number of updates is the third.
+        ///
+        /// Why: the report of 4 November 2026 is the other order. The updates turn used to be
+        /// in front and to cost the messages one of the five slots, so the tile and the lock
+        /// screen's detailed status opened on "3 new updates" while somebody was waiting for
+        /// an answer.
         /// </summary>
         [Test]
-        public static void TheUpdatesTakeOneSlotAndComeFirst()
+        public static void TheUpdatesComeAfterEveryMessage()
+        {
+            var waiting = new List<TileEntry>();
+            waiting.Add(Entry("anna@s.whatsapp.net", "Anna", "ciao"));
+            waiting.Add(Entry("bruno@s.whatsapp.net", "Bruno", "ci sei?"));
+
+            var statuses = new TileEntry();
+            statuses.Sender = "Updates";
+            statuses.Body = "3 new updates";
+
+            // What NotificationService asks for: the messages take the queue, and the updates
+            // turn is given what they leave over.
+            IList<TileEntry> turns = TileCycle.WithStatuses(
+                TileCycle.Turns(waiting, TileCycle.MaxEntries), statuses, TileCycle.MaxEntries);
+
+            Assert.AreEqual(3, turns.Count, "two messages and the updates turn");
+            Assert.AreEqual("Anna", turns[0].Sender, "the tile opens on the newest person, not on a number");
+            Assert.AreEqual("Bruno", turns[1].Sender);
+            Assert.AreEqual("Updates", turns[turns.Count - 1].Sender, "and the number is the last thing it says");
+        }
+
+        /// <summary>
+        /// Five people waiting are five turns, and the updates have no slot to take: a face
+        /// somebody is owed is worth more than a count of what else is new.
+        /// </summary>
+        [Test]
+        public static void FivePeopleWaitingLeaveNoRoomForTheUpdates()
         {
             var waiting = new List<TileEntry>();
             for (int i = 0; i < TileCycle.MaxEntries; i++)
@@ -186,18 +217,18 @@ namespace ProtocolTests
             }
 
             var statuses = new TileEntry();
-            statuses.Sender = "Stati";
-            statuses.Body = "3 nuovi stati";
+            statuses.Sender = "Updates";
+            statuses.Body = "3 new updates";
 
-            // What NotificationService asks for when there is a status turn: one slot less
-            // for the messages, then the turn in front.
             IList<TileEntry> turns = TileCycle.WithStatuses(
-                TileCycle.Turns(waiting, TileCycle.MaxEntries - 1), statuses, TileCycle.MaxEntries);
+                TileCycle.Turns(waiting, TileCycle.MaxEntries), statuses, TileCycle.MaxEntries);
 
-            Assert.AreEqual(TileCycle.MaxEntries, turns.Count, "the queue is still five turns wide");
-            Assert.AreEqual("Stati", turns[0].Sender, "the updates are the first thing the tile says");
-            Assert.AreEqual("Persona 0", turns[1].Sender, "and the newest person is still there");
-            Assert.AreEqual("Persona 3", turns[turns.Count - 1].Sender, "the last slot is the fourth person, not a gap");
+            Assert.AreEqual(TileCycle.MaxEntries, turns.Count, "the queue is five turns wide");
+            for (int i = 0; i < turns.Count; i++)
+            {
+                Assert.AreEqual("Persona " + i, turns[i].Sender,
+                    "every slot names somebody waiting, and the number waits for its own turn");
+            }
         }
 
         /// <summary>

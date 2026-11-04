@@ -473,6 +473,46 @@ function fallbackProblems(source) {
  * La differenza non si vede in un test del protocollo: `NotificationService` e' codice
  * WinRT che il runner desktop non compila, quindi la regola sta qui.
  */
+/**
+ * Problemi dell'ordine dei turni: i messaggi prima degli aggiornamenti.
+ *
+ * Perche' esiste: il 4 novembre 2026 la tile e lo stato della lockscreen si aprivano con
+ * "3 nuovi stati", e il turno degli aggiornamenti occupava uno dei cinque slot della coda -
+ * quindi un messaggio senza risposta poteva essere ruotato via in favore di un numero. Il
+ * turno degli stati ora si costruisce solo quando non c'e' nessun messaggio in attesa, e
+ * `TileCycle.WithStatuses` lo mette in fondo. `RenderTile` e' codice WinRT che il runner
+ * desktop non compila, quindi la regola sta qui, come quella di `SetStatuses`.
+ */
+function priorityProblems(source) {
+  const problems = [];
+  const where = 'WhatsappApp/Services/NotificationService.cs';
+  const body = methodBody(stripComments(source), 'RenderTile');
+
+  if (!body) {
+    problems.push(where + ': no RenderTile - the tile has nothing that draws it');
+    return problems;
+  }
+
+  if (!/TileEntry\s+statuses\s*=\s*_unread\s*<=\s*0\s*&&\s*_unseenStatuses\s*>\s*0/.test(body)) {
+    problems.push(where + ': RenderTile builds the updates turn while a message is waiting -' +
+      ' the tile and the lock screen open on a count instead of on the person who wrote;' +
+      ' the turn is asked for only when `_unread <= 0`');
+  }
+
+  if (/MaxEntries\s*-\s*1/.test(body)) {
+    problems.push(where + ': RenderTile keeps a slot of the five for the updates turn -' +
+      ' a person waiting loses a turn to a number; the messages take all five and the updates' +
+      ' turn takes only what is left (TileCycle.WithStatuses appends it)');
+  }
+
+  if (!/TileCycle\.Turns\s*\(\s*waiting\s*,\s*TileCycle\.MaxEntries\s*\)/.test(body)) {
+    problems.push(where + ': RenderTile does not hand the messages the whole queue' +
+      ' (TileCycle.Turns(waiting, TileCycle.MaxEntries))');
+  }
+
+  return problems;
+}
+
 function statusesProblems(source) {
   const problems = [];
   const where = 'WhatsappApp/Services/NotificationService.cs';
@@ -587,6 +627,7 @@ function main() {
   problems.push(...requestProblems(tileImage));
   problems.push(...fallbackProblems(tileImage));
   problems.push(...statusesProblems(source));
+  problems.push(...priorityProblems(source));
 
   const images = declaredImages(source);
   if (images.length === 0) {
@@ -618,5 +659,5 @@ if (require.main === module) main();
 module.exports = {
   pngSize, declaredImages, bindingProblems, decodeProblems, writeProblems, smallProblems,
   pictureProblems, loginProblems, refusalProblems, requestProblems, fallbackProblems, methodBody,
-  statusesProblems, assetProblems, stripComments, DATA_SERVICE, PINNED
+  statusesProblems, priorityProblems, assetProblems, stripComments, DATA_SERVICE, PINNED
 };

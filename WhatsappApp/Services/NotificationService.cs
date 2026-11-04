@@ -215,6 +215,10 @@ namespace WhatsappApp.Services
         /// still visible on the wide size, which falls back to it when there is nothing to
         /// name.
         ///
+        /// The updates turn obeys that order one step further: a message waiting for an answer
+        /// is what the tile and the lock screen's detailed status open on, and the updates are
+        /// what a phone with nothing unread is left saying.
+        ///
         /// Every turn is drawn from the **live** total and the live list: the queue rotates,
         /// the truth under it does not belong to a moment. That is the difference between
         /// this and the per-message queue that was taken out - a tile could then be showing
@@ -251,10 +255,17 @@ namespace WhatsappApp.Services
 
                 if (_unread <= 0 && _unseenStatuses <= 0) return;
 
-                // The updates turn: one of the five slots, in front, when somebody has posted
-                // and nobody has looked. It is drawn from the live count like everything else
-                // here, so a queue walked twice cannot show a number that has moved.
-                TileEntry statuses = _unseenStatuses > 0 ? StatusTurn(_unseenStatuses) : null;
+                // The updates turn, and only when no message is waiting: the tile and the lock
+                // screen's detailed status open on a person who wrote and has not been
+                // answered, and a count in that place is what made both read "3 new updates"
+                // while a conversation sat unanswered (4 November 2026). With a message
+                // waiting the turn is not built at all, so all five slots are messages; with
+                // none, it is the only thing that says an update arrived. It is drawn from the
+                // live count like everything else here, so a queue walked twice cannot show a
+                // number that has moved.
+                TileEntry statuses = _unread <= 0 && _unseenStatuses > 0
+                    ? StatusTurn(_unseenStatuses)
+                    : null;
 
                 IList<TileEntry> waiting = _waiting;
                 IList<TileEntry> turns;
@@ -274,12 +285,10 @@ namespace WhatsappApp.Services
                     // the messages leave over. The tile then does not say the same thing on
                     // every pass through the queue.
                     //
-                    // The updates take their slot first: a person waiting must not lose
-                    // their turn to a number, but a number that is not on the tile at all is
-                    // the defect this turn exists for - so the messages are asked for one
-                    // fewer slot and nobody is dropped.
-                    int slots = statuses == null ? TileCycle.MaxEntries : TileCycle.MaxEntries - 1;
-                    turns = TileCycle.Turns(waiting, slots);
+                    // Every message claims its slot: the updates turn, when there is one,
+                    // arrives after them (`TileCycle.WithStatuses`) and takes only what the
+                    // messages leave over - never one of their turns.
+                    turns = TileCycle.Turns(waiting, TileCycle.MaxEntries);
                 }
 
                 turns = TileCycle.WithStatuses(turns, statuses, TileCycle.MaxEntries);

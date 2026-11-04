@@ -342,6 +342,27 @@ test('il SetStatuses vero salta il disegno solo su una tile gia disegnata', () =
   assert.deepStrictEqual(tile.statusesProblems(source), []);
 });
 
+test('un turno degli stati costruito con un messaggio in attesa si segnala', () => {
+  const problems = tile.priorityProblems(
+    'private static void RenderTile()\n        {\n' +
+    '            TileEntry statuses = _unseenStatuses > 0 ? StatusTurn(_unseenStatuses) : null;\n' +
+    '            int slots = statuses == null ? TileCycle.MaxEntries : TileCycle.MaxEntries - 1;\n' +
+    '            turns = TileCycle.Turns(waiting, slots);\n' +
+    '        }');
+  assert.ok(problems.some((p) => /while a message is waiting/.test(p)),
+    'un numero sopra un messaggio senza risposta e il difetto da cui esiste la regola');
+  assert.ok(problems.some((p) => /loses a turn to a number/.test(p)),
+    'il turno degli stati non prende uno dei cinque slot dei messaggi');
+  assert.ok(problems.some((p) => /whole queue/.test(p)),
+    'i messaggi prendono la coda intera');
+});
+
+test('il RenderTile vero mette i messaggi prima degli stati', () => {
+  const source = fs.readFileSync(
+    path.join(ROOT, 'WhatsappApp', 'Services', 'NotificationService.cs'), 'utf8');
+  assert.deepStrictEqual(tile.priorityProblems(source), []);
+});
+
 test('il modello largo che WP8.1 non ha si segnala', () => {
   const problems = tile.bindingProblems(
     'var t = TileTemplateType.TileWide310x150IconWithBadge;');

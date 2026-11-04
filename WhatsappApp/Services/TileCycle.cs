@@ -146,15 +146,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The turns with the updates turn in front, and the messages giving up the slot it
-        /// takes.
+        /// The turns with the updates turn appended last, and only in the slot the messages
+        /// leave over.
         ///
-        /// Why the updates are a turn of the queue and not a line on somebody's message: the
-        /// five notifications are the whole of what the tile can say, and a person who is
-        /// waiting must not lose their turn to a number. The updates take the slot they cost
-        /// and no more, and they come first because they are the only thing on the tile that
-        /// is not somebody waiting for an answer - the tile opens with "3 new updates" and
-        /// then names the people.
+        /// Why the updates are a turn of the queue at all: the five notifications are the
+        /// whole of what the tile and the lock screen's detailed status can say, and a phone
+        /// whose only news is somebody's update would otherwise say nothing.
+        ///
+        /// Why they come last and not first: what a person is being told about is the
+        /// conversation waiting for an answer, and a count of updates in front of it is what
+        /// made the tile and the lock screen open with "3 new updates" while a message sat
+        /// unanswered - the report of 4 November 2026. The caller does not even build the turn
+        /// while a message is waiting (`NotificationService.RenderTile`), so in practice this
+        /// is the tile of a phone with nothing unread; the order here is what keeps a future
+        /// caller from putting the number back on top.
         ///
         /// A null status turn is the ordinary case (nothing unwatched) and leaves the turns
         /// exactly as they were, without copying them again.
@@ -164,7 +169,6 @@ namespace WhatsappApp.Services
             if (statuses == null) return turns;
 
             var next = new List<TileEntry>();
-            next.Add(statuses);
 
             if (turns != null)
             {
@@ -173,6 +177,8 @@ namespace WhatsappApp.Services
                     if (turns[i] != null) next.Add(turns[i]);
                 }
             }
+
+            if (next.Count < max) next.Add(statuses);
 
             return next;
         }

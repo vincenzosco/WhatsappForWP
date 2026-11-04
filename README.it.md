@@ -134,8 +134,11 @@ Consigli:
   profilo a piena risoluzione, chiesta a WhatsApp quando la chat viene fissata, non l'anteprima
   piccola che usa la lista: la tile è l'unico posto che mostra una faccia alla misura della tile.
   Quando qualcuno ha pubblicato uno stato che nessuno ha guardato, un turno della tile lo dice
-  ("Stati" sopra "3 nuovi stati"): il badge della scheda si vede solo con l'app aperta, e il numero
-  sull'icona sono i messaggi in attesa, che uno stato non è. I turni dove non c'è la faccia di
+  ("Stati" sopra "3 nuovi stati") - ma solo dopo ogni messaggio, e solo quando non c'è nessuno in
+  attesa: una conversazione a cui nessuno ha risposto prende per prima la tile e lo stato
+  dettagliato della lockscreen, perché è di quella che si sta avvisando, e il turno degli stati
+  riceve quello che i messaggi lasciano. Il badge della scheda si vede solo con l'app aperta, e il
+  numero sull'icona sono i messaggi in attesa, che uno stato non è. I turni dove non c'è la faccia di
   nessuno sono dipinti con lo sfondo scelto in Impostazioni - Tema: quella foto, o il colore di
   accento del telefono quando la scelta è il bianco - così la tile ha lo stesso aspetto della lista.
   Il marchio WhatsApp è disegnato su quello sfondo, scurito perché una sagoma bianca si legga, e la
