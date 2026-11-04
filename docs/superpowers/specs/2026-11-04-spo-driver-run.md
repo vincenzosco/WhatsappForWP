@@ -299,3 +299,40 @@ l'asset passa dall'`AssetManager` di sistema e non dal finto.
 Nota di metodo: la risalita dei registri non segue `move*`, quindi l'abbinamento
 registro-parametro e' approssimativo; i **metodi chiamati** invece sono certi,
 perche' il filtro e' sulla classe dichiarata della `invoke`.
+
+## Cosa significa `1/7/0`: il selettore del codec
+
+Il disassemblaggio del `.so` (le rilocazioni `R_X86_64_RELATIVE` ricostruiscono la
+tabella `RegisterNatives`: 19 metodi) toglie l'errore dal campo dei misteri.
+
+- `decompress` (`0xc988`) è un trampolino: spinge due `-1` e chiama
+  `decompress_range` (`0xc1f1`), che apre l'asset con `AAssetManager_open`, ne
+  prende l'`fd` con `AAsset_openFileDescriptor` e logga
+  `archive start: %ld length: %ld`.
+- L'opener (`1dee0`) cerca il driver con `1f900`, che confronta il nome del
+  codec con quattro costanti: `xz` (`0x2e20`), `spk` (`0x3a72`), `spo` (`0x38d8`),
+  `obi` (`0x3a80`). Se non combacia nessuna, restituisce `0`.
+- `1f990` traduce quel `NULL` in **codice 7** (`test %rdi,%rdi; je` -> `mov $7,%eax`),
+  e l'opener logga la terna (variante, codice, `ferror`). Da qui
+  `Could not open archive: 1/7/0`: variante 1, codice 7, `ferror` 0.
+
+Quindi l'errore non riguardava il file: il secondo argomento di `decompress` è il
+**nome del codec**, non una cartella. L'harness ci passava `./outA`, e nessun
+driver si chiama cosi. Il ramo giusto è esplicito: `strcmp(codec, "spo")` a
+`0xc33b`.
+
+I formati che la libreria conosce, quindi, sono quattro: `spk` (superpack), `spo`
+(il pacchetto delle stringhe), `obi` (openbox) e `xz` (codec esterno). Il parser
+`spk` a `0x25f70` pretende i primi 8 byte uguali a `0x0000000077340733` e poi un
+`uint32` non maggiore di `0x10000`: la `.spo` comincia con `0x05abaf0150c00100`,
+quindi come superpack non puo passare per costruzione. Ha pero `0x81` a offset 8,
+che è il valore di versione che `1f270` accetta (`== 0x81`, altrimenti
+`Superpack version differ ...`).
+
+## Dove si ferma adesso
+
+Con il selettore giusto (`--out spo --ref <dir>`) la chiamata non restituisce piu
+`1/7/0`: apre l'asset, logga l'intervallo, e poi **non termina** (timeout a 45 s,
+nessun file scritto, nessuna eccezione). Il blocco è dentro il ramo `spo` e non è
+ancora localizzato: il passo successivo è un backtrace, per capire se aspetta un
+thread o un callback che il `JNIEnv` finto non fornisce.
