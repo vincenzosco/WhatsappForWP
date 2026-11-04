@@ -137,6 +137,18 @@ namespace WhatsappApp.Services
         private const int MaxRememberedDevices = 64;
 
         /// <summary>
+        /// The UDP port call media is offered on, and the socket that holds it.
+        ///
+        /// Why a socket and not a number: a candidate names a port the other phone will send
+        /// to, and a port nobody holds is a call whose media goes to a closed door. This is the
+        /// port and not yet the media: nothing reads what arrives (the audio path is the work
+        /// the design doc lists as still missing), but the address in the offer is real.
+        /// </summary>
+        private Windows.Networking.Sockets.DatagramSocket _callMediaSocket;
+
+        private int _callMediaPort;
+
+        /// <summary>
         /// The same ids in the order they were written, so an overflow forgets the oldest
         /// one instead of the whole table: emptying it dropped the ids of messages still
         /// waiting for their ack, and their ack then matched nothing - the bubble went to
@@ -3375,6 +3387,10 @@ namespace WhatsappApp.Services
                 });
             }
 
+            // The way back for the media, before the key that opens it: an offer that names no
+            // transport is a phone that rings and has nowhere to send a single packet.
+            IList<CallCandidate> candidates = await CallCandidatesAsync();
+
             CallKeyOffer keys = null;
             try
             {
@@ -3417,18 +3433,78 @@ namespace WhatsappApp.Services
 
             if (keys == null)
             {
-                await session.SendAsync(CallSignaling.Offer(callId, jid, video));
+                await session.SendAsync(CallSignaling.Offer(callId, jid, audio, videos,
+                    new List<CallKeyPayload>(), candidates));
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
-                    + " to " + jid + " with no key");
+                    + " to " + jid + " with no key and " + candidates.Count + " candidate(s)");
             }
             else
             {
-                await session.SendAsync(Calls.Offer(callId, jid, audio, videos, keys.Payloads, null));
+                await session.SendAsync(Calls.Offer(callId, jid, audio, videos, keys.Payloads, candidates));
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
-                    + " to " + jid + " with " + keys.Payloads.Count + " key(s)");
+                    + " to " + jid + " with " + keys.Payloads.Count + " key(s) and "
+                    + candidates.Count + " candidate(s)");
             }
 
             return callId;
+        }
+
+        /// <summary>
+        /// The port this phone listens on for call media, bound once and kept for the session.
+        /// The port is what a candidate names, so it has to be held by something.
+        /// </summary>
+        private async Task<int> CallMediaPortAsync()
+        {
+            if (_callMediaPort > 0) return _callMediaPort;
+
+            Windows.Networking.Sockets.DatagramSocket socket = new Windows.Networking.Sockets.DatagramSocket();
+            await socket.BindServiceNameAsync("0");
+
+            _callMediaPort = int.Parse(socket.Information.LocalPort);
+            _callMediaSocket = socket;
+            return _callMediaPort;
+        }
+
+        /// <summary>
+        /// The candidates an offer carries: one per local IPv4 address, all on the port above.
+        /// The list can be empty - an adapter list that cannot be read is logged, not thrown -
+        /// because a call without candidates still rings, while a call that fails because the
+        /// address list was empty rings nowhere.
+        /// </summary>
+        private async Task<IList<CallCandidate>> CallCandidatesAsync()
+        {
+            var candidates = new List<CallCandidate>();
+
+            try
+            {
+                int port = await CallMediaPortAsync();
+                IReadOnlyList<Windows.Networking.HostName> hosts =
+                    Windows.Networking.Connectivity.NetworkInformation.GetHostNames();
+
+                for (int i = 0; i < hosts.Count; i++)
+                {
+                    Windows.Networking.HostName host = hosts[i];
+
+                    // An address the phone is not attached to yet carries no IP information:
+                    // offering it would be offering an interface that does not exist.
+                    if (host.Type != Windows.Networking.HostNameType.Ipv4) continue;
+                    if (host.IPInformation == null) continue;
+
+                    candidates.Add(WhatsappApp.Protocol.Media.CallCandidates.Host(
+                        host.CanonicalName, port, candidates.Count + 1));
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("native: the call candidates", ex);
+            }
+
+            if (candidates.Count == 0)
+            {
+                Diag.Ok("native: no local IPv4 address to offer as a call candidate");
+            }
+
+            return candidates;
         }
 
         /// <summary>The callee's phone says it has the offer and is preparing its side.</summary>
