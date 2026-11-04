@@ -3597,8 +3597,18 @@ namespace WhatsappApp.Services
                 // The same bound the messages get: a call is not a reason to wait a minute on a
                 // question the server may never answer.
                 SendBudget budget = SendClock();
-                DirectTarget target = await ResolveDevicesAsync(session, jid, budget);
+
+                // The LID-aware resolver the message path uses, not the raw address. The calls
+                // that reach this account come from a `@lid` - the offer captured on 4 November
+                // 2026 is `from="231790946025638@lid"` - and a device list asked of the number a
+                // person used to have is a list nobody reads. The run of 15:29 shows what going
+                // straight to the number costs: five offers on `393492556507@s.whatsapp.net`,
+                // every key sealed as a pre-key message, and no answer of any kind.
+                DirectTarget target = await DevicesAsync(session, jid, budget);
                 keys = CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(_random), target.Devices, _random);
+
+                Diag.Ok("native: the call " + callId + " is sealed for " + target.Devices.Count
+                    + " device(s) of " + jid);
 
                 for (int i = 0; i < keys.Skipped.Count; i++)
                 {
