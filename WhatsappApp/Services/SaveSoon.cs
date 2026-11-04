@@ -73,12 +73,6 @@ namespace WhatsappApp.Services
             _timer.Start();
         }
 
-        /// <summary>The clock, stopped: for a caller that is about to write the same thing itself.</summary>
-        public void Stop()
-        {
-            _timer.Stop();
-        }
-
         private void OnTick(object sender, object e)
         {
             _timer.Stop();
