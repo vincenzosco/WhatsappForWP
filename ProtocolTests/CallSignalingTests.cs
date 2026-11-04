@@ -92,6 +92,30 @@ namespace ProtocolTests
             Assert.IsTrue(profile.Metadata != null, "metadata comes back whole");
         }
 
+        [Test]
+        public static void VoipSettingsAndMetadataAreWrittenFromTheirFields()
+        {
+            var profile = new CallWireProfile();
+            profile.VoipSettingsType = "1";
+            profile.UncompressedVoipSettings = true;
+            profile.MetadataVersion = "2";
+            profile.PeerAbtestBucket = "7";
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, "me@lid", null,
+                OneAudio(), NoVideo(), new List<CallKeyPayload>(), NoCandidate(), profile);
+            BinaryNode verb = offer.Children()[0];
+
+            BinaryNode settings = verb.Child("voip_settings");
+            BinaryNode metadata = verb.Child("metadata");
+
+            Assert.IsTrue(settings != null, "a voip_settings node is written when its type is known");
+            Assert.AreEqual("1", settings.Attrs["type"]);
+            Assert.AreEqual("true", settings.Attrs["uncompressed"]);
+            Assert.IsTrue(metadata != null, "and metadata from its fields");
+            Assert.AreEqual("2", metadata.Attrs["ver"]);
+            Assert.AreEqual("7", metadata.Attrs["peer_abtest_bucket"]);
+        }
+
         private static IList<CallAudio> OneAudio()
         {
             var audio = new List<CallAudio>();

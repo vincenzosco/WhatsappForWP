@@ -124,13 +124,63 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The `voip_settings` child, whole.</summary>
         public BinaryNode VoipSettings;
 
+        /// <summary>
+        /// `metadata`'s own fields, as the callee's parser names them: it reads the node and
+        /// refuses the offer with `Metadata node not found`, so the node is not decoration.
+        /// ``ver`` is the shape of the node, `peer_abtest_bucket` the bucket this side is in,
+        /// and `peer_abtest_bucket_id_list` the ones it can name.
+        /// </summary>
+        public string MetadataVersion;
+        public string PeerAbtestBucket;
+        public string PeerAbtestBucketIds;
+
+        /// <summary>
+        /// `voip_settings`'s own fields: `type`, and `uncompressed`, which says the params are
+        /// the plaintext ones. The parser refuses a `voip_settings` it cannot read
+        /// (`unexpected compressed voip params`) and an offer that has none at all
+        /// (`missing voip_settings`).
+        /// </summary>
+        public string VoipSettingsType;
+        public bool UncompressedVoipSettings;
+
+        /// <summary>
+        /// The `metadata` child the callee expects, with the fields above on it.
+        ///
+        /// A profile that captured the node whole (`Metadata`) uses that one instead: this is
+        /// only for the case where a capture gave the fields and not the bytes.
+        /// </summary>
+        public BinaryNode MetadataNode()
+        {
+            if (Metadata != null) return Metadata;
+            if (string.IsNullOrEmpty(MetadataVersion) && string.IsNullOrEmpty(PeerAbtestBucket)) return null;
+
+            var node = new BinaryNode("metadata");
+            node.Attrs.Add("ver", string.IsNullOrEmpty(MetadataVersion) ? "1" : MetadataVersion);
+            if (!string.IsNullOrEmpty(PeerAbtestBucket)) node.Attrs.Add("peer_abtest_bucket", PeerAbtestBucket);
+            if (!string.IsNullOrEmpty(PeerAbtestBucketIds)) node.Attrs.Add("peer_abtest_bucket_id_list", PeerAbtestBucketIds);
+            return node;
+        }
+
+        /// <summary>The `voip_settings` child from its fields, when no node was captured whole.</summary>
+        public BinaryNode VoipSettingsNode()
+        {
+            if (VoipSettings != null) return VoipSettings;
+            if (string.IsNullOrEmpty(VoipSettingsType)) return null;
+
+            var node = new BinaryNode("voip_settings");
+            node.Attrs.Add("type", VoipSettingsType);
+            if (UncompressedVoipSettings) node.Attrs.Add("uncompressed", "true");
+            return node;
+        }
+
         /// <summary>Whether there is anything to write at all.</summary>
         public bool IsEmpty
         {
             get
             {
                 return string.IsNullOrEmpty(CallerPn) && string.IsNullOrEmpty(CallerCountryCode)
-                    && !Joinable.HasValue && Metadata == null && Rte == null && VoipSettings == null;
+                    && !Joinable.HasValue && Metadata == null && Rte == null && VoipSettings == null
+                    && string.IsNullOrEmpty(MetadataVersion) && string.IsNullOrEmpty(VoipSettingsType);
             }
         }
 
@@ -162,6 +212,19 @@ namespace WhatsappApp.Protocol.Client
             profile.Rte = offer.Child("rte");
             profile.VoipSettings = offer.Child("voip_settings");
 
+            if (profile.Metadata != null)
+            {
+                profile.MetadataVersion = profile.Metadata.Attrs["ver"];
+                profile.PeerAbtestBucket = profile.Metadata.Attrs["peer_abtest_bucket"];
+                profile.PeerAbtestBucketIds = profile.Metadata.Attrs["peer_abtest_bucket_id_list"];
+            }
+
+            if (profile.VoipSettings != null)
+            {
+                profile.VoipSettingsType = profile.VoipSettings.Attrs["type"];
+                profile.UncompressedVoipSettings = profile.VoipSettings.Attrs["uncompressed"] == "true";
+            }
+
             return profile.IsEmpty ? null : profile;
         }
 
@@ -183,9 +246,12 @@ namespace WhatsappApp.Protocol.Client
         {
             if (children == null) return;
 
-            if (Metadata != null) children.Add(Metadata);
+            BinaryNode metadata = MetadataNode();
+            if (metadata != null) children.Add(metadata);
             if (Rte != null) children.Add(Rte);
-            if (VoipSettings != null) children.Add(VoipSettings);
+
+            BinaryNode settings = VoipSettingsNode();
+            if (settings != null) children.Add(settings);
         }
     }
 

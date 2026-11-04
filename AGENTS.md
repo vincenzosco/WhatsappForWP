@@ -20,6 +20,18 @@
 - One commit per change that stands on its own. A build bump is its own commit,
   a fix and its test are one.
 
+## Skills and agents
+
+- **Global skills** (`C:/Users/Vincenzo/.agents/skills`, tracked by
+  `.skill-lock.json`) are refreshed with `npx skills update -g -y`, and
+  `npx skills ls` says what is installed. Run it when a skill looks stale, not on
+  a timer, and say what changed.
+- **This repository's skills** (`.agents/skills/`, committed) are not updated by
+  any tool: they describe this app, and no upstream has them. They change when
+  the work changes them, on request, with the same review as code.
+- An agent that edits a project skill commits it like any other change, and
+  names what it changed and why.
+
 ## The rest
 
 The rules for the code itself live in `.agents/skills/maintain-the-app/SKILL.md`
