@@ -35,10 +35,44 @@
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
+                        <!--
+                            The tile dims while it is held. A custom template owns its own
+                            states: with no `CommonStates` group here the button answered the
+                            touch with nothing at all, and a control that gives no sign is
+                            pressed twice - which on a call screen is the hang-up tapped
+                            after it already worked. The dim is on the whole tile - circle
+                            and glyph together - because dimming only the glyph would leave
+                            a lit circle that looks untouched. `Disabled` is here for the
+                            same reason: the state a template does not declare is a state
+                            the button silently ignores.
+                        -->
                         <Grid>
-                            <Ellipse Fill="{TemplateBinding Background}"/>
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="PointerOver"/>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.55" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.4" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid x:Name="Tile">
+                                <Ellipse Fill="{TemplateBinding Background}"/>
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
                         </Grid>
                     </ControlTemplate>
                 </Setter.Value>
