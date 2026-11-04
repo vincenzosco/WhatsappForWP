@@ -207,12 +207,19 @@ namespace WhatsappApp.Protocol.Client
         /// before that it goes out as the driver's milestone sent it, because there is no
         /// key to encrypt with yet.
         /// </summary>
-        public Task SendAsync(BinaryNode node)
+        public async Task SendAsync(BinaryNode node)
         {
             if (node == null) throw new ProtocolException("nothing to send");
 
             byte[] encoded = NodeWriter.Encode(node);
-            return _transport.SendAsync(_channelEncrypted ? _noise.EncodeFrame(encoded) : encoded);
+            byte[] frame = _channelEncrypted ? _noise.EncodeFrame(encoded) : encoded;
+
+            // What went out, by tag and attributes, with the size of the frame. The read side has
+            // always said what arrived; without the same line here a call the other phone never
+            // answers cannot be told apart from a call that was never written to the socket.
+            _log.Info("whatsapp: wrote <" + node.ToString() + "> (" + frame.Length + " bytes)");
+
+            await _transport.SendAsync(frame);
         }
 
         public void Close()
