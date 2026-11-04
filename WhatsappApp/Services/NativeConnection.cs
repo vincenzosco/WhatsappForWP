@@ -133,6 +133,68 @@ namespace WhatsappApp.Services
         /// </summary>
         private readonly HashSet<string> _offeredCalls = new HashSet<string>();
 
+        /// <summary>The call offers this run has already put in front of the user, by id.</summary>
+        private readonly HashSet<string> _announcedCalls = new HashSet<string>();
+
+        /// <summary>
+        /// Whether this is the first copy of this call in this run.
+        ///
+        /// The server re-sends what it has not been answered, and a phone that shows the same
+        /// offer twice is a phone that rings twice for one call: the second copy is a line in
+        /// the log and nothing else.
+        /// </summary>
+        private bool FirstTimeCall(string callId)
+        {
+            if (string.IsNullOrEmpty(callId)) return true;
+
+            lock (_announcedCalls)
+            {
+                if (_announcedCalls.Count >= MaxAwaitingAck) _announcedCalls.Clear();
+                return _announcedCalls.Add(callId);
+            }
+        }
+
+        /// <summary>
+        /// Tells the server the stanza was read, which is what takes it out of the offline
+        /// queue it is re-sent from.
+        ///
+        /// Fire and forget, like every send started from the read loop: a send that is waited
+        /// for here is a socket that stops being read while it waits. The shape is the one the
+        /// message path already uses (`IncomingMessage.Ack`): its own id back, to the JID it
+        /// came from, with the stanza's tag as the class - `call`.
+        /// </summary>
+        private void AcknowledgeCall(BinaryNode node)
+        {
+            if (node == null || string.IsNullOrEmpty(node.Attrs["id"])) return;
+
+            Guarded.RunGuardedAsync("NativeConnection/ack a call", SendSoonAsync(IncomingMessage.Ack(node)));
+        }
+
+        /// <summary>
+        /// Refuses a call that ended before this device heard of it, so the caller's phone stops
+        /// waiting for an answer it will never get.
+        /// </summary>
+        private void RefuseLateCall(CallSignal signal)
+        {
+            if (signal == null || string.IsNullOrEmpty(signal.From)) return;
+
+            Guarded.RunGuardedAsync("NativeConnection/refuse a late call",
+                SendSoonAsync(CallSignaling.Reject(signal.CallId, signal.From, "timeout")));
+        }
+
+        /// <summary>One stanza out, on a session opened for it: what a read-loop send needs.</summary>
+        private async Task SendSoonAsync(BinaryNode node)
+        {
+            if (node == null) return;
+
+            NativeSession session = OpenSession();
+            await session.SendAsync(node);
+
+            Diag.Ok("native: sent " + node.Tag + " " + node.Attrs["id"]
+                + (string.IsNullOrEmpty(node.Attrs["class"]) ? "" : " (" + node.Attrs["class"] + ")")
+                + " to " + node.Attrs["to"]);
+        }
+
         /// <summary>Remembers a call offer, so its ack is read as the server's answer to it.</summary>
         private void KeepOfferedCall(string callId)
         {
@@ -3417,10 +3479,32 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            // Acked before anything else is decided: what this device does not answer is what
+            // the server keeps, and re-sends at every connection - the friend's call that came
+            // back on four starts, thirteen minutes after it had ended.
+            AcknowledgeCall(node);
+
             // The node as it arrived, by tag and attribute name: what a real phone writes is
             // the reference this client cannot get from a spec, and a call that did not ring on
             // this side is answered by comparing the two shapes line by line.
             Diag.Ok("native: the call node " + signal.CallId + " is " + CallSignaling.Describe(node));
+
+            // An offline copy older than any ring is a call that is over: announcing it would
+            // put a banner on the screen for a phone that stopped ringing minutes ago, so it is
+            // refused instead - which is also what tells the caller's phone to stop waiting.
+            if (signal.Kind == CallKind.Offer && CallSignaling.IsStale(signal))
+            {
+                Diag.Ok("native: the call " + signal.CallId + " waited " + (signal.AgeSeconds / 60)
+                    + " minute(s) in the offline queue, so it is refused instead of announced");
+                RefuseLateCall(signal);
+                return;
+            }
+
+            if (signal.Kind == CallKind.Offer && !FirstTimeCall(signal.CallId))
+            {
+                Diag.Ok("native: the call " + signal.CallId + " was already announced in this run");
+                return;
+            }
 
             Diag.Ok("native: call " + signal.CallId + " " + signal.Kind
                 + (signal.IsVideo ? " (video)" : "")

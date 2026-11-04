@@ -179,6 +179,24 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>`begin` or `end` for an `interruption`/`mute`, or null.</summary>
         public string State;
 
+        /// <summary>The `t` the stanza was stamped with, in unix seconds, or 0 when it carries none.</summary>
+        public long Timestamp;
+
+        /// <summary>Whether the node was `offline="1"`: a copy the server kept for this device.</summary>
+        public bool Offline;
+
+        /// <summary>How old an offline copy is, in seconds; 0 when the node names no time.</summary>
+        public long AgeSeconds
+        {
+            get
+            {
+                if (Timestamp <= 0) return 0;
+
+                long age = CallSignaling.UnixTime() - Timestamp;
+                return age < 0 ? 0 : age;
+            }
+        }
+
         /// <summary>The duration a `terminate` reports, or -1.</summary>
         public int DurationSeconds = -1;
 
@@ -268,11 +286,49 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public const string ClientPlatform = "android";
 
+        /// <summary>
+        /// How old an offline copy of a call may be before it is not answered at all, in
+        /// seconds.
+        ///
+        /// Ninety is longer than any ring: a call still being offered when the app opens is
+        /// answered, and a copy that waited minutes in the queue - the four offers of 4
+        /// November 2026, up to thirteen minutes old - is a call that is over.
+        /// </summary>
+        public const int MaxOfflineAgeSeconds = 90;
+
+        /// <summary>The unix time, in seconds.</summary>
+        public static long UnixTime()
+        {
+            return (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+        }
+
+        /// <summary>
+        /// Whether this node is a call the app is too late for: an offline copy older than
+        /// `MaxOfflineAgeSeconds`. A live node - no `offline` mark - is never stale, however
+        /// old its stamp, because a caller's clock is not something to hang up on.
+        /// </summary>
+        public static bool IsStale(CallSignal signal)
+        {
+            if (signal == null || !signal.Offline || signal.Timestamp <= 0) return false;
+
+            return signal.AgeSeconds > MaxOfflineAgeSeconds;
+        }
+
         /// <summary>The unix time a call node is stamped with, in seconds.</summary>
         private static string Now()
         {
-            long seconds = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-            return seconds.ToString(CultureInfo.InvariantCulture);
+            return UnixTime().ToString(CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>An attribute read as a long, or the fallback when it is absent or not one.</summary>
+        private static long LongOf(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+
+            long value;
+            return long.TryParse(text, NumberStyles.Integer, CultureInfo.InvariantCulture, out value)
+                ? value
+                : 0;
         }
 
         public static BinaryNode Offer(string callId, string to, bool video)
@@ -657,6 +713,13 @@ namespace WhatsappApp.Protocol.Client
             signal.From = node.Attrs["from"];
             signal.To = node.Attrs["to"];
             signal.Kind = verb == null ? CallKind.Unknown : KindOf(verb.Tag);
+
+            // The time and the offline mark are what tell a call that is happening from the
+            // copy of one that ended twenty minutes ago: without them an offer the server kept
+            // while the app was closed is announced again at every start, and it rings for a
+            // call nobody is making.
+            signal.Timestamp = LongOf(node.Attrs["t"]);
+            signal.Offline = node.Attrs["offline"] == "1";
 
             if (verb != null)
             {

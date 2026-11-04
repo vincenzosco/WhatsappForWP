@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.WABinary;
@@ -410,6 +411,79 @@ namespace ProtocolTests
         /// <summary>
         /// The line the log prints about an offer: tags and attribute names, never a key.
         /// </summary>
+        /// <summary>
+        /// An offer the server kept while the app was closed says how old it is, and a call that
+        /// waited minutes is not a call to answer.
+        ///
+        /// The log of 4 November 2026: the same offer, `offline="1"`, thirteen minutes old, put
+        /// on the screen at every start.
+        /// </summary>
+        [Test]
+        public static void AnOfferThatWaitedInTheQueueIsNotACallToAnswer()
+        {
+            CallSignal signal = CallSignaling.Read(OfflineOffer("1", CallSignaling.UnixTime() - 780));
+
+            Assert.IsTrue(signal.Offline, "the copy says it was kept");
+            Assert.IsTrue(signal.AgeSeconds >= 779, "and how long it waited");
+            Assert.IsTrue(CallSignaling.IsStale(signal), "thirteen minutes is not a call to answer");
+        }
+
+        /// <summary>A call that is happening is never stale, whatever its stamp says.</summary>
+        [Test]
+        public static void ACallThatIsLiveIsNeverStale()
+        {
+            CallSignal signal = CallSignaling.Read(OfflineOffer("0", CallSignaling.UnixTime() - 3600));
+
+            Assert.IsTrue(!CallSignaling.IsStale(signal), "a live node is answered");
+        }
+
+        /// <summary>And neither is a copy the server handed over at once.</summary>
+        [Test]
+        public static void AnOfferFromASecondAgoIsNotStale()
+        {
+            CallSignal signal = CallSignaling.Read(OfflineOffer("1", CallSignaling.UnixTime()));
+
+            Assert.IsTrue(!CallSignaling.IsStale(signal), "a call still ringing is answered");
+        }
+
+        /// <summary>
+        /// The ack of a call: its own id back, to the JID it came from, with `call` as the
+        /// class - the shape the message path already uses, which is how a stanza leaves the
+        /// offline queue.
+        /// </summary>
+        [Test]
+        public static void TheAckOfACallNamesTheStanzaAndItsClass()
+        {
+            BinaryNode call = new BinaryNode("call");
+            call.Attrs.Add("from", Peer);
+            call.Attrs.Add("id", CallId);
+
+            BinaryNode ack = IncomingMessage.Ack(call);
+
+            Assert.AreEqual("ack", ack.Tag);
+            Assert.AreEqual(CallId, ack.Attrs["id"], "the server's own id back");
+            Assert.AreEqual(Peer, ack.Attrs["to"], "to the JID it came from");
+            Assert.AreEqual("call", ack.Attrs["class"], "with the tag as the class");
+        }
+
+        /// <summary>An offer node stamped as the log shows it, for the three tests above.</summary>
+        private static BinaryNode OfflineOffer(string offline, long timestamp)
+        {
+            var call = new BinaryNode("call");
+            call.Attrs.Add("from", Peer);
+            call.Attrs.Add("to", "15550001111@s.whatsapp.net");
+            call.Attrs.Add("id", CallId);
+            call.Attrs.Add("offline", offline);
+            call.Attrs.Add("t", timestamp.ToString(CultureInfo.InvariantCulture));
+
+            var offer = new BinaryNode("offer");
+            offer.Attrs.Add("call-id", CallId);
+            offer.Attrs.Add("call-creator", Peer);
+            call.Content = new List<BinaryNode> { offer };
+
+            return call;
+        }
+
         [Test]
         public static void TheShapeOfAnOfferIsDescribedWithoutItsKeys()
         {
