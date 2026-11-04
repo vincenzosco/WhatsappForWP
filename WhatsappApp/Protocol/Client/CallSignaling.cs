@@ -125,6 +125,16 @@ namespace WhatsappApp.Protocol.Client
         public BinaryNode VoipSettings;
 
         /// <summary>
+        /// The children the parser registers after `voip_settings`, in its own order: `relay`,
+        /// `group_info`, `av_upgrade`, `link_info`. They are copied whole, like the three
+        /// above, because nothing in this build knows what their attributes mean.
+        /// </summary>
+        public BinaryNode Relay;
+        public BinaryNode GroupInfo;
+        public BinaryNode AvUpgrade;
+        public BinaryNode LinkInfo;
+
+        /// <summary>
         /// `metadata`'s own fields, as the callee's parser names them: it reads the node and
         /// refuses the offer with `Metadata node not found`, so the node is not decoration.
         /// ``ver`` is the shape of the node, `peer_abtest_bucket` the bucket this side is in,
@@ -180,6 +190,7 @@ namespace WhatsappApp.Protocol.Client
             {
                 return string.IsNullOrEmpty(CallerPn) && string.IsNullOrEmpty(CallerCountryCode)
                     && !Joinable.HasValue && Metadata == null && Rte == null && VoipSettings == null
+                    && Relay == null && GroupInfo == null && AvUpgrade == null && LinkInfo == null
                     && string.IsNullOrEmpty(MetadataVersion) && string.IsNullOrEmpty(VoipSettingsType);
             }
         }
@@ -211,6 +222,10 @@ namespace WhatsappApp.Protocol.Client
             profile.Metadata = offer.Child("metadata");
             profile.Rte = offer.Child("rte");
             profile.VoipSettings = offer.Child("voip_settings");
+            profile.Relay = offer.Child("relay");
+            profile.GroupInfo = offer.Child("group_info");
+            profile.AvUpgrade = offer.Child("av_upgrade");
+            profile.LinkInfo = offer.Child("link_info");
 
             if (profile.Metadata != null)
             {
@@ -252,6 +267,13 @@ namespace WhatsappApp.Protocol.Client
 
             BinaryNode settings = VoipSettingsNode();
             if (settings != null) children.Add(settings);
+
+            // `relay`, `group_info`, `av_upgrade`, `link_info`: the order the parser's own
+            // name table gives them, one after the other (see the table on `Offer`).
+            if (Relay != null) children.Add(Relay);
+            if (GroupInfo != null) children.Add(GroupInfo);
+            if (AvUpgrade != null) children.Add(AvUpgrade);
+            if (LinkInfo != null) children.Add(LinkInfo);
         }
     }
 
@@ -626,6 +648,36 @@ namespace WhatsappApp.Protocol.Client
         /// and the same tokens sit in the official client's own dex (`caller_pn`,
         /// `caller_country_code`, `joinable` in classes2, `metadata` and `voip_settings` beside
         /// them), so the spelling is read and not guessed. The values are what is still missing.
+        ///
+        /// The offer, child by child, in the order the client's parser names them. The run is
+        /// one string table of `call_control::stanza_deserializer::stanzas::offer`, read out of
+        /// libwhatsappmerged's pool (x 14,410,496):
+        ///
+        ///     handle_incoming_xmpp_receipt  offer  audio  &lt;unknown&gt;  receipt
+        ///     call-creator  parse_xmpp_offer: empty call-id  voip_settings  relay
+        ///     group_info  av_upgrade  link_info  handle_incoming_xmpp_receipt: empty call-id
+        ///
+        /// which gives this table, in this order:
+        ///
+        ///     #   name             kind       where it sits
+        ///     1   audio            child      first name the table registers for the offer
+        ///     2   voip_settings    child      after the `call-creator` attribute
+        ///     3   relay            child      after `voip_settings`
+        ///     4   group_info       child      after `relay`
+        ///     5   av_upgrade       child      after `group_info`
+        ///     6   link_info        child      after `av_upgrade`
+        ///     -   receipt          not an offer child: the receipt stanza of the same unit
+        ///     -   &lt;unknown&gt;       a sentinel, not an element
+        ///
+        /// and on the verb, in the same order: `call-creator`, then the caller's own
+        /// `caller_pn`, `caller_country_code`, `joinable`, and `device_class` beside them.
+        ///
+        /// Two children have no place in that table because the pool already carried their
+        /// names from another translation unit - `video`, `net`, `capability`, `destination`
+        /// with its `te`, `enc`, `encopt` - and they keep the wire order the captures pin:
+        /// media, `net`, `capability`, `destination`, `enc`, `encopt`, and `device-identity`
+        /// last. `metadata` and `rte` are not in the table either, and stay where the captured
+        /// offer has them: with `voip_settings`, ahead of the four the table orders.
         /// </summary>
         public static BinaryNode Offer(
             string callId,

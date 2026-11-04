@@ -92,6 +92,38 @@ namespace ProtocolTests
             Assert.IsTrue(profile.Metadata != null, "metadata comes back whole");
         }
 
+        /// <summary>
+        /// The children a captured offer carries come back in the parser's own order: the name
+        /// table of `stanzas::offer` registers `audio`, then `voip_settings`, `relay`,
+        /// `group_info`, `av_upgrade`, `link_info` - and that is the order they are written in.
+        /// </summary>
+        [Test]
+        public static void TheProfileChildrenKeepTheParserOrder()
+        {
+            var profile = new CallWireProfile
+            {
+                VoipSettings = new BinaryNode("voip_settings"),
+                Relay = new BinaryNode("relay"),
+                GroupInfo = new BinaryNode("group_info"),
+                AvUpgrade = new BinaryNode("av_upgrade"),
+                LinkInfo = new BinaryNode("link_info")
+            };
+
+            BinaryNode offer = CallSignaling.Offer(CallId, Peer, "me@lid", null,
+                OneAudio(), NoVideo(), new List<CallKeyPayload>(), NoCandidate(), profile)
+                .Children()[0];
+
+            IList<BinaryNode> children = offer.Children();
+
+            var tags = new List<string>();
+            for (int i = 0; i < children.Count; i++) tags.Add(children[i].Tag);
+            string order = string.Join(",", tags.ToArray());
+
+            Assert.AreEqual("audio", children[0].Tag, "the media first, as it was");
+            Assert.IsTrue(order.EndsWith("voip_settings,relay,group_info,av_upgrade,link_info"),
+                "then the five names of the table, in the table's order: " + order);
+        }
+
         [Test]
         public static void VoipSettingsAndMetadataAreWrittenFromTheirFields()
         {
