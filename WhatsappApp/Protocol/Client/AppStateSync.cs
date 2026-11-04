@@ -174,6 +174,24 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public static IList<AppStateCollection> Read(BinaryNode answer)
         {
+            IList<string> skipped;
+            return Read(answer, out skipped);
+        }
+
+        /// <summary>
+        /// The same read, and the collections it could not decode, named.
+        ///
+        /// Why the decode is isolated per collection: the server sends all five in one
+        /// answer, and a snapshot this client cannot parse used to throw out of the middle of
+        /// the loop - so one unreadable collection cost the names of the other four, and the
+        /// log said only "app-state: ProtocolException" with no collection in it (the phone's
+        /// own log, 4 November 2026: `a protobuf field is not one: number 69477, wire type
+        /// 6`). A collection is read whole or not at all, which is the rule `Apply` already
+        /// keeps; this is the same rule one level up.
+        /// </summary>
+        public static IList<AppStateCollection> Read(BinaryNode answer, out IList<string> skipped)
+        {
+            skipped = new List<string>();
             var collections = new List<AppStateCollection>();
             if (answer == null) return collections;
 
@@ -191,25 +209,36 @@ namespace WhatsappApp.Protocol.Client
                 var collection = new AppStateCollection();
                 collection.Name = node.Attrs["name"];
 
-                BinaryNode snapshot = node.Child("snapshot");
-                if (snapshot != null && snapshot.Bytes() != null)
+                try
                 {
-                    collection.Snapshot = SyncdSnapshot.Decode(snapshot.Bytes());
-                }
-
-                // A patch is either a child of the collection or of a `<patches>` wrapper,
-                // and the reference reads both (`extractSyncdPatches`).
-                BinaryNode patches = node.Child("patches");
-                IList<BinaryNode> sources = patches != null ? patches.Children() : node.Children();
-                if (sources != null)
-                {
-                    for (int p = 0; p < sources.Count; p++)
+                    BinaryNode snapshot = node.Child("snapshot");
+                    if (snapshot != null && snapshot.Bytes() != null)
                     {
-                        BinaryNode patch = sources[p];
-                        if (patch == null || patch.Tag != "patch" || patch.Bytes() == null) continue;
-
-                        collection.Patches.Add(SyncdPatch.Decode(patch.Bytes()));
+                        collection.Snapshot = SyncdSnapshot.Decode(snapshot.Bytes());
                     }
+
+                    // A patch is either a child of the collection or of a `<patches>` wrapper,
+                    // and the reference reads both (`extractSyncdPatches`).
+                    BinaryNode patches = node.Child("patches");
+                    IList<BinaryNode> sources = patches != null ? patches.Children() : node.Children();
+                    if (sources != null)
+                    {
+                        for (int p = 0; p < sources.Count; p++)
+                        {
+                            BinaryNode patch = sources[p];
+                            if (patch == null || patch.Tag != "patch" || patch.Bytes() == null) continue;
+
+                            collection.Patches.Add(SyncdPatch.Decode(patch.Bytes()));
+                        }
+                    }
+                }
+                catch (ProtocolException error)
+                {
+                    // The name is what makes the line useful: "a collection was not read"
+                    // without it leaves five candidates and one sentence.
+                    skipped.Add((string.IsNullOrEmpty(collection.Name) ? "?" : collection.Name)
+                        + ": " + error.Message);
+                    continue;
                 }
 
                 collections.Add(collection);

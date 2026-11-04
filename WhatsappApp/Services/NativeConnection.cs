@@ -3064,7 +3064,16 @@ namespace WhatsappApp.Services
                     return;
                 }
 
-                collections = AppStateSync.Read(answer);
+                // The collections that did not parse are named and the rest are still read:
+                // this used to be one call that threw on the first bad snapshot, so a single
+                // unreadable collection cost the names of the other four (see `Read`).
+                IList<string> unreadable;
+                collections = AppStateSync.Read(answer, out unreadable);
+
+                for (int i = 0; i < unreadable.Count; i++)
+                {
+                    Diag.Ok("app-state: a collection was not read: " + unreadable[i]);
+                }
             }
             catch (Exception error)
             {

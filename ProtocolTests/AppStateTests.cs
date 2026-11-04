@@ -243,6 +243,53 @@ namespace ProtocolTests
                 "the key material itself comes back, byte for byte");
         }
 
+        [Test]
+        public static void ACollectionThatDoesNotParseIsSkippedAndTheOthersStillRead()
+        {
+            // The phone's own log, 4 November 2026: one snapshot the reader could not walk
+            // (`a protobuf field is not one: number 69477, wire type 6`) threw out of the
+            // middle of `Read`, so the five collections the server sends in one answer were
+            // all lost and the line named none of them. `regular_low` here is that snapshot:
+            // a tag whose low bits say wire type 7, which no field has.
+            var broken = new BinaryNode("collection");
+            broken.Attrs.Add("name", "regular_low");
+
+            var brokenSnapshot = new BinaryNode("snapshot");
+            brokenSnapshot.Content = new byte[] { 0x3f };
+            broken.Content = new List<BinaryNode> { brokenSnapshot };
+
+            var readable = new BinaryNode("collection");
+            readable.Attrs.Add("name", Collection);
+
+            var snapshot = new BinaryNode("snapshot");
+            snapshot.Content = Convert.FromBase64String(AppStateFixture.Snapshot);
+            readable.Content = new List<BinaryNode> { snapshot };
+
+            var sync = new BinaryNode("sync");
+            sync.Content = new List<BinaryNode> { broken, readable };
+
+            var answer = new BinaryNode("iq");
+            answer.Attrs.Add("type", "result");
+            answer.Content = new List<BinaryNode> { sync };
+
+            IList<string> skipped;
+            IList<AppStateCollection> read = AppStateSync.Read(answer, out skipped);
+
+            Assert.AreEqual(1, read.Count, "the collection that parses is read");
+            Assert.AreEqual(Collection, read[0].Name);
+            Assert.IsTrue(read[0].Snapshot != null, "and it arrives with its snapshot");
+
+            Assert.AreEqual(1, skipped.Count, "the one that does not parse is named, not swallowed");
+            Assert.IsTrue(skipped[0].StartsWith("regular_low:", StringComparison.Ordinal),
+                "the line says which collection failed: " + skipped[0]);
+
+            // The whole point of isolating the decode: the names of the readable collection
+            // are still read, instead of an empty address book.
+            AppStateResult applied = AppStateSync.Apply(read[0], Keys());
+            Assert.AreEqual(2, applied.Contacts.Count,
+                "one unreadable collection does not cost the names of the others");
+        }
+
         // ------------------------------------------------------------------ the helpers
 
         /// <summary>
