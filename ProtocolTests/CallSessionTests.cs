@@ -4,14 +4,12 @@ using WhatsappApp.Services;
 namespace ProtocolTests
 {
     /// <summary>
-    /// The call's states and the transitions that are easy to get wrong.
+    /// The call states, and the moves between them that are easy to get wrong.
     ///
-    /// The model now carries the official client's fifteen `CallState` values (read out of
-    /// the APK on 4 November 2026) and derives the five-value `CallPhase` the pages draw.
-    /// These are tests and not a page's behaviour because they are the only part of a call
-    /// that can be checked here: the media does not exist yet (see
-    /// `docs/superpowers/specs/2026-11-02-voice-and-video-calls-design.md`), so what a call
-    /// *is* until then is exactly this machine.
+    /// A call here is only its signalling: there is no audio and no video yet (see
+    /// `docs/superpowers/specs/2026-11-02-voice-and-video-calls-design.md`). So the
+    /// thing worth testing is this little state machine - which is also the thing that
+    /// would break without anyone noticing.
     /// </summary>
     public static class CallSessionTests
     {
@@ -23,9 +21,9 @@ namespace ProtocolTests
         {
             var session = new CallSession();
 
-            Assert.AreEqual(CallState.None, session.State, "the wire's own word for no call");
-            Assert.AreEqual(CallPhase.Idle, session.Phase, "and the screen's");
-            Assert.IsFalse(session.Shows, "no call, no banner");
+            Assert.AreEqual(CallState.None, session.State, "no call, in the network's own word");
+            Assert.AreEqual(CallPhase.Idle, session.Phase, "and in the screen's");
+            Assert.IsFalse(session.Shows, "nothing to draw");
             Assert.IsFalse(session.Occupied);
         }
 
@@ -34,15 +32,15 @@ namespace ProtocolTests
         {
             var session = new CallSession();
 
-            Assert.IsTrue(session.Ring(CallId, Peer, true), "an offer rings");
+            Assert.IsTrue(session.Ring(CallId, Peer, true), "a call is coming in");
 
-            Assert.AreEqual(CallState.ReceivedCall, session.State, "the official state of a ringing offer");
+            Assert.AreEqual(CallState.ReceivedCall, session.State, "that is the official name for a call that rings");
             Assert.AreEqual(CallPhase.Ringing, session.Phase);
             Assert.AreEqual(CallId, session.CallId);
             Assert.AreEqual(Peer, session.PeerJid);
             Assert.IsTrue(session.IsVideo);
             Assert.IsTrue(session.IsIncoming);
-            Assert.IsTrue(session.Occupied, "a second call has to be refused as busy");
+            Assert.IsTrue(session.Occupied, "so a second call has to be told the line is busy");
         }
 
         [Test]
@@ -52,7 +50,7 @@ namespace ProtocolTests
             session.Ring(CallId, Peer, false);
 
             Assert.IsFalse(session.Ring(CallId, Peer, false),
-                "the server repeats an offer, and a phone that rings twice is a bug");
+                "the server can send the same offer twice, and a phone that rings twice is a bug");
             Assert.AreEqual(CallPhase.Ringing, session.Phase);
         }
 
@@ -63,7 +61,7 @@ namespace ProtocolTests
 
             Assert.IsTrue(session.Dial(CallId, Peer, false));
 
-            Assert.AreEqual(CallState.Calling, session.State, "the official state of an offer that went out");
+            Assert.AreEqual(CallState.Calling, session.State, "the official name for a call that went out");
             Assert.AreEqual(CallPhase.Connecting, session.Phase);
             Assert.IsFalse(session.IsIncoming);
             Assert.IsTrue(session.Occupied);
@@ -75,12 +73,12 @@ namespace ProtocolTests
             var session = new CallSession();
             session.Ring(CallId, Peer, false);
 
-            Assert.IsTrue(session.Connect(CallId), "this phone answering");
+            Assert.IsTrue(session.Connect(CallId), "we answered");
             Assert.AreEqual(CallState.Active, session.State);
             Assert.AreEqual(CallPhase.Active, session.Phase);
             Assert.IsTrue(session.WasAnswered);
 
-            Assert.IsFalse(session.Connect(CallId), "an accept for a call already up changes nothing");
+            Assert.IsFalse(session.Connect(CallId), "answering a call that is already up changes nothing");
         }
 
         [Test]
@@ -89,7 +87,7 @@ namespace ProtocolTests
             var session = new CallSession();
             session.Ring(CallId, Peer, false);
 
-            Assert.IsFalse(session.Connect("SOMEONEELSES"), "a node about another call is not about this one");
+            Assert.IsFalse(session.Connect("SOMEONEELSES"), "an answer for another call is not an answer to this one");
             Assert.AreEqual(CallPhase.Ringing, session.Phase);
         }
 
@@ -98,8 +96,8 @@ namespace ProtocolTests
         {
             var session = new CallSession();
 
-            Assert.IsFalse(session.Connect(CallId), "no call to make active");
-            Assert.AreEqual(CallState.None, session.State, "and one is not opened by it");
+            Assert.IsFalse(session.Connect(CallId), "there is no call to answer");
+            Assert.AreEqual(CallState.None, session.State, "and answering must not create one");
         }
 
         [Test]
@@ -109,7 +107,7 @@ namespace ProtocolTests
 
             Assert.IsFalse(session.End(CallId, "timeout"));
             Assert.AreEqual(CallPhase.Idle, session.Phase);
-            Assert.IsFalse(session.Shows, "a call nobody started is not a banner nobody can close");
+            Assert.IsFalse(session.Shows, "a call nobody started would be a banner nobody can close");
         }
 
         [Test]
@@ -126,7 +124,7 @@ namespace ProtocolTests
             Assert.IsFalse(session.Occupied, "the line is free again");
 
             Assert.IsFalse(session.End(CallId, "reject"),
-                "a second end does not overwrite the reason the call really ended for");
+                "ending twice would overwrite the reason it really ended for");
             Assert.AreEqual("timeout", session.EndedReason);
         }
 
@@ -146,7 +144,7 @@ namespace ProtocolTests
             live.Ring(CallId, Peer, false);
             live.Clear();
 
-            Assert.AreEqual(CallPhase.Ringing, live.Phase, "a call still up is not cleared");
+            Assert.AreEqual(CallPhase.Ringing, live.Phase, "a call that is still going is not cleared");
         }
 
         [Test]
@@ -155,7 +153,7 @@ namespace ProtocolTests
             var session = new CallSession();
             session.Ring(CallId, Peer, false);
 
-            Assert.IsFalse(session.End(null, "timeout"), "an empty id matches nothing");
+            Assert.IsFalse(session.End(null, "timeout"), "a message with no id matches nothing");
             Assert.IsFalse(session.End("", "timeout"));
             Assert.AreEqual(CallPhase.Ringing, session.Phase);
         }
@@ -166,22 +164,22 @@ namespace ProtocolTests
             var session = new CallSession();
             session.Dial(CallId, Peer, false);
 
-            Assert.IsTrue(session.PreAccept(CallId), "the other phone heard the offer");
-            Assert.AreEqual(CallState.PreAcceptReceived, session.State, "the official state of that news");
-            Assert.AreEqual(CallPhase.Connecting, session.Phase, "the banner says the same thing");
+            Assert.IsTrue(session.PreAccept(CallId), "their phone got our call");
+            Assert.AreEqual(CallState.PreAcceptReceived, session.State, "which is what that state means");
+            Assert.AreEqual(CallPhase.Connecting, session.Phase, "and the banner still says connecting");
 
             var ringing = new CallSession();
             ringing.Ring(CallId, Peer, false);
 
-            Assert.IsFalse(ringing.PreAccept(CallId), "a preaccept is not the callee's own call");
+            Assert.IsFalse(ringing.PreAccept(CallId), "a pre-accept is about their own call, not about ours");
             Assert.AreEqual(CallPhase.Ringing, ringing.Phase);
         }
 
         [Test]
         public static void TheFifteenOfficialStatesAreAllMappedToAPhase()
         {
-            // The enum has to be the official list, all fifteen of it: a state added
-            // upstream is a decision here, not a number that falls through a default.
+            // The enum has to hold the official list, all fifteen. A state added later
+            // is a decision here, not a number that silently lands in the wrong phase.
             CallState[] official = new CallState[]
             {
                 CallState.None, CallState.PreCalling, CallState.Calling,
@@ -191,8 +189,8 @@ namespace ProtocolTests
                 CallState.ActiveElsewhere, CallState.Screening, CallState.BCallStarting
             };
 
-            Assert.AreEqual(15, official.Length, "the official client has fifteen states");
-            Assert.AreEqual(15, Enum.GetValues(typeof(CallState)).Length, "and the model carries all of them");
+            Assert.AreEqual(15, official.Length, "the official app has fifteen states");
+            Assert.AreEqual(15, Enum.GetValues(typeof(CallState)).Length, "and the model has all of them");
 
             Assert.AreEqual(CallPhase.Idle, CallSession.PhaseOf(CallState.None));
             Assert.AreEqual(CallPhase.Connecting, CallSession.PhaseOf(CallState.PreCalling));
@@ -235,12 +233,12 @@ namespace ProtocolTests
             session.Ring(CallId, Peer, false);
 
             Assert.IsFalse(session.Apply(CallEvent.BatteryLevelLow, CallId, null),
-                "an event that is not a transition leaves the call where it is");
+                "an event that does not end a call leaves the call where it is");
             Assert.AreEqual(CallPhase.Ringing, session.Phase);
             Assert.AreEqual(CallEvent.BatteryLevelLow, session.LastEvent);
 
             Assert.IsTrue(session.Apply(CallEvent.CallRejectReceived, CallId, "busy"));
-            Assert.AreEqual("busy", session.EndedReason, "a refusal keeps the word it was given");
+            Assert.AreEqual("busy", session.EndedReason, "a refusal keeps the reason it came with");
         }
 
         [Test]
@@ -250,8 +248,8 @@ namespace ProtocolTests
             session.Ring(CallId, Peer, false);
 
             Assert.IsFalse(session.Apply(CallEvent.CallTerminateReceived, "SOMEONEELSES", "timeout"));
-            Assert.AreEqual(CallPhase.Ringing, session.Phase, "a node about another call is not about this one");
-            Assert.IsTrue(session.LastEvent == null, "and it is not this call's last event");
+            Assert.AreEqual(CallPhase.Ringing, session.Phase, "a message about another call is about another call");
+            Assert.IsTrue(session.LastEvent == null, "so it is not this call's last event");
         }
     }
 }

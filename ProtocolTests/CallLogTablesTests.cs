@@ -4,12 +4,13 @@ using WhatsappApp.Protocol.Client;
 namespace ProtocolTests
 {
     /// <summary>
-    /// The `call_log` and `call_link` tables and their indices, taken from the official
-    /// database's own schema (read out of the APK on 4 November 2026).
+    /// The `call_log` and `call_link` tables, with the lookups the official database
+    /// keeps (read out of the APK on 4 November 2026).
     ///
-    /// These are the parts worth a test: a call logged twice is one row, the log reads
-    /// newest first, a person is one chat whatever device they called from, and a call
-    /// link's token is its identity.
+    /// Four things are worth checking here, and they are four things people get wrong:
+    /// a call logged twice is still one row, the list reads newest first, one person is
+    /// one chat whatever device they called from, and a call link is identified by its
+    /// token.
     /// </summary>
     public static class CallLogTablesTests
     {
@@ -41,8 +42,8 @@ namespace ProtocolTests
             long id = tables.Insert(row);
 
             Assert.AreEqual(1, tables.Count);
-            Assert.AreEqual(id, tables.ByCallId("CALL0001").RowId, "the call id is the key");
-            Assert.AreEqual(id, tables.ByTelecomUuid("uuid-1").RowId, "and the dialer's uuid is another");
+            Assert.AreEqual(id, tables.ByCallId("CALL0001").RowId, "the call id finds it");
+            Assert.AreEqual(id, tables.ByTelecomUuid("uuid-1").RowId, "and so does the dialer's id");
             Assert.AreEqual(1, tables.Participants(id).Count);
             Assert.IsTrue(tables.ByCallId("NOTACALL") == null, "a call that is not there is null");
         }
@@ -58,7 +59,7 @@ namespace ProtocolTests
 
             IList<CallLogRow> log = tables.ByTimestamp();
 
-            Assert.AreEqual("CALL0003", log[0].CallId, "the call list reads like a chat");
+            Assert.AreEqual("CALL0003", log[0].CallId, "the newest call is at the top, like a chat list");
             Assert.AreEqual("CALL0002", log[1].CallId);
             Assert.AreEqual("CALL0001", log[2].CallId);
         }
@@ -71,7 +72,7 @@ namespace ProtocolTests
             long first = tables.Insert(Row("CALL0001", Peer, 1000, false));
             long again = tables.Insert(Row("CALL0001", Peer, 1000, false));
 
-            Assert.AreEqual(first, again, "the history sync and a local call can both carry one call");
+            Assert.AreEqual(first, again, "the history sync and a call made here can both carry the same call");
             Assert.AreEqual(1, tables.Count);
         }
 
@@ -86,8 +87,8 @@ namespace ProtocolTests
 
             IList<CallLogRow> theirs = tables.ByUser(Peer);
 
-            Assert.AreEqual(2, theirs.Count, "the device suffix is not part of the chat's address");
-            Assert.AreEqual("CALL0002", theirs[0].CallId, "and the person's calls read newest first");
+            Assert.AreEqual(2, theirs.Count, "the device they called from is not part of the chat's address");
+            Assert.AreEqual("CALL0002", theirs[0].CallId, "and that person's calls read newest first too");
         }
 
         [Test]
@@ -107,14 +108,14 @@ namespace ProtocolTests
 
             tables.InsertLink(second);
 
-            Assert.AreEqual(1, tables.LinkCount, "the token is unique: a link seen twice is one row");
+            Assert.AreEqual(1, tables.LinkCount, "one token is one link, even if it is seen twice");
             Assert.AreEqual("ACTIVE", tables.LinkByToken("TOKEN1").State);
 
             Assert.IsTrue(tables.UpdateLinkCreator("TOKEN1", Peer));
-            Assert.AreEqual(Peer, tables.LinkByToken("TOKEN1").CreatorJid, "without the device suffix");
+            Assert.IsTrue(tables.LinkByToken("TOKEN1").CreatorJid == Peer,
+                "the creator is stored as the person, without the device");
 
-            Assert.IsTrue(tables.LinkByToken("TOKEN1").CreatorJid == Peer, "the creator is the person, not the device");
-            Assert.IsFalse(tables.UpdateLinkCreator("NOLINK", Peer), "and a link that is not there is not made up");
+            Assert.IsFalse(tables.UpdateLinkCreator("NOLINK", Peer), "and a link that is not there cannot be changed");
         }
     }
 }

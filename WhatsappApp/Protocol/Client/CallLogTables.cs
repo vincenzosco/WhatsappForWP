@@ -4,50 +4,49 @@ using WhatsappApp.Protocol.WABinary;
 
 namespace WhatsappApp.Protocol.Client
 {
-    /// <summary>One row of `call_log`, with the names the client's own schema uses.</summary>
+    /// <summary>One row of `call_log`, with the same field names the official app uses.</summary>
     public sealed class CallLogRow
     {
-        /// <summary>`call_log._id`: the row this participants and links point at.</summary>
+        /// <summary>The row's own number. Participants point back at it.</summary>
         public long RowId;
 
-        /// <summary>`call_log.timestamp`, in seconds.</summary>
+        /// <summary>When the call happened, in seconds.</summary>
         public long Timestamp;
 
-        /// <summary>`call_log.call_id`: the id every node of the call carries.</summary>
+        /// <summary>The call id, the one every message about this call carries.</summary>
         public string CallId;
 
-        /// <summary>`call_log.user_jid`: the other party, as the log keys it.</summary>
+        /// <summary>The other person, as the log stores them.</summary>
         public string UserJid;
 
-        /// <summary>`call_log.from_me`.</summary>
+        /// <summary>True if we made the call.</summary>
         public bool FromMe;
 
-        /// <summary>`call_log.video_call`.</summary>
+        /// <summary>True if it was a video call.</summary>
         public bool IsVideo;
 
-        /// <summary>`call_log.call_result`: the `CallLogRecord.CallResult` value.</summary>
+        /// <summary>How it ended: the number the official log calls `CallResult`.</summary>
         public int Result;
 
-        /// <summary>The seconds it lasted; zero for a call that never connected.</summary>
+        /// <summary>How long it lasted. Zero for a call nobody answered.</summary>
         public int DurationSeconds;
 
-        /// <summary>`call_log.telecom_uuid`, for a call the system dialer knows.</summary>
+        /// <summary>The id the phone's own dialer knows this call by, when there is one.</summary>
         public string TelecomUuid;
 
-        /// <summary>`call_log.transaction_id`.</summary>
+        /// <summary>The id of the message or action that started the call.</summary>
         public string TransactionId;
 
-        /// <summary>`call_log_participant_v2` for this call, in the order they joined.</summary>
+        /// <summary>Who was on the call, in the order they joined (the `call_log_participant_v2` rows).</summary>
         public readonly List<string> Participants = new List<string>();
     }
 
     /// <summary>
-    /// One row of `call_link`: a call reachable by a token instead of an offer.
+    /// One row of `call_link`: a call you can join with a link instead of calling.
     ///
-    /// The token is the whole identity of the row - the official schema has a unique
-    /// index on it (`call_link_token_index`) and the event table points at it - so the
-    /// store here does the same: one token, one row, and an insert of a token that
-    /// exists is the existing row updated rather than a second one.
+    /// The token is what identifies the link. The official database has a unique index
+    /// on it, and the event table points at it, so this store does the same: one token,
+    /// one row. Adding the same token twice updates that row instead of making a second.
     /// </summary>
     public sealed class CallLinkRow
     {
@@ -63,13 +62,13 @@ namespace WhatsappApp.Protocol.Client
     }
 
     /// <summary>
-    /// The call-log tables, and the indices the official database keeps on them.
+    /// The call log tables, with the same lookups (indices) the official database keeps.
     ///
-    /// Why it is here and not in a store class: this is the part worth a test - which
-    /// lookup answers what, and which one is unique - and it has no file and no WinRT in
-    /// it. `Services/CallLogStore` is the thin file around it.
+    /// This part is separate from the file around it (`Services/CallLogStore`) because
+    /// this is the part worth testing: which lookup answers what, and which one is
+    /// unique. There is no file and no WinRT here, so a test can use it directly.
     ///
-    /// The indices are the schema's own, from the `CREATE INDEX` statements in the APK's
+    /// These are the official indices, from the `CREATE INDEX` statements in the APK's
     /// string pool (`2026-11-04-calls-apk-inventory.md`):
     ///
     ///   call_log_ts_index                 (timestamp)          newest first on screen
@@ -79,8 +78,8 @@ namespace WhatsappApp.Protocol.Client
     ///   call_log_participant_v2           (call_log_row_id)    who was on it
     ///   call_link_token_index             (token) UNIQUE       the link's identity
     ///
-    /// A row is inserted once and then read: the log the sync sends is not edited in
-    /// place except for a link's creator, which `UpdateLinkCreator` is for.
+    /// Rows are added once and then read. The only thing ever changed in place is a
+    /// link's creator, which is what `UpdateLinkCreator` is for.
     /// </summary>
     public sealed class CallLogTables
     {
@@ -96,22 +95,24 @@ namespace WhatsappApp.Protocol.Client
 
         private long _nextRowId = 1;
 
-        /// <summary>How many calls the log holds.</summary>
+        /// <summary>How many calls are in the log.</summary>
         public int Count
         {
             get { return _rows.Count; }
         }
 
-        /// <summary>How many call links it holds.</summary>
+        /// <summary>How many call links there are.</summary>
         public int LinkCount
         {
             get { return _links.Count; }
         }
 
         /// <summary>
-        /// Adds a call and returns its `_id`. A call already in the log - the history
-        /// sync and a local call can both carry one - is not added twice: the id is
-        /// unique on the wire, so a second copy is the same call.
+        /// Adds a call and gives back its row number.
+        ///
+        /// The same call can arrive from the history sync and from a call made on this
+        /// phone. The call id is unique on the network, so a second copy is not a second
+        /// call: the row that is already there is returned instead.
         /// </summary>
         public long Insert(CallLogRow row)
         {
@@ -152,13 +153,14 @@ namespace WhatsappApp.Protocol.Client
             return row.RowId;
         }
 
-        /// <summary>The log newest first: what a call list draws.</summary>
+        /// <summary>The whole log, newest call first. This is what the call list draws.</summary>
         public IList<CallLogRow> ByTimestamp()
         {
             var ordered = new List<CallLogRow>(_rows.Count);
 
-            // A SortedDictionary enumerates oldest first; the screen wants the other way,
-            // so the keys are walked backwards instead of sorting the rows again.
+            // A SortedDictionary reads oldest first and the screen wants it the other
+            // way round, so the times are walked backwards. Sorting the rows again would
+            // do the same work twice.
             var keys = new List<long>(_byTime.Keys);
             for (int i = keys.Count - 1; i >= 0; i--)
             {
@@ -178,7 +180,7 @@ namespace WhatsappApp.Protocol.Client
             return _byCallId.TryGetValue(callId, out row) ? row : null;
         }
 
-        /// <summary>The call the system dialer knows by this uuid, or null.</summary>
+        /// <summary>The call the phone's dialer knows by this id, or null.</summary>
         public CallLogRow ByTelecomUuid(string uuid)
         {
             if (string.IsNullOrEmpty(uuid)) return null;
@@ -201,7 +203,7 @@ namespace WhatsappApp.Protocol.Client
             return found;
         }
 
-        /// <summary>Who was on a call, by its `_id`.</summary>
+        /// <summary>Who was on a call, given the call's row number.</summary>
         public IList<string> Participants(long rowId)
         {
             CallLogRow row;
@@ -211,8 +213,8 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// Adds or replaces a call link. The token is unique, so this cannot grow the
-        /// table by accident: the same link seen twice is one row.
+        /// Adds or replaces a call link. The token is unique, so this cannot make the
+        /// table grow by accident: the same link seen twice is one row.
         /// </summary>
         public void InsertLink(CallLinkRow link)
         {
@@ -233,8 +235,8 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The link's creator, which the official schema updates under the same unique
-        /// index (`call_link_store/update_creator`). Answers whether the link exists.
+        /// Changes who created a link. The official database does the same, through its
+        /// unique token index. Returns false if there is no such link.
         /// </summary>
         public bool UpdateLinkCreator(string token, string creatorJid)
         {
@@ -245,13 +247,13 @@ namespace WhatsappApp.Protocol.Client
             return true;
         }
 
-        /// <summary>Every call, in the order it was added: what the file keeps.</summary>
+        /// <summary>Every call, in the order it was added. This is what the file keeps.</summary>
         public IList<CallLogRow> Rows()
         {
             return _rows;
         }
 
-        /// <summary>Every link: what the file keeps.</summary>
+        /// <summary>Every link. This is what the file keeps.</summary>
         public IList<CallLinkRow> Links()
         {
             var all = new List<CallLinkRow>(_links.Count);
@@ -260,9 +262,10 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// A person's key: the user half, without the device. Two rows about the same
-        /// person are the same chat, and the device suffix is not part of the chat's
-        /// address.
+        /// A person's key for the user index: the address without the device part.
+        ///
+        /// Two calls with the same person belong to the same chat, and a chat address
+        /// does not include the device they happened to call from.
         /// </summary>
         private static string Key(string jid)
         {

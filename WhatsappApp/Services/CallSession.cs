@@ -3,138 +3,142 @@ using System;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The official client's call state, all fifteen values of
-    /// `com.whatsapp.calling.infra.voipcalling.CallState`, read out of the APK's
-    /// `classes*.dex` on 4 November 2026:
+    /// The call states the official app uses. There are fifteen of them, and these
+    /// are their names, copied from `com.whatsapp.calling.infra.voipcalling.CallState`
+    /// in the APK's `classes*.dex` on 4 November 2026:
     ///
     ///   NONE, PRECALLING, CALLING, RECEIVED_CALL, PRE_ACCEPT_RECEIVED,
     ///   ACCEPT_SENT, ACCEPT_RECEIVED, LINK, ACTIVE, CONNECTED_LONELY,
     ///   REJOINING, ENDING, ACTIVE_ELSEWHERE, SCREENING, BCALL_STARTING
     ///
-    /// The five names this app used before (`Idle`, `Ringing`, `Connecting`,
-    /// `Active`, `Ended`) are not on the wire: they were a UI summary of these,
-    /// and they are now `CallPhase`, derived from this enum by `PhaseOf`. The
-    /// reason to keep both is that the states are not a linear ring - `LINK` is a
-    /// call reached through a call link, `ACTIVE_ELSEWHERE` is one taken on
-    /// another device, `SCREENING` is one the phone is filtering - and a UI that
-    /// only knows five of them cannot say which of those it is looking at.
+    /// This app used to have five states of its own (`Idle`, `Ringing`, `Connecting`,
+    /// `Active`, `Ended`). Those five were never on the network: they were a summary
+    /// of these fifteen, made for the screens. They now live in `CallPhase`, and this
+    /// enum keeps the real thing.
     ///
-    /// What this client can actually reach today is a subset, and it says so
-    /// rather than pretending: `None`, `ReceivedCall`, `Calling`,
-    /// `PreAcceptReceived`, `AcceptSent`, `AcceptReceived`, `Active`, `Ending`.
-    /// `Link`, `ConnectedLonely`, `Rejoining`, `ActiveElsewhere`, `Screening` and
-    /// `BCallStarting` are values the model knows and the wire has not yet told it
-    /// about (call links, group rejoin, multi-device takeover), so nothing here
-    /// invents them.
+    /// Why keep both: the fifteen are not a straight line. `Link` means the call was
+    /// joined through a call link, `ActiveElsewhere` means the same account is already
+    /// on it from another device, `Screening` means the phone is checking the caller
+    /// before it rings. If the model only knew five words, the screens could not tell
+    /// those apart.
+    ///
+    /// This app can only reach some of them today: `None`, `ReceivedCall`, `Calling`,
+    /// `PreAcceptReceived`, `AcceptSent`, `AcceptReceived`, `Active` and `Ending`. The
+    /// others (`Link`, `ConnectedLonely`, `Rejoining`, `ActiveElsewhere`, `Screening`,
+    /// `BCallStarting`) are real states that nothing in this app produces yet. They are
+    /// named here and nothing more - no code pretends to reach them.
     /// </summary>
     public enum CallState
     {
-        /// <summary>No call. The only state a start-up is in.</summary>
+        /// <summary>No call at all. This is where the app starts.</summary>
         None,
 
-        /// <summary>The other phone is being prepared before it rings (woipv pre-call).</summary>
+        /// <summary>The other phone is being prepared, a moment before it rings.</summary>
         PreCalling,
 
-        /// <summary>An offer went out and nobody has answered yet.</summary>
+        /// <summary>We called, and nobody has picked up yet.</summary>
         Calling,
 
-        /// <summary>An offer arrived: the phone is ringing and nothing has been said yet.</summary>
+        /// <summary>Somebody called us: the phone is ringing, nobody has spoken yet.</summary>
         ReceivedCall,
 
-        /// <summary>The callee's phone heard the offer and is preparing its media.</summary>
+        /// <summary>Their phone got our call and is getting ready to answer it.</summary>
         PreAcceptReceived,
 
-        /// <summary>This phone answered and the caller has not confirmed yet.</summary>
+        /// <summary>We answered, and the caller has not confirmed it yet.</summary>
         AcceptSent,
 
-        /// <summary>The other phone accepted and this one has not started the media yet.</summary>
+        /// <summary>They answered, and our side has not started the call yet.</summary>
         AcceptReceived,
 
-        /// <summary>A call reached through a call link rather than a direct offer.</summary>
+        /// <summary>The call was joined through a call link instead of a normal call.</summary>
         Link,
 
         /// <summary>The call is up: somebody answered.</summary>
         Active,
 
-        /// <summary>Up, but every other participant has left (a group call of one).</summary>
+        /// <summary>The call is up but everyone else has left, so we are alone on it.</summary>
         ConnectedLonely,
 
-        /// <summary>Joining a group call again after a drop.</summary>
+        /// <summary>Coming back into a group call after losing it.</summary>
         Rejoining,
 
-        /// <summary>The call is over; the reason is what the banner says.</summary>
+        /// <summary>The call is over. The reason for it is what the banner shows.</summary>
         Ending,
 
-        /// <summary>This call is up on another device of the account.</summary>
+        /// <summary>The same call is up on another device of this account.</summary>
         ActiveElsewhere,
 
-        /// <summary>The phone is screening the call before it rings.</summary>
+        /// <summary>The phone is checking the call before letting it ring.</summary>
         Screening,
 
-        /// <summary>A broadcast call (the `b` in `bCallCreated`) is starting.</summary>
+        /// <summary>A broadcast call is starting (the "b" in `bCallCreated`).</summary>
         BCallStarting
     }
 
     /// <summary>
-    /// The five things a screen can say, derived from `CallState`.
+    /// The five things a screen can say about a call.
     ///
-    /// It exists because the pages ask a smaller question than the wire answers -
-    /// "is there a banner, does it ring, is it up, is it over" - and asking it of
-    /// fifteen values in five places is how the five places drift apart.
+    /// A page only ever asks a small question: is there a banner, is it ringing, is it
+    /// up, is it over. Answering that with fifteen values in five different pages is
+    /// how the pages end up disagreeing with each other, so they ask this instead.
+    /// Each of these comes from a `CallState` through `PhaseOf`.
     /// </summary>
     public enum CallPhase
     {
         /// <summary>No call.</summary>
         Idle,
 
-        /// <summary>An offer is ringing here.</summary>
+        /// <summary>A call is ringing here.</summary>
         Ringing,
 
-        /// <summary>Being set up, in either direction.</summary>
+        /// <summary>A call is being set up, in one direction or the other.</summary>
         Connecting,
 
         /// <summary>The call is up.</summary>
         Active,
 
-        /// <summary>The call is over and the banner still shows it.</summary>
+        /// <summary>The call is over and the banner is still on screen.</summary>
         Ended
     }
 
     /// <summary>
-    /// The events of `com.whatsapp.calling.voipcalling.VoipEventCallback` that
-    /// this client can act on, by their own names.
+    /// The call events this app can actually do something with, by the names the
+    /// official app uses in `VoipEventCallback`.
     ///
-    /// The callback has 119 methods; this is the subset a signalling-only client
-    /// has anything to do with. The rest (`callGridRankingChanged`,
-    /// `fieldstatsReady`, `handleFDLeakDetected`, the `bCall*` family, the codec
-    /// avatar events, the source set by the media engine) belong to a media
-    /// engine this build does not have, and inventing a use for them here would
-    /// be inventing behaviour.
+    /// That callback has 119 methods. Most of them are about the audio and video
+    /// engine - grid ranking, codec stats, file-descriptor leaks, the avatar events -
+    /// and this app has no audio or video engine yet, so they would have nothing to
+    /// act on. These are the ones a client that only does signalling cares about.
+    ///
+    /// Five of them end the call (a refusal, a hang-up, a teardown, a missed call, a
+    /// fatal error). The rest only tell us something happened, and the call stays
+    /// where it is.
     /// </summary>
     public enum CallEvent
     {
-        /// <summary>The call moved; the state itself travels separately.</summary>
+        /// <summary>The call moved. The new state arrives with the event.</summary>
         CallStateChanged,
 
-        /// <summary>The other phone has our offer and acknowledged it.</summary>
+        /// <summary>Their phone got our call and said so.</summary>
         CallOfferReceiptReceived,
 
-        /// <summary>The offer was accepted by the server.</summary>
+        /// <summary>The server accepted our call.</summary>
         CallOfferAcked,
 
-        /// <summary>The offer was refused by the server.</summary>
+        /// <summary>The server refused our call.</summary>
         CallOfferNacked,
 
-        /// <summary>The offer's ack did not arrive: the call is not up.</summary>
+        /// <summary>The server never confirmed our call, so it never started.</summary>
         HandleOfferAckFailed,
 
-        /// <summary>The other side said no.</summary>
+        /// <summary>They said no.</summary>
         CallRejectReceived,
 
-        /// <summary>The other side hung up.</summary>
+        /// <summary>They hung up.</summary>
         CallTerminateReceived,
 
-        /// <summary>The call is being torn down.</summary>
+        /// <summary>The call is being taken down.</summary>
         CallEnding,
 
         /// <summary>Nobody answered in time.</summary>
@@ -143,16 +147,16 @@ namespace WhatsappApp.Services
         /// <summary>A second call is waiting on the line.</summary>
         CallWaitingStateChanged,
 
-        /// <summary>The state of a call link changed.</summary>
+        /// <summary>A call link changed its state.</summary>
         CallLinkStateChanged,
 
-        /// <summary>The group's participants changed.</summary>
+        /// <summary>The people in the group call changed.</summary>
         GroupInfoChanged,
 
         /// <summary>Somebody left the group call.</summary>
         GroupParticipantLeft,
 
-        /// <summary>The data channel is up.</summary>
+        /// <summary>The data channel is ready.</summary>
         DataChannelReady,
 
         /// <summary>The data channel never came up.</summary>
@@ -161,84 +165,86 @@ namespace WhatsappApp.Services
         /// <summary>The media heartbeat was refused.</summary>
         HeartbeatNacked,
 
-        /// <summary>The other phone's battery is low.</summary>
+        /// <summary>Their battery is running low.</summary>
         BatteryLevelLow,
 
-        /// <summary>The call engine failed: there is no call left to save.</summary>
+        /// <summary>The call engine broke, so there is nothing left to keep.</summary>
         HandleCallFatal,
 
-        /// <summary>The other side paused or resumed its video.</summary>
+        /// <summary>They paused or resumed their video.</summary>
         AutoVideoPauseStateChanged
     }
 
     /// <summary>
-    /// One call, as the app tracks it: who, which direction, which of the fifteen
-    /// official states, and the events that move it.
+    /// One call as this app tracks it: who it is with, who called whom, which of the
+    /// fifteen states it is in, and the events that move it.
     ///
-    /// Why it is a class of its own with no WinRT in it: the transitions are the part
-    /// worth a test, and the ones that are easy to get wrong are all here rather than
-    /// in a page. A `terminate` for a call this phone never had must not open one; an
-    /// `accept` for a call that is not ringing must not make it active; and a call
-    /// that ended must not be ended again and lose the reason it ended for.
+    /// This class knows nothing about WinRT on purpose. The interesting part of a call
+    /// is how it moves from one state to the next, and those rules are worth a test.
+    /// They also share the same three mistakes: a hang-up for a call we never had must
+    /// not open a banner, an answer for a call that is not ringing must not make it
+    /// active, and a call that already ended must not be ended again - otherwise the
+    /// reason it ended for gets overwritten.
     ///
-    /// The media is **not** here and does not exist yet: an `Active` call is a call
-    /// whose signalling succeeded. See
+    /// There is no audio or video here, and there is none in the app yet: a call in
+    /// `Active` is a call whose signalling worked. See
     /// `docs/superpowers/specs/2026-11-02-voice-and-video-calls-design.md`.
     /// </summary>
     public sealed class CallSession
     {
-        /// <summary>Which call this is, as every node of it names it.</summary>
+        /// <summary>The call's id, the one every message about it carries.</summary>
         public string CallId { get; private set; }
 
-        /// <summary>The other party, without a device suffix: the address a chat has.</summary>
+        /// <summary>The other person, without the device part: the address a chat uses.</summary>
         public string PeerJid { get; private set; }
 
         public bool IsVideo { get; private set; }
 
-        /// <summary>True when the other side offered and this phone has not answered yet.</summary>
+        /// <summary>True while this call came from them and we have not answered yet.</summary>
         public bool IsIncoming { get; private set; }
 
-        /// <summary>Whether the microphone is switched off. A switch, not a fact of the wire.</summary>
+        /// <summary>Microphone off. This is our switch, not something the network told us.</summary>
         public bool Muted { get; private set; }
 
-        /// <summary>Whether the sound goes to the loudspeaker rather than to the earpiece.</summary>
+        /// <summary>Sound on the loudspeaker instead of the earpiece.</summary>
         public bool SpeakerOn { get; private set; }
 
-        /// <summary>The official state: one of the fifteen `CallState` values.</summary>
+        /// <summary>The real state: one of the fifteen `CallState` values.</summary>
         public CallState State { get; private set; }
 
-        /// <summary>The five-value summary the pages draw, derived from `State`.</summary>
+        /// <summary>The short version the pages draw, worked out from `State`.</summary>
         public CallPhase Phase
         {
             get { return PhaseOf(State); }
         }
 
-        /// <summary>The last `VoipEventCallback` event this call was told about.</summary>
+        /// <summary>The last event this call heard about, or null if it heard none yet.</summary>
         public CallEvent? LastEvent { get; private set; }
 
-        /// <summary>The `reason` the call ended with, or null while it has not ended.</summary>
+        /// <summary>Why the call ended, or null while it is still going.</summary>
         public string EndedReason { get; private set; }
 
-        /// <summary>When the call started ringing or dialling, for the duration on screen.</summary>
+        /// <summary>When the call started ringing or dialling. The screens use it for the clock.</summary>
         public DateTime StartedAt { get; private set; }
 
         /// <summary>
-        /// The moment the call was answered, or `default` while nobody has. It is what a
-        /// duration counts from: a call that rang for a minute and then connected lasted a
-        /// second, not a minute.
+        /// When somebody answered, or `default` if nobody has. A duration counts from
+        /// here: a call that rang for a minute and then lasted a second lasted a second.
         /// </summary>
         public DateTime ConnectedAt { get; private set; }
 
-        /// <summary>True when somebody answered: the moment a duration starts to exist.</summary>
+        /// <summary>True once somebody answered, which is when a duration starts to mean anything.</summary>
         public bool WasAnswered
         {
             get { return ConnectedAt != default(DateTime); }
         }
 
         /// <summary>
-        /// How long the call has been up, in whole seconds; zero for one that never connected.
-        /// It is read off the clock rather than incremented by a timer, so a call that was
-        /// suspended with the app still counts the time it was gone.
+        /// How many whole seconds the call has been up. Zero if it never connected.
+        ///
+        /// It is worked out from the clock every time it is asked, not counted by a
+        /// timer, so a call that kept going while the app was suspended still shows the
+        /// right length.
         /// </summary>
         public int ConnectedSeconds
         {
@@ -252,11 +258,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The phase a state belongs to. Every one of the fifteen is named here, which
-        /// is what makes the table checkable: a state that is added upstream and not
-        /// mapped would have to be a compile error, and a switch over an enum in C# 5 is
-        /// not that - so the test enumerates the enum and fails on a value whose phase is
-        /// the fallback.
+        /// Which of the five phases a state belongs to.
+        ///
+        /// All fifteen are listed by name, on purpose: C# 5 lets a switch over an enum
+        /// fall through to the default without a word, so a state added later would
+        /// quietly land in the wrong phase. Listing them all means the test that walks
+        /// the enum has something to check.
         /// </summary>
         public static CallPhase PhaseOf(CallState state)
         {
@@ -276,10 +283,9 @@ namespace WhatsappApp.Services
                 case CallState.Rejoining:
                     return CallPhase.Connecting;
 
-                // A call reached by link, one whose peers all left, one this account is
-                // already on elsewhere, one being screened and a broadcast one are all
-                // "the call is there": the screen has something up to draw, and how it got
-                // there is the state's own business.
+                // All of these mean "there is a call to show". How it got there - a
+                // link, another device, a screening, a broadcast - is the state's own
+                // business, not the screen's.
                 case CallState.Link:
                 case CallState.Active:
                 case CallState.ConnectedLonely:
@@ -292,16 +298,18 @@ namespace WhatsappApp.Services
                     return CallPhase.Ended;
             }
 
-            // Unreachable for a value of the enum; a state the enum does not name arrives
-            // as a number and is not a call anybody can draw.
+            // No real state gets here. A number the enum does not know is not a call
+            // anyone can draw, so it counts as no call.
             return CallPhase.Idle;
         }
 
         /// <summary>
-        /// Whether an unanswered call has waited long enough to be called over
-        /// (`DataService.CallSetupSeconds`). Only a ring or a setup can expire: an
-        /// answered call is waiting for nobody, and a deadline of zero seconds is no
-        /// deadline at all rather than an immediate miss.
+        /// Whether an unanswered call has waited long enough to give up on
+        /// (`DataService.CallSetupSeconds`).
+        ///
+        /// Only a ringing or a half-built call can expire: an answered call is not
+        /// waiting for anybody. A limit of zero seconds means "no limit", not "give up
+        /// at once".
         /// </summary>
         public bool Expired(DateTime now, int seconds)
         {
@@ -316,13 +324,13 @@ namespace WhatsappApp.Services
             State = CallState.None;
         }
 
-        /// <summary>Something is happening: a page shows the call banner while this is true.</summary>
+        /// <summary>There is a call to show: a page draws the banner while this is true.</summary>
         public bool Shows
         {
             get { return State != CallState.None; }
         }
 
-        /// <summary>A call is up or being set up: a second offer has to be refused as busy.</summary>
+        /// <summary>A call is ringing, being set up or already up, so a second one has to be refused.</summary>
         public bool Occupied
         {
             get
@@ -333,12 +341,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// An offer arrived. Answers whether this phone should ring for it.
+        /// A call is coming in. Returns true if this phone should ring for it.
         ///
-        /// It says no to an offer for the call already on screen - the server repeats an
-        /// offer to every device and to the same device on a retry, and a second banner for
-        /// one call is a phone that rings twice - and no to a call with no id, which cannot
-        /// be answered or ended.
+        /// It says no in two cases. A call with no id cannot be answered or hung up, so
+        /// ringing for it would leave a banner nobody can close. And the same offer can
+        /// arrive twice - the server sends it to every device, and again on a retry - so
+        /// a call we are already handling is not a second call. One banner, one ring.
         /// </summary>
         public bool Ring(string callId, string peerJid, bool video)
         {
@@ -361,7 +369,7 @@ namespace WhatsappApp.Services
             return true;
         }
 
-        /// <summary>This phone is calling somebody: the same wait, from the other end.</summary>
+        /// <summary>We are calling somebody: the same wait as `Ring`, from the other side.</summary>
         public bool Dial(string callId, string peerJid, bool video)
         {
             if (string.IsNullOrEmpty(callId) || string.IsNullOrEmpty(peerJid)) return false;
@@ -382,15 +390,15 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The call is answered: from a ring this phone is answering (`ACCEPT_SENT`),
-        /// from a setup it is the other side's `accept` arriving (`ACCEPT_RECEIVED`).
+        /// The call is answered. If it was ringing here, that is us answering
+        /// (`ACCEPT_SENT`); if we were the one calling, it is them answering
+        /// (`ACCEPT_RECEIVED`).
         ///
-        /// Both end in `ACTIVE` in the same call, because this build has no
-        /// acknowledgement to wait for: the official client can sit in `ACCEPT_SENT`
-        /// until the caller confirms, and a phone that did that here would show
-        /// "connecting" for a call the other end is already treating as up. The two
-        /// states are still the ones the model passes through, so the day a confirmation
-        /// arrives it has somewhere to wait.
+        /// Both go straight on to `ACTIVE` in the same step. The official app can stop
+        /// at `ACCEPT_SENT` until the caller confirms, but this app has no confirmation
+        /// to wait for. If it stopped there, the screen would say "connecting" for a
+        /// call the other end already treats as up. Going through the two states and on
+        /// to `Active` keeps the names honest without freezing the banner.
         /// </summary>
         public bool Connect(string callId)
         {
@@ -401,15 +409,16 @@ namespace WhatsappApp.Services
 
             State = Phase == CallPhase.Ringing ? CallState.AcceptSent : CallState.AcceptReceived;
 
-            // The official client's next step, taken at once: see the comment above.
+            // Straight on to the state the call is really in; see the note above.
             State = CallState.Active;
             return true;
         }
 
         /// <summary>
-        /// The callee's phone has the offer and is preparing its side. Only a call this
-        /// phone dialled can be pre-accepted: a `preaccept` for a ringing call is that
-        /// phone talking about its own outgoing call, not about this one.
+        /// Their phone got our call and is getting ready.
+        ///
+        /// Only a call we dialled can be pre-accepted. If we are the one ringing, a
+        /// pre-accept is that phone talking about a call of its own, not about ours.
         /// </summary>
         public bool PreAccept(string callId)
         {
@@ -422,8 +431,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The call is over. One that was never ringing is not a call: a `terminate` for
-        /// another device's call must not open a banner nobody can close.
+        /// The call is over.
+        ///
+        /// A hang-up for a call we never had does nothing. Otherwise any device of the
+        /// account could open a banner here just by ending a call that was never ours.
         /// </summary>
         public bool End(string callId, string reason)
         {
@@ -436,11 +447,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// One `VoipEventCallback` event, applied. Answers whether it changed the call.
+        /// Takes one call event and applies it. Returns true if the call changed.
         ///
-        /// Only the five that end a call have a transition here: everything else is
-        /// either the state itself (which the caller sets) or belongs to the media engine.
-        /// The event is remembered either way, so a log line can say what arrived.
+        /// Only the five events that end a call move it. The others either carry the
+        /// state themselves (the caller sets that) or belong to an audio/video engine
+        /// this app does not have. Either way the event is remembered, so a log line can
+        /// say what arrived last.
         /// </summary>
         public bool Apply(CallEvent what, string callId, string reason)
         {
@@ -469,8 +481,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The microphone switch. It belongs to a call that is up or being set up: a switch on
-        /// a call nobody is on is a switch over nothing.
+        /// Turns the microphone off or on. Only while there is a call to mute: flipping
+        /// this with no call would be a switch over nothing.
         /// </summary>
         public bool SetMuted(bool muted)
         {
@@ -489,7 +501,7 @@ namespace WhatsappApp.Services
             return true;
         }
 
-        /// <summary>Takes the ended call off the screen. Anything still up is left alone.</summary>
+        /// <summary>Takes an ended call off the screen. A call still going is left alone.</summary>
         public void Clear()
         {
             if (Phase != CallPhase.Ended) return;
@@ -508,8 +520,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Whether a node is about this call. An empty id on the node is not a match: a
-        /// sender that omits it must not be able to end whatever call is on screen.
+        /// Whether a message is about this call.
+        ///
+        /// A message with no call id on it is never a match. Otherwise anything that
+        /// forgot the id could end whatever call happens to be on screen.
         /// </summary>
         private bool SpeaksOf(string callId)
         {

@@ -1,27 +1,22 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Runtime.Serialization;
-using System.Runtime.Serialization.Json;
-using System.Threading.Tasks;
-using Windows.Storage;
-using WhatsappApp.Models;
 using WhatsappApp.Protocol.Client;
 
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The call log on the phone: `call-log.json` in `LocalFolder`, holding the
-    /// `call_log`, `call_log_participant_v2` and `call_link` rows.
+    /// The call log on this phone: `call-log.json` in `LocalFolder`, holding the same
+    /// rows the official app keeps in `call_log`, `call_log_participant_v2` and
+    /// `call_link`.
     ///
-    /// Why a file and not SQLite: WP8.1 has no SQLite in the box, and the schema this
-    /// reproduces is small enough that the indices are worth more than the engine -
-    /// `CallLogTables` holds them, this class is the file around it. The names inside the
-    /// file are the schema's own (`row_id`, `call_id`, `user_jid`, `call_link.token`), so
-    /// a reader that knows the official database reads this one.
+    /// Why a file instead of SQLite: Windows Phone 8.1 has no SQLite built in, and
+    /// there are only a few thousand rows here. Keeping the lookups in memory (see
+    /// `CallLogTables`) is enough, and this class is just the file around them. The
+    /// names written into the file are the official ones (`call_id`, `user_jid`,
+    /// `token`), so anyone who knows that database can read this one.
     ///
-    /// The write goes through a `SerialQueue`: a call ends while another is being logged,
-    /// and two `FileIO` writes on one file lose one of them.
+    /// Writes go through a `SerialQueue` because calls end while the app is busy: two
+    /// writes to the same file at once and one of them is lost.
     /// </summary>
     public sealed class CallLogStore
     {
@@ -33,7 +28,7 @@ namespace WhatsappApp.Services
         private bool _loadStarted;
         private bool _loaded;
 
-        /// <summary>The tables, for a reader that wants a lookup rather than a write.</summary>
+        /// <summary>The rows themselves, for reading rather than writing.</summary>
         public CallLogTables Tables
         {
             get
@@ -44,9 +39,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Reads the file once per run, in the background. A failure is a log line, not an
-        /// exception: a call log that could not be read is still a call log that works for
-        /// the calls of this run.
+        /// Reads the file once per run, in the background.
+        ///
+        /// If the read fails we log it and carry on. A call log that could not be loaded
+        /// is still a call log that works for the calls made from now on.
         /// </summary>
         public void EnsureLoaded()
         {
@@ -59,8 +55,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Logs one finished call. The row keeps the id the call had on the wire, which is
-        /// what makes a second copy of the same call one row instead of two.
+        /// Adds one finished call.
+        ///
+        /// The row keeps the call id it had on the network, which is what makes a second
+        /// copy of the same call one row instead of two.
         /// </summary>
         public void Record(CallLogEntry entry, string callId, bool fromMe)
         {
@@ -85,10 +83,12 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The `CallLogRecord.CallResult` a row's word stands for: `CONNECTED` 0,
-        /// `REJECTED` 1, `CANCELLED` 2, `MISSED` 4. A call this phone placed that nobody
-        /// took is a timeout on the wire, which the log's own enum files under `MISSED` -
-        /// and that is why the check for "outgoing" comes before it.
+        /// Turns the word we use for a call's outcome into the number the official log
+        /// stores: `CONNECTED` 0, `REJECTED` 1, `CANCELLED` 2, `MISSED` 4.
+        ///
+        /// A call we made that nobody answered is a timeout on the network, and the
+        /// official log files that under `MISSED`. That is why "outgoing" is checked
+        /// before the missed cases.
         /// </summary>
         private static int ResultOf(string reason)
         {
@@ -118,8 +118,8 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Writes the file: one write per hang-up, serialized so that two hang-ups close
-        /// message, and one write per hang-up is one write too many on this phone.
+        /// Writes the file, through the queue so two calls ending at once cannot write
+        /// over each other.
         /// </summary>
         private void SaveSoon()
         {
@@ -199,7 +199,7 @@ namespace WhatsappApp.Services
             }
             catch (FileNotFoundException)
             {
-                // The first run: a missing log is not a failure.
+                // First run: there is no file yet, and that is not an error.
                 _loaded = true;
             }
             catch (Exception ex)
@@ -272,6 +272,7 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>What the file contains: the two tables, by their official names.</summary>
         [DataContract]
         public sealed class CallLogFile
         {
@@ -282,6 +283,7 @@ namespace WhatsappApp.Services
             public List<CallLinkRowDto> CallLink;
         }
 
+        /// <summary>One `call_log` row as it is written to the file.</summary>
         [DataContract]
         public sealed class CallLogRowDto
         {
@@ -297,6 +299,7 @@ namespace WhatsappApp.Services
             [DataMember(Name = "participants")] public List<string> Participants;
         }
 
+        /// <summary>One `call_link` row as it is written to the file.</summary>
         [DataContract]
         public sealed class CallLinkRowDto
         {
