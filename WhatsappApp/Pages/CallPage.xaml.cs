@@ -65,9 +65,11 @@ namespace WhatsappApp.Pages
             // nothing, tick nothing and never leave (the picture stayed as it was).
             _left = false;
 
-            AcceptCallButton.Content = Loc.Get("Call_Accept", "Accept");
-            DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
-            EndCallButton.Content = Loc.Get("Call_End", "End");
+            // The labels, not the content: each button is an icon with a caption under it now,
+            // and setting `Content` here replaced the whole stack with a bare string.
+            AcceptLabel.Text = Loc.Get("Call_Accept", "Accept");
+            DeclineLabel.Text = Loc.Get("Call_Decline", "Decline");
+            EndLabel.Text = Loc.Get("Call_End", "End");
 
             // One second: the duration on screen moves once a second, and the deadline for an
             // unanswered call is measured in seconds.
@@ -184,7 +186,7 @@ namespace WhatsappApp.Pages
             AcceptCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             DeclineCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             EndCallButton.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
-            EndCallButton.Content = over ? Loc.Get("Call_Close", "Close") : Loc.Get("Call_End", "End");
+            EndLabel.Text = over ? Loc.Get("Call_Close", "Close") : Loc.Get("Call_End", "End");
 
             // The two switches, and the same rule as the rest: they belong to a call that is
             // up or being set up. Each tile says which way its switch is, and is lit while it
@@ -192,10 +194,10 @@ namespace WhatsappApp.Pages
             MuteCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
             SpeakerCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
 
-            MuteCallButton.Content = call.Muted
+            MuteLabel.Text = call.Muted
                 ? Loc.Get("Call_Muted", "Microphone off")
                 : Loc.Get("Call_Mute", "Microphone on");
-            SpeakerCallButton.Content = call.SpeakerOn
+            SpeakerLabel.Text = call.SpeakerOn
                 ? Loc.Get("Call_SpeakerOn", "Speaker on")
                 : Loc.Get("Call_Speaker", "Speaker off");
 
@@ -203,15 +205,18 @@ namespace WhatsappApp.Pages
             PaintSwitch(SpeakerCallButton, call.SpeakerOn);
         }
 
-        /// <summary>A switch tile: lit while the switch is engaged, dark while it is not.</summary>
+        /// <summary>
+        /// A switch button: green while the switch is engaged, dark while it is not.
+        ///
+        /// Green and not white, because the glyph and the label are white: a white tile with
+        /// a white icon was an engaged switch nobody could read. The tile is what changes,
+        /// never the ink.
+        /// </summary>
         private static void PaintSwitch(Button tile, bool engaged)
         {
             tile.Background = new SolidColorBrush(engaged
-                ? Color.FromArgb(0xFF, 0xF0, 0xF0, 0xF0)
+                ? Color.FromArgb(0xFF, 0x25, 0xD3, 0x66)
                 : Color.FromArgb(0xFF, 0x2A, 0x2A, 0x2A));
-            tile.Foreground = new SolidColorBrush(engaged
-                ? Color.FromArgb(0xFF, 0x10, 0x10, 0x10)
-                : Color.FromArgb(0xFF, 0xFF, 0xFF, 0xFF));
         }
 
         /// <summary>
@@ -261,23 +266,23 @@ namespace WhatsappApp.Pages
         /// The microphone switch. It changes the call's own state and nothing audible: there is
         /// no media to cut yet, and the note under the name says exactly that.
         /// </summary>
-        private void MuteCall_Click(object sender, RoutedEventArgs e)
+        private void MuteCallButton_Click(object sender, RoutedEventArgs e)
         {
             DataService.Instance.ToggleMute();
         }
 
         /// <summary>The speaker switch: the earpiece or the loudspeaker.</summary>
-        private void SpeakerCall_Click(object sender, RoutedEventArgs e)
+        private void SpeakerCallButton_Click(object sender, RoutedEventArgs e)
         {
             DataService.Instance.ToggleSpeaker();
         }
 
-        private void AcceptCall_Click(object sender, RoutedEventArgs e)
+        private void AcceptCallButton_Click(object sender, RoutedEventArgs e)
         {
             Guarded.RunGuardedAsync("CallPage/accept", DataService.Instance.AcceptCallAsync());
         }
 
-        private void DeclineCall_Click(object sender, RoutedEventArgs e)
+        private void DeclineCallButton_Click(object sender, RoutedEventArgs e)
         {
             Guarded.RunGuardedAsync("CallPage/decline", DataService.Instance.DeclineCallAsync());
         }
@@ -286,7 +291,7 @@ namespace WhatsappApp.Pages
         /// The button that ends a call and the one that takes an ended call off the screen:
         /// the same gesture to a person, so it is the same button.
         /// </summary>
-        private void EndCall_Click(object sender, RoutedEventArgs e)
+        private void EndCallButton_Click(object sender, RoutedEventArgs e)
         {
             CallSession call = DataService.Instance.Call;
             if (call != null && call.State == CallState.Ended)

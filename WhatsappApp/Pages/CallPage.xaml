@@ -5,8 +5,18 @@
     Background="#FF101010">
 
     <Page.Resources>
-        <!-- Full-bleed tiles: theme minimums zeroed so the rows split exactly. -->
-        <Style x:Key="CallTileStyle" TargetType="Button">
+        <!--
+            The round control of a call screen. Everything the theme would add is zeroed,
+            because these are drawn where the page puts them and the WP8.1 theme minimums
+            (109 x 57.5) would otherwise widen the row and push the neighbours together.
+
+            The circle is drawn by the template and not by `CornerRadius`: the WP8.1
+            projection has no such member on a button (the build answers
+            `WMC0090: Unknown member 'CornerRadius' on element 'Button'`), and an ellipse
+            filled with the button's own Background is the same circle with nothing to
+            guess at - which is also what lets `PaintSwitch` light it.
+        -->
+        <Style x:Key="CallRoundStyle" TargetType="Button">
             <Setter Property="Background" Value="#FF2A2A2A"/>
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
@@ -14,12 +24,37 @@
             <Setter Property="Margin" Value="0"/>
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="Width" Value="104"/>
+            <Setter Property="Height" Value="104"/>
+            <Setter Property="FontSize" Value="14"/>
             <Setter Property="FontFamily" Value="Segoe WP Semilight"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="VerticalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <Ellipse Fill="{TemplateBinding Background}"/>
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- The glyph of a round control: an outline, so it reads on any tile colour. -->
+        <Style x:Key="CallGlyphStyle" TargetType="Path">
+            <Setter Property="Fill" Value="Transparent"/>
+            <Setter Property="Stroke" Value="White"/>
+            <Setter Property="StrokeThickness" Value="1.6"/>
+            <Setter Property="StrokeLineJoin" Value="Round"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="Width" Value="40"/>
+            <Setter Property="Height" Value="40"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
         </Style>
     </Page.Resources>
 
@@ -89,56 +124,219 @@
                        Visibility="Collapsed"/>
         </StackPanel>
 
-        <!-- Two grids, one over the other: the code shows the one the state calls for. -->
+        <!-- The controls: one row each, the code shows the row the state calls for. -->
         <Grid Grid.Row="1" Margin="0,6,0,0">
 
+            <!--
+                A call that came in: answer on the left, refuse on the right, and nothing
+                else. A person with a ringing phone has one decision, and the other
+                switches would be three more things to read before making it.
+            -->
             <Grid x:Name="CallIncomingButtons">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="84"/>
-                    <RowDefinition Height="6"/>
-                    <RowDefinition Height="84"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="124"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="20"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Button x:Name="AcceptCallButton" Grid.Row="0" Grid.Column="0"
-                        Style="{StaticResource CallTileStyle}"
-                        Background="#FF25D366" Click="AcceptCall_Click"/>
+                <Button x:Name="AcceptCallButton" Grid.Row="1" Grid.Column="0"
+                        Style="{StaticResource CallRoundStyle}"
+                        Background="#FF25D366" Click="AcceptCallButton_Click">
+                    <StackPanel>
+                        <Path Style="{StaticResource CallGlyphStyle}">
+                            <!-- IconCall -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="19.5,20" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
+                                                <LineSegment Point="7.5,4.5"/>
+                                                <LineSegment Point="9,9"/>
+                                                <LineSegment Point="7,11"/>
+                                                <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
+                                                <LineSegment Point="15,15"/>
+                                                <LineSegment Point="19.5,16.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="AcceptLabel" FontSize="14" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
-                <Button x:Name="DeclineCallButton" Grid.Row="0" Grid.Column="2"
-                        Style="{StaticResource CallTileStyle}"
-                        Background="#FFE0413A" Click="DeclineCall_Click"/>
+                <Button x:Name="DeclineCallButton" Grid.Row="1" Grid.Column="2"
+                        Style="{StaticResource CallRoundStyle}"
+                        Background="#FFE0413A" Click="DeclineCallButton_Click">
+                    <StackPanel>
+                        <!-- The same handset, laid down: refusing is the phone put back. -->
+                        <Path Style="{StaticResource CallGlyphStyle}"
+                              RenderTransformOrigin="0.5,0.5">
+                            <!-- IconCall -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="19.5,20" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
+                                                <LineSegment Point="7.5,4.5"/>
+                                                <LineSegment Point="9,9"/>
+                                                <LineSegment Point="7,11"/>
+                                                <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
+                                                <LineSegment Point="15,15"/>
+                                                <LineSegment Point="19.5,16.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="135"/>
+                            </Path.RenderTransform>
+                        </Path>
+                        <TextBlock x:Name="DeclineLabel" FontSize="14" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </Grid>
 
+            <!--
+                A call that is up, or being set up: the three controls of a telephone, in the
+                order a hand looks for them, with the hang-up rightmost and red.
+            -->
             <Grid x:Name="CallInProgressButtons">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="94"/>
-                    <RowDefinition Height="6"/>
-                    <RowDefinition Height="94"/>
                     <RowDefinition Height="*"/>
+                    <RowDefinition Height="124"/>
                 </Grid.RowDefinitions>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="12"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="12"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <!-- The two switches of a call: the microphone and where the sound goes. -->
-                <Button x:Name="MuteCallButton" Grid.Row="0" Grid.Column="0"
-                        Style="{StaticResource CallTileStyle}" Click="MuteCall_Click"/>
+                <Button x:Name="MuteCallButton" Grid.Row="1" Grid.Column="0"
+                        Style="{StaticResource CallRoundStyle}" Click="MuteCallButton_Click">
+                    <StackPanel>
+                        <Path Style="{StaticResource CallGlyphStyle}">
+                            <!-- IconMicrophone -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="10,7" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Clockwise" Point="14,7"/>
+                                                <LineSegment Point="14,12"/>
+                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Clockwise" Point="10,12"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="7,11">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Counterclockwise" Point="17,11"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="12,16">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="12,19"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="9,19">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="15,19"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="MuteLabel" FontSize="14" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
-                <Button x:Name="SpeakerCallButton" Grid.Row="0" Grid.Column="2"
-                        Style="{StaticResource CallTileStyle}" Click="SpeakerCall_Click"/>
+                <Button x:Name="SpeakerCallButton" Grid.Row="1" Grid.Column="2"
+                        Style="{StaticResource CallRoundStyle}" Click="SpeakerCallButton_Click">
+                    <StackPanel>
+                        <Path Style="{StaticResource CallGlyphStyle}" Stretch="Fill">
+                            <!-- IconSpeaker -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="3,9" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <LineSegment Point="7,9"/>
+                                                <LineSegment Point="12,4"/>
+                                                <LineSegment Point="12,20"/>
+                                                <LineSegment Point="7,15"/>
+                                                <LineSegment Point="3,15"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="15,9">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Clockwise" Point="15,15"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="18,6">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="6,6" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Clockwise" Point="18,18"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <TextBlock x:Name="SpeakerLabel" FontSize="14" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
 
-                <!-- Hanging up, across the whole width and red: the one control nobody hunts for. -->
-                <Button x:Name="EndCallButton" Grid.Row="2" Grid.Column="0"
-                        Grid.ColumnSpan="3"
-                        Style="{StaticResource CallTileStyle}"
-                        Background="#FFE0413A" Click="EndCall_Click"/>
+                <!-- The hang-up: red, rightmost, where the thumb lands by itself. -->
+                <Button x:Name="EndCallButton" Grid.Row="1" Grid.Column="4"
+                        Style="{StaticResource CallRoundStyle}"
+                        Background="#FFE0413A" Click="EndCallButton_Click">
+                    <StackPanel>
+                        <Path Style="{StaticResource CallGlyphStyle}"
+                              RenderTransformOrigin="0.5,0.5">
+                            <!-- IconCall -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="19.5,20" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
+                                                <LineSegment Point="7.5,4.5"/>
+                                                <LineSegment Point="9,9"/>
+                                                <LineSegment Point="7,11"/>
+                                                <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
+                                                <LineSegment Point="15,15"/>
+                                                <LineSegment Point="19.5,16.5"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="135"/>
+                            </Path.RenderTransform>
+                        </Path>
+                        <TextBlock x:Name="EndLabel" FontSize="14" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
             </Grid>
         </Grid>
     </Grid>
