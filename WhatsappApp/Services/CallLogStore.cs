@@ -1,5 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
+using System.Threading.Tasks;
+using Windows.Storage;
+using WhatsappApp.Models;
 using WhatsappApp.Protocol.Client;
 
 namespace WhatsappApp.Services
