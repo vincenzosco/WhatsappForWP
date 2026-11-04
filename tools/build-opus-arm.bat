@@ -17,6 +17,13 @@ rem Preparation is one command - the sources are not vendored, the built DLL is 
 rem the repository ships:
 rem   git clone --depth 1 https://github.com/xiph/opus.git .tools\opus-src
 rem
+rem `/APPCONTAINER` is not optional: the phone loads this DLL from a packaged process,
+rem and a native image with no app-container flag in its `DllCharacteristics` is refused
+rem with `0x8007007E` ("the specified module could not be found") even when the file is
+rem in the installed package and imports nothing but KERNEL32 - which is exactly what the
+rem log of 4 November 2026 showed (`waopus.dll is in the package and Windows will not
+rem load it`).
+rem
 rem Three defines are the whole port: WINAPI_FAMILY_APP (the UCRT refuses desktop ARM
 rem headers outright), USE_ALLOCA (libopus needs one of three allocation modes on
 rem MSVC) and OPUS_BUILD (libopus' own build switch). The encoder's half of the
@@ -76,7 +83,7 @@ for %%f in ("%SRC%\src\opus.c" "%SRC%\src\opus_decoder.c" "%SRC%\src\opus_encode
 )
 
 echo waopus: linking...
-"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
+"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /APPCONTAINER /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
 if errorlevel 1 exit /b 1
 
 echo waopus: %OUT%
