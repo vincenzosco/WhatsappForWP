@@ -89,16 +89,91 @@ I passi, con l'errore esatto di ciascuno:
 Il confine è questo: **un `.so` bionic non si carica in un processo glibc** senza
 il suo runtime. Non è un dettaglio da aggiustare con due shim; è un'altra ABI.
 
+## Il runtime bionic, provato
+
+Il primo punto qui sotto non è più un'ipotesi: l'ho fatto, e questo è quello che
+ha detto.
+
+Il runtime:
+
+- compilatore e header: NDK r27c, `--target=x86_64-linux-android24`;
+- loader e libc: da una system image Android API 28 x86_64
+  (`sys-img/android/x86_64-28_r04.zip`). Serve perché l'NDK non porta né
+  `linker64` né una `libc.so` vera — il suo sysroot ha solo stub di link — e il
+  bootstrap di Termux non li contiene: su un telefono arrivano da Android;
+- `system.img` di API 28 è già un ext4, quindi `simg2img` lo rifiuta e `7z` lo
+  legge direttamente. API 29 e successive lo nascondono dentro `super.img`, un
+  passaggio in più;
+- nel container: `linker64` in `/system/bin/linker64`, librerie in
+  `/system/lib64`, e l'harness si avvia come un eseguibile qualsiasi con
+  `--dynamic-linker=/system/bin/linker64`.
+
+L'harness è un `JNIEnv` finto (`.tools/apk/wsl/jni_harness.c`): la tabella ha 233
+slot, quelli che servono sono implementati su oggetti C normali (array di byte,
+stringhe, array di oggetti) e tutti gli altri sono stub che stampano il proprio
+numero invece di saltare a zero. `JNI_OnLoad` risponde `0x10006`, cioè
+`JNI_VERSION_1_6`.
+
+`RegisterNatives` ha consegnato **19 metodi in quattro classi**, con firme che il
+DEX non mostra (lì i byte sono `[B`, qui sono path, `InputStream` e
+`AssetManager`):
+
+| classe | metodo | firma |
+|---|---|---|
+| AssetDecompressor | `decompress_range` | `(Landroid/content/res/AssetManager;SSSII)[Ljava/lang/String;` |
+| | `decompress_range_from_so` | `(SSSII)[Ljava/lang/String;` |
+| | `decompress` | `(Landroid/content/res/AssetManager;SSS)[Ljava/lang/String;` |
+| | `decompress_from_so` | `(SSS)[Ljava/lang/String;` |
+| | `decompress_legacy` | `(Ljava/io/InputStream;SS)[Ljava/lang/String;` |
+| | `decompress_with_ref` | `(SSSS)[Ljava/lang/String;` |
+| | `sync_file_to_disk` | `(S)I` |
+| | `get_architecture` | `()I` |
+| WhatsAppObiInputStream | `openInputStreamNative` | `(Ljava/io/InputStream;I)J` |
+| | `openBytesNative` | `([BII)J` |
+| | `openRawBytesNative` | `(JI)J` |
+| | `openObArchiveBytesNative` | `(JJI)J` |
+| | `readNative` | `(J[BII)I` |
+| | `closeNative` | `(J[B)V` |
+| WhatsAppOpenboxArchive | `openNative` | `(IJJ)J` |
+| | `getFileCountNative` | `(J)I` |
+| | `getFilePtrNative` | `(JI)J` |
+| | `getFileSizeNative` | `(JI)J` |
+| | `closeNative` | `(J)V` |
+
+(`S` sta per `Ljava/lang/String;`, abbreviato per stare nella tabella.)
+
+### Cosa cambia rispetto alla prima lettura
+
+1. `decompress_from_so` non prende l'archivio: prende un **`.so` che contiene il
+   driver**. Dandogli la `.spo` risponde, onestamente,
+   `Failed to load archive so: ... has bad ELF magic`. Il vecchio `Probe.java`
+   sbagliava proprio questo.
+2. `decompress(AssetManager, String, String, String)` è la via dell'APK. Con un
+   `AssetManager` finto su file — `AAssetManager_open`/`read`/`seek`/
+   `openFileDescriptor`, in `.tools/apk/wsl/assethook.c` — e un `liblog` in
+   preload che stampa su stderr, la libreria **apre** l'asset e legge
+   l'intestazione (`archive start: 0 length: 195086`), poi si ferma su
+   `Could not open archive: 1/7/0`.
+3. Gli stessi byte del corpo, passati come `payload.bin` (83.454), danno lo stesso
+   codice `1/7/0`: il rifiuto è nell'intestazione, non nei dati.
+4. `decompress_with_ref` va in `SIGABRT` appena la si chiama: quella variante
+   vuole un riferimento che qui non esiste, e senza `logd` il motivo non si legge
+   nemmeno con lo stub.
+
+Quindi il confine non è più "bionic non si carica": è che questo ingresso
+(`decompress`, tipo `stringpack_driver`) si aspetta un archivio di un tipo che il
+lato Java dichiara, e la nostra `.spo` dichiara magic `0x0001c050` e membro di
+tipo `pack`. Il codice `1/7/0` è la tupla che il parser usa per dire di no. La
+strada che resta dentro la libreria è l'altra famiglia, `WhatsAppObiInputStream` e
+`WhatsAppOpenboxArchive` (`openNative(IJJ)J`), che legge lo stesso contenuto come
+archivio Obi invece che come superpack.
+
 ## Cosa servirebbe per portarlo a termine
 
 Non è una questione di tempo, è una scelta di strada:
 
-- **Runtime bionic.** Un binario compilato contro bionic, eseguito con il
-  `linker64` dell'NDK e le `libc.so`/`libdl.so`/`liblog.so` di Android. Da lì si
-  può dare al `.so` un `JNIEnv` vero, oppure finto: `RegisterNatives` consegna una
-  tabella di puntatori, quindi un `JNIEnv` minimo che implementa solo
-  `FindClass`/`RegisterNatives`/`GetByteArrayElements` basta a **catturare** i
-  puntatori e chiamare `decompress` direttamente, senza classi Java.
+- **Runtime bionic.** Provato, e funziona: vedi sopra. Ha dato le firme vere e ha
+  portato il problema dal caricamento al formato dell'archivio.
 - **Le classi offuscate.** Quattro metodi hanno parametri `LX/022;`, `LX/01J;`,
   `LX/00I;`, `LX/01S;`: nomi che javac non sa nemmeno scrivere. Servono class file
   generati a mano (una costante di pool e un `this_class` bastano) perché la
@@ -112,8 +187,17 @@ restano quelle dei `.resw`, dichiarate come limite e non come lavoro fatto.
 
 ## L'harness, per chi volesse riprenderlo
 
-Resta in `.tools/apk/wsl/` (cartella ignorata da git): `shim.c`,
-`com/facebook/superpack/AssetDecompressor.java`, `Probe.java`, e
-`libsuperpack.fixed.so` prodotto dallo script di de-versioning. Il punto 4 è dove
-si riparte, e il passo successivo concreto è il runtime bionic, non un altro giro
-di patch sull'ELF.
+Resta in `.tools/apk/wsl/` (cartella ignorata da git):
+
+- `shim.c`, `com/facebook/superpack/AssetDecompressor.java`, `Probe.java`: il
+  tentativo glibc, che si ferma al punto 4;
+- `jni_harness.c`: l'host bionic, con la tabella JNI e la cattura di
+  `RegisterNatives`;
+- `logstub.c`: il `liblog` da preload che stampa i messaggi della libreria;
+- `assethook.c`: l'`AssetManager` su file, guidato da `ASSET_DIR`;
+- `setup.sh` (runtime, NDK, build, prime chiamate) e `decompress.sh` (la via
+  `decompress` con l'asset finto).
+
+Il passo successivo concreto non è più "serve un runtime bionic": è leggere
+`WhatsAppOpenboxArchive.openNative` e vedere se l'archivio Obi è la porta giusta
+per una `.spo` di tipo `pack`.
