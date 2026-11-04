@@ -235,18 +235,19 @@ restano quelle dei `.resw`, dichiarate come limite e non come lavoro fatto.
 
 ## L'harness, per chi volesse riprenderlo
 
-Resta in `.tools/apk/wsl/` (cartella ignorata da git):
+L'host bionic è versionato in `tools/apk/`, con un README che spiega ogni file,
+i prerequisiti e la riga di comando: `jni_harness.c`, `logstub.c`,
+`assethook.c`, `setup.sh`, `decompress.sh`, `probe.sh`, `obi.sh`, `obi2.sh`,
+`classes.sh`, `dexinfo.py`, `mkclass.py` e `dexcalls.py` (il lettore di bytecode
+che ha trovato i call site qui sopra).
+
+Restano in `.tools/apk/wsl/`, fuori da git perché sono tentativi chiusi:
 
 - `shim.c`, `com/facebook/superpack/AssetDecompressor.java`, `Probe.java`: il
   tentativo glibc, che si ferma al punto 4;
-- `jni_harness.c`: l'host bionic, con la tabella JNI e la cattura di
-  `RegisterNatives`;
-- `logstub.c`: il `liblog` da preload che stampa i messaggi della libreria;
-- `assethook.c`: l'`AssetManager` su file, guidato da `ASSET_DIR`;
-- `setup.sh` (runtime, NDK, build, prime chiamate) e `decompress.sh` (la via
-  `decompress` con l'asset finto);
-- `dexinfo.py`, `mkclass.py`, `classes.sh` e `classes/`: i quattro tipi offuscati
-  letti dai `class_def` del DEX e scritti come class file.
+- `build_apk.sh`, `emu_setup.sh`, `app/`: l'APK per l'emulatore, mai finito;
+- `classes/X/` e `libsuperpack.so`: artefatti rigenerabili da `mkclass.py` e
+  dall'APK.
 
 Il passo successivo concreto non è più "serve un runtime bionic": è leggere
 `WhatsAppOpenboxArchive.openNative` e vedere se l'archivio Obi è la porta giusta
