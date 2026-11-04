@@ -3417,6 +3417,11 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            // The node as it arrived, by tag and attribute name: what a real phone writes is
+            // the reference this client cannot get from a spec, and a call that did not ring on
+            // this side is answered by comparing the two shapes line by line.
+            Diag.Ok("native: the call node " + signal.CallId + " is " + CallSignaling.Describe(node));
+
             Diag.Ok("native: call " + signal.CallId + " " + signal.Kind
                 + (signal.IsVideo ? " (video)" : "")
                 + (string.IsNullOrEmpty(signal.From) ? "" : " from " + signal.From)
@@ -3538,31 +3543,57 @@ namespace WhatsappApp.Services
                 Diag.Failed("native: the call key for " + jid, ex);
             }
 
-            BinaryNode offer;
-
             if (keys == null)
             {
-                offer = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, videos,
+                BinaryNode fallback = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, videos,
                     new List<CallKeyPayload>(), candidates);
+
+                string fallbackId = NewCallId();
+                fallback.Attrs["id"] = fallbackId;
+
+                KeepOfferedCall(fallbackId);
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + jid + " with no key and " + candidates.Count + " candidate(s)");
+                Diag.Ok("native: the offer " + fallbackId + " is " + CallSignaling.Describe(fallback));
+
+                await session.SendAsync(fallback);
+
+                return callId;
             }
-            else
+
+            // One stanza per device, each carrying the one ciphertext that device can open.
+            //
+            // Why not one stanza with five `enc`: the offer captured on 4 November 2026 from a
+            // real Android phone arrived as a single node with a single `enc`, while that
+            // account has several devices - so the sender writes one node per device and the
+            // server delivers each to its own. One node holding five ciphertexts is a phone
+            // handed a list it cannot tell its own key out of, which is a phone that does not
+            // ring.
+            //
+            // Each stanza also gets its own transport `id`: the `call-id` inside the verb is
+            // what ties the copies of one call together, and two stanzas with one id are one
+            // stanza to a server that de-duplicates by it.
+            for (int i = 0; i < keys.Payloads.Count; i++)
             {
-                offer = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, videos,
-                    keys.Payloads, candidates);
+                string device = i < keys.DeviceJids.Count ? keys.DeviceJids[i] : jid;
+
+                var one = new List<CallKeyPayload>();
+                one.Add(keys.Payloads[i]);
+
+                BinaryNode offer = Calls.Offer(callId, device, session.Jid, OurIdentity(),
+                    audio, videos, one, candidates);
+
+                string stanzaId = NewCallId();
+                offer.Attrs["id"] = stanzaId;
+
+                KeepOfferedCall(stanzaId);
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
-                    + " to " + jid + " with " + keys.Payloads.Count + " key(s) and "
+                    + " to " + device + " with its key (" + keys.Payloads[i].Type + ") and "
                     + candidates.Count + " candidate(s)");
+                Diag.Ok("native: the offer " + stanzaId + " is " + CallSignaling.Describe(offer));
+
+                await session.SendAsync(offer);
             }
-
-            // The shape, by tag and attribute name only. An offer the server will not route and
-            // one it routed look identical in a log that only says "offered": this is the line
-            // that tells the two apart, and it carries no key and no ciphertext.
-            KeepOfferedCall(callId);
-            Diag.Ok("native: the offer " + callId + " is " + CallSignaling.Describe(offer));
-
-            await session.SendAsync(offer);
 
             return callId;
         }
