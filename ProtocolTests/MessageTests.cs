@@ -463,6 +463,41 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// An end-group with no start is stepped over, not refused: its tag is already read and
+        /// there is nothing of it left to step over. Refusing it is what left a status unread on
+        /// 4 November 2026 while the server re-sent the same id for the whole run.
+        /// </summary>
+        [Test]
+        public static void AStrayEndGroupIsSteppedOver()
+        {
+            var bytes = new List<byte>(Message.Text(MessageFixture.TextBody).Encode());
+            bytes.Add(0xa4); // field 100, wire type 4: an end-group nobody opened
+            bytes.Add(0x06);
+            bytes.Add(0x08); // field 1, wire type 0: the field that follows it
+            bytes.Add(0x7b);
+
+            var reader = new ProtoReader(bytes.ToArray());
+            int fields = 0;
+
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.WireType == 0)
+                {
+                    reader.ReadVarint();
+                }
+                else
+                {
+                    reader.SkipField(field.WireType);
+                }
+
+                fields++;
+            }
+
+            Assert.AreEqual(3, fields, "the text, the stray end-group and the varint after it are all read");
+        }
+
+        /// <summary>
         /// Bytes that start no protobuf at all are refused, not read as an empty message: a
         /// silent empty `Message` is a chat row with nothing in it and no line in the log.
         /// </summary>

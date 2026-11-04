@@ -212,6 +212,18 @@ namespace WhatsappApp.Protocol.WaProto
                 return;
             }
 
+            if (wireType == 4)
+            {
+                // An end-group with no start: its tag is already consumed, and there is
+                // nothing left of it to step over. Refusing it is what stranded a status on
+                // 4 November 2026 - the server re-sent that message for the rest of the run
+                // ("did not read: unsupported protobuf wire type 4"), each retry re-paid the
+                // decode, and the eye saw a chat that would not move. The fields before the
+                // marker were read and stay read; the walk continues after it, which is what
+                // a lenient reader does with a trailing end-group.
+                return;
+            }
+
             throw new ProtocolException("unsupported protobuf wire type " + wireType);
         }
 
