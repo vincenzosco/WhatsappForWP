@@ -1197,6 +1197,127 @@ namespace WhatsappApp.Protocol.Client
             return text.ToString();
         }
 
+        /// <summary>How deep a dump goes: a call node is three levels at most.</summary>
+        private const int DumpDepth = 4;
+
+        /// <summary>
+        /// Every field of a call node with its value: the log line that says what a phone
+        /// actually wrote.
+        ///
+        /// `Describe` gives the shape - tags and attribute names - which is enough to see that
+        /// two offers differ and not enough to see how. This gives the values too, so an offer the
+        /// server will not route can be compared with one that rings field by field instead of
+        /// guessed at. The one thing it never writes is a key: an `enc` child and a device
+        /// identity are named with their length and nothing else.
+        /// </summary>
+        public static string Dump(BinaryNode node)
+        {
+            if (node == null) return "nothing";
+
+            var text = new StringBuilder();
+            AppendFields(text, node, 0);
+
+            return text.ToString();
+        }
+
+        private static void AppendFields(StringBuilder text, BinaryNode node, int depth)
+        {
+            if (node == null) return;
+
+            text.Append(node.Tag);
+
+            bool first = true;
+            foreach (KeyValuePair<string, string> attribute in node.Attrs)
+            {
+                text.Append(first ? "[" : ", ");
+                text.Append(attribute.Key).Append('=').Append(attribute.Value);
+                first = false;
+            }
+
+            if (!first) text.Append(']');
+
+            AppendValue(text, node);
+
+            IList<BinaryNode> children = node.Children();
+            if (children == null || children.Count == 0) return;
+
+            if (depth >= DumpDepth)
+            {
+                text.Append(" {").Append(children.Count).Append(" child(ren)}");
+                return;
+            }
+
+            text.Append(" { ");
+            for (int i = 0; i < children.Count; i++)
+            {
+                if (i > 0) text.Append(" | ");
+                AppendFields(text, children[i], depth + 1);
+            }
+
+            text.Append(" }");
+        }
+
+        /// <summary>
+        /// The content of one node, with keys withheld: the ciphertext must never reach a log
+        /// file, and its length is all the shape needs.
+        /// </summary>
+        private static void AppendValue(StringBuilder text, BinaryNode node)
+        {
+            // A list of children is written as the children, not as a value.
+            if (node.Content is IList<BinaryNode>) return;
+
+            if (IsSecret(node.Tag))
+            {
+                byte[] secret = node.Content as byte[];
+                text.Append(secret == null ? "(withheld)" : "(withheld, " + secret.Length + " byte(s))");
+                return;
+            }
+
+            byte[] bytes = node.Content as byte[];
+            if (bytes != null)
+            {
+                text.Append("(hex ").Append(Hex(bytes)).Append(", ").Append(bytes.Length).Append(" byte(s))");
+                return;
+            }
+
+            string words = node.Content as string;
+            if (words != null)
+            {
+                text.Append("(\"").Append(words).Append("\")");
+                return;
+            }
+
+            if (node.Content != null) text.Append('(').Append(node.Content.ToString()).Append(')');
+        }
+
+        /// <summary>Whether a node's content is a key rather than a fact about the call.</summary>
+        private static bool IsSecret(string tag)
+        {
+            if (string.IsNullOrEmpty(tag)) return false;
+
+            string lowered = tag.ToLowerInvariant();
+
+            return lowered == "enc"
+                || lowered == "device-identity"
+                || lowered == "identity"
+                || lowered == "skey";
+        }
+
+        /// <summary>The first bytes of a value in hex: enough to recognise, short enough to read.</summary>
+        private static string Hex(byte[] bytes)
+        {
+            if (bytes == null) return "";
+
+            int count = bytes.Length < 64 ? bytes.Length : 64;
+
+            var text = new StringBuilder();
+            for (int i = 0; i < count; i++) text.Append(bytes[i].ToString("X2", CultureInfo.InvariantCulture));
+
+            if (count < bytes.Length) text.Append('.');
+
+            return text.ToString();
+        }
+
         /// <summary>The names of a node's attributes, in the order they will be written.</summary>
         private static string AttrNames(BinaryNode node)
         {

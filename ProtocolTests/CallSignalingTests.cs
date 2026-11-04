@@ -484,6 +484,42 @@ namespace ProtocolTests
             return call;
         }
 
+        /// <summary>
+        /// The dump: every field named with its value, and the key counted but never written.
+        ///
+        /// It is how a call that does not ring gets explained - the real offer of 4 November
+        /// carries `device_class`, `joinable`, `metadata`, `rte`, `voip_settings` and this client
+        /// carries none of them - without a key ever reaching the log file.
+        /// </summary>
+        [Test]
+        public static void TheDumpOfAnOfferSaysEveryFieldAndWithholdsTheKey()
+        {
+            var offer = new BinaryNode("offer");
+            offer.Attrs.Add("call-id", CallId);
+            offer.Attrs.Add("device_class", "5513196007865");
+            offer.Attrs.Add("joinable", "0");
+
+            var audio = new BinaryNode("audio");
+            audio.Attrs.Add("codec", "opus");
+            audio.Attrs.Add("rate", "16000");
+
+            var enc = new BinaryNode("enc");
+            enc.Attrs.Add("v", "2");
+            enc.Attrs.Add("type", "pkmsg");
+            enc.Content = new byte[] { 0xAB, 0xCD, 0xEF };
+
+            offer.Content = new List<BinaryNode> { audio, enc };
+
+            string dump = CallSignaling.Dump(offer);
+
+            Assert.IsTrue(dump.IndexOf("device_class=5513196007865") >= 0,
+                "every attribute value is written: " + dump);
+            Assert.IsTrue(dump.IndexOf("codec=opus") >= 0, "and every child's: " + dump);
+            Assert.IsTrue(dump.IndexOf("enc[v=2, type=pkmsg]") >= 0, "the key keeps its shape: " + dump);
+            Assert.IsTrue(dump.IndexOf("withheld, 3 byte(s)") >= 0, "and is counted, not written: " + dump);
+            Assert.IsTrue(dump.IndexOf("ABCDEF") < 0, "the ciphertext never reaches the log: " + dump);
+        }
+
         [Test]
         public static void TheShapeOfAnOfferIsDescribedWithoutItsKeys()
         {

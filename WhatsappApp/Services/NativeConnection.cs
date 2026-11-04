@@ -3489,6 +3489,9 @@ namespace WhatsappApp.Services
             // this side is answered by comparing the two shapes line by line.
             Diag.Ok("native: the call node " + signal.CallId + " is " + CallSignaling.Describe(node));
 
+            // The same node with every value: the shape says two calls differ, this says how.
+            Diag.Ok("native: the call node " + signal.CallId + ", field by field: " + CallSignaling.Dump(node));
+
             // An offline copy older than any ring is a call that is over: announcing it would
             // put a banner on the screen for a phone that stopped ringing minutes ago, so it is
             // refused instead - which is also what tells the caller's phone to stop waiting.
@@ -3639,6 +3642,7 @@ namespace WhatsappApp.Services
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + jid + " with no key and " + candidates.Count + " candidate(s)");
                 Diag.Ok("native: the offer " + fallbackId + " is " + CallSignaling.Describe(fallback));
+                Diag.Ok("native: the offer " + fallbackId + ", field by field: " + CallSignaling.Dump(fallback));
 
                 await session.SendAsync(fallback);
 
@@ -3675,6 +3679,7 @@ namespace WhatsappApp.Services
                     + " to " + device + " with its key (" + keys.Payloads[i].Type + ") and "
                     + candidates.Count + " candidate(s)");
                 Diag.Ok("native: the offer " + stanzaId + " is " + CallSignaling.Describe(offer));
+                Diag.Ok("native: the offer " + stanzaId + ", field by field: " + CallSignaling.Dump(offer));
 
                 await session.SendAsync(offer);
             }
@@ -3844,6 +3849,7 @@ namespace WhatsappApp.Services
                 + (key == null ? " with no key" : " with its key")
                 + (candidates == null ? "" : " and " + candidates.Count + " candidate(s)"));
             Diag.Ok("native: the offer " + callId + " is " + CallSignaling.Describe(offer));
+            Diag.Ok("native: the offer " + callId + ", field by field: " + CallSignaling.Dump(offer));
 
             await session.SendAsync(offer);
 
