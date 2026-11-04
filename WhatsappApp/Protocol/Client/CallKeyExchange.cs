@@ -13,6 +13,15 @@ namespace WhatsappApp.Protocol.Client
         public IList<CallKeyPayload> Payloads = new List<CallKeyPayload>();
 
         /// <summary>
+        /// The device each payload of <see cref="Payloads"/> was sealed for, at the same
+        /// index. `Payloads[i].Type` says the shape of the ciphertext and nothing about
+        /// *whose* phone has to answer before the next call: a log that counts pre-key
+        /// messages names a number, and the question after a call that does not ring is
+        /// which device to reply to.
+        /// </summary>
+        public IList<string> DeviceJids = new List<string>();
+
+        /// <summary>
         /// The devices whose session is not established (or missing), so no key was sealed
         /// for them. Named, not silently dropped: each one is a companion phone that will
         /// not decrypt this call.
@@ -131,6 +140,7 @@ namespace WhatsappApp.Protocol.Client
                 payload.RetryCount = 0;
                 payload.Ciphertext = session.Encrypt(plaintext);
                 offer.Payloads.Add(payload);
+                offer.DeviceJids.Add(deviceJid);
             }
 
             if (offer.Payloads.Count == 0)

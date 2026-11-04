@@ -3430,19 +3430,18 @@ namespace WhatsappApp.Services
 
                 // A key sealed on a session the peer has not answered is the one shape the
                 // `whatsmeow` issue 555 report says the server drops. It is sent anyway - an
-                // offer with no key rings nowhere - and named here, so a phone that does not
-                // ring has a first suspect in the log instead of a wait that times out.
-                int preKeys = 0;
+                // offer with no key rings nowhere - and named here by device, so a phone that
+                // does not ring has a first suspect in the log instead of a wait that times
+                // out. By device and not by count: the answer to "why did nobody ring" is
+                // which JID still owes an ordinary message, and a total cannot be replied to.
                 for (int i = 0; i < keys.Payloads.Count; i++)
                 {
-                    if (string.Equals(keys.Payloads[i].Type, CallKeyExchange.PreKeyType,
-                        StringComparison.OrdinalIgnoreCase)) preKeys++;
-                }
+                    string device = i < keys.DeviceJids.Count ? keys.DeviceJids[i] : "?";
+                    bool preKey = string.Equals(keys.Payloads[i].Type,
+                        CallKeyExchange.PreKeyType, StringComparison.OrdinalIgnoreCase);
 
-                if (preKeys > 0)
-                {
-                    Diag.Ok("native: " + preKeys + " of " + keys.Payloads.Count
-                        + " call key(s) go out as a pre-key message");
+                    Diag.Ok("native: the call key for " + device + " goes out as a "
+                        + (preKey ? "pre-key" : "session") + " message");
                 }
             }
             catch (Exception ex)

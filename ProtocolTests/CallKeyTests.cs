@@ -11,9 +11,10 @@ namespace ProtocolTests
     ///
     /// What is pinned here is the part that makes a call answerable: the plaintext is a
     /// `Message` carrying `call.callKey` (field 10, then field 1), the ciphertext is a Signal
-    /// message on an **established** session (a `pkmsg` offer is dropped by the server), and
-    /// one device gets one ciphertext. The receiving half is the same file: the reference's
-    /// own two sessions, Alice's and Bob's, open what the other sealed.
+    /// message on the session that exists - `msg` when the peer has answered, `pkmsg` while
+    /// the first ordinary message is still unanswered, because an offer with no key rings
+    /// nowhere - and one device gets one ciphertext. The receiving half is the same file:
+    /// the reference's own two sessions, Alice's and Bob's, open what the other sealed.
     /// </summary>
     public static class CallKeyTests
     {
@@ -125,6 +126,9 @@ namespace ProtocolTests
             Assert.AreEqual(CallKeyExchange.KeyVersion, offer.Payloads[0].Version);
             Assert.IsTrue(offer.Payloads[0].Ciphertext.Length > 0, "the ciphertext is the enc content");
             Assert.AreEqual(0, offer.Skipped.Count);
+            Assert.AreEqual(BobDevice, offer.DeviceJids[0],
+                "the payload names the device it was sealed for: a call that does not ring has "
+                + "to be traced to a JID, and a count of pre-key messages names nobody");
 
             byte[] opened = CallKeyExchange.Unwrap(offer.Payloads[0], bob);
 
@@ -151,6 +155,8 @@ namespace ProtocolTests
                 "a session the peer has not answered is written as a pre-key message");
             Assert.IsTrue(offer.Payloads[0].Ciphertext.Length > 0, "the ciphertext is the enc content");
             Assert.AreEqual(0, offer.Skipped.Count, "nobody is left out");
+            Assert.AreEqual(BobDevice, offer.DeviceJids[0],
+                "the pre-key offer still says whose phone it was sealed for");
         }
 
         [Test]
