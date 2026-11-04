@@ -267,9 +267,9 @@ Su tutto l'APK le chiamate sono **tre**:
   (`classes.dex`). Il metodo è il caricatore delle traduzioni: le sue costanti
   sono `compressed/`, `strings`, `/`, `.spo`, `decompressed`,
   `_extracted_pack_file.pack.tmp`, `Renaming temp file failed` e il log
-  `translations/loadData error:`. Il nome dell'asset è quindi costruito a runtime
-  (`compressed/strings/strings_<locale>.spo`) e il `.pack` è solo il file
-  temporaneo del ripiego, non il formato da aprire.
+  `translations/loadData error:`. Il nome dell'asset è quindi costruito a runtime,
+  e l'argomento che il driver riceve è la `.spo`. Vedi la sezione seguente per la
+  mappa esatta dei quattro argomenti.
 - `decompress_range_from_so` in `LX/0ET;->A03(Landroid/content/Context;)Z`, con
   `libs.spo`, `decompressed`, `libs.so` e i nomi ABI (`arm64-v8a`, `armeabi-v7a`,
   `x86`, `x86_64`), piu' `libwhatsapp.so` e `libvlc.so`. Non riguarda le stringhe:
@@ -280,6 +280,42 @@ Su tutto l'APK le chiamate sono **tre**:
 `decompress_with_ref` non ha **nessun** chiamante, e nemmeno `decompress_legacy`,
 `decompress_range` e `decompress_from_so`: la via con il riferimento (delta) non è
 quella che l'app percorre, e inseguirla non porta alle etichette.
+
+### Cosa riceve davvero `decompress`: la `.spo`, non un `.pack`
+
+Letta l'intera funzione (636 unita' di codice) e non solo le costanti vicino alla
+`invoke`, la chiamata a `0x00cc` e' questa, con i registri risaliti fino alla
+`const-string` che li riempie:
+
+```
+decompress(context.getAssets(),
+           "compressed/" + "strings" + "/" + nome + ".spo",   // 1: asset da aprire
+           nome + ".spo".substring(lastIndexOf('.') + 1),      // 2: codec = "spo"
+           pack.getAbsolutePath())                             // 3: dove scrivere
+```
+
+- il primo argomento e' l'asset path della `.spo` (per l'italiano
+  `compressed/strings/strings_it.spo`), ed e' quello che `decompress_range` passa
+  ad `AAssetManager_open` a `0xc289`;
+- il secondo e' il **codec**, ricavato con `lastIndexOf('.') + 1`, cioe' `spo`
+  **senza il punto**: e' esattamente la costante con cui il `.so` confronta a
+  `0xc33b` (`strcmp(codec, "spo")`), e per questo l'harness che passa `spo` era
+  gia' corretto;
+- il terzo e' il file di uscita, `<cache>/decompressed/<nome>.spo/<nome>.pack`:
+  il `.pack` e' cio' che il driver **scrive**, non cio' che riceve in ingresso.
+
+Il `.pack` gia' estratto entra in gioco solo prima della chiamata: se
+`<cache>/decompressed/<nome>.spo/<nome>.pack` esiste (e `LX/0ET;->A04` lo
+dichiara aggiornato), il metodo apre quel file con `RandomAccessFile` e salta a
+`0x020d` senza chiamare il driver. Il ripiego, quando il quinto parametro e'
+falso, non chiama `decompress` affatto: copia un `assets/<nome>.pack` gia' pronto
+(il caso `cldr_strings.pack`, l'unico `.pack` nell'APK) in
+`<filesDir>/<nome>_extracted_pack_file.pack.tmp` e lo rinomina.
+
+Quindi la risposta alla domanda "`.spo` o `.pack` gia' estratto": al driver arriva
+sempre la `.spo`; il `.pack` e' il risultato. La `.spo` che apriamo e' percio' la
+stessa che apre l'app sul telefono, e l'errore che resta non e' un argomento
+sbagliato.
 
 ## Il file che il driver rifiuta è quello giusto
 
