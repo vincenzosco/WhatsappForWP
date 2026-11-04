@@ -11,16 +11,18 @@
  * as Ogg/Opus, and one that arrives is decoded to a WAV this phone plays.
  *
  * The build is a static CRT (/MT), so the DLL imports nothing from the C runtime
- * and cannot disagree with the one the phone ships - but the start-up of that
- * static CRT is not free: `_DllMainCRTStartup` initialises the console, the code
- * page, the environment block and the command line, and none of those exist in a
- * Windows Phone 8.1 app container. That is why the phone answered
- * "Unable to load DLL 'waopus.dll'" (0x8007007E) for a file that was in the
- * package: KERNEL32 resolved and one of its functions did not. Linking a
- * `DllMain` of our own with `/ENTRY` removes those imports and leaves malloc,
- * log and pow unresolved instead, so the fix is a rebuild against a CRT the
- * phone has - not a switch here. Until then the encoder is usable on the desktop
- * and the phone's voice notes are the one part of this app that does not work.
+ * and cannot disagree with the one the phone ships. That alone was not enough:
+ * on 4 November 2026 the phone answered "Unable to load DLL 'waopus.dll'"
+ * (0x8007007E) for a file that was in the package and imported only KERNEL32.
+ * The cause was in the header and not in the imports - a process inside an app
+ * container loads only an image that declares
+ * `IMAGE_DLLCHARACTERISTICS_APPCONTAINER`, and without that bit the loader says
+ * "module not found" exactly as it does for a missing file. The link line in
+ * `tools/build-opus-arm.bat` passes `/APPCONTAINER` for that reason, and
+ * `node tools/check-waopus.js` reads the committed DLL to make sure the bit is
+ * still there (with the ARMNT machine, the KERNEL32-only imports and the seven
+ * exported functions), because losing it again breaks the phone and nothing on
+ * this machine.
  *
  * License: libopus itself is BSD (tools/opus/LICENSE, fetched with the sources);
  * this file is part of this repository.

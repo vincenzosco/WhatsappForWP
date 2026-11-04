@@ -315,6 +315,7 @@ node tools/check-resw.js --strict   x:Uid, Loc.Get, both .resw files, no unused 
 node tools/check-docs.js            README pair, same headings, disclosure last, no emoji
 node tools/check-memory.js          decode width, cache caps, per-chat ceiling
 node tools/check-tile.js            tile payload, asset sizes, and a tile the platform refuses
+node tools/check-waopus.js          the Opus DLL: ARMNT, app-container flag, KERNEL32-only, its exports
 node tools/check-actions.js         the app bar buttons
 node tools/check-fire-and-forget.js no task whose fault nobody observes
 node tools/check-project-files.js   every file the projects compile
