@@ -115,8 +115,10 @@ RTP? no; SRTP? no; DTLS? no. Va scritto.
    disegna: squillo, in corso, in riconnessione, chiusa. Oggi l'app ha solo righe di
    registro lette dalla history.
 3. **DTLS 1.2 con PSK/certificato e SRTP.** Nessuna delle due c'è nel profilo
-   .NET di WP8.1: sono da scrivere in C# (o nel nativo `waopus.dll`, che però ora è
-   senza CRT e senza math — aggiungerci DTLS è un lavoro a sé).
+   .NET di WP8.1, e sono state scritte in C#: `Protocol/Media/Dtls*.cs` (ruolo
+   client) e `Protocol/Crypto/Srtp.cs`, con i loro test. Mancano il ruolo server e
+   la derivazione delle chiavi del peer; vedi
+   `2026-11-04-calls-audio-feasibility.md`.
 4. **RTP + jitter buffer + Opus.** L'Opus c'è già (`waopus.dll`, encoder e decoder);
    manca il resto del percorso.
 5. **Relay.** Il client ufficiale non fa solo p2p: alloca relay, misura

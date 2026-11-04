@@ -298,11 +298,14 @@ La chiamata è segnalata, non trasportata. `Protocol/Client/CallSignaling.cs` co
 nodo `call`, `Services/CallSession.cs` sono i cinque stati e `Pages/CallPage.xaml` è la schermata:
 un'offerta squilla, il telefono risponde, rifiuta e chiude, il registro prende una riga per la
 chiamata fatta da questo telefono, e una chiamata che nessuno prende finisce da sola dopo 45
-secondi invece di tenere occupata la sessione. Manca il media: DTLS 1.2 per accordare le chiavi e
-SRTP per portare l'audio, che WP8.1 non ha. I pezzi che si possono scrivere e provare senza un peer
-sono in `Protocol/Media/` - l'intestazione RTP, la sessione SRTP, il jitter buffer, l'espansione
-della chiave di chiamata, e `CallMediaSession`, che sono i tre messi insieme - e nessuno di loro è
-ancora su un socket. La schermata della chiamata dice la stessa frase mentre la chiamata è su.
+secondi invece di tenere occupata la sessione. Manca il media. DTLS 1.2 e SRTP sono scritti e
+provati in `Protocol/Media/` e `Protocol/Crypto/` - l'intestazione RTP, la sessione SRTP, il jitter
+buffer, l'espansione della chiave di chiamata e `CallMediaSession` - ma nessuno di loro è su un
+socket, e restano assenti tre strati: ICE/STUN/TURN con il relay di WhatsApp, il ruolo server di
+DTLS con la divisione delle chiavi del peer, e un percorso audio dal vivo, che WP8.1 non espone
+(la cattura scrive su file, e la piattaforma non ha un evento di frame audio).
+`docs/superpowers/specs/2026-11-04-calls-audio-feasibility.md` dice cosa richiede ognuno.
+La schermata della chiamata dice la stessa frase mentre la chiamata è su.
 </details>
 
 ## Comandi
