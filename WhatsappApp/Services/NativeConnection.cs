@@ -2484,45 +2484,54 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The offer fields this build cannot invent, as somebody wrote them down after reading
-        /// a capture: `calls/wire` in the local settings, in the form
-        /// `caller_pn=...;caller_country_code=...;joinable=true`.
+        /// The offer's own fields: `calls/wire` in the local settings, in the form
+        /// `caller_pn=...;caller_country_code=...;joinable=false`.
         ///
-        /// Null when nothing has been written down, and null is the offer this app has always
-        /// sent: `CallSignaling.Offer` writes a field only when it has a value. The values are
-        /// deliberately not learned from the callee's own offer - its `caller_pn` is *their*
-        /// number - so they wait for a capture of an offer this account made, which is the
-        /// missing half of the offer of 4 November 2026.
+        /// When nothing is written down yet, the values this account can state about itself are
+        /// written once and used from then on (`CallWireProfile.ForAccount`): the caller is the
+        /// number inside this account's own JID, and a call it places is one person calling one
+        /// person, so it cannot be joined. The values are never learned from the callee's own
+        /// offer - its `caller_pn` is *their* number.
+        ///
+        /// The one value the app cannot read off the account is the country. It is
+        /// <see cref="SelfCountryCode"/>: a JID carries digits only, and the letter code is not
+        /// derivable from them. The official engine keeps the same string in its own app
+        /// settings - `tone_playback_manager: use self_country_code from app_settings` - so the
+        /// shape is the reference's, and the value is this account's.
         /// </summary>
-        private static CallWireProfile CallWireProfileFromStore()
+        private static CallWireProfile CallWireProfileFromStore(string ownJid)
         {
             object stored;
-            if (!Windows.Storage.ApplicationData.Current.LocalSettings.Values.TryGetValue(CallWireKey, out stored)) return null;
-
-            string text = stored as string;
-            if (string.IsNullOrEmpty(text)) return null;
-
-            var profile = new CallWireProfile();
-            string[] parts = text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
-
-            for (int i = 0; i < parts.Length; i++)
+            string text = null;
+            if (Windows.Storage.ApplicationData.Current.LocalSettings.Values.TryGetValue(CallWireKey, out stored))
             {
-                int at = parts[i].IndexOf('=');
-                if (at <= 0) continue;
-
-                string name = parts[i].Substring(0, at).Trim();
-                string value = parts[i].Substring(at + 1).Trim();
-
-                if (name == "caller_pn") profile.CallerPn = value;
-                else if (name == "caller_country_code") profile.CallerCountryCode = value;
-                else if (name == "joinable") profile.Joinable = value == "true";
+                text = stored as string;
             }
 
-            return profile.IsEmpty ? null : profile;
+            CallWireProfile written = CallWireProfile.FromStore(text);
+            if (written != null) return written;
+
+            CallWireProfile seed = CallWireProfile.ForAccount(ownJid, SelfCountryCode);
+            if (seed == null) return null;
+
+            string line = seed.ToStore();
+            if (string.IsNullOrEmpty(line)) return null;
+
+            Windows.Storage.ApplicationData.Current.LocalSettings.Values[CallWireKey] = line;
+            Diag.Ok("native: calls/wire was empty, so the offer now names this account: " + line);
+
+            return seed;
         }
 
         /// <summary>Where the offer's own fields are written down, one line, no key ever.</summary>
         private const string CallWireKey = "calls/wire";
+
+        /// <summary>
+        /// The country this account's number belongs to, as the offer's `caller_country_code`
+        /// carries it (the international code, without the plus: this account's number starts
+        /// with 39). The app cannot derive it from the JID, so it is stated here once.
+        /// </summary>
+        private const string SelfCountryCode = "IT";
 
         /// <summary>
         /// The reader has seen this chat. The chat list keeps its own count so that a message
@@ -3756,7 +3765,7 @@ namespace WhatsappApp.Services
             // The fields of an offer this build cannot invent, from the store: `caller_pn`,
             // `caller_country_code`, `joinable`. Read once for the whole call, and null until
             // somebody writes down what a capture showed (`calls/wire`).
-            CallWireProfile wire = CallWireProfileFromStore();
+            CallWireProfile wire = CallWireProfileFromStore(session.Jid);
 
             for (int i = 0; i < keys.Payloads.Count; i++)
             {

@@ -124,6 +124,40 @@ namespace ProtocolTests
                 "then the five names of the table, in the table's order: " + order);
         }
 
+        /// <summary>
+        /// The offer's own fields, as this account can state them without a capture: the number
+        /// inside its own JID, the country it belongs to, and `joinable=false` for a call one
+        /// person places to one person. The stored line is what the app writes down once.
+        /// </summary>
+        [Test]
+        public static void TheAccountFillsTheOffersOwnFields()
+        {
+            CallWireProfile profile = CallWireProfile.ForAccount("393892672185:37@s.whatsapp.net", "IT");
+
+            Assert.AreEqual("393892672185", profile.CallerPn, "the number inside this account's JID");
+            Assert.AreEqual("IT", profile.CallerCountryCode, "the country it was told");
+            Assert.IsTrue(profile.Joinable.HasValue && !profile.Joinable.Value,
+                "a one-to-one call cannot be joined");
+
+            string line = profile.ToStore();
+            Assert.AreEqual("caller_pn=393892672185;caller_country_code=IT;joinable=false", line,
+                "the line the setting keeps");
+
+            CallWireProfile back = CallWireProfile.FromStore(line);
+            Assert.AreEqual(profile.CallerPn, back.CallerPn, "and it reads back the same");
+            Assert.AreEqual(profile.CallerCountryCode, back.CallerCountryCode);
+            Assert.AreEqual(profile.Joinable, back.Joinable);
+        }
+
+        /// <summary>A `@lid` is an identifier, not a number: nothing is invented for it.</summary>
+        [Test]
+        public static void AnAccountWithNoNumberGetsNoFields()
+        {
+            Assert.IsTrue(CallWireProfile.ForAccount("150375613116620:37@lid", null) == null,
+                "no caller_pn, no country, no joinable");
+            Assert.IsTrue(CallWireProfile.FromStore(null) == null, "and an empty setting says nothing");
+        }
+
         [Test]
         public static void VoipSettingsAndMetadataAreWrittenFromTheirFields()
         {

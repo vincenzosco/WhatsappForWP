@@ -183,6 +183,71 @@ namespace WhatsappApp.Protocol.Client
             return node;
         }
 
+        /// <summary>
+        /// The offer's own fields as this account can state them, without a capture and without
+        /// guessing: the caller is the number inside this account's own JID (read, never
+        /// typed), a call this client places is one person calling one person and so cannot be
+        /// joined, and the country is the one the caller passes in.
+        ///
+        /// That last one is the only value the app has to be told: a JID carries digits and no
+        /// country, and the letter code is not derivable from them. Null for an account whose
+        /// JID is not a phone number - a `@lid` is an identifier, not a number - so nothing is
+        /// invented for it.
+        /// </summary>
+        public static CallWireProfile ForAccount(string ownJid, string countryCode)
+        {
+            var profile = new CallWireProfile();
+            profile.CallerPn = PhoneNumbers.UserDigits(ownJid);
+            profile.CallerCountryCode = countryCode;
+
+            // Only a call this account can actually be joined in may say it is joinable, and
+            // this client only ever offers one-to-one calls.
+            if (profile.CallerPn != null) profile.Joinable = false;
+
+            return profile.IsEmpty ? null : profile;
+        }
+
+        /// <summary>
+        /// The profile as it is written down in the settings: `name=value`, one line, `;`
+        /// between the fields, and only the fields that have a value.
+        /// </summary>
+        public string ToStore()
+        {
+            var parts = new List<string>();
+            if (!string.IsNullOrEmpty(CallerPn)) parts.Add("caller_pn=" + CallerPn);
+            if (!string.IsNullOrEmpty(CallerCountryCode)) parts.Add("caller_country_code=" + CallerCountryCode);
+            if (Joinable.HasValue) parts.Add("joinable=" + (Joinable.Value ? "true" : "false"));
+
+            return string.Join(";", parts.ToArray());
+        }
+
+        /// <summary>
+        /// The profile a stored line describes, or null when it describes nothing. It reads and
+        /// decides nothing: a name it does not know is skipped, never guessed at.
+        /// </summary>
+        public static CallWireProfile FromStore(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return null;
+
+            var profile = new CallWireProfile();
+            string[] parts = text.Split(new char[] { ';' }, StringSplitOptions.RemoveEmptyEntries);
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                int at = parts[i].IndexOf('=');
+                if (at <= 0) continue;
+
+                string name = parts[i].Substring(0, at).Trim();
+                string value = parts[i].Substring(at + 1).Trim();
+
+                if (name == "caller_pn") profile.CallerPn = value;
+                else if (name == "caller_country_code") profile.CallerCountryCode = value;
+                else if (name == "joinable") profile.Joinable = value == "true";
+            }
+
+            return profile.IsEmpty ? null : profile;
+        }
+
         /// <summary>Whether there is anything to write at all.</summary>
         public bool IsEmpty
         {
