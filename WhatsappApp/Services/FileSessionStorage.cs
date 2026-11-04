@@ -223,6 +223,7 @@ namespace WhatsappApp.Services
             {
                 StorageFile temp = null;
                 bool replaced = false;
+                bool renameFailed = false;
 
                 try
                 {
@@ -236,6 +237,7 @@ namespace WhatsappApp.Services
                 }
                 catch (Exception ex)
                 {
+                    renameFailed = true;
                     Diag.Failed("FileSessionStorage.Write/" + key, ex);
                 }
 
@@ -244,6 +246,29 @@ namespace WhatsappApp.Services
                 // a rename the same object names the record itself and deleting it would
                 // throw away the write that succeeded.
                 if (replaced || temp == null) return;
+
+                // A rename the platform refused is not a reason to lose the record. The run of
+                // 4 November 2026 logged exactly this for a sender key - `FileSessionStorage.Write/
+                // senderkey/393273153236-1489263010@g.us/179585517920463@lid: FileNotFoundException` -
+                // and then threw the bytes away with the temporary file: the key stayed in memory,
+                // the file was never written, and the next start rebuilt a group session that the
+                // server kept re-sending the answer to. So the record is written where it belongs,
+                // in place. That costs the atomicity the rename buys - a frozen write can leave a
+                // half record - which `SessionRecord.Encode`'s digest catches; losing the write
+                // every time, which is what this branch did, catches nothing.
+                if (renameFailed)
+                {
+                    try
+                    {
+                        StorageFile target = await _folder.CreateFileAsync(
+                            FileName(key), CreationCollisionOption.ReplaceExisting);
+                        await FileIO.WriteBytesAsync(target, value);
+                    }
+                    catch (Exception inPlace)
+                    {
+                        Diag.Failed("FileSessionStorage.Write-in-place/" + key, inPlace);
+                    }
+                }
 
                 try
                 {

@@ -192,8 +192,25 @@ namespace WhatsappApp.Services
             // First write of this phone: there is nothing to replace.
             var current = (StorageFile)await folder.TryGetItemAsync(FileName);
 
-            if (current == null) await temp.RenameAsync(FileName);
-            else await temp.MoveAndReplaceAsync(current);
+            bool vanished = false;
+
+            try
+            {
+                if (current == null) await temp.RenameAsync(FileName);
+                else await temp.MoveAndReplaceAsync(current);
+            }
+            catch (FileNotFoundException)
+            {
+                // The file the move was aimed at went away between the look and the move: a
+                // link wipes the copy (`DeleteAsync`) without waiting behind this queue, and a
+                // move over a file that is no longer there is `0x80070002` - the line the run of
+                // 4 November 2026 logged as `ChatCache.Save: FileNotFoundException`, with the
+                // list written to the temporary file and then dropped. The rename has nothing
+                // left to replace, and it is the write that has to survive.
+                vanished = true;
+            }
+
+            if (vanished) await temp.RenameAsync(FileName);
         }
 
         /// <summary>
