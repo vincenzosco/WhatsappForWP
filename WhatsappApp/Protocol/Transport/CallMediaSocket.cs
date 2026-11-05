@@ -84,6 +84,17 @@ namespace WhatsappApp.Protocol.Transport
 
         private int _unattachedLogged;
 
+        /// <summary>
+        /// The last shape the path was in when it was written down, so a state that moves writes
+        /// one line and a state that stays put writes none. The `Diag` sink also drops repeated
+        /// lines, but it cannot help here: the counters in the line change on every datagram, so
+        /// the remembering is done on the state and not on the text.
+        /// </summary>
+        private string _reported;
+
+        /// <summary>When a path was attached, so every line says how long it took to get there.</summary>
+        private long _attachedMs;
+
         /// <summary>The UDP port the socket is bound to, which is what a candidate names.</summary>
         public int Port { get; private set; }
 
@@ -145,6 +156,8 @@ namespace WhatsappApp.Protocol.Transport
             lock (_gate)
             {
                 _transport = transport;
+                _attachedMs = NowMilliseconds();
+                _reported = null;
             }
 
             Diag.Ok("call media: the path is attached to UDP " + Port);
@@ -161,6 +174,51 @@ namespace WhatsappApp.Protocol.Transport
             Interlocked.Exchange(ref _received, 0);
             Interlocked.Exchange(ref _sent, 0);
             Interlocked.Exchange(ref _unattachedLogged, 0);
+        }
+
+        /// <summary>
+        /// Writes the path down whenever it moves - `Waiting` to `Handshaking` when a check
+        /// nominates the pair, `Handshaking` to `Ready` when the handshake lands, and a failure
+        /// with its reason - so a pulled log has the shape of the call and not only its last
+        /// moment. Until this existed the only line about a call's media was the one written when
+        /// it stopped, which cannot say whether a call sat fifteen seconds in `Handshaking` or
+        /// never left `Waiting`.
+        ///
+        /// Called from the clock and from the reader, which are the two places a state can move.
+        /// The line carries the counters because they are what tells "nothing arrived" from "a
+        /// packet arrived and was refused".
+        /// </summary>
+        private void Report()
+        {
+            CallTransport transport;
+            long attachedMs;
+
+            lock (_gate)
+            {
+                transport = _transport;
+                attachedMs = _attachedMs;
+            }
+
+            if (transport == null) return;
+
+            string state;
+            lock (_path)
+            {
+                state = transport.State
+                    + (transport.Peer == null ? " with no peer" : " with the peer " + Describe(transport.Peer))
+                    + (transport.IsTrusted ? ", trusted" : ", not trusted")
+                    + (transport.Failure == null ? "" : ", stopped: " + transport.Failure);
+            }
+
+            // The remembering is on the state and not on the text: the counters and the millisecond
+            // below move, and a line that changed for those reasons would be a log per packet.
+            if (string.Equals(state, _reported, StringComparison.Ordinal)) return;
+
+            _reported = state;
+
+            Diag.Ok("call media: the path is " + state + " " + (NowMilliseconds() - attachedMs)
+                + " ms after it was attached, " + Interlocked.CompareExchange(ref _received, 0, 0)
+                + " datagram(s) in and " + Interlocked.CompareExchange(ref _sent, 0, 0) + " out");
         }
 
         /// <summary>
@@ -204,6 +262,7 @@ namespace WhatsappApp.Protocol.Transport
                 if (_transport != transport) return;
 
                 _transport = null;
+                _reported = null;
             }
 
             Diag.Ok("call media: the path is off UDP " + Port);
@@ -360,6 +419,8 @@ namespace WhatsappApp.Protocol.Transport
                 {
                     await SendAsync(outbound[i], args.RemoteAddress, args.RemotePort);
                 }
+
+                Report();
             }
             catch (Exception ex)
             {
@@ -383,10 +444,15 @@ namespace WhatsappApp.Protocol.Transport
                 again = transport.Tick(NowMilliseconds());
             }
 
-            if (again == null) return;
+            if (again != null)
+            {
+                Diag.Ok("call media: the handshake datagram goes again, " + again.Length + " bytes");
+                Send(again);
+            }
 
-            Diag.Ok("call media: the handshake datagram goes again, " + again.Length + " bytes");
-            Send(again);
+            // The clock is also what notices a path that the peer moved on its own: a nomination
+            // arrives through the reader, but the state it turns into is only seen here.
+            Report();
         }
 
         private void Send(byte[] datagram)
