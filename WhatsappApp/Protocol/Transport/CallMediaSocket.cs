@@ -131,13 +131,19 @@ namespace WhatsappApp.Protocol.Transport
         }
 
         /// <summary>
-        /// One Opus frame, sealed and sent, or false when the path is not up yet. The frame's
-        /// twenty milliseconds are what moves the RTP clock.
+        /// One Opus frame, sealed and sent, or false when the path is not up yet or the peer has
+        /// not proved the identity the signalling named. The frame's twenty milliseconds are
+        /// what moves the RTP clock.
         /// </summary>
         public bool SendAudio(byte[] opusFrame)
         {
             CallTransport transport = _transport;
             if (transport == null) return false;
+
+            // A handshake can finish without proving who answered it, and audio sent over one
+            // is audio given to whoever picked up the port. `CallTransport.IsTrusted` is the
+            // question, and the caller of a media path is not the place to ask it.
+            if (!transport.IsTrusted) return false;
 
             byte[] packet;
             lock (_path)
@@ -149,6 +155,25 @@ namespace WhatsappApp.Protocol.Transport
 
             Send(packet);
             return true;
+        }
+
+        /// <summary>
+        /// Takes one call's path off the socket when the call ends, leaving the port bound for
+        /// the next one. The transport is the same object that was attached, so a call that
+        /// ended while the next one was starting does not detach its successor.
+        /// </summary>
+        public void Detach(CallTransport transport)
+        {
+            if (transport == null) return;
+
+            lock (_gate)
+            {
+                if (_transport != transport) return;
+
+                _transport = null;
+            }
+
+            Diag.Ok("call media: the path is off UDP " + Port);
         }
 
         /// <summary>Stops the clock and closes the socket. Safe to call more than once.</summary>

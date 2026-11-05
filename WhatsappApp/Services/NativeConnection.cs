@@ -243,6 +243,13 @@ namespace WhatsappApp.Services
         private int _callMediaPort;
 
         /// <summary>
+        /// The path of the call that is up, attached to the socket above, or null when no call
+        /// has media running. One at a time: a second call is refused while the first is up, so
+        /// this is also the thing a new call replaces.
+        /// </summary>
+        private CallTransport _callMedia;
+
+        /// <summary>
         /// The same ids in the order they were written, so an overflow forgets the oldest
         /// one instead of the whole table: emptying it dropped the ids of messages still
         /// waiting for their ack, and their ack then matched nothing - the bubble went to
@@ -3675,6 +3682,7 @@ namespace WhatsappApp.Services
             IList<CallCandidate> candidates = await CallCandidatesAsync();
 
             CallKeyOffer keys = null;
+            byte[] callKey = null;
             try
             {
                 // The same bound the messages get: a call is not a reason to wait a minute on a
@@ -3696,7 +3704,8 @@ namespace WhatsappApp.Services
                 // The store is therefore read once more, where the flag is about to be used.
                 await RefreshEstablishedAsync(target);
 
-                keys = CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(_random), target.Devices, _random);
+                callKey = CallKeyExchange.NewCallKey(_random);
+                keys = CallKeyExchange.Wrap(callKey, target.Devices, _random);
 
                 Diag.Ok("native: the call " + callId + " is sealed for " + target.Devices.Count
                     + " device(s) of " + jid);
@@ -3790,6 +3799,10 @@ namespace WhatsappApp.Services
                 await session.SendAsync(offer);
             }
 
+            // The media path starts with the offer: the candidates just sent name this port, and
+            // the caller's phone is the one that opens the handshake on it.
+            await StartCallMediaAsync(callId, callKey, true);
+
             return callId;
         }
 
@@ -3855,6 +3868,117 @@ namespace WhatsappApp.Services
             return candidates;
         }
 
+        /// <summary>
+        /// Starts one call's media on the socket the candidates already name: the ICE-lite agent
+        /// that answers the peer's checks, the handshake that makes the SRTP keys, and the
+        /// transport that drives both from the datagrams the socket reads.
+        ///
+        /// Why the credentials are derived and not signalled: there is no field for them in the
+        /// call stanza - see `CallMediaSetup` - so both ends compute the same pair from the call
+        /// key and the call id they already share.
+        ///
+        /// The role is the signalling's: the phone that placed the call is the DTLS client (the
+        /// reference's own log line names that mapping), and the phone that answers is the
+        /// server.
+        /// </summary>
+        public async Task StartCallMediaAsync(string callId, byte[] callKey, bool caller)
+        {
+            if (string.IsNullOrEmpty(callId)) return;
+
+            if (callKey == null || callKey.Length != CallKeys.CallKeyLength)
+            {
+                Diag.Ok("native: the call " + callId + " has no key, so its media is not started");
+                return;
+            }
+
+            await CallMediaPortAsync();
+
+            WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
+            if (socket == null)
+            {
+                Diag.Ok("native: no media socket for the call " + callId);
+                return;
+            }
+
+            CallMediaSetup setup;
+            IMediaHandshake handshake;
+
+            try
+            {
+                setup = CallMediaSetup.Derive(callKey, callId, caller);
+
+                if (caller)
+                {
+                    // No fingerprint: the signalling this app reads carries none, so the
+                    // handshake can complete without proving who answered. `SendAudio` refuses
+                    // to send over one, which is the direction that costs something.
+                    handshake = new DtlsClientHandshake(_random.Bytes(32), _random.Bytes(32), null);
+                }
+                else
+                {
+                    handshake = new DtlsServerHandshake(
+                        new DtlsServer(MediaIdentity(), _random.Bytes(32), _random.Bytes(32)));
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("native: the media of the call " + callId, ex);
+                return;
+            }
+
+            var ice = new IceLiteAgent(setup.LocalUfrag, setup.LocalPassword,
+                setup.RemoteUfrag, setup.RemotePassword);
+
+            var transport = new CallTransport(ice, handshake, setup.LocalSsrc, setup.RemoteSsrc);
+
+            // The previous call's path goes first: one socket, one path, and a transport left
+            // behind would keep its handshake clock running on a call nobody is on.
+            StopCallMedia();
+
+            _callMedia = transport;
+            socket.Attach(transport);
+
+            Diag.Ok("native: the call " + callId + " takes its media on UDP " + socket.Port
+                + " as the " + (caller ? "DTLS client" : "DTLS server")
+                + ", SSRC " + setup.LocalSsrc + " to " + setup.RemoteSsrc);
+        }
+
+        /// <summary>
+        /// Takes this call's media path off the socket. The socket and its port stay - the next
+        /// offer names the same one - and the transport is left with no timer driving it.
+        /// </summary>
+        public void StopCallMedia()
+        {
+            CallTransport transport = _callMedia;
+            _callMedia = null;
+
+            if (transport == null) return;
+
+            WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
+            if (socket != null) socket.Detach(transport);
+
+            Diag.Ok("native: the call media path is stopped");
+        }
+
+        /// <summary>
+        /// A P-256 key for the certificate a DTLS server signs with. Redrawn until the curve
+        /// accepts it, because the random source answers bytes and not a field element.
+        /// </summary>
+        private DtlsIdentity MediaIdentity()
+        {
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                byte[] scalar = _random.Bytes(WhatsappApp.Protocol.Crypto.EcP256.CoordinateLength);
+
+                if (WhatsappApp.Protocol.Crypto.EcP256.PublicPoint(scalar) != null)
+                {
+                    return new DtlsIdentity(scalar, "whatsapp-wp");
+                }
+            }
+
+            throw new ProtocolException("a certificate key is 1..n-1");
+        }
+
         /// <summary>A byte string as hex, for the log: the candidates a real phone sends.</summary>
         private static string CandidateHex(byte[] bytes)
         {
@@ -3906,6 +4030,7 @@ namespace WhatsappApp.Services
             NativeSession session = OpenSession();
 
             await session.SendAsync(CallSignaling.Terminate(callId, jid, reason));
+            StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason);
         }
 
@@ -3921,6 +4046,7 @@ namespace WhatsappApp.Services
             NativeSession session = OpenSession();
 
             await session.SendAsync(Calls.Terminate(callId, jid, reason, durationSeconds, videoState));
+            StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason
                 + " after " + durationSeconds + " s");
         }

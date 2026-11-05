@@ -417,6 +417,13 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            if (_call.Phase == CallPhase.Ended)
+            {
+                // A call that ended has no media to carry, and a transport left attached is a
+                // clock that keeps resending a handshake for a call nobody is on.
+                NativeConnection.Instance.StopCallMedia();
+            }
+
             if (changed) RaiseCallChanged();
         }
 
