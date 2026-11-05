@@ -216,6 +216,168 @@ namespace WhatsappApp.Services
             }
         }
 
+        // ── the calls this phone placed, and when ──────────────────────────────
+
+        /// <summary>
+        /// How long an unanswered offer waits before it is written again: once at five seconds,
+        /// once ten seconds after that, inside the thirty a call is given to connect.
+        ///
+        /// Why the offer is repeated at all: a stanza the server drops and a peer whose phone
+        /// never rang are the same silence at the caller - no `accept`, no `preaccept`, no
+        /// `reject`, and a timeout line that says nothing about which of the two it was. The
+        /// repetitions carry the same call id, so the peer's side reads them as one call, and
+        /// the second copy is then the only thing that can turn the first hypothesis into a
+        /// fact.
+        /// </summary>
+        private static readonly int[] OfferRepeatMs = new int[] { 5000, 10000 };
+
+        /// <summary>
+        /// A call this phone placed that nobody has answered: every offer stanza written for it
+        /// and the elapsed time of every round. One at a time, because the app places one call at
+        /// a time and a list would keep stanzas nobody is going to send.
+        /// </summary>
+        private sealed class PlacedCall
+        {
+            public string CallId;
+            public string Jid;
+            public long StartedMs;
+
+            /// <summary>When the first node for this call came back, or zero.</summary>
+            public long AnsweredMs;
+
+            public readonly List<BinaryNode> Offers = new List<BinaryNode>();
+
+            /// <summary>When each round went out, in milliseconds after the first.</summary>
+            public readonly List<int> SentMs = new List<int>();
+        }
+
+        private readonly object _placedGate = new object();
+
+        private PlacedCall _placed;
+
+        /// <summary>Records the call being placed. A new call forgets the one before it.</summary>
+        private void RememberPlacedCall(string callId, string jid)
+        {
+            var placed = new PlacedCall();
+            placed.CallId = callId;
+            placed.Jid = jid;
+            placed.StartedMs = NowMilliseconds();
+            placed.SentMs.Add(0);
+
+            lock (_placedGate) { _placed = placed; }
+        }
+
+        /// <summary>Keeps one offer stanza, so a repeat sends the same one and not a new one.</summary>
+        private void RememberOffer(BinaryNode offer)
+        {
+            lock (_placedGate)
+            {
+                if (_placed == null) return;
+                _placed.Offers.Add(offer);
+            }
+        }
+
+        /// <summary>
+        /// A node for a call this phone placed. The first one is the answer - whoever sent it,
+        /// whether they accepted, refused or gave up - and the time it took is what separates a
+        /// peer that took eight seconds from a peer that never heard the call.
+        /// </summary>
+        private void RememberAnswer(CallSignal signal)
+        {
+            if (signal == null || string.IsNullOrEmpty(signal.CallId)) return;
+
+            lock (_placedGate)
+            {
+                PlacedCall placed = _placed;
+                if (placed == null || placed.AnsweredMs != 0) return;
+                if (!string.Equals(placed.CallId, signal.CallId, StringComparison.Ordinal)) return;
+
+                placed.AnsweredMs = NowMilliseconds();
+
+                Diag.Ok("native: the call " + placed.CallId + " came back "
+                    + (placed.AnsweredMs - placed.StartedMs) + " ms after its first offer, as "
+                    + signal.Kind
+                    + (string.IsNullOrEmpty(signal.Reason) ? "" : " reason " + signal.Reason));
+            }
+        }
+
+        /// <summary>
+        /// Writes the offer again while nobody has answered it, and stops the moment the call is
+        /// answered, ended or replaced - the sender's own clock, at the intervals above.
+        /// </summary>
+        private async Task RepeatOffersAsync(string callId)
+        {
+            for (int round = 0; round < OfferRepeatMs.Length; round++)
+            {
+                await Task.Delay(OfferRepeatMs[round]);
+
+                List<BinaryNode> offers;
+                int elapsed;
+
+                lock (_placedGate)
+                {
+                    PlacedCall placed = _placed;
+                    if (placed == null || placed.Offers.Count == 0) return;
+                    if (!string.Equals(placed.CallId, callId, StringComparison.Ordinal)) return;
+                    if (placed.AnsweredMs != 0) return;
+
+                    offers = new List<BinaryNode>(placed.Offers);
+
+                    elapsed = (int)(NowMilliseconds() - placed.StartedMs);
+                    placed.SentMs.Add(elapsed);
+                }
+
+                NativeSession session = OpenSession();
+                for (int i = 0; i < offers.Count; i++)
+                {
+                    await session.SendAsync(offers[i]);
+                }
+
+                Diag.Ok("native: the offer for the call " + callId + " goes again, " + elapsed
+                    + " ms after the first, to " + offers.Count + " device(s)");
+            }
+        }
+
+        /// <summary>
+        /// The line an unanswered call owes the log: how long it waited, how many rounds of the
+        /// offer went out and when, and that nothing came back for it. Without it the log says
+        /// "reason timeout" and leaves the reader to guess which half of the call failed.
+        /// </summary>
+        private void ForgetPlacedCall(string callId)
+        {
+            lock (_placedGate)
+            {
+                PlacedCall placed = _placed;
+                if (placed == null) return;
+                if (!string.Equals(placed.CallId, callId, StringComparison.Ordinal)) return;
+
+                _placed = null;
+
+                // An answered call needs no explanation here: what it did after the answer is
+                // what `StopCallMedia` writes down.
+                if (placed.AnsweredMs != 0) return;
+
+                string times = "";
+                for (int i = 0; i < placed.SentMs.Count; i++)
+                {
+                    if (i > 0) times = times + ", ";
+                    times = times + placed.SentMs[i] + " ms";
+                }
+
+                Diag.Ok("native: the call " + placed.CallId + " to " + placed.Jid
+                    + " ended with no answer after " + (NowMilliseconds() - placed.StartedMs)
+                    + " ms: its offer was written " + placed.SentMs.Count + " time(s) (at "
+                    + times + "), " + placed.Offers.Count
+                    + " stanza(s) a time, and no call node for it ever came back");
+            }
+        }
+
+        /// <summary>A monotonic count of milliseconds for the times above (the socket's own).</summary>
+        private static long NowMilliseconds()
+        {
+            return DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+        }
+
         /// <summary>
         /// The last device list the server gave for an address, kept for the send that asks
         /// again while the server is slow.
@@ -3679,6 +3841,10 @@ namespace WhatsappApp.Services
                 }
             }
 
+            // What came back for this call, and when: the accept, the refusal, or the peer's own
+            // timeout. A call answered late and a call never answered end on the same screen.
+            RememberAnswer(signal);
+
             // The answer names the certificate whose fingerprint this side pins. The path has
             // been on the socket since the offer (see AnnounceCall), so that a peer's checks are
             // answered; this is where it becomes a path that can be trusted, replacing the one
@@ -3785,6 +3951,8 @@ namespace WhatsappApp.Services
 
             string callId = NewCallId();
             NativeSession session = OpenSession();
+
+            RememberPlacedCall(callId, jid);
 
             // The offer the official client sends: the media this phone can do, and the
             // 32-byte call key sealed into one `<enc>` per device of the peer. The key is the
@@ -3918,6 +4086,8 @@ namespace WhatsappApp.Services
                 string stanzaId = NewCallId();
                 offer.Attrs["id"] = stanzaId;
 
+                RememberOffer(offer);
+
                 KeepOfferedCall(stanzaId);
                 Diag.Ok("native: offered a " + (video ? "video " : "") + "call " + callId
                     + " to " + device + " with its key (" + keys.Payloads[i].Type + ") and "
@@ -3941,6 +4111,12 @@ namespace WhatsappApp.Services
             // The count starts here for the same reason the path does: the socket is the app's,
             // the number is the call's.
             if (_callMediaSocket != null) _callMediaSocket.Reset();
+
+            // The offer goes out again while the call rings, and the times it did are what the
+            // timeout line reports (see RepeatOffersAsync).
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("native/call offers", RepeatOffersAsync(callId));
+#pragma warning restore 4014
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("native/call media early",
@@ -4262,6 +4438,7 @@ namespace WhatsappApp.Services
             NativeSession session = OpenSession();
 
             await session.SendAsync(CallSignaling.Terminate(callId, jid, reason));
+            ForgetPlacedCall(callId);
             StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason);
         }
@@ -4278,6 +4455,7 @@ namespace WhatsappApp.Services
             NativeSession session = OpenSession();
 
             await session.SendAsync(Calls.Terminate(callId, jid, reason, durationSeconds, videoState));
+            ForgetPlacedCall(callId);
             StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason
                 + " after " + durationSeconds + " s");
