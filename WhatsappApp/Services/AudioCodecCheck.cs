@@ -87,8 +87,10 @@ namespace WhatsappApp.Services
         /// the DLL here, hashing it against the build output and knowing which of the two the
         /// phone had installed - a comparison one line of this log could have answered. The
         /// machine decides whether the image is ARM at all (0x01c4 is ARMNT, 0x014c is the x86
-        /// the emulator would need) and bit 0x1000 of the characteristics is
-        /// `IMAGE_DLLCHARACTERISTICS_APPCONTAINER`, which this app's process requires.
+        /// the emulator would need), and bit 0x1000 of the characteristics is
+        /// `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` - which turned out not to be the reason: the
+        /// three native DLLs this phone loads have it clear and the refused image has it set. It
+        /// is printed because it is part of what the loader reads, not because it decides.
         /// </summary>
         private static async Task<string> DescribeAsync(StorageFile file)
         {

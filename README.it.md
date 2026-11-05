@@ -322,7 +322,7 @@ node tools/check-resw.js --strict   x:Uid, Loc.Get, entrambi i .resw, nessuna ch
 node tools/check-docs.js            coppia di README, stesse intestazioni, disclosure in fondo, niente emoji
 node tools/check-memory.js          larghezza di decodifica, tetti delle cache, tetto per chat
 node tools/check-tile.js            payload della tile, misure degli asset, e una tile che il sistema rifiuta
-node tools/check-waopus.js          la DLL di Opus: ARMNT, flag app container, soli import KERNEL32, le sue funzioni
+node tools/check-waopus.js          la DLL di Opus: ARMNT, senza KERNEL32, soli import api-ms-*, le sue funzioni
 node tools/check-actions.js         i pulsanti della barra
 node tools/check-fire-and-forget.js nessun task il cui guasto nessuno osserva
 node tools/check-project-files.js   ogni file che i progetti compilano

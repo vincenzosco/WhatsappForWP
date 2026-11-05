@@ -17,12 +17,20 @@ rem Preparation is one command - the sources are not vendored, the built DLL is 
 rem the repository ships:
 rem   git clone --depth 1 https://github.com/xiph/opus.git .tools\opus-src
 rem
-rem `/APPCONTAINER` is not optional: the phone loads this DLL from a packaged process,
-rem and a native image with no app-container flag in its `DllCharacteristics` is refused
-rem with `0x8007007E` ("the specified module could not be found") even when the file is
-rem in the installed package and imports nothing but KERNEL32 - which is exactly what the
-rem log of 4 November 2026 showed (`waopus.dll is in the package and Windows will not
-rem load it`).
+rem What this script cannot do, and what the guard at the end says out loud:
+rem the CRT this toolset links is the desktop ARM one, so the image imports
+rem `KERNEL32.dll` and the console half of the CRT start-up (`WriteConsoleW`,
+rem `SetStdHandle`, `GetCommandLineW`). On 4 and 5 November 2026 the phone
+rem answered `0x8007007E` to exactly that image, while the three ARM modules it
+rem does load import `api-ms-win-core-*` and never `KERNEL32.dll`. `/APPCONTAINER`
+rem was tried and is not the answer: those modules have the bit clear, and the
+rem image that is refused has it set.
+rem
+rem A loadable build needs a toolset whose import libraries name the API sets
+rem (the Windows Phone 8.1 C++ one, which is not installed on this machine), or
+rem an image with an entry point of its own and no desktop CRT. Until then this
+rem script fails at the last step, on purpose, instead of on the phone at the
+rem first voice note.
 rem
 rem Three defines are the whole port: WINAPI_FAMILY_APP (the UCRT refuses desktop ARM
 rem headers outright), USE_ALLOCA (libopus needs one of three allocation modes on
@@ -83,8 +91,19 @@ for %%f in ("%SRC%\src\opus.c" "%SRC%\src\opus_decoder.c" "%SRC%\src\opus_encode
 )
 
 echo waopus: linking...
-"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /APPCONTAINER /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
+"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
 if errorlevel 1 exit /b 1
+echo waopus: checking the image against what the phone accepts...
+where node >nul 2>&1
+if errorlevel 1 (
+  echo waopus: node is not on PATH, so the image was not checked.
+  exit /b 1
+)
+node "%~dp0check-waopus.js"
+if errorlevel 1 (
+  echo waopus: the guard refused this image - the phone would answer 0x8007007E.
+  exit /b 1
+)
 
 echo waopus: %OUT%
 endlocal
