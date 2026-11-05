@@ -255,6 +255,21 @@ namespace WhatsappApp.Protocol.Client
             return CallSignaling.Accept(callId, jid, audio, video, candidates);
         }
 
+        /// <summary>
+        /// The answer with the fingerprint of this side's media certificate, which is the one
+        /// the caller pins the handshake against.
+        /// </summary>
+        public static BinaryNode Accept(
+            string callId,
+            string jid,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallCandidate> candidates,
+            string fingerprint)
+        {
+            return CallSignaling.Accept(callId, jid, audio, video, candidates, fingerprint);
+        }
+
         /// <summary>The pre-accept, with the same media description the answer will use.</summary>
         public static BinaryNode PreAccept(
             string callId, string jid, IList<CallAudio> audio, IList<CallVideoDescription> video)

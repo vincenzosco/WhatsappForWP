@@ -412,6 +412,13 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The transport candidates of an offer/accept/transport, or null.</summary>
         public List<CallCandidate> Candidates;
 
+        /// <summary>
+        /// The fingerprint of the peer's DTLS certificate, as `destination` carried it, or null.
+        /// It is the value the media handshake is pinned to: without it a handshake can finish
+        /// and still prove nobody, and the audio refuses to go over it.
+        /// </summary>
+        public string Fingerprint;
+
         /// <summary>The relay latencies of a `relaylatency`, or null.</summary>
         public List<CallRelayLatency> RelayLatency;
 
@@ -848,12 +855,35 @@ namespace WhatsappApp.Protocol.Client
             IList<CallVideoDescription> video,
             IList<CallCandidate> candidates)
         {
+            return Accept(callId, to, audio, video, candidates, null);
+        }
+
+        /// <summary>
+        /// The same answer, with the fingerprint of the certificate this side signs the media
+        /// handshake with. It rides on `destination`, beside the candidates it belongs to: the
+        /// APK's transport negotiation carries the credential, the candidates and the fingerprint
+        /// as one message (`Web P2P: sending type 13 (..., has_ufrag=%d, num_cands=%d, has_fp=%d)`),
+        /// and `destination` is where this client already writes the candidates.
+        ///
+        /// The attribute name is this build's, and named as an inference: the native library
+        /// builds the stanza and its attribute names are not in the strings, so a capture that
+        /// spells it otherwise is one line here and one test. The value is not an inference:
+        /// `sha-256` and the certificate's digest, the form the peer's own engine logs (`algo=%s`).
+        /// </summary>
+        public static BinaryNode Accept(
+            string callId,
+            string to,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallCandidate> candidates,
+            string fingerprint)
+        {
             Require(callId, to, "accepted");
 
             var children = new List<BinaryNode>();
             if (audio != null && audio.Count > 0) AddAudio(children, new List<CallAudio> { audio[0] });
             AddVideo(children, video);
-            AddDestination(children, candidates);
+            AddDestination(children, candidates, fingerprint);
 
             return Wrap(callId, to, Verb("accept", callId, null, children));
         }
@@ -1078,6 +1108,8 @@ namespace WhatsappApp.Protocol.Client
                 // descends into it: its children are the `te` nodes the branch below reads.
                 if (child.Tag == "destination")
                 {
+                    if (signal.Fingerprint == null) signal.Fingerprint = child.Attrs["fingerprint"];
+
                     ReadMedia(child, signal);
                     continue;
                 }
@@ -1406,20 +1438,37 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         private static void AddDestination(IList<BinaryNode> children, IList<CallCandidate> candidates)
         {
-            if (candidates == null || candidates.Count == 0) return;
+            AddDestination(children, candidates, null);
+        }
+
+        /// <summary>
+        /// The same `destination`, with the fingerprint of the peer's certificate on it when
+        /// there is one to name. An answer that carries a fingerprint and no candidate still
+        /// needs the node: the fingerprint is the pin, and a node it cannot live on is a pin
+        /// nobody reads.
+        /// </summary>
+        private static void AddDestination(
+            IList<BinaryNode> children, IList<CallCandidate> candidates, string fingerprint)
+        {
+            bool hasFingerprint = !string.IsNullOrEmpty(fingerprint);
+            if ((candidates == null || candidates.Count == 0) && !hasFingerprint) return;
 
             var endpoints = new List<BinaryNode>();
 
-            for (int i = 0; i < candidates.Count; i++)
+            if (candidates != null)
             {
-                var node = new BinaryNode("te");
-                node.Attrs.Add("priority", Number(candidates[i].Priority));
-                node.Content = candidates[i].Data;
-                endpoints.Add(node);
+                for (int i = 0; i < candidates.Count; i++)
+                {
+                    var node = new BinaryNode("te");
+                    node.Attrs.Add("priority", Number(candidates[i].Priority));
+                    node.Content = candidates[i].Data;
+                    endpoints.Add(node);
+                }
             }
 
             var destination = new BinaryNode("destination");
-            destination.Content = endpoints;
+            if (endpoints.Count > 0) destination.Content = endpoints;
+            if (hasFingerprint) destination.Attrs.Add("fingerprint", fingerprint);
             children.Add(destination);
         }
 

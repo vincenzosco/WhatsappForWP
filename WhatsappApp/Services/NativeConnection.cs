@@ -250,6 +250,21 @@ namespace WhatsappApp.Services
         private CallTransport _callMedia;
 
         /// <summary>
+        /// The call key of the call this phone placed, kept until its media starts.
+        ///
+        /// Why not with the offer: the callee's certificate fingerprint arrives in the `accept`,
+        /// and a DTLS client built before it could only be one that pins nothing. The key waits
+        /// for that node.
+        /// </summary>
+        private byte[] _callKeyForMedia;
+
+        /// <summary>
+        /// The certificate this side signs a media handshake with, or null before it made one.
+        /// It is what an `accept` names the fingerprint of.
+        /// </summary>
+        private DtlsIdentity _callMediaIdentity;
+
+        /// <summary>
         /// The same ids in the order they were written, so an overflow forgets the oldest
         /// one instead of the whole table: emptying it dropped the ids of messages still
         /// waiting for their ack, and their ack then matched nothing - the bubble went to
@@ -3629,6 +3644,19 @@ namespace WhatsappApp.Services
                 }
             }
 
+            // The answer names the certificate whose fingerprint this side pins, so the media
+            // starts here and not with the offer: a handshake built earlier could not carry it.
+            if (signal.Kind == CallKind.Accept && _callKeyForMedia != null)
+            {
+                byte[] key = _callKeyForMedia;
+                string fingerprint = signal.Fingerprint;
+
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("native/call media",
+                    StartCallMediaAsync(signal.CallId, key, true, fingerprint));
+#pragma warning restore 4014
+            }
+
             if (CallSignalled != null) CallSignalled(this, signal);
         }
 
@@ -3799,9 +3827,10 @@ namespace WhatsappApp.Services
                 await session.SendAsync(offer);
             }
 
-            // The media path starts with the offer: the candidates just sent name this port, and
-            // the caller's phone is the one that opens the handshake on it.
-            await StartCallMediaAsync(callId, callKey, true);
+            // The media waits for the answer, and the key waits with it: the fingerprint of the
+            // callee's certificate travels in the `accept`, and the handshake that pins it
+            // cannot be built before it arrives.
+            _callKeyForMedia = callKey;
 
             return callId;
         }
@@ -3881,7 +3910,8 @@ namespace WhatsappApp.Services
         /// reference's own log line names that mapping), and the phone that answers is the
         /// server.
         /// </summary>
-        public async Task StartCallMediaAsync(string callId, byte[] callKey, bool caller)
+        public async Task StartCallMediaAsync(
+            string callId, byte[] callKey, bool caller, string fingerprint = null)
         {
             if (string.IsNullOrEmpty(callId)) return;
 
@@ -3907,17 +3937,25 @@ namespace WhatsappApp.Services
             {
                 setup = CallMediaSetup.Derive(callKey, callId, caller);
 
+                // The peer's value, read as the 32 bytes the client compares its certificate
+                // against; null when the answer named none, and then the handshake proves
+                // nobody and `SendAudio` refuses to use it.
+                byte[] expected = CallFingerprint.Parse(fingerprint);
+
                 if (caller)
                 {
-                    // No fingerprint: the signalling this app reads carries none, so the
-                    // handshake can complete without proving who answered. `SendAudio` refuses
-                    // to send over one, which is the direction that costs something.
-                    handshake = new DtlsClientHandshake(_random.Bytes(32), _random.Bytes(32), null);
+                    handshake = new DtlsClientHandshake(
+                        _random.Bytes(32), _random.Bytes(32), expected);
                 }
                 else
                 {
+                    // The certificate the `accept` already named, so the handshake proves the
+                    // same one the caller pinned rather than a second one made here.
+                    DtlsIdentity identity = _callMediaIdentity;
+                    if (identity == null) identity = MediaIdentity();
+
                     handshake = new DtlsServerHandshake(
-                        new DtlsServer(MediaIdentity(), _random.Bytes(32), _random.Bytes(32)));
+                        new DtlsServer(identity, _random.Bytes(32), _random.Bytes(32)));
                 }
             }
             catch (Exception ex)
@@ -3940,7 +3978,8 @@ namespace WhatsappApp.Services
 
             Diag.Ok("native: the call " + callId + " takes its media on UDP " + socket.Port
                 + " as the " + (caller ? "DTLS client" : "DTLS server")
-                + ", SSRC " + setup.LocalSsrc + " to " + setup.RemoteSsrc);
+                + ", SSRC " + setup.LocalSsrc + " to " + setup.RemoteSsrc
+                + (fingerprint == null ? " without a fingerprint to pin" : " pinned to the peer's fingerprint"));
         }
 
         /// <summary>
@@ -4015,7 +4054,15 @@ namespace WhatsappApp.Services
 
             IList<CallCandidate> candidates = await CallCandidatesAsync();
 
-            await session.SendAsync(Calls.Accept(callId, jid, audio, null, candidates));
+            // The answer names the certificate this side will sign the media handshake with: its
+            // fingerprint is the one pin the caller has, and a certificate generated at handshake
+            // time could not be named here.
+            if (_callMediaIdentity == null) _callMediaIdentity = MediaIdentity();
+
+            string fingerprint = CallFingerprint.Format(
+                CallFingerprint.Of(_callMediaIdentity.Certificate));
+
+            await session.SendAsync(Calls.Accept(callId, jid, audio, null, candidates, fingerprint));
             Diag.Ok("native: accepted the call " + callId + " from " + jid
                 + " with " + candidates.Count + " candidate(s)");
         }
