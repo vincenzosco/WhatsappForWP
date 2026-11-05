@@ -354,6 +354,12 @@ namespace WhatsappApp
             // or a crash after this point would look like a run that ended cleanly.
             Diag.MarkAlive();
 
+            // And the periodic check is asked about again: the phone's permission can have
+            // been given or taken while this app was suspended, and nothing tells a suspended
+            // process about it. Without this the check stayed unregistered - or registered
+            // with a trigger an older build asked for - until the next cold start.
+            BackgroundSync.Refresh();
+
             // Suspension took the toast away; being in front is what gives it back.
             NotificationService.SetForeground(true);
 

@@ -43,18 +43,14 @@ La **parte deterministica del media** e scritta e provata senza un peer:
 
 ### 1. Nessun motore e su un socket
 
-Le classi qui sopra non vengono **mai** istanziate dal codice dell'app:
-
-```
-grep -rn "new CallMediaSession|new DtlsClient|new SrtpSession|new IceLiteAgent" WhatsappApp
-    -> nessun risultato fuori da Protocol/Media/CallMedia.cs, che e il
-       costruttore di se stessa
-```
-
-`NativeConnection.CallMediaPortAsync` (riga 3800) lega una `DatagramSocket` su
-una porta e la tiene, e `CallCandidatesAsync` (riga 3830) offre quell'indirizzo
-nell'offerta e nell'accept. Ma nessuno legge o scrive su quella socket: la porta
-esiste perche un candidato deve nominarla, non perche ci passi l'audio.
+Dal 5 novembre le classi sono istanziate: `CallMediaSocket` lega la
+`DatagramSocket` che un candidato nomina e la legge, `CallTransport` la guida
+(STUN, poi handshake, poi RTP), e `NativeConnection.StartCallMediaAsync` monta
+il percorso su entrambi i lati - il chiamante quando arriva l'`accept`, il
+risponditore quando manda il proprio, con la call key aperta dall'`<enc>`
+dell'offerta (`CallKeyExchange.UnwrapFrom`). Restano fuori da questo percorso il
+relay (punto 2) e l'audio dal vivo (punto 4): i pacchetti possono passare tra
+due candidati host, ma nessuno produce ancora i frame da metterci dentro.
 
 ### 2. Il trasporto c'e a meta: ICE-lite e STUN ora ci sono, il relay no
 
@@ -86,10 +82,13 @@ prova di coerenza con se stessa, non con un peer. Nel motore ufficiale la stessa
 cosa la fa `crypto/DefaultCryptoCallback.expandCallKey`, e il modo in cui i 46
 byte si dividono tra le due direzioni lo decide il motore nativo.
 
-C'e anche un pezzo mancante per il lato di chi **risponde**: il repository ha
-solo il ruolo client di DTLS (`DtlsClient`). Senza il ruolo server, la parte che
-riceve la chiamata non puo chiudere un handshake DTLS con un client che lo
-inizia, qualunque chiave abbia.
+Il lato di chi **risponde** c'e: `DtlsServer` chiude l'handshake che il
+chiamante apre, e la call key sigillata nell'`<enc>` viene aperta con la
+sessione del dispositivo che l'ha scritta (`CallKeyExchange.UnwrapFrom`, che
+prova i dispositivi dell'account e tiene quello che apre). Quello che manca e
+una prova contro un peer vero: la divisione dei 46 byte tra le due direzioni e
+le etichette della derivazione ICE restano un'inferenza finche una chiamata
+reale non le conferma.
 
 ### 4. Manca l'audio in tempo reale, e questo la piattaforma non lo da
 

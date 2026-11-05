@@ -158,16 +158,51 @@ namespace WhatsappApp.Services
             // the task away and it has to be made again), and the same reading is what
             // lets the settings page say the truth instead of showing a switch that is
             // on while the phone has already refused.
+            Refresh();
+        }
+
+        /// <summary>
+        /// Asks the phone again, and registers the check when the answer has changed.
+        ///
+        /// Why this is not left to `Start` alone: the phone's answer is not a fact this app
+        /// keeps. The user can take background work away and give it back in the phone's own
+        /// settings, and battery saver takes it away by itself; the registration stays exactly
+        /// where it was in both directions. A build that only looked at start-up kept writing
+        /// "nothing will wake" after the user had already turned it back on, and kept a task
+        /// registered with the trigger of a build that no longer exists. Called from `Start`
+        /// and from every resume, which is the first moment the answer can have changed while
+        /// this process was not running.
+        /// </summary>
+        public static void Refresh()
+        {
+            if (!SettingsService.BackgroundCheckEnabled) return;
+
             if (!IsPermitted())
             {
                 Diag.Ok("background: the phone is not letting this app work in the background, nothing will wake");
+
+                // Asked anyway, as the start-up path always did: `RequestAccessAsync` is the
+                // only way this app gets the permission in the first place, and a refusal is
+                // the system's answer to that question, not a reason to stop asking when the
+                // user may have changed their mind in the phone's settings.
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("BackgroundSync/request", SetEnabledAsync(true));
+#pragma warning restore 4014
+                return;
             }
 
             if (IsRegistered() && RegisteredInterval() == IntervalMinutes
-                && RegisteredEntryPoint() == EntryPoint && IsPermitted()) return;
+                && RegisteredEntryPoint() == EntryPoint) return;
+
+            // Not registered at all, or registered with another interval or class: one question
+            // to the system covers both, and `SetEnabledAsync` is the only place that asks it.
+            Diag.Ok("background: the phone allows it"
+                + (IsRegistered()
+                    ? ", but the registration is not the one this build asks for - making it again"
+                    : " and nothing is registered - making the check now"));
 
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("BackgroundSync/register", SetEnabledAsync(true));
+            Guarded.RunGuardedAsync("BackgroundSync/refresh", SetEnabledAsync(true));
 #pragma warning restore 4014
         }
 

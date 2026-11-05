@@ -22,6 +22,9 @@ namespace ProtocolTests
         private const string CallId = "CALLKEY0001";
         private const string BobDevice = "15551230000.0@s.whatsapp.net";
 
+        /// <summary>Another phone of the same account, whose session must not open Bob's copy.</summary>
+        private const string OtherDevice = "15551230000.7@s.whatsapp.net";
+
         /// <summary>One ordinary message, delivered the way a phone delivers it.</summary>
         private static void Deliver(
             SessionRecord from, SessionRecord to, string text, IRandomSource padding)
@@ -170,6 +173,80 @@ namespace ProtocolTests
             Assert.Throws<ProtocolException>(delegate
             {
                 CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(random), devices, random);
+            });
+        }
+
+        /// <summary>
+        /// The session that opens the key says which device it came for: the receiving phone is
+        /// not told, so it tries the devices it knows and keeps the one whose tag verifies.
+        /// </summary>
+        [Test]
+        public static void TheSessionThatOpensTheKeyNamesTheDeviceItCameFrom()
+        {
+            var padding = new SignalSessions.CounterRandom();
+
+            SessionRecord alice = SignalSessions.Alice(
+                new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
+            SessionRecord bob = SignalSessions.Bob(
+                new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
+
+            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[0], padding);
+            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[1], padding);
+            alice.Decrypt(SignalFixture.Hex(SignalFixture.Conversation.Received[0]), false);
+
+            byte[] key = CallKeyExchange.NewCallKey(padding);
+
+            var sealedFor = new List<KeyValuePair<string, SessionRecord>>();
+            sealedFor.Add(new KeyValuePair<string, SessionRecord>(BobDevice, alice));
+
+            CallKeyOffer offer = CallKeyExchange.Wrap(key, sealedFor, padding);
+
+            // Another phone of the same account first: its session is a real one, and the key
+            // was not written for it, so it has to be tried and refused before Bob's opens.
+            var received = new List<KeyValuePair<string, SessionRecord>>();
+            received.Add(new KeyValuePair<string, SessionRecord>(
+                OtherDevice, SignalSessions.Bob(new SignalSessions.CounterRandom())));
+            received.Add(new KeyValuePair<string, SessionRecord>(BobDevice, bob));
+
+            CallKeyReceived opened = CallKeyExchange.UnwrapFrom(offer.Payloads[0], received);
+
+            Assert.AreEqual(Hex(key), Hex(opened.Key), "the same 32 bytes after the trial");
+            Assert.AreEqual(BobDevice, opened.DeviceJid,
+                "the device whose session opened it, not the first one tried");
+        }
+
+        /// <summary>
+        /// A key no stored session opens is refused with the count, not silently null: the
+        /// caller of this has one line to write, and the count is what says whether the phone
+        /// knew the caller's devices at all.
+        /// </summary>
+        [Test]
+        public static void AKeyNoSessionOpensIsRefusedAndSaysHowManyWereTried()
+        {
+            var padding = new SignalSessions.CounterRandom();
+
+            SessionRecord alice = SignalSessions.Alice(
+                new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
+            SessionRecord bob = SignalSessions.Bob(
+                new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
+
+            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[0], padding);
+            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[1], padding);
+            alice.Decrypt(SignalFixture.Hex(SignalFixture.Conversation.Received[0]), false);
+
+            var sealedFor = new List<KeyValuePair<string, SessionRecord>>();
+            sealedFor.Add(new KeyValuePair<string, SessionRecord>(BobDevice, alice));
+
+            CallKeyOffer offer = CallKeyExchange.Wrap(
+                CallKeyExchange.NewCallKey(padding), sealedFor, padding);
+
+            var strangers = new List<KeyValuePair<string, SessionRecord>>();
+            strangers.Add(new KeyValuePair<string, SessionRecord>(
+                OtherDevice, SignalSessions.Bob(new SignalSessions.CounterRandom())));
+
+            Assert.Throws<ProtocolException>(delegate
+            {
+                CallKeyExchange.UnwrapFrom(offer.Payloads[0], strangers);
             });
         }
 

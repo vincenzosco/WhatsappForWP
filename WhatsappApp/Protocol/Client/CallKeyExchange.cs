@@ -187,5 +187,76 @@ namespace WhatsappApp.Protocol.Client
 
             return callKey;
         }
+
+        /// <summary>
+        /// The call key out of an offer when the device that sealed it is not written on the
+        /// node: the session that opens it says which device it was.
+        ///
+        /// Why this exists: an offer arrives from the caller's **account**, and the `<enc>` is
+        /// addressed to one of its devices. The node does not say which one - the ciphertext is
+        /// to a Signal session, not to an address - so the receiving phone tries the sessions it
+        /// holds with that account and keeps the one that opens. The wrong ones fail on the tag,
+        /// which is what a trial costs here.
+        ///
+        /// A list where nothing opens is refused rather than returned as null: the caller then
+        /// has one line in its log naming how many devices were tried, instead of an answer that
+        /// looks like "no key" for an offer whose key was simply not for this phone.
+        /// </summary>
+        public static CallKeyReceived UnwrapFrom(
+            CallKeyPayload payload, IList<KeyValuePair<string, SessionRecord>> sessions)
+        {
+            if (payload == null || payload.Ciphertext == null || payload.Ciphertext.Length == 0)
+            {
+                throw new ProtocolException("a call key payload carries no ciphertext");
+            }
+
+            if (sessions == null || sessions.Count == 0)
+            {
+                throw new ProtocolException("a received call key needs the devices it may have been sealed for");
+            }
+
+            int tried = 0;
+            string last = null;
+
+            for (int i = 0; i < sessions.Count; i++)
+            {
+                string device = sessions[i].Key;
+                SessionRecord session = sessions[i].Value;
+
+                if (session == null || !session.HasSession) continue;
+
+                tried++;
+
+                try
+                {
+                    byte[] key = Unwrap(payload, session);
+
+                    var received = new CallKeyReceived();
+                    received.Key = key;
+                    received.DeviceJid = device;
+                    return received;
+                }
+                catch (ProtocolException error)
+                {
+                    // Not this device's copy: a Signal message opens on one session and fails on
+                    // every other, so one wrong session is a trial and not a reason to stop.
+                    last = error.Message;
+                }
+            }
+
+            throw new ProtocolException("no session opened the call key (" + tried
+                + " device(s) tried" + (last == null ? "" : ", the last said: " + last) + ")");
+        }
+    }
+
+    /// <summary>
+    /// What a received call key opened on: the 32 bytes, and the device whose session opened
+    /// them. The device is named because a call that does not carry audio has to be traced to
+    /// the session the key was written on, and "some device" cannot be replied to.
+    /// </summary>
+    public sealed class CallKeyReceived
+    {
+        public byte[] Key;
+        public string DeviceJid;
     }
 }

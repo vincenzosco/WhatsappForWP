@@ -259,6 +259,26 @@ namespace WhatsappApp.Services
         private byte[] _callKeyForMedia;
 
         /// <summary>
+        /// The call key of a call this phone is **answering**, opened from the offer's `<enc>`,
+        /// and the call it belongs to.
+        ///
+        /// Why it is kept: the key arrives with the offer, but the media cannot start there - the
+        /// caller opens the handshake only after this phone's `accept`, which is also the node
+        /// that gives the caller the address to open it on. The key waits for that answer.
+        /// </summary>
+        private byte[] _incomingCallKey;
+
+        private string _incomingCallId;
+
+        /// <summary>
+        /// The lookup of that key while it is still running: the device list is a round trip,
+        /// and the person can answer the call before it comes back. The answer waits for this
+        /// task, bounded by the send budget the lookup itself uses, so a fast tap does not start
+        /// a media path with no key.
+        /// </summary>
+        private System.Threading.Tasks.Task _incomingKeyTask;
+
+        /// <summary>
         /// The certificate this side signs a media handshake with, or null before it made one.
         /// It is what an `accept` names the fingerprint of.
         /// </summary>
@@ -3561,6 +3581,13 @@ namespace WhatsappApp.Services
             NativeSession session = OpenSession();
 
             await session.SendAsync(Calls.Reject(callId, jid));
+
+            // A refused call never reaches its media, so the key it carried is forgotten here:
+            // keeping it would let a later call inherit a key that was sealed for another one.
+            _incomingCallKey = null;
+            _incomingCallId = null;
+            _incomingKeyTask = null;
+
             Diag.Ok("native: refused the call " + callId + " from " + jid);
         }
 
@@ -3657,7 +3684,63 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
             }
 
+            // The other half of the key exchange: the offer's `<enc>` is sealed for one of this
+            // phone's sessions with the caller, and without opening it an answered call has a
+            // media port and no key to put audio through. The node does not name the device, so
+            // the sessions are tried and the one that opens says which it was (see
+            // `CallKeyExchange.UnwrapFrom`). Looked up on the read loop's own thread, off it:
+            // the device list is a round trip, and the loop must keep reading while it runs.
+            if (signal.Kind == CallKind.Offer && signal.Key != null
+                && _incomingCallKey == null && _incomingKeyTask == null)
+            {
+                // The id is remembered before the lookup starts: the offer can be answered in
+                // the few hundred milliseconds it takes, and the answer has to know whether the
+                // key it is about to wait for belongs to this call or to one already over.
+                _incomingCallId = signal.CallId;
+                _incomingKeyTask = Guarded.RunGuardedAsync("native/call key", ReceiveCallKeyAsync(signal));
+            }
+
             if (CallSignalled != null) CallSignalled(this, signal);
+        }
+
+        /// <summary>
+        /// Opens the call key an offer carried: the caller's devices are asked for (the same
+        /// session path a message to them uses), and each session is tried until one opens.
+        ///
+        /// A key that opens nowhere is said and not thrown: the call still rings, and the caller
+        /// answered a key this phone cannot read - which is the one failure of this exchange the
+        /// log has to name, because the ring gives no sign of it.
+        /// </summary>
+        private async Task ReceiveCallKeyAsync(CallSignal signal)
+        {
+            string peer = string.IsNullOrEmpty(signal.From) ? signal.To : signal.From;
+
+            try
+            {
+                NativeSession session = OpenSession();
+                DirectTarget target = await DevicesAsync(session, peer, SendClock());
+
+                CallKeyReceived received = CallKeyExchange.UnwrapFrom(signal.Key, target.Devices);
+
+                // The call can have ended while the device list was being asked for: a key that
+                // arrives after its call is a key with no media to open, and keeping it would
+                // start the next call on the wrong stream.
+                if (!string.Equals(_incomingCallId, signal.CallId, StringComparison.Ordinal))
+                {
+                    Diag.Ok("native: the call " + signal.CallId
+                        + " ended before its key was opened, so the key is dropped");
+                    return;
+                }
+
+                _incomingCallKey = received.Key;
+
+                Diag.Ok("native: the call " + signal.CallId + " key opened on " + received.DeviceJid
+                    + " (" + target.Devices.Count + " device(s) of " + peer + ")");
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("native: the call key of " + signal.CallId + " from " + peer, ex);
+            }
         }
 
         /// <summary>
@@ -3991,6 +4074,13 @@ namespace WhatsappApp.Services
             CallTransport transport = _callMedia;
             _callMedia = null;
 
+            // No key outlives the call it was made for: a media path that starts later belongs
+            // to another call, and a stale key is a handshake that opens on the wrong stream.
+            _callKeyForMedia = null;
+            _incomingCallKey = null;
+            _incomingCallId = null;
+            _incomingKeyTask = null;
+
             if (transport == null) return;
 
             WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
@@ -4065,6 +4155,30 @@ namespace WhatsappApp.Services
             await session.SendAsync(Calls.Accept(callId, jid, audio, null, candidates, fingerprint));
             Diag.Ok("native: accepted the call " + callId + " from " + jid
                 + " with " + candidates.Count + " candidate(s)");
+
+            // The offer's key may still be on its way: the device list is a round trip and the
+            // person answered first. Waited for, so the answer does not start a media path with
+            // no key - the one case where the call is up and the caller's hello has nowhere to
+            // go. Bounded by the send budget the lookup itself uses.
+            System.Threading.Tasks.Task keyTask = _incomingKeyTask;
+            if (keyTask != null) await keyTask;
+
+            // The media starts here, and the key is the one the offer's `<enc>` carried: the
+            // caller pins the certificate the answer just named and opens the handshake on the
+            // port the candidates published, so a path built before this node had no peer to
+            // wait for and a path never built would answer the first hello with silence.
+            byte[] key = _incomingCallKey;
+            bool opened = key != null && string.Equals(_incomingCallId, callId, StringComparison.Ordinal);
+
+            if (opened)
+            {
+                await StartCallMediaAsync(callId, key, false, null);
+            }
+            else
+            {
+                Diag.Ok("native: the call " + callId
+                    + " has no key this phone could open, so its media is not started");
+            }
         }
 
         /// <summary>
