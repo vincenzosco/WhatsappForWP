@@ -192,3 +192,46 @@ Finche i punti 1-3 non ci sono, il media non puo passare; finche non c'e il 4,
 non c'e voce da mandare anche se passasse. La strada onesta resta quella gia
 scritta nella spec del 2 novembre: segnalazione completa (fatta), poi trasporto,
 poi voce.
+
+### 5. Perche il loader rifiuta `waopus.dll`
+
+Il run del 5 novembre 2026 alle 14:30 scrive ancora `DllNotFoundException
+0x80131524 Unable to load DLL 'waopus.dll' ... 0x8007007E` per un file che e nel
+pacchetto, che e ARMNT e che importa un solo DLL. Confronto con le immagini
+native che il telefono carica davvero - `WhatsAppNative.dll` e
+`WhatsAppProxyStub.dll`, estratte dal pacchetto in `.tools/xap` - lette con lo
+stesso parser PE (`header`, sezioni e tabella degli import):
+
+| | `waopus.dll` | `WhatsAppNative.dll` | `WhatsAppProxyStub.dll` |
+|---|---|---|---|
+| macchina | 0x01c4 | 0x01c4 | 0x01c4 |
+| subsystem / versione | 2 / 2.6 | 3 / 2.6 | 3 / 2.6 |
+| `dllCharacteristics` | 0x1140 | 0x0140 | 0x0140 |
+| `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` | si | **no** | **no** |
+| DLL importate | KERNEL32 | api-ms-win-core-*, WinINet, bcrypt, WS2_32, MFPlat, ... | api-ms-win-core-*, RPCRT4 |
+| import di console e argv | `WriteConsoleW`, `GetConsoleCP`, `GetConsoleMode`, `GetStdHandle`, `SetStdHandle`, `GetCommandLineA/W`, `GetEnvironmentStringsW`, `FindFirstFileExA`, `CreateFileW` | no | no |
+
+Due differenze, e nessuna delle due e il bit che il 4 novembre si era scelto
+come causa:
+
+1. **La partenza della CRT** (osservato). Il link usa l'entry di default di
+   `libcmt`, che porta dentro `_ioinit` e `__getmainargs`: da li arrivano
+   `WriteConsoleW`, `GetConsoleCP`, `GetStdHandle`, `SetStdHandle`,
+   `GetCommandLineA`, `GetEnvironmentStringsW`, `FindFirstFileExA`. Sul kernel
+   WP quelle funzioni non ci sono - non c'e console e un'app non apre percorsi
+   arbitrari - e un import che non si risolve e esattamente `0x8007007E`: il
+   loader dice "modulo non trovato" anche quando il modulo c'e. Nessuna delle
+   due immagini che il telefono carica importa una sola di quelle funzioni.
+2. **Il bit app container** (inferenza). Le due immagini accettate hanno
+   `dllCharacteristics` 0x0140, cioe senza `IMAGE_DLLCHARACTERISTICS_APPCONTAINER`
+   (`0x1000`). La regola del loader e che un'immagine con quel bit si carica solo
+   in un processo AppContainer; quindi, se il telefono carica immagini senza il
+   bit, il processo dell'app WP 8.1 non e un AppContainer, e il `/APPCONTAINER`
+   aggiunto il 4 novembre avrebbe aggiunto un rifiuto invece di toglierlo.
+
+Il prossimo tentativo e una ricostruzione con `/APPCONTAINER` via e con un
+`/ENTRY` proprio, cosi che la partenza della CRT non entri nel link: gli import
+dovrebbero ridursi a heap, thread e sincronizzazione, che il telefono ha. La
+verifica si fa su questa macchina, con lo stesso lettore PE, prima di installare:
+nessun import di console, `dllCharacteristics` 0x0140, e le sette funzioni
+esportate ancora li.

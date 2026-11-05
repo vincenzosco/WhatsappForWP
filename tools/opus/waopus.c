@@ -14,15 +14,24 @@
  * and cannot disagree with the one the phone ships. That alone was not enough:
  * on 4 November 2026 the phone answered "Unable to load DLL 'waopus.dll'"
  * (0x8007007E) for a file that was in the package and imported only KERNEL32.
- * The cause was in the header and not in the imports - a process inside an app
- * container loads only an image that declares
- * `IMAGE_DLLCHARACTERISTICS_APPCONTAINER`, and without that bit the loader says
- * "module not found" exactly as it does for a missing file. The link line in
- * `tools/build-opus-arm.bat` passes `/APPCONTAINER` for that reason, and
- * `node tools/check-waopus.js` reads the committed DLL to make sure the bit is
- * still there (with the ARMNT machine, the KERNEL32-only imports and the seven
- * exported functions), because losing it again breaks the phone and nothing on
- * this machine.
+ *
+ * The first explanation was the header - a process inside an app container
+ * loads only an image that declares
+ * `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` - and the link line passes
+ * `/APPCONTAINER` for that reason. The phone still said 0x8007007E on 5 November
+ * 2026, so the header was not the whole answer. Comparing this image with the
+ * two native ones the phone does load (`WhatsAppNative.dll` and
+ * `WhatsAppProxyStub.dll`, both in the installed package) says what is left:
+ * neither of them carries the app container bit at all, and neither imports a
+ * single console or argv function - while this one pulls in `WriteConsoleW`,
+ * `GetStdHandle`, `SetStdHandle`, `GetCommandLineA` and `FindFirstFileExA` from
+ * the default `libcmt` entry point. One import the kernel cannot resolve is
+ * 0x8007007E just the same, so the next build of this DLL drops `/APPCONTAINER`
+ * and links with an entry point of its own, which keeps the console half of the
+ * CRT start-up out of the image. The table is in
+ * `docs/superpowers/specs/2026-11-04-calls-audio-feasibility.md`, and
+ * `node tools/check-waopus.js` is what reads the committed DLL to make sure the
+ * machine, the imports and the seven exported functions are still right.
  *
  * License: libopus itself is BSD (tools/opus/LICENSE, fetched with the sources);
  * this file is part of this repository.
