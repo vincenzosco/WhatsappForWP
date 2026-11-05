@@ -208,8 +208,8 @@ stesso parser PE (`header`, sezioni e tabella degli import):
 | subsystem / versione | 2 / 2.6 | 3 / 2.6 | 3 / 2.6 |
 | `dllCharacteristics` | 0x0140 | 0x0140 | 0x0140 |
 | `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` | no | **no** | **no** |
-| DLL importate | KERNEL32 | api-ms-win-core-*, WinINet, bcrypt, WS2_32, MFPlat, ... | api-ms-win-core-*, RPCRT4 |
-| import di console e argv | `WriteConsoleW`, `GetConsoleCP`, `GetConsoleMode`, `GetStdHandle`, `SetStdHandle`, `GetCommandLineA/W`, `GetEnvironmentStringsW`, `FindFirstFileExA`, `CreateFileW` | no | no |
+| DLL importate | `api-ms-win-core-heap-l1-2-0`, `api-ms-win-core-errorhandling-l1-1-1` | api-ms-win-core-*, WinINet, bcrypt, WS2_32, MFPlat, ... | api-ms-win-core-*, RPCRT4 |
+| import di console e argv | no | no | no |
 
 Due differenze, e nessuna delle due e il bit che il 4 novembre si era scelto
 come causa:
@@ -241,10 +241,31 @@ libopus ha bisogno. Un entry che *non* richiama la partenza della CRT toglie le
 nove funzioni e lascia `malloc` senza heap: la DLL si carica e risponde "no
 encoder" a ogni vocale, che e peggio di un file che non si carica.
 
-Quello che resta e il toolset, non il link: la superficie la decide il CRT che si
-linka. Serve il CRT del toolset C++ di Windows Phone 8.1, le cui import library
-nominano gli `api-ms-win-core-*`: non e installato su questa macchina - in
-`Microsoft SDKs\Windows Phone\v8.1\Lib` non c e una cartella ARM, e i Kits 10 per
-ARM hanno il solo `api-ms-win-core-slapi-l1-1-0.lib`. `node tools/check-waopus.js`
-rifiuta l'immagine attuale per questo, ed e la guardia che dira quando la
-ricostruzione e quella giusta.
+La superficie la decide il CRT che si linka, e su questa macchina non esiste un
+CRT che nomini gli API set (in `Microsoft SDKs\Windows Phone\v8.1\Lib` non c e una
+cartella ARM, e i Kits 10 per ARM hanno il solo
+`api-ms-win-core-slapi-l1-1-0.lib`). La strada percorsa e quindi togliere il CRT
+dal mezzo invece di ri-linkarlo:
+
+- **libopus in virgola fissa** (`/DFIXED_POINT`, SILK da `silk/fixed`): e la
+  configurazione che le build mobili di Opus usano, e porta via la libm;
+- **allocatore proprio** (`tools/opus/waentry.c`): `HeapAlloc` sull'heap del
+  processo, quindi nessuna inizializzazione CRT da chiamare;
+- **`memcpy`, `memset`, `memmove`, `memcmp`, `strlen` e la piccola libm** che
+  `analysis.c` e la KISS FFT usano ancora, scritti li accanto;
+- **import library proprie** (`tools/opus/waheap.def`, `waerr.def`), costruite
+  con `lib.exe`: `LIBRARY` nel `.def` e la stringa che il linker scrive nel
+  descrittore di import, quindi e quella a scegliere il modulo;
+- **`/NODEFAULTLIB:kernel32.lib`** nel link, cosi una funzione di kernel che
+  ricomparisse e un errore di build invece di un rifiuto sul telefono.
+
+L'immagine che ne esce e ARMNT, `dllCharacteristics` 0x0140, sette export, e
+importa due moduli soli: `api-ms-win-core-heap-l1-2-0.dll` (`GetProcessHeap`,
+`HeapAlloc`, `HeapFree`) e `api-ms-win-core-errorhandling-l1-1-1.dll`
+(`RaiseException`). Ogni coppia modulo/funzione e una che `WhatsAppNative.dll`
+importa dallo stesso modulo sullo stesso telefono: e il test
+`ogni funzione importata e una che WhatsAppNative importa dallo stesso modulo` in
+`tools/test/check-waopus.test.js`, e `node tools/check-waopus.js` ora e verde.
+
+Cio che resta non e piu nel file: e il caricamento sul dispositivo, con la voce
+che passa da M4A a Ogg/Opus nella prima riga di log di `AudioCodecCheck`.

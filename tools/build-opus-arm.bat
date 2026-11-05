@@ -64,8 +64,8 @@ set "OBJ=.tools\opus-build\arm"
 if exist "%OBJ%" rmdir /s /q "%OBJ%"
 mkdir "%OBJ%\celt" "%OBJ%\silk" "%OBJ%\src"
 
-set "CFLAGS=/nologo /c /O2 /MT /DNDEBUG /DOPUS_BUILD /DWINAPI_FAMILY=WINAPI_FAMILY_APP /DUSE_ALLOCA /D_CRT_SECURE_NO_WARNINGS"
-set "CFLAGS=!CFLAGS! /I"%SRC%\include" /I"%SRC%\src" /I"%SRC%\celt" /I"%SRC%\silk" /I"%SRC%\silk\float""
+set "CFLAGS=/nologo /c /O2 /MT /GS- /DNDEBUG /DFIXED_POINT /DOPUS_BUILD /DWINAPI_FAMILY=WINAPI_FAMILY_APP /DUSE_ALLOCA /D_CRT_SECURE_NO_WARNINGS"
+set "CFLAGS=!CFLAGS! /I"%SRC%\include" /I"%SRC%\src" /I"%SRC%\celt" /I"%SRC%\silk" /I"%SRC%\silk\fixed""
 set "WACL=%VC%\bin\x86_arm\cl.exe"
 
 echo waopus: compiling the wrapper...
@@ -85,7 +85,7 @@ for %%f in ("%SRC%\celt\*.c") do (
 )
 
 echo waopus: compiling silk...
-for %%f in ("%SRC%\silk\*.c" "%SRC%\silk\float\*.c") do (
+for %%f in ("%SRC%\silk\*.c" "%SRC%\silk\fixed\*.c") do (
   "%WACL%" !CFLAGS! /Fo"%OBJ%\silk\%%~nf.obj" "%%~f"
   if errorlevel 1 exit /b 1
 )
@@ -97,7 +97,7 @@ for %%f in ("%SRC%\src\opus.c" "%SRC%\src\opus_decoder.c" "%SRC%\src\opus_encode
 )
 
 echo waopus: linking...
-"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /ENTRY:WaDllMain /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
+"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /ENTRY:WaDllMain /INCREMENTAL:NO /NODEFAULTLIB:kernel32.lib .tools\waapiset\waheap.lib .tools\waapiset\waerr.lib /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
 if errorlevel 1 exit /b 1
 echo waopus: checking the image against what the phone accepts...
 where node >nul 2>&1

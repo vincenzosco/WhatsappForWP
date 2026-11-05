@@ -1,0 +1,10 @@
+; The one error-handling import the CRT's float helper asks for.
+;
+; `LIBCMT.lib(helpexcept.obj)` is pulled in by the encoder's exception helper and
+; raises through `RaiseException`. Naming the API set here instead of the desktop
+; kernel is the whole point of the file: `WhatsAppNative.dll` imports the same
+; function from the same module on the same phone.
+LIBRARY api-ms-win-core-errorhandling-l1-1-1.dll
+
+EXPORTS
+    RaiseException

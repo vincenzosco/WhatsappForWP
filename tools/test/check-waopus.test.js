@@ -28,29 +28,40 @@ test('la DLL spedita e ARMNT, per il telefono ARMv7', () => {
   assert.strictEqual(info.machine, 0x01c4);
 });
 
-test('la DLL spedita e ancora quella del 5 novembre, e il guard lo dice', () => {
+test('la DLL spedita passa: nessun KERNEL32, nessuna console', () => {
   const found = waopus.problems(waopus.peInfo(shipped()));
 
-  // Sei il telefono la rifiuta, la guardia non puo dirla a posto: la DLL
-  // committata importa KERNEL32 e porta il CRT desktop, che e quanto il
-  // confronto con i tre moduli caricabili ha messo in chiaro.
-  assert.ok(found.length > 0, 'un immagine che il telefono rifiuta non passa');
-  assert.ok(found.some((line) => /KERNEL32\.dll/.test(line)), found.join('\n'));
-  assert.ok(found.some((line) => /console/.test(line)), found.join('\n'));
+  assert.deepStrictEqual(found, []);
 });
 
-test('i moduli importati dalla DLL spedita sono api set, tranne KERNEL32', () => {
+test('i moduli importati dalla DLL spedita sono i due api set del runtime', () => {
   const names = waopus.peInfo(shipped()).imports.map((entry) => entry.name.toLowerCase());
 
-  assert.deepStrictEqual(names.filter((name) => !/^api-ms-win-/.test(name)), ['kernel32.dll']);
+  assert.deepStrictEqual(names,
+    ['api-ms-win-core-heap-l1-2-0.dll', 'api-ms-win-core-errorhandling-l1-1-1.dll']);
 });
 
-test('le funzioni che il CRT desktop porta con se si leggono nell import table', () => {
-  const functions = waopus.peInfo(shipped()).imports
-    .reduce((all, entry) => all.concat(entry.functions || []), []);
+test('ogni funzione importata e una che WhatsAppNative importa dallo stesso modulo', (t) => {
+  const nativePath = path.join(__dirname, '..', '..', '.tools', 'xap', 'WhatsAppNative.dll');
 
-  assert.ok(functions.indexOf('WriteConsoleW') >= 0, 'la console del CRT');
-  assert.ok(functions.indexOf('wa_opus_frame') < 0, 'le funzioni del codec sono export, non import');
+  if (!fs.existsSync(nativePath)) {
+    // Il pacchetto estratto e in .tools, che non e nel repository.
+    t.skip('serve .tools/xap/WhatsAppNative.dll');
+    return;
+  }
+
+  const native = waopus.peInfo(fs.readFileSync(nativePath));
+  const known = new Set();
+  for (const entry of native.imports) {
+    for (const name of entry.functions || []) known.add(entry.name.toLowerCase() + '!' + name);
+  }
+
+  for (const entry of waopus.peInfo(shipped()).imports) {
+    for (const name of entry.functions || []) {
+      assert.ok(known.has(entry.name.toLowerCase() + '!' + name),
+        'il telefono non risolve ' + entry.name + '!' + name);
+    }
+  }
 });
 
 test('un immagine x86 si segnala come macchina sbagliata', () => {

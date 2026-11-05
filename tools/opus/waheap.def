@@ -1,0 +1,17 @@
+; The import library waopus.dll links instead of the desktop kernel32.
+;
+; Why: the phone's loader resolves imports against the API sets, and none of the
+; three ARM modules it loads names KERNEL32.dll. `LIBRARY` here is a string the
+; linker writes into the import descriptor, so this file is what makes the built
+; DLL name the same module WhatsAppNative.dll names for the same four calls.
+;
+; `lib /def:waheap.def /machine:arm /out:waheap.lib` is run by
+; tools/build-opus-arm.bat before the link.
+LIBRARY api-ms-win-core-heap-l1-2-0.dll
+
+EXPORTS
+    GetProcessHeap
+    HeapAlloc
+    HeapFree
+    HeapReAlloc
+    HeapSize

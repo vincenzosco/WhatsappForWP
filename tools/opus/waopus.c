@@ -27,15 +27,22 @@
  * `SetStdHandle`, `GetCommandLineA` and `GetEnvironmentStringsW` from the
  * default `libcmt` entry point.
  *
- * The rebuild did both halves of that plan and measured them: the link no longer
- * passes `/APPCONTAINER` and takes `/ENTRY:WaDllMain` (see `waentry.c`), so
- * `dllCharacteristics` is now 0x0140 like the images that load - and the import
- * table is unchanged, `KERNEL32.dll` and its nine console and argv functions
- * included, because that entry forwards to `_DllMainCRTStartup` and `malloc`
- * needs the heap it initialises. What decides the surface is the CRT the toolset
- * links, so what is left is a toolset whose import libraries name the
- * `api-ms-win-core-*` sets. `node tools/check-waopus.js` reads the committed DLL
- * and refuses it until then; the table is in
+ * Two rebuilds followed, and each one measured. The first dropped
+ * `/APPCONTAINER` and took `/ENTRY:WaDllMain` forwarding to
+ * `_DllMainCRTStartup`: `dllCharacteristics` became 0x0140 like the images that
+ * load, and the import table did not move - the surface comes from the CRT the
+ * toolset links, not from the entry point.
+ *
+ * The second removed the CRT instead of relinking it: `FIXED_POINT` (the
+ * configuration mobile builds of Opus use), SILK from `silk/fixed`, an allocator
+ * over `HeapAlloc` on the process heap, local string routines and a small libm,
+ * an entry point that initialises nothing, and import libraries whose `LIBRARY`
+ * is the API set (`tools/opus/waheap.def`, `waerr.def`). The image now imports
+ * `api-ms-win-core-heap-l1-2-0.dll` and
+ * `api-ms-win-core-errorhandling-l1-1-1.dll` and nothing else - the same modules
+ * `WhatsAppNative.dll` uses on the same phone for the same functions.
+ * `node tools/check-waopus.js` is green; what remains is the load on the device.
+ * The table and the reasoning are in
  * `docs/superpowers/specs/2026-11-04-calls-audio-feasibility.md`.
  *
  * License: libopus itself is BSD (tools/opus/LICENSE, fetched with the sources);
