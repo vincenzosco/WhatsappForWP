@@ -163,12 +163,14 @@ namespace ProtocolTests
             var check = new StunMessage(StunMethod.Binding, StunClass.Request,
                 Hex("0a0b0c0d0e0f101112131415"));
 
-            check.AddText(StunAttributeType.UserName, RemoteUfrag + ":" + LocalUfrag);
+            // The receiver's ufrag first, then the sender's (RFC 8445, section 7.2.2).
+            check.AddText(StunAttributeType.UserName, LocalUfrag + ":" + RemoteUfrag);
             check.AddUInt32(StunAttributeType.Priority, 0x7e0000ff);
             check.Add(StunAttribute.UInt64(StunAttributeType.IceControlling, 0x4d3c2b1a5e6f7081ul));
             check.Add(StunAttribute.Flag(StunAttributeType.UseCandidate));
 
-            return check.Seal(Utf8(RemotePassword));
+            // Signed with the receiver's password, which is what it verifies with (RFC 8445).
+            return check.Seal(Utf8(LocalPassword));
         }
 
         /// <summary>An Opus payload: the session never looks inside one, so its bytes are a marker.</summary>

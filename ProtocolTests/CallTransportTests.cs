@@ -252,13 +252,13 @@ namespace ProtocolTests
             var check = new StunMessage(StunMethod.Binding, StunClass.Request,
                 Hex("0a0b0c0d0e0f101112131415"));
 
-            check.AddText(StunAttributeType.UserName, RemoteUfrag + ":" + LocalUfrag);
+            check.AddText(StunAttributeType.UserName, LocalUfrag + ":" + RemoteUfrag);
             check.AddUInt32(StunAttributeType.Priority, 0x7e0000ff);
             check.Add(StunAttribute.UInt64(StunAttributeType.IceControlling, 0x4d3c2b1a5e6f7081ul));
 
             if (useCandidate) check.Add(StunAttribute.Flag(StunAttributeType.UseCandidate));
 
-            return check.Seal(Utf8(RemotePassword));
+            return check.Seal(Utf8(LocalPassword));
         }
 
         /// <summary>A DTLS record header in front of the body, so the transport classifies it.</summary>

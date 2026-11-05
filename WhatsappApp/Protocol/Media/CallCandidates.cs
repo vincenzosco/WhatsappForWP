@@ -28,6 +28,18 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>A candidate the phone answers on itself, which is the only kind it has.</summary>
         public const int HostType = 0;
 
+        /// <summary>
+        /// A candidate that is this phone's address as the network sees it, which is the one a
+        /// peer behind a carrier NAT has to be given.
+        ///
+        /// The number is an **inference**: the field's existence comes from the reference's own
+        /// `voip.Transport` message (`type`, field 4), and the value follows the usual order of
+        /// ICE candidate types - host, server-reflexive, peer-reflexive, relayed - so `1` is
+        /// server-reflexive. What is observed is everything else: field numbers, the priority
+        /// travelling twice, and the `te` attribute this app reads back.
+        /// </summary>
+        public const int ServerReflexiveType = 1;
+
         /// <summary>The protocol of a host candidate: RTP over UDP.</summary>
         public const int UdpProtocol = 0;
 
@@ -37,6 +49,22 @@ namespace WhatsappApp.Protocol.Media
         /// order the official client gives the interfaces of one phone.
         /// </summary>
         public static CallCandidate Host(string address, int port, int priority)
+        {
+            return Candidate(HostType, address, port, priority);
+        }
+
+        /// <summary>
+        /// One server-reflexive candidate: the address a STUN service reported for this phone's
+        /// socket (`StunDiscovery`), on the port the socket is bound to. Same message as the host
+        /// one with the other type, so the peer's engine can rank it as the NAT-traversing
+        /// candidate it is.
+        /// </summary>
+        public static CallCandidate ServerReflexive(string address, int port, int priority)
+        {
+            return Candidate(ServerReflexiveType, address, port, priority);
+        }
+
+        private static CallCandidate Candidate(int type, string address, int port, int priority)
         {
             if (port <= 0 || port > 65535)
             {
@@ -58,7 +86,7 @@ namespace WhatsappApp.Protocol.Media
             AppendBytes(bytes, 1, Encoding.UTF8.GetBytes(id));
             AppendBytes(bytes, 2, ip);
             AppendNumber(bytes, 3, (ulong)port);
-            AppendNumber(bytes, 4, (ulong)HostType);
+            AppendNumber(bytes, 4, (ulong)type);
             AppendNumber(bytes, 5, (ulong)priority);
             AppendNumber(bytes, 6, (ulong)UdpProtocol);
 

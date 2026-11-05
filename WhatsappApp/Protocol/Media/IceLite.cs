@@ -56,10 +56,20 @@ namespace WhatsappApp.Protocol.Media
             _remotePassword = remotePassword;
         }
 
-        /// <summary>The ICE username a check for this agent has to carry.</summary>
+        /// <summary>
+        /// The ICE username a check for this agent has to carry: this side's ufrag first, the
+        /// peer's second (RFC 8445, section 7.2.2).
+        ///
+        /// The order is not cosmetic. A check is written by the peer as "the receiver's ufrag,
+        /// then the sender's", so the string the peer sends and the string the receiver expects
+        /// are the same one - and a receiver that compared them the other way round would answer
+        /// 401 to every check a correct agent sent, on a call whose signalling had worked
+        /// perfectly. This project's own two roles now agree on it: `IceControllingAgent.UserName`
+        /// writes the same order from the sending side.
+        /// </summary>
         public string ExpectedUserName
         {
-            get { return _remoteUfrag + ":" + _localUfrag; }
+            get { return _localUfrag + ":" + _remoteUfrag; }
         }
 
         /// <summary>
@@ -131,7 +141,11 @@ namespace WhatsappApp.Protocol.Media
             if (!string.Equals(message.UserName, ExpectedUserName, StringComparison.Ordinal))
                 return Refuse(message, 401, "Unauthorized");
 
-            if (!message.VerifyIntegrity(System.Text.Encoding.UTF8.GetBytes(_remotePassword)))
+            // The check is signed with the receiver's password, which is this side's own (RFC 8445,
+            // section 7.2.2, short-term credentials). It used to be read the other way round, so a
+            // correct controlling agent that signed with our password was answered 401 on a pair
+            // that had been offered perfectly - the same inversion the username had.
+            if (!message.VerifyIntegrity(System.Text.Encoding.UTF8.GetBytes(_localPassword)))
                 return Refuse(message, 401, "Unauthorized");
 
             if (message.Find(StunAttributeType.Priority) == null)

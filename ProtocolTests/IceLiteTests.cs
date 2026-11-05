@@ -34,7 +34,7 @@ namespace ProtocolTests
         public static void AnAuthenticatedCheckIsAnsweredAndTheAnswerVerifies()
         {
             IceLiteAgent agent = Agent();
-            byte[] check = Check("Rv7x:Lc0f", RemotePassword, true, false, false);
+            byte[] check = Check("Lc0f:Rv7x", LocalPassword, true, false, false);
 
             byte[] reply = agent.Handle(check, PeerA);
 
@@ -62,7 +62,7 @@ namespace ProtocolTests
         public static void ACheckSignedWithTheWrongPasswordIsRefusedAndSelectsNothing()
         {
             IceLiteAgent agent = Agent();
-            byte[] check = Check("Rv7x:Lc0f", "not-the-password", true, true, false);
+            byte[] check = Check("Lc0f:Rv7x", "not-the-password", true, true, false);
 
             byte[] reply = agent.Handle(check, PeerA);
 
@@ -79,12 +79,12 @@ namespace ProtocolTests
         public static void TheUsernameHasToBeThePairsAndInTheRightOrder()
         {
             IceLiteAgent agent = Agent();
-            byte[] reversed = Check("Lc0f:Rv7x", RemotePassword, true, true, false);
+            byte[] reversed = Check("Rv7x:Lc0f", LocalPassword, true, true, false);
 
             StunMessage answer = StunMessage.Parse(agent.Handle(reversed, PeerA));
 
             Assert.AreEqual(401, answer.Find(StunAttributeType.ErrorCode).ErrorCode,
-                "the username is remote ufrag, a colon, ours (RFC 8445, section 6.1.3)");
+                "the username is our ufrag first, a colon, the peer's (RFC 8445, section 7.2.2)");
             Assert.IsTrue(agent.Selected == null);
         }
 
@@ -92,7 +92,7 @@ namespace ProtocolTests
         public static void ACheckWithoutPriorityIsNotACheck()
         {
             IceLiteAgent agent = Agent();
-            byte[] check = Check("Rv7x:Lc0f", RemotePassword, false, false, false);
+            byte[] check = Check("Lc0f:Rv7x", LocalPassword, false, false, false);
 
             StunMessage answer = StunMessage.Parse(agent.Handle(check, PeerA));
 
@@ -104,14 +104,14 @@ namespace ProtocolTests
         {
             IceLiteAgent agent = Agent();
 
-            agent.Handle(Check("Rv7x:Lc0f", RemotePassword, true, false, false), PeerA);
+            agent.Handle(Check("Lc0f:Rv7x", LocalPassword, true, false, false), PeerA);
             Assert.IsTrue(agent.Selected == null, "a validated pair is not yet the nominated one");
 
-            agent.Handle(Check("Rv7x:Lc0f", RemotePassword, true, true, false), PeerA);
+            agent.Handle(Check("Lc0f:Rv7x", LocalPassword, true, true, false), PeerA);
             Assert.IsTrue(agent.Nominated);
             Assert.AreEqual(PeerA.Port, agent.Selected.Port);
 
-            agent.Handle(Check("Rv7x:Lc0f", RemotePassword, true, true, false), PeerB);
+            agent.Handle(Check("Lc0f:Rv7x", LocalPassword, true, true, false), PeerB);
             Assert.AreEqual(PeerA.Port, agent.Selected.Port,
                 "the pair in use is not moved by a later check from somewhere else");
         }
@@ -120,7 +120,7 @@ namespace ProtocolTests
         public static void APeerThatClaimsToBeControlledIsToldRoleConflict()
         {
             IceLiteAgent agent = Agent();
-            byte[] check = Check("Rv7x:Lc0f", RemotePassword, true, true, true);
+            byte[] check = Check("Lc0f:Rv7x", LocalPassword, true, true, true);
 
             StunMessage answer = StunMessage.Parse(agent.Handle(check, PeerA));
 
@@ -138,7 +138,7 @@ namespace ProtocolTests
                 Hex("0f0e0d0c0b0a090807060504"));
             indication.Add(StunAttribute.Flag(StunAttributeType.UseCandidate));
 
-            Assert.IsTrue(agent.Handle(indication.Seal(Utf8(RemotePassword)), PeerA) == null,
+            Assert.IsTrue(agent.Handle(indication.Seal(Utf8(LocalPassword)), PeerA) == null,
                 "a keepalive has no transaction to answer");
             Assert.IsTrue(agent.Selected == null);
         }
@@ -147,7 +147,7 @@ namespace ProtocolTests
         public static void ABrokenFingerprintIsDroppedWithoutAnAnswer()
         {
             IceLiteAgent agent = Agent();
-            byte[] check = Check("Rv7x:Lc0f", RemotePassword, true, true, false);
+            byte[] check = Check("Lc0f:Rv7x", LocalPassword, true, true, false);
             check[check.Length - 1] = (byte)(check[check.Length - 1] ^ 0xFF);
 
             Assert.IsTrue(agent.Handle(check, PeerA) == null,
@@ -174,11 +174,11 @@ namespace ProtocolTests
 
             var allocate = new StunMessage(StunMethod.Allocate, StunClass.Request,
                 Hex("1112131415161718191a1b1c"));
-            allocate.AddText(StunAttributeType.UserName, "Rv7x:Lc0f");
+            allocate.AddText(StunAttributeType.UserName, "Lc0f:Rv7x");
             allocate.AddUInt32(StunAttributeType.Priority, 0x7e0000ff);
 
             StunMessage answer = StunMessage.Parse(
-                agent.Handle(allocate.Seal(Utf8(RemotePassword)), PeerA));
+                agent.Handle(allocate.Seal(Utf8(LocalPassword)), PeerA));
 
             Assert.AreEqual(400, answer.Find(StunAttributeType.ErrorCode).ErrorCode,
                 "this agent answers Binding and nothing else");

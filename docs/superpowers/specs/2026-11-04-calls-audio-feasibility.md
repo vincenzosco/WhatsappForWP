@@ -269,3 +269,52 @@ importa dallo stesso modulo sullo stesso telefono: e il test
 
 Cio che resta non e piu nel file: e il caricamento sul dispositivo, con la voce
 che passa da M4A a Ogg/Opus nella prima riga di log di `AudioCodecCheck`.
+
+### 6. Cosa e cambiato il 5 novembre, dopo il caricamento
+
+**Le credenziali ICE erano al contrario, in due punti (difetto vero, corretto).**
+`IceLiteAgent` confrontava lo username come `remoteUfrag:localUfrag` e verificava
+`MESSAGE-INTEGRITY` con la password del *peer*. RFC 8445 (sezioni 7.2.2 e short-term
+credentials) vuole l'opposto su entrambi: il mittente scrive l'ufrag del **ricevente**
+per primo, e firma con la password del **ricevente**, che il ricevente verifica con la
+propria. Con la convenzione sbagliata i due ruoli di questo repository andavano
+d'accordo fra loro e nessuno dei due avrebbe accettato un peer corretto: il client
+ufficiale che chiama avrebbe ricevuto `401` su una coppia offerta benissimo, e la
+chiamata non avrebbe mai nominato niente. I test portavano la stessa inversione, per
+questo erano verdi. Ora `IceLiteAgent.ExpectedUserName` e' `local:remote`,
+`IceControllingAgent.UserName` e' `remote:local` (la stessa stringa), l'integrita' si
+verifica con la password locale, e `IceLiteTests`, `CallTransportTests` e
+`CallEndToEndTests` costruiscono i check come li costruisce un peer.
+
+**La scoperta riflessa (srflx) c'era solo a meta': rispondere, mai chiedere.**
+`Protocol/Media/StunDiscovery.cs` scrive la Binding request e legge la risposta
+(`XOR-MAPPED-ADDRESS`, con il transaction id che distingue la risposta a *questa*
+domanda da quella a una precedente) e `CallCandidates.ServerReflexive` la trasforma in
+un candidato con `type` 1. Il numero del campo e' **inferito** (l'ordine consueto host,
+srflx, prflx, relayed); il resto della struttura del messaggio e' quello gia' scritto.
+Non e' attaccata al percorso vivo di proposito: l'indirizzo va chiesto ai server di
+WhatsApp, che si conoscono solo da una cattura, e un servizio STUN pubblico
+annuncerebbe la chiamata a un terzo.
+
+**ICE completo da un lato.** `Protocol/Media/IceControlling.cs` e' l'agente che apre il
+percorso: check con `PRIORITY`, `ICE-CONTROLLING` e `USE-CANDIDATE` (nomina
+aggressiva), ritrasmissione a 0,5 s che raddoppia, `487` che scarta il candidato e
+passa al successivo, e un fallimento che dice perche'. Non legge un orologio: `Tick`
+prende il tempo del chiamante, quindi `IceControllingTests` attraversa un'intera
+traversal contro `IceLiteAgent` in memoria e finisce con i due lati sulla stessa coppia.
+
+**Cosa resta fermo, con la prova.**
+
+- **L'audio dal vivo (voce 2):** la piattaforma non lo da'. Il profilo WP8.1 di
+  `Microsoft.Xna.Framework.dll` non contiene il tipo `Microphone` (zero occorrenze
+  nella reference assembly), quindi non esiste una callback PCM managed;
+  `MediaCapture` registra su file, e `StartRecordToCustomSinkAsync` vuole un componente
+  nativo e il toolset C++ di Windows Phone 8.1, che su questa macchina non c'e'.
+- **La segnalazione (voce 3):** c'era gia' - l'offerta si ripete finche' non torna un
+  nodo della chiamata, l'`ack` dell'offerta si legge come risposta del server, e il
+  trasporto si attacca per chiamata. Il difetto corretto sopra era l'unico punto in cui
+  il trasporto non avrebbe funzionato con un peer vero.
+- **Relay WARP, video, gruppi, push (voci 5-8):** il relay vuole una cattura per nodi e
+  token e poi il client WARP vero; il video vuole una pipeline H.264 realtime che
+  WP8.1 non offre in managed; i gruppi vogliono il fanout della chiamata di gruppo; il
+  push vuole un server. Nessuna di queste si ricava da questo repository.
