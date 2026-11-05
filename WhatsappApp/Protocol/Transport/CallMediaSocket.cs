@@ -75,6 +75,15 @@ namespace WhatsappApp.Protocol.Transport
 
         private int _sent;
 
+        /// <summary>
+        /// How many arrivals with no path attached have been named in the log. Bounded because a
+        /// port nobody owns is a port anything on the network can find: the first few say who
+        /// found it, and the rest would only say it again.
+        /// </summary>
+        private const int UnattachedLogs = 4;
+
+        private int _unattachedLogged;
+
         /// <summary>The UDP port the socket is bound to, which is what a candidate names.</summary>
         public int Port { get; private set; }
 
@@ -139,6 +148,19 @@ namespace WhatsappApp.Protocol.Transport
             }
 
             Diag.Ok("call media: the path is attached to UDP " + Port);
+        }
+
+        /// <summary>
+        /// Zeroes the counters a call reports back. The socket holds its port for the life of the
+        /// app and counts what crosses it; without this, the "datagram(s) in" an ended call
+        /// reports is every datagram since the app started, and a call nothing ever reached reads
+        /// like one that was busy an hour ago.
+        /// </summary>
+        public void Reset()
+        {
+            Interlocked.Exchange(ref _received, 0);
+            Interlocked.Exchange(ref _sent, 0);
+            Interlocked.Exchange(ref _unattachedLogged, 0);
         }
 
         /// <summary>
@@ -313,8 +335,20 @@ namespace WhatsappApp.Protocol.Transport
                 }
 
                 // Nothing is attached before a call exists: the port is held from the moment the
-                // app opens, and a socket that is only holding a port has nothing to answer.
-                if (transport == null) return;
+                // app opens, and a socket that is only holding a port has nothing to answer. It
+                // is, however, the answer to "does the peer reach this phone at all", which is
+                // the first thing to know about a call that rings nowhere and answers nothing -
+                // so the arrival is named instead of dropped in silence.
+                if (transport == null)
+                {
+                    if (Interlocked.Increment(ref _unattachedLogged) <= UnattachedLogs)
+                    {
+                        Diag.Ok("call media: " + datagram.Length + " byte(s) from " + Describe(from)
+                            + " reached UDP " + Port + " with no call attached");
+                    }
+
+                    return;
+                }
 
                 IList<byte[]> outbound;
                 lock (_path)

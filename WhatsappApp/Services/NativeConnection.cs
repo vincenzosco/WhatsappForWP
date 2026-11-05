@@ -3679,8 +3679,10 @@ namespace WhatsappApp.Services
                 }
             }
 
-            // The answer names the certificate whose fingerprint this side pins, so the media
-            // starts here and not with the offer: a handshake built earlier could not carry it.
+            // The answer names the certificate whose fingerprint this side pins. The path has
+            // been on the socket since the offer (see AnnounceCall), so that a peer's checks are
+            // answered; this is where it becomes a path that can be trusted, replacing the one
+            // that had no fingerprint to pin.
             if (signal.Kind == CallKind.Accept && _callKeyForMedia != null)
             {
                 byte[] key = _callKeyForMedia;
@@ -3698,6 +3700,14 @@ namespace WhatsappApp.Services
             // the sessions are tried and the one that opens says which it was (see
             // `CallKeyExchange.UnwrapFrom`). Looked up on the read loop's own thread, off it:
             // the device list is a round trip, and the loop must keep reading while it runs.
+            // An incoming call starts its own count: the socket keeps one port for the life of
+            // the app, and the numbers an ended call reports are the socket's unless the call
+            // zeroes them when it begins (see CallMediaSocket.Reset).
+            if (signal.Kind == CallKind.Offer && _callMediaSocket != null)
+            {
+                _callMediaSocket.Reset();
+            }
+
             if (signal.Kind == CallKind.Offer && signal.Key != null
                 && _incomingCallKey == null && _incomingKeyTask == null)
             {
@@ -3918,9 +3928,26 @@ namespace WhatsappApp.Services
                 await session.SendAsync(offer);
             }
 
-            // The media waits for the answer, and the key waits with it: the fingerprint of the
-            // callee's certificate travels in the `accept`, and the handshake that pins it
-            // cannot be built before it arrives.
+            // The path opens with the offer, not with the answer.
+            //
+            // The answer is where the fingerprint travels, and a handshake that has to pin one
+            // cannot be built before it arrives - but the ICE agent is what answers the checks a
+            // candidate invites, and a peer that reaches this port before its `accept` is a
+            // datagram this phone should meet with an answer instead of a drop. Nothing on this
+            // path can be trusted: `DtlsClient.IsTrusted` wants the certificate the answer names,
+            // so `SendAudio` refuses every frame until the answer replaces this transport with
+            // the pinned one (see HandleCallSignal).
+            //
+            // The count starts here for the same reason the path does: the socket is the app's,
+            // the number is the call's.
+            if (_callMediaSocket != null) _callMediaSocket.Reset();
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("native/call media early",
+                StartCallMediaAsync(callId, callKey, true, null));
+#pragma warning restore 4014
+
+            // The key stays for the answer, which is still what the media is pinned against.
             _callKeyForMedia = callKey;
 
             return callId;
@@ -4061,9 +4088,14 @@ namespace WhatsappApp.Services
 
             var transport = new CallTransport(ice, handshake, setup.LocalSsrc, setup.RemoteSsrc);
 
-            // The previous call's path goes first: one socket, one path, and a transport left
-            // behind would keep its handshake clock running on a call nobody is on.
-            StopCallMedia();
+            // The path this call already had goes first - its own, when the offer opened one
+            // without a fingerprint - and so would a previous call's: one socket carries one path,
+            // and a transport left behind keeps its handshake clock running on a call nobody is
+            // on. The keys are not touched: they belong to the call and not to the path, and
+            // `StopCallMedia` is what clears them when the call ends.
+            CallTransport previous = _callMedia;
+            _callMedia = null;
+            if (previous != null) socket.Detach(previous);
 
             _callMedia = transport;
             socket.Attach(transport);

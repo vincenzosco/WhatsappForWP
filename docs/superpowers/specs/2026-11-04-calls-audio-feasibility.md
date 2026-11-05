@@ -46,11 +46,18 @@ La **parte deterministica del media** e scritta e provata senza un peer:
 Dal 5 novembre le classi sono istanziate: `CallMediaSocket` lega la
 `DatagramSocket` che un candidato nomina e la legge, `CallTransport` la guida
 (STUN, poi handshake, poi RTP), e `NativeConnection.StartCallMediaAsync` monta
-il percorso su entrambi i lati - il chiamante quando arriva l'`accept`, il
-risponditore quando manda il proprio, con la call key aperta dall'`<enc>`
-dell'offerta (`CallKeyExchange.UnwrapFrom`). Restano fuori da questo percorso il
-relay (punto 2) e l'audio dal vivo (punto 4): i pacchetti possono passare tra
-due candidati host, ma nessuno produce ancora i frame da metterci dentro.
+il percorso su entrambi i lati: il risponditore quando manda il proprio
+`accept`, con la call key aperta dall'`<enc>` dell'offerta
+(`CallKeyExchange.UnwrapFrom`), e il chiamante in due tempi - una via senza
+fingerprint quando scrive le offerte, che risponde ai controlli STUN e nomina
+la coppia, e quella vera quando arriva l'`accept`, che prende il posto della
+prima e fissa il certificato del peer. La via aperta presto non puo mandare
+audio: `DtlsClient.IsTrusted` vuole il certificato che l'`accept` nomina. Un
+datagramma che arriva alla porta prima che una via sia agganciata viene scritto
+nel log con il suo indirizzo, invece di essere scartato in silenzio. Restano
+fuori da questo percorso il relay (punto 2) e l'audio dal vivo (punto 4): i
+pacchetti possono passare tra due candidati host, ma nessuno produce ancora i
+frame da metterci dentro.
 
 ### 2. Il trasporto c'e a meta: ICE-lite e STUN ora ci sono, il relay no
 
