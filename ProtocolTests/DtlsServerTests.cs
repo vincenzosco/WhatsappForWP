@@ -111,6 +111,37 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ARepeatedKeyExchangeDoesNotEndTheHandshake()
+        {
+            DtlsClient client = Client(Sha256.Hash(Identity().Certificate));
+            DtlsServer server = Server();
+
+            byte[] flight = server.Receive(client.Start());
+            byte[] clientFlight = client.Receive(flight);
+
+            // A flight that arrives in two datagrams, with the first one duplicated: the key
+            // exchange has already been hashed, so hashing it again would leave the server's
+            // transcript different from the client's and the Finished would not verify.
+            int firstRecord = RecordLength(clientFlight, 0);
+
+            var exchange = new byte[firstRecord];
+            Buffer.BlockCopy(clientFlight, 0, exchange, 0, firstRecord);
+
+            var finished = new byte[clientFlight.Length - firstRecord];
+            Buffer.BlockCopy(clientFlight, firstRecord, finished, 0, finished.Length);
+
+            Assert.IsTrue(server.Receive(exchange) == null, "the key exchange alone needs no answer");
+            Assert.IsTrue(server.Receive(exchange) == null, "and a repeat of it is not a new one");
+            Assert.AreEqual(null, server.Failure, "the transcript is the one the client hashed");
+
+            byte[] last = server.Receive(finished);
+
+            Assert.AreEqual(null, server.Failure);
+            Assert.IsTrue(server.IsComplete, "the client's Finished still verifies");
+            Assert.IsTrue(last != null, "and the server answers with its own");
+        }
+
+        [Test]
         public static void AServerRefusesAHelloThatIsNotDtls12()
         {
             DtlsClient client = Client(Sha256.Hash(Identity().Certificate));
@@ -184,6 +215,13 @@ namespace ProtocolTests
 
                 if (toServer == null) return;
             }
+        }
+
+        /// <summary>The record that starts at `at`: its header plus the length it declares.</summary>
+        private static int RecordLength(byte[] datagram, int at)
+        {
+            int declared = (datagram[at + 11] << 8) | datagram[at + 12];
+            return 13 + declared;
         }
 
         private static byte[] Fill(int value)

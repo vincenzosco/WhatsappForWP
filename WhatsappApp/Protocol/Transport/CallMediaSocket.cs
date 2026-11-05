@@ -48,6 +48,14 @@ namespace WhatsappApp.Protocol.Transport
 
         private readonly object _gate = new object();
 
+        /// <summary>
+        /// One thread in the handshake at a time. The socket's handler and the timer both drive
+        /// the same `CallTransport`, and neither the transcript nor the retransmission counters
+        /// were written for two threads: a hello answered while its flight is being resent is a
+        /// transcript the peer does not have.
+        /// </summary>
+        private readonly object _path = new object();
+
         private DatagramSocket _socket;
         private CallTransport _transport;
         private ThreadPoolTimer _timer;
@@ -131,7 +139,12 @@ namespace WhatsappApp.Protocol.Transport
             CallTransport transport = _transport;
             if (transport == null) return false;
 
-            byte[] packet = transport.Send(opusFrame);
+            byte[] packet;
+            lock (_path)
+            {
+                packet = transport.Send(opusFrame);
+            }
+
             if (packet == null) return false;
 
             Send(packet);
@@ -201,7 +214,11 @@ namespace WhatsappApp.Protocol.Transport
                 // app opens, and a socket that is only holding a port has nothing to answer.
                 if (transport == null) return;
 
-                IList<byte[]> outbound = transport.Receive(datagram, from);
+                IList<byte[]> outbound;
+                lock (_path)
+                {
+                    outbound = transport.Receive(datagram, from);
+                }
 
                 for (int i = 0; i < outbound.Count; i++)
                 {
@@ -222,7 +239,14 @@ namespace WhatsappApp.Protocol.Transport
             CallTransport transport = _transport;
             if (transport == null) return;
 
-            byte[] again = transport.Tick(NowMilliseconds());
+            // The same lock the reader takes: a retransmission must not land in the middle of a
+            // handshake message the other thread is hashing.
+            byte[] again;
+            lock (_path)
+            {
+                again = transport.Tick(NowMilliseconds());
+            }
+
             if (again == null) return;
 
             Diag.Ok("call media: the handshake datagram goes again, " + again.Length + " bytes");
@@ -277,12 +301,19 @@ namespace WhatsappApp.Protocol.Transport
                 // still owns the stream would close the path the next datagram needs.
                 DataWriter writer = new DataWriter(stream);
 
-                writer.WriteBytes(datagram);
-                await writer.StoreAsync();
-                await writer.FlushAsync();
-
-                writer.DetachStream();
-                writer.Dispose();
+                try
+                {
+                    writer.WriteBytes(datagram);
+                    await writer.StoreAsync();
+                    await writer.FlushAsync();
+                }
+                finally
+                {
+                    // Detached first, or disposing it would close the stream the next datagram
+                    // needs; and detached in a `finally`, or a send that throws leaks both.
+                    writer.DetachStream();
+                    writer.Dispose();
+                }
             }
             finally
             {

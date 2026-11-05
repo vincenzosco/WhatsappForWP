@@ -278,6 +278,15 @@ namespace WhatsappApp.Protocol.Media
                 return _flight;
             }
 
+            // A repeated key exchange is a lost datagram, not a second one. The bytes are
+            // already in the transcript, and hashing them again would make this side's hash
+            // differ from the client's - the client's Finished would then fail to verify for a
+            // reason that reads like a key disagreement but is a retransmission.
+            if (message.Type == Dtls.HandshakeClientKeyExchange && _masterSecret != null)
+            {
+                return null;
+            }
+
             _transcript.Add(message.ToBytes());
 
             switch (message.Type)
