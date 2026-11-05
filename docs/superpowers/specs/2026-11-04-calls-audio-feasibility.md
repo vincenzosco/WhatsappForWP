@@ -113,8 +113,9 @@ avvio. Ma un codec senza frame da codificare non fa una chiamata.
 Ogni strato che manca richiederebbe di **indovinare** qualcosa che non e
 osservabile qui:
 
-- il relay e il suo dialogo: la forma del nodo non e nell'APK, e un client che
-  non parla relay non chiama chi e dietro NAT simmetrico;
+- il relay e il suo dialogo: le stanze sono nell'APK (vedi la sezione sopra), ma
+  il bind e il trasporto WARP no, e un client che non parla relay non chiama chi
+  e dietro NAT simmetrico;
 - il ruolo DTLS del risponditore e la divisione delle chiavi: sono dentro il
   motore nativo, e una prova contro un peer vero non e possibile da questa
   macchina (serve un telefono, e un'altra persona che risponda);
@@ -126,13 +127,53 @@ non puo essere provato - e la schermata della chiamata gia dice la verita:
 `Call_NoAudio` ("No audio yet: this build only signals the call") compare
 mentre la chiamata e su (`Pages/CallPage.xaml.cs`, riga 174).
 
+## Il relay: cosa dice l'APK, e cosa serve una cattura
+
+Ricerca del 5 novembre 2026 sui 13 DEX estratti (`.tools/apk/dex/classes*.dex`)
+e sul dump delle stringhe native (`.tools/apk/calls/strings.txt`, circa 14.000
+righe):
+
+- le stanze del dialogo ci sono: `relaylatency` con il figlio `<te latency>`,
+  `relay` come figlio dell'`offer`, e la controparte `relayelection`. Sono gia
+  modellate in `CallSignaling`, che le ha prese dalla tabella dei figli
+  dell'offer (il `relay` si registra dopo `voip_settings`);
+- il lato nativo nomina il resto: `call_relay_servers`, `call_relay_server`,
+  `call_relay_bind_status`, `call_relay_error_code`, `call_relays_received`,
+  `relay_info_update`, `unbound_relay_list`, `relayElectionTimeInMsec`,
+  `elected_relay_idx`, `server_recommended_relay_received_ms`,
+  `num_relay_latencies_sent`, e 203 righe con `warp`, fra cui
+  `WARP.RelayTransport` e `WARP.ACDCTransport`. Il relay e quindi un trasporto
+  WARP con un bind per chiamata, e la riga `relayEnabled must be true when
+  connectionPsm is RELAY` dice che viaggia su un PSM;
+- il dump non contiene il vocabolario degli attributi TURN
+  (`XOR-RELAYED-ADDRESS`, `CreatePermission`, `ChannelBind`), ma questo non prova
+  niente: un client TURN usa costanti a 16 bit, non stringhe. La stessa ricerca
+  sul `.so` non e possibile: nel repository e impacchettato e le stringhe sono
+  compresse, e `grep` non trova nemmeno `relaylatency` che pure sappiamo esserci.
+
+Verdetto, in due meta:
+
+- **ricostruibile da una cattura**: il dialogo di segnalazione. Offerta con
+  `<relay>`, misure `relaylatency`, elezione `relayelection` con il token. La
+  cattura utile e quella della *nostra* sessione, non un MITM: il client siamo
+  noi, quindi i nodi arrivano in chiaro al nostro parser. Se il server manda gli
+  indirizzi dei relay, la cattura li mostra; la strada pratica e registrare i
+  figli sconosciuti dell'offer e riprodurre una chiamata vera;
+- **non ricostruibile da una cattura**: il piano media verso il relay. Le chiavi
+  vengono dalla call key, quindi i datagrammi sono DTLS/SRTP e una cattura
+  passiva da cifratura; il framing WARP e nel nativo, che qui si legge solo come
+  stringhe.
+
+Quindi TURN non e la domanda giusta: il relay di WhatsApp e WARP, e una cattura
+serve per il dialogo (nodi, indirizzi e token), non per il trasporto.
+
 ## Cosa servirebbe, in ordine, se lo si volesse fare davvero
 
-1. **ICE-lite e STUN** (RFC 5389/8445): rispondere ai binding request del peer e
-   usare l'indirizzo riflesso. Fatto: `Stun.cs` e `IceLite.cs`, con la RFC 5769
-   come prova. Manca loro la socket, che e il punto 1 di sopra.
-2. **Il relay**: il dialogo con i server WhatsApp e la sua crittografia. Qui
-   l'APK non basta: serve una cattura di una chiamata reale.
+1. **ICE-lite e STUN** (RFC 5389/8445): rispondere ai binding request del peer e  usare l'indirizzo riflesso. Fatto: `Stun.cs` e `IceLite.cs`, con la RFC 5769
+  come prova, e da novembre `CallMediaSocket` li mette su una socket UDP.
+2. **Il relay**: le stanze sono nell'APK (sezione sopra), il trasporto no. Serve
+   una cattura di una chiamata reale per la lista dei relay e i token, e poi il
+   client WARP vero, che e il pezzo piu grande di tutti.
 3. **Il ruolo DTLS server** e la derivazione delle chiavi verificata contro un
    peer.
 4. **L'audio dal vivo**: su WP8.1 non esiste in managed; l'unica strada sarebbe
