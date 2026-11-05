@@ -206,8 +206,8 @@ stesso parser PE (`header`, sezioni e tabella degli import):
 |---|---|---|---|
 | macchina | 0x01c4 | 0x01c4 | 0x01c4 |
 | subsystem / versione | 2 / 2.6 | 3 / 2.6 | 3 / 2.6 |
-| `dllCharacteristics` | 0x1140 | 0x0140 | 0x0140 |
-| `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` | si | **no** | **no** |
+| `dllCharacteristics` | 0x0140 | 0x0140 | 0x0140 |
+| `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` | no | **no** | **no** |
 | DLL importate | KERNEL32 | api-ms-win-core-*, WinINet, bcrypt, WS2_32, MFPlat, ... | api-ms-win-core-*, RPCRT4 |
 | import di console e argv | `WriteConsoleW`, `GetConsoleCP`, `GetConsoleMode`, `GetStdHandle`, `SetStdHandle`, `GetCommandLineA/W`, `GetEnvironmentStringsW`, `FindFirstFileExA`, `CreateFileW` | no | no |
 
@@ -222,16 +222,29 @@ come causa:
    arbitrari - e un import che non si risolve e esattamente `0x8007007E`: il
    loader dice "modulo non trovato" anche quando il modulo c'e. Nessuna delle
    due immagini che il telefono carica importa una sola di quelle funzioni.
-2. **Il bit app container** (inferenza). Le due immagini accettate hanno
-   `dllCharacteristics` 0x0140, cioe senza `IMAGE_DLLCHARACTERISTICS_APPCONTAINER`
-   (`0x1000`). La regola del loader e che un'immagine con quel bit si carica solo
-   in un processo AppContainer; quindi, se il telefono carica immagini senza il
-   bit, il processo dell'app WP 8.1 non e un AppContainer, e il `/APPCONTAINER`
-   aggiunto il 4 novembre avrebbe aggiunto un rifiuto invece di toglierlo.
+2. **Il bit app container** (smentito dalla ricostruzione). Le tre immagini
+   accettate hanno `dllCharacteristics` 0x0140, cioe senza
+   `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` (`0x1000`). Il bit non decide il
+   caricamento: il 5 novembre 2026 la DLL e stata ricostruita senza
+   `/APPCONTAINER` e con un `/ENTRY` proprio, l'immagine e passata a
+   `dllCharacteristics` 0x0140 - gli stessi flag dei moduli che si caricano - e
+   la tabella degli import e rimasta identica, `KERNEL32.dll` compreso. Il bit e
+   stato tolto perche non serve, non perche risolva.
 
-Il prossimo tentativo e una ricostruzione con `/APPCONTAINER` via e con un
-`/ENTRY` proprio, cosi che la partenza della CRT non entri nel link: gli import
-dovrebbero ridursi a heap, thread e sincronizzazione, che il telefono ha. La
-verifica si fa su questa macchina, con lo stesso lettore PE, prima di installare:
-nessun import di console, `dllCharacteristics` 0x0140, e le sette funzioni
-esportate ancora li.
+La ricostruzione e stata fatta, con `/APPCONTAINER` via e con `/ENTRY:WaDllMain`
+(`tools/opus/waentry.c`), e lo stesso lettore PE dice cosa ha cambiato: entry a
+`0x2a101` in `.text`, `dllCharacteristics` 0x0140, sette export intatti, e la
+tabella degli import **uguale** - `KERNEL32.dll` con le nove funzioni di console
+e argv. Il `/ENTRY` non poteva bastare: l'entry di questa DLL richiama
+`_DllMainCRTStartup`, che e cio che inizializza l'heap di cui il `malloc` di
+libopus ha bisogno. Un entry che *non* richiama la partenza della CRT toglie le
+nove funzioni e lascia `malloc` senza heap: la DLL si carica e risponde "no
+encoder" a ogni vocale, che e peggio di un file che non si carica.
+
+Quello che resta e il toolset, non il link: la superficie la decide il CRT che si
+linka. Serve il CRT del toolset C++ di Windows Phone 8.1, le cui import library
+nominano gli `api-ms-win-core-*`: non e installato su questa macchina - in
+`Microsoft SDKs\Windows Phone\v8.1\Lib` non c e una cartella ARM, e i Kits 10 per
+ARM hanno il solo `api-ms-win-core-slapi-l1-1-0.lib`. `node tools/check-waopus.js`
+rifiuta l'immagine attuale per questo, ed e la guardia che dira quando la
+ricostruzione e quella giusta.

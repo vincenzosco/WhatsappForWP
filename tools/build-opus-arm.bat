@@ -28,9 +28,11 @@ rem image that is refused has it set.
 rem
 rem A loadable build needs a toolset whose import libraries name the API sets
 rem (the Windows Phone 8.1 C++ one, which is not installed on this machine), or
-rem an image with an entry point of its own and no desktop CRT. Until then this
-rem script fails at the last step, on purpose, instead of on the phone at the
-rem first voice note.
+rem an image linked against no desktop CRT at all. The entry point is this DLL's
+rem own now (`tools/opus/waentry.c`, `/ENTRY:WaDllMain`) and the container bit is
+rem gone; the CRT is still the desktop one, so the import table still names
+rem `KERNEL32.dll` and the guard at the last step still refuses the image - on
+rem purpose, here, instead of on the phone at the first voice note.
 rem
 rem Three defines are the whole port: WINAPI_FAMILY_APP (the UCRT refuses desktop ARM
 rem headers outright), USE_ALLOCA (libopus needs one of three allocation modes on
@@ -68,6 +70,10 @@ set "WACL=%VC%\bin\x86_arm\cl.exe"
 
 echo waopus: compiling the wrapper...
 "%WACL%" !CFLAGS! /Fo"%OBJ%\src\waopus.obj" tools\opus\waopus.c
+
+echo waopus: compiling the DLL entry point...
+"%WACL%" !CFLAGS! /Fo"%OBJ%\src\waentry.obj" tools\opus\waentry.c
+if errorlevel 1 exit /b 1
 if errorlevel 1 exit /b 1
 
 echo waopus: compiling celt...
@@ -91,7 +97,7 @@ for %%f in ("%SRC%\src\opus.c" "%SRC%\src\opus_decoder.c" "%SRC%\src\opus_encode
 )
 
 echo waopus: linking...
-"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
+"%VC%\bin\x86_arm\link.exe" /nologo /DLL /MACHINE:ARM /ENTRY:WaDllMain /INCREMENTAL:NO /OUT:"%OUT%" "%OBJ%\celt\*.obj" "%OBJ%\silk\*.obj" "%OBJ%\src\*.obj"
 if errorlevel 1 exit /b 1
 echo waopus: checking the image against what the phone accepts...
 where node >nul 2>&1

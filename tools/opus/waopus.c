@@ -17,21 +17,26 @@
  *
  * The first explanation was the header - a process inside an app container
  * loads only an image that declares
- * `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` - and the link line passes
+ * `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` - and the link line passed
  * `/APPCONTAINER` for that reason. The phone still said 0x8007007E on 5 November
- * 2026, so the header was not the whole answer. Comparing this image with the
- * two native ones the phone does load (`WhatsAppNative.dll` and
- * `WhatsAppProxyStub.dll`, both in the installed package) says what is left:
- * neither of them carries the app container bit at all, and neither imports a
- * single console or argv function - while this one pulls in `WriteConsoleW`,
- * `GetStdHandle`, `SetStdHandle`, `GetCommandLineA` and `FindFirstFileExA` from
- * the default `libcmt` entry point. One import the kernel cannot resolve is
- * 0x8007007E just the same, so the next build of this DLL drops `/APPCONTAINER`
- * and links with an entry point of its own, which keeps the console half of the
- * CRT start-up out of the image. The table is in
- * `docs/superpowers/specs/2026-11-04-calls-audio-feasibility.md`, and
- * `node tools/check-waopus.js` is what reads the committed DLL to make sure the
- * machine, the imports and the seven exported functions are still right.
+ * 2026, so the header was not the answer. Comparing this image with the three
+ * native ones the phone does load (`WhatsAppNative.dll`,
+ * `WhatsAppProxyStub.dll`, `dbghelp.dll`) said what was left: none of them
+ * carries the app container bit, and none imports a single console or argv
+ * function - while this one pulled in `WriteConsoleW`, `GetStdHandle`,
+ * `SetStdHandle`, `GetCommandLineA` and `GetEnvironmentStringsW` from the
+ * default `libcmt` entry point.
+ *
+ * The rebuild did both halves of that plan and measured them: the link no longer
+ * passes `/APPCONTAINER` and takes `/ENTRY:WaDllMain` (see `waentry.c`), so
+ * `dllCharacteristics` is now 0x0140 like the images that load - and the import
+ * table is unchanged, `KERNEL32.dll` and its nine console and argv functions
+ * included, because that entry forwards to `_DllMainCRTStartup` and `malloc`
+ * needs the heap it initialises. What decides the surface is the CRT the toolset
+ * links, so what is left is a toolset whose import libraries name the
+ * `api-ms-win-core-*` sets. `node tools/check-waopus.js` reads the committed DLL
+ * and refuses it until then; the table is in
+ * `docs/superpowers/specs/2026-11-04-calls-audio-feasibility.md`.
  *
  * License: libopus itself is BSD (tools/opus/LICENSE, fetched with the sources);
  * this file is part of this repository.
