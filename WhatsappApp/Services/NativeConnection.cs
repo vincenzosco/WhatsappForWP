@@ -243,6 +243,14 @@ namespace WhatsappApp.Services
         private int _callMediaPort;
 
         /// <summary>
+        /// How many local candidates the last offer or answer carried. The socket knows its own
+        /// traffic but not this: the addresses are gathered in `CallCandidatesAsync` and written
+        /// into a stanza, and a screen that says "0 candidates" when the stanza had two would be
+        /// describing the wrong side of the call.
+        /// </summary>
+        private int _callCandidateCount;
+
+        /// <summary>
         /// The path of the call that is up, attached to the socket above, or null when no call
         /// has media running. One at a time: a second call is refused while the first is up, so
         /// this is also the thing a new call replaces.
@@ -3977,6 +3985,7 @@ namespace WhatsappApp.Services
                 Diag.Ok("native: no local IPv4 address to offer as a call candidate");
             }
 
+            _callCandidateCount = candidates.Count;
             return candidates;
         }
 
@@ -4069,6 +4078,22 @@ namespace WhatsappApp.Services
         /// Takes this call's media path off the socket. The socket and its port stay - the next
         /// offer names the same one - and the transport is left with no timer driving it.
         /// </summary>
+        /// <summary>
+        /// The media path of the call on screen, or null while no socket exists. A page asks for
+        /// it on its own tick: a datagram arriving and a handshake step are not events anything
+        /// raises, so there is nothing to subscribe to, and a one-second copy is enough for a
+        /// number a person reads.
+        /// </summary>
+        public CallMediaStatus MediaStatus()
+        {
+            WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
+            if (socket == null) return null;
+
+            CallMediaStatus status = socket.Snapshot();
+            status.Candidates = _callCandidateCount;
+            return status;
+        }
+
         public void StopCallMedia()
         {
             CallTransport transport = _callMedia;

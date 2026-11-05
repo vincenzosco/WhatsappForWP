@@ -164,6 +164,18 @@
                        Foreground="#80FFFFFF" FontSize="15" TextWrapping="Wrap"
                        MaxWidth="330" Margin="0,10,0,0"
                        Visibility="Collapsed"/>
+
+            <!--
+                The media path, in the numbers the transport already keeps: which pair was
+                nominated, where the handshake is, and what has crossed the socket. It sits under
+                the note and is drawn by the same one-second tick as the duration, because none
+                of these numbers raises an event: a datagram arrives and a handshake step moves
+                without a stanza being sent about either.
+            -->
+            <TextBlock x:Name="MediaText"
+                       Foreground="#66FFFFFF" FontSize="13" TextWrapping="Wrap"
+                       MaxWidth="330" Margin="0,6,0,0"
+                       Visibility="Collapsed"/>
         </StackPanel>
 
         <!-- The controls: one row each, the code shows the row the state calls for. -->

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.UI;
 using Windows.UI.Xaml;
@@ -7,6 +8,7 @@ using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Media.Imaging;
 using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WABinary;
 using WhatsappApp.Services;
 
@@ -174,6 +176,8 @@ namespace WhatsappApp.Pages
             NoteText.Text = Loc.Get("Call_NoAudio", "No audio yet: this build only signals the call.");
             NoteText.Visibility = call.Phase == CallPhase.Active ? Visibility.Visible : Visibility.Collapsed;
 
+            DrawMedia(call.Phase == CallPhase.Connecting || call.Phase == CallPhase.Active);
+
             // Accept and Decline are for a call that came in. A call placed from here is
             // waiting for the other phone, and Answer on it was a button that did nothing.
             bool ringing = call.Phase == CallPhase.Ringing && call.IsIncoming;
@@ -211,6 +215,84 @@ namespace WhatsappApp.Pages
 
             PaintSwitch(MuteCallButton, call.Muted);
             PaintSwitch(SpeakerCallButton, call.SpeakerOn);
+        }
+
+        /// <summary>
+        /// The media path, in the numbers the transport already keeps: the nominated pair, the
+        /// state of the handshake, and how much has crossed the socket. Drawn from the same
+        /// one-second tick as the duration, because none of these numbers raises an event on its
+        /// own - a datagram arrives and a handshake step moves, and no stanza is sent about
+        /// either.
+        ///
+        /// It says "candidates" and not "path ready": the count is the local addresses the
+        /// offer or the answer carried, which is a fact this phone knows. A path that has not
+        /// been nominated yet is the normal state for the first second of a call, and a screen
+        /// that called that a failure would be wrong about every call.
+        /// </summary>
+        private void DrawMedia(bool live)
+        {
+            CallMediaStatus media = DataService.Instance.MediaStatus;
+
+            if (!live || media == null || !media.Attached)
+            {
+                MediaText.Text = "";
+                MediaText.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            var lines = new List<string>();
+
+            string state;
+            switch (media.State)
+            {
+                case CallTransportState.Waiting:
+                    state = Loc.Get("Call_MediaWaiting", "waiting for the other phone");
+                    break;
+                case CallTransportState.Handshaking:
+                    state = Loc.Get("Call_MediaHandshaking", "handshake running");
+                    break;
+                case CallTransportState.Ready:
+                    state = Loc.Get("Call_MediaReady", "connected");
+                    break;
+                default:
+                    state = Loc.Get("Call_MediaFailed", "failed");
+                    break;
+            }
+
+            lines.Add(string.Format(Loc.Get("Call_MediaLine", "Media: {0}"), state));
+
+            lines.Add(string.Format(Loc.Get("Call_MediaCandidates", "Candidates: {0}"),
+                media.Candidates));
+
+            lines.Add(string.Format(Loc.Get("Call_MediaPeer", "Peer: {0}"),
+                string.IsNullOrEmpty(media.Peer)
+                    ? Loc.Get("Call_MediaNoPeer", "none yet")
+                    : media.Peer));
+
+            lines.Add(string.Format(Loc.Get("Call_MediaPackets", "Packets: {0} in, {1} out"),
+                media.Received, media.Sent));
+
+            int dropped = media.Dropped + media.NotFromPeer + media.MediaRefused;
+            if (dropped > 0)
+            {
+                lines.Add(string.Format(Loc.Get("Call_MediaDropped", "Dropped: {0}"), dropped));
+            }
+
+            // A handshake can finish without proving the certificate the signalling named, and
+            // audio is refused on one: a line that said "connected" alone would be a promise
+            // the path does not keep.
+            if (media.State == CallTransportState.Ready && !media.Trusted)
+            {
+                lines.Add(Loc.Get("Call_MediaUntrusted", "Handshake not verified"));
+            }
+
+            if (!string.IsNullOrEmpty(media.Failure))
+            {
+                lines.Add(media.Failure);
+            }
+
+            MediaText.Text = string.Join(Environment.NewLine, lines.ToArray());
+            MediaText.Visibility = Visibility.Visible;
         }
 
         /// <summary>

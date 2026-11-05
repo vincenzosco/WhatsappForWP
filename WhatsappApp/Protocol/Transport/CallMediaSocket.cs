@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Windows.Networking;
@@ -63,6 +64,16 @@ namespace WhatsappApp.Protocol.Transport
         private HostName _remoteAddress;
         private string _remotePort;
         private bool _closed;
+
+        /// <summary>
+        /// What has crossed the socket, counted where it crosses: one datagram read from the
+        /// wire and one written to it, whatever they carried. A page cannot see the transport's
+        /// own counters for STUN and handshake traffic, and those are exactly the ones that say
+        /// whether a peer is answering at all.
+        /// </summary>
+        private int _received;
+
+        private int _sent;
 
         /// <summary>The UDP port the socket is bound to, which is what a candidate names.</summary>
         public int Port { get; private set; }
@@ -176,6 +187,70 @@ namespace WhatsappApp.Protocol.Transport
             Diag.Ok("call media: the path is off UDP " + Port);
         }
 
+        /// <summary>
+        /// The path as a value, for a page that draws it. Taken under the same locks the reader
+        /// and the timer take, so every number in it belongs to one moment instead of to three.
+        /// </summary>
+        public CallMediaStatus Snapshot()
+        {
+            CallTransport transport;
+            lock (_gate)
+            {
+                transport = _transport;
+            }
+
+            var status = new CallMediaStatus();
+            status.Listening = Port > 0;
+            status.Port = Port;
+            status.Attached = transport != null;
+            status.Received = Interlocked.CompareExchange(ref _received, 0, 0);
+            status.Sent = Interlocked.CompareExchange(ref _sent, 0, 0);
+
+            // Nothing is attached before a call exists, and a status for a call that does not
+            // exist says only that the port is held.
+            if (transport == null) return status;
+
+            lock (_path)
+            {
+                status.State = transport.State;
+                status.Trusted = transport.IsTrusted;
+                status.Failure = transport.Failure;
+                status.Peer = Describe(transport.Peer);
+                status.Dropped = transport.Dropped;
+                status.NotFromPeer = transport.NotFromPeer;
+                status.MediaRefused = transport.MediaRefused;
+            }
+
+            return status;
+        }
+
+        /// <summary>
+        /// An endpoint as a person reads it: four dotted numbers for IPv4, and the eight groups
+        /// in hex for the other family - this app offers IPv4 candidates only, but a peer is
+        /// not something this side chooses.
+        /// </summary>
+        private static string Describe(StunEndpoint endpoint)
+        {
+            if (endpoint == null || endpoint.Address == null) return null;
+
+            byte[] address = endpoint.Address;
+
+            if (address.Length == 4)
+            {
+                return address[0] + "." + address[1] + "." + address[2] + "." + address[3]
+                    + ":" + endpoint.Port;
+            }
+
+            var text = new StringBuilder();
+            for (int i = 0; i + 1 < address.Length; i += 2)
+            {
+                if (i > 0) text.Append(':');
+                text.Append(((address[i] << 8) | address[i + 1]).ToString("x"));
+            }
+
+            return "[" + text + "]:" + endpoint.Port;
+        }
+
         /// <summary>Stops the clock and closes the socket. Safe to call more than once.</summary>
         public void Dispose()
         {
@@ -221,6 +296,8 @@ namespace WhatsappApp.Protocol.Transport
                 var datagram = new byte[length];
                 reader.ReadBytes(datagram);
                 reader.Dispose();
+
+                Interlocked.Increment(ref _received);
 
                 int port;
                 if (!int.TryParse(args.RemotePort, out port)) return;
@@ -331,6 +408,8 @@ namespace WhatsappApp.Protocol.Transport
                     writer.WriteBytes(datagram);
                     await writer.StoreAsync();
                     await writer.FlushAsync();
+
+                    Interlocked.Increment(ref _sent);
                 }
                 finally
                 {

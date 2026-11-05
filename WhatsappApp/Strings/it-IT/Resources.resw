@@ -568,6 +568,39 @@
   <data name="Call_NoAudio" xml:space="preserve">
     <value>Ancora senza audio: questa build segnala soltanto la chiamata.</value>
   </data>
+  <data name="Call_MediaLine" xml:space="preserve">
+    <value>Media: {0}</value>
+  </data>
+  <data name="Call_MediaWaiting" xml:space="preserve">
+    <value>in attesa dell'altro telefono</value>
+  </data>
+  <data name="Call_MediaHandshaking" xml:space="preserve">
+    <value>handshake in corso</value>
+  </data>
+  <data name="Call_MediaReady" xml:space="preserve">
+    <value>collegato</value>
+  </data>
+  <data name="Call_MediaFailed" xml:space="preserve">
+    <value>fallito</value>
+  </data>
+  <data name="Call_MediaCandidates" xml:space="preserve">
+    <value>Candidati: {0}</value>
+  </data>
+  <data name="Call_MediaPeer" xml:space="preserve">
+    <value>Peer: {0}</value>
+  </data>
+  <data name="Call_MediaNoPeer" xml:space="preserve">
+    <value>nessuno</value>
+  </data>
+  <data name="Call_MediaPackets" xml:space="preserve">
+    <value>Pacchetti: {0} in, {1} out</value>
+  </data>
+  <data name="Call_MediaDropped" xml:space="preserve">
+    <value>Scartati: {0}</value>
+  </data>
+  <data name="Call_MediaUntrusted" xml:space="preserve">
+    <value>Handshake non verificato</value>
+  </data>
   <data name="Call_Accept" xml:space="preserve">
     <value>Accetta</value>
   </data>

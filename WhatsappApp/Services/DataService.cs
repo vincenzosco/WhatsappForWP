@@ -346,6 +346,16 @@ namespace WhatsappApp.Services
         {
             get { return _call; } }
 
+        /// <summary>
+        /// The media path of the call on screen, or null before one is attached. Read on the
+        /// page's tick and not pushed: the numbers move on datagrams and on a timer, and the
+        /// signalling state machine this class owns hears about neither.
+        /// </summary>
+        public WhatsappApp.Protocol.Media.CallMediaStatus MediaStatus
+        {
+            get { return NativeConnection.Instance.MediaStatus(); }
+        }
+
         /// <summary>The call changed state: the banner redraws.</summary>
         public event EventHandler CallChanged;
 

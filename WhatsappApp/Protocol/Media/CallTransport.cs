@@ -497,4 +497,50 @@ namespace WhatsappApp.Protocol.Media
             return true;
         }
     }
+
+    /// <summary>
+    /// One call's media path as a screen draws it: whether a path is attached, which pair was
+    /// nominated, where the handshake is, and what has crossed the socket.
+    ///
+    /// Why a value and not the live objects: `CallTransport` and the socket are driven on the
+    /// read loop and on a timer, and a page that held either would read a transcript that is
+    /// being rewritten under it. Every field here is a copy taken under the socket's locks.
+    /// </summary>
+    public sealed class CallMediaStatus
+    {
+        /// <summary>True while a transport is attached: this call has a media path.</summary>
+        public bool Attached { get; set; }
+
+        /// <summary>True once the socket is bound, which is when a candidate can name it.</summary>
+        public bool Listening { get; set; }
+
+        /// <summary>The UDP port every candidate of this app names.</summary>
+        public int Port { get; set; }
+
+        /// <summary>How many local candidates the offer or the answer carried.</summary>
+        public int Candidates { get; set; }
+
+        public CallTransportState State { get; set; }
+
+        /// <summary>The nominated peer as `address:port`, or null before a nomination.</summary>
+        public string Peer { get; set; }
+
+        /// <summary>True when the handshake proved the certificate the signalling named.</summary>
+        public bool Trusted { get; set; }
+
+        /// <summary>Why the path stopped, or null.</summary>
+        public string Failure { get; set; }
+
+        /// <summary>Datagrams read from the nominated peer, STUN and handshake included.</summary>
+        public int Received { get; set; }
+
+        /// <summary>Datagrams written to it, the same way.</summary>
+        public int Sent { get; set; }
+
+        public int Dropped { get; set; }
+
+        public int NotFromPeer { get; set; }
+
+        public int MediaRefused { get; set; }
+    }
 }
