@@ -238,7 +238,7 @@ namespace WhatsappApp.Services
         /// port and not yet the media: nothing reads what arrives (the audio path is the work
         /// the design doc lists as still missing), but the address in the offer is real.
         /// </summary>
-        private Windows.Networking.Sockets.DatagramSocket _callMediaSocket;
+        private WhatsappApp.Protocol.Transport.CallMediaSocket _callMediaSocket;
 
         private int _callMediaPort;
 
@@ -3801,22 +3801,15 @@ namespace WhatsappApp.Services
         {
             if (_callMediaPort > 0) return _callMediaPort;
 
-            Windows.Networking.Sockets.DatagramSocket socket = new Windows.Networking.Sockets.DatagramSocket();
-            await socket.BindServiceNameAsync("0");
+            // The socket that holds the port is the one that reads it. A port nobody reads is a
+            // call whose media goes to a closed door, and this class is what answers the checks
+            // the offer's candidates invite and drives the handshake they lead to.
+            var media = new WhatsappApp.Protocol.Transport.CallMediaSocket();
 
-            int port;
-            if (!int.TryParse(socket.Information.LocalPort, out port) || port <= 0)
-            {
-                // A socket the platform cannot name a port for is one nobody can reach: it is
-                // closed here instead of being left bound and forgotten, which is what a parse
-                // that threw used to do - one orphaned socket per attempt, and a `_callMediaPort`
-                // still zero so the next call bound another.
-                socket.Dispose();
-                throw new ProtocolException("the call media socket answered no port");
-            }
+            int port = await media.BindAsync();
 
             _callMediaPort = port;
-            _callMediaSocket = socket;
+            _callMediaSocket = media;
             return _callMediaPort;
         }
 

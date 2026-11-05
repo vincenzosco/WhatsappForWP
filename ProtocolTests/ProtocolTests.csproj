@@ -56,7 +56,7 @@
          Exclude on Transport/ silently dropped it. WebSocketTransport is the file
          that uses WinRT types and only the phone can compile it. -->
     <Compile Include="..\WhatsappApp\Protocol\**\*.cs"
-             Exclude="..\WhatsappApp\Protocol\Transport\WebSocketTransport.cs" />
+             Exclude="..\WhatsappApp\Protocol\Transport\WebSocketTransport.cs;..\WhatsappApp\Protocol\Transport\CallMediaSocket.cs" />
     <!-- The app-side files whose logic is testable off the phone: the start-up rule
          and the rotation of the live tile. Named one by one and not by folder,
          because Services/ is otherwise WinRT code this project cannot compile. -->

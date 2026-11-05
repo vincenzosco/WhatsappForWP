@@ -165,6 +165,16 @@ namespace WhatsappApp.Protocol.Media
         private string _failure;
 
         /// <summary>
+        /// When the handshake's last datagram is due again, as the caller's clock counts, and
+        /// zero while the clock has not been asked yet. `Tick` keeps no timer of its own: the
+        /// caller owns the clock and passes it in, which is what lets a retransmission schedule
+        /// be tested against a fixed script instead of a wall.
+        /// </summary>
+        private long _handshakeDeadline;
+
+        private int _retransmissions;
+
+        /// <summary>
         /// `ice` is this call's ICE-lite agent, `handshake` the state machine that will make the
         /// keys, and the two SSRCs the ones the call's key material names.
         /// </summary>
@@ -217,6 +227,16 @@ namespace WhatsappApp.Protocol.Media
         {
             get { return _failure; }
         }
+
+        /// <summary>How long the first retransmission waits: one second, as RFC 6347 asks.</summary>
+        public const int RetransmissionIntervalMs = 1000;
+
+        /// <summary>
+        /// How many times a handshake datagram is sent again before the handshake is called
+        /// dead. Four resends at 1, 2, 4 and 8 seconds is the fifteen seconds RFC 6347's example
+        /// schedule spends, after which a phone that has heard nothing has no call to finish.
+        /// </summary>
+        public const int MaxRetransmissions = 4;
 
         /// <summary>Datagrams thrown away: unreadable, or after the handshake failed.</summary>
         public int Dropped { get; private set; }
@@ -328,6 +348,48 @@ namespace WhatsappApp.Protocol.Media
             return _lastOutbound;
         }
 
+        /// <summary>
+        /// The clock, asked by the caller's timer: the datagram to send again, or null.
+        ///
+        /// The schedule is RFC 6347's - one second, then doubling - and it exists because a
+        /// datagram has no acknowledgement: a handshake flight lost on a phone's network is
+        /// indistinguishable from a peer that is thinking, and only a second attempt tells them
+        /// apart. `nowMs` is the caller's monotonic count in milliseconds; nothing here reads a
+        /// clock, so a test drives fifteen seconds in three lines.
+        ///
+        /// Any datagram from the peer restarts the schedule (the peer is alive, what was lost is
+        /// this side's next message), and a flight that is asked for five times without an
+        /// answer ends the handshake with a reason rather than hanging until the user gives up.
+        /// </summary>
+        public byte[] Tick(long nowMs)
+        {
+            if (_state != CallTransportState.Handshaking) return null;
+
+            // A server handshake has nothing to send until the client's hello arrives: there is
+            // no flight to lose yet, so the clock has nothing to say either.
+            if (_lastOutbound == null) return null;
+
+            if (_handshakeDeadline == 0)
+            {
+                _handshakeDeadline = nowMs + RetransmissionIntervalMs;
+                return null;
+            }
+
+            if (nowMs < _handshakeDeadline) return null;
+
+            if (_retransmissions >= MaxRetransmissions)
+            {
+                Fail("the media handshake went unanswered after " + (_retransmissions + 1)
+                    + " attempts");
+                return null;
+            }
+
+            _retransmissions++;
+            _handshakeDeadline = nowMs + ((long)RetransmissionIntervalMs << _retransmissions);
+
+            return _lastOutbound;
+        }
+
         private void BeginHandshake(IList<byte[]> outbound)
         {
             _selected = _ice.Selected;
@@ -358,6 +420,11 @@ namespace WhatsappApp.Protocol.Media
             }
 
             byte[] reply = _handshake.Receive(datagram);
+
+            // The peer answered, so the schedule starts over: what was lost is the next
+            // datagram, not the one it just replied to.
+            _handshakeDeadline = 0;
+            _retransmissions = 0;
 
             if (reply != null && reply.Length > 0)
             {

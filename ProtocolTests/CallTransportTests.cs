@@ -171,6 +171,70 @@ namespace ProtocolTests
             });
         }
 
+        [Test]
+        public static void AHandshakeDatagramIsRepeatedWhenItGoesUnanswered()
+        {
+            var handshake = new ScriptedHandshake();
+            CallTransport transport = Transport(handshake);
+
+            transport.Receive(Check(true), PeerA);
+
+            Assert.IsTrue(transport.Tick(0) == null, "the first look only arms the clock");
+            Assert.IsTrue(transport.Tick(999) == null, "the first retransmission waits a second");
+
+            byte[] again = transport.Tick(1000);
+
+            Assert.IsTrue(again != null, "at the deadline the flight goes again");
+            Assert.AreEqual("client hello", Encoding.UTF8.GetString(again),
+                "and what is repeated is the handshake's own last datagram");
+
+            Assert.IsTrue(transport.Tick(2999) == null, "the next wait is twice as long");
+            Assert.AreEqual("client hello", Encoding.UTF8.GetString(transport.Tick(3000)));
+        }
+
+        [Test]
+        public static void AHandshakeNobodyAnswersEndsWithAReason()
+        {
+            var handshake = new ScriptedHandshake();
+            CallTransport transport = Transport(handshake);
+
+            transport.Receive(Check(true), PeerA);
+
+            long now = 0;
+            int sent = 0;
+
+            for (int i = 0; i < 200; i++)
+            {
+                now += 250;
+                if (transport.Tick(now) != null) sent++;
+            }
+
+            Assert.AreEqual(CallTransport.MaxRetransmissions, sent,
+                "one second, two, four and eight: four repeats, then the flight is dead");
+            Assert.AreEqual(CallTransportState.Failed, transport.State);
+            Assert.IsTrue(transport.Failure != null && transport.Failure.IndexOf("unanswered") >= 0,
+                "and the reason says the peer never answered");
+            Assert.IsTrue(transport.Tick(now + 60000) == null, "a failed handshake is not repeated");
+        }
+
+        [Test]
+        public static void ThePeersAnswerRestartsTheSchedule()
+        {
+            var handshake = new ScriptedHandshake();
+            handshake.Hold = true;
+            CallTransport transport = Transport(handshake);
+
+            transport.Receive(Check(true), PeerA);
+            transport.Tick(0);
+
+            IList<byte[]> outbound = transport.Receive(Dtls(TypeHandshake, Message("server flight")), PeerA);
+
+            Assert.AreEqual(1, outbound.Count, "the handshake answers");
+            Assert.AreEqual(CallTransportState.Handshaking, transport.State);
+            Assert.IsTrue(transport.Tick(1500) == null,
+                "the peer is alive, so the clock starts again from its answer");
+        }
+
         private const byte TypeHandshake = 22;
 
         private static CallTransport Transport(IMediaHandshake handshake)
@@ -252,6 +316,9 @@ namespace ProtocolTests
 
             public string Refuse;
 
+            /// <summary>Answer without finishing, so the handshake stays open.</summary>
+            public bool Hold;
+
             public byte[] Start()
             {
                 Starts++;
@@ -261,6 +328,7 @@ namespace ProtocolTests
             public byte[] Receive(byte[] datagram)
             {
                 if (Refuse != null) return null;
+                if (Hold) return Message("client partial");
 
                 _complete = true;
                 return Message("client finished");
