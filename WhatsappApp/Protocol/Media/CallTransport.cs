@@ -334,9 +334,11 @@ namespace WhatsappApp.Protocol.Media
 
             byte[] first = _handshake.Start();
 
+            // A null first datagram is a server waiting for the client's hello, not a broken
+            // handshake: DTLS decides which end speaks first, and both roles are supported.
             if (first == null || first.Length == 0)
             {
-                Fail("the handshake produced no first datagram");
+                _state = CallTransportState.Handshaking;
                 return;
             }
 

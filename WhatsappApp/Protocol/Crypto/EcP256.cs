@@ -498,5 +498,173 @@ namespace WhatsappApp.Protocol.Crypto
 
             return length;
         }
+
+        // ---- signing --------------------------------------------------------------------
+
+        /// <summary>
+        /// The 65-byte public point of a private scalar.
+        ///
+        /// Why it is here and not in the caller: it is the same multiplication the verifier
+        /// already does, and a certificate that has to carry the key would otherwise re-derive
+        /// it somewhere else, by a second path that could disagree with `Verify`.
+        /// </summary>
+        public static byte[] PublicPoint(byte[] privateScalar)
+        {
+            if (privateScalar == null || privateScalar.Length != CoordinateLength) return null;
+
+            uint[] d = FromBytes(privateScalar, 0);
+            if (IsZero(d) || Compare(d, N) >= 0) return null;
+
+            Point product = Multiply(d, Generator());
+            if (IsInfinity(product)) return null;
+
+            // x = X/Z^2 and y = Y/Z^3: the second exponent is the one a hand-written
+            // conversion gets wrong, and a point with the wrong y is not on the curve at all.
+            uint[] z = Inverse(product.Z, P);
+            uint[] z2 = ModMul(z, z, P);
+            uint[] z3 = ModMul(z2, z, P);
+            uint[] x = ModMul(product.X, z2, P);
+            uint[] y = ModMul(product.Y, z3, P);
+
+            var point = new byte[PointLength];
+            point[0] = 0x04;
+            byte[] xs = ToBytes(x);
+            byte[] ys = ToBytes(y);
+            Buffer.BlockCopy(xs, 0, point, 1, CoordinateLength);
+            Buffer.BlockCopy(ys, 0, point, 1 + CoordinateLength, CoordinateLength);
+            return point;
+        }
+
+        /// <summary>
+        /// An ECDSA-SHA256 signature over `message`, in the DER form `Verify` reads.
+        ///
+        /// The nonce is RFC 6979's: HMAC-SHA256 over the private key and the digest, so the same
+        /// message and key give the same signature and the private key never has to share a
+        /// random number with the caller. That matters more than the code: a repeated k hands the
+        /// key to anyone who sees two signatures, and a phone that signs with a bad RNG is exactly
+        /// how that happens (`DeviceRandomSource` is a phone API, not a DRBG).
+        /// </summary>
+        public static byte[] Sign(byte[] message, byte[] privateScalar)
+        {
+            if (message == null) throw new ProtocolException("a signature needs a message");
+            if (privateScalar == null || privateScalar.Length != CoordinateLength)
+            {
+                throw new ProtocolException("an ECDSA private key is " + CoordinateLength + " bytes");
+            }
+
+            uint[] d = FromBytes(privateScalar, 0);
+            if (IsZero(d) || Compare(d, N) >= 0)
+            {
+                throw new ProtocolException("an ECDSA private key is 1..n-1");
+            }
+
+            uint[] e = FromBytes(Sha256.Hash(message), 0);
+            uint[] eMod = Compare(e, N) >= 0 ? Sub(e, N) : e;
+
+            // RFC 6979, section 3.2 over HMAC-SHA256: K and V, seeded with the key and the
+            // digest, and one 32-byte block per attempt because q is 256 bits.
+            var v = new byte[32];
+            for (int i = 0; i < v.Length; i++) v[i] = 0x01;
+
+            var k = new byte[32];
+
+            byte[] seed = Concat(privateScalar, ToBytes(eMod));
+            k = Hmac.Compute(k, Concat(Concat(v, new byte[] { 0x00 }), seed));
+            v = Hmac.Compute(k, v);
+            k = Hmac.Compute(k, Concat(Concat(v, new byte[] { 0x01 }), seed));
+            v = Hmac.Compute(k, v);
+
+            for (int attempt = 0; attempt < 8; attempt++)
+            {
+                v = Hmac.Compute(k, v);
+                uint[] nonce = FromBytes(v, 0);
+
+                if (IsZero(nonce) || Compare(nonce, N) >= 0)
+                {
+                    k = Hmac.Compute(k, Concat(v, new byte[] { 0x00 }));
+                    v = Hmac.Compute(k, v);
+                    continue;
+                }
+
+                Point product = Multiply(nonce, Generator());
+                if (IsInfinity(product)) continue;
+
+                uint[] x = AffineX(product);
+                uint[] r = Compare(x, N) >= 0 ? Sub(x, N) : x;
+                if (IsZero(r)) continue;
+
+                uint[] s = ModMul(Inverse(nonce, N), ModAdd(eMod, ModMul(r, d, N), N), N);
+                if (IsZero(s)) continue;
+
+                return DerSignature(r, s);
+            }
+
+            throw new ProtocolException("ECDSA could not find a usable nonce in eight attempts");
+        }
+
+        private static Point Generator()
+        {
+            return new Point(Gx, Gy, One());
+        }
+
+        /// <summary>A field element as 32 big-endian bytes: the coordinates' own encoding.</summary>
+        private static byte[] ToBytes(uint[] value)
+        {
+            var bytes = new byte[CoordinateLength];
+
+            for (int limb = 0; limb < Limbs; limb++)
+            {
+                int at = CoordinateLength - 4 * (limb + 1);
+                bytes[at] = (byte)(value[limb] >> 24);
+                bytes[at + 1] = (byte)(value[limb] >> 16);
+                bytes[at + 2] = (byte)(value[limb] >> 8);
+                bytes[at + 3] = (byte)value[limb];
+            }
+
+            return bytes;
+        }
+
+        /// <summary>SEQUENCE { INTEGER r, INTEGER s }, the form `ParseSignature` reads back.</summary>
+        private static byte[] DerSignature(uint[] r, uint[] s)
+        {
+            byte[] rBytes = DerInteger(ToBytes(r));
+            byte[] sBytes = DerInteger(ToBytes(s));
+
+            var body = new byte[rBytes.Length + sBytes.Length];
+            Buffer.BlockCopy(rBytes, 0, body, 0, rBytes.Length);
+            Buffer.BlockCopy(sBytes, 0, body, rBytes.Length, sBytes.Length);
+
+            var sequence = new byte[2 + body.Length];
+            sequence[0] = 0x30;
+            sequence[1] = (byte)body.Length;
+            Buffer.BlockCopy(body, 0, sequence, 2, body.Length);
+            return sequence;
+        }
+
+        /// <summary>A positive DER INTEGER: no leading zeros, and a zero byte when the top bit is set.</summary>
+        private static byte[] DerInteger(byte[] value)
+        {
+            int start = 0;
+            while (start < value.Length - 1 && value[start] == 0) start++;
+
+            bool pad = (value[start] & 0x80) != 0;
+            int length = value.Length - start + (pad ? 1 : 0);
+
+            var encoded = new byte[2 + length];
+            encoded[0] = 0x02;
+            encoded[1] = (byte)length;
+
+            if (pad) encoded[2] = 0x00;
+            Buffer.BlockCopy(value, start, encoded, 2 + (pad ? 1 : 0), value.Length - start);
+            return encoded;
+        }
+
+        private static byte[] Concat(byte[] left, byte[] right)
+        {
+            var joined = new byte[left.Length + right.Length];
+            Buffer.BlockCopy(left, 0, joined, 0, left.Length);
+            Buffer.BlockCopy(right, 0, joined, left.Length, right.Length);
+            return joined;
+        }
     }
 }

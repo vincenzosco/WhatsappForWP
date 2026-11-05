@@ -148,5 +148,169 @@ namespace WhatsappApp.Protocol.Crypto
 
             return true;
         }
+
+        // ---- writing --------------------------------------------------------------------
+
+        /// <summary>id-ecPublicKey's full TLV, which an AlgorithmIdentifier carries.</summary>
+        private static readonly byte[] EcPublicKeyOidTlv = new byte[]
+        {
+            0x06, 0x07, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x02, 0x01
+        };
+
+        /// <summary>prime256v1's full TLV.</summary>
+        private static readonly byte[] Prime256v1OidTlv = new byte[]
+        {
+            0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x03, 0x01, 0x07
+        };
+
+        /// <summary>ecdsa-with-SHA256 (1.2.840.10045.4.3.2).</summary>
+        private static readonly byte[] EcdsaWithSha256OidTlv = new byte[]
+        {
+            0x06, 0x08, 0x2a, 0x86, 0x48, 0xce, 0x3d, 0x04, 0x03, 0x02
+        };
+
+        /// <summary>commonName (2.5.4.3).</summary>
+        private static readonly byte[] CommonNameOidTlv = new byte[] { 0x06, 0x03, 0x55, 0x04, 0x03 };
+
+        /// <summary>
+        /// A self-signed P-256 certificate, valid from 2026 to 2036, carrying nothing but the
+        /// key: a DTLS server has to send one, and this project has no certificate store to take
+        /// one from. The signature is real ECDSA-SHA256 over the tbsCertificate, so the file is a
+        /// certificate and not a shape that happens to parse - but the trust decision stays where
+        /// `DtlsClient` puts it, on the SHA-256 fingerprint the signalling carried.
+        ///
+        /// The encoding is built rather than scanned: every length is written from the bytes it
+        /// covers, which is the one thing a hand-rolled DER gets wrong. `P256Point` reads the
+        /// result back, and the tests round-trip it.
+        /// </summary>
+        public static byte[] SelfSignedP256(byte[] privateScalar, string commonName)
+        {
+            if (privateScalar == null || privateScalar.Length != EcP256.CoordinateLength)
+            {
+                throw new ProtocolException("an ECDSA private key is " + EcP256.CoordinateLength + " bytes");
+            }
+
+            byte[] point = EcP256.PublicPoint(privateScalar);
+            if (point == null) throw new ProtocolException("an ECDSA private key is 1..n-1");
+
+            byte[] name = Name(commonName);
+
+            byte[] algorithm = Tlv(0x30, Concat(EcPublicKeyOidTlv, Prime256v1OidTlv));
+            byte[] signatureAlgorithm = Tlv(0x30, EcdsaWithSha256OidTlv);
+
+            byte[] spki = Tlv(0x30, Concat(algorithm, BitString(point, 0)));
+
+            byte[] tbs = Tlv(0x30, Concat(Concat(Concat(
+                Tlv(0xa0, Tlv(0x02, new byte[] { 0x02 })),       // version: v3
+                DerInteger(One())),
+                signatureAlgorithm),
+                Concat(Concat(Concat(name, Validity()), name), spki)));
+
+            byte[] signature = EcP256.Sign(tbs, privateScalar);
+
+            return Tlv(0x30, Concat(Concat(tbs, signatureAlgorithm), BitString(signature, 0)));
+        }
+
+        /// <summary>A DER INTEGER holding a small positive number.</summary>
+        private static byte[] DerInteger(byte[] value)
+        {
+            int start = 0;
+            while (start < value.Length - 1 && value[start] == 0) start++;
+
+            bool pad = (value[start] & 0x80) != 0;
+            int length = value.Length - start + (pad ? 1 : 0);
+
+            var body = new byte[length];
+            if (pad) body[0] = 0x00;
+            Buffer.BlockCopy(value, start, body, pad ? 1 : 0, value.Length - start);
+
+            return Tlv(0x02, body);
+        }
+
+        private static byte[] One()
+        {
+            return new byte[] { 0x01 };
+        }
+
+        /// <summary>The two UTCTimes: fixed dates, because nothing here checks them.</summary>
+        private static byte[] Validity()
+        {
+            return Tlv(0x30, Concat(
+                Tlv(0x17, Ascii("260101000000Z")),
+                Tlv(0x17, Ascii("361231235959Z"))));
+        }
+
+        /// <summary>An X.501 name with one commonName in it: RDNSequence of one SET of one AttributeTypeAndValue.</summary>
+        private static byte[] Name(string commonName)
+        {
+            string value = commonName == null || commonName.Length == 0 ? "dtls" : commonName;
+
+            byte[] attribute = Tlv(0x30, Concat(CommonNameOidTlv, Tlv(0x0c, Utf8(value))));
+            return Tlv(0x30, Tlv(0x31, attribute));
+        }
+
+        /// <summary>A BIT STRING with its unused-bit count in front, as every key and signature is encoded.</summary>
+        private static byte[] BitString(byte[] value, int unusedBits)
+        {
+            var body = new byte[1 + value.Length];
+            body[0] = (byte)unusedBits;
+            Buffer.BlockCopy(value, 0, body, 1, value.Length);
+            return Tlv(0x03, body);
+        }
+
+        private static byte[] Tlv(byte tag, byte[] body)
+        {
+            byte[] length = Length(body.Length);
+
+            var encoded = new byte[1 + length.Length + body.Length];
+            encoded[0] = tag;
+            Buffer.BlockCopy(length, 0, encoded, 1, length.Length);
+            Buffer.BlockCopy(body, 0, encoded, 1 + length.Length, body.Length);
+            return encoded;
+        }
+
+        /// <summary>DER's length: one byte below 128, otherwise the count and the bytes that hold it.</summary>
+        private static byte[] Length(int length)
+        {
+            if (length < 0x80) return new byte[] { (byte)length };
+
+            int count = 0;
+            int copy = length;
+            while (copy > 0)
+            {
+                count++;
+                copy >>= 8;
+            }
+
+            var encoded = new byte[1 + count];
+            encoded[0] = (byte)(0x80 | count);
+
+            for (int i = 0; i < count; i++)
+            {
+                encoded[1 + i] = (byte)(length >> (8 * (count - 1 - i)));
+            }
+
+            return encoded;
+        }
+
+        private static byte[] Concat(byte[] left, byte[] right)
+        {
+            var joined = new byte[left.Length + right.Length];
+            Buffer.BlockCopy(left, 0, joined, 0, left.Length);
+            Buffer.BlockCopy(right, 0, joined, left.Length, right.Length);
+            return joined;
+        }
+
+        private static byte[] Ascii(string text)
+        {
+            var bytes = new byte[text.Length];
+            for (int i = 0; i < text.Length; i++) bytes[i] = (byte)text[i];
+            return bytes;
+        }
+
+        private static byte[] Utf8(string text)
+        {
+            return System.Text.Encoding.UTF8.GetBytes(text);
+        }
     }
 }
