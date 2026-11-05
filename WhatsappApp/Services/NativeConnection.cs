@@ -4109,6 +4109,20 @@ namespace WhatsappApp.Services
             if (transport == null) return;
 
             WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
+
+            // The last numbers the path had, written down before it is taken off the socket:
+            // a call that never got an answer and a call whose handshake failed leave the same
+            // empty screen, and the log is the only place the difference survives.
+            if (socket != null)
+            {
+                CallMediaStatus last = socket.Snapshot();
+
+                Diag.Ok("native: the media of the call was " + last.State
+                    + (last.Peer == null ? " with no peer" : " with the peer " + last.Peer)
+                    + ", " + last.Received + " datagram(s) in and " + last.Sent + " out"
+                    + (last.Failure == null ? "" : ", and it stopped: " + last.Failure));
+            }
+
             if (socket != null) socket.Detach(transport);
 
             Diag.Ok("native: the call media path is stopped");
