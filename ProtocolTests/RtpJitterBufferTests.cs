@@ -171,6 +171,37 @@ namespace ProtocolTests
             Assert.AreEqual(0, buffer.Next().SequenceNumber);
         }
 
+        /// <summary>
+        /// The delay a call adds is the time a packet spends between arriving and being played,
+        /// and the buffer says it in the clock's own milliseconds. A test names the clock so the
+        /// number is a fact and not a stopwatch reading.
+        /// </summary>
+        [Test]
+        public static void TheAgeOfAPacketIsWhatItsClockSays()
+        {
+            long now = 1000;
+
+            var buffer = new RtpJitterBuffer(1, delegate { return now; });
+
+            Assert.IsTrue(buffer.Push(Packet(10)), "the packet is kept");
+
+            now = 1042;
+
+            Assert.AreEqual(10, buffer.Next().SequenceNumber, "and plays when its turn comes");
+            Assert.AreEqual(42, buffer.LastDelayMilliseconds, "forty-two milliseconds after it arrived");
+        }
+
+        [Test]
+        public static void WithoutAClockNothingIsMeasured()
+        {
+            var buffer = new RtpJitterBuffer(1);
+
+            buffer.Push(Packet(0));
+            buffer.Next();
+
+            Assert.AreEqual(0, buffer.LastDelayMilliseconds, "a buffer with no clock adds no number");
+        }
+
         /// <summary>One packet with its sequence number carried in the payload, so a test can see which it got.</summary>
         private static RtpPacket Packet(int sequence)
         {

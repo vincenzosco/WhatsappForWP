@@ -25,6 +25,9 @@ namespace ProtocolTests
             /// </summary>
             public bool GapWaiting;
 
+            /// <summary>Whether a packet is already queued behind the missing one: the hole cannot fill.</summary>
+            public bool Behind;
+
             /// <summary>How many packets the decoder refuses, from the front.</summary>
             public int RefusePackets;
 
@@ -34,6 +37,12 @@ namespace ProtocolTests
             public CallAudioPlayout Playout()
             {
                 return new CallAudioPlayout(Decode, Take, SkipGap);
+            }
+
+            /// <summary>The same, told whether a packet is already queued behind the hole.</summary>
+            public CallAudioPlayout PlayoutWithBehind()
+            {
+                return new CallAudioPlayout(Decode, Take, SkipGap, delegate { return Behind; });
             }
 
             private byte[] Take()
@@ -148,6 +157,31 @@ namespace ProtocolTests
             Assert.AreEqual(1, source.Skips, "the fourth tick calls the gap lost");
             Assert.AreEqual(1, playout.Skipped, "and it is counted");
             Assert.AreEqual((byte)7, played[0], "the packet behind the gap plays");
+        }
+
+        /// <summary>
+        /// A hole with a packet already queued behind it cannot fill: the packets after it
+        /// arrived first. The playout gives up on the first tick instead of the third, which is
+        /// the difference between a lost packet costing twenty milliseconds and sixty - and the
+        /// sixty would be silence played over audio already in hand.
+        /// </summary>
+        [Test]
+        public static void AGapWithPacketsBehindItIsCalledLostAtOnce()
+        {
+            var source = new Source();
+            source.GapWaiting = true;
+            source.Behind = true;
+            source.Packets.Enqueue(Packet(8));
+
+            CallAudioPlayout playout = source.PlayoutWithBehind();
+
+            byte[] played = playout.Tick();
+
+            Assert.AreEqual(1, source.Skips, "the first tick gives up on the hole");
+            Assert.AreEqual(1, playout.Skipped, "and it is counted");
+            Assert.AreEqual((byte)8, played[0], "the packet behind it plays at once");
+            Assert.AreEqual(0, playout.Waited, "no silence is played over audio already in hand");
+            Assert.AreEqual(1, playout.Played, "one tick, one frame");
         }
 
         /// <summary>

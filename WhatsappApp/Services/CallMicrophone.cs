@@ -29,8 +29,12 @@ namespace WhatsappApp.Services
     /// </summary>
     public static class CallMicrophone
     {
-        /// <summary>How often the stream is read: one frame is 20 ms, and the recorder writes faster than that.</summary>
-        private const int PumpMilliseconds = 20;
+        /// <summary>
+        /// How often the stream is read: half a frame, so the samples of one frame are on their
+        /// way while the rest of it is still being recorded instead of waiting for the next full
+        /// window. One pass reads whatever has landed, so this is a poll and not a buffer.
+        /// </summary>
+        private const int PumpMilliseconds = 10;
 
         /// <summary>How much of the stream is read per pass, which is forty frames.</summary>
         private const int MaxRead = 8192;

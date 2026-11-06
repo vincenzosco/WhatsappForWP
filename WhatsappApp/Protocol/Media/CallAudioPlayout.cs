@@ -49,9 +49,13 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>The playout's decision that a gap has waited long enough. True when it moved.</summary>
         public delegate bool SkipGap();
 
+        /// <summary>Whether a packet is queued behind the one that is missing.</summary>
+        public delegate bool PendingFrames();
+
         private readonly DecodeFrame _decode;
         private readonly TakeFrame _take;
         private readonly SkipGap _skipGap;
+        private readonly PendingFrames _behind;
 
         /// <summary>How many ticks in a row have found nothing to play.</summary>
         private int _misses;
@@ -61,6 +65,17 @@ namespace WhatsappApp.Protocol.Media
         /// tick is one frame.
         /// </summary>
         public CallAudioPlayout(DecodeFrame decode, TakeFrame take, SkipGap skipGap)
+            : this(decode, take, skipGap, null)
+        {
+        }
+
+        /// <summary>
+        /// The same, told whether a packet is already queued behind the missing one. A hole that
+        /// has audio behind it will not fill - the packets after it arrived first - so there is
+        /// nothing to wait for, and each of the three ticks of grace would be silence played
+        /// over audio already in hand.
+        /// </summary>
+        public CallAudioPlayout(DecodeFrame decode, TakeFrame take, SkipGap skipGap, PendingFrames behind)
         {
             if (decode == null) throw new ProtocolException("a playout needs a decoder");
             if (take == null) throw new ProtocolException("a playout needs a source of frames");
@@ -69,6 +84,7 @@ namespace WhatsappApp.Protocol.Media
             _decode = decode;
             _take = take;
             _skipGap = skipGap;
+            _behind = behind;
         }
 
         /// <summary>How many frames went out to the speaker, silence included.</summary>
@@ -109,8 +125,13 @@ namespace WhatsappApp.Protocol.Media
                 _misses++;
 
                 // One lost packet is not a lost sentence: the frame it should have carried is
-                // played as silence while the packet behind it is still in flight.
-                if (_misses > MissesBeforeGap)
+                // played as silence while the packet behind it is still in flight. A packet that
+                // is already queued behind the hole is the other case: it overtook the missing
+                // one, so the hole cannot fill, and waiting the grace would add sixty
+                // milliseconds of delay to everything that follows.
+                bool overtaken = _behind != null && _behind();
+
+                if (overtaken || _misses > MissesBeforeGap)
                 {
                     _misses = 0;
 

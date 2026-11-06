@@ -53,6 +53,38 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// The receiving half reports how long its packets waited: the delay a call adds is the
+        /// one number of a call's latency this code owns, and a call that cannot say it is a call
+        /// nobody can judge.
+        /// </summary>
+        [Test]
+        public static void TheReceivingHalfReportsHowLongItsPacketsWaited()
+        {
+            long now = 5000;
+
+            CallMediaSession phone = Phone();
+            var peer = new CallMediaSession(Key(0x40), Salt(0x40), RemoteSsrc,
+                                            Key(1), Salt(1), LocalSsrc,
+                                            delegate { return now; });
+
+            for (int i = 0; i < 3; i++)
+            {
+                byte[] packet = phone.Seal(Frame((byte)(0x20 + i)));
+                Assert.IsTrue(peer.Receive(packet, packet.Length), "the packet arrived");
+            }
+
+            now = 5020;
+            Assert.IsTrue(peer.Take() != null, "the first of the three plays");
+            Assert.IsTrue(peer.Take() != null, "then the second");
+
+            now = 5060;
+            Assert.IsTrue(peer.Take() != null, "and the third, later");
+
+            Assert.AreEqual(33, peer.AverageDelayMilliseconds, "(20 + 20 + 60) / 3");
+            Assert.AreEqual(60, peer.MaxDelayMilliseconds, "the worst wait was the last one");
+        }
+
+        /// <summary>
         /// The frame that goes out comes back, byte for byte, and the jitter buffer had to
         /// wait for its pre-roll before it gave anything back - which is the behaviour a live
         /// call depends on and a burst test would hide.

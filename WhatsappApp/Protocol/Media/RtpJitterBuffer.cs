@@ -39,8 +39,12 @@ namespace WhatsappApp.Protocol.Media
         public const int DefaultPreroll = 3;
 
         private readonly int _preroll;
+        private readonly Func<long> _clock;
         private readonly List<RtpPacket> _packets = new List<RtpPacket>();
         private readonly List<long> _sequence = new List<long>();
+
+        /// <summary>When each held packet arrived, in the clock's own milliseconds, beside the ones it belongs to.</summary>
+        private readonly List<long> _arrived = new List<long>();
 
         /// <summary>The highest sequence seen, as an extended (non-wrapping) count.</summary>
         private long _highest = -1;
@@ -62,10 +66,36 @@ namespace WhatsappApp.Protocol.Media
         /// tests use to check the ordering apart from the waiting.
         /// </summary>
         public RtpJitterBuffer(int preroll)
+            : this(preroll, null)
+        {
+        }
+
+        /// <summary>
+        /// The same, with a clock that says how long a packet waited between the moment it
+        /// arrived and the moment it was played. The clock is the caller's so that a test can
+        /// name the milliseconds instead of waiting for them; without one, `LastDelayMilliseconds`
+        /// stays zero and nothing is measured.
+        /// </summary>
+        public RtpJitterBuffer(int preroll, Func<long> clock)
         {
             if (preroll < 1) throw new ProtocolException("a jitter buffer holds at least one packet");
 
             _preroll = preroll;
+            _clock = clock;
+        }
+
+        /// <summary>
+        /// How long the last released packet waited, in milliseconds: the delay this buffer adds
+        /// to a call's audio, which is the number a call is judged by. Zero when there is no clock
+        /// or nothing has been released yet.
+        /// </summary>
+        public int LastDelayMilliseconds { get; private set; }
+
+        /// <summary>Monotonic milliseconds: a wall clock can move back, and this one measures waits.</summary>
+        public static long Milliseconds()
+        {
+            return System.Diagnostics.Stopwatch.GetTimestamp() * 1000
+                / System.Diagnostics.Stopwatch.Frequency;
         }
 
         /// <summary>How many packets are held, waiting for their turn.</summary>
@@ -125,6 +155,7 @@ namespace WhatsappApp.Protocol.Media
 
             _sequence.Insert(at, sequence);
             _packets.Insert(at, packet);
+            _arrived.Insert(at, Now());
 
             return true;
         }
@@ -153,9 +184,14 @@ namespace WhatsappApp.Protocol.Media
             if (_sequence[0] != _next) return null;
 
             RtpPacket packet = _packets[0];
+            long arrived = _arrived[0];
+
             _packets.RemoveAt(0);
             _sequence.RemoveAt(0);
+            _arrived.RemoveAt(0);
             _next++;
+
+            LastDelayMilliseconds = _clock == null ? 0 : (int)Math.Max(0, Now() - arrived);
 
             return packet;
         }
@@ -185,11 +221,19 @@ namespace WhatsappApp.Protocol.Media
         {
             _packets.Clear();
             _sequence.Clear();
+            _arrived.Clear();
             _highest = -1;
             _next = -1;
             _started = false;
             Lost = 0;
             Dropped = 0;
+            LastDelayMilliseconds = 0;
+        }
+
+        /// <summary>The clock's reading, or zero when this buffer was not given one.</summary>
+        private long Now()
+        {
+            return _clock == null ? 0 : _clock();
         }
 
         /// <summary>Where a sequence found a home among the ones held, or -1.</summary>

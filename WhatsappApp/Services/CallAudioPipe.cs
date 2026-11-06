@@ -40,6 +40,7 @@ namespace WhatsappApp.Services
         private static CallOpus.CallEncoder _encoder;
         private static CallOpus.CallDecoder _decoder;
         private static CallPlayback _playback;
+        private static CallMediaSession _media;
 
         private static bool _running;
         private static bool _starting;
@@ -147,7 +148,10 @@ namespace WhatsappApp.Services
                 var sender = new CallAudioSender(encoder.Encode, send);
                 sender.Muted = muted;
 
-                var playout = new CallAudioPlayout(decoder.Decode, media.Take, media.SkipGap);
+                // Told what is queued behind a missing packet, the playout stops waiting for one
+                // that was overtaken: the wait would be silence over audio already in hand.
+                var playout = new CallAudioPlayout(decoder.Decode, media.Take, media.SkipGap,
+                    delegate { return media.Pending > 0; });
 
                 playback = CallPlayback.Start(Player(), playout);
                 if (playback == null) return false;
@@ -158,6 +162,7 @@ namespace WhatsappApp.Services
                     _decoder = decoder;
                     _sender = sender;
                     _playback = playback;
+                    _media = media;
                     _running = true;
                 }
 
@@ -196,6 +201,7 @@ namespace WhatsappApp.Services
             CallOpus.CallEncoder encoder;
             CallOpus.CallDecoder decoder;
             CallPlayback playback;
+            CallMediaSession media;
 
             lock (_gate)
             {
@@ -207,11 +213,13 @@ namespace WhatsappApp.Services
                 encoder = _encoder;
                 decoder = _decoder;
                 playback = _playback;
+                media = _media;
 
                 _sender = null;
                 _encoder = null;
                 _decoder = null;
                 _playback = null;
+                _media = null;
             }
 
             await CallMicrophone.StopAsync();
@@ -229,7 +237,9 @@ namespace WhatsappApp.Services
                 + " dropped by the encoder"
                 + (playback == null ? "" : "; " + playback.Playout.Played + " frame(s) played, "
                     + playback.Playout.Waited + " waited, " + playback.Playout.Skipped
-                    + " gap(s) lost, " + playback.Playout.Undecodable + " undecodable"));
+                    + " gap(s) lost, " + playback.Playout.Undecodable + " undecodable")
+                + (media == null ? "" : "; a packet waited " + media.AverageDelayMilliseconds
+                    + " ms on average and " + media.MaxDelayMilliseconds + " ms at worst to play"));
         }
 
         /// <summary>

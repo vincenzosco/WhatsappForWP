@@ -58,6 +58,10 @@ namespace WhatsappApp.Protocol.Media
         private int _sequence;
         private uint _timestamp;
 
+        private long _delayTotal;
+        private int _delayCount;
+        private int _delayMax;
+
         /// <summary>
         /// One call's audio. `sendKey`/`sendSalt`/`localSsrc` are this phone's direction;
         /// `receiveKey`/`receiveSalt`/`remoteSsrc` are the other side's, which the peer
@@ -66,11 +70,24 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public CallMediaSession(byte[] sendKey, byte[] sendSalt, uint localSsrc,
                                 byte[] receiveKey, byte[] receiveSalt, uint remoteSsrc)
+            : this(sendKey, sendSalt, localSsrc, receiveKey, receiveSalt, remoteSsrc,
+                   RtpJitterBuffer.Milliseconds)
+        {
+        }
+
+        /// <summary>
+        /// The same, with the clock the receiving half measures its waits by. It stays a
+        /// parameter so that a test can name the milliseconds: the delay a call adds is the
+        /// number a call is judged by, and a number nobody can pin is a number nobody checks.
+        /// </summary>
+        public CallMediaSession(byte[] sendKey, byte[] sendSalt, uint localSsrc,
+                                byte[] receiveKey, byte[] receiveSalt, uint remoteSsrc,
+                                Func<long> clock)
         {
             _out = new SrtpSession(sendKey, sendSalt, localSsrc);
             _in = new SrtpSession(receiveKey, receiveSalt, remoteSsrc);
 
-            _jitter = new RtpJitterBuffer();
+            _jitter = new RtpJitterBuffer(RtpJitterBuffer.DefaultPreroll, clock);
             _localSsrc = localSsrc;
             _sequence = 0;
             _timestamp = 0;
@@ -104,6 +121,28 @@ namespace WhatsappApp.Protocol.Media
         public int Pending
         {
             get { return _jitter.Pending; }
+        }
+
+        /// <summary>
+        /// How long a packet waited between arriving and being played, on average, over the
+        /// packets that have been played: the delay this half of the call adds, which is the
+        /// part of a call's latency that is ours to answer for.
+        /// </summary>
+        public int AverageDelayMilliseconds
+        {
+            get
+            {
+                lock (_gate) return _delayCount == 0 ? 0 : (int)(_delayTotal / _delayCount);
+            }
+        }
+
+        /// <summary>The worst wait of the call so far, in milliseconds.</summary>
+        public int MaxDelayMilliseconds
+        {
+            get
+            {
+                lock (_gate) return _delayMax;
+            }
         }
 
         /// <summary>The sequence number the next frame will carry, modulo 65536.</summary>
@@ -188,7 +227,19 @@ namespace WhatsappApp.Protocol.Media
             lock (_gate)
             {
                 RtpPacket packet = _jitter.Next();
-                return packet == null ? null : packet.Payload;
+                if (packet == null) return null;
+
+                int delay = _jitter.LastDelayMilliseconds;
+
+                if (delay > 0)
+                {
+                    _delayTotal += delay;
+                    _delayCount++;
+
+                    if (delay > _delayMax) _delayMax = delay;
+                }
+
+                return packet.Payload;
             }
         }
 
@@ -210,6 +261,10 @@ namespace WhatsappApp.Protocol.Media
             lock (_gate)
             {
                 _jitter.Reset();
+
+                _delayTotal = 0;
+                _delayCount = 0;
+                _delayMax = 0;
             }
         }
     }
