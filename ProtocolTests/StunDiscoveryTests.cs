@@ -71,6 +71,18 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ARefusalIsNotAUsableRelayLatency()
+        {
+            StunDiscovery.Answer success = StunDiscovery.Read(Answer(TransactionId, Mapped, null), TransactionId);
+            StunDiscovery.Answer refusal = StunDiscovery.Read(Answer(TransactionId, null, 401), TransactionId);
+
+            Assert.IsTrue(StunDiscovery.HasMappedAddress(success));
+            Assert.IsTrue(!StunDiscovery.HasMappedAddress(refusal),
+                "a response without a mapped address is not a successful relay probe");
+            Assert.IsTrue(!StunDiscovery.HasMappedAddress(null));
+        }
+
+        [Test]
         public static void TrafficThatIsNotAStunAnswerIsNotRead()
         {
             Assert.IsTrue(StunDiscovery.Read(Hex("80010102030405060708090a0b0c"), TransactionId) == null,

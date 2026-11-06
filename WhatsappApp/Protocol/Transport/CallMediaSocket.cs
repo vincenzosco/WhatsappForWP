@@ -415,15 +415,19 @@ namespace WhatsappApp.Protocol.Transport
 
             Probe answered = null;
             string key = null;
+            bool hasMappedAddress = false;
 
             lock (_probes)
             {
                 foreach (KeyValuePair<string, Probe> pair in _probes)
                 {
-                    if (StunDiscovery.Read(datagram, pair.Value.TransactionId) == null) continue;
+                    StunDiscovery.Answer response =
+                        StunDiscovery.Read(datagram, pair.Value.TransactionId);
+                    if (response == null) continue;
 
                     answered = pair.Value;
                     key = pair.Key;
+                    hasMappedAddress = StunDiscovery.HasMappedAddress(response);
                     break;
                 }
 
@@ -432,7 +436,8 @@ namespace WhatsappApp.Protocol.Transport
 
             if (answered == null) return false;
 
-            answered.Answer.TrySetResult((int)(NowMilliseconds() - answered.StartedMs));
+            int latency = hasMappedAddress ? (int)(NowMilliseconds() - answered.StartedMs) : -1;
+            answered.Answer.TrySetResult(latency);
             return true;
         }
 

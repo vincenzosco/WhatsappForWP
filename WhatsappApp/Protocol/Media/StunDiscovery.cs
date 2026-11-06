@@ -125,6 +125,12 @@ namespace WhatsappApp.Protocol.Media
             return new Answer(endpoint, 0, null);
         }
 
+        /// <summary>A relay probe is usable only when the answer supplied a mapped address.</summary>
+        public static bool HasMappedAddress(Answer answer)
+        {
+            return answer != null && answer.Mapped != null;
+        }
+
         private static bool Same(byte[] left, byte[] right)
         {
             if (left == null || right == null) return false;
