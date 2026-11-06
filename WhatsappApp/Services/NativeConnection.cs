@@ -136,6 +136,10 @@ namespace WhatsappApp.Services
         /// <summary>The call offers this run has already put in front of the user, by id.</summary>
         private readonly HashSet<string> _announcedCalls = new HashSet<string>();
 
+        private readonly object _callCreatorGate = new object();
+        private readonly Dictionary<string, string> _callCreators = new Dictionary<string, string>();
+        private const int MaxRememberedCallCreators = 16;
+
         /// <summary>
         /// Whether this is the first copy of this call in this run.
         ///
@@ -152,6 +156,41 @@ namespace WhatsappApp.Services
                 if (_announcedCalls.Count >= MaxAwaitingAck) _announcedCalls.Clear();
                 return _announcedCalls.Add(callId);
             }
+        }
+
+        private void RememberCallCreator(string callId, string creatorJid)
+        {
+            if (string.IsNullOrEmpty(callId) || string.IsNullOrEmpty(creatorJid)) return;
+
+            lock (_callCreatorGate)
+            {
+                if (_callCreators.ContainsKey(callId))
+                {
+                    _callCreators[callId] = creatorJid;
+                    return;
+                }
+
+                if (_callCreators.Count >= MaxRememberedCallCreators) _callCreators.Clear();
+                _callCreators.Add(callId, creatorJid);
+            }
+        }
+
+        private string CallCreatorFor(string callId)
+        {
+            string creator;
+            lock (_callCreatorGate)
+            {
+                if (!string.IsNullOrEmpty(callId) && _callCreators.TryGetValue(callId, out creator))
+                    return creator;
+            }
+
+            throw new ProtocolException("the call " + callId + " has no creator to answer with");
+        }
+
+        private void ForgetCallCreator(string callId)
+        {
+            if (string.IsNullOrEmpty(callId)) return;
+            lock (_callCreatorGate) _callCreators.Remove(callId);
         }
 
         /// <summary>
@@ -178,8 +217,15 @@ namespace WhatsappApp.Services
         {
             if (signal == null || string.IsNullOrEmpty(signal.From)) return;
 
+            if (string.IsNullOrEmpty(signal.CallCreator))
+            {
+                Diag.Ok("native: cannot refuse late call " + signal.CallId + " without its creator");
+                return;
+            }
+
             Guarded.RunGuardedAsync("NativeConnection/refuse a late call",
-                SendSoonAsync(CallSignaling.Reject(signal.CallId, signal.From, "timeout")));
+                SendSoonAsync(CallSignaling.Reject(signal.CallId, signal.From,
+                    signal.CallCreator, "timeout")));
         }
 
         /// <summary>One stanza out, on a session opened for it: what a read-loop send needs.</summary>
@@ -405,12 +451,12 @@ namespace WhatsappApp.Services
         private int _callMediaPort;
 
         /// <summary>
-        /// The call whose relays were already measured and elected, so a node that arrives
-        /// twice does not probe them and answer the election a second time.
+        /// The call whose relay candidates were already probed, so duplicate signaling does
+        /// not repeat the reachability checks or latency reports.
         /// </summary>
-        private string _electedRelayCall;
+        private string _relayProbeCall;
 
-        /// <summary>One election at a time: the list is measured and answered as one thing.</summary>
+        /// <summary>Serializes candidate probes so duplicate call events cannot race.</summary>
         private readonly object _relayGate = new object();
 
         /// <summary>
@@ -3764,8 +3810,10 @@ namespace WhatsappApp.Services
         public async Task RejectCallAsync(string callId, string jid)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Reject(callId, jid));
+            await session.SendAsync(Calls.Reject(callId, jid, creator, null));
+            ForgetCallCreator(callId);
 
             // A refused call never reaches its media, so the key it carried is forgotten here:
             // keeping it would let a later call inherit a key that was sealed for another one.
@@ -3794,6 +3842,12 @@ namespace WhatsappApp.Services
             {
                 Diag.Ok("native: a call node this client cannot read: " + (node == null ? "no node" : node.ToString()));
                 return;
+            }
+
+            RememberCallCreator(signal.CallId, signal.CallCreator);
+            if (string.IsNullOrEmpty(signal.CallCreator))
+            {
+                Diag.Ok("native: call " + signal.CallId + " has no call-creator identity");
             }
 
             // Acked before anything else is decided: what this device does not answer is what
@@ -3835,11 +3889,9 @@ namespace WhatsappApp.Services
                 + (signal.Audio == null ? "" : ", " + signal.Audio.Count + " audio")
                 + (signal.RelayLatency == null ? "" : ", " + signal.RelayLatency.Count + " relay(s)"));
 
-            // Whether the answer carried the network's relay list. The reference clients take a
-            // call's relays from this answer and put the media through the one they elect
-            // (`WhiskeySockets/Baileys#40`), so a run that got no relay at all is a different
-            // problem from one that got the list and never elected, and this line is what tells
-            // the two apart on a phone nobody can watch.
+            // Whether the answer carried the network's relay list. Parsing and reporting a
+            // candidate latency does not bind a relay or route media through it; the active
+            // transport remains the separately negotiated ICE path.
             Diag.Ok("native: the call " + signal.CallId + " came with "
                 + (signal.Rte == null ? "no rte" : "an rte")
                 + " and " + (signal.Relays == null ? 0 : signal.Relays.Count) + " relay(s)");
@@ -3847,7 +3899,7 @@ namespace WhatsappApp.Services
             if (signal.Relays != null && signal.Relays.Count > 0)
             {
 #pragma warning disable 4014
-                Guarded.RunGuardedAsync("native/call relay", ElectRelayAsync(signal));
+                Guarded.RunGuardedAsync("native/call relay", ProbeRelaysAsync(signal));
 #pragma warning restore 4014
             }
 
@@ -3916,6 +3968,9 @@ namespace WhatsappApp.Services
             }
 
             if (CallSignalled != null) CallSignalled(this, signal);
+
+            if (signal.Kind == CallKind.Reject || signal.Kind == CallKind.Terminate)
+                ForgetCallCreator(signal.CallId);
         }
 
         /// <summary>
@@ -3982,6 +4037,7 @@ namespace WhatsappApp.Services
 
             string callId = NewCallId();
             NativeSession session = OpenSession();
+            RememberCallCreator(callId, session.Jid);
 
             RememberPlacedCall(callId, jid);
 
@@ -4314,18 +4370,14 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Measures the relays an answer offered, tells the other side what each answered, and
-        /// elects the one the media is meant to go through.
+        /// Measures candidate reachability and reports successful RTT samples. This does not
+        /// allocate a relay or change the active ICE media route.
         ///
-        /// Why the measurement happens here and not while the call rings: the list does not exist
-        /// before the answer, and a relay measured before the phone is reachable is a number about
-        /// nothing. Each probe leaves the socket the call's media already uses, which is also what
-        /// tells the relay where this phone is.
-        ///
-        /// Nothing is elected when nothing answered, and that is said rather than guessed: an
-        /// election on a latency nobody measured is a token sent to a relay nobody reached.
+        /// The candidate list arrives in call signaling, after this phone's media socket exists.
+        /// A standard STUN Binding response is only a reachability measurement; relay allocation,
+        /// authentication, and media routing require the separate WARP relay binding path.
         /// </summary>
-        private async Task ElectRelayAsync(CallSignal signal)
+        private async Task ProbeRelaysAsync(CallSignal signal)
         {
             if (signal == null || string.IsNullOrEmpty(signal.CallId)) return;
 
@@ -4333,8 +4385,8 @@ namespace WhatsappApp.Services
 
             lock (_relayGate)
             {
-                if (string.Equals(_electedRelayCall, callId, StringComparison.Ordinal)) return;
-                _electedRelayCall = callId;
+                if (string.Equals(_relayProbeCall, callId, StringComparison.Ordinal)) return;
+                _relayProbeCall = callId;
             }
 
             WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
@@ -4343,13 +4395,12 @@ namespace WhatsappApp.Services
                 Diag.Ok("native: the call " + callId + " names " + signal.Relays.Count
                     + " relay(s) and this phone holds no media socket to measure them from");
 
-                // The mark said "handled" for a list nothing measured: a node that arrives before
-                // the socket exists - the answer can be read before `call media` is up - would
-                // otherwise be the last chance this call ever had to elect a relay.
+                // Do not retain the mark when no socket exists: a later duplicate event may
+                // arrive after call media starts and can still measure the candidates.
                 lock (_relayGate)
                 {
-                    if (string.Equals(_electedRelayCall, callId, StringComparison.Ordinal))
-                        _electedRelayCall = null;
+                    if (string.Equals(_relayProbeCall, callId, StringComparison.Ordinal))
+                        _relayProbeCall = null;
                 }
 
                 return;
@@ -4364,10 +4415,11 @@ namespace WhatsappApp.Services
                 {
                     CallRelay relay = signal.Relays[i];
 
-                    if (relay == null || string.IsNullOrEmpty(relay.Host) || relay.Port <= 0)
+                    if (relay == null || string.IsNullOrEmpty(relay.Host) || relay.Port <= 0
+                        || relay.IsFallbackOnly || relay.AuthToken == null)
                     {
                         Diag.Ok("native: call " + callId + " relay " + i
-                            + " names no address this phone can probe ("
+                            + " is not an outbound latency candidate ("
                             + (relay == null || relay.Endpoint == null ? "no te2" : relay.Endpoint) + ")");
                         continue;
                     }
@@ -4387,23 +4439,35 @@ namespace WhatsappApp.Services
                     measured.Add(new CallRelayLatency
                     {
                         Latency = roundTrip,
-                        Data = relay.Token == null ? new byte[0] : relay.Token
+                        RelayName = relay.RelayName,
+                        Data = relay.PackedAddress
                     });
                 }
 
                 if (measured.Count == 0)
                 {
                     Diag.Ok("native: the call " + callId + " offered " + signal.Relays.Count
-                        + " relay(s) and none answered, so none is elected and the candidates stay the path");
+                        + " relay(s) and none answered; the current ICE media route is unchanged");
                     return;
                 }
 
-                await SendRelayLatencyAsync(callId, peer, measured);
+                if (string.IsNullOrEmpty(signal.CallCreator))
+                {
+                    Diag.Ok("native: the call " + callId + " has no call-creator, so relay reports are not sent");
+                    return;
+                }
+
+                for (int i = 0; i < measured.Count; i++)
+                {
+                    await SendRelayLatencyAsync(callId, signal.CallCreator, peer, measured[i]);
+                }
 
                 int best = CallSignaling.Election(measured);
-                if (best < 0) return;
-
-                await SendRelayElectionAsync(callId, peer, measured[best].Latency, measured[best].Data);
+                if (best >= 0)
+                {
+                    Diag.Ok("native: call " + callId + " measured relay " + measured[best].RelayName
+                        + " fastest at " + measured[best].Latency + " ms; no relay was bound or selected");
+                }
             }
             catch (Exception ex)
             {
@@ -4467,9 +4531,9 @@ namespace WhatsappApp.Services
             _incomingCallId = null;
             _incomingKeyTask = null;
 
-            // The next call elects its own relay: a call id is unique among calls, and one kept
-            // here would keep the next call's answer from being measured.
-            lock (_relayGate) { _electedRelayCall = null; }
+            // The next call measures its own candidates: a call id is unique among calls, and
+            // a retained probe mark would prevent those reachability checks.
+            lock (_relayGate) { _relayProbeCall = null; }
 
             if (transport == null) return;
 
@@ -4527,8 +4591,9 @@ namespace WhatsappApp.Services
         public async Task PreAcceptCallAsync(string callId, string jid)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(CallSignaling.PreAccept(callId, jid));
+            await session.SendAsync(Calls.PreAccept(callId, jid, creator));
             Diag.Ok("native: pre-accepted the call " + callId);
         }
 
@@ -4540,6 +4605,7 @@ namespace WhatsappApp.Services
         public async Task AcceptCallAsync(string callId, string jid)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
             // The same two streams the offer names, in the same order.
             var audio = new List<CallAudio>();
@@ -4556,7 +4622,7 @@ namespace WhatsappApp.Services
             string fingerprint = CallFingerprint.Format(
                 CallFingerprint.Of(_callMediaIdentity.Certificate));
 
-            await session.SendAsync(Calls.Accept(callId, jid, audio, null, candidates, fingerprint));
+            await session.SendAsync(Calls.Accept(callId, jid, creator, audio, null, candidates, fingerprint));
             Diag.Ok("native: accepted the call " + callId + " from " + jid
                 + " with " + candidates.Count + " candidate(s)");
 
@@ -4593,9 +4659,11 @@ namespace WhatsappApp.Services
         public async Task TerminateCallAsync(string callId, string jid, string reason)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(CallSignaling.Terminate(callId, jid, reason));
+            await session.SendAsync(Calls.Terminate(callId, jid, creator, reason));
             ForgetPlacedCall(callId);
+            ForgetCallCreator(callId);
             StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason);
         }
@@ -4610,9 +4678,11 @@ namespace WhatsappApp.Services
             string callId, string jid, string reason, int durationSeconds, int videoState)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Terminate(callId, jid, reason, durationSeconds, videoState));
+            await session.SendAsync(Calls.Terminate(callId, jid, creator, reason, durationSeconds, videoState));
             ForgetPlacedCall(callId);
+            ForgetCallCreator(callId);
             StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason
                 + " after " + durationSeconds + " s");
@@ -4634,6 +4704,7 @@ namespace WhatsappApp.Services
 
             string callId = NewCallId();
             NativeSession session = OpenSession();
+            RememberCallCreator(callId, session.Jid);
 
             BinaryNode offer = Calls.Offer(callId, jid, session.Jid, OurIdentity(), audio, video, key, candidates);
             KeepOfferedCall(callId);
@@ -4653,8 +4724,9 @@ namespace WhatsappApp.Services
             string callId, string jid, IList<CallAudio> audio, IList<CallVideoDescription> video)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.PreAccept(callId, jid, audio, video));
+            await session.SendAsync(Calls.PreAccept(callId, jid, creator, audio, video));
             Diag.Ok("native: pre-accepted the call " + callId);
         }
 
@@ -4667,8 +4739,9 @@ namespace WhatsappApp.Services
             IList<CallCandidate> candidates)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Accept(callId, jid, audio, video, candidates));
+            await session.SendAsync(Calls.Accept(callId, jid, creator, audio, video, candidates, null));
             Diag.Ok("native: accepted the call " + callId + " from " + jid);
         }
 
@@ -4680,8 +4753,9 @@ namespace WhatsappApp.Services
             string callId, string jid, uint retryCount, uint registrationId)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.RejectUndecryptable(callId, jid, retryCount, registrationId));
+            await session.SendAsync(Calls.RejectUndecryptable(callId, jid, creator, retryCount, registrationId));
             Diag.Ok("native: refused the call " + callId + " as undecryptable, retry " + retryCount);
         }
 
@@ -4689,26 +4763,31 @@ namespace WhatsappApp.Services
         public async Task SendCallTransportAsync(string callId, string jid, IList<CallCandidate> candidates)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Transport(callId, jid, candidates));
+            await session.SendAsync(Calls.Transport(callId, jid, creator, candidates));
             Diag.Ok("native: sent " + candidates.Count + " candidate(s) for the call " + callId);
         }
 
-        /// <summary>What each relay answered: the election is decided on these numbers.</summary>
-        public async Task SendRelayLatencyAsync(string callId, string jid, IList<CallRelayLatency> relays)
+        /// <summary>Reports one measured relay candidate without changing the media route.</summary>
+        public async Task SendRelayLatencyAsync(
+            string callId, string creatorJid, string jid, CallRelayLatency relay)
         {
             NativeSession session = OpenSession();
 
-            await session.SendAsync(Calls.RelayLatency(callId, jid, relays));
-            Diag.Ok("native: measured " + relays.Count + " relay(s) for the call " + callId);
+            await session.SendAsync(Calls.RelayLatency(callId, creatorJid, jid, relay, null));
+            Diag.Ok("native: reported relay " + relay.RelayName + " at " + relay.Latency
+                + " ms for the call " + callId);
         }
 
-        /// <summary>The relay this side elects, with the token the other side sends to.</summary>
-        public async Task SendRelayElectionAsync(string callId, string jid, int latency, byte[] token)
+        /// <summary>The legacy relay-election action, with the call creator echoed.</summary>
+        public async Task SendRelayElectionAsync(
+            string callId, string jid, int latency, byte[] token)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.RelayElection(callId, jid, latency, token));
+            await session.SendAsync(Calls.RelayElection(callId, jid, creator, latency, token));
             Diag.Ok("native: elected a relay at " + latency + " ms for the call " + callId);
         }
 
@@ -4716,8 +4795,9 @@ namespace WhatsappApp.Services
         public async Task SendVideoStateAsync(string callId, string jid, int state, int orientation)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Video(callId, jid, state, orientation));
+            await session.SendAsync(Calls.Video(callId, jid, creator, state, orientation));
             Diag.Ok("native: video state " + state + " for the call " + callId);
         }
 
@@ -4725,16 +4805,18 @@ namespace WhatsappApp.Services
         public async Task SendBatteryAsync(string callId, string jid, int batteryState)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Notify(callId, jid, batteryState));
+            await session.SendAsync(Calls.Notify(callId, jid, creator, batteryState));
         }
 
         /// <summary>The call was put on hold, or picked up again.</summary>
         public async Task SendCallInterruptionAsync(string callId, string jid, bool begin)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Interruption(callId, jid, begin));
+            await session.SendAsync(Calls.Interruption(callId, jid, creator, begin));
             Diag.Ok("native: call " + callId + (begin ? " interrupted" : " resumed"));
         }
 
@@ -4742,8 +4824,9 @@ namespace WhatsappApp.Services
         public async Task SendCallMuteAsync(string callId, string jid, bool muted)
         {
             NativeSession session = OpenSession();
+            string creator = CallCreatorFor(callId);
 
-            await session.SendAsync(Calls.Mute(callId, jid, muted));
+            await session.SendAsync(Calls.Mute(callId, jid, creator, muted));
             Diag.Ok("native: call " + callId + (muted ? " muted" : " unmuted"));
         }
 

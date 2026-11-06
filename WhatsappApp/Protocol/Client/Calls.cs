@@ -148,6 +148,11 @@ namespace WhatsappApp.Protocol.Client
         /// the caller (`whatsmeow`, `send.go` and `call.go`, `RejectCall`: `<call to=. id=.>
         /// <reject/></call>`).
         /// </summary>
+        public static BinaryNode Reject(string callId, string jid, string callCreator, string reason)
+        {
+            return CallSignaling.Reject(callId, jid, callCreator, reason);
+        }
+
         public static BinaryNode Reject(string callId, string jid)
         {
             // Built by `CallSignaling` and not here, because the rest of the family
@@ -161,6 +166,12 @@ namespace WhatsappApp.Protocol.Client
         /// The refusal that carries the reason the official client has for a call it could not
         /// decrypt: `reason="enc"`, the retry count, and this phone's registration id.
         /// </summary>
+        public static BinaryNode RejectUndecryptable(
+            string callId, string jid, string callCreator, uint retryCount, uint registrationId)
+        {
+            return CallSignaling.RejectUndecryptable(callId, jid, callCreator, retryCount, registrationId);
+        }
+
         public static BinaryNode RejectUndecryptable(
             string callId, string jid, uint retryCount, uint registrationId)
         {
@@ -262,6 +273,18 @@ namespace WhatsappApp.Protocol.Client
         public static BinaryNode Accept(
             string callId,
             string jid,
+            string callCreator,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallCandidate> candidates,
+            string fingerprint)
+        {
+            return CallSignaling.Accept(callId, jid, callCreator, audio, video, candidates, fingerprint);
+        }
+
+        public static BinaryNode Accept(
+            string callId,
+            string jid,
             IList<CallAudio> audio,
             IList<CallVideoDescription> video,
             IList<CallCandidate> candidates,
@@ -270,18 +293,51 @@ namespace WhatsappApp.Protocol.Client
             return CallSignaling.Accept(callId, jid, audio, video, candidates, fingerprint);
         }
 
+        /// <summary>The minimal pre-accept with the creator identity copied from the offer.</summary>
+        public static BinaryNode PreAccept(string callId, string jid, string callCreator)
+        {
+            return CallSignaling.PreAccept(callId, jid, callCreator);
+        }
+
         /// <summary>The pre-accept, with the same media description the answer will use.</summary>
+        public static BinaryNode PreAccept(
+            string callId, string jid, string callCreator,
+            IList<CallAudio> audio, IList<CallVideoDescription> video)
+        {
+            return CallSignaling.PreAccept(callId, jid, callCreator, audio, video);
+        }
+
         public static BinaryNode PreAccept(
             string callId, string jid, IList<CallAudio> audio, IList<CallVideoDescription> video)
         {
             return CallSignaling.PreAccept(callId, jid, audio, video);
         }
 
+        /// <summary>A terminate with the creator identity copied from the offer.</summary>
+        public static BinaryNode Terminate(string callId, string jid, string callCreator, string reason)
+        {
+            return CallSignaling.Terminate(callId, jid, callCreator, reason);
+        }
+
         /// <summary>A terminate that says how long the call lasted and what the video was doing.</summary>
+        public static BinaryNode Terminate(
+            string callId, string jid, string callCreator, string reason,
+            int durationSeconds, int videoState)
+        {
+            return CallSignaling.Terminate(callId, jid, callCreator, reason, durationSeconds, videoState);
+        }
+
         public static BinaryNode Terminate(
             string callId, string jid, string reason, int durationSeconds, int videoState)
         {
             return CallSignaling.Terminate(callId, jid, reason, durationSeconds, videoState);
+        }
+
+        /// <summary>Fresh candidates with the creator identity copied from the offer.</summary>
+        public static BinaryNode Transport(
+            string callId, string jid, string callCreator, IList<CallCandidate> candidates)
+        {
+            return CallSignaling.Transport(callId, jid, callCreator, candidates);
         }
 
         /// <summary>Fresh candidates for the other side: `<transport call-id><te/></transport>`.</summary>
@@ -290,37 +346,65 @@ namespace WhatsappApp.Protocol.Client
             return CallSignaling.Transport(callId, jid, candidates);
         }
 
-        /// <summary>What each relay answered, to be elected with `RelayElection`.</summary>
-        public static BinaryNode RelayLatency(string callId, string jid, IList<CallRelayLatency> relays)
+        /// <summary>Reports one relay candidate's measured RTT.</summary>
+        public static BinaryNode RelayLatency(string callId, string creatorJid, string jid,
+            CallRelayLatency relay, IList<string> destinationDeviceJids)
         {
-            return CallSignaling.RelayLatency(callId, jid, relays);
+            return CallSignaling.RelayLatency(callId, creatorJid, jid, relay, destinationDeviceJids);
         }
 
-        /// <summary>The relay this side elects, with the token the media is sent to.</summary>
+        /// <summary>The legacy relay-election action; this does not bind the media route.</summary>
+        public static BinaryNode RelayElection(string callId, string jid, string callCreator,
+            int latency, byte[] token)
+        {
+            return CallSignaling.RelayElection(callId, jid, callCreator, latency, token);
+        }
+
         public static BinaryNode RelayElection(string callId, string jid, int latency, byte[] token)
         {
             return CallSignaling.RelayElection(callId, jid, latency, token);
         }
 
         /// <summary>Video on, off, or turned.</summary>
+        public static BinaryNode Video(string callId, string jid, string callCreator,
+            int state, int orientation)
+        {
+            return CallSignaling.Video(callId, jid, callCreator, state, orientation);
+        }
+
         public static BinaryNode Video(string callId, string jid, int state, int orientation)
         {
             return CallSignaling.Video(callId, jid, state, orientation);
         }
 
         /// <summary>The other phone's battery, which the official client sends during a call.</summary>
+        public static BinaryNode Notify(string callId, string jid, string callCreator, int batteryState)
+        {
+            return CallSignaling.Notify(callId, jid, callCreator, batteryState);
+        }
+
         public static BinaryNode Notify(string callId, string jid, int batteryState)
         {
             return CallSignaling.Notify(callId, jid, batteryState);
         }
 
         /// <summary>The call was put on hold (`begin`) or picked up again (`end`).</summary>
+        public static BinaryNode Interruption(string callId, string jid, string callCreator, bool begin)
+        {
+            return CallSignaling.Interruption(callId, jid, callCreator, begin);
+        }
+
         public static BinaryNode Interruption(string callId, string jid, bool begin)
         {
             return CallSignaling.Interruption(callId, jid, begin);
         }
 
         /// <summary>The call was muted (`begin`) or unmuted (`end`).</summary>
+        public static BinaryNode Mute(string callId, string jid, string callCreator, bool muted)
+        {
+            return CallSignaling.Mute(callId, jid, callCreator, muted);
+        }
+
         public static BinaryNode Mute(string callId, string jid, bool muted)
         {
             return CallSignaling.Mute(callId, jid, muted);

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
+using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WABinary;
 
 namespace WhatsappApp.Protocol.Client
@@ -345,32 +346,266 @@ namespace WhatsappApp.Protocol.Client
     /// <summary>A relay's measured latency: `<te latency="42">bytes</te>`.</summary>
     public sealed class CallRelayLatency
     {
+        /// <summary>The measured round-trip time in milliseconds, without wire encoding.</summary>
         public int Latency;
+
+        /// <summary>The relay's name as the endpoint advertised it.</summary>
+        public string RelayName;
+
+        /// <summary>The packed address bytes the relay advertised.</summary>
         public byte[] Data;
     }
 
     /// <summary>
-    /// One relay the network offered for a call: where it is, and the token that names it.
-    ///
-    /// The answer to an offer carries them - the flow the reference thread documents
-    /// (`WhiskeySockets/Baileys#40`): a `relay` per relay, its `te2` the address to probe and
-    /// its `token` the bytes handed back when one is elected. Nothing else about a relay is
-    /// known here: the latency is measured with a datagram, and the election is that
-    /// measurement's answer.
+    /// One relay block from a call offer, including the credentials and indexed token tables
+    /// shared by its `te2` endpoints.
     /// </summary>
+    public sealed class CallRelayBlock
+    {
+        private const int MaximumTokenIndex = 255;
+
+        public string Uuid;
+        public string SelfParticipantId;
+        public string PeerParticipantId;
+        public string RelayKeyText;
+        public byte[] RelayKey;
+        public byte[] HopByHopKey;
+        public int WarpMiTagLength;
+        public IList<byte[]> Tokens;
+        public IList<byte[]> AuthTokens;
+
+        /// <summary>Reads one block; unknown children remain harmless to this client.</summary>
+        public static CallRelayBlock Read(BinaryNode node)
+        {
+            if (node == null || node.Tag != "relay") return null;
+
+            var block = new CallRelayBlock();
+            block.Uuid = node.Attrs["uuid"];
+            block.SelfParticipantId = node.Attrs["self_pid"];
+            block.PeerParticipantId = node.Attrs["peer_pid"];
+
+            BinaryNode key = node.Child("key");
+            block.RelayKeyText = TextOf(key);
+            block.RelayKey = DecodeBase64(block.RelayKeyText);
+            if (block.RelayKey == null) block.RelayKey = ContentBytes(key);
+
+            BinaryNode hopByHop = node.Child("hbh_key");
+            byte[] rawHopByHop = hopByHop == null ? null : hopByHop.Bytes();
+            if (rawHopByHop != null && rawHopByHop.Length == 30)
+            {
+                block.HopByHopKey = (byte[])rawHopByHop.Clone();
+            }
+            else
+            {
+                byte[] firstDecode = DecodeBase64(TextOf(hopByHop));
+                if (firstDecode != null && firstDecode.Length == 30)
+                {
+                    block.HopByHopKey = firstDecode;
+                }
+                else if (firstDecode != null)
+                {
+                    byte[] secondDecode = DecodeBase64(Encoding.UTF8.GetString(
+                        firstDecode, 0, firstDecode.Length));
+                    if (secondDecode != null && secondDecode.Length == 30)
+                        block.HopByHopKey = secondDecode;
+                }
+            }
+
+            block.WarpMiTagLength = ParseNonnegative(TextOf(node.Child("warp_mi_tag_len")), 0);
+            block.Tokens = ReadTable(node, "token");
+            block.AuthTokens = ReadTable(node, "auth_token");
+            return block;
+        }
+
+        /// <summary>The token at an endpoint's index, or null when the index is invalid.</summary>
+        public byte[] TokenAt(int index)
+        {
+            return At(Tokens, index);
+        }
+
+        /// <summary>The authentication token at an endpoint's index, or null when absent.</summary>
+        public byte[] AuthTokenAt(int index)
+        {
+            return At(AuthTokens, index);
+        }
+
+        private static IList<byte[]> ReadTable(BinaryNode node, string tag)
+        {
+            var values = new Dictionary<int, byte[]>();
+            var invalid = new HashSet<int>();
+            IList<BinaryNode> children = node.Children();
+            int nextIndex = 0;
+
+            if (children != null)
+            {
+                for (int i = 0; i < children.Count; i++)
+                {
+                    BinaryNode child = children[i];
+                    if (child == null || child.Tag != tag) continue;
+
+                    int index;
+                    string id = child.Attrs["id"];
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        while (values.ContainsKey(nextIndex) || invalid.Contains(nextIndex)) nextIndex++;
+                        index = nextIndex++;
+                    }
+                    else if (!int.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out index)
+                        || index < 0 || index > MaximumTokenIndex)
+                    {
+                        continue;
+                    }
+
+                    if (invalid.Contains(index)) continue;
+                    if (values.ContainsKey(index))
+                    {
+                        values.Remove(index);
+                        invalid.Add(index);
+                        continue;
+                    }
+
+                    byte[] bytes = ContentBytes(child);
+                    if (bytes != null) values.Add(index, bytes);
+                }
+            }
+
+            int count = 0;
+            foreach (int index in values.Keys) if (index + 1 > count) count = index + 1;
+            foreach (int index in invalid) if (index + 1 > count) count = index + 1;
+
+            var table = new List<byte[]>(count);
+            for (int i = 0; i < count; i++) table.Add(null);
+            foreach (KeyValuePair<int, byte[]> pair in values)
+            {
+                if (!invalid.Contains(pair.Key)) table[pair.Key] = pair.Value;
+            }
+
+            return table;
+        }
+
+        private static byte[] At(IList<byte[]> table, int index)
+        {
+            if (table == null || index < 0 || index >= table.Count) return null;
+            return table[index];
+        }
+
+        private static string TextOf(BinaryNode node)
+        {
+            if (node == null) return null;
+            string text = node.Text();
+            if (text != null) return text;
+
+            byte[] bytes = node.Bytes();
+            return bytes == null ? null : Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+        }
+
+        private static byte[] ContentBytes(BinaryNode node)
+        {
+            if (node == null) return null;
+            byte[] bytes = node.Bytes();
+            if (bytes != null) return (byte[])bytes.Clone();
+
+            string text = node.Text();
+            return text == null ? null : Encoding.UTF8.GetBytes(text);
+        }
+
+        private static byte[] DecodeBase64(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return null;
+
+            string clean = text.Trim();
+            int remainder = clean.Length % 4;
+            if (remainder != 0) clean = clean + new string('=', 4 - remainder);
+
+            try
+            {
+                return Convert.FromBase64String(clean);
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+        }
+
+        private static int ParseNonnegative(string text, int fallback)
+        {
+            int value;
+            return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value)
+                && value >= 0 ? value : fallback;
+        }
+    }
+
+    /// <summary>One packed relay endpoint and its indices into the parent relay's token tables.</summary>
     public sealed class CallRelay
     {
-        /// <summary>The address as the node spelled it, for the log and for the probe.</summary>
+        public CallRelayBlock Block;
+        public StunEndpoint Address;
         public string Endpoint;
-
-        /// <summary>The host without the port, which is what a socket is handed, or null.</summary>
+        public byte[] PackedAddress;
         public string Host;
-
-        /// <summary>The port, or 0 when the node named no readable one.</summary>
         public int Port;
-
-        /// <summary>What an election hands back, or null when the node carried no bytes.</summary>
+        public string RelayName;
+        public int RelayId;
+        public int TokenId;
+        public int AuthTokenId;
+        public int Protocol;
+        public bool IsFallbackOnly;
+        public int? ClientToRelayRttMilliseconds;
         public byte[] Token;
+        public byte[] AuthToken;
+
+        /// <summary>Reads one binary `te2` endpoint; malformed lengths are not candidates.</summary>
+        public static CallRelay Read(BinaryNode node, CallRelayBlock block)
+        {
+            if (node == null || node.Tag != "te2" || block == null) return null;
+
+            byte[] packed = node.Bytes();
+            if (packed == null || (packed.Length != 6 && packed.Length != 18)) return null;
+
+            int addressLength = packed.Length - 2;
+            var addressBytes = new byte[addressLength];
+            Buffer.BlockCopy(packed, 0, addressBytes, 0, addressLength);
+            int port = (packed[addressLength] << 8) | packed[addressLength + 1];
+            if (port == 0) return null;
+
+            var relay = new CallRelay();
+            relay.Block = block;
+            relay.PackedAddress = (byte[])packed.Clone();
+            relay.Address = new StunEndpoint(addressBytes, port);
+            relay.Host = relay.Address.Text;
+            relay.Port = port;
+            relay.Endpoint = (relay.Address.IsIPv6 ? "[" + relay.Host + "]" : relay.Host) + ":" + port;
+            relay.RelayName = node.Attrs["relay_name"];
+            relay.RelayId = ParseNonnegative(node.Attrs["relay_id"], 0);
+            relay.TokenId = ParseIndex(node.Attrs["token_id"]);
+            relay.AuthTokenId = ParseIndex(node.Attrs["auth_token_id"]);
+            relay.Protocol = ParseNonnegative(node.Attrs["protocol"], 0);
+            relay.IsFallbackOnly = node.Attrs["is_fna"] == "1";
+            int rtt;
+            if (int.TryParse(node.Attrs["c2r_rtt"], NumberStyles.None,
+                CultureInfo.InvariantCulture, out rtt) && rtt >= 0)
+                relay.ClientToRelayRttMilliseconds = rtt;
+
+            relay.Token = block.TokenAt(relay.TokenId);
+            relay.AuthToken = block.AuthTokenAt(relay.AuthTokenId);
+            return relay;
+        }
+
+        private static int ParseNonnegative(string text, int fallback)
+        {
+            int value;
+            return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value)
+                && value >= 0 ? value : fallback;
+        }
+
+        private static int ParseIndex(string text)
+        {
+            if (string.IsNullOrEmpty(text)) return 0;
+
+            int value;
+            return int.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out value)
+                && value >= 0 ? value : -1;
+        }
     }
 
     /// <summary>
@@ -408,6 +643,9 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>Who sent this node, as the stanza's `from`. Null on our own.</summary>
         public string From;
+
+        /// <summary>The creator identity every later action must echo, or null if absent.</summary>
+        public string CallCreator;
 
         /// <summary>Who it is addressed to, as the stanza's `to`.</summary>
         public string To;
@@ -853,6 +1091,15 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("preaccept", callId, null, null));
         }
 
+        /// <summary>The pre-accept with the creator identity copied from the incoming offer.</summary>
+        public static BinaryNode PreAccept(string callId, string to, string callCreator)
+        {
+            Require(callId, to, "pre-accepted");
+            RequireCreator(callCreator, "pre-accepted");
+
+            return Wrap(callId, to, Verb("preaccept", callId, callCreator, null, null));
+        }
+
         /// <summary>
         /// A pre-accept with the media it will use: `<preaccept call-id><audio/><video/>.`.
         /// The official client sends the whole audio list here and only the first in `accept`.
@@ -869,12 +1116,36 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("preaccept", callId, null, children));
         }
 
+        /// <summary>The pre-accept with media and the creator identity from the offer.</summary>
+        public static BinaryNode PreAccept(
+            string callId, string to, string callCreator,
+            IList<CallAudio> audio, IList<CallVideoDescription> video)
+        {
+            Require(callId, to, "pre-accepted");
+            RequireCreator(callCreator, "pre-accepted");
+
+            var children = new List<BinaryNode>();
+            AddAudio(children, audio);
+            AddVideo(children, video);
+
+            return Wrap(callId, to, Verb("preaccept", callId, callCreator, null, children));
+        }
+
         /// <summary>The call is answered: `<call><accept call-id/></call>`.</summary>
         public static BinaryNode Accept(string callId, string to)
         {
             Require(callId, to, "accepted");
 
             return Wrap(callId, to, Verb("accept", callId, null, null));
+        }
+
+        /// <summary>The minimal answer with the creator identity copied from the offer.</summary>
+        public static BinaryNode Accept(string callId, string to, string callCreator)
+        {
+            Require(callId, to, "accepted");
+            RequireCreator(callCreator, "accepted");
+
+            return Wrap(callId, to, Verb("accept", callId, callCreator, null, null));
         }
 
         /// <summary>
@@ -922,6 +1193,27 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("accept", callId, null, children));
         }
 
+        /// <summary>The media answer with the creator identity copied from the offer.</summary>
+        public static BinaryNode Accept(
+            string callId,
+            string to,
+            string callCreator,
+            IList<CallAudio> audio,
+            IList<CallVideoDescription> video,
+            IList<CallCandidate> candidates,
+            string fingerprint)
+        {
+            Require(callId, to, "accepted");
+            RequireCreator(callCreator, "accepted");
+
+            var children = new List<BinaryNode>();
+            if (audio != null && audio.Count > 0) AddAudio(children, new List<CallAudio> { audio[0] });
+            AddVideo(children, video);
+            AddDestination(children, candidates, fingerprint);
+
+            return Wrap(callId, to, Verb("accept", callId, callCreator, null, children));
+        }
+
         /// <summary>
         /// The call is refused: `<call><reject call-id reason/></call>`, with a `reason` when
         /// there is one worth saying. `Calls.Reject` is this, without a reason.
@@ -934,6 +1226,18 @@ namespace WhatsappApp.Protocol.Client
             if (!string.IsNullOrEmpty(reason)) attrs.Add(Key("reason", reason));
 
             return Wrap(callId, to, Verb("reject", callId, attrs, null));
+        }
+
+        /// <summary>A refusal with the creator identity copied from the offer.</summary>
+        public static BinaryNode Reject(string callId, string to, string callCreator, string reason)
+        {
+            Require(callId, to, "refused");
+            RequireCreator(callCreator, "refused");
+
+            var attrs = new List<KeyValuePair<string, string>>();
+            if (!string.IsNullOrEmpty(reason)) attrs.Add(Key("reason", reason));
+
+            return Wrap(callId, to, Verb("reject", callId, callCreator, attrs, null));
         }
 
         /// <summary>
@@ -959,6 +1263,23 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("reject", callId, attrs, children));
         }
 
+        /// <summary>The undecryptable-key refusal with the creator identity copied from the offer.</summary>
+        public static BinaryNode RejectUndecryptable(
+            string callId, string to, string callCreator, uint retryCount, uint registrationId)
+        {
+            Require(callId, to, "refused");
+            RequireCreator(callCreator, "refused");
+
+            var attrs = new List<KeyValuePair<string, string>>();
+            attrs.Add(Key("reason", "enc"));
+            if (retryCount != 0) attrs.Add(Key("count", Number(retryCount)));
+
+            var registration = new BinaryNode("registration");
+            registration.Content = UInt32(registrationId);
+            return Wrap(callId, to, Verb("reject", callId, callCreator, attrs,
+                new List<BinaryNode> { registration }));
+        }
+
         /// <summary>
         /// The call is over: `<call><terminate call-id reason/></call>`. The reason matters -
         /// the other side's log reads it to say "busy", "missed" or "ended" - and so do the
@@ -970,6 +1291,12 @@ namespace WhatsappApp.Protocol.Client
             Require(callId, to, "ended");
 
             return Terminate(callId, to, reason, -1, -1);
+        }
+
+        /// <summary>A call end with the creator identity copied from the offer.</summary>
+        public static BinaryNode Terminate(string callId, string to, string callCreator, string reason)
+        {
+            return Terminate(callId, to, callCreator, reason, -1, -1);
         }
 
         /// <summary>A terminate with the duration and the video state the official node carries.</summary>
@@ -986,6 +1313,22 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("terminate", callId, attrs, null));
         }
 
+        /// <summary>A call end with duration and the creator identity copied from the offer.</summary>
+        public static BinaryNode Terminate(
+            string callId, string to, string callCreator, string reason,
+            int durationSeconds, int videoState)
+        {
+            Require(callId, to, "ended");
+            RequireCreator(callCreator, "ended");
+
+            var attrs = new List<KeyValuePair<string, string>>();
+            if (!string.IsNullOrEmpty(reason)) attrs.Add(Key("reason", reason));
+            if (durationSeconds >= 0) attrs.Add(Key("duration", Number(durationSeconds)));
+            if (videoState != 0) attrs.Add(Key("videostate", Number(videoState)));
+
+            return Wrap(callId, to, Verb("terminate", callId, callCreator, attrs, null));
+        }
+
         /// <summary>The candidates of a later measurement: `<transport call-id><te/></transport>`.</summary>
         public static BinaryNode Transport(string callId, string to, IList<CallCandidate> candidates)
         {
@@ -997,24 +1340,46 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("transport", callId, null, children));
         }
 
-        /// <summary>What each relay answered: `<relaylatency call-id><te latency/></relaylatency>`.</summary>
-        public static BinaryNode RelayLatency(string callId, string to, IList<CallRelayLatency> relays)
+        /// <summary>A transport update with the creator identity copied from the offer.</summary>
+        public static BinaryNode Transport(
+            string callId, string to, string callCreator, IList<CallCandidate> candidates)
         {
-            Require(callId, to, "measured a relay for");
+            Require(callId, to, "sent its transport for");
+            RequireCreator(callCreator, "sent transport for");
 
             var children = new List<BinaryNode>();
-            if (relays != null)
-            {
-                for (int i = 0; i < relays.Count; i++)
-                {
-                    var te = new BinaryNode("te");
-                    te.Attrs.Add("latency", Number(relays[i].Latency));
-                    te.Content = relays[i].Data;
-                    children.Add(te);
-                }
-            }
+            AddDestination(children, candidates);
 
-            return Wrap(callId, to, Verb("relaylatency", callId, null, children));
+            return Wrap(callId, to, Verb("transport", callId, callCreator, null, children));
+        }
+
+        /// <summary>
+        /// Reports one measured relay: its RTT is offset on the wire, and its packed address
+        /// and name identify the sample (`call-relaylatency`, SIG-15).
+        /// </summary>
+        public static BinaryNode RelayLatency(string callId, string creatorJid, string to,
+            CallRelayLatency relay, IList<string> destinationDeviceJids)
+        {
+            Require(callId, to, "measured a relay for");
+            RequireCreator(creatorJid, "measured a relay for");
+
+            if (relay == null || relay.Latency < 0 || string.IsNullOrEmpty(relay.RelayName)
+                || relay.Data == null || relay.Data.Length == 0)
+                throw new ProtocolException("a relay latency needs its name, address and RTT");
+
+            var te = new BinaryNode("te");
+            te.Attrs.Add("latency", Number(0x02000000u + (uint)relay.Latency));
+            te.Attrs.Add("relay_name", relay.RelayName);
+            te.Content = relay.Data;
+
+            var children = new List<BinaryNode> { te };
+            AddDestinationDevices(children, destinationDeviceJids);
+
+            var action = Verb("relaylatency", callId, creatorJid, null, children);
+            var call = new BinaryNode(Tag);
+            call.Attrs.Add("to", to);
+            call.Content = new List<BinaryNode> { action };
+            return call;
         }
 
         /// <summary>
@@ -1034,12 +1399,24 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("relayelection", callId, null, new List<BinaryNode> { te }));
         }
 
+        /// <summary>The elected-relay action with the creator identity copied from the offer.</summary>
+        public static BinaryNode RelayElection(string callId, string to, string callCreator,
+            int latency, byte[] token)
+        {
+            Require(callId, to, "elected a relay for");
+            RequireCreator(callCreator, "elected a relay for");
+
+            var te = new BinaryNode("te");
+            te.Attrs.Add("latency", Number(latency));
+            te.Content = token;
+
+            return Wrap(callId, to, Verb("relayelection", callId, callCreator,
+                null, new List<BinaryNode> { te }));
+        }
+
         /// <summary>
-        /// Which relay is the one, given what each answered: the lowest latency, and the first of
-        /// equals.
-        ///
-        /// Why here and not at the measurement: the rule is the wire's, both ends elect from the
-        /// same list, and one that lived in the app would be a second copy of it.
+        /// Ranks measured relay candidates by RTT for diagnostics, keeping the first of equals.
+        /// This helper does not build a relay-election stanza or select a media route.
         /// </summary>
         public static int Election(IList<CallRelayLatency> relays)
         {
@@ -1060,15 +1437,25 @@ namespace WhatsappApp.Protocol.Client
         {
             Require(callId, to, "changed video for");
 
-            var attrs = new List<KeyValuePair<string, string>>();
-            attrs.Add(Key("state", Number(state)));
-            attrs.Add(Key("orientation", Number(orientation)));
-
-            // The id, the state and the orientation, in the official order: the verb's own
-            // `call-id` comes first (`WriteVoipNode`, message type 13).
             var video = new BinaryNode("video");
             video.Attrs.Add("call-id", callId);
-            for (int i = 0; i < attrs.Count; i++) video.Attrs.Add(attrs[i].Key, attrs[i].Value);
+            video.Attrs.Add("state", Number(state));
+            video.Attrs.Add("orientation", Number(orientation));
+
+            return Wrap(callId, to, video);
+        }
+
+        /// <summary>A video-state action with the creator identity copied from the offer.</summary>
+        public static BinaryNode Video(string callId, string to, string callCreator, int state, int orientation)
+        {
+            Require(callId, to, "changed video for");
+            RequireCreator(callCreator, "changed video for");
+
+            var video = new BinaryNode("video");
+            video.Attrs.Add("call-id", callId);
+            video.Attrs.Add("call-creator", callCreator);
+            video.Attrs.Add("state", Number(state));
+            video.Attrs.Add("orientation", Number(orientation));
 
             return Wrap(callId, to, video);
         }
@@ -1085,6 +1472,20 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, notify);
         }
 
+        /// <summary>A battery notification with the creator identity copied from the offer.</summary>
+        public static BinaryNode Notify(string callId, string to, string callCreator, int batteryState)
+        {
+            Require(callId, to, "notified");
+            RequireCreator(callCreator, "notified");
+
+            var notify = new BinaryNode("notify");
+            notify.Attrs.Add("call-id", callId);
+            notify.Attrs.Add("call-creator", callCreator);
+            notify.Attrs.Add("batterystate", Number(batteryState));
+
+            return Wrap(callId, to, notify);
+        }
+
         /// <summary>The call was put on hold (`begin`) or picked up again (`end`).</summary>
         public static BinaryNode Interruption(string callId, string to, bool begin)
         {
@@ -1093,12 +1494,30 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, StateVerb("interruption", callId, begin));
         }
 
+        /// <summary>An interruption action with the creator identity copied from the offer.</summary>
+        public static BinaryNode Interruption(string callId, string to, string callCreator, bool begin)
+        {
+            Require(callId, to, "interrupted");
+            RequireCreator(callCreator, "interrupted");
+
+            return Wrap(callId, to, StateVerb("interruption", callId, callCreator, begin));
+        }
+
         /// <summary>The call was muted (`begin`) or unmuted (`end`).</summary>
         public static BinaryNode Mute(string callId, string to, bool muted)
         {
             Require(callId, to, "muted");
 
             return Wrap(callId, to, StateVerb("mute", callId, muted));
+        }
+
+        /// <summary>A mute action with the creator identity copied from the offer.</summary>
+        public static BinaryNode Mute(string callId, string to, string callCreator, bool muted)
+        {
+            Require(callId, to, "muted");
+            RequireCreator(callCreator, "muted");
+
+            return Wrap(callId, to, StateVerb("mute", callId, callCreator, muted));
         }
 
         /// <summary>
@@ -1120,6 +1539,9 @@ namespace WhatsappApp.Protocol.Client
             signal.CallId = IdOf(node, verb);
             signal.From = node.Attrs["from"];
             signal.To = node.Attrs["to"];
+            signal.CallCreator = First(verb, "call-creator");
+            if (string.IsNullOrEmpty(signal.CallCreator))
+                signal.CallCreator = First(node, "call-creator");
             signal.Kind = verb == null ? CallKind.Unknown : KindOf(verb.Tag);
 
             // The time and the offline mark are what tell a call that is happening from the
@@ -1224,7 +1646,10 @@ namespace WhatsappApp.Protocol.Client
                         if (signal.RelayLatency == null) signal.RelayLatency = new List<CallRelayLatency>();
 
                         var relay = new CallRelayLatency();
-                        relay.Latency = Int(child.Attrs["latency"], 0);
+                        relay.Latency = signal.Kind == CallKind.RelayLatency
+                            ? RelayLatencyMilliseconds(child.Attrs["latency"])
+                            : Int(child.Attrs["latency"], -1);
+                        relay.RelayName = child.Attrs["relay_name"];
                         relay.Data = child.Bytes() ?? Empty();
                         signal.RelayLatency.Add(relay);
                     }
@@ -1269,7 +1694,7 @@ namespace WhatsappApp.Protocol.Client
             return parent == null ? null : parent.Child(tag);
         }
 
-        /// <summary>Every `relay` child of a node, in the order the node carried them.</summary>
+        /// <summary>Every usable packed endpoint in one relay block, in wire order.</summary>
         private static void CollectRelays(BinaryNode parent, List<CallRelay> into)
         {
             if (parent == null) return;
@@ -1282,60 +1707,16 @@ namespace WhatsappApp.Protocol.Client
                 BinaryNode child = children[i];
                 if (child == null || child.Tag != "relay") continue;
 
-                CallRelay relay = ReadRelay(child);
-                if (relay != null) into.Add(relay);
+                CallRelayBlock block = CallRelayBlock.Read(child);
+                IList<BinaryNode> endpoints = child.Children();
+                if (block == null || endpoints == null) continue;
+
+                for (int j = 0; j < endpoints.Count; j++)
+                {
+                    CallRelay endpoint = CallRelay.Read(endpoints[j], block);
+                    if (endpoint != null) into.Add(endpoint);
+                }
             }
-        }
-
-        /// <summary>
-        /// One `relay`: its `te2` is the address and its `token` the bytes, as a child or as an
-        /// attribute. A relay whose address cannot be read is still returned with `Port` 0 -
-        /// the count is what tells "relays this build cannot reach" from "no relay at all".
-        /// </summary>
-        private static CallRelay ReadRelay(BinaryNode node)
-        {
-            var relay = new CallRelay();
-
-            BinaryNode te2 = node.Child("te2");
-            string endpoint = te2 == null ? null : te2.Text();
-            if (string.IsNullOrEmpty(endpoint)) endpoint = node.Attrs["te2"];
-            if (string.IsNullOrEmpty(endpoint)) endpoint = node.Text();
-
-            relay.Endpoint = endpoint;
-            SplitEndpoint(endpoint, relay);
-
-            BinaryNode token = node.Child("token");
-            byte[] bytes = token == null ? null : token.Bytes();
-            if (bytes == null) bytes = node.Bytes();
-
-            relay.Token = bytes;
-            return relay;
-        }
-
-        /// <summary>
-        /// `host:port`, and `[address]:port` for the other family, into the two fields a socket
-        /// needs. Anything else leaves the port 0 rather than guessing one.
-        /// </summary>
-        private static void SplitEndpoint(string endpoint, CallRelay relay)
-        {
-            if (string.IsNullOrEmpty(endpoint)) return;
-
-            string text = endpoint.Trim();
-            int colon = text.LastIndexOf(':');
-            if (colon <= 0 || colon == text.Length - 1) return;
-
-            string host = text.Substring(0, colon);
-            if (host.Length > 1 && host[0] == '[' && host[host.Length - 1] == ']')
-            {
-                host = host.Substring(1, host.Length - 2);
-            }
-
-            int port;
-            if (!int.TryParse(text.Substring(colon + 1), out port)) return;
-            if (port <= 0 || port > 65535) return;
-
-            relay.Host = host;
-            relay.Port = port;
         }
 
         /// <summary>The numbers a verb carries as attributes, and the state words.</summary>
@@ -1529,6 +1910,16 @@ namespace WhatsappApp.Protocol.Client
         {
             var verb = new BinaryNode(tag);
             verb.Attrs.Add("call-id", callId);
+            verb.Attrs.Add("state", begin ? "begin" : "end");
+
+            return verb;
+        }
+
+        private static BinaryNode StateVerb(string tag, string callId, string callCreator, bool begin)
+        {
+            var verb = new BinaryNode(tag);
+            verb.Attrs.Add("call-id", callId);
+            verb.Attrs.Add("call-creator", callCreator);
             verb.Attrs.Add("state", begin ? "begin" : "end");
 
             return verb;
@@ -1865,6 +2256,38 @@ namespace WhatsappApp.Protocol.Client
             return new KeyValuePair<string, string>(key, value);
         }
 
+        /// <summary>The measured RTT encoded with the relay-latency marker, or -1 if invalid.</summary>
+        private static int RelayLatencyMilliseconds(string text)
+        {
+            uint encoded;
+            if (!uint.TryParse(text, NumberStyles.None, CultureInfo.InvariantCulture, out encoded)) return -1;
+            if (encoded < 0x02000000u) return -1;
+
+            uint latency = encoded - 0x02000000u;
+            return latency > int.MaxValue ? -1 : (int)latency;
+        }
+
+        /// <summary>Adds the optional recipient device list of a relay report.</summary>
+        private static void AddDestinationDevices(IList<BinaryNode> children, IList<string> devices)
+        {
+            if (children == null || devices == null || devices.Count == 0) return;
+
+            var targets = new List<BinaryNode>();
+            for (int i = 0; i < devices.Count; i++)
+            {
+                if (string.IsNullOrEmpty(devices[i])) continue;
+                var target = new BinaryNode("to");
+                target.Attrs.Add("jid", devices[i]);
+                targets.Add(target);
+            }
+
+            if (targets.Count == 0) return;
+
+            var destination = new BinaryNode("destination");
+            destination.Content = targets;
+            children.Add(destination);
+        }
+
         /// <summary>A number as the wire spells it: no separators, no culture.</summary>
         private static string Number(int value)
         {
@@ -1932,6 +2355,12 @@ namespace WhatsappApp.Protocol.Client
         /// null: building a call with no id is a bug in this app, and a protocol exception
         /// here is a line in the log instead of a stanza nobody can answer.
         /// </summary>
+        private static void RequireCreator(string creator, string verb)
+        {
+            if (string.IsNullOrEmpty(creator))
+                throw new ProtocolException("a call is " + verb + " with its creator");
+        }
+
         private static void Require(string callId, string to, string verb)
         {
             if (string.IsNullOrEmpty(callId))

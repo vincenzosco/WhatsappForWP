@@ -237,6 +237,45 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void TheCallCreatorIsRetainedFromTheVerb()
+        {
+            const string Creator = "151790946025638@lid";
+            var verb = new BinaryNode("accept");
+            verb.Attrs.Add("call-id", CallId);
+            verb.Attrs.Add("call-creator", Creator);
+            var call = new BinaryNode("call");
+            call.Attrs.Add("from", Peer);
+            call.Attrs.Add("id", CallId);
+            call.Content = new List<BinaryNode> { verb };
+
+            Assert.AreEqual(Creator, CallSignaling.Read(call).CallCreator);
+        }
+
+        [Test]
+        public static void EveryActiveCallVerbCanCarryItsCreator()
+        {
+            const string Creator = "151790946025638@lid";
+            var nodes = new List<BinaryNode>
+            {
+                CallSignaling.PreAccept(CallId, Peer, Creator),
+                CallSignaling.Accept(CallId, Peer, Creator),
+                CallSignaling.Reject(CallId, Peer, Creator, "busy"),
+                CallSignaling.Terminate(CallId, Peer, Creator, "accepted"),
+                CallSignaling.Video(CallId, Peer, Creator, 1, 0),
+                CallSignaling.Notify(CallId, Peer, Creator, 2),
+                CallSignaling.Interruption(CallId, Peer, Creator, true),
+                CallSignaling.Mute(CallId, Peer, Creator, true),
+                CallSignaling.Transport(CallId, Peer, Creator, NoCandidate())
+            };
+
+            for (int i = 0; i < nodes.Count; i++)
+            {
+                Assert.AreEqual(Creator, nodes[i].Children()[0].Attrs["call-creator"],
+                    nodes[i].Children()[0].Tag + " carries the creator this call was opened with");
+            }
+        }
+
+        [Test]
         public static void ReadingAnOfferGivesTheCallItIsAbout()
         {
             CallSignal signal = CallSignaling.Read(CallSignaling.Offer(CallId, Peer, true));
@@ -774,24 +813,43 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The relay exchange: latencies out, an elected relay back. The token is bytes in the
-        /// node's content, which is what the other side sends its media to.
+        /// Relay latency carries one packed endpoint per action and encodes the measured RTT
+        /// with the fixed protocol offset.
         /// </summary>
         [Test]
-        public static void TheRelayExchangeKeepsItsLatenciesAndItsToken()
+        public static void RelayLatencyCarriesOneEncodedAddressAndCreator()
         {
-            var relays = new List<CallRelayLatency>
+            const string Creator = "151790946025638@lid";
+            byte[] address = new byte[] { 157, 240, 1, 2, 13, 150 };
+            var sample = new CallRelayLatency
             {
-                new CallRelayLatency { Latency = 42, Data = new byte[] { 1 } },
-                new CallRelayLatency { Latency = 61, Data = new byte[] { 2 } }
+                Latency = 45,
+                RelayName = "gru1c02",
+                Data = address
             };
+            var destinations = new List<string> { "15551230000:2@s.whatsapp.net" };
 
-            CallSignal measured = CallSignaling.Read(CallSignaling.RelayLatency(CallId, Peer, relays));
+            BinaryNode node = CallSignaling.RelayLatency(CallId, Creator, Peer, sample, destinations);
+            BinaryNode action = node.Children()[0];
+            BinaryNode te = action.Child("te");
+            CallSignal measured = CallSignaling.Read(node);
 
+            Assert.AreEqual("call", node.Tag);
+            Assert.AreEqual(Peer, node.Attrs["to"]);
+            Assert.IsTrue(node.Attrs["id"] == null, "latency reports have no stanza id");
+            Assert.AreEqual("relaylatency", action.Tag);
+            Assert.AreEqual(CallId, action.Attrs["call-id"]);
+            Assert.AreEqual(Creator, action.Attrs["call-creator"]);
+            Assert.AreEqual("33554477", te.Attrs["latency"], "0x02000000 + 45 ms");
+            Assert.AreEqual("gru1c02", te.Attrs["relay_name"]);
+            Assert.ByteArraysEqual(address, te.Bytes());
+            Assert.AreEqual("15551230000:2@s.whatsapp.net",
+                action.Child("destination").Child("to").Attrs["jid"]);
             Assert.AreEqual(CallKind.RelayLatency, measured.Kind);
-            Assert.AreEqual(2, measured.RelayLatency.Count, "one entry per relay");
-            Assert.AreEqual(42, measured.RelayLatency[0].Latency);
-            Assert.AreEqual(61, measured.RelayLatency[1].Latency);
+            Assert.AreEqual(Creator, measured.CallCreator);
+            Assert.AreEqual(45, measured.RelayLatency[0].Latency, "the reader removes the fixed offset");
+            Assert.AreEqual("gru1c02", measured.RelayLatency[0].RelayName);
+            Assert.ByteArraysEqual(address, measured.RelayLatency[0].Data);
 
             CallSignal elected = CallSignaling.Read(
                 CallSignaling.RelayElection(CallId, Peer, 38, new byte[] { 3, 4 }));
@@ -799,7 +857,7 @@ namespace ProtocolTests
             Assert.AreEqual(CallKind.RelayElection, elected.Kind);
             Assert.AreEqual(1, elected.RelayLatency.Count);
             Assert.AreEqual(38, elected.RelayLatency[0].Latency);
-            Assert.AreEqual(2, elected.RelayLatency[0].Data.Length, "the token is the content");
+            Assert.AreEqual(2, elected.RelayLatency[0].Data.Length, "the legacy election token is content");
         }
 
         /// <summary>Video on, off and turned is a verb of its own, with a number for each fact.</summary>
@@ -848,43 +906,167 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The relay list an answer carries: a `relay` per relay, its `te2` the address, its
-        /// `token` the bytes an election hands back. Read off the node, because nothing in this
-        /// build writes the answer the network sends.
+        /// A relay block carries indexed token tables and packed endpoints; the endpoint bytes
+        /// are not a textual host and the token indices are not positions in child order.
         /// </summary>
         [Test]
-        public static void ARelayListIsReadOffTheAnswer()
+        public static void ARelayBlockResolvesPackedEndpointsAndIndexedTokens()
         {
-            var firstTe2 = new BinaryNode("te2");
-            firstTe2.Content = "157.240.1.2:3478";
-            var firstToken = new BinaryNode("token");
-            firstToken.Content = new byte[] { 9, 8, 7 };
+            var relay = new BinaryNode("relay");
+            relay.Attrs.Add("uuid", "relay-uuid");
+            relay.Attrs.Add("self_pid", "4");
+            relay.Attrs.Add("peer_pid", "8");
 
-            var first = new BinaryNode("relay");
-            first.Content = new List<BinaryNode> { firstTe2, firstToken };
+            var key = new BinaryNode("key");
+            key.Content = Convert.ToBase64String(Sequence(16, 1));
+            var hopByHop = new BinaryNode("hbh_key");
+            string encodedHopByHop = Convert.ToBase64String(Sequence(30, 40));
+            hopByHop.Content = Convert.ToBase64String(
+                System.Text.Encoding.UTF8.GetBytes(encodedHopByHop));
+            var tagLength = new BinaryNode("warp_mi_tag_len");
+            tagLength.Content = "4";
+            var tokenTwo = new BinaryNode("token");
+            tokenTwo.Attrs.Add("id", "2");
+            tokenTwo.Content = new byte[] { 9, 8, 7 };
+            var authTokenThree = new BinaryNode("auth_token");
+            authTokenThree.Attrs.Add("id", "3");
+            authTokenThree.Content = new byte[] { 6, 5, 4, 3 };
 
-            var second = new BinaryNode("relay");
-            second.Attrs.Add("te2", "[2606:4700::1]:3479");
+            var ipv4 = new BinaryNode("te2");
+            ipv4.Attrs.Add("relay_id", "17");
+            ipv4.Attrs.Add("relay_name", "gru1c02");
+            ipv4.Attrs.Add("token_id", "2");
+            ipv4.Attrs.Add("auth_token_id", "3");
+            ipv4.Attrs.Add("protocol", "0");
+            ipv4.Attrs.Add("c2r_rtt", "12");
+            ipv4.Content = new byte[] { 157, 240, 1, 2, 13, 150 };
 
-            var verb = new BinaryNode("accept");
-            verb.Attrs.Add("call-id", CallId);
-            verb.Content = new List<BinaryNode> { first, second };
+            var ipv6 = new BinaryNode("te2");
+            ipv6.Attrs.Add("relay_id", "18");
+            ipv6.Attrs.Add("relay_name", "gru1c03");
+            ipv6.Attrs.Add("token_id", "0");
+            ipv6.Attrs.Add("auth_token_id", "0");
+            ipv6.Attrs.Add("is_fna", "1");
+            var ipv6Bytes = new byte[18];
+            ipv6Bytes[0] = 0x20;
+            ipv6Bytes[1] = 0x01;
+            ipv6Bytes[2] = 0x0d;
+            ipv6Bytes[3] = 0xb8;
+            ipv6Bytes[16] = 0x0d;
+            ipv6Bytes[17] = 0x97;
+            ipv6.Content = ipv6Bytes;
 
-            var node = new BinaryNode("call");
-            node.Attrs.Add("from", Peer);
-            node.Attrs.Add("id", CallId);
-            node.Content = new List<BinaryNode> { verb };
+            relay.Content = new List<BinaryNode>
+            {
+                key, hopByHop, tagLength, tokenTwo, authTokenThree, ipv4, ipv6
+            };
 
-            CallSignal signal = CallSignaling.Read(node);
+            var accept = new BinaryNode("accept");
+            accept.Attrs.Add("call-id", CallId);
+            accept.Content = new List<BinaryNode> { relay };
+
+            var call = new BinaryNode("call");
+            call.Attrs.Add("from", Peer);
+            call.Attrs.Add("id", CallId);
+            call.Content = new List<BinaryNode> { accept };
+
+            CallSignal signal = CallSignaling.Read(call);
 
             Assert.IsTrue(signal.Rte == null, "the answer carried no `rte`");
-            Assert.IsTrue(signal.Relays != null && signal.Relays.Count == 2, "one entry per `relay`");
+            Assert.IsTrue(signal.Relays != null && signal.Relays.Count == 2, "one endpoint per `te2`");
+            Assert.AreEqual("relay-uuid", signal.Relays[0].Block.Uuid);
+            Assert.AreEqual("gru1c02", signal.Relays[0].RelayName);
+            Assert.AreEqual(17, signal.Relays[0].RelayId);
+            Assert.AreEqual(12, signal.Relays[0].ClientToRelayRttMilliseconds);
             Assert.AreEqual("157.240.1.2", signal.Relays[0].Host);
             Assert.AreEqual(3478, signal.Relays[0].Port);
-            Assert.IsTrue(signal.Relays[0].Token != null && signal.Relays[0].Token.Length == 3,
-                "the token is the child's bytes");
-            Assert.AreEqual("2606:4700::1", signal.Relays[1].Host, "brackets are not part of the address");
+            Assert.ByteArraysEqual(Sequence(16, 1), signal.Relays[0].Block.RelayKey);
+            Assert.AreEqual(Convert.ToBase64String(Sequence(16, 1)), signal.Relays[0].Block.RelayKeyText);
+            Assert.ByteArraysEqual(Sequence(30, 40), signal.Relays[0].Block.HopByHopKey);
+            Assert.AreEqual(4, signal.Relays[0].Block.WarpMiTagLength);
+            Assert.ByteArraysEqual(new byte[] { 9, 8, 7 }, signal.Relays[0].Token);
+            Assert.ByteArraysEqual(new byte[] { 6, 5, 4, 3 }, signal.Relays[0].AuthToken);
+            Assert.AreEqual("2001:db8:0:0:0:0:0:0", signal.Relays[1].Address.Text);
             Assert.AreEqual(3479, signal.Relays[1].Port);
+            Assert.IsTrue(signal.Relays[1].IsFallbackOnly, "FNA endpoints are inbound-only");
+            Assert.IsTrue(signal.Relays[1].Token == null, "an unresolved table index is not token zero");
+        }
+
+        [Test]
+        public static void MalformedRelayEndpointsAndDuplicateTokenIdsAreNotResolved()
+        {
+            var relay = new BinaryNode("relay");
+            relay.Content = new List<BinaryNode>
+            {
+                IndexedBytes("token", "0", new byte[] { 0 }),
+                IndexedBytes("token", "1", new byte[] { 1 }),
+                IndexedBytes("token", "1", new byte[] { 2 }),
+                IndexedBytes("auth_token", "0", new byte[] { 3 }),
+                Endpoint(new byte[] { 1, 2, 3, 4, 13, 149 }, "0", "0"),
+                Endpoint(new byte[] { 1, 2, 3, 4, 13, 150 }, "1", "0"),
+                Endpoint(new byte[] { 1, 2, 3, 4, 13 }, "0", "0"),
+                EndpointWithoutTokenId(new byte[] { 1, 2, 3, 4, 13, 151 }, "0"),
+                Endpoint(new byte[] { 1, 2, 3, 4, 13, 152 }, "2", "2"),
+                Endpoint(new byte[] { 1, 2, 3, 4, 13, 153 }, "9", "9"),
+                Endpoint(new byte[] { 1, 2, 3, 4, 13, 154 }, "invalid", "invalid")
+            };
+
+            var offer = new BinaryNode("offer");
+            offer.Attrs.Add("call-id", CallId);
+            offer.Content = new List<BinaryNode> { relay };
+            var call = new BinaryNode("call");
+            call.Attrs.Add("id", CallId);
+            call.Content = new List<BinaryNode> { offer };
+
+            CallSignal signal = CallSignaling.Read(call);
+
+            Assert.IsTrue(signal.Relays != null && signal.Relays.Count == 6,
+                "only endpoints with a packed length of six or eighteen bytes are retained");
+            Assert.AreEqual((byte)0, signal.Relays[0].Token[0],
+                "a valid zero token index resolves to the first table entry");
+            Assert.AreEqual((byte)3, signal.Relays[0].AuthToken[0]);
+            Assert.IsTrue(signal.Relays[1].Token == null,
+                "a duplicate token index is invalid, not silently overwritten");
+            Assert.AreEqual((byte)0, signal.Relays[2].Token[0],
+                "a missing token_id uses the protocol default index zero");
+            Assert.IsTrue(signal.Relays[3].Token == null,
+                "an unpopulated table index must not select another token");
+            Assert.IsTrue(signal.Relays[4].Token == null,
+                "an out-of-range endpoint token index must not select another token");
+            Assert.IsTrue(signal.Relays[5].Token == null && signal.Relays[5].AuthToken == null,
+                "malformed token indices must not fall back to table index zero");
+        }
+
+        private static BinaryNode IndexedBytes(string tag, string id, byte[] bytes)
+        {
+            var node = new BinaryNode(tag);
+            node.Attrs.Add("id", id);
+            node.Content = bytes;
+            return node;
+        }
+
+        private static BinaryNode Endpoint(byte[] bytes, string tokenId, string authTokenId)
+        {
+            var node = new BinaryNode("te2");
+            node.Attrs.Add("token_id", tokenId);
+            node.Attrs.Add("auth_token_id", authTokenId);
+            node.Content = bytes;
+            return node;
+        }
+
+        private static BinaryNode EndpointWithoutTokenId(byte[] bytes, string authTokenId)
+        {
+            var node = new BinaryNode("te2");
+            node.Attrs.Add("auth_token_id", authTokenId);
+            node.Content = bytes;
+            return node;
+        }
+
+        private static byte[] Sequence(int count, int start)
+        {
+            var bytes = new byte[count];
+            for (int i = 0; i < bytes.Length; i++) bytes[i] = (byte)(start + i);
+            return bytes;
         }
 
         /// <summary>A node with no relay and no `rte` reads as none instead of inventing one.</summary>
