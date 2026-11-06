@@ -30,6 +30,9 @@ namespace WhatsappApp.Services
         /// <summary>How often the call is asked whether its audio should be up: one second, as the call screen draws.</summary>
         private const int TickMilliseconds = 1000;
 
+        /// <summary>Every ten ticks a call writes what it costs, so a phone that struggles says why.</summary>
+        private const int ReportTicks = 10;
+
         private static readonly object _gate = new object();
 
         private static DispatcherTimer _tick;
@@ -44,6 +47,9 @@ namespace WhatsappApp.Services
 
         private static bool _running;
         private static bool _starting;
+
+        /// <summary>How many ticks have reported: the call says what it costs every ten seconds.</summary>
+        private static int _reported;
 
         /// <summary>Whether this call's audio is open.</summary>
         public static bool IsRunning
@@ -104,6 +110,13 @@ namespace WhatsappApp.Services
                 }
 
                 Muted = call.Muted;
+
+                if (_running)
+                {
+                    _reported++;
+
+                    if (_reported % ReportTicks == 0) Report(media);
+                }
 
                 if (_running || _starting) return;
 
@@ -240,6 +253,29 @@ namespace WhatsappApp.Services
                     + " gap(s) lost, " + playback.Playout.Undecodable + " undecodable")
                 + (media == null ? "" : "; a packet waited " + media.AverageDelayMilliseconds
                     + " ms on average and " + media.MaxDelayMilliseconds + " ms at worst to play"));
+        }
+
+        /// <summary>
+        /// What one call costs while it runs: the bytes it has recorded, the packets it holds, the
+        /// memory the process is using out of its budget, and how often the young heap has been
+        /// collected. A call that is heavy on a 512 MB phone says so here ten seconds at a time
+        /// instead of being felt.
+        /// </summary>
+        private static void Report(CallMediaSession media)
+        {
+            try
+            {
+                Diag.Ok("call audio: " + (CallMicrophone.IsRunning ? "the microphone is open" : "no microphone")
+                    + ", " + CallMicrophone.Bytes + " byte(s) recorded, "
+                    + media.Received + " packet(s) received, " + media.Pending + " held, "
+                    + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL))
+                    + " MB of " + (Windows.System.MemoryManager.AppMemoryUsageLimit / (1024UL * 1024UL))
+                    + " MB in use, " + GC.CollectionCount(0) + " collection(s) of the young heap");
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("call audio/the call's numbers", ex);
+            }
         }
 
         /// <summary>

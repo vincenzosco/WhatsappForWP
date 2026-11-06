@@ -1,4 +1,5 @@
 using System;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Windows.Media.Core;
 using Windows.Media.MediaProperties;
 using Windows.Storage.Streams;
@@ -104,10 +105,11 @@ namespace WhatsappApp.Services
 
                 byte[] frame = _playout.Tick();
 
-                var buffer = new DataWriter();
-                buffer.WriteBytes(frame);
-                IBuffer bytes = buffer.DetachBuffer();
-                buffer.Dispose();
+                // A buffer wrapped around the frame itself, not a writer with a copy of its own:
+                // a `DataWriter` per sample is a WinRT object and a copy every twenty
+                // milliseconds for as long as the call lasts, and on a phone that is already
+                // short of memory that is garbage the collector has to walk for nothing.
+                IBuffer bytes = frame.AsBuffer();
 
                 TimeSpan duration = TimeSpan.FromMilliseconds(CallAudioPlayout.FrameMilliseconds);
 

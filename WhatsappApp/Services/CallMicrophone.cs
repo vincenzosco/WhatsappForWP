@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Windows.Media.Capture;
 using Windows.Media.MediaProperties;
+using Windows.Storage;
 using Windows.Storage.Streams;
 using WhatsappApp.Protocol.Media;
 
@@ -42,11 +43,15 @@ namespace WhatsappApp.Services
         /// <summary>How much of the header is kept: `fmt ` and `data` in the first few hundred bytes.</summary>
         private const int HeaderBytes = 1024;
 
+        /// <summary>The file the call's voice is recorded into, in `LocalFolder`, deleted at the end.</summary>
+        private const string RecorderFile = "call-audio.wav";
+
         private static readonly object _gate = new object();
         private static readonly byte[] _head = new byte[HeaderBytes];
 
         private static MediaCapture _capture;
-        private static InMemoryRandomAccessStream _stream;
+        private static IRandomAccessStream _stream;
+        private static StorageFile _file;
         private static CallAudioSender _sender;
 
         private static bool _running;
@@ -97,8 +102,39 @@ namespace WhatsappApp.Services
             _starting = true;
 
             MediaCapture capture = null;
-            var stream = new InMemoryRandomAccessStream();
+            IRandomAccessStream stream = null;
+            StorageFile file = null;
+            bool inMemory = false;
             int run;
+
+            // The voice of a call goes to a file and not to memory. A WAV at this rate grows by
+            // thirty-two kilobytes a second, so twenty minutes of talking is thirty-eight
+            // megabytes held for audio nothing ever reads twice - a fifth of this phone's whole
+            // 185 MB budget, while the memory watcher is busy dropping pictures to stay under
+            // it. The file is deleted when the call ends.
+            try
+            {
+                StorageFile created = await ApplicationData.Current.LocalFolder.CreateFileAsync(
+                    RecorderFile, CreationCollisionOption.ReplaceExisting);
+
+                stream = await created.OpenAsync(FileAccessMode.ReadWrite);
+                file = created;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("call audio/the microphone's file", ex);
+
+                file = null;
+                stream = null;
+            }
+
+            if (stream == null)
+            {
+                stream = new InMemoryRandomAccessStream();
+                inMemory = true;
+
+                Diag.Ok("call audio: the call's voice is held in memory, because the file did not open");
+            }
 
             // The previous call is still letting its microphone go: opening on top of it fails
             // with a device in use, and the line that would follow says a call has no voice.
@@ -142,15 +178,37 @@ namespace WhatsappApp.Services
                 {
                     Diag.Ok("call audio: this phone has no WAV profile, so a call has no microphone");
                     Release(capture, stream);
+                    Forget(file);
                     return false;
                 }
 
-                await capture.StartRecordToStreamAsync(profile, stream);
+                try
+                {
+                    await capture.StartRecordToStreamAsync(profile, stream);
+                }
+                catch (Exception ex)
+                {
+                    if (inMemory) throw;
+
+                    // The recorder would not take the file: the call keeps its voice in memory
+                    // instead of losing the microphone, and the line says which one it is.
+                    Diag.Failed("call audio/the microphone refused the file", ex);
+
+                    Release(null, stream);
+                    Forget(file);
+
+                    file = null;
+                    stream = new InMemoryRandomAccessStream();
+                    inMemory = true;
+
+                    await capture.StartRecordToStreamAsync(profile, stream);
+                }
 
                 lock (_gate)
                 {
                     _capture = capture;
                     _stream = stream;
+                    _file = file;
                     _sender = sender;
 
                     _read = 0;
@@ -169,8 +227,8 @@ namespace WhatsappApp.Services
                 Guarded.RunGuardedAsync("call audio/the pump", PumpAsync(run));
 #pragma warning restore 4014
 
-                Diag.Ok("call audio: the microphone records into a stream as a WAV at "
-                    + CallAudioSender.SampleRate + " Hz mono");
+                Diag.Ok("call audio: the microphone records into " + (inMemory ? "memory" : "a file")
+                    + " as a WAV at " + CallAudioSender.SampleRate + " Hz mono");
 
                 return true;
             }
@@ -178,6 +236,7 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("call audio/opening the microphone", ex);
                 Release(capture, stream);
+                Forget(file);
                 return false;
             }
             finally
@@ -194,7 +253,8 @@ namespace WhatsappApp.Services
         public static Task StopAsync()
         {
             MediaCapture capture;
-            InMemoryRandomAccessStream stream;
+            IRandomAccessStream stream;
+            StorageFile file;
 
             lock (_gate)
             {
@@ -206,11 +266,13 @@ namespace WhatsappApp.Services
 
                 capture = _capture;
                 stream = _stream;
+                file = _file;
                 _capture = null;
                 _stream = null;
+                _file = null;
             }
 
-            Task closing = CloseAsync(capture, stream);
+            Task closing = CloseAsync(capture, stream, file);
             _closing = closing;
 
             return closing;
@@ -221,7 +283,8 @@ namespace WhatsappApp.Services
         /// own voice cost. Nothing is read here that another thread writes without the lock: a
         /// 64-bit field on this platform is two words, and half of each is not a number.
         /// </summary>
-        private static async Task CloseAsync(MediaCapture capture, InMemoryRandomAccessStream stream)
+        private static async Task CloseAsync(MediaCapture capture, IRandomAccessStream stream,
+            StorageFile file)
         {
             bool stopped = capture == null;
 
@@ -262,6 +325,8 @@ namespace WhatsappApp.Services
                 }
             }
 
+            Forget(file);
+
             if (capture != null)
             {
                 int bytes;
@@ -274,8 +339,9 @@ namespace WhatsappApp.Services
                 }
 
                 Diag.Ok("call audio: the microphone is closed after " + (NowMilliseconds() - startedMs)
-                    + " ms and " + bytes + " byte(s) of PCM"
-                    + (stopped ? "" : ", without stopping") + (Description()));
+                    + " ms and " + bytes + " byte(s) of PCM, and "
+                    + (file == null ? "no file was left behind" : "its file is gone")
+                    + (stopped ? "" : "; the recorder did not stop") + (Description()));
             }
         }
 
@@ -298,7 +364,7 @@ namespace WhatsappApp.Services
             while (true)
             {
                 CallAudioSender sender;
-                InMemoryRandomAccessStream stream;
+                IRandomAccessStream stream;
 
                 lock (_gate)
                 {
@@ -531,7 +597,31 @@ namespace WhatsappApp.Services
             return value;
         }
 
-        private static void Release(MediaCapture capture, InMemoryRandomAccessStream stream)
+        /// <summary>
+        /// Deletes the call's file, off the caller's thread: it holds the voice of a call that
+        /// is over, and thirty-eight megabytes of it is the difference between a phone that
+        /// answers and a phone that is closed for memory.
+        /// </summary>
+        private static void Forget(StorageFile file)
+        {
+            if (file == null) return;
+
+            Guarded.RunGuardedAsync("call audio/letting the call's file go", DeleteAsync(file));
+        }
+
+        private static async Task DeleteAsync(StorageFile file)
+        {
+            try
+            {
+                await file.DeleteAsync();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("call audio/letting the call's file go", ex);
+            }
+        }
+
+        private static void Release(MediaCapture capture, IRandomAccessStream stream)
         {
             if (capture != null)
             {
