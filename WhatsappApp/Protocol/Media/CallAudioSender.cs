@@ -85,12 +85,24 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public int Push(byte[] pcm, int length)
         {
+            return Push(pcm, 0, length);
+        }
+
+        /// <summary>
+        /// The same, from the middle of a buffer. A capture reads its stream into one array and
+        /// the samples may start behind a header, so where they start is the caller's to name.
+        /// </summary>
+        public int Push(byte[] pcm, int offset, int length)
+        {
             if (pcm == null || length <= 0) return 0;
-            if (length > pcm.Length) length = pcm.Length;
+            if (offset < 0) offset = 0;
+            if (offset >= pcm.Length) return 0;
+            if (offset + length > pcm.Length) length = pcm.Length - offset;
+            if (length <= 0) return 0;
 
             if (_held + length > _carry.Length) Grow(_held + length);
 
-            Array.Copy(pcm, 0, _carry, _held, length);
+            Array.Copy(pcm, offset, _carry, _held, length);
             _held += length;
 
             int frames = 0;

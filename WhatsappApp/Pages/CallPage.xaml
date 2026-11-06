@@ -406,5 +406,15 @@
                 </Button>
             </Grid>
         </Grid>
+
+        <!--
+            The speaker of the call. A `MediaElement` is the only thing on this platform that
+            plays a `MediaStreamSource`, and the call's audio exists only as packets, so this
+            element is fed one 20 ms frame at a time (see CallPlayback). It is drawn at no
+            size: a call has nothing to show, and a hidden-but-present element still pulls its
+            samples.
+        -->
+        <MediaElement x:Name="CallAudio" Width="0" Height="0"
+                      AutoPlay="False" IsLooping="False" IsHitTestVisible="False"/>
     </Grid>
 </Page>

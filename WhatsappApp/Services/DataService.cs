@@ -356,6 +356,22 @@ namespace WhatsappApp.Services
             get { return NativeConnection.Instance.MediaStatus(); }
         }
 
+        /// <summary>
+        /// The audio of the call on screen, or null before its handshake made the keys. The
+        /// page starts the call's two directions from it, and the socket underneath is the
+        /// one that carries them.
+        /// </summary>
+        public WhatsappApp.Protocol.Media.CallMediaSession CallAudio
+        {
+            get { return NativeConnection.Instance.CallAudio; }
+        }
+
+        /// <summary>One Opus frame, addressed to the peer the signalling named.</summary>
+        public bool SendCallAudio(byte[] opusFrame)
+        {
+            return NativeConnection.Instance.SendCallAudio(opusFrame);
+        }
+
         /// <summary>The call changed state: the banner redraws.</summary>
         public event EventHandler CallChanged;
 

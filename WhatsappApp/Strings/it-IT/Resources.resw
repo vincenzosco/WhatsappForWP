@@ -566,7 +566,7 @@
     <value>Chiamata terminata</value>
   </data>
   <data name="Call_NoAudio" xml:space="preserve">
-    <value>Ancora senza audio: questa build segnala soltanto la chiamata.</value>
+    <value>L'audio della chiamata parte quando l'altro telefono risponde.</value>
   </data>
   <data name="Call_MediaLine" xml:space="preserve">
     <value>Media: {0}</value>

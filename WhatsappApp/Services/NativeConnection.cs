@@ -4302,6 +4302,30 @@ namespace WhatsappApp.Services
             return status;
         }
 
+        /// <summary>
+        /// The audio of the call this phone is on, or null while its handshake has not made the
+        /// keys. A page asks for it on the same tick it draws the path, and starts the two
+        /// directions of the call from what it gets back.
+        /// </summary>
+        public CallMediaSession CallAudio
+        {
+            get
+            {
+                CallTransport transport = _callMedia;
+                return transport == null ? null : transport.Media;
+            }
+        }
+
+        /// <summary>
+        /// One Opus frame to the peer of the call on screen. False means the path is not up or
+        /// has not proved the peer, which is the answer the sender counts and moves on from.
+        /// </summary>
+        public bool SendCallAudio(byte[] opusFrame)
+        {
+            WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
+            return socket != null && socket.SendAudio(opusFrame);
+        }
+
         public void StopCallMedia()
         {
             CallTransport transport = _callMedia;

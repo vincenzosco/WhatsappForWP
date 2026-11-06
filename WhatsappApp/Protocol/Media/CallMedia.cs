@@ -46,6 +46,15 @@ namespace WhatsappApp.Protocol.Media
         private readonly RtpJitterBuffer _jitter;
         private readonly uint _localSsrc;
 
+        /// <summary>
+        /// One thread at a time on the receiving half. The socket hands a packet in while the
+        /// player asks for the next one, and the jitter buffer is an ordered list: two threads
+        /// in it at once is one list read while another writes it, which on a call is a
+        /// decoder handed a packet from a slot that moved. `Seal` is not under this lock - a
+        /// call sends from one clock only.
+        /// </summary>
+        private readonly object _gate = new object();
+
         private int _sequence;
         private uint _timestamp;
 
@@ -153,21 +162,20 @@ namespace WhatsappApp.Protocol.Media
             if (packet == null) return false;
 
             byte[] plain = _in.Open(packet, length);
-            if (plain == null)
-            {
-                Refused++;
-                return false;
-            }
 
-            RtpPacket rtp = RtpPacket.FromBytes(plain, plain.Length);
+            RtpPacket rtp = plain == null ? null : RtpPacket.FromBytes(plain, plain.Length);
+
             if (rtp == null)
             {
                 Refused++;
                 return false;
             }
 
-            Received++;
-            return _jitter.Push(rtp);
+            lock (_gate)
+            {
+                Received++;
+                return _jitter.Push(rtp);
+            }
         }
 
         /// <summary>
@@ -177,8 +185,11 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public byte[] Take()
         {
-            RtpPacket packet = _jitter.Next();
-            return packet == null ? null : packet.Payload;
+            lock (_gate)
+            {
+                RtpPacket packet = _jitter.Next();
+                return packet == null ? null : packet.Payload;
+            }
         }
 
         /// <summary>
@@ -187,13 +198,19 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public bool SkipGap()
         {
-            return _jitter.SkipGap();
+            lock (_gate)
+            {
+                return _jitter.SkipGap();
+            }
         }
 
         /// <summary>The call is over, or its keys changed: nothing held will be played.</summary>
         public void Reset()
         {
-            _jitter.Reset();
+            lock (_gate)
+            {
+                _jitter.Reset();
+            }
         }
     }
 }

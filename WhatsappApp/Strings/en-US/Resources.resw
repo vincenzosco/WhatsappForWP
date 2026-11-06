@@ -566,7 +566,7 @@
     <value>Call ended</value>
   </data>
   <data name="Call_NoAudio" xml:space="preserve">
-    <value>No audio yet: this build only signals the call.</value>
+    <value>Call audio starts when the other phone answers.</value>
   </data>
   <data name="Call_MediaLine" xml:space="preserve">
     <value>Media: {0}</value>

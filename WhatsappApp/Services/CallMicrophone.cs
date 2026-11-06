@@ -1,0 +1,470 @@
+using System;
+using System.Threading.Tasks;
+using Windows.Media.Capture;
+using Windows.Media.MediaProperties;
+using Windows.Storage.Streams;
+using WhatsappApp.Protocol.Media;
+
+namespace WhatsappApp.Services
+{
+    /// <summary>
+    /// The microphone of a call: `MediaCapture` records 16 kHz mono PCM into a stream, and the
+    /// bytes that land in it are handed to `CallAudioSender` as they arrive.
+    ///
+    /// A voice note is recorded into a file and finished when the recording stops
+    /// (`AudioRecorder`), which a call cannot use: a call needs the samples while they are
+    /// being spoken. The door for that on this platform is `StartRecordToStreamAsync` - an
+    /// `InMemoryRandomAccessStream` grows as the recorder writes it, and a reader at a
+    /// position of its own reads only what it has not read yet.
+    ///
+    /// The stream starts with a WAV header, and that header is the other thing this file
+    /// knows: the first bytes are walked until the `data` chunk, whose body is the PCM. The
+    /// format is checked there rather than assumed - a capture in M4A, at another rate or in
+    /// two channels is a call this phone cannot speak, and the line it writes is the whole
+    /// answer to why the far end hears nothing.
+    ///
+    /// Media Foundation has no device enumerator on this phone (`CallAudioProbe`), so
+    /// `MediaCapture` is the only way to the microphone, and the recorder owns it: this class
+    /// and `AudioRecorder` are never open at the same time.
+    /// </summary>
+    public static class CallMicrophone
+    {
+        /// <summary>How often the stream is read: one frame is 20 ms, and the recorder writes faster than that.</summary>
+        private const int PumpMilliseconds = 20;
+
+        /// <summary>How much of the stream is read per pass, which is forty frames.</summary>
+        private const int MaxRead = 8192;
+
+        /// <summary>How much of the header is kept: `fmt ` and `data` in the first few hundred bytes.</summary>
+        private const int HeaderBytes = 1024;
+
+        private static readonly object _gate = new object();
+        private static readonly byte[] _head = new byte[HeaderBytes];
+
+        private static MediaCapture _capture;
+        private static InMemoryRandomAccessStream _stream;
+        private static CallAudioSender _sender;
+
+        private static bool _running;
+        private static bool _starting;
+
+        private static long _read;
+        private static int _headLength;
+        private static bool _headerDone;
+        private static int _dataAt = -1;
+        private static string _refusal;
+
+        private static int _bytes;
+        private static long _startedMs;
+
+        /// <summary>Whether the microphone of a call is open.</summary>
+        public static bool IsRunning
+        {
+            get { return _running; }
+        }
+
+        /// <summary>How many bytes of PCM this call's microphone has produced.</summary>
+        public static int Bytes
+        {
+            get { return _bytes; }
+        }
+
+        /// <summary>
+        /// Opens the microphone for one call's sender, or answers false with the reason in the
+        /// log: a denied capability, a phone with no WAV profile, an engine that does not
+        /// answer. The sender is not created here - it is the caller's, because it is what
+        /// knows the encoder and the socket.
+        /// </summary>
+        public static async Task<bool> StartAsync(CallAudioSender sender)
+        {
+            if (sender == null) return false;
+            if (_running) return false;
+            if (_starting) return false;
+
+            _starting = true;
+
+            MediaCapture capture = null;
+            var stream = new InMemoryRandomAccessStream();
+
+            try
+            {
+                // Audio only: the default asks for video as well, which is a different
+                // capability and a different consent.
+                var settings = new MediaCaptureInitializationSettings();
+                settings.StreamingCaptureMode = StreamingCaptureMode.Audio;
+
+                capture = new MediaCapture();
+                await capture.InitializeAsync(settings);
+
+                MediaEncodingProfile profile = null;
+
+                // WAV and nothing else: the encoder takes samples, and an M4A would have to be
+                // AAC-decoded by something this app cannot reach.
+                try
+                {
+                    profile = MediaEncodingProfile.CreateWav(AudioEncodingQuality.Low);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/the wav profile", ex);
+                }
+
+                if (profile == null)
+                {
+                    Diag.Ok("call audio: this phone has no WAV profile, so a call has no microphone");
+                    Release(capture, stream);
+                    return false;
+                }
+
+                await capture.StartRecordToStreamAsync(profile, stream);
+
+                lock (_gate)
+                {
+                    _capture = capture;
+                    _stream = stream;
+                    _sender = sender;
+
+                    _read = 0;
+                    _headLength = 0;
+                    _headerDone = false;
+                    _dataAt = -1;
+                    _refusal = null;
+
+                    _bytes = 0;
+                    _startedMs = NowMilliseconds();
+                    _running = true;
+                }
+
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("call audio/the pump", PumpAsync());
+#pragma warning restore 4014
+
+                Diag.Ok("call audio: the microphone records into a stream as a WAV at "
+                    + CallAudioSender.SampleRate + " Hz mono");
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("call audio/opening the microphone", ex);
+                Release(capture, stream);
+                return false;
+            }
+            finally
+            {
+                _starting = false;
+            }
+        }
+
+        /// <summary>
+        /// Closes the microphone and says what the call's own voice cost: how many bytes came
+        /// out of it, over how long, and - when the header turned out to be something else -
+        /// why it never became audio.
+        /// </summary>
+        public static async Task StopAsync()
+        {
+            MediaCapture capture;
+            InMemoryRandomAccessStream stream;
+
+            lock (_gate)
+            {
+                _running = false;
+                _sender = null;
+
+                capture = _capture;
+                stream = _stream;
+                _capture = null;
+                _stream = null;
+            }
+
+            bool stopped = capture == null;
+
+            if (capture != null)
+            {
+                try
+                {
+                    await capture.StopRecordAsync();
+                    stopped = true;
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/stopping the microphone", ex);
+                }
+            }
+
+            if (capture != null)
+            {
+                try
+                {
+                    capture.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/disposing the microphone", ex);
+                }
+            }
+
+            if (stream != null)
+            {
+                try
+                {
+                    stream.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/disposing the stream", ex);
+                }
+            }
+
+            if (capture != null)
+            {
+                Diag.Ok("call audio: the microphone is closed after " + (NowMilliseconds() - _startedMs)
+                    + " ms and " + _bytes + " byte(s) of PCM"
+                    + (stopped ? "" : ", without stopping") + (Description()));
+            }
+        }
+
+        /// <summary>What went wrong, as one clause for the last line, or an empty string.</summary>
+        private static string Description()
+        {
+            string refusal;
+            lock (_gate) refusal = _refusal;
+
+            return string.IsNullOrEmpty(refusal) ? "" : "; " + refusal;
+        }
+
+        /// <summary>
+        /// Reads what the recorder has written since the last pass and gives it to the sender,
+        /// twenty milliseconds at a time. The loop is the clock and the reader at once: a
+        /// reader on a timer of its own would be a second clock the sender has to trust.
+        /// </summary>
+        private static async Task PumpAsync()
+        {
+            while (true)
+            {
+                CallAudioSender sender;
+                InMemoryRandomAccessStream stream;
+
+                lock (_gate)
+                {
+                    if (!_running) return;
+
+                    sender = _sender;
+                    stream = _stream;
+                }
+
+                if (sender == null || stream == null) return;
+
+                try
+                {
+                    await Task.Delay(PumpMilliseconds);
+
+                    ulong size = stream.Size;
+                    long read = _read;
+
+                    if ((long)size <= read) continue;
+
+                    int wanted = (int)Math.Min((ulong)MaxRead, size - (ulong)read);
+
+                    var reader = new DataReader(stream.GetInputStreamAt((ulong)read));
+
+                    await reader.LoadAsync((uint)wanted);
+
+                    int got = (int)reader.UnconsumedBufferLength;
+
+                    if (got <= 0)
+                    {
+                        reader.Dispose();
+                        continue;
+                    }
+
+                    var bytes = new byte[got];
+                    reader.ReadBytes(bytes);
+                    reader.Dispose();
+
+                    lock (_gate) _read += got;
+
+                    Feed(sender, bytes);
+                }
+                catch (Exception ex)
+                {
+                    // A stream the recorder closed under the reader is the end of the call,
+                    // and one pass that throws is one pass: the loop says so and stops.
+                    Diag.Failed("call audio/reading the microphone", ex);
+                    lock (_gate) _refusal = "the stream could not be read";
+
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// One read of the stream, behind the header. Until the `data` chunk is found nothing
+        /// is PCM, and the walk is what finds it; after it, every byte is audio.
+        /// </summary>
+        private static void Feed(CallAudioSender sender, byte[] bytes)
+        {
+            if (_headerDone)
+            {
+                _bytes += bytes.Length;
+                sender.Push(bytes, 0, bytes.Length);
+                return;
+            }
+
+            int room = HeaderBytes - _headLength;
+            int take = Math.Min(room, bytes.Length);
+
+            Array.Copy(bytes, 0, _head, _headLength, take);
+            _headLength += take;
+
+            if (!FindData())
+            {
+                if (_refusal != null) return;
+
+                // A header that does not fit in the window is not a header this phone writes:
+                // refusing is better than reading the middle of one as samples.
+                if (_headLength == HeaderBytes)
+                {
+                    _refusal = "the capture wrote " + HeaderBytes
+                        + " byte(s) with no data chunk, so it is not a WAV";
+                    Diag.Ok("call audio: " + _refusal);
+                }
+
+                return;
+            }
+
+            _headerDone = true;
+
+            int fromHead = _dataAt;
+            int inHead = _headLength - fromHead;
+
+            if (inHead > 0)
+            {
+                _bytes += inHead;
+                sender.Push(_head, fromHead, inHead);
+            }
+
+            int surplus = bytes.Length - take;
+            if (surplus > 0)
+            {
+                _bytes += surplus;
+                sender.Push(bytes, take, surplus);
+            }
+
+            Diag.Ok("call audio: the first " + _bytes + " byte(s) of PCM are behind a "
+                + fromHead + "-byte header, which is what a call's microphone gives");
+        }
+
+        /// <summary>
+        /// Walks the bytes kept so far until the `data` chunk, checking the format on the way.
+        /// True means `_dataAt` is the first sample; false means the header is not complete yet
+        /// or this is not a capture a call can encode.
+        /// </summary>
+        private static bool FindData()
+        {
+            if (_headLength < 12) return false;
+
+            if (Text(0, 4) != "RIFF" || Text(8, 4) != "WAVE")
+            {
+                _refusal = "the capture is not a WAV";
+                Diag.Ok("call audio: " + _refusal + ", so a call has no microphone");
+                return false;
+            }
+
+            int at = 12;
+
+            while (at + 8 <= _headLength)
+            {
+                string id = Text(at, 4);
+                int size = (int)Little(at + 4, 4);
+                int body = at + 8;
+
+                if (id == "data")
+                {
+                    // A WAV that has just started recording has its data chunk with a
+                    // placeholder length: the samples are what follows, whatever it says.
+                    _dataAt = body;
+                    return true;
+                }
+
+                if (id == "fmt " && size >= 16 && body + 16 <= _headLength)
+                {
+                    int format = (int)Little(body, 2);
+                    int channels = (int)Little(body + 2, 2);
+                    int rate = (int)Little(body + 4, 4);
+                    int bits = (int)Little(body + 14, 2);
+
+                    if (format != 1 || channels != 1 || rate != CallAudioSender.SampleRate || bits != 16)
+                    {
+                        _refusal = "the microphone writes " + rate + " Hz, " + channels
+                            + " channel(s), " + bits + " bit(s), format " + format
+                            + ", and a call needs " + CallAudioSender.SampleRate
+                            + " Hz mono 16-bit PCM";
+
+                        Diag.Ok("call audio: " + _refusal);
+                        return false;
+                    }
+                }
+
+                if (size <= 0) return false;
+
+                at = body + size + (size % 2);
+            }
+
+            return false;
+        }
+
+        private static string Text(int at, int length)
+        {
+            if (at < 0 || at + length > _headLength) return string.Empty;
+
+            return System.Text.Encoding.UTF8.GetString(_head, at, length);
+        }
+
+        private static long Little(int at, int length)
+        {
+            long value = 0;
+
+            for (int i = length - 1; i >= 0; i--)
+            {
+                if (at + i < 0 || at + i >= _headLength) return 0;
+
+                value = (value << 8) | _head[at + i];
+            }
+
+            return value;
+        }
+
+        private static void Release(MediaCapture capture, InMemoryRandomAccessStream stream)
+        {
+            if (capture != null)
+            {
+                try
+                {
+                    capture.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/disposing the microphone", ex);
+                }
+            }
+
+            if (stream != null)
+            {
+                try
+                {
+                    stream.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/disposing the stream", ex);
+                }
+            }
+        }
+
+        private static long NowMilliseconds()
+        {
+            return DateTime.UtcNow.Ticks / TimeSpan.TicksPerMillisecond;
+        }
+    }
+}

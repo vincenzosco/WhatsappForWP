@@ -483,13 +483,9 @@ namespace WhatsappApp
             // whether the encoder is wired to a device or not.
             CallAudioProbe.Run();
 
-            // And the other half of the same question: Media Foundation has no device list
-            // on this phone, so whether the microphone can reach the call path at all is
-            // asked of MediaCapture instead. It records three seconds into a stream and
-            // says what it wrote - PCM at what rate, or an M4A nobody can encode.
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("App/call audio capture", CallAudioCapture.RunAsync());
-#pragma warning restore 4014
+            // The microphone of a call is opened when the call's media path has proved the
+            // peer, not at start-up: holding the capture open on a phone that is not on a
+            // call is a microphone this app has no reason to want (see CallMicrophone).
 
             // The account this phone is linked as, brought online. This is the only
             // connection there is: the login WhatsApp needs after a pairing, the

@@ -93,6 +93,10 @@ namespace WhatsappApp.Pages
             _tick.Stop();
             _tick.Tick -= OnTick;
             DataService.Instance.CallChanged -= OnCallChanged;
+
+            // The microphone and the speaker belong to this screen's lifetime: a page that
+            // left while the call is up would otherwise hold a capture nothing draws.
+            Guarded.RunGuardedAsync("CallPage/audio closed", CallAudioPipe.StopAsync());
         }
 
         private void OnCallChanged(object sender, EventArgs e)
@@ -118,6 +122,40 @@ namespace WhatsappApp.Pages
             }
 
             Draw();
+            UpdateAudio(DataService.Instance.Call);
+        }
+
+        /// <summary>
+        /// Starts the call's audio once the media path has proved the peer's fingerprint, and
+        /// stops it when the call is over or the path is not trusted. `SendAudio` refuses a
+        /// frame on an untrusted path, so a microphone opened before it would be a microphone
+        /// recording into nothing; a call left open after the path stopped would be the same
+        /// in silence.
+        /// </summary>
+        private void UpdateAudio(CallSession call)
+        {
+            CallMediaSession media = DataService.Instance.CallAudio;
+            CallMediaStatus status = DataService.Instance.MediaStatus;
+
+            bool live = call != null && call.Phase == CallPhase.Active
+                && media != null && status != null && status.Trusted;
+
+            if (!live)
+            {
+                if (CallAudioPipe.IsRunning)
+                {
+                    Guarded.RunGuardedAsync("CallPage/audio closed", CallAudioPipe.StopAsync());
+                }
+
+                return;
+            }
+
+            CallAudioPipe.Muted = call.Muted;
+
+            if (CallAudioPipe.IsRunning) return;
+
+            Guarded.RunGuardedAsync("CallPage/audio opened", CallAudioPipe.StartAsync(
+                CallAudio, media, DataService.Instance.SendCallAudio, call.Muted));
         }
 
         private void Draw()
@@ -173,8 +211,8 @@ namespace WhatsappApp.Pages
             DurationText.Text = call.WasAnswered ? FormatDuration(call.ConnectedSeconds) : "";
             DurationText.Visibility = call.WasAnswered ? Visibility.Visible : Visibility.Collapsed;
 
-            NoteText.Text = Loc.Get("Call_NoAudio", "No audio yet: this build only signals the call.");
-            NoteText.Visibility = call.Phase == CallPhase.Active ? Visibility.Visible : Visibility.Collapsed;
+            NoteText.Text = Loc.Get("Call_NoAudio", "Call audio starts when the other phone answers.");
+            NoteText.Visibility = call.Phase == CallPhase.Active ? Visibility.Collapsed : Visibility.Visible;
 
             DrawMedia(call.Phase == CallPhase.Connecting || call.Phase == CallPhase.Active);
 
@@ -353,8 +391,8 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// The microphone switch. It changes the call's own state and nothing audible: there is
-        /// no media to cut yet, and the note under the name says exactly that.
+        /// The microphone switch. It mutes the frames the call sends; the capture keeps
+        /// running, because a peer that stops receiving decides the call has gone away.
         /// </summary>
         private void MuteCallButton_Click(object sender, RoutedEventArgs e)
         {

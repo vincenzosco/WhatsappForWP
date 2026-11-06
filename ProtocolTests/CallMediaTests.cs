@@ -209,6 +209,64 @@ namespace ProtocolTests
             Assert.AreEqual(1, phone.Refused);
         }
 
+        /// <summary>
+        /// The two threads of a real call: the socket hands a packet in while the player asks
+        /// for the next one. The jitter buffer is an ordered list, and a reader inside it while
+        /// the socket inserts is a list that moves under the reader - so the receiving half is
+        /// one thread at a time, and every packet still reaches the player.
+        /// </summary>
+        [Test]
+        public static void ReceiveAndTakeFromTwoThreadsKeepTheirPlace()
+        {
+            CallMediaSession phone = Phone();
+            CallMediaSession peer = Peer();
+
+            const int Count = 200;
+            var packets = new List<byte[]>();
+            for (int i = 0; i < Count; i++) packets.Add(phone.Seal(Frame((byte)(i % 251))));
+
+            int played = 0;
+            System.Exception failure = null;
+
+            var producer = new System.Threading.Thread(delegate()
+            {
+                try
+                {
+                    for (int i = 0; i < packets.Count; i++)
+                    {
+                        peer.Receive(packets[i], packets[i].Length);
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    failure = ex;
+                }
+            });
+
+            producer.Start();
+
+            try
+            {
+                // Bounded: a playout that never releases is a failure to report, not a test
+                // that hangs.
+                for (int attempt = 0; attempt < 200000 && played < Count; attempt++)
+                {
+                    if (peer.Take() != null) played++;
+                    else System.Threading.Thread.Sleep(0);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                failure = ex;
+            }
+
+            producer.Join();
+
+            Assert.IsTrue(failure == null, failure == null ? "no thread threw" : failure.ToString());
+            Assert.AreEqual(Count, peer.Received, "every packet arrived");
+            Assert.AreEqual(Count, played, "and every one of them was played");
+        }
+
         /// <summary>The two directions are not the same key, so a reflected packet is refused.</summary>
         [Test]
         public static void AReflectedPacketIsRefused()
