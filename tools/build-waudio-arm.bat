@@ -77,11 +77,11 @@ if errorlevel 1 exit /b 1
 
 echo waudio: linking...
 link /nologo /DLL /MACHINE:ARM /ENTRY:WaDllMain /NOIMPLIB /INCREMENTAL:NO /NODEFAULTLIB:kernel32.lib ^
-  /OUT:"%OUT%" "%OBJ%\waaudio.obj" "%OBJ%\waentry.obj" ^
+  /OUT:"%OBJ%waaudio.dll" "%OBJ%\waaudio.obj" "%OBJ%\waentry.obj" ^
   "%OBJ%\wamf.lib" "%OBJ%\wamfrw.lib" "%OBJ%\wacom.lib" "%OBJ%\waheap.lib" "%OBJ%\waerr.lib" ^
   "%KITS%\Lib\%UCRT_VER%\um\arm\mfuuid.lib"
 if errorlevel 1 exit /b 1
 
-for %%f in ("%OUT%") do if exist "%%~dpfwaudio.exp" del /q "%%~dpfwaudio.exp"
+copy /y "%OBJ%waaudio.dll" "%OUT%" >/dev/null
 echo waudio: %OUT%
 endlocal
