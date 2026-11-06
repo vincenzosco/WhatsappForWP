@@ -13,6 +13,12 @@
       "skillPath": "skills/engineering/improve-codebase-architecture/SKILL.md",
       "computedHash": "ac2c94885f34ff8492dc12aa4543182f661f32ea1722b8d6b6c2c7045af33ae3"
     },
+    "reverse-engineer-anything": {
+      "source": "morluto/rea",
+      "sourceType": "github",
+      "skillPath": ".agents/skills/reverse-engineer-anything/SKILL.md",
+      "computedHash": "b59c4b7d2dcdc6c75d771a72c9b640700e9eb5feb9463eaba7b09793148cac70"
+    },
     "writing-plans": {
       "source": "obra/superpowers",
       "sourceType": "github",
