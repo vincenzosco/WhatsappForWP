@@ -318,3 +318,36 @@ traversal contro `IceLiteAgent` in memoria e finisce con i due lati sulla stessa
   token e poi il client WARP vero; il video vuole una pipeline H.264 realtime che
   WP8.1 non offre in managed; i gruppi vogliono il fanout della chiamata di gruppo; il
   push vuole un server. Nessuna di queste si ricava da questo repository.
+
+## 7. 6 novembre 2026 - la sonda Media Foundation e cosa ha detto l'APK
+
+**Il codice nativo che mancava.** `tools/audio/waaudio.c` costruisce `waaudio.dll`: una
+sonda che avvia Media Foundation, enumera le sorgenti di cattura audio, apre la prima con
+uno `IMFSourceReader` e riporta il formato nativo (rate e canali) in una stringa. Non
+legge campioni: la domanda e' se un dispositivo c'e' e in che formato consegna, perche'
+assumere 16 kHz mono e costruirci sopra un encoder darebbe una chiamata muta
+indistinguibile da un difetto di segnalazione. Il valore di ritorno e' il passo che si e'
+fermato (1 `MFStartup`, 2 attributi, 3 enumerazione, 4 nessun dispositivo, 5 attivazione,
+6 source reader, 7 tipo nativo) e il testo porta l'`HRESULT` di quel passo.
+
+**Costruito e verificato qui, non ancora sul telefono.** `tools/build-waudio-arm.bat`
+produce un'immagine ARMNT che importa `MFPlat.dll`, `Mfreadwrite.dll` e
+`api-ms-win-core-com-l1-1-0.dll` - i due moduli Media Foundation sono la prima cosa che
+questo repository importa fuori dagli API set, ed e' esattamente cio' che la sonda deve
+scoprire: se il telefono li risolve. `node tools/check-waudio.js` e' verde, `waaudio.dll`
+entra nel pacchetto (`Content` in `WhatsApp.csproj`) e `CallAudioProbe.Run()` scrive una
+riga in `diag.log` all'avvio. Cio' che resta e' il deploy e quella riga: fino ad allora la
+voce 2 e' "pronta da misurare", non "fatta".
+
+**VS2013 Update 4 e' installato.** L'ISO `vs2013.4.iso` era in `Downloads`; l'installazione
+`/passive /full` e' passata e `Microsoft Visual Studio 12.0` c'e'. Il toolset C++ di
+Windows Phone 8.1 pero' non e' arrivato con lei: `VC\WPSDK` non esiste, quindi la build
+resta quella di VS2015 `x86_arm` piu' i Windows Kits 10, che e' la combinazione con cui
+`waopus.dll` si carica sul telefono.
+
+**L'APK, decompilato.** `jadx 1.5.1` con il JDK 17 installato ha prodotto 50011 classi
+(`.tools/apk/src-full`), fermandosi su `resources.arsc`. Il vocabolario che serviva alle
+voci 5-7 non c'e': in Java si trovano solo i dati della chiamata (`CallInfo.relayCallUuid`,
+`H26xSupportResult`, `EncodedVideoPassthrough` con i suoi `native*`), mentre nodi relay,
+token WARP e fanout di gruppo vivono nelle librerie native. Quindi la voce 5 non si ricava
+dall'APK decompilato: serve una cattura, come diceva la sezione 6.

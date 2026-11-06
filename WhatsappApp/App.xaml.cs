@@ -474,6 +474,13 @@ namespace WhatsappApp
             // that arrives does not play (see AudioCodecCheck).
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("App/audio codec", AudioCodecCheck.RunAsync());
+
+            // The second native check, and the one the call path waits on: whether this
+            // phone exposes a microphone through Media Foundation, and at what rate. It
+            // is a plain call and not a guarded task because the native side keeps no
+            // state between calls and answers at once; the line it writes is what decides
+            // whether the encoder is wired to a device or not.
+            CallAudioProbe.Run();
 #pragma warning restore 4014
 
             // The account this phone is linked as, brought online. This is the only

@@ -1,0 +1,15 @@
+; The Media Foundation imports waaudio.dll links against.
+;
+; Why a .def and not `Mfplat.lib`: the import library that ships with Kits 10 for
+; ARM names `Mfplat.dll`, which is what a desktop Windows image links against.
+; The phone ships Media Foundation as `MFPlat.dll`, and a module name is copied
+; verbatim into the import descriptor - so the name matters more than the
+; functions. `lib /def:wamf.def /machine:arm` produces a library whose descriptor
+; names the module the phone has.
+LIBRARY MFPlat.dll
+
+EXPORTS
+    MFStartup
+    MFShutdown
+    MFCreateAttributes
+    MFEnumDeviceSources
