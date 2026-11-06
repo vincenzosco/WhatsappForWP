@@ -182,6 +182,11 @@ namespace WhatsappApp.Services
                     return false;
                 }
 
+                // A recorder that will not write to a file is asked again in memory. The
+                // second start cannot await inside the catch that noticed it, so it runs
+                // after the notice instead.
+                bool refusedFile = false;
+
                 try
                 {
                     await capture.StartRecordToStreamAsync(profile, stream);
@@ -190,10 +195,13 @@ namespace WhatsappApp.Services
                 {
                     if (inMemory) throw;
 
-                    // The recorder would not take the file: the call keeps its voice in memory
-                    // instead of losing the microphone, and the line says which one it is.
                     Diag.Failed("call audio/the microphone refused the file", ex);
+                    refusedFile = true;
+                }
 
+                if (refusedFile)
+                {
+                    // The call keeps its voice in memory instead of losing the microphone.
                     Release(null, stream);
                     Forget(file);
 
