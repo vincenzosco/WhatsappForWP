@@ -486,6 +486,10 @@ namespace WhatsappApp
             // The microphone of a call is opened when the call's media path has proved the
             // peer, not at start-up: holding the capture open on a phone that is not on a
             // call is a microphone this app has no reason to want (see CallMicrophone).
+            //
+            // What decides when is the call itself, not the screen that draws it: a people
+            // who opens a conversation while talking keeps hearing and keeps being heard.
+            CallAudioPipe.Start();
 
             // The account this phone is linked as, brought online. This is the only
             // connection there is: the login WhatsApp needs after a pairing, the

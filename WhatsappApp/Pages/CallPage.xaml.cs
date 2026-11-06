@@ -93,10 +93,6 @@ namespace WhatsappApp.Pages
             _tick.Stop();
             _tick.Tick -= OnTick;
             DataService.Instance.CallChanged -= OnCallChanged;
-
-            // The microphone and the speaker belong to this screen's lifetime: a page that
-            // left while the call is up would otherwise hold a capture nothing draws.
-            Guarded.RunGuardedAsync("CallPage/audio closed", CallAudioPipe.StopAsync());
         }
 
         private void OnCallChanged(object sender, EventArgs e)
@@ -122,40 +118,6 @@ namespace WhatsappApp.Pages
             }
 
             Draw();
-            UpdateAudio(DataService.Instance.Call);
-        }
-
-        /// <summary>
-        /// Starts the call's audio once the media path has proved the peer's fingerprint, and
-        /// stops it when the call is over or the path is not trusted. `SendAudio` refuses a
-        /// frame on an untrusted path, so a microphone opened before it would be a microphone
-        /// recording into nothing; a call left open after the path stopped would be the same
-        /// in silence.
-        /// </summary>
-        private void UpdateAudio(CallSession call)
-        {
-            CallMediaSession media = DataService.Instance.CallAudio;
-            CallMediaStatus status = DataService.Instance.MediaStatus;
-
-            bool live = call != null && call.Phase == CallPhase.Active
-                && media != null && status != null && status.Trusted;
-
-            if (!live)
-            {
-                if (CallAudioPipe.IsRunning)
-                {
-                    Guarded.RunGuardedAsync("CallPage/audio closed", CallAudioPipe.StopAsync());
-                }
-
-                return;
-            }
-
-            CallAudioPipe.Muted = call.Muted;
-
-            if (CallAudioPipe.IsRunning) return;
-
-            Guarded.RunGuardedAsync("CallPage/audio opened", CallAudioPipe.StartAsync(
-                CallAudio, media, DataService.Instance.SendCallAudio, call.Muted));
         }
 
         private void Draw()
