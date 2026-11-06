@@ -34,7 +34,7 @@ una sola app sul telefono, e parla il protocollo WebSocket di WhatsApp invece di
 bridge sul PC. Gira su un WP8.1 vero o sull'emulatore x86. È gratis e non chiede nessun account
 oltre al numero WhatsApp che colleghi.
 
-Non c'è un installer e non ci sono release: si compila dal sorgente con Visual Studio 2013.
+Non c'è un installer e non ci sono release: si compila dal sorgente con Visual Studio e l'SDK WP8.1.
 
 ## Com'è fatto
 
@@ -83,9 +83,9 @@ richiesta, e le modifiche fatte da altri dispositivi non vengono lette.
 
 ## Compilarlo
 
-Serve **Visual Studio 2013 (v12.0) con l'SDK di Windows Phone 8.1**. Le versioni più nuove di VS non
-hanno quel toolchain. Compila da un percorso su disco locale, non da una cartella condivisa o da una
-unità di rete.
+Serve l'**SDK di Windows Phone 8.1**, più un Visual Studio con l'MSBuild in cui i suoi target si
+innestano: vanno bene il 2013 (v12.0) e il 2015 (v14.0), e questo albero qui si compila con
+MSBuild 14.0. Compila da un percorso su disco locale, non da una cartella condivisa o da una unità di rete.
 
 **Da riga di comando** (dalla radice del repository):
 
