@@ -82,3 +82,13 @@ The current app is a Windows Phone Store / WinRT-style APPX. Microsoft documenta
 - Functional smoke test: login/resume; one-to-one messages and media; attachments and share/pickers; contacts; notifications; live tile/background behavior within Silverlight limits; call signaling/audio behavior; Status; settings and navigation.
 - Visual comparison covers the supplied references and every existing app page at supported WP8.1 resolutions.
 - State separately what was not verified on a physical device. Do not claim real Android/iOS call interoperability without a live cross-device test in both directions.
+
+## References
+
+- Microsoft, [Windows Phone Silverlight 8.1 apps](https://learn.microsoft.com/en-us/previous-versions/windows/apps/dn642082(v=vs.105))
+- Microsoft, [Platform compatibility and breaking changes for Windows Phone Silverlight 8.1 apps](https://learn.microsoft.com/en-us/previous-versions/windows/apps/dn642084(v=vs.105))
+- Microsoft, [Upgrade Windows Phone 8 apps to Windows Phone Silverlight 8.1](https://learn.microsoft.com/en-us/previous-versions/windows/apps/dn642081(v=vs.105))
+- Microsoft, [Implementing a Share target in a Windows Phone Silverlight 8.1 app](https://learn.microsoft.com/en-us/previous-versions/windows/apps/dn655125(v=vs.105))
+- Microsoft, [Using MediaCapturePreviewSink in a Windows Phone Silverlight 8.1 app](https://learn.microsoft.com/en-us/previous-versions/windows/apps/dn655126(v=vs.105))
+- Microsoft, [Background agents for Windows Phone 8](https://learn.microsoft.com/en-us/previous-versions/windows/apps/hh202942(v=vs.105))
+- Microsoft, [Important dates for Windows Phone 8.x packages submitted to Microsoft Store](https://blogs.windows.com/windowsdeveloper/2018/08/20/important-dates-regarding-apps-with-windows-phone-8-x-and-earlier-and-windows-8-8-1-packages-submitted-to-microsoft-store/)

@@ -18,9 +18,9 @@
 
 ## Phase 0: Baseline and compatibility gate
 
-- [ ] Record the clean base commit and baseline gates before project retargeting.
+- [x] Record the clean base commit and baseline gates before project retargeting (745 protocol tests, 473 tools tests, fast guards, and WP8.1 x86/ARM rebuild passed with 0 errors; existing CS4014 warnings remain).
 - [ ] Inventory all references to `Windows.*`, `Windows.UI.Xaml`, `Windows.Storage`, `Windows.Networking.Sockets`, `Windows.Media.*`, `Windows.ApplicationModel.*`, and `IBackgroundTask` by source file and group each as: Silverlight 8.1 supported, supported through the Silverlight 8.1 WinRT subset, or requiring a replacement.
-- [ ] Inspect the installed VS2013 WP8.1 Silverlight application, class-library, and ScheduledTaskAgent templates; map their required properties/imports and manifest entries onto the existing projects only.
+- [x] Inspect the installed VS2013 WP8.1 Silverlight application, class-library, and ScheduledTaskAgent templates; map their required properties/imports and manifest entries onto the existing projects only.
 - [ ] Prove the current APPX-to-Silverlight XAP identity/data update path on a non-primary emulator or restorable test copy. Preserve ProductId/Publisher mappings and compare only file inventory and non-secret diagnostic state; never print or commit session/pre-key contents.
 - [ ] If the update path cannot preserve app data, stop before replacing the primary phone installation and design a tested in-place export/import path without adding a project.
 
