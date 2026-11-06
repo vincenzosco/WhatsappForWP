@@ -217,7 +217,7 @@ namespace ProtocolTests
         public static void AnIncomingPreKeyCallStartsAndPersistsItsResponderSession()
         {
             var random = new SignalSessions.CounterRandom();
-            const string CallerDevice = "15551230000:4@s.whatsapp.net";
+            const string CallerDevice = "15551230000@s.whatsapp.net";
             const string RecipientDevice = "15559990000@s.whatsapp.net";
 
             Credentials caller = Credentials.Create(random);
