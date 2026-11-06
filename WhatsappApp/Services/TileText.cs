@@ -14,7 +14,7 @@ namespace WhatsappApp.Services
     /// What a tile's two lines say: who wrote on the large line, and what they said under
     /// it - or how much is waiting when there is nothing to quote.
     ///
-    /// Why it is a rule of its own: the app's tile and a pinned chat's tile are two
+    /// The app's tile and a pinned chat's tile are two
     /// templates, two payloads and two places in the code, and the request of 23 October
     /// 2026 was that they read the same way - the person in the big line and the message
     /// under it, instead of a count where the eye lands. A rule written twice is a rule that

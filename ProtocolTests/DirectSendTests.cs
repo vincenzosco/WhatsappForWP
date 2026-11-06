@@ -14,7 +14,7 @@ namespace ProtocolTests
     /// is mocked - the sessions, the padding, the protobuf and the ciphertext are the ones
     /// the phone uses.
     ///
-    /// Why it exists: the device list and the bundle answer are two different shapes, and
+    /// The device list and the bundle answer are two different shapes, and
     /// the one-to-one send used to hand the first to the parser of the second, so every text
     /// to a single person died before a stanza existed. That failure lived in
     /// `NativeConnection`, which this desktop runner cannot compile; the rule lives in

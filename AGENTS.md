@@ -32,6 +32,22 @@
 - An agent that edits a project skill commits it like any other change, and
   names what it changed and why.
 
+## Comments in the code
+
+- **Every comment is in English.** C#, C, JavaScript, the batch files. The app's own
+  strings stay Italian, because they are what a person reads on the phone, and a
+  comment that quotes one quotes it verbatim in quotes or backticks.
+- **A comment explains the code, not the session that produced it.** No dates, no
+  "the phone answered 0x8007007F yesterday", no account of what was tried and
+  dropped. That belongs in the commit message and in `docs/`.
+- **No rhetorical scaffolding.** `Why it exists:`, `What it is not:` and the like
+  open most blocks like a template; say the thing instead.
+- **No emoji**, in comments or in commit messages.
+- `node tools/check-comments.js` enforces the mechanical half: Italian prose, dates,
+  emoji and those template openers fail the gate. It is strict for `WhatsappApp`,
+  `WhatsappApp.Tasks` and `ProtocolTests`; the scripts in `tools/` still carry Italian
+  headers written before this rule, are counted as debt, and are translated when touched.
+
 ## The rest
 
 The rules for the code itself live in `.agents/skills/maintain-the-app/SKILL.md`

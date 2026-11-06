@@ -12,7 +12,7 @@ namespace ProtocolTests
     /// the ones that must **not** reach the chats: no session at all, and a session the
     /// server has already revoked - a chat list behind either of them can never load.
     ///
-    /// The third rule is the one 28 October 2026 added: with a session, a start is always
+    /// The third rule is the one added: with a session, a start is always
     /// the chats. It used to be the section the app was last on, and that was the Status
     /// tab - the app opened on somebody's updates instead of on the conversations.
     /// </summary>

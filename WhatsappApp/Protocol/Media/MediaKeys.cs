@@ -10,7 +10,7 @@ namespace WhatsappApp.Protocol.Media
     /// `getMediaKeys`): HKDF-SHA256 over the 32-byte media key, expanded to **112** bytes with
     /// the info string `WhatsApp &lt;Type&gt; Keys` - the mapping is `Defaults/index.js`,
     /// where a photo is `Image`, a voice note `Audio`, a video `Video` and a document
-    /// `Document` - and then split `iv` 0..16, `cipherKey` 16..48, `macKey` 48..80. The last
+    /// `Document` - and then split `iv` 0.16, `cipherKey` 16.48, `macKey` 48.80. The last
     /// 32 bytes are not used by anything this client does, and they are part of the expansion
     /// because the length is what HKDF's output depends on: expanding to 80 bytes would give
     /// three different keys.

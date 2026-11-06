@@ -51,7 +51,7 @@ namespace WhatsappApp.Protocol.Client
     /// The classifier: one node in, one meaning out.
     ///
     /// Its table is the reference's own registration list and not a reading of the
-    /// protocol (`@whiskeysockets/baileys`, `Socket/messages-recv.js`, the `ws.on('CB:...')`
+    /// protocol (`@whiskeysockets/baileys`, `Socket/messages-recv.js`, the `ws.on('CB.')`
     /// registrations), and the order matters in exactly one place: an `iq` is the liveness
     /// probe or it is nothing, because the probe is an `iq` and is answered before anything
     /// else is asked of the node.

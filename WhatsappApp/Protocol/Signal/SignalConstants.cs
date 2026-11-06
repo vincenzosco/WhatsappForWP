@@ -13,11 +13,11 @@ namespace WhatsappApp.Protocol.Signal
     /// `libsignal-protocol` (npm, 1.3.15), installed in a directory outside this
     /// repository:
     ///
-    ///   mkdir -p /tmp/signalref &amp;&amp; cd /tmp/signalref &amp;&amp; npm init -y
-    ///   npm install libsignal-protocol
-    ///   grep -rn "deriveSecrets" node_modules/libsignal-protocol/src
-    ///   grep -rn "sharedSecret\[i\] = 0xff" node_modules/libsignal-protocol/src/SessionBuilder.js
-    ///   awk '/fillMessageKeys: function/,/^  },/' node_modules/libsignal-protocol/src/SessionCipher.js
+    /// mkdir -p /tmp/signalref &amp;&amp; cd /tmp/signalref &amp;&amp; npm init -y
+    /// npm install libsignal-protocol
+    /// grep -rn "deriveSecrets" node_modules/libsignal-protocol/src
+    /// grep -rn "sharedSecret\[i\] = 0xff" node_modules/libsignal-protocol/src/SessionBuilder.js
+    /// awk '/fillMessageKeys: function/,/^ },/' node_modules/libsignal-protocol/src/SessionCipher.js
     ///
     /// The wire format itself is pinned by `ProtocolTests/Vectors/SignalFixture.cs`,
     /// which holds the reference's own frozen conversation.
@@ -52,7 +52,7 @@ namespace WhatsappApp.Protocol.Signal
 
         /// <summary>
         /// How much of the 32-byte HMAC is kept: the first 8 bytes. Reference:
-        /// `SessionCipher.js`, `result.set(new Uint8Array(mac, 0, 8), ...)`. A verifier
+        /// `SessionCipher.js`, `result.set(new Uint8Array(mac, 0, 8),.)`. A verifier
         /// that compares 32 bytes refuses every real message.
         /// </summary>
         public const int MacLength = 8;

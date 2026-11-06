@@ -10,7 +10,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Records a voice note into the app folder.
     ///
-    /// Why it exists: the app could play a voice note but not make one. The
+    /// The app could play a voice note but not make one. The
     /// platform call is MediaCapture, initialized for audio only (no camera
     /// preview, no CaptureElement: there is nothing to show while recording),
     /// and recording straight to a StorageFile in LocalFolder.

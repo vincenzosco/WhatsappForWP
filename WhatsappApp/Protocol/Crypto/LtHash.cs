@@ -7,7 +7,7 @@ namespace WhatsappApp.Protocol.Crypto
     /// The app-state sync's LT-Hash: a 128-byte sum a set of records is hashed into, where
     /// adding and removing a record are two different arithmetic moves on that sum.
     ///
-    /// Why it exists here: every snapshot and every patch carries a MAC over this sum, so a
+    /// Every snapshot and every patch carries a MAC over this sum, so a
     /// client that wants to verify what the server says about a chat's pin, a mute or a saved
     /// contact name has to compute the same number. Without it the MACs can only be skipped,
     /// and a skipped MAC is a client that believes whatever arrives.

@@ -52,7 +52,7 @@ namespace WhatsappApp.Services
             // wrapped in a `try`: a `ResourceDictionary` answers a key it does not have with
             // a COMException (0x80004005, "Cannot find a resource with the given key") that
             // is thrown from inside the WinRT map, so the debugger stops on it at every
-            // start - `Eccezione generata: COMException ... at WhatsappApp.Services.Accent.Apply`
+            // start - `Eccezione generata: COMException. at WhatsappApp.Services.Accent.Apply`
             // on the output of 2026-10-24 - even though the `catch` below it handled it.
             // Two of the three names are absent on every build, so that was two first-chance
             // exceptions per launch for a question that has a `ContainsKey`.

@@ -8,7 +8,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The hardware Back button of the phone, wired to the page stack.
     ///
-    /// Why it exists: a Windows Phone 8.1 Runtime app does not get this for free.
+    /// A Windows Phone 8.1 Runtime app does not get this for free.
     /// In a Silverlight app the system pops the frame itself; in a Runtime app it
     /// does not, and the press leaves the app from the first page on - so a chat
     /// sent the user to the Start screen instead of back to the conversations.

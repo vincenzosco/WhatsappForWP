@@ -5,7 +5,7 @@ namespace WhatsappApp.Protocol.WABinary
     /// in the reference; the names are the ones the format is discussed with.
     ///
     /// `ListEmpty` doubles as the tag that means "no string here", and
-    /// <see cref="Dictionary0"/>..<see cref="Dictionary3"/> are also the selectors
+    /// <see cref="Dictionary0"/>.<see cref="Dictionary3"/> are also the selectors
     /// of the two-byte token dictionaries - which is why the single-byte token table
     /// stops at 236 entries and the reader must test the table before the switch.
     /// </summary>

@@ -10,7 +10,7 @@ namespace WhatsappApp.Protocol.Signal
     /// The MAC's input is the reference's, and it is the part of the wire format that is
     /// impossible to guess:
     ///
-    ///   HMAC(macKey, senderIdentity || receiverIdentity || versionByte || protobuf)[0..8]
+    /// HMAC(macKey, senderIdentity || receiverIdentity || versionByte || protobuf)[0.8]
     ///
     /// with both identity keys 33 bytes - the type byte is part of them - and the whole
     /// thing truncated to eight bytes. Eight is short by the standards of a modern AEAD

@@ -5,11 +5,11 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The call states the official app uses. There are fifteen of them, and these
     /// are their names, copied from `com.whatsapp.calling.infra.voipcalling.CallState`
-    /// in the APK's `classes*.dex` on 4 November 2026:
+    /// in the APK's `classes*.dex`:
     ///
-    ///   NONE, PRECALLING, CALLING, RECEIVED_CALL, PRE_ACCEPT_RECEIVED,
-    ///   ACCEPT_SENT, ACCEPT_RECEIVED, LINK, ACTIVE, CONNECTED_LONELY,
-    ///   REJOINING, ENDING, ACTIVE_ELSEWHERE, SCREENING, BCALL_STARTING
+    /// NONE, PRECALLING, CALLING, RECEIVED_CALL, PRE_ACCEPT_RECEIVED,
+    /// ACCEPT_SENT, ACCEPT_RECEIVED, LINK, ACTIVE, CONNECTED_LONELY,
+    /// REJOINING, ENDING, ACTIVE_ELSEWHERE, SCREENING, BCALL_STARTING
     ///
     /// This app used to have five states of its own (`Idle`, `Ringing`, `Connecting`,
     /// `Active`, `Ended`). Those five were never on the network: they were a summary

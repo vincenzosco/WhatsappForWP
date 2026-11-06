@@ -13,11 +13,11 @@ namespace WhatsappApp.Protocol.Client
     /// DTLS fingerprint (algo=%s)") and sends it in the transport negotiation that carries the
     /// ICE credentials and the candidates - the reference's `Web P2P: sending type 13
     /// (is_caller=%d, has_ufrag=%d, num_cands=%d, has_fp=%d)` line, in the 9,916 strings of
-    /// `libwhatsappmerged`, 5 November 2026. The Java side never spells "fingerprint" at all:
+    /// `libwhatsappmerged`,. The Java side never spells "fingerprint" at all:
     /// the child nodes are built with `VoipStanzaChildNode`, and every fingerprint mention in
     /// the APK is inside the native library or a `crypto_info` SQL column of message storage.
     ///
-    /// The value is the algorithm and the SHA-256 in the SDP spelling, `sha-256 AB:CD:...`: one
+    /// The value is the algorithm and the SHA-256 in the SDP spelling, `sha-256 AB:CD.`: one
     /// string in one attribute, and a form the peer's own engine already parses
     /// (`algo=%s`). A different peer that names another algorithm is refused rather than
     /// matched against nothing, because a fingerprint nobody can compare is not a pin.

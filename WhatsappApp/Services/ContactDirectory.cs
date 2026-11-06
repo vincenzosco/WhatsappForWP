@@ -12,7 +12,7 @@ namespace WhatsappApp.Services
     /// The names saved in the phone's own address book, matched to the numbers the
     /// WhatsApp chats are keyed on.
     ///
-    /// Why it exists: the history a linked device receives carries the names of
+    /// The history a linked device receives carries the names of
     /// groups and the push names of the people who wrote, but not the address book
     /// of the primary phone - on this account the sync named 144 LID pairs and no
     /// contacts at all. Without this lookup every person is a number, while the
@@ -212,7 +212,7 @@ namespace WhatsappApp.Services
                 // the cache and calls ApplyAddressBook). Said once, because it is a fact about
                 // the process and not a failure: it used to be
                 // `ContactDirectory/Apply: InvalidOperationException 0x8000000E` once per wake
-                // (23-24 October 2026), which reads like a broken address book.
+                // (), which reads like a broken address book.
                 Diag.Ok("contacts: no window in this process, the rows are renamed when the app opens");
                 return;
             }

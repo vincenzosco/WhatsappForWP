@@ -6,7 +6,7 @@ namespace ProtocolTests
     /// <summary>
     /// The time in front of a send: what is left of it, and when it is gone.
     ///
-    /// The bug these pin: on 4 November 2026 a message took about a minute to leave, because
+    /// The bug these pin: a message took about a minute to leave, because
     /// every question in front of the write waited twenty seconds of its own and nothing
     /// bounded their sum. The budget is the bound, and the arithmetic is the whole of it.
     /// </summary>

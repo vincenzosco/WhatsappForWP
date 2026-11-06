@@ -122,7 +122,7 @@ namespace ProtocolTests
         ///
         /// It goes to `status@broadcast` - a status is not a chat - and it names the author
         /// as `participant`, which is the shape the server sends us for our own statuses:
-        /// `from="status@broadcast" ... class="status" participant="..."`. Addressed to the
+        /// `from="status@broadcast". class="status" participant="."`. Addressed to the
         /// author instead, it named a message their chat did not have, and the receipt was
         /// silently pointless.
         /// </summary>

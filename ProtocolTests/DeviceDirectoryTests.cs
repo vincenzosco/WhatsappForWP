@@ -32,13 +32,13 @@ namespace ProtocolTests
         /// Device 0 - the phone, the one that shows the chat - is written as the bare user
         /// address, and never as `…:0@…`.
         ///
-        /// Why it is a test and not a detail: the address was glued by hand
+        /// The address was glued by hand
         /// (`user + ":" + id`), so every message to a person carried one `enc` addressed to
         /// `15551230000:0@s.whatsapp.net`, an address the server has no device at. The
         /// server answered `ack class="message"` - the single tick this app draws as "sent" -
         /// and the recipient's phone received nothing at all (the phone of 2026-11-01:
         /// "it says sent but it is not"). `JidUtils.Encode` is the one place that knows the
-        /// rule (`jid-utils.ts`: `device ? ':' + device : ''`).
+        /// rule (`jid-utils.ts`: `device ? ':' + device: ''`).
         /// </summary>
         [Test]
         public static void DeviceZeroIsTheBareUserAddress()

@@ -8,27 +8,27 @@ namespace WhatsappApp.Protocol.Media
     /// The other half of ICE (RFC 8445, section 2.5): the side that *starts* the traversal, checks
     /// every candidate it was offered, and nominates the pair the media goes on.
     ///
-    /// Why it exists: `IceLiteAgent` answers and never asks, which is the right role for a phone
+    /// `IceLiteAgent` answers and never asks, which is the right role for a phone
     /// that publishes one address and waits - but a call placed from behind a carrier NAT needs
     /// the other role, because a lite agent cannot open a path, only accept one. The connection
     /// that has to be opened is this one.
     ///
     /// What it does, in the order RFC 8445 requires:
     /// - a check names the peer's ufrag first and this side's second (`UserName`), carries a
-    ///   PRIORITY, says ICE-CONTROLLING with this agent's tie-breaker, and is signed with the
-    ///   peer's password;
+    /// PRIORITY, says ICE-CONTROLLING with this agent's tie-breaker, and is signed with the
+    /// peer's password;
     /// - USE-CANDIDATE travels in every check (aggressive nomination), so the first pair that
-    ///   answers is the pair, and the answerer never has to be asked twice;
+    /// answers is the pair, and the answerer never has to be asked twice;
     /// - a success is only a success when it carries the check's transaction id, comes from the
-    ///   candidate it was sent to, and verifies under the peer's password - anything else is
-    ///   counted and ignored;
+    /// candidate it was sent to, and verifies under the peer's password - anything else is
+    /// counted and ignored;
     /// - a 487 means the peer also believes it is controlling: that candidate is refused and the
-    ///   next one is tried, which is what a lite peer sends when the roles are backwards;
+    /// next one is tried, which is what a lite peer sends when the roles are backwards;
     /// - an unanswered candidate is retried on RFC 8445's schedule (half a second, doubling) and
-    ///   then abandoned, and an agent whose every candidate went unanswered says so instead of
-    ///   waiting for a user to give up.
+    /// then abandoned, and an agent whose every candidate went unanswered says so instead of
+    /// waiting for a user to give up.
     ///
-    /// What it is not: a socket, a gatherer, or a clock. `Start` writes the first checks, `Receive`
+    /// Not a socket, a gatherer, or a clock. `Start` writes the first checks, `Receive`
     /// takes one datagram, `Tick` is asked by the caller's timer - so a test drives the whole
     /// traversal against `IceLiteAgent` in memory, which is exactly the pairing a call uses.
     ///

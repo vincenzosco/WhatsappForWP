@@ -23,7 +23,7 @@ namespace WhatsappApp.Protocol.Media
     /// <summary>
     /// The picture a tile shows, drawn at the size the tile shows it.
     ///
-    /// Why it exists: a WP8.1 tile template that carries an image draws it **over the whole
+    /// A WP8.1 tile template that carries an image draws it **over the whole
     /// tile**, and the file this app used to hand it was the 96x96 preview WhatsApp sends -
     /// so the shell stretched it across 150 or 310 pixels and the phone of 2026-10-22 showed a
     /// magnified face. The answer is an image the shell has nothing to stretch: a tile-sized
@@ -32,12 +32,12 @@ namespace WhatsappApp.Protocol.Media
     /// Two rules, because there are two pictures:
     ///
     /// - a **chat's own picture fills the tile**. The decoder crops it to its centre square and
-    ///   scales it once, and it is drawn edge to edge - no border, which is what a person means
-    ///   when they say the picture is not the size of the tile. The crop is why a portrait is
-    ///   not stretched into a square; the shell then draws it 1:1 at every size;
+    /// scales it once, and it is drawn edge to edge - no border, which is what a person means
+    /// when they say the picture is not the size of the tile. The crop is why a portrait is
+    /// not stretched into a square; the shell then draws it 1:1 at every size;
     /// - the **app mark keeps a margin**, at half the tile: it is a glyph that goes away if it
-    ///   is cropped by the wide tile's 310x150 shape, and a logo with a border is a logo, while
-    ///   a cropped one is a mistake.
+    /// is cropped by the wide tile's 310x150 shape, and a logo with a border is a logo, while
+    /// a cropped one is a mistake.
     ///
     /// It is here, in the protocol core and away from WinRT, because the arithmetic is the
     /// part that can be wrong in a way nobody sees until the phone is in a hand: `TileCanvasTests`
@@ -73,7 +73,7 @@ namespace WhatsappApp.Protocol.Media
         ///
         /// Why a dim at all: the wallpaper is whatever the user chose and the mark drawn over
         /// it is white - on a photo whose middle is the same white the tile has a logo nobody
-        /// can see. The phone of 28 October 2026 had no logo at all, because the theme card
+        /// can see. The phone had no logo at all, because the theme card
         /// was the wallpaper edge to edge and nothing was drawn on it; with the mark back, a
         /// little dimming is what keeps it a logo on any of the package's wallpapers.
         /// </summary>
@@ -91,11 +91,11 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>
         /// The small tile, in pixels: 71x71 dp at the 240% scale this phone reports, so 170.
         ///
-        /// Why it has a card of its own: a binding fills the tile with the image it is given
-        /// and crops what does not fit, so the 336 card in the 71x71 tile showed the centre of
-        /// the face at about twice its size ("l'immagine troppo zoommata e non si adatta alla
-        /// dimensione tile", 23 October 2026). The card handed to that binding is composed at
-        /// the tile's own size, so there is nothing left to crop.
+        /// It has a card of its own because a binding fills the tile with the image it is
+        /// given and crops what does not fit, so the 336 card in the 71x71 tile showed the
+        /// centre of the face at about twice its size: "immagine troppo zoommata". The card
+        /// handed to that binding is composed at the tile's own size, so there is nothing
+        /// left to crop.
         /// </summary>
         public const int SmallSize = 170;
 
@@ -112,14 +112,14 @@ namespace WhatsappApp.Protocol.Media
         ///
         /// 5: a `v4` name may hold the picture **uncomposed**. When the decoder refused the
         /// crop, the fallback wrote the raw JPEG under the card's own name
-        /// (`TileImage.RawAsync`), so the phone of 23 October 2026 has `v4` files whose bytes
+        /// (`TileImage.RawAsync`), so the phone has `v4` files whose bytes
         /// are the magnified face this class exists to end - and the name is what the shell
         /// caches. The fallback has a name of its own now (`FallbackFileName`); this bump is
         /// what makes the phone draw the composed card instead of the file it left behind.
         ///
         /// 6: the theme card is composed by different rules - the chosen wallpaper edge to
         /// edge at every size, dimmed, with the app mark over it (`TileImage.StoreThemeAsync`).
-        /// The `v5` theme file on the phone of 28 October 2026 is the wallpaper alone, with no
+        /// The `v5` theme file on the phone is the wallpaper alone, with no
         /// logo on it, and the shell would keep drawing exactly that.
         /// </summary>
         public const int CardVersion = 6;
@@ -165,7 +165,7 @@ namespace WhatsappApp.Protocol.Media
         /// rewritten at the same path stays the old picture on the Start screen; and two
         /// updates of one chat - which is what a burst of messages is - both open that one
         /// file, the second `OpenAsync(ReadWrite)` on a file already open being the
-        /// `UnauthorizedAccessException` (E_ACCESSDENIED) the phone showed on 23 October 2026.
+        /// `UnauthorizedAccessException` (E_ACCESSDENIED) the phone showed.
         /// A name that changes with the bytes is a name nothing can be holding: no replace of
         /// a file the shell is drawing, and no stale cache. The same picture under the same
         /// rules is the same name, so nothing is written twice.
@@ -191,7 +191,7 @@ namespace WhatsappApp.Protocol.Media
         ///
         /// Why it is not the card's name: a file named as a card is what says "this picture
         /// has already been composed by these rules", and `TileImage.ComposeAsync` skips the
-        /// work when that name is on the phone. On 23 October 2026 the fallback wrote the raw
+        /// work when that name is on the phone. On the fallback wrote the raw
         /// JPEG under a `v4` card's name - the decoder had refused the crop - so every later
         /// attempt found the file there and never composed it again: the magnified face stayed
         /// for the whole life of that file, and no log line said so.
@@ -294,13 +294,13 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>
         /// The wide card: the tile's teal, with the square card in the middle of it, 1:1.
         ///
-        /// Why not hand the square card to the wide binding: the shell fills the tile with
+        /// The square card does not go to the wide binding: the shell fills the tile with
         /// the image it is given - scaled by the wider side, cropped top and bottom - so a
         /// 336 square becomes 744 wide by 744 tall and the middle 360 rows of it are all that
         /// is left: a face magnified more than twice, with its forehead and its chin gone.
-        /// The phone of 23 October 2026 showed exactly that ("le foto vengono zoommate nella
-        /// tile grande"). Here the picture keeps the size it was composed at, and the card
-        /// grows around it, which is also where the template's two lines have room.
+        /// That is what the phone showed. Here the picture keeps the size it was composed at,
+        /// and the card grows around it, which is also where the template's two lines have
+        /// room.
         /// </summary>
         public static byte[] WideCard(byte[] square)
         {
@@ -379,7 +379,7 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>
         /// The side a square BGRA buffer holds, or 0 when it is not a square of pixels.
         ///
-        /// Why it exists: a decoder is *asked* for a side, and the tile of 23 October 2026
+        /// A decoder is *asked* for a side, and the tile
         /// found that the answer to that request is not always the answer - a 96x96 buffer
         /// went to `Draw` as 336x336 and the read ran past its end
         /// (`IndexOutOfRangeException`, `TileCanvas.Draw`). A byte count is not a wish: it
@@ -404,7 +404,7 @@ namespace WhatsappApp.Protocol.Media
         ///
         /// Why it is here and not left to the decoder: the decoder is the only resampler on
         /// this phone worth using, and it is also the component whose answer the tile of
-        /// 23 October 2026 could not trust - asked for a scaled picture it returned the crop
+        /// could not trust - asked for a scaled picture it returned the crop
         /// at its own size. The card is composed from a buffer whose side is known, so what
         /// reaches `Draw` is always exactly the side it is drawn at.
         ///
@@ -513,7 +513,7 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>
         /// The picture cropped to fill a card of another shape, and scaled to it.
         ///
-        /// Why it exists: the wide tile is 744x360, and the crop this class already had
+        /// The wide tile is 744x360, and the crop this class already had
         /// (`CentreSquare`) only answers a square. A theme background handed to the wide
         /// binding without this is the square card floating on the card's teal - which is
         /// right for a face, whose chin matters, and wrong for a wallpaper, which is a
@@ -718,7 +718,7 @@ namespace WhatsappApp.Protocol.Media
             if (width <= 0 || height <= 0) throw new ProtocolException("a picture with no side is no picture");
 
             // The buffer is read `width` pixels per row, so it has to be at least that big.
-            // The tile of 23 October 2026 handed this method 96x96 bytes as 336x336 and the
+            // The tile handed this method 96x96 bytes as 336x336 and the
             // read ran off the end: an IndexOutOfRangeException with nothing in it that
             // names the picture. A short buffer is a protocol error with a number in it.
             if (picture.Length < width * height * 4)

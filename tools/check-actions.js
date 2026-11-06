@@ -5,19 +5,19 @@
  * Guard for the buttons: nome, gestore, icona e misura dichiarata.
  *
  * Perche' esiste: due pulsanti con la sola icona, uno accanto all'altro, si
- * scambiano con una modifica di una riga - basta spostare un `Click="..."`, o il
+ * scambiano con una modifica di una riga - basta spostare un `Click="."`, o il
  * commento che nomina l'icona - e il risultato e' che toccando un'icona se ne
  * apre un'altra. La regola non e' stilistica: e' il modo per rendere quello
  * scambio impossibile da spedire.
  *
  * Regole:
- *  1. un pulsante chiamato X e' cablato solo a X_Click;
- *  2. i pulsanti della barra del titolo disegnano l'icona dichiarata qui sotto;
- *  3. un pulsante a misura fissa - e uno stile che dimensiona pulsanti - azzera i
- *     minimi con cui il tema di WP8.1 scavalcherebbe la misura dichiarata.
+ * 1. un pulsante chiamato X e' cablato solo a X_Click;
+ * 2. i pulsanti della barra del titolo disegnano l'icona dichiarata qui sotto;
+ * 3. un pulsante a misura fissa - e uno stile che dimensiona pulsanti - azzera i
+ * minimi con cui il tema di WP8.1 scavalcherebbe la misura dichiarata.
  *
  * Usage:
- *   node tools/check-actions.js
+ * node tools/check-actions.js
  */
 'use strict';
 

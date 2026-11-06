@@ -8,7 +8,7 @@ namespace ProtocolTests
     /// The store that keeps a group message until the sender key it needs arrives: what comes
     /// back, in which order, and what happens when the key never does.
     ///
-    /// Why it is a test of its own and not a line in `GroupSendTests`: the reading is the
+    /// The reading is the
     /// protocol's, the waiting is the connection's, and this is the part that has a ceiling -
     /// a store that waits forever is the leak that looks like a feature.
     /// </summary>

@@ -142,7 +142,7 @@ namespace WhatsappApp.Models
         /// the view that draws the bitmap, and answers null in a process that has none
         /// (the background check). It used to build the picture there anyway and answer
         /// `RPC_E_WRONG_THREAD` (0x8001010E) once per wake - the line this method is named
-        /// in, 21 times on 23-24 October 2026.
+        /// in, 21 times.
         /// </summary>
         public async Task LoadAvatarAsync()
         {

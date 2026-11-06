@@ -12,22 +12,22 @@
  * e un pianeta, tutti quadrati. La regola che li sostituisce e' in un file solo
  * (`EmojiText`), e questo guardiano tiene i due modi in cui una regola cosi' si perde:
  *
- *  1. **sparisce dal disegno**: una bolla che torna a legare `Text` invece di `ShownText`,
- *     o una riga di stato o un messaggio in notifica che leggono il testo grezzo -
- *     l'emoji torna a essere un quadratino e nessuno se ne accorge finche' non la manda
- *     qualcuno con un telefono nuovo;
- *  2. **finisce sul filo**: se `ChatMessage.Text` viene sostituito all'ingresso, il
- *     messaggio che parte non e' quello che e' stato scritto - si manda un cuore blu al
- *     posto di un cuore azzurro, e il destinatario con un telefono nuovo vede la
- *     sostituzione di un altro.
+ * 1. **sparisce dal disegno**: una bolla che torna a legare `Text` invece di `ShownText`,
+ * o una riga di stato o un messaggio in notifica che leggono il testo grezzo -
+ * l'emoji torna a essere un quadratino e nessuno se ne accorge finche' non la manda
+ * qualcuno con un telefono nuovo;
+ * 2. **finisce sul filo**: se `ChatMessage.Text` viene sostituito all'ingresso, il
+ * messaggio che parte non e' quello che e' stato scritto - si manda un cuore blu al
+ * posto di un cuore azzurro, e il destinatario con un telefono nuovo vede la
+ * sostituzione di un altro.
  *
  * E una regola sulla tastiera, che e' la richiesta gemella del 29 ottobre 2026 ("si
- * possano mandare emoji o :) dalla tastiera Microsoft"): su WP8.1 la faccina sulla
+ * possano mandare emoji o:) dalla tastiera Microsoft"): su WP8.1 la faccina sulla
  * tastiera compare solo per lo scope `Chat`. Senza, il composer e' una casella di testo
  * qualsiasi e il telefono non offre ne' l'emoji ne' la conversione di `:)`.
  *
  * Usage:
- *   node tools/check-emoji.js
+ * node tools/check-emoji.js
  */
 'use strict';
 
@@ -78,7 +78,7 @@ function emojiProblems(files) {
   const data = String(files[DATA] || '');
 
   // 1. La regola c'e', e ha una tabella: un `Compatible` vuoto e' un file che promette
-  //    una sostituzione che non fa.
+  // una sostituzione che non fa.
   if (!rule) {
     problems.push(`${RULE}: the emoji rule is missing - the emoji this phone has no glyph `
       + 'for (the heart of 15.0, the mechanical arm, the ringed planet) are boxes again');
@@ -133,11 +133,11 @@ function emojiProblems(files) {
   }
 
   // 5b. Il tasto di ritorno della tastiera manda il messaggio. Su WP8.1 la tastiera su
-  //     schermo consegna il tasto alla pagina solo con `KeyUp` (il `KeyDown` lo consuma
-  //     il TextBox), quella fisica solo con `KeyDown`: con uno solo dei due, l'Invio del
-  //     telefono in mano non manda niente (3 novembre 2026). E `AcceptsReturn="False"`,
-  //     perche' un a capo non deve finire dentro un messaggio che la bolla disegna su una
-  //     riga sola.
+  // schermo consegna il tasto alla pagina solo con `KeyUp` (il `KeyDown` lo consuma
+  // il TextBox), quella fisica solo con `KeyDown`: con uno solo dei due, l'Invio del
+  // telefono in mano non manda niente (3 novembre 2026). E `AcceptsReturn="False"`,
+  // perche' un a capo non deve finire dentro un messaggio che la bolla disegna su una
+  // riga sola.
   const composerTag = /<TextBox[^>]*x:Name="MessageTextBox"[^>]*>/.exec(chat);
   if (!composerTag) {
     problems.push(`${CHAT_XAML}: no MessageTextBox - the composer this rule is about is gone`);

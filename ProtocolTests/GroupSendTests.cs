@@ -64,7 +64,7 @@ namespace ProtocolTests
         /// <summary>
         /// A group payload the key opens to bytes that are not a message: a field that announces
         /// sixteen bytes with fourteen left, which is the shape the phone refused on every
-        /// connection of 24 October 2026.
+        /// connection.
         ///
         /// The answer is a value and not an exception: the same bytes asked for again are the
         /// same bytes, so the connection acknowledges the copy instead of asking for it for ever.
@@ -103,7 +103,7 @@ namespace ProtocolTests
 
             // A value and not an exception: a group writing before the key arrives is the
             // ordinary way a group starts, and a first-chance throw per message is what the
-            // debugger printed on 24 October 2026.
+            // debugger printed.
             Assert.AreEqual(IncomingRefusal.WaitsForSenderKey, waiting.Refused,
                 "a group ciphertext with no key anywhere is a message to hold");
             Assert.AreEqual(GroupJid, waiting.Chat, "and the hold names the group");

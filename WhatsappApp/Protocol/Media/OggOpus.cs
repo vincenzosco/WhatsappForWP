@@ -15,13 +15,13 @@ namespace WhatsappApp.Protocol.Media
     /// the three pinned by `ProtocolTests/OggOpusTests.cs`:
     ///
     /// - **The granule is counted at 48 kHz**, whatever the input rate was: Opus decodes to
-    ///   48 kHz and the position in the container is in those samples. A note recorded at
-    ///   16 kHz with a 16 kHz granule plays at a third of its length.
+    /// 48 kHz and the position in the container is in those samples. A note recorded at
+    /// 16 kHz with a 16 kHz granule plays at a third of its length.
     /// - **The CRC is Ogg's own**, not zlib's: polynomial 0x04c11db7, no reflection, no
-    ///   final xor, and the field itself counts as four zero bytes while it is computed.
-    ///   A page with a zlib CRC is a page every player rejects.
+    /// final xor, and the field itself counts as four zero bytes while it is computed.
+    /// A page with a zlib CRC is a page every player rejects.
     /// - **A packet of 255 bytes takes two lacing values** (255 and 0), because 255 means
-    ///   "the packet goes on".
+    /// "the packet goes on".
     /// </summary>
     public static class OggOpus
     {
@@ -47,7 +47,7 @@ namespace WhatsappApp.Protocol.Media
         /// The whole file: the two header packets, then the frames.
         /// </summary>
         /// <param name="packets">The Opus packets, in order, as the encoder produced them.</param>
-        /// <param name="inputSampleRate">The rate the PCM was recorded at (8000..48000).</param>
+        /// <param name="inputSampleRate">The rate the PCM was recorded at (8000.48000).</param>
         /// <param name="channels">1 or 2.</param>
         /// <param name="serial">The stream's serial number: any 32 bits, the same for every page of one file.</param>
         public static byte[] Build(IList<byte[]> packets, int inputSampleRate, int channels, int serial)

@@ -195,7 +195,7 @@ namespace WhatsappApp.Pages
             ApplyTheme();
 
             // A start is the chats. It used to be "the section you left", and on
-            // 28 October 2026 that was the Status tab - the app opened on somebody's updates
+            // that was the Status tab - the app opened on somebody's updates
             // instead of on the conversations. The other two tabs are one tap away and their
             // badges are what say they have something new.
             Show(0, true);
@@ -397,7 +397,7 @@ namespace WhatsappApp.Pages
         /// A call's name: the contact's, the phone number behind a `@lid`, or the address.
         ///
         /// Why not the book alone: it answers null for somebody this phone has no name for,
-        /// and the banner then said `5479483...` - an identifier, not a number anybody can
+        /// and the banner then said `5479483.` - an identifier, not a number anybody can
         /// call back. `DisplayNameForJid` is the one resolver a chat row already uses, so the
         /// banner and the conversation cannot disagree about who is calling.
         /// </summary>

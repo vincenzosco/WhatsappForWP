@@ -5,25 +5,25 @@ namespace ProtocolTests
     ///
     /// Printed from a temporary installation of the reference outside this repository:
     ///
-    ///   mkdir -p /tmp/m4ref && cd /tmp/m4ref && npm i @whiskeysockets/baileys
-    ///   node -e "const p=require('@whiskeysockets/baileys').proto;
-    ///     const hex=m=&gt;Buffer.from(p.Message.encode(m).finish()).toString('hex');
-    ///     console.log('text       ', hex({conversation:'Hello, WhatsApp!'}));
-    ///     console.log('extended   ', hex({extendedTextMessage:{text:'Hi'}}));
-    ///     console.log('skdm       ', hex({senderKeyDistributionMessage:{groupId:'g',
-    ///       axolotlSenderKeyDistributionMessage:Buffer.from([1,2,3])}}));
-    ///     console.log('protocol   ', hex({protocolMessage:{type:0,
-    ///       key:{id:'ID', remoteJid:'r@s.whatsapp.net'}}}));
-    ///     console.log('deviceSent ', hex({deviceSentMessage:{destinationJid:'r@s.whatsapp.net',
-    ///       message:{conversation:'Hello, WhatsApp!'}}}));"
+    /// mkdir -p /tmp/m4ref && cd /tmp/m4ref && npm i @whiskeysockets/baileys
+    /// node -e "const p=require('@whiskeysockets/baileys').proto;
+    /// const hex=m=&gt;Buffer.from(p.Message.encode(m).finish()).toString('hex');
+    /// console.log('text ', hex({conversation:'Hello, WhatsApp!'}));
+    /// console.log('extended ', hex({extendedTextMessage:{text:'Hi'}}));
+    /// console.log('skdm ', hex({senderKeyDistributionMessage:{groupId:'g',
+    /// axolotlSenderKeyDistributionMessage:Buffer.from([1,2,3])}}));
+    /// console.log('protocol ', hex({protocolMessage:{type:0,
+    /// key:{id:'ID', remoteJid:'r@s.whatsapp.net'}}}));
+    /// console.log('deviceSent ', hex({deviceSentMessage:{destinationJid:'r@s.whatsapp.net',
+    /// message:{conversation:'Hello, WhatsApp!'}}}));"
     ///
     /// and the five lines it printed, in that order:
     ///
-    ///   text        0a1048656c6c6f2c20576861747341707021
-    ///   extended    32040a024869
-    ///   skdm        12080a01671203010203
-    ///   protocol    621a0a160a107240732e77686174736170702e6e65741a0249441000
-    ///   deviceSent  fa01260a107240732e77686174736170702e6e657412120a1048656c6c6f2c20576861747341707021
+    /// text 0a1048656c6c6f2c20576861747341707021
+    /// extended 32040a024869
+    /// skdm 12080a01671203010203
+    /// protocol 621a0a160a107240732e77686174736170702e6e65741a0249441000
+    /// deviceSent fa01260a107240732e77686174736170702e6e657412120a1048656c6c6f2c20576861747341707021
     ///
     /// The field numbers are the reference's arithmetic, not anyone's memory of them:
     /// 0x0a is field 1, 0x12 field 2, 0x32 field 6, 0x62 field 12, and 0xfa 0x01 is the

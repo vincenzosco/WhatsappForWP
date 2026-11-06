@@ -51,13 +51,13 @@ namespace WhatsappApp.Protocol.Client
     /// Status is not a chat and every part of this file exists because of that one fact:
     ///
     /// - its JID is `status@broadcast`, a broadcast list and not a person and not a group,
-    ///   so `IsStatus` is what keeps a status out of the chat list
-    ///   (`whatsmeow`, `send.go`, `types.StatusBroadcastJID`);
+    /// so `IsStatus` is what keeps a status out of the chat list
+    /// (`whatsmeow`, `send.go`, `types.StatusBroadcastJID`);
     /// - a status is sent to **everybody who should see it**, so it needs the same device
-    ///   fan-out a group does (`ListQuery` asks the one `usync` for the whole list, which is
-    ///   the reference's `getUSyncDevices`);
+    /// fan-out a group does (`ListQuery` asks the one `usync` for the whole list, which is
+    /// the reference's `getUSyncDevices`);
     /// - and reading one is not reading a message: it is a `read` receipt sent to the status
-    ///   list that names the status (`Viewed`), which is what makes the author's ring fill.
+    /// list that names the status (`Viewed`), which is what makes the author's ring fill.
     /// </summary>
     public static class StatusFeed
     {
@@ -90,12 +90,12 @@ namespace WhatsappApp.Protocol.Client
         /// The statuses live in two places and both are read, because WhatsApp uses both:
         ///
         /// - `HistorySync.statusV3Messages` (field 3) is the one a status sync carries - its
-        ///   `syncType` is `InitialStatusV3` and this list is the whole payload, so it is what
-        ///   fills the feed the first time the app is opened on a phone with a day of
-        ///   statuses waiting;
+        /// `syncType` is `InitialStatusV3` and this list is the whole payload, so it is what
+        /// fills the feed the first time the app is opened on a phone with a day of
+        /// statuses waiting;
         /// - a `status@broadcast` conversation, for a sync that carried the statuses as a
-        ///   chat (`NativeChats.ApplyHistory` skips that same conversation, and this is where
-        ///   its contents go instead).
+        /// chat (`NativeChats.ApplyHistory` skips that same conversation, and this is where
+        /// its contents go instead).
         ///
         /// A status this account posted from another phone is left out: it is not somebody
         /// else's update, and this client has no name of its own to put on it. Whichever

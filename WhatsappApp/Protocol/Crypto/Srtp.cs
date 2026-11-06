@@ -16,16 +16,16 @@ namespace WhatsappApp.Protocol.Crypto
     /// `DtlsClient`, or from `CallKeys.SplitMedia` when the call's own key material is what
     /// keys the media - it turns an RTP packet into what goes on the wire and back.
     ///
-    /// What it deliberately is **not**:
+    /// Out of scope, deliberately:
     /// - **not DTLS, and not the negotiation.** It takes a key already agreed; `DtlsClient`
-    ///   is the half that agrees one. What is still missing for a working call is the media
-    ///   transport (ICE and the relay), not the key.
+    /// is the half that agrees one. What is still missing for a working call is the media
+    /// transport (ICE and the relay), not the key.
     /// - **not a full SRTP stack.** No SRTCP, no rekeying, no replay list beyond the rollover
-    ///   counter, and no MKI. A call needs the rollover counter to keep the keystream
-    ///   aligned across a sequence wrap, which is why that one is here.
+    /// counter, and no MKI. A call needs the rollover counter to keep the keystream
+    /// aligned across a sequence wrap, which is why that one is here.
     ///
     /// The key derivation is the specification's (section 4.3.3): the master salt with the
-    /// label XORed into bits 48..55, encrypted with the master key, and the keystream taken
+    /// label XORed into bits 48.55, encrypted with the master key, and the keystream taken
     /// from there - a different label gives a different key, which is what keeps the
     /// encryption key, the authentication key and the salt apart.
     /// </summary>
@@ -159,13 +159,13 @@ namespace WhatsappApp.Protocol.Crypto
             // k_s * 2^16: the salt in the top 112 bits.
             Buffer.BlockCopy(_salt, 0, counter, 0, 14);
 
-            // XOR SSRC * 2^64: bits 64..95, which is bytes 4 to 7.
+            // XOR SSRC * 2^64: bits 64.95, which is bytes 4 to 7.
             counter[4] ^= (byte)(_ssrc >> 24);
             counter[5] ^= (byte)(_ssrc >> 16);
             counter[6] ^= (byte)(_ssrc >> 8);
             counter[7] ^= (byte)_ssrc;
 
-            // XOR the 48-bit packet index * 2^16: bits 16..63, bytes 8 to 13.
+            // XOR the 48-bit packet index * 2^16: bits 16.63, bytes 8 to 13.
             counter[8] ^= (byte)(index >> 40);
             counter[9] ^= (byte)(index >> 32);
             counter[10] ^= (byte)(index >> 24);
@@ -277,14 +277,14 @@ namespace WhatsappApp.Protocol.Crypto
 
         /// <summary>
         /// One derived key or salt (RFC 3711, section 4.3.3): the master salt with the label
-        /// XORed into bits 48..55, encrypted with the master key, taken as a keystream.
+        /// XORed into bits 48.55, encrypted with the master key, taken as a keystream.
         /// </summary>
         private static byte[] DeriveKey(byte[] masterKey, byte[] masterSalt, byte label, int length)
         {
             var counter = new byte[BlockLength];
             Buffer.BlockCopy(masterSalt, 0, counter, 0, 14);
 
-            // The label sits at bits 48..55 of the 112-bit salt: byte 7 of a 14-byte
+            // The label sits at bits 48.55 of the 112-bit salt: byte 7 of a 14-byte
             // big-endian number.
             counter[7] ^= label;
 

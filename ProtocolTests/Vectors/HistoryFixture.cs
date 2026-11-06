@@ -6,18 +6,18 @@ namespace ProtocolTests.Vectors
     /// Regenerated with, inside `/tmp/m4ref` (Baileys 7.x, a temporary checkout outside this
     /// repository - a fixture nobody can regenerate is a fixture nobody can trust):
     ///
-    ///     node -e "const p=require('@whiskeysockets/baileys').proto, zlib=require('zlib'); \
-    ///       const s=p.HistorySync.encode({syncType:2, conversations:[ ... ]}).finish(); \
-    ///       console.log(s.toString('hex')); console.log(zlib.deflateSync(Buffer.from(s)).toString('hex'));"
+    /// node -e "const p=require('@whiskeysockets/baileys').proto, zlib=require('zlib'); \
+    /// const s=p.HistorySync.encode({syncType:2, conversations:[. ]}).finish(); \
+    /// console.log(s.toString('hex')); console.log(zlib.deflateSync(Buffer.from(s)).toString('hex'));"
 ///
 /// The keys of the `md-msg-hist` blob come from the same checkout, over a media key of 32
 /// bytes of `0x07`:
 ///
-///     node --input-type=module -e "import * as m from
-///       './node_modules/@whiskeysockets/baileys/lib/Utils/messages-media.js';
-///       console.log(m.hkdfInfoKey('md-msg-hist'));
-///       const k = await m.getMediaKeys(Buffer.alloc(32, 7), 'md-msg-hist');
-///       console.log(Buffer.from(k.iv).toString('hex')); ..."
+/// node --input-type=module -e "import * as m from
+/// './node_modules/@whiskeysockets/baileys/lib/Utils/messages-media.js';
+/// console.log(m.hkdfInfoKey('md-msg-hist'));
+/// const k = await m.getMediaKeys(Buffer.alloc(32, 7), 'md-msg-hist');
+/// console.log(Buffer.from(k.iv).toString('hex'));."
 ///
 /// The blob behind a download is printed by the same checkout
 /// (`/tmp/m4ref/gen-history-blob.mjs`), over a media key of 32 bytes of `0x07`: `Plain`
@@ -29,22 +29,22 @@ namespace ProtocolTests.Vectors
     /// reference's own, printed by encoding one field at a time and reading the tag varint
     /// back out (`/tmp/m4ref/history-tags.js`):
     ///
-    ///     HistorySync        syncType 1, conversations 2, chunkOrder 5, progress 6,
-    ///                        pushnames 7, callLogRecords 13
-    ///     Conversation       id 1, messages 2, lastMsgTimestamp 5, unreadCount 6,
-    ///                        conversationTimestamp 12, name 13, archived 16,
-    ///                        participant 20, pinned 24, displayName 38, pnJid 39
-    ///     HistorySyncMsg     message 1, msgOrderId 2
-    ///     WebMessageInfo     key 1, message 2, messageTimestamp 3, status 4,
-    ///                        participant 5, pushName 19
-    ///     MessageKey         remoteJid 1, fromMe 2, id 3, participant 4
-    ///     CallLogRecord      callResult 1, duration 4, startTime 5, isIncoming 6,
-    ///                        isVideo 7, callId 11, callCreatorJid 12, groupJid 13,
-    ///                        participants 14
-    ///     Message.HistorySyncNotification
-    ///                        fileSha256 1, fileLength 2, mediaKey 3, fileEncSha256 4,
-    ///                        directPath 5, syncType 6, chunkOrder 7, originalMessageId 8,
-    ///                        initialHistBootstrapInlinePayload 11
+    /// HistorySync syncType 1, conversations 2, chunkOrder 5, progress 6,
+    /// pushnames 7, callLogRecords 13
+    /// Conversation id 1, messages 2, lastMsgTimestamp 5, unreadCount 6,
+    /// conversationTimestamp 12, name 13, archived 16,
+    /// participant 20, pinned 24, displayName 38, pnJid 39
+    /// HistorySyncMsg message 1, msgOrderId 2
+    /// WebMessageInfo key 1, message 2, messageTimestamp 3, status 4,
+    /// participant 5, pushName 19
+    /// MessageKey remoteJid 1, fromMe 2, id 3, participant 4
+    /// CallLogRecord callResult 1, duration 4, startTime 5, isIncoming 6,
+    /// isVideo 7, callId 11, callCreatorJid 12, groupJid 13,
+    /// participants 14
+    /// Message.HistorySyncNotification
+    /// fileSha256 1, fileLength 2, mediaKey 3, fileEncSha256 4,
+    /// directPath 5, syncType 6, chunkOrder 7, originalMessageId 8,
+    /// initialHistBootstrapInlinePayload 11
     ///
     /// The bootstrap carries two conversations on purpose: one person with two messages
     /// (one of them ours) and one group with one, so the order, the two directions and the

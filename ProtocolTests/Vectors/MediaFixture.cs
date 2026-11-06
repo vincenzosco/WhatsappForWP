@@ -6,10 +6,10 @@ namespace ProtocolTests.Vectors
     /// Regenerated with `node /tmp/gen-media-fixture.js` - Node's `crypto` with the parameters read
     /// out of the reference's source and not remembered:
     /// `@whiskeysockets/baileys/lib/Utils/messages-media.js` derives the three keys with
-    /// `hkdf(mediaKey, 112, { info: hkdfInfoKey(type) })` and splits them `iv` 0..16,
-    /// `cipherKey` 16..48, `macKey` 48..80; `Defaults/index.js` maps `image` to `Image`,
+    /// `hkdf(mediaKey, 112, { info: hkdfInfoKey(type) })` and splits them `iv` 0.16,
+    /// `cipherKey` 16.48, `macKey` 48.80; `Defaults/index.js` maps `image` to `Image`,
     /// so the info is `WhatsApp Image Keys`; the body is `AES-256-CBC(cipherKey, iv)` with
-    /// the MAC `HMAC-SHA256(macKey, iv || ciphertext)[0..10]` appended (line 324 to 354);
+    /// the MAC `HMAC-SHA256(macKey, iv || ciphertext)[0.10]` appended (line 324 to 354);
     /// and `fileSha256` is over the plaintext while `fileEncSha256` is over the body.
     ///
     /// The generator is Node's crypto and not Baileys' `encryptedStream`, which needs an

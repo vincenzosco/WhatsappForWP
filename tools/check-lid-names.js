@@ -18,7 +18,7 @@
  * groups. The three sites are checked here, and so is the rule they ask.
  *
  * Usage:
- *   node tools/check-lid-names.js
+ * node tools/check-lid-names.js
  */
 'use strict';
 

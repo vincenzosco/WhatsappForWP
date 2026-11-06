@@ -83,7 +83,7 @@ namespace ProtocolTests
         /// <summary>
         /// The crop as pixels, for the decoder that refuses to crop.
         ///
-        /// Why it is a test: on 23 October 2026 the full-size profile picture answered
+        /// The full-size profile picture answered
         /// `ArgumentException` (E_INVALIDARG) to the crop, and the tile then fell back to the
         /// raw JPEG - the magnified face again. The whole picture is a request nothing
         /// refuses, so the square is cut here, and it has to be the same square
@@ -227,10 +227,10 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The crash of 23 October 2026, at the arithmetic level: the decoder answered 96x96
+        /// The crash, at the arithmetic level: the decoder answered 96x96
         /// for a picture the card asked for at 336, and the read ran off the end of it.
         ///
-        /// Why it is a test and not a comment: `Draw` reads `width` pixels per row, so a
+        /// `Draw` reads `width` pixels per row, so a
         /// buffer that is shorter than the side it is drawn at is an out-of-bounds read, and
         /// the only thing that made it a silent one was that nothing measured it.
         /// </summary>
@@ -336,7 +336,7 @@ namespace ProtocolTests
         /// <summary>
         /// The wide tile is the card grown around the picture, not the picture stretched into
         /// it: a square filled into a 2.07:1 binding is scaled by the wider side and cropped,
-        /// which is the magnified face the phone of 23 October 2026 still showed.
+        /// which is the magnified face the phone still showed.
         /// </summary>
         [Test]
         public static void TheWideCardIsTheTealCardAroundThePictureAtItsOwnSize()
@@ -377,7 +377,7 @@ namespace ProtocolTests
         /// Why the picture is in it: a WP8.1 tile caches an image by its URI, so a card
         /// rewritten at one path is the old picture on the Start screen; and two updates of
         /// one chat open that one file at once, which is the `UnauthorizedAccessException`
-        /// (E_ACCESSDENIED) the phone showed on 23 October 2026. Two calls for the same
+        /// (E_ACCESSDENIED) the phone showed. Two calls for the same
         /// picture must still name the same file, or every message writes a new one.
         /// </summary>
         [Test]
@@ -432,7 +432,7 @@ namespace ProtocolTests
         ///
         /// Why: `ComposeAsync` skips the work when the card's name is already on the phone, so
         /// a raw JPEG written under that name is a card that never composes again - which is
-        /// what the phone of 23 October 2026 kept drawing. The fallback is still named by the
+        /// what the phone kept drawing. The fallback is still named by the
         /// same picture and the same rules, so a second fallback for the same bytes is the same
         /// file, and `IsCurrentCard` accepts it (it carries `-v5-`, and its two variants exist).
         /// </summary>
@@ -467,10 +467,9 @@ namespace ProtocolTests
         /// <summary>
         /// The 71x71 tile's card: that tile's own side, with the picture filling it.
         ///
-        /// Why it is a card of its own: a binding fills the tile with the image it is given and
-        /// crops the rest, so the 336 card in a 170 px tile showed the middle of the face at
-        /// twice its size - the "l'immagine troppo zoommata e non si adatta alla dimensione
-        /// tile" of 23 October 2026.
+        /// It is a card of its own because a binding fills the tile with the image it is given
+        /// and crops the rest, so the 336 card in a 170 px tile showed the middle of the face
+        /// at twice its size - the zoomed, cropped picture the phone reported.
         /// </summary>
         [Test]
         public static void TheSmallCardIsTheTilesOwnSideAndThePictureFillsIt()
@@ -532,7 +531,7 @@ namespace ProtocolTests
 
         /// <summary>
         /// The theme card's own shape: a background covers the card of **any** proportions, and
-        /// the mark drawn on it is the app's logo - which is what the card of 28 October 2026
+        /// the mark drawn on it is the app's logo - which is what the card
         /// had lost, a wallpaper edge to edge and nothing else on it.
         /// </summary>
         [Test]
@@ -615,7 +614,7 @@ namespace ProtocolTests
 
         /// <summary>
         /// A crop that runs off the picture is a read past the end of its buffer, and it is
-        /// refused with the numbers instead: this is the shape the tile of 23 October 2026
+        /// refused with the numbers instead: this is the shape the tile
         /// crashed on, and a background that covers a card is a crop like any other.
         /// </summary>
         [Test]

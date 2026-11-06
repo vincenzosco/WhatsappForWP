@@ -25,17 +25,17 @@
  * il prossimo avvio disegna**, e WhatsApp la nomina di nuovo solo a un link.
  *
  * - Il run delle 08:25 e' stato fermato dal debugger con una riga appena arrivata:
- *   nessuna sospensione, nessun salvataggio, e la lista era quella del giorno
- *   prima. Ogni scrittore era una *fine* (fine sync, sospensione, fine del
- *   controllo in background) e un run non finisce sempre cosi'. Quindi il
- *   percorso dei messaggi deve chiedere la scrittura (`ScheduleListSave`).
+ * nessuna sospensione, nessun salvataggio, e la lista era quella del giorno
+ * prima. Ogni scrittore era una *fine* (fine sync, sospensione, fine del
+ * controllo in background) e un run non finisce sempre cosi'. Quindi il
+ * percorso dei messaggi deve chiedere la scrittura (`ScheduleListSave`).
  * - `chats.json` aveva 2 righe contro 56 `messages_*.json`: 54 conversazioni
- *   erano sul telefono e non in lista, e nessun server le avrebbe piu' nominate.
- *   Quindi l'avvio deve chiedere le righe anche alle code
- *   (`RestoreRowsFromTheirTailsAsync`).
+ * erano sul telefono e non in lista, e nessun server le avrebbe piu' nominate.
+ * Quindi l'avvio deve chiedere le righe anche alle code
+ * (`RestoreRowsFromTheirTailsAsync`).
  *
  * Usage:
- *   node tools/check-chat-snapshot.js
+ * node tools/check-chat-snapshot.js
  */
 'use strict';
 
@@ -86,7 +86,7 @@ function problemsFor(service) {
       + '(57 messages_*.json, no chats.json). The list is what that screen draws; write it first');
   }
 
-  // A run does not have to end with a suspension: on 24 October 2026 it ended with a stop from
+  // A run does not have to end with a suspension: it ended with a stop from
   // the debugger, and the rows the run had made went with the process.
   const live = methodBody(source, 'OnNetworkMessageReceived');
   if (!live) {

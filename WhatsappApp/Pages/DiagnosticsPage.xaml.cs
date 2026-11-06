@@ -11,7 +11,7 @@ namespace WhatsappApp.Pages
     /// <summary>
     /// What the app did, on the phone.
     ///
-    /// Why it exists: Diag writes to Debug.WriteLine, which needs a PC with a
+    /// Diag writes to Debug.WriteLine, which needs a PC with a
     /// debugger attached - and the run being diagnosed is the one on the phone.
     /// This page shows the same history, plus the few fields that say what state
     /// the client is in, so a report is a screenshot instead of a pasted assembly

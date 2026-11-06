@@ -7,14 +7,14 @@
  *
  * The core under `WhatsappApp/Protocol/**` is compiled by the WP8.1 toolchain
  * inside the app, where there is no test runner: every iteration would need a
- * phone. This project compiles the same sources against plain .NET 4.5 with the
+ * phone. This project compiles the same sources against plain.NET 4.5 with the
  * same C# 5 compiler, so the codec and the crypto are checked in seconds.
  *
  * It is not in WhatsappApp.sln on purpose: that solution builds only for the
  * WP8.1 platforms, and a net45 console project would break its gate.
  *
- * Usage:  node tools/test-protocol.js
- *         node tools/test-protocol.js --connect
+ * Usage: node tools/test-protocol.js
+ * node tools/test-protocol.js --connect
  *
  * `--connect` is passed through to the runner: it skips the offline suite and reads
  * WhatsApp's first node from the real endpoint once, to check the codec and the

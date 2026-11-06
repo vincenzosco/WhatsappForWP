@@ -29,33 +29,33 @@
  * floor below is that measurement, not a preference.
  *
  * Rules:
- *   A. `Diag.cs` writes through a `SerialQueue`, has a file name, a marker file
- *      name and a byte ceiling for the log;
- *   B. `App.xaml.cs` flushes the log inside the unhandled-exception handler,
- *      after the line is written and before the process may die;
- *   C. `Diag.cs` writes both run markers and deletes the marker file when the
- *      run ends on purpose;
- *   D. `ChatPage.xaml.cs` waits for the history at least as long as the
- *      adapter's cold read (20000 ms, measured at about 15 s);
- *   E. the crash of the previous run reaches the adapter by itself
- *      (`CrashReport.cs` reads `Diag.PendingCrashTail` and writes it into this
- *      run's own log, which is what `ISETool` pulls off the phone);
- *   F. every diag line reaches the debugger too, through the single
- *      `EmitToDebugger` sink that both the frame sink and the line sink call -
- *      that is what puts the app's log in the Visual Studio 2013 Output window;
- *      a sink that calls `Debug.WriteLine` directly skips it;
- *   G. the log writer fetches the file before it writes and creates it only when
- *      it is missing - a create truncates there and then and the write is a
- *      second call, so a suspension between the two left a `diag.log` of 0 bytes
- *      with the run marker still in place (seen on the phone on 2026-10-07), and
- *      the run that had to be explained was the one whose log was gone.
- *   H. the background task waits for its last write and listens for the system's
- *      cancellation. `Flush(true)` only *queues* a write, and the task ends with
- *      `deferral.Complete()` the line after: on 23-24 October 2026 the phone had
- *      21 wakes, not one `background: checked in`, and no way to tell a run that
- *      had finished from a run the system had taken down - the closing lines were
- *      still in the queue. A canceled run says nothing at all unless the task
- *      asks for `Canceled`.
+ * A. `Diag.cs` writes through a `SerialQueue`, has a file name, a marker file
+ * name and a byte ceiling for the log;
+ * B. `App.xaml.cs` flushes the log inside the unhandled-exception handler,
+ * after the line is written and before the process may die;
+ * C. `Diag.cs` writes both run markers and deletes the marker file when the
+ * run ends on purpose;
+ * D. `ChatPage.xaml.cs` waits for the history at least as long as the
+ * adapter's cold read (20000 ms, measured at about 15 s);
+ * E. the crash of the previous run reaches the adapter by itself
+ * (`CrashReport.cs` reads `Diag.PendingCrashTail` and writes it into this
+ * run's own log, which is what `ISETool` pulls off the phone);
+ * F. every diag line reaches the debugger too, through the single
+ * `EmitToDebugger` sink that both the frame sink and the line sink call -
+ * that is what puts the app's log in the Visual Studio 2013 Output window;
+ * a sink that calls `Debug.WriteLine` directly skips it;
+ * G. the log writer fetches the file before it writes and creates it only when
+ * it is missing - a create truncates there and then and the write is a
+ * second call, so a suspension between the two left a `diag.log` of 0 bytes
+ * with the run marker still in place (seen on the phone on 2026-10-07), and
+ * the run that had to be explained was the one whose log was gone.
+ * H. the background task waits for its last write and listens for the system's
+ * cancellation. `Flush(true)` only *queues* a write, and the task ends with
+ * `deferral.Complete()` the line after: the phone had
+ * 21 wakes, not one `background: checked in`, and no way to tell a run that
+ * had finished from a run the system had taken down - the closing lines were
+ * still in the queue. A canceled run says nothing at all unless the task
+ * asks for `Canceled`.
  *
  * `Application.UnhandledException` carries the UI thread only, and on Windows
  * Phone 8.1 it cannot be widened: the profile declares no `AppDomain` at all, so

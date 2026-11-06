@@ -14,21 +14,21 @@
  *
  * Le quattro regole che questo guard tiene, e il perche' di ciascuna:
  *
- *  - il nodo si attacca quando una copia e' un `pkmsg` (`preKey`), in
- *    entrambi i costruttori - uno solo dei due e' la meta' dei messaggi
- *    sbagliata: una chat di gruppo non ha un destinatario unico, e un guard che
- *    ne controlla uno lascia l'altro scoperto;
- *  - il pairing tiene la firma (`_credentials.DeviceIdentity`): il server la
- *    manda solo dentro `pair-success`, quindi un device che non la scrive in
- *    quel momento non la puo' piu' avere;
- *  - l'account la porta (`OurIdentity()` la legge da `_account.DeviceIdentity`),
- *    perche' e' quella che ogni percorso di invio deve passare;
- *  - **ogni** chiamata di `OutgoingMessage.Node`/`Group` finisce con
- *    `OurIdentity()`: un percorso nuovo che dimentica l'ultimo argomento
- *    compila, manda, e non arriva.
+ * - il nodo si attacca quando una copia e' un `pkmsg` (`preKey`), in
+ * entrambi i costruttori - uno solo dei due e' la meta' dei messaggi
+ * sbagliata: una chat di gruppo non ha un destinatario unico, e un guard che
+ * ne controlla uno lascia l'altro scoperto;
+ * - il pairing tiene la firma (`_credentials.DeviceIdentity`): il server la
+ * manda solo dentro `pair-success`, quindi un device che non la scrive in
+ * quel momento non la puo' piu' avere;
+ * - l'account la porta (`OurIdentity()` la legge da `_account.DeviceIdentity`),
+ * perche' e' quella che ogni percorso di invio deve passare;
+ * - **ogni** chiamata di `OutgoingMessage.Node`/`Group` finisce con
+ * `OurIdentity()`: un percorso nuovo che dimentica l'ultimo argomento
+ * compila, manda, e non arriva.
  *
  * Usage:
- *   node tools/check-device-identity.js
+ * node tools/check-device-identity.js
  */
 'use strict';
 

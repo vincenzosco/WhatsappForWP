@@ -209,7 +209,7 @@ namespace WhatsappApp.Services
         /// they said, and a picture alone between them when the slots allow.
         ///
         /// The number is not written in the medium tile any more. The two lines of a 150 px
-        /// tile are the only text it has, and the request of 23 October 2026 was to spend
+        /// tile are the only text it has, and the request was to spend
         /// them on the person and the message, in the larger font, instead of on a count
         /// the badge already draws in the corner. A count that the shell does not draw is
         /// still visible on the wide size, which falls back to it when there is nothing to
@@ -258,7 +258,7 @@ namespace WhatsappApp.Services
                 // The updates turn, and only when no message is waiting: the tile and the lock
                 // screen's detailed status open on a person who wrote and has not been
                 // answered, and a count in that place is what made both read "3 new updates"
-                // while a conversation sat unanswered (4 November 2026). With a message
+                // while a conversation sat unanswered (). With a message
                 // waiting the turn is not built at all, so all five slots are messages; with
                 // none, it is the only thing that says an update arrived. It is drawn from the
                 // live count like everything else here, so a queue walked twice cannot show a
@@ -318,7 +318,7 @@ namespace WhatsappApp.Services
         ///
         /// The picture alone is a turn of its own and not a second line: a template with no
         /// text is the only way to get a tile that is a face and nothing else, which is what
-        /// the request of 23 October 2026 asked for between one message and the next.
+        /// the request asked for between one message and the next.
         /// </summary>
         private static void Post(TileUpdater updater, TileEntry entry)
         {
@@ -445,7 +445,7 @@ namespace WhatsappApp.Services
         /// The large tile, 310x310: the same turn at the size the Start screen draws when the
         /// tile is made big.
         ///
-        /// Why it exists: without a binding for this size the shell draws the tile the
+        /// Without a binding for this size the shell draws the tile the
         /// manifest declares - the green logo - so a big tile showed the app mark and the
         /// count while every other size showed the conversation. The photo is the square card
         /// scaled up by the shell; at that size it is soft, and that is the source being a

@@ -21,7 +21,7 @@ namespace WhatsappApp.Protocol.Qr
     /// with nothing to draw them with but the `WriteableBitmap` the rest of the app uses -
     /// so this class returns a matrix of booleans and knows nothing about pixels.
     ///
-    /// It encodes **byte mode** at any of the four levels, versions 1..40. Byte mode is
+    /// It encodes **byte mode** at any of the four levels, versions 1.40. Byte mode is
     /// the only mode it needs: the payload is a URL with a mixed-case ref in it, and the
     /// reference itself picks byte mode for exactly that. An all-uppercase input, which
     /// the reference would shrink into alphanumeric mode, is encoded in byte mode here -
@@ -763,7 +763,7 @@ namespace WhatsappApp.Protocol.Qr
             return parity;
         }
 
-        /// <summary>`(x - a^0)(x - a^1)...(x - a^(degree-1))`, as its coefficients.</summary>
+        /// <summary>`(x - a^0)(x - a^1).(x - a^(degree-1))`, as its coefficients.</summary>
         private static byte[] Generator(int degree)
         {
             var polynomial = new byte[] { 1 };

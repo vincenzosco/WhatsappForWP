@@ -14,19 +14,19 @@ namespace WhatsappApp.Protocol.Media
     ///
     /// Where the numbers come from, and this matters more than the code:
     /// `com.whatsapp.calling.crypto.DefaultCryptoCallback` decompiled out of
-    /// `C:\Users\Vincenzo\Downloads\WhatsApp.apk` with jadx 1.3.5 on 2 November 2026 (the
+    /// `C:\Users\Vincenzo\Downloads\WhatsApp.apk` with jadx 1.3.5 (the
     /// DEX header was re-stamped `035` because that jadx predates the format this build
-    /// ships; the decompiled copy is `.tools/apk/full/sources/...`). Its two constants -
+    /// ships; the decompiled copy is `.tools/apk/full/sources/.`). Its two constants -
     /// `E2E_CALL_KEY_LENGTH = 32`, `E2E_EXTENDED_V2_KEY_LENGTH = 46`,
     /// `SECURE_SSRC_LENGTH = 4` - and its two derivations:
     ///
-    ///     expandCallKey(callKey, callId)  ->  1oO.A00(callKey, callId.getBytes(), 46)
-    ///     generateSecureSsrc(key, info, s) -> 1oO.A02(key, s, info, 4)
-    ///     hkdfSha256(key, salt, info, out) -> 1oO.A02(key, salt, info, out.length)
+    /// expandCallKey(callKey, callId) -> 1oO.A00(callKey, callId.getBytes(), 46)
+    /// generateSecureSsrc(key, info, s) -> 1oO.A02(key, s, info, 4)
+    /// hkdfSha256(key, salt, info, out) -> 1oO.A02(key, salt, info, out.length)
     ///
     /// so the two-argument form is HKDF **with no salt** and the four-argument form is HKDF
     /// with one; `getSecureSsrc` refuses a salt that is not exactly four bytes. What the
-    /// 46 bytes are split into (SRTP key, SRTP salt, ...) is decided by the native engine
+    /// 46 bytes are split into (SRTP key, SRTP salt,.) is decided by the native engine
     /// and is **not** in the APK - see the calls design document - so this file produces the
     /// run and stops there rather than inventing an order.
     ///

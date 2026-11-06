@@ -2,15 +2,15 @@
  * waaudio.c - what Media Foundation on this phone actually is.
  *
  * Version 1 of this file enumerated capture devices through
- * `MFEnumDeviceSources` and opened one with `IMFSourceReader`. On 6 November 2026
+ * `MFEnumDeviceSources` and opened one with `IMFSourceReader`. On
  * the phone answered `0x8007007F` - "the specified procedure could not be found" -
  * which is a different sentence from the `0x8007007E` of 4-5 November: the module
  * was found, a procedure inside it was not. `WhatsAppNative.dll`, which is the only
  * proof of what this phone ships, imports exactly seven functions from
  * `MFPlat.DLL`:
  *
- *   MFStartup, MFShutdown, MFCreateSample, MFCreateMediaBufferWrapper,
- *   MFCreateAttributes, MFCreateMediaType, MFCreateMFByteStreamOnStream
+ * MFStartup, MFShutdown, MFCreateSample, MFCreateMediaBufferWrapper,
+ * MFCreateAttributes, MFCreateMediaType, MFCreateMFByteStreamOnStream
  *
  * and it does not import `Mfreadwrite.dll` at all. So `MFEnumDeviceSources` and
  * `MFCreateSourceReaderFromMediaSource` are the two names that cannot be resolved
@@ -24,11 +24,11 @@
  *
  * The return value is the first step that failed, or 0 when all of them worked:
  *
- *   0  every step returned S_OK
- *   1  MFStartup failed
- *   2  MFCreateAttributes failed
- *   3  MFCreateMediaType failed
- *   4  MFCreateSample failed
+ * 0 every step returned S_OK
+ * 1 MFStartup failed
+ * 2 MFCreateAttributes failed
+ * 3 MFCreateMediaType failed
+ * 4 MFCreateSample failed
  *
  * Linking: the same constraints as waopus.dll - the entry point is this package's
  * own (tools/opus/waentry.c), the CRT is reached through the API-set import

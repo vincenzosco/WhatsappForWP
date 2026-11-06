@@ -7,37 +7,37 @@
  * This is a Windows Phone 8.1 *WinRT* app (Windows.UI.Xaml), and for it three
  * things are hard requirements, not style preferences:
  *
- *  1. No "Segoe MDL2 Assets". It is a Windows 10 font that WP8.1 does not
- *     ship, so a glyph-based icon button renders blank. Icons are vector paths.
+ * 1. No "Segoe MDL2 Assets". It is a Windows 10 font that WP8.1 does not
+ * ship, so a glyph-based icon button renders blank. Icons are vector paths.
  *
- *  2. A Geometry must NOT travel through a ResourceDictionary. This compiles
- *     and then throws at runtime:
+ * 2. A Geometry must NOT travel through a ResourceDictionary. This compiles
+ * and then throws at runtime:
  *
- *       <Path Data="{StaticResource IconBack}" .../>
- *       Windows.UI.Xaml.Markup.XamlParseException: Failed to assign to
- *       property 'Windows.UI.Xaml.Shapes.Path.Data'.
+ * <Path Data="{StaticResource IconBack}"./>
+ * Windows.UI.Xaml.Markup.XamlParseException: Failed to assign to
+ * property 'Windows.UI.Xaml.Shapes.Path.Data'.
  *
- *     A Geometry is not shareable through a StaticResource in WinRT
- *     (microsoft-ui-xaml issues #1909 and #5780). The form that works is the
- *     geometry inlined on the Path itself:
+ * A Geometry is not shareable through a StaticResource in WinRT
+ * (microsoft-ui-xaml issues #1909 and #5780). The form that works is the
+ * geometry inlined on the Path itself:
  *
- *       <Path ...>
- *           <!-- IconBack -->
- *           <Path.Data>
- *               <PathGeometry><PathGeometry.Figures>...</PathGeometry.Figures></PathGeometry>
- *           </Path.Data>
- *       </Path>
+ * <Path.>
+ * <!-- IconBack -->
+ * <Path.Data>
+ * <PathGeometry><PathGeometry.Figures>.</PathGeometry.Figures></PathGeometry>
+ * </Path.Data>
+ * </Path>
  *
- *  3. The element form is mandatory: PathGeometry.Figures="M..." does not
- *     compile, because the WP8.1 XAML type converter for PathFigureCollection
- *     does not support converting from a string.
+ * 3. The element form is mandatory: PathGeometry.Figures="M." does not
+ * compile, because the WP8.1 XAML type converter for PathFigureCollection
+ * does not support converting from a string.
  *
  * The icon name used by --preview and by the "same icon, same geometry" check
  * comes from the <!-- IconX --> comment each Path carries above its Path.Data.
  *
  * Usage:
- *   node tools/check-icons.js            # rules + references + consistency
- *   node tools/check-icons.js --preview  # + ASCII preview (needs ImageMagick)
+ * node tools/check-icons.js # rules + references + consistency
+ * node tools/check-icons.js --preview # + ASCII preview (needs ImageMagick)
  */
 'use strict';
 

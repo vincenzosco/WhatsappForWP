@@ -12,28 +12,28 @@
  * che il livello delle notifiche ha scritto quando ha disegnato il badge. Ogni pezzo di
  * quella catena e' muto se manca:
  *
- *  - senza `RefreshLaunchRoute` la rotta non viene mai scritta;
- *  - senza `TakeRoute` in `App.OnLaunched` la rotta resta sul telefono per sempre;
- *  - senza `MarkOpened` la sezione non sa di essere stata guardata, e la stessa rotta
- *    resta vera per sempre: e' il modo in cui una scorciatoia diventa un rapimento.
+ * - senza `RefreshLaunchRoute` la rotta non viene mai scritta;
+ * - senza `TakeRoute` in `App.OnLaunched` la rotta resta sul telefono per sempre;
+ * - senza `MarkOpened` la sezione non sa di essere stata guardata, e la stessa rotta
+ * resta vera per sempre: e' il modo in cui una scorciatoia diventa un rapimento.
  *
  * Regole:
- *  1. `App.OnLaunched` prende la rotta una volta e la **nomina nel log**;
- *  2. un avvio atterra sulle chat: `HomePage.OnNavigatedTo` mostra l'indice 0, e nessuno
- *     puo' portarlo su un'altra tab - `SessionService.PendingSection` non esiste piu'
- *     (28 ottobre 2026: ogni avvio apriva la tab Stato, e la richiesta e' stata
- *     "parte sulla tab stato e non su chat");
- *  3. `HomePage` segna aperta la sezione che mostra;
- *  4. `DataService` scrive la rotta quando pubblica il badge, e la riscrive quando
- *     cambiano gli stati e quando finisce la scansione delle chiamate;
- *  5. `LaunchRoute.cs` non nomina `Windows.` - e' il file che il runner compila, ed e'
- *     la regola che i test controllano (`ProtocolTests/LaunchRouteTests.cs`);
- *  6. un tocco sulla tile di una chat pinnata apre quella chat: `OpenPinnedChat` esiste
- *     ed e' chiamata da `App`, che e' l'unica cosa che una tile puo' chiedere a un avvio
- *     che trova la pagina gia' viva.
+ * 1. `App.OnLaunched` prende la rotta una volta e la **nomina nel log**;
+ * 2. un avvio atterra sulle chat: `HomePage.OnNavigatedTo` mostra l'indice 0, e nessuno
+ * puo' portarlo su un'altra tab - `SessionService.PendingSection` non esiste piu'
+ * (28 ottobre 2026: ogni avvio apriva la tab Stato, e la richiesta e' stata
+ * "parte sulla tab stato e non su chat");
+ * 3. `HomePage` segna aperta la sezione che mostra;
+ * 4. `DataService` scrive la rotta quando pubblica il badge, e la riscrive quando
+ * cambiano gli stati e quando finisce la scansione delle chiamate;
+ * 5. `LaunchRoute.cs` non nomina `Windows.` - e' il file che il runner compila, ed e'
+ * la regola che i test controllano (`ProtocolTests/LaunchRouteTests.cs`);
+ * 6. un tocco sulla tile di una chat pinnata apre quella chat: `OpenPinnedChat` esiste
+ * ed e' chiamata da `App`, che e' l'unica cosa che una tile puo' chiedere a un avvio
+ * che trova la pagina gia' viva.
  *
  * Usage:
- *   node tools/check-launch-route.js
+ * node tools/check-launch-route.js
  */
 'use strict';
 

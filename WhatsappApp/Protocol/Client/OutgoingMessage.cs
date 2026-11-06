@@ -111,11 +111,11 @@ namespace WhatsappApp.Protocol.Client
         /// The shape is the reference's (`Socket/messages-send.js`, lines 559 to 585, and
         /// `whatsmeow`, `send.go`, `sendGroupMessage`):
         ///
-        ///     message to=&lt;group&gt; type=&lt;text|media&gt; id t [addressing_mode]
-        ///       participants
-        ///         to jid=&lt;device&gt;
-        ///           enc v=2 type=pkmsg|msg      the sender key distribution, pairwise
-        ///       enc v=2 type=skmsg              the group ciphertext
+        /// message to=&lt;group&gt; type=&lt;text|media&gt; id t [addressing_mode]
+        /// participants
+        /// to jid=&lt;device&gt;
+        /// enc v=2 type=pkmsg|msg the sender key distribution, pairwise
+        /// enc v=2 type=skmsg the group ciphertext
         ///
         /// The distribution goes to every device of every member - and to our own other
         /// devices, which need it to read what this phone writes - and its plaintext is the

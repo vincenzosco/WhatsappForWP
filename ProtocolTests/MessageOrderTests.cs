@@ -11,7 +11,7 @@ namespace ProtocolTests
     /// Why it is worth a test: the four things that fill a conversation (this phone's sends,
     /// a live message, the history sync, and the echo of another device's send) arrive in
     /// whatever order the network feels like, and a rule that appended them showed the
-    /// conversation of 1 November 2026 with yesterday's rows under today's.
+    /// conversation with yesterday's rows under today's.
     /// </summary>
     public static class MessageOrderTests
     {

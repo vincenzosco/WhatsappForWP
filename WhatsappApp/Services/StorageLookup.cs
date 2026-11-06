@@ -9,7 +9,7 @@ namespace WhatsappApp.Services
     /// The lookup WinRT gives Windows 10 but Windows Phone 8.1 does not: the item
     /// with this name, or null when there is none.
     ///
-    /// Why it exists: the first run has no file, and asking for a file that is not
+    /// The first run has no file, and asking for a file that is not
     /// there throws, which the debugger reports as a first-chance exception on every
     /// normal start. Answering null here keeps the missing file out of the exception
     /// path. Any other fault still throws, as it did before.

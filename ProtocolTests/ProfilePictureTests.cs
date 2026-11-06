@@ -13,18 +13,18 @@ namespace ProtocolTests
     /// ```js
     /// // get, line 572
     /// const result = await query({
-    ///     tag: 'iq',
-    ///     attrs: { target: jid, to: S_WHATSAPP_NET, type: 'get', xmlns: 'w:profile:picture' },
-    ///     content: buildProfilePictureQueryContent(type, tcTokenContent)   // [{ tag: 'picture', attrs: { type, query: 'url' } }]
+    /// tag: 'iq',
+    /// attrs: { target: jid, to: S_WHATSAPP_NET, type: 'get', xmlns: 'w:profile:picture' },
+    /// content: buildProfilePictureQueryContent(type, tcTokenContent) // [{ tag: 'picture', attrs: { type, query: 'url' } }]
     /// });
     /// const child = getBinaryNodeChild(result, 'picture');
     /// return child?.attrs?.url;
     ///
     /// // set, line 210
     /// await query({
-    ///     tag: 'iq',
-    ///     attrs: { to: S_WHATSAPP_NET, type: 'set', xmlns: 'w:profile:picture', ...(targetJid ? { target: targetJid } : {}) },
-    ///     content: [{ tag: 'picture', attrs: { type: 'image' }, content: img }]
+    /// tag: 'iq',
+    /// attrs: { to: S_WHATSAPP_NET, type: 'set', xmlns: 'w:profile:picture',.(targetJid ? { target: targetJid }: {}) },
+    /// content: [{ tag: 'picture', attrs: { type: 'image' }, content: img }]
     /// });
     /// ```
     ///

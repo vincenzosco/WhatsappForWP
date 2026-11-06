@@ -86,7 +86,7 @@ namespace WhatsappApp.Protocol.Client
         /// Whether the server is asking whether this connection is still there.
         ///
         /// Both shapes it uses are recognised: the namespace as an attribute on the `iq`
-        /// (`&lt;iq from="s.whatsapp.net" type="get" t="..." xmlns="urn:xmpp:ping"/&gt;`,
+        /// (`&lt;iq from="s.whatsapp.net" type="get" t="." xmlns="urn:xmpp:ping"/&gt;`,
         /// which is what the phone saw on 2026-10-10) and as a child element, which is the
         /// plain XMPP form.
         ///
@@ -113,7 +113,7 @@ namespace WhatsappApp.Protocol.Client
         /// sends for `pair-device`, which the server accepts.
         ///
         /// WhatsApp's own probe carries **no id**:
-        /// `&lt;iq from="@s.whatsapp.net" type="get" t="..." xmlns="urn:xmpp:ping"/&gt;`, 20
+        /// `&lt;iq from="@s.whatsapp.net" type="get" t="." xmlns="urn:xmpp:ping"/&gt;`, 20
         /// bytes, read on the phone at 14:38 and at 14:45 on 2026-10-10. What it measures is
         /// whether any frame comes back at all, so it is answered with the keep-alive query
         /// itself - a shape the server answers, which proves this client is there in a way no

@@ -18,7 +18,7 @@ namespace WhatsappApp.Pages
     /// <summary>
     /// One person's updates, full screen: what the contact posted.
     ///
-    /// Why it exists: the status tab could only *list* an update. Tapping a row sent the
+    /// The status tab could only *list* an update. Tapping a row sent the
     /// `read` receipt - the author's ring filled - and then nothing appeared, so the one
     /// thing a status is for (seeing the photo or the sentence somebody put up) was the
     /// one thing this app could not do. The pane was a table of contents with no pages.

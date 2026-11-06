@@ -6,7 +6,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The state machine of a voice note: idle, starting, recording.
     ///
-    /// Why it exists: the tap that did nothing on a real phone was a state bug
+    /// The tap that did nothing on a real phone was a state bug
     /// spread across two modules. The page held `_recording` and
     /// `_startingRecording`, the recorder held `_capture`, and no module owned
     /// the transitions between them - so a second tap started a second
@@ -37,7 +37,7 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// True from the tap to the end, including the moment the microphone is still
-        /// opening. Why it exists: `StartAsync` refuses a second start while `_starting`,
+        /// opening. `StartAsync` refuses a second start while `_starting`,
         /// and a page that only asked `IsRecording` saw that refusal as the platform's and
         /// showed "could not start the recording" over a recording that was starting fine.
         /// </summary>

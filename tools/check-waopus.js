@@ -23,20 +23,20 @@
  * di console che rivelano il CRT desktop, e le sette funzioni esportate.
  *
  * Regole:
- *  1. macchina ARMNT (0x1c4): il telefono e' ARMv7, e un'immagine x86 o ARMv4
- *     non si carica;
- *  2. nessun import da `KERNEL32.dll`: e' il nome desktop, che nessuno dei
- *     moduli caricabili nomina. Non e' una preferenza di stile - e' la
- *     dipendenza che il loader del telefono non risolve;
- *  3. ogni dipendenza da un API set `api-ms-win-*`: il pacchetto non spedisce un
- *     CRT, e ogni altra DLL sarebbe un'altra cosa da far trovare al telefono;
- *  4. nessuna funzione di console o argv (`WriteConsoleW`, `SetStdHandle`,
- *     `GetCommandLineW`, `GetEnvironmentStringsW`, ...): sono l'inizio di stdio,
- *     locale e argv del CRT desktop, e una DLL che non stampa nulla non ne ha
- *     bisogno;
- *  5. le sette funzioni che `VoiceNoteEncoder` e `VoiceNoteDecoder` chiamano
- *     devono essere esportate: un DLL ricostruito senza il wrapper e' un file
- *     valido che risponde "entry point not found".
+ * 1. macchina ARMNT (0x1c4): il telefono e' ARMv7, e un'immagine x86 o ARMv4
+ * non si carica;
+ * 2. nessun import da `KERNEL32.dll`: e' il nome desktop, che nessuno dei
+ * moduli caricabili nomina. Non e' una preferenza di stile - e' la
+ * dipendenza che il loader del telefono non risolve;
+ * 3. ogni dipendenza da un API set `api-ms-win-*`: il pacchetto non spedisce un
+ * CRT, e ogni altra DLL sarebbe un'altra cosa da far trovare al telefono;
+ * 4. nessuna funzione di console o argv (`WriteConsoleW`, `SetStdHandle`,
+ * `GetCommandLineW`, `GetEnvironmentStringsW`,.): sono l'inizio di stdio,
+ * locale e argv del CRT desktop, e una DLL che non stampa nulla non ne ha
+ * bisogno;
+ * 5. le sette funzioni che `VoiceNoteEncoder` e `VoiceNoteDecoder` chiamano
+ * devono essere esportate: un DLL ricostruito senza il wrapper e' un file
+ * valido che risponde "entry point not found".
  *
  * `IMAGE_DLLCHARACTERISTICS_APPCONTAINER` non e' una regola, in nessuna delle
  * due direzioni: i moduli che si caricano non lo dichiarano, e quello che viene

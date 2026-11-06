@@ -5,7 +5,7 @@ namespace WhatsappApp.Protocol.Client
     /// <summary>
     /// When a conversation was last active - and what to do with a time that cannot be one.
     ///
-    /// Why it exists: the chat list is ordered by the time of its last message, so one wrong
+    /// The chat list is ordered by the time of its last message, so one wrong
     /// time is a row in the wrong place. On 2026-10-22 the list opened with chats nobody had
     /// written to in weeks: their stored previews were dated in November and December of a
     /// year that had not happened yet, so they outranked everything. Those dates were a

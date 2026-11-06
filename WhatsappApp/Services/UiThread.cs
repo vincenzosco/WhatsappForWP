@@ -7,18 +7,18 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The thread that can draw, and whether this process has one at all.
     ///
-    /// Why it exists: the background check runs in a process of its own, in which the
+    /// The background check runs in a process of its own, in which the
     /// system starts the task class and nothing else - there is no XAML view and no
     /// CoreWindow. Two places had to find that out the hard way, and each found it out
-    /// once per wake, 21 times on 23-24 October 2026:
+    /// once per wake, 21 times:
     ///
     /// - `ImageHelper` asked for the window, got none, and built the `BitmapImage`
-    ///   anyway: `Contact.LoadAvatarAsync: Exception 0x8001010E` (RPC_E_WRONG_THREAD)
-    ///   once per wake, because a XAML object cannot be built where there is no thread
-    ///   to marshal it on;
+    /// anyway: `Contact.LoadAvatarAsync: Exception 0x8001010E` (RPC_E_WRONG_THREAD)
+    /// once per wake, because a XAML object cannot be built where there is no thread
+    /// to marshal it on;
     /// - `ContactDirectory` asked `CoreApplication.MainView.CoreWindow` and the call
-    ///   threw: `ContactDirectory/Apply: InvalidOperationException 0x8000000E`
-    ///   ("a method was called at an unexpected time"), once per wake.
+    /// threw: `ContactDirectory/Apply: InvalidOperationException 0x8000000E`
+    /// ("a method was called at an unexpected time"), once per wake.
     ///
     /// Neither was a failure: a process with no screen has nothing to draw and nothing to
     /// rename on it. What was missing was one answer to "is there a window here", and this

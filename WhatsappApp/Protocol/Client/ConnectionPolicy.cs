@@ -99,7 +99,7 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>
         /// Whether a ping that went out has been left unanswered for too long.
         ///
-        /// Why this exists: the loop used to **send** the keep-alive and never check that
+        /// The loop used to **send** the keep-alive and never check that
         /// anything came back, so a socket the server had quietly dropped - the state a
         /// phone comes back to after being suspended for a while, with the process frozen
         /// and the connection gone at the other end - stayed "open" forever. The app showed

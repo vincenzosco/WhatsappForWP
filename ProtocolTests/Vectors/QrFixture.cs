@@ -7,14 +7,14 @@ namespace ProtocolTests
     /// Printed from the `qrcode` npm package (1.5.4) in a temporary directory outside
     /// this repository, with:
     ///
-    ///     npm i qrcode
-    ///     node -e "const q=require('qrcode');const s=q.create(TEXT,{errorCorrectionLevel:'M'});
-    ///       for(let r=0;r<s.modules.size;r++){let l='';for(let c=0;c<s.modules.size;c++)l+=s.modules.get(r,c)?'1':'0';console.log(l)}"
+    /// npm i qrcode
+    /// node -e "const q=require('qrcode');const s=q.create(TEXT,{errorCorrectionLevel:'M'});
+    /// for(let r=0;r<s.modules.size;r++){let l='';for(let c=0;c<s.modules.size;c++)l+=s.modules.get(r,c)?'1':'0';console.log(l)}"
     ///
     /// A fixture nobody can regenerate is a fixture nobody can trust, so the command is
     /// here. The two inputs are different shapes on purpose: a short one where the
     /// reference picks a low version and a different mask, and the real pairing payload
-    /// of 277 characters, which needs version 12 - past the 1..11 the plan
+    /// of 277 characters, which needs version 12 - past the 1.11 the plan
     /// budgeted, and the reason this encoder carries every version.
     ///
     /// The rows are one string per row, in order, `1` for a dark module.

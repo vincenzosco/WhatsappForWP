@@ -21,7 +21,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The last messages of a conversation, kept on the phone.
     ///
-    /// Why it exists: opening a chat used to start from an empty list and wait
+    /// Opening a chat used to start from an empty list and wait
     /// for the history from the server, which is the one thing the phone cannot
     /// hurry. With this copy the conversation is seen at once, and the real
     /// messages replace it when they arrive.
@@ -108,10 +108,10 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Every conversation on the phone, with its rows.
         ///
-        /// Why it exists: the chat list on disk (`chats.json`) is what the next start draws and
+        /// The chat list on disk (`chats.json`) is what the next start draws and
         /// WhatsApp names the list again only at a link, so a tail whose chat is not in that
         /// file is a conversation with no way back on screen - 56 tails against 2 rows on the
-        /// phone of 24 October 2026 (`DataService.RestoreRowsFromTheirTailsAsync` puts them
+        /// phone (`DataService.RestoreRowsFromTheirTailsAsync` puts them
         /// back).
         ///
         /// The id is the one the rows carry, not the one in the file name: `FileNameFor` drops

@@ -213,9 +213,9 @@ namespace WhatsappApp.Pages
 
                 ContactNameText.Text = contact.Name;
 
-                // Un gruppo non si chiama da qui: `CallSignaling` costruisce un'offerta a un
-                // solo indirizzo, e un pulsante che lanciasse una chiamata di gruppo che
-                // l'app non sa fare sarebbe una promessa sbagliata.
+// A group is not called from here: `CallSignaling` builds an offer to a single
+// address, and a button that offered a group call the app cannot make would be a
+// promise it breaks.
                 CallHeaderButton.Visibility = GroupDirectory.IsGroup(contact.Id)
                     ? Visibility.Collapsed
                     : Visibility.Visible;
@@ -1640,7 +1640,7 @@ namespace WhatsappApp.Pages
         /// The file read, encrypted, uploaded, and sent as the bubble's message: the half of
         /// the attachment path the first send and a retry have in common.
         ///
-        /// Why it is a method: a retry has to be the same message, with the same bubble and
+        /// A retry has to be the same message, with the same bubble and
         /// the same file, and two copies of these lines drift - the retry would keep an
         /// address the first send has stopped using, which is exactly what happened with the
         /// canonical chat id. What is *not* here is the video conversion: that belongs to the
@@ -1670,7 +1670,7 @@ namespace WhatsappApp.Pages
             // A photo carries its own size and a small copy of itself, because the phone at
             // the other end lays the bubble out from both (`height` 6, `width` 7 and
             // `jpegThumbnail` 13 in an `ImageMessage`). Without them the photo of
-            // 1 November 2026 was taken by the server and drawn by nobody.
+            // was taken by the server and drawn by nobody.
             //
             // Both are best effort: a picture this phone cannot measure is still a picture,
             // and the send is not the place to fail over its decoration.
@@ -2134,7 +2134,7 @@ namespace WhatsappApp.Pages
         /// Why both: a hardware keyboard raises `KeyDown`, while on WP8.1 the keyboard on
         /// the screen hands the return key to the `TextBox` first and the page only hears
         /// `KeyUp` - a handler on `KeyDown` alone is a composer that sends on a phone with
-        /// a cable and not on the one in a hand, which is the report of 3 November 2026.
+        /// a cable and not on the one in a hand, which is the report.
         /// `AcceptsReturn="False"` closes the other half: a return must not put a newline
         /// in a message the bubble draws as one line.
         /// </summary>

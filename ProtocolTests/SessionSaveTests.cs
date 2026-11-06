@@ -7,8 +7,8 @@ namespace ProtocolTests
     /// <summary>
     /// What a send owes the store: the session it just moved, written back.
     ///
-    /// Why it is a test at all: `Encrypt` advances the sending chain, and only the file says
-    /// where that chain is. On 1 November 2026 the app encrypted, sent, and saved nothing -
+    /// `Encrypt` advances the sending chain, and only the file says
+    /// where that chain is. On the app encrypted, sent, and saved nothing -
     /// every send reloaded the record as it was before the first message and re-encrypted the
     /// same key. The server accepted all three (`the server has message`), the recipient's
     /// phone had already spent that key on the first copy, and it dropped the other two as

@@ -138,9 +138,9 @@ namespace WhatsappApp.Protocol.Client
         /// Whether this notification is the server refusing **this client** rather than
         /// telling it something: `<ib><downgrade_webclient/></ib>`, which the reference
         /// answers by ending the connection with a multi-device mismatch
-        /// (`Socket/socket.js`: `ws.on('CB:ib,,downgrade_webclient', ...)`).
+        /// (`Socket/socket.js`: `ws.on('CB:ib,,downgrade_webclient',.)`).
         ///
-        /// Why it is a rule of its own: on the phone this arrived as an anonymous `ib`, was
+        /// On the phone this arrived as an anonymous `ib`, was
         /// written down as "nothing reads it yet", and the connection ended - so the one
         /// line that said why was the one line nobody read.
         /// </summary>

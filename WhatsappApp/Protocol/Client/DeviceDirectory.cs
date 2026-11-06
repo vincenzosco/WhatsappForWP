@@ -13,14 +13,14 @@ namespace WhatsappApp.Protocol.Client
     /// Three shapes, all of them the reference's:
     ///
     /// - the device list is a `usync` `query` for the `devices` protocol (version 2),
-    ///   whose answer is `usync &gt; list &gt; user &gt; devices &gt; device-list &gt; device[id]`;
+    /// whose answer is `usync &gt; list &gt; user &gt; devices &gt; device-list &gt; device[id]`;
     /// - the bundles are one `encrypt` `get` with a `key` holding one `user` per device,
-    ///   whose `jid` is the device itself, and whose answer carries `registration`,
-    ///   `identity`, `skey` and `key` per device;
+    /// whose `jid` is the device itself, and whose answer carries `registration`,
+    /// `identity`, `skey` and `key` per device;
     /// - a bundle's signed pre-key is verified here, against the identity key in the same
-    ///   bundle, because that is the one check standing between this session and somebody
-    ///   else's: a signature that does not verify is a device a message must not be sent
-    ///   to, and it is refused before any session is built from it.
+    /// bundle, because that is the one check standing between this session and somebody
+    /// else's: a signature that does not verify is a device a message must not be sent
+    /// to, and it is refused before any session is built from it.
     /// </summary>
     public static class DeviceDirectory
     {
@@ -38,7 +38,7 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>
         /// The same query for several JIDs at once, which is what a group send needs: one
         /// `usync` carries a `user` per member, and the answer comes back as one `list`
-        /// (`Socket/messages-send.js`, `getUSyncDevices(participantsList, ...)`), so a group
+        /// (`Socket/messages-send.js`, `getUSyncDevices(participantsList,.)`), so a group
         /// of twenty members costs one round trip rather than twenty.
         /// </summary>
         public static BinaryNode Query(IList<string> jids, IRandomSource random)
@@ -140,7 +140,7 @@ namespace WhatsappApp.Protocol.Client
         /// already ships - same nodes, only the jid differs - is the one the server answers.
         /// The `<user><device jid/></user>` written before was a node neither the reference
         /// nor the server has, which is why its answer never came (diag.log, 2 November
-        /// 2026: "the per-device bundle query ... the server did not answer").
+        /// 2026: "the per-device bundle query. the server did not answer").
         /// </summary>
         public static BinaryNode BundleQuery(IList<string> deviceJids, IRandomSource random)
         {
@@ -186,7 +186,7 @@ namespace WhatsappApp.Protocol.Client
         /// The same question asked per person instead of per device: one `key` naming a
         /// `user`, and WhatsApp answers with the bundles of every device that person has.
         ///
-        /// Why it exists at all: on 2026-10-30 the per-device query went out and was never
+        /// On 2026-10-30 the per-device query went out and was never
         /// answered - `diag.log` shows the device list arriving and the bundle query's id
         /// never answered at all, so a one-to-one message died in `the server did not
         /// answer` for every send. A shape the server ignores is not a refusal and cannot

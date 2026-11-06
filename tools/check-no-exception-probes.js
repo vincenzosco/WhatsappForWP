@@ -6,7 +6,7 @@
  *
  * Perche' esiste: `Message.DecodePadded` rispondeva a "questo e' il padding?"
  * provando a parsare dentro un `try`, un tentativo per ogni taglio possibile -
- * il pad dichiarato, poi 1..15 byte tolti, poi il plaintext intero. Ogni
+ * il pad dichiarato, poi 1.15 byte tolti, poi il plaintext intero. Ogni
  * tentativo che non reggeva era un `throw` preso dal `catch` due righe sotto:
  * fino a diciassette eccezioni first-chance per un messaggio che magari si
  * leggeva al primo colpo. Il debugger le stampa tutte, e la corsa del 24
@@ -18,21 +18,21 @@
  * sola eccezione che resta e' quella vera, una, con la frase dei byte.
  *
  * Regole:
- *  1. `ProtoReader.Measure`, `EndOfPadded` e `VarintAt` non lanciano niente: un
- *     troncamento e' una risposta, non un guasto;
- *  2. `Message.DecodePadded` non ha un `catch (ProtocolException)` nel corpo:
- *     se ricompare, la sonda a eccezioni e' tornata;
- *  3. `DecodePadded` chiede alla camminata (`ProtoReader.Measure`, o `EndOfPadded`
- *     che e' costruita su di lei) dove finisce il protobuf, invece di provare i
- *     sedici tagli;
- *  4. e quando il conto nell'ultimo byte e' sbagliato - il caso del 24 ottobre
- *     2026, quattro messaggi di gruppo rifiutati con `a protobuf field announces
- *     16 bytes with 14 left` - chiede a `EndOfPadded` quale coda lascia intero
- *     il messaggio. Senza quella domanda il conto sbagliato e' un messaggio
- *     perso che nessun retry recupera.
+ * 1. `ProtoReader.Measure`, `EndOfPadded` e `VarintAt` non lanciano niente: un
+ * troncamento e' una risposta, non un guasto;
+ * 2. `Message.DecodePadded` non ha un `catch (ProtocolException)` nel corpo:
+ * se ricompare, la sonda a eccezioni e' tornata;
+ * 3. `DecodePadded` chiede alla camminata (`ProtoReader.Measure`, o `EndOfPadded`
+ * che e' costruita su di lei) dove finisce il protobuf, invece di provare i
+ * sedici tagli;
+ * 4. e quando il conto nell'ultimo byte e' sbagliato - il caso del 24 ottobre
+ * 2026, quattro messaggi di gruppo rifiutati con `a protobuf field announces
+ * 16 bytes with 14 left` - chiede a `EndOfPadded` quale coda lascia intero
+ * il messaggio. Senza quella domanda il conto sbagliato e' un messaggio
+ * perso che nessun retry recupera.
  *
  * Usage:
- *   node tools/check-no-exception-probes.js
+ * node tools/check-no-exception-probes.js
  */
 'use strict';
 

@@ -12,9 +12,9 @@ namespace WhatsappApp.Protocol.Client
     /// (`@whiskeysockets/baileys`, `Socket/chats.js`, `profilePictureUrl` at 556 and
     /// `updateProfilePicture` at 205; `whatsmeow`, `user.go`, `GetProfilePictureInfo` at 548):
     ///
-    ///     iq attrs: { to: "s.whatsapp.net", target: &lt;jid&gt;, type: "get"|"set",
-    ///                 xmlns: "w:profile:picture" }
-    ///     content:  picture { type: "preview"|"image", query: "url" }
+    /// iq attrs: { to: "s.whatsapp.net", target: &lt;jid&gt;, type: "get"|"set",
+    /// xmlns: "w:profile:picture" }
+    /// content: picture { type: "preview"|"image", query: "url" }
     ///
     /// The `picture` child carries `type` - `preview` for a small one the chat list can keep
     /// for every row, `image` for the full one behind a contact's page - and `query="url"`,

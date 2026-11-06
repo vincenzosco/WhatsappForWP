@@ -11,7 +11,7 @@
  * and their signatures, which is more than the DEX can say and cannot be wrong.
  *
  * It runs under bionic, on the NDK compiler, with the runtime from a system
- * image: ./linker64 --library-path SYS ./harness ...
+ * image./linker64 --library-path SYS./harness.
  */
 #include <jni.h>
 #include <dlfcn.h>
@@ -22,7 +22,7 @@
 
 /* ------------------------------------------------------------------ */
 /* Objects the library will hold. None of these are Java objects; they are */
-/* C structs that answer the few questions a JNI call asks of them.       */
+/* C structs that answer the few questions a JNI call asks of them. */
 
 #define MAGIC_ARRAY 0x41525259
 #define MAGIC_STRING 0x53545247
@@ -444,10 +444,10 @@ static void build_env(void)
 
     memset(&gEnv, 0, sizeof gEnv);
 
-    /* Everything starts as a stub that names its own slot... */
+    /* Everything starts as a stub that names its own slot. */
     for (i = 0; i < slots && i < UNKNOWN_SLOTS; i++) table[i] = unknown_table[i];
 
-    /* ...and the slots that matter are replaced. */
+    /*.and the slots that matter are replaced. */
     gEnv.GetVersion = h_get_version;
     gEnv.FindClass = h_find_class;
     gEnv.GetObjectClass = h_get_object_class;

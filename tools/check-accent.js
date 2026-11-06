@@ -10,22 +10,22 @@
  * `catch` handled it, so the app was right and the debugger stopped anyway: the output
  * of 2026-10-24 opened with
  *
- *   Eccezione generata: System.Runtime.InteropServices.COMException ...
- *       at WhatsappApp.Services.Accent.Apply()
+ * Eccezione generata: System.Runtime.InteropServices.COMException.
+ * at WhatsappApp.Services.Accent.Apply()
  *
  * and two of the three names are absent on every build, so it was two first-chance
  * exceptions per launch for a question a `ResourceDictionary` answers with
  * `ContainsKey`.
  *
  * Rules:
- *  1. `Accent.Apply` asks about a name with `ContainsKey` before it reads it;
- *  2. neither `Apply` nor `SetBrush` reads a resource inside a `try` - a lookup that
- *     cannot throw needs no `catch`, and a `catch` around one is the probe coming back;
- *  3. `SetBrush` asks `ContainsKey` too, and answers nothing at all in a process with
- *     no application (the background check has no `Application.Current`).
+ * 1. `Accent.Apply` asks about a name with `ContainsKey` before it reads it;
+ * 2. neither `Apply` nor `SetBrush` reads a resource inside a `try` - a lookup that
+ * cannot throw needs no `catch`, and a `catch` around one is the probe coming back;
+ * 3. `SetBrush` asks `ContainsKey` too, and answers nothing at all in a process with
+ * no application (the background check has no `Application.Current`).
  *
  * Usage:
- *   node tools/check-accent.js
+ * node tools/check-accent.js
  */
 'use strict';
 

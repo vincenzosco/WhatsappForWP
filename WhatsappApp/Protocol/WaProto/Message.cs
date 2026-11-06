@@ -74,7 +74,7 @@ namespace WhatsappApp.Protocol.WaProto
         /// Sixteen and not fifteen, and the difference is a message lost: the padding is a
         /// whole block, so a count of sixteen is ordinary, and a walk that searched fifteen
         /// tails answered `a protobuf field announces 16 bytes with 14 left` for the copy the
-        /// re-link of 1 November 2026 received (`ProtoReader.MaxPadding` mirrors this).
+        /// re-link received (`ProtoReader.MaxPadding` mirrors this).
         /// </summary>
         public const int MaxPadding = 16;
 
@@ -206,7 +206,7 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>
         /// The message a device-sent form wraps, read **as a plaintext**: WhatsApp's own
         /// clients pad the copy they put inside this field, and reading it with `Decode` was
-        /// the refusal of 1 November 2026.
+        /// the refusal.
         ///
         /// Why the padding is here and not only behind the stanza: the sender writes the
         /// wrapper, then pads the wrapper; a client that pads what it puts *inside* the field
@@ -396,7 +396,7 @@ namespace WhatsappApp.Protocol.WaProto
         /// says where the protobuf ends without throwing, so the ordinary cases cost no
         /// exception at all; a plaintext searcher that threw its way through the sixteen
         /// possible trims was seventeen first-chance exceptions per message that carried no
-        /// padding, which is the row of `Eccezione generata` the run of 24 October 2026 left in
+        /// padding, which is the row of `Eccezione generata` the run left in
         /// the debugger.
         ///
         /// The plaintext itself is read last, so a message that really is damaged reports the

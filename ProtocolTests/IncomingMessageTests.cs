@@ -214,7 +214,7 @@ namespace ProtocolTests
         /// Why: a `@newsletter` post is encrypted with the channel's own sender key, which
         /// WhatsApp hands to the phone that subscribed and never to a linked companion. Read as
         /// an ordinary message it was `no enc for this device`, and the connection answered with
-        /// a retry for bytes that were never damaged - the two channels of 1 November 2026 were
+        /// a retry for bytes that were never damaged - the two channels were
         /// asked again on every connection, and the rows they belong to are ones this app does
         /// not even draw. The refusal is a value so the caller acks the copy.
         /// </summary>

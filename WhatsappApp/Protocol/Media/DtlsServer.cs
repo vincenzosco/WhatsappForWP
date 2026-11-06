@@ -19,7 +19,7 @@ namespace WhatsappApp.Protocol.Media
         private readonly byte[] _privateScalar;
 
         /// <summary>
-        /// `privateScalar` is 32 bytes, 1..n-1; `commonName` names the certificate and defaults
+        /// `privateScalar` is 32 bytes, 1.n-1; `commonName` names the certificate and defaults
         /// to "dtls".
         /// </summary>
         public DtlsIdentity(byte[] privateScalar, string commonName)

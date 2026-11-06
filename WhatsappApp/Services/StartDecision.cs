@@ -25,7 +25,7 @@ namespace WhatsappApp.Services
     /// dead session is a screen that waits for messages that are never coming.
     ///
     /// Why there is no "the section you left" in this decision any more: it was the tab
-    /// the app opened on, and on 28 October 2026 that was the Status tab - the app
+    /// the app opened on, and that was the Status tab - the app
     /// started on somebody's updates instead of on the conversations. A start is the
     /// chats, and the other two tabs are one tap away, with their own badges saying which
     /// of them has something new. The route a tile tap writes is still read and named in

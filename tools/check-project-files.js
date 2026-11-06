@@ -4,24 +4,24 @@
  *
  * Guard for a file the solution cannot see.
  *
- * Perche' esiste: un file .cs che non compare in nessun progetto e'
+ * Perche' esiste: un file.cs che non compare in nessun progetto e'
  * invisibile a MSBuild, e nient'altro se ne accorge. La guardia C# 5 lo legge
  * (gira sui file, non sul progetto), i test dei tool passano, e il guasto esce
  * solo sulla build della VM - o, peggio, viene committato e la build successiva
  * riporta un tipo che "non esiste" da un file che c'e'. E' successo davvero a
  * Services/RecordingSession.cs e Services/ConversationView.cs: le loro voci
- * sono state rimosse da un `git checkout` del .csproj dopo una build.
+ * sono state rimosse da un `git checkout` del.csproj dopo una build.
  *
  * Regole:
- *  1. ogni .cs sotto WhatsappApp (obj/ e bin/ a parte) e' un <Compile Include>
- *     di WhatsApp.csproj oppure e' coperto da WhatsappApp.Core.csproj, che
- *     compila protocollo, servizi e modelli per tutti e due i processi (l'app e
- *     il task di sfondo) - vedi il commento in quel progetto;
- *  2. ogni .xaml e' un <Page> o <ApplicationDefinition> Include di WhatsApp.csproj;
- *  3. ogni .cs sotto WhatsappApp.Tasks e' un <Compile Include> del suo progetto.
+ * 1. ogni.cs sotto WhatsappApp (obj/ e bin/ a parte) e' un <Compile Include>
+ * di WhatsApp.csproj oppure e' coperto da WhatsappApp.Core.csproj, che
+ * compila protocollo, servizi e modelli per tutti e due i processi (l'app e
+ * il task di sfondo) - vedi il commento in quel progetto;
+ * 2. ogni.xaml e' un <Page> o <ApplicationDefinition> Include di WhatsApp.csproj;
+ * 3. ogni.cs sotto WhatsappApp.Tasks e' un <Compile Include> del suo progetto.
  *
  * Usage:
- *   node tools/check-project-files.js
+ * node tools/check-project-files.js
  */
 'use strict';
 
@@ -68,8 +68,8 @@ function includes(projectText) {
 
 /**
  * I file dell'app che un altro progetto compila, come percorsi relativi a
- * WhatsappApp: `..\WhatsappApp\Services\**\*.cs` copre tutta la cartella,
- * `..\WhatsappApp\Controls\AppSection.cs` un file solo.
+ * WhatsappApp: `.\WhatsappApp\Services\**\*.cs` copre tutta la cartella,
+ * `.\WhatsappApp\Controls\AppSection.cs` un file solo.
  *
  * Il perche': WhatsappApp.Core non ha una copia di questi sorgenti, li compila
  * da qui (vedi il commento in WhatsappApp.Core.csproj). Per questa guardia

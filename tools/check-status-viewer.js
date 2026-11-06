@@ -14,53 +14,53 @@
  * weeks: no ring ever filled and no line said so).
  *
  * Rules:
- *  1. `StatusPane.xaml.cs` opens the update with
- *     `Navigate(typeof(StatusViewerPage), row)`: a tap that only marks and asks is
- *     the bug this feature exists to close;
- *  2. `StatusViewerPage.xaml.cs` watches it (`MarkStatusViewed(_status)`) and asks
- *     for the bytes when the row has none (`RequestStatusMedia(_status)`): a status
- *     out of the history sync carries its keys and its address, not its file;
- *  3. `StatusFeed.cs` builds the receipt **to the broadcast list** and names the
- *     author as `participant`, and `IncomingMessage.Receipt` is the builder that
- *     can carry it: the server's own receipts for our statuses have that shape
- *     (`from="status@broadcast" ... participant="..." class="status"`), and a
- *     receipt addressed to the person names a message their chat does not have;
- *  4. the feed is kept for the day a status lives: `DataService` reads
- *     `StatusCache` at start and writes a snapshot when the feed changes, a pairing
- *     drops the copy (`StatusCache.DeleteAsync`), and `StatusCache` drops what is
- *     older than `LifetimeHours` on the way in and on the way out. Without this the
- *     status tab is empty at every start, because the sync that fills it comes once,
- *     at the pairing;
- *  5. the write is **coalesced**, not per row: the history burst inserts one status
- *     per frame, and a write per insert serialised the whole day of statuses once
- *     per status on the 512 MB phone the cache exists for. `SaveStatusSnapshot`
- *     only counts the change; one writer waits for the feed to stand still, writes
- *     it once, and writes again only if it moved while the file was being written;
- *  6. the row template binds only what a status row **has**: `StatusPane.xaml`
- *     asks for `{Binding X}` on a `StatusGroup` (one row per person, carrying the
- *     newest update as `Latest` and the count as `Detail`) and for
- *     `{Binding Latest.Y}` on the `ChatMessage` behind it, and every X and Y must
- *     be a public member of its model. The template asked for `Initials` before the
- *     model had one, and the run of 2026-10-22 answered with two binding errors per
- *     realised row (`'Initials' property not found on
- *     'WhatsappApp.Models.ChatMessage'`) and an empty circle on the screen - no
- *     compile error, no DIAG line, nothing that failed;
- *  7. the tap opens the **day** of the person tapped, not the one row that was
- *     touched: the pane draws "3 updates" on one line, and the viewer that showed
- *     only the tapped row made that line a lie - the other two could be reached by
- *     leaving the screen and tapping the same name again. The viewer builds its
- *     queue from the feed (`DataService.Instance.Statuses`), puts it back in the
- *     order the updates were posted (`_queue.Reverse()`, the feed is newest first)
- *     and starts at the first one nobody has watched (`FirstUnwatched()`);
- *  8. the whole day at once is **one write**, not one per update.
- *     `DataService.MarkAllStatusesViewed` marks every unwatched row in one pass,
- *     saves the snapshot once and announces the feed once; only the receipts are one
- *     per status, because the wire has no receipt for several at a time. Written as a
- *     loop over `MarkStatusViewed` it was a write of the file and a rebuild of the
- *     list for every row - thirty updates, thirty of each, for one tap.
+ * 1. `StatusPane.xaml.cs` opens the update with
+ * `Navigate(typeof(StatusViewerPage), row)`: a tap that only marks and asks is
+ * the bug this feature exists to close;
+ * 2. `StatusViewerPage.xaml.cs` watches it (`MarkStatusViewed(_status)`) and asks
+ * for the bytes when the row has none (`RequestStatusMedia(_status)`): a status
+ * out of the history sync carries its keys and its address, not its file;
+ * 3. `StatusFeed.cs` builds the receipt **to the broadcast list** and names the
+ * author as `participant`, and `IncomingMessage.Receipt` is the builder that
+ * can carry it: the server's own receipts for our statuses have that shape
+ * (`from="status@broadcast". participant="." class="status"`), and a
+ * receipt addressed to the person names a message their chat does not have;
+ * 4. the feed is kept for the day a status lives: `DataService` reads
+ * `StatusCache` at start and writes a snapshot when the feed changes, a pairing
+ * drops the copy (`StatusCache.DeleteAsync`), and `StatusCache` drops what is
+ * older than `LifetimeHours` on the way in and on the way out. Without this the
+ * status tab is empty at every start, because the sync that fills it comes once,
+ * at the pairing;
+ * 5. the write is **coalesced**, not per row: the history burst inserts one status
+ * per frame, and a write per insert serialised the whole day of statuses once
+ * per status on the 512 MB phone the cache exists for. `SaveStatusSnapshot`
+ * only counts the change; one writer waits for the feed to stand still, writes
+ * it once, and writes again only if it moved while the file was being written;
+ * 6. the row template binds only what a status row **has**: `StatusPane.xaml`
+ * asks for `{Binding X}` on a `StatusGroup` (one row per person, carrying the
+ * newest update as `Latest` and the count as `Detail`) and for
+ * `{Binding Latest.Y}` on the `ChatMessage` behind it, and every X and Y must
+ * be a public member of its model. The template asked for `Initials` before the
+ * model had one, and the run of 2026-10-22 answered with two binding errors per
+ * realised row (`'Initials' property not found on
+ * 'WhatsappApp.Models.ChatMessage'`) and an empty circle on the screen - no
+ * compile error, no DIAG line, nothing that failed;
+ * 7. the tap opens the **day** of the person tapped, not the one row that was
+ * touched: the pane draws "3 updates" on one line, and the viewer that showed
+ * only the tapped row made that line a lie - the other two could be reached by
+ * leaving the screen and tapping the same name again. The viewer builds its
+ * queue from the feed (`DataService.Instance.Statuses`), puts it back in the
+ * order the updates were posted (`_queue.Reverse()`, the feed is newest first)
+ * and starts at the first one nobody has watched (`FirstUnwatched()`);
+ * 8. the whole day at once is **one write**, not one per update.
+ * `DataService.MarkAllStatusesViewed` marks every unwatched row in one pass,
+ * saves the snapshot once and announces the feed once; only the receipts are one
+ * per status, because the wire has no receipt for several at a time. Written as a
+ * loop over `MarkStatusViewed` it was a write of the file and a rebuild of the
+ * list for every row - thirty updates, thirty of each, for one tap.
  *
  * Usage:
- *   node tools/check-status-viewer.js
+ * node tools/check-status-viewer.js
  */
 'use strict';
 

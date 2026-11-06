@@ -5,7 +5,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The crash of the previous run, put in front of the next one.
     ///
-    /// Why it exists: the phone has no debugger attached, and a run that died left
+    /// The phone has no debugger attached, and a run that died left
     /// its tail in `Diag.PendingCrashTail` with nothing to read it. A new run's log
     /// therefore began at its own first line, and the crash that explains why the
     /// previous one never connected was only visible as an absence.

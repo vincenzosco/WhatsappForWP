@@ -102,7 +102,7 @@ namespace WhatsappApp.Protocol.Client
     /// pinned and muted chats, the archive setting, and **the names saved in the primary
     /// phone's address book**.
     ///
-    /// Why this exists: a linked device has no address book of its own. The history sync
+    /// A linked device has no address book of its own. The history sync
     /// names the people who write (their push names) and says nothing about how the account's
     /// owner saved them, and the phone's own contact store is a *different* book. The names
     /// the official app shows - "Mamma", "Papà" - travel in the app state, as `contact`
@@ -185,7 +185,7 @@ namespace WhatsappApp.Protocol.Client
         /// answer, and a snapshot this client cannot parse used to throw out of the middle of
         /// the loop - so one unreadable collection cost the names of the other four, and the
         /// log said only "app-state: ProtocolException" with no collection in it (the phone's
-        /// own log, 4 November 2026: `a protobuf field is not one: number 69477, wire type
+        /// own log,: `a protobuf field is not one: number 69477, wire type
         /// 6`). A collection is read whole or not at all, which is the rule `Apply` already
         /// keeps; this is the same rule one level up.
         /// </summary>

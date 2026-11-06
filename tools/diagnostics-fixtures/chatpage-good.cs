@@ -1,4 +1,4 @@
-// Estratto di ChatPage.xaml.cs: l attesa della storia non e' piu' corta della
-// lettura dell adapter (misurata ~15 s), o il bind arriva prima del burst.
+// Extract of ChatPage.xaml.cs: waiting for the history is not shorter than reading
+// the adapter (~15 s measured), or the bind lands before the burst.
 
         private const int HistoryWaitMaxMilliseconds = 20000;

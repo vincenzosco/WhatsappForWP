@@ -17,11 +17,11 @@ namespace WhatsappApp.Protocol.Crypto
     /// `libsignal-protocol-c`'s `curve_sigs.c` and `sign_modified.c`, which is what the
     /// reference clients link:
     ///
-    ///     nonce = SHA-512(0xFE || 0xFF * 31 || privateKey || message || random * 64)
-    ///     R     = [nonce]B
-    ///     hram  = SHA-512(R || publicKey || message)
-    ///     S     = hram * privateKey + nonce        (mod l)
-    ///     signature[63] |= sign bit of the Ed25519 public key
+    /// nonce = SHA-512(0xFE || 0xFF * 31 || privateKey || message || random * 64)
+    /// R = [nonce]B
+    /// hram = SHA-512(R || publicKey || message)
+    /// S = hram * privateKey + nonce (mod l)
+    /// signature[63] |= sign bit of the Ed25519 public key
     ///
     /// The reference passes 64 random bytes; this passes 64 zero bytes. That is not a
     /// shortcut around anything the verifier checks - a different value of `random`

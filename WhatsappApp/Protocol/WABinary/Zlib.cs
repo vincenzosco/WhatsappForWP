@@ -8,8 +8,8 @@ namespace WhatsappApp.Protocol.WABinary
     /// The inflate for the bytes that arrive deflated: the history bootstrap, and - since
     /// `0x02` frames are read instead of refused - the big nodes of the sync.
     ///
-    /// Why by hand: the payload is deflate inside a zlib wrapper (`0x78 ...`, the two-byte
-    /// header a `zlib.deflate` writes, with a four-byte Adler-32 trailer), and the .NET
+    /// Why by hand: the payload is deflate inside a zlib wrapper (`0x78.`, the two-byte
+    /// header a `zlib.deflate` writes, with a four-byte Adler-32 trailer), and the.NET
     /// class is a *raw* deflate. Feeding the wrapper to `DeflateStream` as-is answers
     /// "invalid data" - the first two bytes it sees are a header it reads as a block.
     ///

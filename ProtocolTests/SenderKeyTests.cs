@@ -88,7 +88,7 @@ namespace ProtocolTests
         /// Why it matters: `Decrypt` answers it with a `ProtocolException` ("iteration N was
         /// already read and its key is gone"), the connection reported it as a failure and
         /// asked the group to send the message again, and the group did - for ever. The run of
-        /// 24 October 2026 asked for the same three messages on every connection.
+        /// asked for the same three messages on every connection.
         /// </summary>
         [Test]
         public static void AMessageThatWasAlreadyReadAsksToBeADuplicate()
@@ -253,7 +253,7 @@ namespace ProtocolTests
         [Test]
         public static void APaddedGroupMessageStillReads()
         {
-            // A phone pads its group plaintext with 1..15 bytes whose value is their count
+            // A phone pads its group plaintext with 1.15 bytes whose value is their count
             // (whatsmeow's `padMessage`); the reader has to step over them.
             byte[] message = Message.Text("ciao").Encode();
             var padded = new byte[message.Length + 7];

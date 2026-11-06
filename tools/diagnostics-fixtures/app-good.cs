@@ -1,6 +1,6 @@
-// Estratto di App.xaml.cs: i gestori delle eccezioni non gestite scrivono il log
-// su disco prima che il processo possa morire. Il guard legge del testo, non
-// compila: questo fixture dice cosa deve esserci.
+// Extract of App.xaml.cs: the handlers for unhandled exceptions write the log to
+// disk before the process can die. The guard reads text, it does not compile: this
+// fixture says what has to be there.
 
         private void OnUnhandled(object sender, UnhandledExceptionEventArgs e)
         {

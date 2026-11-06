@@ -214,12 +214,12 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>
         /// The ping that keeps a quiet connection a connection.
         ///
-        /// Why it exists here and not only in the session that follows: pairing is the long
+        /// It lives here and not only in the session that follows: pairing is the long
         /// silence - a person has to fetch their phone, open WhatsApp and find the scanner,
         /// which is minutes - and the reference (`whatsmeow/keepalive.go`) pings every 20 to
         /// 30 seconds through exactly that. Without it the server probes and then closes: the
         /// device run of 2026-10-10 was dropped about thirty seconds in, with the codes on
-        /// screen (`<iq type="get" t="..." xmlns="urn:xmpp:ping">`, four bytes, `0x80072EFE`).
+        /// screen (`<iq type="get" t="." xmlns="urn:xmpp:ping">`, four bytes, `0x80072EFE`).
         ///
         /// It only **sends**, never reads: the two loops above are the only reader this socket
         /// may have, and a second one would take the frames out of order. It answers for its

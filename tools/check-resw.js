@@ -6,24 +6,24 @@
  *
  * WP8.1 resolves x:Uid and ResourceLoader.GetString at run time: a missing or
  * mistyped entry does NOT fail the build, it silently leaves the literal from
- * the markup in place. A .resw that is not registered in the csproj is never
+ * the markup in place. A.resw that is not registered in the csproj is never
  * compiled into the package at all. None of that is caught by the compiler, so
  * this guard is the only thing that catches it.
  *
  * Rules:
- *   A. every literal localizable attribute in XAML is a binding, a known
- *      non-translatable value, or backed by x:Uid="X" plus an entry
- *      "X.<Attr>" in BOTH resource files;
- *   B. en-US and it-IT declare exactly the same keys, and no key collides with
- *      a property identifier of the same name;
- *   C. every Loc.Get("Key", ...) in C# exists in BOTH resource files;
- *   D. (--strict) no key is left unused;
- *   E. both .resw files are registered as PRIResource in the csproj and
- *      <DefaultLanguage> is one of the supported languages.
+ * A. every literal localizable attribute in XAML is a binding, a known
+ * non-translatable value, or backed by x:Uid="X" plus an entry
+ * "X.<Attr>" in BOTH resource files;
+ * B. en-US and it-IT declare exactly the same keys, and no key collides with
+ * a property identifier of the same name;
+ * C. every Loc.Get("Key",.) in C# exists in BOTH resource files;
+ * D. (--strict) no key is left unused;
+ * E. both.resw files are registered as PRIResource in the csproj and
+ * <DefaultLanguage> is one of the supported languages.
  *
  * Usage:
- *   node tools/check-resw.js
- *   node tools/check-resw.js --strict
+ * node tools/check-resw.js
+ * node tools/check-resw.js --strict
  */
 'use strict';
 

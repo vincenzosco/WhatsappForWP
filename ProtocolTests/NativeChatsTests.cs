@@ -304,7 +304,7 @@ namespace ProtocolTests
         ///
         /// This is the phone of 2026-10-25: the sync carried no `pushnames` list at all
         /// (`0 push name(s)`, beside `143 LID pair(s)` in the same chunk), so forty chats of a
-        /// hundred and sixty-eight were drawn as "+39..." while every message inside them
+        /// hundred and sixty-eight were drawn as "+39." while every message inside them
         /// carried the name WhatsApp shows for that person.
         /// </summary>
         [Test]

@@ -26,13 +26,13 @@ namespace WhatsappApp.Pages
     /// Two things the page owns and nothing else does:
     ///
     /// - **The rotation.** WhatsApp issues several refs at once and each one is good for a
-    ///   short time; a code left on screen past its ref is a code the phone will scan into
-    ///   nothing at all. The page therefore advances to the next ref on a timer instead of
-    ///   leaving one dead code up. The refs it already holds need no I/O, so the rotation
-    ///   is a redraw.
+    /// short time; a code left on screen past its ref is a code the phone will scan into
+    /// nothing at all. The page therefore advances to the next ref on a timer instead of
+    /// leaving one dead code up. The refs it already holds need no I/O, so the rotation
+    /// is a redraw.
     /// - **The end of the attempt.** When the refs run out, or when the server stops
-    ///   answering, the session is over - the codes cannot be revived - so the page says so
-    ///   and offers a new attempt, which is a new identity and a new set of codes.
+    /// answering, the session is over - the codes cannot be revived - so the page says so
+    /// and offers a new attempt, which is a new identity and a new set of codes.
     /// </summary>
     public sealed partial class PairPage : Page
     {

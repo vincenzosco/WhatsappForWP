@@ -11,12 +11,12 @@ namespace ProtocolTests
     ///
     /// ```js
     /// const groupQuery = async (jid, type, content) => query({
-    ///     tag: 'iq',
-    ///     attrs: { type, xmlns: 'w:g2', to: jid },
-    ///     content
+    /// tag: 'iq',
+    /// attrs: { type, xmlns: 'w:g2', to: jid },
+    /// content
     /// });
     /// const groupMetadata = async (jid) => groupQuery(jid, 'get', [{ tag: 'query', attrs: { request: 'interactive' } }]);
-    /// // ... group.attrs.subject, group.attrs.creator, getBinaryNodeChildren(group, 'participant').map(({ attrs }) => attrs.jid)
+    /// //. group.attrs.subject, group.attrs.creator, getBinaryNodeChildren(group, 'participant').map(({ attrs }) => attrs.jid)
     /// ```
     /// </summary>
     public static class GroupDirectoryTests

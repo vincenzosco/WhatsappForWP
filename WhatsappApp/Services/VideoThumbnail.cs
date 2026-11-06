@@ -10,7 +10,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The cover frame of a video, for the bubble.
     ///
-    /// Why it exists: a received video showed a dark box with a triangle and
+    /// A received video showed a dark box with a triangle and
     /// nothing else, so two videos looked the same and the box said nothing about
     /// which one it was. WhatsApp draws a frame; this is how this platform can do
     /// the same. Windows Phone 8.1 ships Windows.Media.Editing, so the frame comes

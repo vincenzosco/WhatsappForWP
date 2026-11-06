@@ -6,7 +6,7 @@
  *
  * Why it exists: `SessionRecord.Encrypt` advances the sending chain, and the store is the
  * only thing that says how far it got. `KeepSessions` writes those records back, and on
- * 1 November 2026 it stood on the line *after* the stanza had been written - so a send
+ * it stood on the line *after* the stanza had been written - so a send
  * that threw while the stanza was being built (`the platform's generator returned no
  * entropy`, in the media path) left the chain advanced in memory and the store behind it.
  * The next send re-encrypted a key the receiver had already spent and was dropped as a
@@ -16,7 +16,7 @@
  * the stanza left or not.
  *
  * Usage:
- *   node tools/check-session-save.js
+ * node tools/check-session-save.js
  */
 'use strict';
 
@@ -79,7 +79,7 @@ function sessionSaveProblems(files) {
   const problems = [];
 
   const calls = [...connection.matchAll(/KeepSessions\s*\(/g)]
-    // The declaration is not a call: `private static void KeepSessions(...)`.
+    // The declaration is not a call: `private static void KeepSessions(.)`.
     .filter((match) => !/void\s+$/.test(connection.slice(Math.max(0, match.index - 40), match.index)));
 
   if (calls.length === 0) {

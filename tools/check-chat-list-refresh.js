@@ -8,32 +8,32 @@
  * Why it exists: four things a person sees on the screen and no test can reach, all of them
  * in the app and none of them a compile error.
  *
- *  1. **The refresh.** A stanza off the socket was the only writer the list had. A name
- *     learned after its row (`NameGroupsAsync`), a `@lid` pair learned after the row it
- *     would fold, a row the server has and this list never heard of - each stayed wrong
- *     until the app was restarted. `HomePage` now re-reads the list every 30 s
- *     (`DataService.ListRefreshSeconds`) while the chat tab is in front, and stops when it
- *     leaves. The refresh is **local**: it walks rows already in memory and asks WhatsApp
- *     nothing, which is what makes it safe on a phone with no data. And it is **quiet**: a
- *     row whose name and preview are what the list already shows is not applied again
- *     (`WouldChangeTheRow`), because the tick otherwise re-raises every property of every
- *     row and moves it in the ordered list - twice a minute, for nothing.
- *  2. **One spelling per chat.** A message that arrives under a `@lid` (or with a device)
- *     belongs to the row filed under the number. Every path that keys a chat - `ApplyChat`,
- *     `AddMessage`, `GetMessages`, `FindContact` - goes through `DataService.ChatIdFor`
- *     (`ChatListMerge.CanonicalId`), or the message creates a second row: the old one keeps
- *     yesterday's preview and the new one is the conversation nobody opens.
- *  3. **A sent message lands where it is read.** `ChatPage` sends on
- *     `DataService.Instance.ChatIdFor(_contact.Id)`: a page opened from a row spelled the
- *     other way wrote its own messages into a conversation nothing showed, which is the
- *     group that displayed only what the other members wrote.
- *  4. **The groups' names.** `NameTheGroups` ran only at the end of a history sync and marked
- *     a group as asked *before* the query, so a device linked for days never asked and a
- *     failed query was never retried: every group stayed `Gruppo 1203...`. It now runs after
- *     the login too, and a group is marked asked only when the server answered.
+ * 1. **The refresh.** A stanza off the socket was the only writer the list had. A name
+ * learned after its row (`NameGroupsAsync`), a `@lid` pair learned after the row it
+ * would fold, a row the server has and this list never heard of - each stayed wrong
+ * until the app was restarted. `HomePage` now re-reads the list every 30 s
+ * (`DataService.ListRefreshSeconds`) while the chat tab is in front, and stops when it
+ * leaves. The refresh is **local**: it walks rows already in memory and asks WhatsApp
+ * nothing, which is what makes it safe on a phone with no data. And it is **quiet**: a
+ * row whose name and preview are what the list already shows is not applied again
+ * (`WouldChangeTheRow`), because the tick otherwise re-raises every property of every
+ * row and moves it in the ordered list - twice a minute, for nothing.
+ * 2. **One spelling per chat.** A message that arrives under a `@lid` (or with a device)
+ * belongs to the row filed under the number. Every path that keys a chat - `ApplyChat`,
+ * `AddMessage`, `GetMessages`, `FindContact` - goes through `DataService.ChatIdFor`
+ * (`ChatListMerge.CanonicalId`), or the message creates a second row: the old one keeps
+ * yesterday's preview and the new one is the conversation nobody opens.
+ * 3. **A sent message lands where it is read.** `ChatPage` sends on
+ * `DataService.Instance.ChatIdFor(_contact.Id)`: a page opened from a row spelled the
+ * other way wrote its own messages into a conversation nothing showed, which is the
+ * group that displayed only what the other members wrote.
+ * 4. **The groups' names.** `NameTheGroups` ran only at the end of a history sync and marked
+ * a group as asked *before* the query, so a device linked for days never asked and a
+ * failed query was never retried: every group stayed `Gruppo 1203.`. It now runs after
+ * the login too, and a group is marked asked only when the server answered.
  *
  * Usage:
- *   node tools/check-chat-list-refresh.js
+ * node tools/check-chat-list-refresh.js
  */
 'use strict';
 

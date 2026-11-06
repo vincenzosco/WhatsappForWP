@@ -13,8 +13,8 @@ namespace WhatsappApp.Protocol.Signal
     /// The layout is `libsignal`'s and it is read from the reference rather than
     /// remembered (`@whiskeysockets/baileys`, `Signal/Group/sender-key-message.js`):
     ///
-    ///     serialized = [0x33] || protobuf{ id=1, iteration=2, ciphertext=3 } || signature(64)
-    ///     signature  = XEdDSA(signingKeyPrivate, [0x33] || protobuf)
+    /// serialized = [0x33] || protobuf{ id=1, iteration=2, ciphertext=3 } || signature(64)
+    /// signature = XEdDSA(signingKeyPrivate, [0x33] || protobuf)
     ///
     /// The version byte is `(3 &lt;&lt; 4) | 3` - `CURRENT_VERSION` in both nibbles, which is
     /// how every WhatsApp client writes it (`ciphertext-message.js`).
@@ -180,12 +180,12 @@ namespace WhatsappApp.Protocol.Signal
     /// It is a symmetric ratchet and nothing more (`libsignal`'s `SenderKeyState`,
     /// `SenderChainKey`, `SenderMessageKey`, read from the reference):
     ///
-    ///     messageKeySeed = HMAC-SHA256(chainKey, 0x01)
-    ///     nextChainKey   = HMAC-SHA256(chainKey, 0x02)
-    ///     hkdf           = HKDF(messageKeySeed, salt = 0x00 * 32, info = "WhisperGroup", 48 bytes)
-    ///     iv             = hkdf[0..16]
-    ///     cipherKey      = hkdf[16..48]
-    ///     ciphertext     = AES-256-CBC(cipherKey, iv, plaintext)
+    /// messageKeySeed = HMAC-SHA256(chainKey, 0x01)
+    /// nextChainKey = HMAC-SHA256(chainKey, 0x02)
+    /// hkdf = HKDF(messageKeySeed, salt = 0x00 * 32, info = "WhisperGroup", 48 bytes)
+    /// iv = hkdf[0.16]
+    /// cipherKey = hkdf[16.48]
+    /// ciphertext = AES-256-CBC(cipherKey, iv, plaintext)
     ///
     /// The iv is **the first sixteen bytes of the expansion itself** and not of the extract,
     /// the cipher key is the other thirty-two, and a guess in either direction produces a
@@ -380,11 +380,11 @@ namespace WhatsappApp.Protocol.Signal
         /// Whether this member's message carries an iteration this record has already read -
         /// a duplicate, and not a failure.
         ///
-        /// Why it exists: `SeedFor` refuses a message whose key was spent and dropped with a
+        /// `SeedFor` refuses a message whose key was spent and dropped with a
         /// `ProtocolException` ("iteration N was already read and its key is gone"), the
         /// connection reports it as a failure and asks the group to send the message again,
         /// and the group does - for ever, because there is no key left to open it with. The
-        /// run of 24 October 2026 asked for the same three messages on every connection.
+        /// run asked for the same three messages on every connection.
         ///
         /// The condition is the one `SeedFor` throws on, asked before it: the iteration is
         /// behind the chain and its key was not kept for a skipped message.
@@ -655,7 +655,7 @@ namespace WhatsappApp.Protocol.Signal
     /// The `SenderKeyDistributionMessage` protobuf, which is what one member of a group
     /// hands the others so they can read what they write:
     ///
-    ///     serialized = [0x33] || protobuf{ id=1, iteration=2, chainKey=3, signingKey=4 }
+    /// serialized = [0x33] || protobuf{ id=1, iteration=2, chainKey=3, signingKey=4 }
     ///
     /// The field numbers were printed from the reference's own encoder
     /// (`ProtocolTests/Vectors/SenderKeyFixture.cs` holds the bytes and the command), and

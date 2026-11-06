@@ -7,7 +7,7 @@ namespace WhatsappApp.Models
     /// <summary>
     /// One row of the status list: everything a contact has posted today, as one line.
     ///
-    /// Why it exists: the feed is one row per *update*, and a person who posts three
+    /// The feed is one row per *update*, and a person who posts three
     /// clips filled the list with three rows of the same face, each opening a screen
     /// that showed only that clip. WhatsApp's own list is one row per person carrying
     /// "3 updates", and tapping it plays the three in the order they were posted. The
@@ -83,7 +83,7 @@ namespace WhatsappApp.Models
         ///
         /// A preview is the promise of something to watch: once the day is watched the row is
         /// the person and their count, and the thumbnail of an update somebody has already seen
-        /// is the list showing old news as if it were new (asked for on 28 October 2026).
+        /// is the list showing old news as if it were new (asked for).
         /// </summary>
         public bool ShowPreview
         {

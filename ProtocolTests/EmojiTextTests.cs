@@ -114,7 +114,7 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The emoticons, which is the other half of the request of 29 October 2026:
+        /// The emoticons, which is the other half of the request:
         /// a `:)` typed on a keyboard that does not make faces still leaves as a face.
         /// </summary>
         [Test]

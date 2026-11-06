@@ -14,7 +14,7 @@ namespace WhatsappApp.Protocol.Client
     /// them. `WaitsForSenderKey` happens whenever a group writes before that member's key has
     /// arrived - the message is held, not lost - and `AlreadyRead` whenever the server
     /// re-delivers something this phone has opened, which is every message that arrives after
-    /// a run the debugger stopped. The run of 24 October 2026 was a column of `Eccezione
+    /// a run the debugger stopped. The run was a column of `Eccezione
     /// generata: SenderKeyMissingException` for exactly these.
     /// </summary>
     public enum IncomingRefusal
@@ -31,7 +31,7 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>
         /// A group ciphertext that opened to bytes that are not a message: the stanza is
         /// damaged on the wire, or was padded outside the message it carries. Asking for it
-        /// again asks for the same bytes - the run of 24 October 2026 asked for four of these
+        /// again asks for the same bytes - the run asked for four of these
         /// on every connection - so the caller acknowledges the copy and moves on.
         /// </summary>
         Unreadable,
@@ -40,7 +40,7 @@ namespace WhatsappApp.Protocol.Client
         /// A channel's post (`@newsletter`). Its ciphertext is the channel's own sender key,
         /// which WhatsApp hands to a phone that subscribed and never to a linked companion,
         /// so there is no `enc` for this device to open - and a `retry` asks for the same
-        /// post for ever (the two channels of 1 November 2026, once per connection). The
+        /// post for ever (the two channels, once per connection). The
         /// copy is acknowledged and named once.
         /// </summary>
         Channel
@@ -54,9 +54,9 @@ namespace WhatsappApp.Protocol.Client
     /// Two shapes of stanza arrive here and both are the reference's:
     ///
     /// - the `enc` is at the top when the server has already narrowed the copies down to
-    ///   this device (the ordinary case), and inside a `to[jid]` when it has not;
+    /// this device (the ordinary case), and inside a `to[jid]` when it has not;
     /// - a pre-key message (`enc type="pkmsg"`) carries everything a responder session
-    ///   needs, and a plain one (`type="msg"`) is opened with the session already stored.
+    /// needs, and a plain one (`type="msg"`) is opened with the session already stored.
     ///
     /// A duplicate is not an error: the server re-delivers a message that was not
     /// acknowledged, and showing it twice is the bug. That is what <see cref="SeenMessages"/>
@@ -267,7 +267,7 @@ namespace WhatsappApp.Protocol.Client
                 // The plaintext is read **before** the ratchet is written down, because a
                 // decode that fails - a field this build has no reader for, a stanza cut short
                 // - must not spend the key the server's retry needs. Saving first did exactly
-                // that on 24 October 2026: `the message key for 5 was already used`, and the
+                // that: `the message key for 5 was already used`, and the
                 // message was gone.
                 //
                 // It is a protobuf with the WhatsApp padding behind it, not the bare message:
@@ -303,7 +303,7 @@ namespace WhatsappApp.Protocol.Client
             // account wrote, whether or not it carries the device-sent form: the other phone
             // wraps what it sends, and some shapes - a reaction, an edit, a message to self -
             // travel as they are. Without this line those were read as a contact's, and on
-            // 24 October 2026 that was a chat row for ourselves plus one
+            // that was a chat row for ourselves plus one
             // `carries nothing this client reads yet` per message.
             //
             // A status keeps its own answer: our own story is still a story, and the echo
@@ -330,9 +330,9 @@ namespace WhatsappApp.Protocol.Client
         /// Two encs can be in the stanza and the order they are read in is the whole thing:
         ///
         /// - the **pairwise** one (`pkmsg`/`msg`, at the top when the server narrowed it down
-        ///   to this device and inside `to[jid]` otherwise) is the sender's **sender key**, if
-        ///   this is the first message since they made one. It is decrypted first because the
-        ///   group ciphertext cannot be opened without the key it carries;
+        /// to this device and inside `to[jid]` otherwise) is the sender's **sender key**, if
+        /// this is the first message since they made one. It is decrypted first because the
+        /// group ciphertext cannot be opened without the key it carries;
         /// - the **`skmsg`** is the message itself, encrypted once for the whole group.
         ///
         /// What is read out of it is the same as any other message - the words, the id, the
@@ -724,7 +724,7 @@ namespace WhatsappApp.Protocol.Client
             // The account has two addresses and a stanza may name either: the number, and the
             // LID. `IsMine` has known that for a while; this lookup knew only the number, so a
             // `to` addressed to `…@lid` matched nothing and the message was refused with "no
-            // enc for this device" - the line the phone logged on 23 October 2026 for a
+            // enc for this device" - the line the phone logged for a
             // newsletter post. A message nobody can open is a message lost, and the sender
             // retries it against the same address.
             string mine = User(credentials == null ? null : credentials.Jid);

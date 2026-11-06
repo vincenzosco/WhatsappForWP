@@ -5,11 +5,11 @@ namespace WhatsappApp.Protocol.Client
     /// <summary>
     /// The time a send may spend asking the server questions before the stanza is written.
     ///
-    /// Why it exists: on 4 November 2026 a message took about a minute to leave. Every question
+    /// On a message took about a minute to leave. Every question
     /// in front of a send waited `NativeConnection.AnswerSeconds` on its own - the device list,
     /// the bundles per device, the bundles per person, and the privacy token twice - and nothing
     /// bounded their sum, so three silent questions were sixty seconds of a bubble that said
-    /// "sending" (the device log carried `the per-device bundle query ... the server did not
+    /// "sending" (the device log carried `the per-device bundle query. the server did not
     /// answer` three times). Most of those answers are not needed for the message to exist: the
     /// one thing it cannot do without is a key for one device, and that is the only question
     /// allowed to outlast this budget.

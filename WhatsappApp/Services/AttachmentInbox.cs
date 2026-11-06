@@ -78,7 +78,7 @@ namespace WhatsappApp.Services
         /// Why it is read from the file and not from a stopwatch: a recorded note and a
         /// picked track are both audio, the same measurement answers both, and the number the
         /// receiver draws is the length of the bytes that were actually sent. A voice note
-        /// sent with no duration arrived as 0:00 (`SendMediaAsync(..., 0, ...)`).
+        /// sent with no duration arrived as 0:00 (`SendMediaAsync(., 0,.)`).
         /// </summary>
         public static uint Seconds
         {
@@ -256,7 +256,7 @@ namespace WhatsappApp.Services
             // A photo from the camera roll is a JPEG, and it was the one extension the list
             // did not name: every photo left as `application/octet-stream`, in a message that
             // said it was an image. The receiving clients take the type from this field, so
-            // the photo of 1 November 2026 was a bubble nobody could draw - and one that no
+            // the photo was a bubble nobody could draw - and one that no
             // device acknowledged at all.
             if (value == ".jpg") return "image/jpeg";
             if (value == ".jpeg") return "image/jpeg";

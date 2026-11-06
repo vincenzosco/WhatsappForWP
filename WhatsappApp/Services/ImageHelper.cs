@@ -112,7 +112,7 @@ namespace WhatsappApp.Services
             // No window means no XAML view: a background task has no one to draw for, and
             // there is no dispatcher to hop to. Nothing is built there: a `BitmapImage`
             // created in that process answers `RPC_E_WRONG_THREAD` (0x8001010E) - the
-            // `Contact.LoadAvatarAsync` line of every wake of 23-24 October 2026 - and the
+            // `Contact.LoadAvatarAsync` line of every wake - and the
             // picture is lost anyway. The bytes stay in the row, and the run that draws it
             // builds the bitmap; the answer here is the same null a missing picture gives.
             if (dispatcher == null)

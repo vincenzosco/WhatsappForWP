@@ -9,7 +9,7 @@ namespace ProtocolTests
     /// message, which is often a `@lid` - fourteen digits this phone has never paired with a
     /// number. The row asked `DisplayNameForJid`, which answers the address when it knows
     /// nothing better, and the list showed `+150375613116620` where WhatsApp sends the
-    /// poster's own name in the same stanza (`notify`). The report of 28 October 2026.
+    /// poster's own name in the same stanza (`notify`). The report.
     /// </summary>
     public static class StatusNameTests
     {

@@ -12,15 +12,15 @@
  * `NativeConnection` and was dropped because nothing was waiting for that id.
  *
  * The two halves that keep it honest:
- *  1. `ChatPage` never writes `Sent`. The bubble keeps its circle after the
- *     write, and waits (WaitForAck) for the answer; no answer in twenty
- *     seconds turns it into a failure.
- *  2. `NativeConnection` remembers the id it wrote and turns the server's ack
- *     into a status update, which `DataService` writes as Sent - or as Failed
- *     when the ack is a refusal.
+ * 1. `ChatPage` never writes `Sent`. The bubble keeps its circle after the
+ * write, and waits (WaitForAck) for the answer; no answer in twenty
+ * seconds turns it into a failure.
+ * 2. `NativeConnection` remembers the id it wrote and turns the server's ack
+ * into a status update, which `DataService` writes as Sent - or as Failed
+ * when the ack is a refusal.
  *
  * Usage:
- *   node tools/check-send-status.js
+ * node tools/check-send-status.js
  */
 'use strict';
 
@@ -109,7 +109,7 @@ function connectionProblems(connection) {
   const problems = [];
   const code = connection;
 
-  // The declarations do not count. `private void AnnounceAck(...)` and
+  // The declarations do not count. `private void AnnounceAck(.)` and
   // `public bool IsRefused;` satisfied these checks on their own, so deleting every call
   // site - the exact regression this guard exists for - still printed OK.
   const calls = code

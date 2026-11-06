@@ -10,7 +10,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The pictures of the chat list, asked for one chat at a time.
     ///
-    /// Why it exists: nothing filled `AvatarCache` any more. The adapter the app used to talk
+    /// Nothing filled `AvatarCache` any more. The adapter the app used to talk
     /// to carried the picture of every chat on its row; the native client has no such row - a
     /// conversation carries a name and no bytes - so the list drew initials for every person
     /// and every group. `NativeConnection.RequestAvatarAsync` was already there for the

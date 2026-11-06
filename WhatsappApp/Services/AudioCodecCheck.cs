@@ -12,7 +12,7 @@ namespace WhatsappApp.Services
     /// The one line at start-up that says whether the Opus codec is in this package, and
     /// whether Windows will load it.
     ///
-    /// Why it exists: `waopus.dll` is a native file no compiler can miss - the app builds,
+    /// `waopus.dll` is a native file no compiler can miss - the app builds,
     /// starts and runs exactly as before without it, and the first sign of trouble is a
     /// voice note that goes out as M4A or one that arrives and does not play. That happened:
     /// a package was installed without the DLL and the failure surfaced as
@@ -22,9 +22,9 @@ namespace WhatsappApp.Services
     /// fixes and a log that only said "not loadable" sends the reader to the wrong one:
     ///
     /// - the file is not in the installed package -> the build dropped it (`Content` in
-    ///   `WhatsApp.csproj`, and `unzip -l` the `.appx` to see);
+    /// `WhatsApp.csproj`, and `unzip -l` the `.appx` to see);
     /// - the file is there and `LoadLibrary` still answers `0x8007007E` -> the DLL's own
-    ///   imports are ones this phone does not have, and the fix is in the C, not the package.
+    /// imports are ones this phone does not have, and the fix is in the C, not the package.
     /// </summary>
     public static class AudioCodecCheck
     {
@@ -81,7 +81,7 @@ namespace WhatsappApp.Services
         /// for and the loader flags it declares, which is what the loader reads before it
         /// refuses a file.
         ///
-        /// Why the phone has to say this itself: on 5 November 2026 the log said the file was
+        /// Why the phone has to say this itself: the log said the file was
         /// in the package and that Windows would not load it, and the app container bit that
         /// had just been added to the C build was the first suspect. Ruling it out took reading
         /// the DLL here, hashing it against the build output and knowing which of the two the

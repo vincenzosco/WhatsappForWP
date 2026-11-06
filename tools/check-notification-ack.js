@@ -12,18 +12,18 @@
  *
  * Le due regole che questo guard tiene, e il perche' di ciascuna:
  *
- *  - l'`ack` parte **prima** di leggere la notifica: C# 5 non ammette `await`
- *    dentro un `catch`, quindi una notifica che lancia mentre viene letta non
- *    potrebbe piu' essere riconosciuta, e resterebbe in coda per sempre;
- *  - solo i nodi con un `id` si riconoscono: `ib` (che porta `offline`,
- *    `edge_routing`, `dirty`) non chiede niente, e un `ack` senza id non
- *    risponde a nessuno;
- *  - l'`ack` si nomina nel log (`native: acked notification <id>`): il log del
- *    telefono scrive le stanze in arrivo e niente di quelle in partenza, quindi
- *    senza questa riga "l'ack e' partito" non e' verificabile in nessun run.
+ * - l'`ack` parte **prima** di leggere la notifica: C# 5 non ammette `await`
+ * dentro un `catch`, quindi una notifica che lancia mentre viene letta non
+ * potrebbe piu' essere riconosciuta, e resterebbe in coda per sempre;
+ * - solo i nodi con un `id` si riconoscono: `ib` (che porta `offline`,
+ * `edge_routing`, `dirty`) non chiede niente, e un `ack` senza id non
+ * risponde a nessuno;
+ * - l'`ack` si nomina nel log (`native: acked notification <id>`): il log del
+ * telefono scrive le stanze in arrivo e niente di quelle in partenza, quindi
+ * senza questa riga "l'ack e' partito" non e' verificabile in nessun run.
  *
  * Usage:
- *   node tools/check-notification-ack.js
+ * node tools/check-notification-ack.js
  */
 'use strict';
 

@@ -148,7 +148,7 @@ test('una riga che raggiunge un campo che lo stato non ha non lo disegna', () =>
 });
 
 test('una riga che chiede il viso del proprietario quando il modello non lo ha', () => {
-  // The circle of the run of 28 October 2026: a column of coloured initials, because the
+  // The circle of the run: a column of coloured initials, because the
   // row had no picture to draw. The picture and its flag live on the chat row.
   const broken = files();
   broken.owner = broken.owner.replace(/public BitmapImage Avatar/, 'public BitmapImage AvatarGone');

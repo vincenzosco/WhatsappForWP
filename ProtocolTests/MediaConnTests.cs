@@ -12,19 +12,19 @@ namespace ProtocolTests
     ///
     /// ```js
     /// const result = await query({
-    ///     tag: 'iq',
-    ///     attrs: { type: 'set', xmlns: 'w:m', to: S_WHATSAPP_NET },
-    ///     content: [{ tag: 'media_conn', attrs: {} }]
+    /// tag: 'iq',
+    /// attrs: { type: 'set', xmlns: 'w:m', to: S_WHATSAPP_NET },
+    /// content: [{ tag: 'media_conn', attrs: {} }]
     /// });
     /// const mediaConnNode = getBinaryNodeChild(result, 'media_conn');
     /// const node = {
-    ///     hosts: getBinaryNodeChildren(mediaConnNode, 'host').map(({ attrs }) => ({
-    ///         hostname: attrs.hostname,
-    ///         maxContentLengthBytes: +attrs.maxContentLengthBytes
-    ///     })),
-    ///     auth: mediaConnNode.attrs.auth,
-    ///     ttl: +mediaConnNode.attrs.ttl,
-    ///     fetchDate: new Date()
+    /// hosts: getBinaryNodeChildren(mediaConnNode, 'host').map(({ attrs }) => ({
+    /// hostname: attrs.hostname,
+    /// maxContentLengthBytes: +attrs.maxContentLengthBytes
+    /// })),
+    /// auth: mediaConnNode.attrs.auth,
+    /// ttl: +mediaConnNode.attrs.ttl,
+    /// fetchDate: new Date()
     /// };
     /// ```
     ///

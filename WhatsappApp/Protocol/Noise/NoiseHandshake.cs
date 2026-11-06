@@ -26,14 +26,14 @@ namespace WhatsappApp.Protocol.Noise
     /// the ones a plausible-looking guess gets wrong:
     ///
     /// - the mode string is 32 bytes, so it **is** the initial hash; it is not hashed
-    ///   again;
+    /// again;
     /// - the additional data of every pre-split encryption is the **current** hash,
-    ///   and the hash is then advanced with the ciphertext;
+    /// and the hash is then advanced with the ciphertext;
     /// - the one counter is shared by both directions and resets on every
-    ///   `MixIntoKey`, and the IV is twelve bytes: eight zeros then that counter
-    ///   big-endian in the last four;
+    /// `MixIntoKey`, and the IV is twelve bytes: eight zeros then that counter
+    /// big-endian in the last four;
     /// - `MixIntoKey` runs `HKDF(input, 64, salt, "")` - input first, and the previous
-    ///   hash is the salt - then splits the 64 bytes into write and read.
+    /// hash is the salt - then splits the 64 bytes into write and read.
     ///
     /// The certificate signatures are **not** verified here. That needs XEdDSA (an
     /// Ed25519 verify), which this milestone does not carry; a handshake that decrypts
@@ -303,7 +303,7 @@ namespace WhatsappApp.Protocol.Noise
         /// <summary>
         /// Those bytes as hex, at most <paramref name="max"/> of them.
         ///
-        /// Why it exists: a connection that ends with a piece of a frame in hand is the
+        /// A connection that ends with a piece of a frame in hand is the
         /// shape the phone saw on 2026-10-10 and again on 2026-10-17 - four bytes, then
         /// `0x80072EFE` - and the four bytes are the only evidence of where the server
         /// stopped talking. A reader that logs the count and not the bytes cannot tell a

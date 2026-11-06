@@ -8,12 +8,12 @@
  * door a chat can come in by - a live message, a sync row, a tapped tile, the new-chat
  * dialog. Two of them took the id they were handed and made a row out of it:
  *
- *  - `ContactFor` looked the row up through `FindContact`, which canonicalises, and then
- *    created the row under the **raw** id it was given. A tile tapped for a chat that
- *    arrives as `...@lid` while the list holds its number made the second row, and the
- *    conversation opened from the tile was a different conversation from the one on the
- *    list - its messages there, its preview there, and a person on the list twice;
- *  - `AddContact` inserted whatever it was handed, after no lookup at all.
+ * - `ContactFor` looked the row up through `FindContact`, which canonicalises, and then
+ * created the row under the **raw** id it was given. A tile tapped for a chat that
+ * arrives as `.@lid` while the list holds its number made the second row, and the
+ * conversation opened from the tile was a different conversation from the one on the
+ * list - its messages there, its preview there, and a person on the list twice;
+ * - `AddContact` inserted whatever it was handed, after no lookup at all.
  *
  * The fix has two halves and the guard refuses a file that has only one of them: every
  * row is created **under the canonical address** (`ChatIdFor`, which is
@@ -23,20 +23,20 @@
  *
  * The same rule is owed by the two caches that hold rows of their own:
  *
- *  - **the client's conversation list** (`NativeChats`), which is where the groups are -
- *    a group is a row like any other, and its jid can arrive with a device on it as easily
- *    as a person's can. `EnsureRow` looks the row up first and canonicalises before it
- *    adds, and `Find` compares canonical addresses and not spellings;
- *  - **the status feed** (`StatusCache` and `DataService`). A status is keyed on its id
- *    (`FindStatus`), and the file restored at a start can carry the same id twice: a row
- *    drawn twice is an update watched once and a ring filled twice.
+ * - **the client's conversation list** (`NativeChats`), which is where the groups are -
+ * a group is a row like any other, and its jid can arrive with a device on it as easily
+ * as a person's can. `EnsureRow` looks the row up first and canonicalises before it
+ * adds, and `Find` compares canonical addresses and not spellings;
+ * - **the status feed** (`StatusCache` and `DataService`). A status is keyed on its id
+ * (`FindStatus`), and the file restored at a start can carry the same id twice: a row
+ * drawn twice is an update watched once and a ring filled twice.
  *
  * And the duplicate that does survive is **named**: `NameDuplicateRows` writes, once per
  * pair, the two rows and the address they share. A list that holds one chat twice and says
  * so nowhere is a bug nobody can find on a phone nobody can look at.
  *
  * Usage:
- *   node tools/check-one-row-per-chat.js
+ * node tools/check-one-row-per-chat.js
  */
 'use strict';
 

@@ -10,7 +10,7 @@ namespace WhatsappApp.Services
     /// Whether the microphone can be recorded into a stream as PCM - the half of a call that
     /// Media Foundation could not give on this phone.
     ///
-    /// Why this exists at all: `waaudio.dll` proved on 6 November 2026 that Media Foundation
+    /// `waaudio.dll` proved that Media Foundation
     /// starts on this device but has no device enumerator (`MFEnumDeviceSources` is not one of
     /// the seven functions its `MFPlat.DLL` exports), so the capture source a Windows call
     /// would open does not exist here. `AudioRecorder` writes a WAV to a file, which is fine
@@ -21,7 +21,7 @@ namespace WhatsappApp.Services
     /// stream in real time. Nothing here decodes anything: the bytes that arrive are the
     /// samples an Opus encoder can take.
     ///
-    /// What this is not: the call's recording path. It records three seconds, says what it
+    /// Not the call's recording path. It records three seconds, says what it
     /// wrote, and stops. The sentence it writes is what decides whether the call audio path
     /// is worth wiring to this door at all, and a wrong answer here (an M4A where the WAV
     /// profile was refused, or bytes with no `fmt ` chunk) is a fix in this file, not a

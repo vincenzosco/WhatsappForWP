@@ -92,7 +92,7 @@ namespace ProtocolTests
         /// carries WhatsApp's own padding, and the reader used to hand those bytes to
         /// `Decode` exactly as they were.
         ///
-        /// Why it is a test: the run of 1 November 2026 could not open the echo of a message
+        /// The run could not open the echo of a message
         /// sent from the account's own phone - `a protobuf field announces 9 bytes with 7
         /// left` - and asked the sender for it again, which is the same bytes. Those nine
         /// bytes are the padding: this padding is nine bytes of the value nine, so the first
@@ -112,7 +112,7 @@ namespace ProtocolTests
 
         /// <summary>
         /// And the failure itself, pinned on the bytes: read as a message with no padding the
-        /// wrapped copy is the refusal of 1 November 2026, byte for byte.
+        /// wrapped copy is the refusal, byte for byte.
         /// </summary>
         [Test]
         public static void ThePaddedCopyOfOneNovemberIsTheRefusalItWas()
@@ -136,10 +136,10 @@ namespace ProtocolTests
 
         /// <summary>
         /// A whole block of padding - sixteen bytes, count sixteen - is ordinary, and it is
-        /// the copy the re-link of 1 November 2026 could not read.
+        /// the copy the re-link could not read.
         ///
         /// Why sixteen and not fifteen: the padding is a block of sixteen with its count
-        /// behind it, so the count is `1..16`. A walk that searched fifteen tails found none,
+        /// behind it, so the count is `1.16`. A walk that searched fifteen tails found none,
         /// fell back to the padded buffer, and the sixteen bytes read as a field of the
         /// message: `a protobuf field announces 16 bytes with 14 left`.
         /// </summary>
@@ -277,7 +277,7 @@ namespace ProtocolTests
         /// <summary>
         /// A count on the wire that names bytes the buffer does not have.
         ///
-        /// Why this is the bug of 24 October 2026: four group messages arrived with a last byte
+        /// Why this is the bug: four group messages arrived with a last byte
         /// that said six where the payload had two, the reader cut the message to that count and
         /// the protobuf parser refused it - `a protobuf field announces 16 bytes with 14 left` -
         /// and the connection asked the group to send it again, on every connection, for a
@@ -309,7 +309,7 @@ namespace ProtocolTests
         /// Why this is a test and not a detail: `DecodePadded` used to answer "is this the
         /// padding" with a parse inside a `try`, so a plaintext that did not open on the first
         /// guess cost an exception per guess - sixteen of them, seventeen with the final read.
-        /// A debugger prints every first-chance exception, and on 24 October 2026 the debugger
+        /// A debugger prints every first-chance exception, and the debugger
         /// output for one run was a column of `Eccezione generata: ProtocolException` for
         /// messages that read correctly in the end.
         /// </summary>
@@ -371,7 +371,7 @@ namespace ProtocolTests
         /// stop where one began. With the walk stopping there, no candidate tail of the
         /// plaintext was whole, `DecodePadded` fell back to the padded buffer, and the
         /// padding's own bytes announced lengths nobody sent: `a protobuf field announces 16
-        /// bytes with 14 left`, three messages on the phone of 1 November 2026, each asked
+        /// bytes with 14 left`, three messages on the phone, each asked
         /// for again and each lost.
         /// </summary>
         [Test]
@@ -465,7 +465,7 @@ namespace ProtocolTests
         /// <summary>
         /// An end-group with no start is stepped over, not refused: its tag is already read and
         /// there is nothing of it left to step over. Refusing it is what left a status unread on
-        /// 4 November 2026 while the server re-sent the same id for the whole run.
+        /// while the server re-sent the same id for the whole run.
         /// </summary>
         [Test]
         public static void AStrayEndGroupIsSteppedOver()
@@ -514,7 +514,7 @@ namespace ProtocolTests
         /// <summary>
         /// A deprecated group is a field the reader does not know: it is stepped over up to its
         /// end-group, and the field after it is still read. Refusing it ended the whole app-state
-        /// sync on 24 October 2026 ("unsupported protobuf wire type 3").
+        /// sync ("unsupported protobuf wire type 3").
         /// </summary>
         [Test]
         public static void AnUnknownGroupIsSteppedOverToItsEnd()
@@ -549,8 +549,8 @@ namespace ProtocolTests
         /// comes back the same: UTF-8 carries a surrogate pair as four bytes and the
         /// protobuf length is in bytes, not characters.
         ///
-        /// Why it is a test at all: the app replaces the emoji this phone has no glyph for
-        /// **when it draws them** (`EmojiText`), and the plan of 29 October 2026 depends on
+        /// The app replaces the emoji this phone has no glyph for
+        /// **when it draws them** (`EmojiText`), and the plan depends on
         /// that being the only place: what is written is what is sent. The heart of 15.0 is
         /// the one that made it worth pinning - it is a pair of surrogates, and the older
         /// heart it is drawn as here is a different pair.

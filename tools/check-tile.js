@@ -5,69 +5,69 @@
  * Guard for the live tile of the WP8.1 app.
  *
  * Perche' esiste: la tile non disegnava l'icona e non lo diceva a nessuno. Un
- * modello di tile NON prende l'icona dal manifest: vuole un <image src="..."> nel
+ * modello di tile NON prende l'icona dal manifest: vuole un <image src="."> nel
  * payload, che punti a un'icona dedicata (Special tile templates, passo 3). Con
  * src vuoto la tile resta senza icona e non solleva nessuna eccezione: un guasto
  * che nessun log mostra.
  *
  * Regole:
- *  1. il codice della tile deve impostare src su ogni image che prende da un
- *     modello;
- *  2. l'immagine referenziata deve esistere in Assets/, essere un PNG dentro i
- *     limiti che il sistema accetta (<=1024 px per lato, <=200 KB) e avere
- *     almeno la misura del modello che la disegna: 200x200 per l'icona
- *     quadrata, 310x150 per la tile larga, che ha una proporzione sua;
- *  3. il modello TileWide310x150IconWithBadge non esiste su WP8.1: se compare,
- *     e' un errore di compilazione che vale la pena spiegare qui;
- *  4. la coda delle notifiche della tile deve restare accesa. E' quello che fa
- *     ruotare la tile fra i messaggi in attesa: con la coda spenta una sola
- *     notifica resta in vetrina e il messaggio cambia solo quando ne arriva un
- *     altro - il difetto visto sul telefono.
- *  5. i pixel che il decoder restituisce si MISURANO e si portano alla misura
- *     del disegno, non si prendono per quelli chiesti. Il 23 ottobre 2026 il log
- *     del telefono si e' fermato con `IndexOutOfRangeException` in
- *     `TileCanvas.Draw`: `Draw` legge `width` pixel per riga, e il chiamante gli
- *     passava i byte del decoder dichiarandoli della misura chiesta. Qui il
- *     decoder risponde al crop con la misura del crop (96x96) e non con quella
- *     chiesta (336x336), quindi la lettura usciva dal buffer.
- *  7. il binding 71x71 riceve la card PICCOLA, non quella quadrata. Un binding
- *     riempie la tile con l'immagine che riceve e taglia il resto: la card da 336
- *     in una tile da 170 mostra il centro della faccia al doppio - "la tile
- *     piccola ha l'immagine troppo zoommata", 23 ottobre 2026.
- *  8. la foto della tile di un contatto si chiede GRANDE (`preview: false`), non
- *     nella preview 96x96 che la lista disegna: composta su una card da 336 e' una
- *     faccia ingrandita 3,5 volte - la "foto troppo zoommata e non adattata" del
- *     23 ottobre 2026. Il template non c'entra (su WP8.1 un peek gira e mostra
- *     l'immagine quadrata a tutta tile): la sorgente si'. E `CardVersion` deve
- *     stare almeno a 5: la 4 ha lasciato sul telefono file il cui contenuto e' la
- *     foto GREZZA (il ripiego del decoder), e il nome e' quello che la shell tiene
- *     in cache.
- *  9. al decoder si chiede il RITAGLIO, e nient'altro: ne' `ScaledWidth`/
- *     `ScaledHeight`, ne' `InterpolationMode`. Il 23 ottobre 2026 la tile composta
- *     dalla foto grande si e' fermata su `System.ArgumentException` (E_INVALIDARG,
- *     "Value does not fall within the expected range") dentro
- *     `TileImage.PictureOfAsync`: le sole due attese WinRT di quel metodo sono
- *     `BitmapDecoder.CreateAsync` e `GetPixelDataAsync`, e i due parametri che il
- *     telefono non aveva mai accettato sono la misura scalata e l'interpolazione.
- *     Prova che la scala non e' del decoder: la preview 96x96, chiesta a 336x336,
- *     e' tornata 96x96. La scala e' `TileCanvas.ResizeSquare`.
+ * 1. il codice della tile deve impostare src su ogni image che prende da un
+ * modello;
+ * 2. l'immagine referenziata deve esistere in Assets/, essere un PNG dentro i
+ * limiti che il sistema accetta (<=1024 px per lato, <=200 KB) e avere
+ * almeno la misura del modello che la disegna: 200x200 per l'icona
+ * quadrata, 310x150 per la tile larga, che ha una proporzione sua;
+ * 3. il modello TileWide310x150IconWithBadge non esiste su WP8.1: se compare,
+ * e' un errore di compilazione che vale la pena spiegare qui;
+ * 4. la coda delle notifiche della tile deve restare accesa. E' quello che fa
+ * ruotare la tile fra i messaggi in attesa: con la coda spenta una sola
+ * notifica resta in vetrina e il messaggio cambia solo quando ne arriva un
+ * altro - il difetto visto sul telefono.
+ * 5. i pixel che il decoder restituisce si MISURANO e si portano alla misura
+ * del disegno, non si prendono per quelli chiesti. Il 23 ottobre 2026 il log
+ * del telefono si e' fermato con `IndexOutOfRangeException` in
+ * `TileCanvas.Draw`: `Draw` legge `width` pixel per riga, e il chiamante gli
+ * passava i byte del decoder dichiarandoli della misura chiesta. Qui il
+ * decoder risponde al crop con la misura del crop (96x96) e non con quella
+ * chiesta (336x336), quindi la lettura usciva dal buffer.
+ * 7. il binding 71x71 riceve la card PICCOLA, non quella quadrata. Un binding
+ * riempie la tile con l'immagine che riceve e taglia il resto: la card da 336
+ * in una tile da 170 mostra il centro della faccia al doppio - "la tile
+ * piccola ha l'immagine troppo zoommata", 23 ottobre 2026.
+ * 8. la foto della tile di un contatto si chiede GRANDE (`preview: false`), non
+ * nella preview 96x96 che la lista disegna: composta su una card da 336 e' una
+ * faccia ingrandita 3,5 volte - la "foto troppo zoommata e non adattata" del
+ * 23 ottobre 2026. Il template non c'entra (su WP8.1 un peek gira e mostra
+ * l'immagine quadrata a tutta tile): la sorgente si'. E `CardVersion` deve
+ * stare almeno a 5: la 4 ha lasciato sul telefono file il cui contenuto e' la
+ * foto GREZZA (il ripiego del decoder), e il nome e' quello che la shell tiene
+ * in cache.
+ * 9. al decoder si chiede il RITAGLIO, e nient'altro: ne' `ScaledWidth`/
+ * `ScaledHeight`, ne' `InterpolationMode`. Il 23 ottobre 2026 la tile composta
+ * dalla foto grande si e' fermata su `System.ArgumentException` (E_INVALIDARG,
+ * "Value does not fall within the expected range") dentro
+ * `TileImage.PictureOfAsync`: le sole due attese WinRT di quel metodo sono
+ * `BitmapDecoder.CreateAsync` e `GetPixelDataAsync`, e i due parametri che il
+ * telefono non aveva mai accettato sono la misura scalata e l'interpolazione.
+ * Prova che la scala non e' del decoder: la preview 96x96, chiesta a 336x336,
+ * e' tornata 96x96. La scala e' `TileCanvas.ResizeSquare`.
  * 10. un ripiego non si scrive MAI con il nome di una card: un file che si chiama
- *     come la card e' la promessa che quella foto e' gia' stata composta, e
- *     `ComposeAsync` salta il lavoro se il nome c'e'. Sempre il 23 ottobre 2026 il
- *     ripiego scrisse il JPEG grezzo sotto il nome di una card `v4`: ogni tentativo
- *     successivo trovava il file e non componeva piu' - e nessun log lo diceva.
- *     Il nome del ripiego e' `TileCanvas.FallbackFileName` (`...-raw-<foto>...`).
- *  6. la card si scrive con un nome che porta la foto e le regole con cui e'
- *     stata composta (`TileCanvas.CardFileName`), e da UN solo scrittore
- *     (`SerialQueue`). Perche': la tile del telefono tiene l'immagine per URI,
- *     quindi riscrivere lo stesso percorso lascia la foto vecchia in vetrina; e
- *     `DataService` pubblica il conteggio da ogni punto che lo cambia, mentre
- *     `PinnedTile.Update` non attende: due aggiornamenti della stessa chat
- *     aprivano lo stesso file insieme - l'`UnauthorizedAccessException`
- *     (E_ACCESSDENIED) visto sul telefono il 23 ottobre 2026.
+ * come la card e' la promessa che quella foto e' gia' stata composta, e
+ * `ComposeAsync` salta il lavoro se il nome c'e'. Sempre il 23 ottobre 2026 il
+ * ripiego scrisse il JPEG grezzo sotto il nome di una card `v4`: ogni tentativo
+ * successivo trovava il file e non componeva piu' - e nessun log lo diceva.
+ * Il nome del ripiego e' `TileCanvas.FallbackFileName` (`.-raw-<foto>.`).
+ * 6. la card si scrive con un nome che porta la foto e le regole con cui e'
+ * stata composta (`TileCanvas.CardFileName`), e da UN solo scrittore
+ * (`SerialQueue`). Perche': la tile del telefono tiene l'immagine per URI,
+ * quindi riscrivere lo stesso percorso lascia la foto vecchia in vetrina; e
+ * `DataService` pubblica il conteggio da ogni punto che lo cambia, mentre
+ * `PinnedTile.Update` non attende: due aggiornamenti della stessa chat
+ * aprivano lo stesso file insieme - l'`UnauthorizedAccessException`
+ * (E_ACCESSDENIED) visto sul telefono il 23 ottobre 2026.
  *
  * Usage:
- *   node tools/check-tile.js
+ * node tools/check-tile.js
  */
 'use strict';
 
@@ -285,7 +285,7 @@ function pictureProblems(pinned, canvas) {
  * Perche' esiste: la tile di un contatto e' composta dalla foto grande, ma la foto si
  * chiede a WhatsApp, e una domanda senza account risponde `there is no open account to
  * send on`. La scansione delle tile gira all'avvio, prima del login: sul telefono del 24
- * ottobre 2026 il log dice `PinnedTile/picture ...: ProtocolException 0x80131500 there is
+ * ottobre 2026 il log dice `PinnedTile/picture.: ProtocolException 0x80131500 there is
  * no open account to send on`, e il tentativo si bruciava a ogni avvio. Peggio: la tile
  * restava sulla preview 96x96 per tutta la corsa, perche' nessun publish la richiedeva
  * dopo il login - la faccia ingrandita che il commit del 23 ottobre doveva togliere.
@@ -378,7 +378,7 @@ function refusalProblems(pinned) {
  *
  * Sulla sorgente gia' senza commenti (`stripComments`), perche' il nome cercato
  * compare anche nei commenti e nelle chiamate: la dichiarazione e' `private`/`public`
- * /`internal` ... `nome(`, e il corpo finisce alla prima graffa a otto spazi.
+ * /`internal`. `nome(`, e il corpo finisce alla prima graffa a otto spazi.
  */
 function methodBody(source, name) {
   const at = source.search(
@@ -523,7 +523,7 @@ function statusesProblems(source) {
     return problems;
   }
 
-  // The `&& ...` is optional so a guard that forgot to ask about the tile at all is
+  // The `&&.` is optional so a guard that forgot to ask about the tile at all is
   // told apart from one that is missing, and gets the rule that says what to add.
   const guard = /if\s*\(\s*count\s*==\s*_unseenStatuses\s*((?:&&[^)]*)?)\)\s*return\s*;/.exec(body);
   if (!guard) {
@@ -637,7 +637,7 @@ function main() {
   for (const image of images) {
     problems.push(...assetProblems(readAsset(image)));
     // La sorgente dichiara il percorso senza qualificatore ("Assets\TileIcon.png"):
-    // MRT aggiunge .scale-240 quando il pacchetto viene risolto sul telefono,
+    // MRT aggiunge.scale-240 quando il pacchetto viene risolto sul telefono,
     // quindi il file qualificato deve esserci, altrimenti l'immagine non si trova.
     const qualified = image.replace(/\.png$/, '.scale-240.png');
     if (qualified !== image) problems.push(...assetProblems(readAsset(qualified)));

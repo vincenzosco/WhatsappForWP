@@ -7,7 +7,7 @@ namespace ProtocolTests
     /// over.
     ///
     /// Why these are here: the phone kept a call it had offered forever - the log of
-    /// 2 November 2026 says "a call is already up, so ... was not called" on the next dial,
+    /// says "a call is already up, so. was not called" on the next dial,
     /// after an offer that never got an answer. The rule that ends it is a value, not a
     /// timer, so it is pinned here rather than waited for on a device.
     /// </summary>

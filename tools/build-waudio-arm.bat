@@ -19,19 +19,19 @@ rem neither of those two is among them. The import list here is exactly the
 rem surface WhatsAppNative.dll proves exists.
 rem
 rem Usage:
-rem   tools\build-waudio-arm.bat [out-dll]
+rem tools\build-waudio-arm.bat [out-dll]
 rem
-rem   out-dll  where the DLL lands (default: WhatsappApp\waaudio.dll)
+rem out-dll where the DLL lands (default: WhatsappApp\waaudio.dll)
 rem
 rem Every path below is absolute on purpose: the script changes directory to the
 rem repository root first, and a relative object path was observed here to fail
 rem the `if exist` test and then the link's input open, on the same file `dir`
 rem listed.
 rem
-rem The link writes into .tools and the DLL is copied out afterwards: `link`
+rem The link writes into.tools and the DLL is copied out afterwards: `link`
 rem always emits an export object next to its output, and a stray waaudio.exp in
 rem the package folder is a file the guard and the repository both have to
-rem ignore. .tools is not in the repository.
+rem ignore.tools is not in the repository.
 rem
 rem The C runtime is not linked: the entry point is this package's own
 rem (tools/opus/waentry.c, /ENTRY:WaDllMain), so stdio, argv and the locale never

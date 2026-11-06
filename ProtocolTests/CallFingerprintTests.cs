@@ -13,7 +13,7 @@ namespace ProtocolTests
     ///
     /// Why these tests: the fingerprint is the one pin that turns a finished DTLS handshake into
     /// an authenticated call, and the APK shows it travelling with the transport negotiation
-    /// (`Web P2P: sending type 13 (..., has_fp=%d)`) rather than anywhere the Java code names.
+    /// (`Web P2P: sending type 13 (., has_fp=%d)`) rather than anywhere the Java code names.
     /// So the format is ours to choose from the SDP one, and a round trip is the only thing that
     /// says the two ends will read the same bytes.
     /// </summary>

@@ -7,10 +7,10 @@ namespace WhatsappApp.Protocol.Client
     /// <summary>
     /// Group stanzas that arrived before the sender key they are encrypted with.
     ///
-    /// Why it exists: a member's sender key travels in a pairwise copy that comes with the
+    /// A member's sender key travels in a pairwise copy that comes with the
     /// message they make it for - but the two are separate stanzas, and the server does not
     /// promise they arrive in that order. A `skmsg` that lands first used to be refused with
-    /// "this phone holds no sender key for ...", which the connection answered with a retry
+    /// "this phone holds no sender key for.", which the connection answered with a retry
     /// receipt: the message was read only if the sender happened to send it again, and the
     /// chat showed nothing until then. The key is usually a moment behind, so the message is
     /// kept here instead, still encrypted and still unacknowledged, and opened as soon as a

@@ -6,14 +6,14 @@ namespace WhatsappApp.Protocol.Media
     /// Server-reflexive discovery: the one question an ICE agent asks a STUN service to learn the
     /// address the network puts in front of this phone.
     ///
-    /// Why it exists: `CallCandidates` could only name the address the phone is attached to, and
+    /// `CallCandidates` could only name the address the phone is attached to, and
     /// that address is not the one a peer behind a carrier NAT can reach. The answer to a Binding
     /// request is the mapped address - the reflexive candidate - and without it a call placed
     /// from a mobile network offers a private address nobody can send to. The lite agent already
     /// reads the mapped address of a *peer's* check; this is the same question asked about
     /// ourselves.
     ///
-    /// What it is not: an ICE agent, a socket, or a candidate list. `Request` writes the bytes and
+    /// Not an ICE agent, a socket, or a candidate list. `Request` writes the bytes and
     /// `Read` reads the answer, so the question is exercised without a network, and
     /// `CallCandidates.ServerReflexive` is what turns a mapped address into something an offer
     /// can carry.

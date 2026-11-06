@@ -1,5 +1,5 @@
-// Estratto di Diag.cs: il file sink, i marcatori di corsa e il marcatore di vita.
-// Il guard legge del testo, non compila: questo fixture dice cosa deve esserci.
+// Extract of Diag.cs: the file sink, the run markers and the liveness marker. The
+// guard reads text, it does not compile: this fixture says what has to be there.
 
         private const string FileName = "diag.log";
         private const string MarkerName = "diag-run.marker";

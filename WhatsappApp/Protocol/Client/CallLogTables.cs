@@ -71,12 +71,12 @@ namespace WhatsappApp.Protocol.Client
     /// These are the official indices, from the `CREATE INDEX` statements in the APK's
     /// string pool (`2026-11-04-calls-apk-inventory.md`):
     ///
-    ///   call_log_ts_index                 (timestamp)          newest first on screen
-    ///   call_log_call_id                  (call_id)            one call, one row
-    ///   call_log_telecom_uuid_index       (telecom_uuid)
-    ///   call_log_user_jid                 (user_jid)           every call with a person
-    ///   call_log_participant_v2           (call_log_row_id)    who was on it
-    ///   call_link_token_index             (token) UNIQUE       the link's identity
+    /// call_log_ts_index (timestamp) newest first on screen
+    /// call_log_call_id (call_id) one call, one row
+    /// call_log_telecom_uuid_index (telecom_uuid)
+    /// call_log_user_jid (user_jid) every call with a person
+    /// call_log_participant_v2 (call_log_row_id) who was on it
+    /// call_link_token_index (token) UNIQUE the link's identity
     ///
     /// Rows are added once and then read. The only thing ever changed in place is a
     /// link's creator, which is what `UpdateLinkCreator` is for.

@@ -19,18 +19,18 @@
  * guasti: sono la risposta.
  *
  * Regole:
- *  1. `RequestAvatarAsync` risponde `AvatarAnswer` e non lancia;
- *  2. `NoSession` e' deciso da `IsLoggedIn`, prima di chiedere: la lista parte
- *     prima del login e una eccezione per riga e' cio' che questo valore toglie;
- *  3. `Refused` e' deciso dall'`iq type="error"` del server;
- *  4. nell'enricher `NoSession` dimentica la chat (`Forget`), riparte dalla
- *     prima riga (`index = 0`) e aspetta `NoSessionDelayMs`;
- *  5. nell'enricher `Refused` **non** fa nessuna delle tre: la chat ha risposto
- *     per questo giro, e il giro va avanti con `DelayMs`;
- *  6. i rifiuti nominati nel log hanno un tetto (`MaxRefusedLines`).
+ * 1. `RequestAvatarAsync` risponde `AvatarAnswer` e non lancia;
+ * 2. `NoSession` e' deciso da `IsLoggedIn`, prima di chiedere: la lista parte
+ * prima del login e una eccezione per riga e' cio' che questo valore toglie;
+ * 3. `Refused` e' deciso dall'`iq type="error"` del server;
+ * 4. nell'enricher `NoSession` dimentica la chat (`Forget`), riparte dalla
+ * prima riga (`index = 0`) e aspetta `NoSessionDelayMs`;
+ * 5. nell'enricher `Refused` **non** fa nessuna delle tre: la chat ha risposto
+ * per questo giro, e il giro va avanti con `DelayMs`;
+ * 6. i rifiuti nominati nel log hanno un tetto (`MaxRefusedLines`).
  *
  * Usage:
- *   node tools/check-avatar-refusal.js
+ * node tools/check-avatar-refusal.js
  */
 'use strict';
 

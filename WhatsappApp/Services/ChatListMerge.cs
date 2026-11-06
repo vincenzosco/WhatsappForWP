@@ -38,13 +38,13 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Which ids are the same chat, and what one row made of two says.
     ///
-    /// Why it exists: WhatsApp names one person two ways - a phone number and a `@lid` - and
-    /// one conversation can be spelled with a device (`393...:5@s.whatsapp.net`) or with the
+    /// WhatsApp names one person two ways - a phone number and a `@lid` - and
+    /// one conversation can be spelled with a device (`393.:5@s.whatsapp.net`) or with the
     /// old server (`@c.us`). The chat list was keyed on the exact string, so a message that
     /// arrived under the other spelling did not find its row: it created a second one, the
     /// old row kept yesterday's preview, a message this phone sent from that second row was
     /// saved in a conversation the reader never opened, and a group showed up twice - once
-    /// with its subject and once as "Gruppo 1203...". `NameBook.Canonical` already knows the
+    /// with its subject and once as "Gruppo 1203.". `NameBook.Canonical` already knows the
     /// pair (`@lid` to number, device stripped); this file is the rule that decides when two
     /// rows are one, and how to merge them without losing a count, a pin or a preview.
     ///
@@ -83,7 +83,7 @@ namespace WhatsappApp.Services
         /// up, and a pin or a mute survives whichever row carried it.
         ///
         /// The name is the one thing that is not arithmetic. A row created by a live message
-        /// before the history named it is called `Gruppo 1203...` or `+39389...`, and that is
+        /// before the history named it is called `Gruppo 1203.` or `+39389.`, and that is
         /// a description of the id, not a name a person chose: the other row's name wins.
         /// </summary>
         public static ChatRowState Fuse(ChatRowState keep, ChatRowState folded)

@@ -95,7 +95,7 @@ test('a module the phone is not known to ship is reported', () => {
 
 test('a function the phone does not export from MFPlat is reported', () => {
   const buffer = patched((bytes) => {
-    // The enumerator is the real answer the phone gave on 6 November 2026; this
+    // The enumerator is the real answer the phone gave; this
     // puts the name back into the table to prove the guard would catch it.
     const at = bytes.indexOf('MFCreateSample\0', 'latin1');
     assert.ok(at > 0, 'MFCreateSample must be in the image');

@@ -153,7 +153,7 @@ namespace WhatsappApp
                 // showing while it was closed (`LaunchRoute`). It is taken and named here,
                 // and it no longer decides the tab: the app opens on the conversations, and
                 // the badge on the other two tabs is what says what is waiting there
-                // (asked for on 28 October 2026, when every launch landed on the Status tab).
+                // (asked for, when every launch landed on the Status tab).
                 string route = SessionService.TakeRoute(DateTime.UtcNow);
                 if (!string.IsNullOrEmpty(route))
                 {

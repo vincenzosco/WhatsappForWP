@@ -93,7 +93,7 @@ namespace ProtocolTests
         /// often - the picture alone of somebody still unanswered.
         ///
         /// Why: every turn used to be the same shape, a count over a name, so the tile read
-        /// the same whichever way it landed. The request of 23 October 2026 was the message
+        /// the same whichever way it landed. The request was the message
         /// with the person, and a bare face between them.
         /// </summary>
         [Test]
@@ -176,7 +176,7 @@ namespace ProtocolTests
         /// The updates come after every message: two people waiting are two turns, and the
         /// number of updates is the third.
         ///
-        /// Why: the report of 4 November 2026 is the other order. The updates turn used to be
+        /// Why: the report is the other order. The updates turn used to be
         /// in front and to cost the messages one of the five slots, so the tile and the lock
         /// screen's detailed status opened on "3 new updates" while somebody was waiting for
         /// an answer.

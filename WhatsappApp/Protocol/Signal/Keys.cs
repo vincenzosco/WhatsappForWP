@@ -34,15 +34,15 @@ namespace WhatsappApp.Protocol.Signal
     /// to be read against the reference:
     ///
     /// - **The chain advances by HMAC.** The message key is `HMAC-SHA256(chainKey, 0x01)`
-    ///   and the next chain key is `HMAC-SHA256(chainKey, 0x02)`. Two one-byte inputs and
-    ///   the order they are used in is the whole protocol; a chain that used the same
-    ///   byte twice would produce a session that works and leaks.
+    /// and the next chain key is `HMAC-SHA256(chainKey, 0x02)`. Two one-byte inputs and
+    /// the order they are used in is the whole protocol; a chain that used the same
+    /// byte twice would produce a session that works and leaks.
     /// - **The root advances by HKDF**, with the current root as the salt and the DH
-    ///   output as the input key material, `"WhisperRatchet"` as the info, and 64 bytes
-    ///   out: the first 32 are the new root and the second 32 the chain.
+    /// output as the input key material, `"WhisperRatchet"` as the info, and 64 bytes
+    /// out: the first 32 are the new root and the second 32 the chain.
     /// - **A message key becomes three keys** through HKDF with 32 zero bytes as the
-    ///   salt and `"WhisperMessageKeys"` as the info: 80 bytes out, of which the first 32
-    ///   are the cipher key, the next 32 the MAC key and the last 16 the IV.
+    /// salt and `"WhisperMessageKeys"` as the info: 80 bytes out, of which the first 32
+    /// are the cipher key, the next 32 the MAC key and the last 16 the IV.
     ///
     /// Every constant these three use was printed from the reference; see
     /// <see cref="SignalConstants"/>.

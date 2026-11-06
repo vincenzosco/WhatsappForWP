@@ -421,7 +421,7 @@ namespace ProtocolTests
         /// Why it matters: the server re-delivers what was never acknowledged, so every run
         /// the debugger stops leaves a handful of these. Read as a failure they were answered
         /// with a retry the server honoured, which re-sent a message nothing can open - the
-        /// `message key for 5 was already used` loop of 24 October 2026.
+        /// `message key for 5 was already used` loop.
         /// </summary>
         [Test]
         public static void ACopyOfAMessageAlreadyReadIsADuplicate()

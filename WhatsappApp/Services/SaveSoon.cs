@@ -7,13 +7,13 @@ namespace WhatsappApp.Services
     /// <summary>
     /// A write that happens a moment after the last thing that made it necessary.
     ///
-    /// Why it exists: the only writer of the chat list and of a conversation was
+    /// The only writer of the chat list and of a conversation was
     /// `DataService.SaveSnapshotAsync`, and it was called at the end of a history sync, by
     /// `BackgroundSync`, and by `App.OnSuspending`. On Windows Phone that last one is the
     /// promise nobody keeps - the process is terminated for memory, or closed from the task
     /// switcher, and the suspension never runs. Everything a message had added was gone while
     /// WhatsApp counted that message as delivered and never sent it again: the phone of
-    /// 4 November 2026 showed a chat that stopped at the last time the app was closed
+    /// showed a chat that stopped at the last time the app was closed
     /// gracefully, in the list and inside the conversation.
     ///
     /// So the write is armed by the message itself and fires a couple of seconds later. A
@@ -22,13 +22,13 @@ namespace WhatsappApp.Services
     ///
     /// Two details are the whole implementation:
     ///
-    ///  1. **Arming restarts the clock.** `Arm` stops the timer before starting it, so a
-    ///     second message pushes the write back instead of being written on the first one's
-    ///     deadline. A timer left running would be a beat, and a beat writes the list every
-    ///     two seconds for as long as the app is open.
-    ///  2. **A write that is already running is not started twice.** It read the list before
-    ///     the newest message landed, so it is asked to go once more when it finishes; two
-    ///     snapshots at the same time would be two reads of one list and one of them stale.
+    /// 1. **Arming restarts the clock.** `Arm` stops the timer before starting it, so a
+    /// second message pushes the write back instead of being written on the first one's
+    /// deadline. A timer left running would be a beat, and a beat writes the list every
+    /// two seconds for as long as the app is open.
+    /// 2. **A write that is already running is not started twice.** It read the list before
+    /// the newest message landed, so it is asked to go once more when it finishes; two
+    /// snapshots at the same time would be two reads of one list and one of them stale.
     /// </summary>
     public sealed class SaveSoon
     {

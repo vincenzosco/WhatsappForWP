@@ -37,7 +37,7 @@ namespace WhatsappApp.Services
     /// This phone's account, brought online: the login that follows a pairing, and the
     /// reading that keeps the connection a connection.
     ///
-    /// Why it exists as a service and not inside a page: pairing and starting the app are
+    /// It is a service rather than part of a page: pairing and starting the app are
     /// two different moments that need the same thing. `PairPage` has just written an
     /// account and the app has to come online with it; `App.OnLaunched` finds an account
     /// from a previous run and has to come online with that one. Both of them are the same
@@ -126,9 +126,9 @@ namespace WhatsappApp.Services
         /// The call offers this run has sent, by the stanza id they went out with.
         ///
         /// Why a set of its own: `_awaitingAck` is the messages' - what the log calls "the
-        /// server has message" - and a call offer is not a message. Two offers went out on 4
-        /// November 2026 and the log had no line for either of them: whether the server took
-        /// them was unknowable, which is why the next step was a guess. An ack that names one
+        /// server has message" - and a call offer is not a message. Two offers went out and
+        /// the log had no line for either of them: whether the server took them was
+        /// unknowable, which is why the next step was a guess. An ack that names one
         /// of these ids is the server answering, and it is now said out loud.
         /// </summary>
         private readonly HashSet<string> _offeredCalls = new HashSet<string>();
@@ -541,7 +541,7 @@ namespace WhatsappApp.Services
         /// account has finished logging in on. A caller that wants something the account
         /// owns - a chat's full picture, for one - needs the second answer, and used to
         /// learn the difference from a `ProtocolException`: `there is no open account to
-        /// send on`, in `PinnedTile/picture` at every start (24 October 2026).
+        /// send on`, in `PinnedTile/picture` at every start ().
         /// </summary>
         public bool IsLoggedIn
         {
@@ -662,7 +662,7 @@ namespace WhatsappApp.Services
         /// Where the questions in front of a send start counting.
         ///
         /// Why a clock and not one wait per question: three questions at `AnswerSeconds` each
-        /// are the minute a message took to leave on 4 November 2026, and what has to be bounded
+        /// are the minute a message took to leave, and what has to be bounded
         /// is the whole wait in front of the stanza, not each part of it.
         /// </summary>
         private static SendBudget SendClock()
@@ -826,7 +826,7 @@ namespace WhatsappApp.Services
 
                     // The subjects of the groups this list already has. Until this ran only at
                     // the end of a sync, a device that had been linked for days had no sync to
-                    // wait for and kept `Gruppo 1203...` for ever.
+                    // wait for and kept `Gruppo 1203.` for ever.
                     NameTheGroups();
 
 #pragma warning disable 4014
@@ -1063,8 +1063,8 @@ namespace WhatsappApp.Services
             // sending it again. An `ack` means "arrived", not "understood", so it is also
             // the honest answer for one this build does not read yet.
             //
-            // What the server was made to repeat: the `privacy_token` of 1 November 2026,
-            // `<notification ... id="535878910" offline="1|2|4|11|12">`, the same node in
+            // What the server was made to repeat: the `privacy_token`,
+            // `<notification. id="535878910" offline="1|2|4|11|12">`, the same node in
             // every backlog five times over, because nothing ever answered it.
             //
             // A node with no `id` - an `ib` carrying `offline`, `edge_routing`, `dirty` -
@@ -1077,7 +1077,7 @@ namespace WhatsappApp.Services
                     await session.SendAsync(IncomingMessage.Ack(node));
 
                     // Named, because the log otherwise shows only what arrived: `whatsapp:
-                    // read <notification ...>` is the way in, and there is no line for the
+                    // read <notification.>` is the way in, and there is no line for the
                     // way out. The id is what the server stops re-sending, so it is the one
                     // worth printing.
                     Diag.Step("native: acked notification " + ackId + " (" + node.Attrs["type"] + ")");
@@ -1132,7 +1132,7 @@ namespace WhatsappApp.Services
 
                 // The status day is the other half of what a link is supposed to bring, and the
                 // one list a person checks in the morning was the one nothing named: with the
-                // link of 28 October 2026 the server sent sync type 5 and type 0 and no status
+                // link the server sent sync type 5 and type 0 and no status
                 // sync at all, so the tab opened on whatever the phone had kept. There is no
                 // request to ask for it - the reference clients have none either - so the line
                 // is what turns "gli stati non compaiono" into a fact about this login.
@@ -1363,7 +1363,7 @@ namespace WhatsappApp.Services
             {
                 // The ciphertext opened and what came out is not a message: the bytes are
                 // damaged, and a retry brings the same bytes. Four group messages were asked for
-                // on every connection of 24 October 2026 for exactly this - the stanza is
+                // on every connection for exactly this - the stanza is
                 // acknowledged above, so the server stops bringing it back, and the line names
                 // it once for the log.
                 Diag.Ok("native: " + incoming.Id + " in " + incoming.Chat
@@ -1490,7 +1490,7 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The same question with a deadline of its own.
         ///
-        /// Why the deadline is a parameter: on 4 November 2026 a message took about a minute to
+        /// Why the deadline is a parameter: a message took about a minute to
         /// leave, because every question in front of the write waited `AnswerSeconds` on its own
         /// and nothing bounded their sum - the device list, the bundles per device, the bundles
         /// per person, and the privacy token twice. `SendBudget` is that bound, and the only
@@ -1671,7 +1671,7 @@ namespace WhatsappApp.Services
             if (!ours && TookOfferedCall(id))
             {
                 // The server answering the offer itself, accepted or refused: the one line the
-                // log of 4 November 2026 was missing for two calls in a row.
+                // log was missing for two calls in a row.
                 if (refused)
                 {
                     string offerCode = node.Attrs["error"];
@@ -1991,7 +1991,7 @@ namespace WhatsappApp.Services
             finally
             {
                 // The media path is where a throw between the encryption and the store was
-                // seen for real: 1 November 2026, `the platform's generator returned no
+                // seen for real:, `the platform's generator returned no
                 // entropy` while the stanza was being built, and the next send re-encrypted a
                 // key the receiver had already spent.
                 KeepSessions(target.Devices, store);
@@ -2091,7 +2091,7 @@ namespace WhatsappApp.Services
         /// where that chain is. A session left at its pre-send state re-encrypts the *same*
         /// message key on the next send, the recipient's device has already spent that key on
         /// the first copy, and it drops the second as a duplicate without answering anything -
-        /// no receipt, no retry. That is the phone of 1 November 2026: three messages sent,
+        /// no receipt, no retry. That is the phone: three messages sent,
         /// `the server has message` for all three, one delivery and one read receipt.
         ///
         /// The group path had this rule for its sender key and not for these; the direct paths
@@ -2099,7 +2099,7 @@ namespace WhatsappApp.Services
         ///
         /// It is called from a `finally` and not after the write, because a send can throw
         /// *after* the encryption: `the platform's generator returned no entropy` came out of
-        /// building the stanza on 1 November 2026, and the store - the only thing that says
+        /// building the stanza, and the store - the only thing that says
         /// where the chain is - was never told. The next message then re-encrypted a key the
         /// receiver had already spent, and was dropped as a duplicate. `tools/check-session-save.js`
         /// refuses a call that is not in a `finally`.
@@ -2355,7 +2355,7 @@ namespace WhatsappApp.Services
         /// one this code is running on.
         ///
         /// One `usync` for the whole group: the device list is asked for per member in one
-        /// request, which is the reference's own way (`getUSyncDevices(participantsList, ...)`).
+        /// request, which is the reference's own way (`getUSyncDevices(participantsList,.)`).
         /// A hosted device (WhatsApp's own server-side ones) is skipped, and so is device 99,
         /// which is not a device but a placeholder the server puts in a list.
         /// </summary>
@@ -2697,7 +2697,7 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// The offer's own fields: `calls/wire` in the local settings, in the form
-        /// `caller_pn=...;caller_country_code=...;joinable=false`.
+        /// `caller_pn=.;caller_country_code=.;joinable=false`.
         ///
         /// When nothing is written down yet, the values this account can state about itself are
         /// written once and used from then on (`CallWireProfile.ForAccount`): the caller is the
@@ -3271,7 +3271,7 @@ namespace WhatsappApp.Services
         /// "Gruppo 120363412599616890" while the official app shows the subject; on the account
         /// of 2026-10-24 that was three rows of forty.
         ///
-        /// Why it is a task of its own and not a step of the sync: the answer is an `iq`, and
+        /// The answer is an `iq`, and
         /// an `iq` is read by the same loop this sync is running on, so awaiting one here would
         /// be the loop waiting for itself (`RequestAsync`). It is bounded, and a pass with
         /// nothing to ask for costs one walk over the rows.
@@ -4058,7 +4058,7 @@ namespace WhatsappApp.Services
 
             // One stanza per device, each carrying the one ciphertext that device can open.
             //
-            // Why not one stanza with five `enc`: the offer captured on 4 November 2026 from a
+            // Why not one stanza with five `enc`: the offer captured from a
             // real Android phone arrived as a single node with a single `enc`, while that
             // account has several devices - so the sender writes one node per device and the
             // server delivers each to its own. One node holding five ciphertexts is a phone
@@ -4670,7 +4670,7 @@ namespace WhatsappApp.Services
 
             // The poster's own name, off the same stanza: a status often arrives from a
             // `@lid`, and the feed showing fourteen digits where the official app shows a
-            // name is the report of 28 October 2026.
+            // name is the report.
             post.Name = incoming.PushName;
 
             if (incoming.Content != null) post.Encoded = incoming.Content.Encode();

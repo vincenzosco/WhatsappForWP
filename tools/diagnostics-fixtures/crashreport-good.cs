@@ -1,5 +1,5 @@
-// Estratto di CrashReport.cs: la coda della corsa che non e' finita viene letta
-// all'avvio e scritta nel log di questa corsa, senza aspettare una connessione.
+// Extract of CrashReport.cs: the tail of the run that did not finish is read at
+// start-up and written into this run's log, without waiting for a connection.
 
         public static void Start()
         {

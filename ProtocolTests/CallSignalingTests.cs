@@ -496,7 +496,7 @@ namespace ProtocolTests
         ///
         /// The rule is the message path's, and the offer was the one place it was missing: a
         /// recipient that has to verify a pre-key session is entitled to ignore the key when
-        /// nothing proves the device that sent it - two offers on 4 November 2026, five
+        /// nothing proves the device that sent it - two offers, five
         /// pre-key keys each, and not one ack from the server.
         /// </summary>
         [Test]
@@ -578,7 +578,7 @@ namespace ProtocolTests
         /// An offer the server kept while the app was closed says how old it is, and a call that
         /// waited minutes is not a call to answer.
         ///
-        /// The log of 4 November 2026: the same offer, `offline="1"`, thirteen minutes old, put
+        /// The log: the same offer, `offline="1"`, thirteen minutes old, put
         /// on the screen at every start.
         /// </summary>
         [Test]

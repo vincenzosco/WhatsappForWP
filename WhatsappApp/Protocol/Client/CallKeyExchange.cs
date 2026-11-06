@@ -37,23 +37,23 @@ namespace WhatsappApp.Protocol.Client
     /// phone rings and has nothing to decrypt. This is the missing step, and it has three
     /// rules that are the protocol's, not this app's:
     ///
-    ///  1. **One payload per device.** WhatsApp is multi-device: `whatsmeow` and the call
-    ///     corpus (`wacrg.org`, "Call offer") both describe `enc` as `1..n` children, one per
-    ///     recipient device, because a Signal ciphertext is addressed to one session.
-    ///  2. **The plaintext is a `Message`, not the bare key.** `Message.call.callKey` (field
-    ///     10, then field 1) is what the reference encrypts (`Message.CreateForCall`), and a
-    ///     receiver reads the key out of the message it decrypted.
-    ///  3. **The key goes out with the session that exists, and the log says which kind.**
-    ///     `msg` for an established session, `pkmsg` for one whose pre-key exchange has not
-    ///     been answered yet. Both are sealed, because an offer with no key is a phone that
-    ///     never rings: the log of 4 November 2026 has exactly that (`offered a call ... to
-    ///     393492556507@s.whatsapp.net with no key`, five devices with no established
-    ///     session, then `ended the call ... reason timeout`). The reference client does the
-    ///     same - `Message.CreateForCall` hands the key to `SessionCipher.encrypt`, which
-    ///     answers a pre-key message for a session that is still pending - and `whatsmeow`
-    ///     issue 555 (22 March 2024) reports the server dropping such an offer, which has not
-    ///     been reproduced here. So the type is logged per device instead of refused: if a
-    ///     phone does not ring, the log names the pre-key offer that is the first suspect.
+    /// 1. **One payload per device.** WhatsApp is multi-device: `whatsmeow` and the call
+    /// corpus (`wacrg.org`, "Call offer") both describe `enc` as `1.n` children, one per
+    /// recipient device, because a Signal ciphertext is addressed to one session.
+    /// 2. **The plaintext is a `Message`, not the bare key.** `Message.call.callKey` (field
+    /// 10, then field 1) is what the reference encrypts (`Message.CreateForCall`), and a
+    /// receiver reads the key out of the message it decrypted.
+    /// 3. **The key goes out with the session that exists, and the log says which kind.**
+    /// `msg` for an established session, `pkmsg` for one whose pre-key exchange has not
+    /// been answered yet. Both are sealed, because an offer with no key is a phone that
+    /// never rings: the log has exactly that (`offered a call. to
+    /// 393492556507@s.whatsapp.net with no key`, five devices with no established
+    /// session, then `ended the call. reason timeout`). The reference client does the
+    /// same - `Message.CreateForCall` hands the key to `SessionCipher.encrypt`, which
+    /// answers a pre-key message for a session that is still pending - and `whatsmeow`
+    /// issue 555 () reports the server dropping such an offer, which has not
+    /// been reproduced here. So the type is logged per device instead of refused: if a
+    /// phone does not ring, the log names the pre-key offer that is the first suspect.
     ///
     /// The key is 32 bytes (`CallKeys.CallKeyLength`) and the same for every device: it is
     /// the media key of the call, and each device gets its own ciphertext of it.
@@ -192,7 +192,7 @@ namespace WhatsappApp.Protocol.Client
         /// The call key out of an offer when the device that sealed it is not written on the
         /// node: the session that opens it says which device it was.
         ///
-        /// Why this exists: an offer arrives from the caller's **account**, and the `<enc>` is
+        /// An offer arrives from the caller's **account**, and the `<enc>` is
         /// addressed to one of its devices. The node does not say which one - the ciphertext is
         /// to a Signal session, not to an address - so the receiving phone tries the sessions it
         /// holds with that account and keeps the one that opens. The wrong ones fail on the tag,

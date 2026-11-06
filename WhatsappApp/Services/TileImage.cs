@@ -35,7 +35,7 @@ namespace WhatsappApp.Services
     /// and the large tiles draw, the wide card for the 310x150 one, and the small card for
     /// the 71x71 one. One card per tile shape because a binding fills the tile with the image
     /// it is given and crops what does not fit: a 336 card in the 170 px small tile is the
-    /// centre of the face magnified twice, which is what the phone showed on 23 October 2026.
+    /// centre of the face magnified twice, which is what the phone showed.
     /// </summary>
     public sealed class TileCard
     {
@@ -75,7 +75,7 @@ namespace WhatsappApp.Services
         /// files at once. `DataService` publishes the count from every path that changes it,
         /// and `PinnedTile.Update` fires each publish without awaiting it, so the second
         /// `OpenAsync(ReadWrite)` on a file the first still holds is the
-        /// `UnauthorizedAccessException` (E_ACCESSDENIED) the phone showed on 23 October 2026.
+        /// `UnauthorizedAccessException` (E_ACCESSDENIED) the phone showed.
         /// One writer, and a card already written is not written again.
         /// </summary>
         private static readonly SerialQueue Writes = new SerialQueue();
@@ -196,7 +196,7 @@ namespace WhatsappApp.Services
         /// drawn - edge to edge, nothing on top, because a face is the tile's subject. A
         /// background is not the subject: handed to that path, the wallpaper covered the tile
         /// and the app's logo disappeared with it, which is what the phone showed on
-        /// 28 October 2026. Here the picture is a background: dimmed so a white mark reads on
+        ///. Here the picture is a background: dimmed so a white mark reads on
         /// it, with the mark drawn in the middle at half the tile, and the wide card filled
         /// with the same background instead of framing a square in teal.
         ///
@@ -619,7 +619,7 @@ namespace WhatsappApp.Services
         /// wider than it is tall.
         ///
         /// The decoder is asked for **the crop and nothing else**. Not a scaled crop: on
-        /// 23 October 2026 the pinned tile composed from a full-size profile picture stopped on
+        /// the pinned tile composed from a full-size profile picture stopped on
         /// `System.ArgumentException` / E_INVALIDARG ("Value does not fall within the expected
         /// range") inside this method, and the only two WinRT calls it makes are
         /// `BitmapDecoder.CreateAsync` and `GetPixelDataAsync` - so the two parameters it had

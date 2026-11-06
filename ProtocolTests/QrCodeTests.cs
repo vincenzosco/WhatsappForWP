@@ -31,7 +31,7 @@ namespace ProtocolTests
         {
             bool[,] matrix = QrCode.Encode(QrFixture.PairingText, QrErrorCorrection.Medium);
 
-            // 277 bytes: past the 1..11 the plan budgeted, and the reason the tables carry
+            // 277 bytes: past the 1.11 the plan budgeted, and the reason the tables carry
             // every version. Version 12 is what the reference picks, and a wrong version
             // would still produce a plausible square.
             Assert.IsTrue(QrFixture.PairingVersion == 12,

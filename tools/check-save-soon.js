@@ -9,7 +9,7 @@
  * Phone a suspension is often not a suspension: the process is terminated for memory or
  * closed from the task switcher, `OnSuspending` never runs, and every message the run had read
  * died with it - while WhatsApp had counted them as delivered and never sent them again. The
- * phone of 4 November 2026 showed the conversations stopping at the last clean close, in the
+ * phone showed the conversations stopping at the last clean close, in the
  * list and inside the chat.
  *
  * The rule: a live message arms a debounced snapshot, and that debounce restarts its clock
@@ -17,7 +17,7 @@
  * which is the bug.
  *
  * Usage:
- *   node tools/check-save-soon.js
+ * node tools/check-save-soon.js
  */
 'use strict';
 
@@ -52,7 +52,7 @@ function saveSoonProblems(files) {
   const app = String((files && files.app) || '').replace(/\r\n/g, '\n');
 
   // 1. The debounce restarts its clock. A timer that is not stopped before it starts is a
-  //    beat: one snapshot every interval for as long as the app is open.
+  // beat: one snapshot every interval for as long as the app is open.
   const arm = methodBody(helper, 'public void Arm()');
   if (!arm) {
     problems.push(`${HELPER}: there is no Arm() - nothing would schedule the write`);
@@ -80,7 +80,7 @@ function saveSoonProblems(files) {
   }
 
   // 4. A live message arms it. The history branch returns before this point on purpose: a sync
-  //    already ends with a snapshot of its own.
+  // already ends with a snapshot of its own.
   const received = methodBody(service, 'private async void OnNetworkMessageReceived(');
   if (!received) {
     problems.push(`${SERVICE}: OnNetworkMessageReceived is missing - the message path this ` +
@@ -98,7 +98,7 @@ function saveSoonProblems(files) {
   }
 
   // 5. The suspension still flushes, and immediately: the debounce is the safety net, not a
-  //    replacement for saying the list before the process is frozen.
+  // replacement for saying the list before the process is frozen.
   if (!/SaveSnapshotAsync\(\)/.test(app)) {
     problems.push(`${APP}: the suspension no longer writes the snapshot - the debounce would ` +
       'be the only writer, and it is the one that may never fire');

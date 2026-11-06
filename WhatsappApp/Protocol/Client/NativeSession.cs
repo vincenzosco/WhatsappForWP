@@ -9,7 +9,7 @@ namespace WhatsappApp.Protocol.Client
     /// <summary>
     /// The login a device that already has an account runs.
     ///
-    /// Why it exists: pairing ends with an account and nothing else, and the account is
+    /// Pairing ends with an account and nothing else, and the account is
     /// not online until the device comes back with it. The reference
     /// (`whatsmeow/pair.go`, `handlePairSuccess`) is explicit - `expectDisconnect()`
     /// right after the signature, and then the client connects **again** and sends the

@@ -6,7 +6,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// One thing at a time, in the order they arrive.
     ///
-    /// Why it exists: half of this app's work is asynchronous, and much of it is
+    /// Half of this app's work is asynchronous, and much of it is
     /// started without anyone awaiting it - a media write, a cache save, a handler
     /// that was fired and not awaited. Two of those touching one resource
     /// interleave: two writes of the same file land out of order (that bug was

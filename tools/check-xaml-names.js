@@ -20,7 +20,7 @@
  * dentro un commento non esiste.
  *
  * Usage:
- *   node tools/check-xaml-names.js
+ * node tools/check-xaml-names.js
  */
 'use strict';
 

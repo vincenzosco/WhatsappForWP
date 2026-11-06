@@ -13,10 +13,10 @@ namespace WhatsappApp.Protocol.Client
     /// </summary>
     public sealed class ChatMerge : EventArgs
     {
-        /// <summary>The address that is no longer used (`...@lid`).</summary>
+        /// <summary>The address that is no longer used (`.@lid`).</summary>
         public string From;
 
-        /// <summary>The address that keeps the conversation (`...@s.whatsapp.net`).</summary>
+        /// <summary>The address that keeps the conversation (`.@s.whatsapp.net`).</summary>
         public string To;
 
         public ChatMerge(string from, string to)

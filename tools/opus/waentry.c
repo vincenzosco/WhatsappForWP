@@ -4,7 +4,7 @@
  *
  * History, because each step here was paid for:
  *
- * On 5 November 2026 the phone answered 0x8007007E to a waopus.dll that was in
+ * On the phone answered 0x8007007E to a waopus.dll that was in
  * the installed package, and comparing it with the three ARM modules that phone
  * does load (`WhatsAppNative.dll`, `WhatsAppProxyStub.dll`, `dbghelp.dll`) left
  * one difference that matters: they import `api-ms-win-core-*`, while this DLL
@@ -18,16 +18,16 @@
  * `api-ms-win-core-slapi-l1-1-0.lib`), so the way out is to stop needing the
  * CRT rather than to relink it:
  *
- *  - libopus is built with `FIXED_POINT`, which is what mobile builds of Opus
- *    use anyway. The float maths (`sin`, `cos`, `exp`, `log`, `pow`, `atan`)
- *    leave the image with the floating-point path.
- *  - the allocator below is `HeapAlloc` on the process heap, reached through the
- *    API set `api-ms-win-core-heap-l1-2-0.dll` - the same module and the same
- *    four functions `WhatsAppNative.dll` uses.
- *  - the string routines libopus needs are here, because the compiler emits
- *    calls to them and the CRT's versions would pull the CRT in.
- *  - the entry point does no CRT initialisation, so stdio, argv, the locale and
- *    the CRT heap are never touched, and their imports never appear.
+ * - libopus is built with `FIXED_POINT`, which is what mobile builds of Opus
+ * use anyway. The float maths (`sin`, `cos`, `exp`, `log`, `pow`, `atan`)
+ * leave the image with the floating-point path.
+ * - the allocator below is `HeapAlloc` on the process heap, reached through the
+ * API set `api-ms-win-core-heap-l1-2-0.dll` - the same module and the same
+ * four functions `WhatsAppNative.dll` uses.
+ * - the string routines libopus needs are here, because the compiler emits
+ * calls to them and the CRT's versions would pull the CRT in.
+ * - the entry point does no CRT initialisation, so stdio, argv, the locale and
+ * the CRT heap are never touched, and their imports never appear.
  *
  * What this file exists to prevent: an entry point that forwards to
  * `_DllMainCRTStartup` keeps `malloc` working and the console imports with it;

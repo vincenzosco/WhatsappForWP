@@ -93,7 +93,7 @@ namespace ProtocolTests
         [Test]
         public static void The_token_tables_match_the_reference()
         {
-            // 236, not 256: tags 236..239 are the dictionary selectors.
+            // 236, not 256: tags 236.239 are the dictionary selectors.
             Assert.AreEqual(236, Tokens.SingleByteTokens.Length);
             Assert.AreEqual("", Tokens.SingleByteTokens[0]);
             Assert.AreEqual("s.whatsapp.net", Tokens.SingleByteTokens[3]);

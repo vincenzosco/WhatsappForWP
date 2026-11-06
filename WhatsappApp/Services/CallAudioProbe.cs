@@ -7,14 +7,14 @@ namespace WhatsappApp.Services
     /// The one line that says what Media Foundation on this phone actually offers the call
     /// path, and which of its pieces the phone refuses.
     ///
-    /// Why it exists: `MediaCapture` on this SDK only records to a file, so there is no
+    /// `MediaCapture` on this SDK only records to a file, so there is no
     /// managed PCM callback; the WP8.1 reference assembly of `Microsoft.Xna.Framework.dll`
     /// has no `Microphone`; and `audioclient.h` is not in this SDK at all. Media Foundation
     /// is the one surface both present on the phone and callable from a DLL this package
     /// ships, so the question goes to `waaudio.dll`, built by `tools/build-waudio-arm.bat`.
     ///
     /// Why version 2 exists: version 1 enumerated capture devices with
-    /// `MFEnumDeviceSources` and opened one with `IMFSourceReader`, and on 6 November 2026
+    /// `MFEnumDeviceSources` and opened one with `IMFSourceReader`, and
     /// the phone answered `0x8007007F` - procedure not found. That is a different answer
     /// from the `0x8007007E` of the days before: the module loads, one of the functions it
     /// imports does not exist. The phone's own `WhatsAppNative.dll` imports seven functions

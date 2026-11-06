@@ -87,7 +87,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The status feed of the last session, kept on the phone.
     ///
-    /// Why it exists: the statuses arrive with the history sync, and WhatsApp sends that
+    /// The statuses arrive with the history sync, and WhatsApp sends that
     /// burst **once**, at the pairing. The feed lived in memory only, so every start of
     /// the app opened the status tab empty (`native: the feed has 0 status(es)`) and it
     /// stayed empty until a contact posted something new: the one list a person checks

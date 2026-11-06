@@ -66,7 +66,7 @@ namespace ProtocolTests
                 Sha256.Hash(identity.Certificate));
 
             // 1. ICE. The peer's check carries USE-CANDIDATE, so the pair it came from is the
-            //    pair, and the handshake starts on it.
+            // pair, and the handshake starts on it.
             IList<byte[]> outbound = transport.Receive(Check(), Peer);
 
             Assert.AreEqual(1, outbound.Count,
@@ -102,9 +102,9 @@ namespace ProtocolTests
                 client.SrtpServerKey, client.SrtpServerSalt, ServerSsrc);
 
             // 3. Frames out: sealed by the transport, opened on the other end, and played in the
-            //    order they were sent. Three, because the playout holds three before it releases
-            //    the first (`RtpJitterBuffer.DefaultPreroll`) - one frame alone would sit in the
-            //    pre-roll and prove that it arrived, not that the call plays.
+            // order they were sent. Three, because the playout holds three before it releases
+            // the first (`RtpJitterBuffer.DefaultPreroll`) - one frame alone would sit in the
+            // pre-roll and prove that it arrived, not that the call plays.
             byte[][] frames = new byte[3][];
             frames[0] = OpusFrame(0x5a);
             frames[1] = OpusFrame(0x11);
@@ -129,8 +129,8 @@ namespace ProtocolTests
             }
 
             // 4. And back the other way: frames the peer seals are read by the transport. The
-            //    two directions have separate keys and separate SSRCs, so one that works while
-            //    the other does not is the failure this half catches.
+            // two directions have separate keys and separate SSRCs, so one that works while
+            // the other does not is the failure this half catches.
             byte[][] replies = new byte[3][];
             replies[0] = OpusFrame(0xa5);
             replies[1] = OpusFrame(0x33);

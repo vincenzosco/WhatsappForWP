@@ -3,14 +3,14 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The name a status row shows.
     ///
-    /// Why it is a rule of its own: a status arrives from an **author** the phone may know
+    /// A status arrives from an **author** the phone may know
     /// only as an address - the `participant` of a `status@broadcast` message is often a
     /// `@lid`, and a LID is fourteen digits that look like a phone number this phone has
     /// never seen. `DataService.DisplayNameForJid` resolves what it can and falls back to
     /// the address, which is right for a chat (a number is a name you can call) and wrong
     /// for a status list: WhatsApp sends the poster's own name in the same stanza
     /// (`notify`), so the list showed `+150375613116620` where the official app shows
-    /// "Rosalba" - the report of 28 October 2026.
+    /// "Rosalba" - the report.
     ///
     /// The rule is one sentence: what the phone resolved, unless that is the address
     /// itself and the post carries a name of its own.

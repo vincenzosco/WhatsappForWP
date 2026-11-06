@@ -5,7 +5,7 @@ namespace WhatsappApp.Protocol.Crypto
     /// <summary>
     /// X25519 (RFC 7748) over the field 2^255 - 19, in managed code.
     ///
-    /// .NET Framework 4.5 has no Curve25519 at all and WP8.1 has no usable elliptic
+    ///.NET Framework 4.5 has no Curve25519 at all and WP8.1 has no usable elliptic
     /// curve the Noise handshake could substitute, so the ladder is written here. The
     /// representation is the portable one - 16 limbs of 16 bits held in `long` - which
     /// keeps every intermediate product far inside 64 bits: a 16x16 schoolbook

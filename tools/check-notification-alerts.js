@@ -14,35 +14,35 @@
  *
  * Le trappole che questo file sorveglia:
  *
- *  - un toast costruito fuori da `Toast()` salta il permesso (`NotificationsEnabled`) e
- *    il `catch` che impedisce a un telefono che rifiuta la notifica di portarsi via la
- *    ricezione del messaggio;
- *  - un avviso senza marchio temporale (`IsToastNews`) suona a ogni login: WhatsApp
- *    rimanda l'intera giornata di stati e l'intero log delle chiamate, e senza il
- *    confronto sarebbe un toast per riga a ogni risveglio del task;
- *  - il primo avvio su un telefono non deve annunciare niente: quello che il login ha
- *    portato la prima volta e' storia, non notizia;
- *  - un annuncio di stato fuori dal ramo `inserted` annuncia anche la rilettura della
- *    copia locale e i chunk ripetuti della history;
- *  - `MissedCalls()` che conta tutto il log non scende mai, e un badge che dice sempre
- *    lo stesso numero e' un badge che nessuno guarda.
+ * - un toast costruito fuori da `Toast()` salta il permesso (`NotificationsEnabled`) e
+ * il `catch` che impedisce a un telefono che rifiuta la notifica di portarsi via la
+ * ricezione del messaggio;
+ * - un avviso senza marchio temporale (`IsToastNews`) suona a ogni login: WhatsApp
+ * rimanda l'intera giornata di stati e l'intero log delle chiamate, e senza il
+ * confronto sarebbe un toast per riga a ogni risveglio del task;
+ * - il primo avvio su un telefono non deve annunciare niente: quello che il login ha
+ * portato la prima volta e' storia, non notizia;
+ * - un annuncio di stato fuori dal ramo `inserted` annuncia anche la rilettura della
+ * copia locale e i chunk ripetuti della history;
+ * - `MissedCalls()` che conta tutto il log non scende mai, e un badge che dice sempre
+ * lo stesso numero e' un badge che nessuno guarda.
  *
  * Rules:
- *  1. ogni toast nasce in `Toast()`, e `ShowMessage`, `ShowStatus` e `ShowMissedCall`
- *     passano da li';
- *  2. `ShowStatus` e `ShowMissedCall` filtrano con `IsToastNews`, con due chiavi diverse;
- *  3. `DataService` annuncia uno stato solo quando la riga e' nuova, e non per i propri;
- *  4. `DataService` annuncia le chiamate perse quando il log e' completo
- *     (`RaiseCallsScanCompleted`);
- *  5. `MissedCalls()` conta solo le chiamate piu' recenti dell'ultima volta che la
- *     scheda Chiamate e' stata davanti, e la home la segna (`MarkOpened`);
- *  6. ogni tipo di avviso ha il suo interruttore, e le impostazioni li mostrano e li
- *     scrivono tutti e tre: un interruttore salvato che nessun avviso legge e' un
- *     interruttore che non fa niente, e nessuno se ne accorge finche' non e' un utente
- *     a dire che il telefono suona lo stesso.
+ * 1. ogni toast nasce in `Toast()`, e `ShowMessage`, `ShowStatus` e `ShowMissedCall`
+ * passano da li';
+ * 2. `ShowStatus` e `ShowMissedCall` filtrano con `IsToastNews`, con due chiavi diverse;
+ * 3. `DataService` annuncia uno stato solo quando la riga e' nuova, e non per i propri;
+ * 4. `DataService` annuncia le chiamate perse quando il log e' completo
+ * (`RaiseCallsScanCompleted`);
+ * 5. `MissedCalls()` conta solo le chiamate piu' recenti dell'ultima volta che la
+ * scheda Chiamate e' stata davanti, e la home la segna (`MarkOpened`);
+ * 6. ogni tipo di avviso ha il suo interruttore, e le impostazioni li mostrano e li
+ * scrivono tutti e tre: un interruttore salvato che nessun avviso legge e' un
+ * interruttore che non fa niente, e nessuno se ne accorge finche' non e' un utente
+ * a dire che il telefono suona lo stesso.
  *
  * Usage:
- *   node tools/check-notification-alerts.js
+ * node tools/check-notification-alerts.js
  */
 'use strict';
 

@@ -9,7 +9,7 @@ namespace WhatsappApp.Protocol.Client
     /// What this client knows about who a JID is: the name to show, and the phone number
     /// behind a `@lid`.
     ///
-    /// Why it is a rule of its own: three sources say something about a name (the address book
+    /// Three sources say something about a name (the address book
     /// the primary shares with the history, the push name on a message, and the name a group
     /// carries), and two of them can describe the same person under two different addresses -
     /// `150375613116620@lid` and `393892672185@s.whatsapp.net` are one account. A `Dictionary`

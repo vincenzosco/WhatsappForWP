@@ -164,7 +164,7 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The files of the messages of a chat that was deleted.
         ///
-        /// Why it exists: the bytes of a video, a voice note or a document are a file in the
+        /// The bytes of a video, a voice note or a document are a file in the
         /// phone's folder, and nothing ever removed one. A conversation deleted from the list
         /// left its megabytes behind; on a 512 MB phone that is the storage the session, the
         /// caches and the tile cards all write into, and when it fills every one of them fails.

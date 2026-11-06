@@ -12,11 +12,11 @@ namespace ProtocolTests
     /// parses them from (`@whiskeysockets/baileys`):
     ///
     /// - the device list: `USyncDeviceProtocol.parser` reads
-    ///   `devices &gt; device-list &gt; device[id]` inside a `usync` node, and the query that
-    ///   asks for it is the `devices` protocol at `version` 2;
+    /// `devices &gt; device-list &gt; device[id]` inside a `usync` node, and the query that
+    /// asks for it is the `devices` protocol at `version` 2;
     /// - the bundles: one `user` per device JID, each carrying `registration`, `identity`,
-    ///   `skey` (`id`, `value`, `signature`) and, when the server still had one, `key`
-    ///   (`id`, `value`).
+    /// `skey` (`id`, `value`, `signature`) and, when the server still had one, `key`
+    /// (`id`, `value`).
     ///
     /// The keys inside are a real credential set, drawn in the test that uses it, so the
     /// signature over the signed pre-key verifies exactly as a peer's own would.

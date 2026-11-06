@@ -6,7 +6,7 @@ namespace ProtocolTests
     /// The two lines a tile has room for: the person on the large line and the message under
     /// it - or how much is waiting when there is nothing to quote.
     ///
-    /// The bug these pin: the tile of 23 October 2026 put the count on the large line and the
+    /// The bug these pin: the tile put the count on the large line and the
     /// name under it, so the message never reached a 150 px tile and every turn of the queue
     /// read the same, whatever had been said.
     /// </summary>

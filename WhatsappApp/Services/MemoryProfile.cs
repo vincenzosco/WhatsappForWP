@@ -22,7 +22,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The memory budget of the phone, and the work that scales with it.
     ///
-    /// Why it exists: `MemoryWatcher` reacts once the system says the app is under pressure,
+    /// `MemoryWatcher` reacts once the system says the app is under pressure,
     /// which is *after* the damage - the list has already decoded two hundred pictures and the
     /// GC has already been asked for what it cannot give back. On a cramped phone the useful
     /// moment is earlier: the limit is known before the first frame

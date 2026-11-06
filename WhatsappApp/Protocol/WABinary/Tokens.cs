@@ -14,8 +14,8 @@ namespace WhatsappApp.Protocol.WABinary
     /// why. `ProtocolTests/WABinaryTests.cs` pins a few indices on purpose; the rest
     /// is checked by diffing against the reference file.
     ///
-    /// The single-byte table holds 236 entries because tags 236..239 are the
-    /// dictionary selectors (`Dictionary0`..`Dictionary3`) and 0 is the list-empty
+    /// The single-byte table holds 236 entries because tags 236.239 are the
+    /// dictionary selectors (`Dictionary0`.`Dictionary3`) and 0 is the list-empty
     /// tag, which is why `NodeReader` treats a tag below
     /// <see cref="SingleByteTokens"/>'s length as a token and everything else as a
     /// command.

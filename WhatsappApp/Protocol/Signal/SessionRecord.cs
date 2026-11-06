@@ -14,17 +14,17 @@ namespace WhatsappApp.Protocol.Signal
     /// specification describes, and the differences are the ones that bite:
     ///
     /// - **A chain belongs to a ratchet key, not to a direction.** The session keeps the
-    ///   chains it has opened, keyed by the peer's ratchet key they hang off, because a
-    ///   message can arrive from an older key - a retry, a reordered pair - and its chain
-    ///   has to still be there. The reference does the same thing with a dictionary keyed
-    ///   by the key's text form; here it is a list, because a session has a handful of
-    ///   chains and a list of five beats a dictionary on a phone.
+    /// chains it has opened, keyed by the peer's ratchet key they hang off, because a
+    /// message can arrive from an older key - a retry, a reordered pair - and its chain
+    /// has to still be there. The reference does the same thing with a dictionary keyed
+    /// by the key's text form; here it is a list, because a session has a handful of
+    /// chains and a list of five beats a dictionary on a phone.
     /// - **The first message of a chain carries the length of the previous one**
-    ///   (`previousCounter`), which is how the receiver knows how many keys it may have to
-    ///   keep for messages that have not arrived yet.
+    /// (`previousCounter`), which is how the receiver knows how many keys it may have to
+    /// keep for messages that have not arrived yet.
     /// - **A step generates a *new* key pair before it opens the sending chain**, so the
-    ///   receiving chain of the peer and ours cannot be the same chain: the DH that opens
-    ///   the sending chain is with a key the peer has never seen.
+    /// receiving chain of the peer and ours cannot be the same chain: the DH that opens
+    /// the sending chain is with a key the peer has never seen.
     ///
     /// What is deliberately *not* here: the pre-key store, the identity trust decisions
     /// and the persistence. A record is the session's arithmetic; where it is written and
@@ -424,10 +424,10 @@ namespace WhatsappApp.Protocol.Signal
         /// Whether the key this message needs has already been spent - a duplicate, and not a
         /// failure.
         ///
-        /// Why it exists: `Decrypt` answers a re-delivered message with a `ProtocolException`
+        /// `Decrypt` answers a re-delivered message with a `ProtocolException`
         /// ("the message key for N was already used"), the caller reports it as a failure and
         /// asks the server for the stanza again, and the server sends it - for ever, because
-        /// the key is gone and no retry can open it. On 24 October 2026 that was three group
+        /// the key is gone and no retry can open it. On that was three group
         /// messages and one of our own re-sent on every connection, each one a red line.
         ///
         /// The answer is the condition `PeekMessageKey` refuses on, asked before the refusal:
@@ -599,12 +599,12 @@ namespace WhatsappApp.Protocol.Signal
         /// Two cases that look similar and are not:
         ///
         /// - **A message that arrives before a gap it can fill** is answered from a kept
-        ///   key, and the gap stays fillable: WhatsApp retries, and a phone that receives
-        ///   3 before 2 must be able to show both.
+        /// key, and the gap stays fillable: WhatsApp retries, and a phone that receives
+        /// 3 before 2 must be able to show both.
         /// - **A message that arrives twice** is refused, with an error that says so. The
-        ///   key it would need was used and deleted, which is the reference's behaviour and
-        ///   the reason a duplicate is not a decryption: the same message twice is the
-        ///   *app's* to drop, by its id, and it is dropped there (see `DataService`).
+        /// key it would need was used and deleted, which is the reference's behaviour and
+        /// the reason a duplicate is not a decryption: the same message twice is the
+        /// *app's* to drop, by its id, and it is dropped there (see `DataService`).
         /// </summary>
         private byte[] TakeMessageKey(byte[] ratchetKey, uint counter)
         {
@@ -647,7 +647,7 @@ namespace WhatsappApp.Protocol.Signal
         /// The key at an index, without spending it: the same walk <see cref="TakeMessageKey"/>
         /// makes, on copies of the chain's state.
         ///
-        /// Why it exists: the MAC is verified with this key before the message is allowed to
+        /// The MAC is verified with this key before the message is allowed to
         /// move the ratchet. A key taken for a message that then fails authentication is a
         /// key the retry can never use, and the server does retry.
         /// </summary>

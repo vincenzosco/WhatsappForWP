@@ -5,7 +5,7 @@ namespace ProtocolTests
 {
     /// <summary>
     /// The `call_log` and `call_link` tables, with the lookups the official database
-    /// keeps (read out of the APK on 4 November 2026).
+    /// keeps (read out of the APK).
     ///
     /// Four things are worth checking here, and they are four things people get wrong:
     /// a call logged twice is still one row, the list reads newest first, one person is

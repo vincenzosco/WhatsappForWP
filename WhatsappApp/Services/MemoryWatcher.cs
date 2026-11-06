@@ -9,7 +9,7 @@ namespace WhatsappApp.Services
     /// The memory budget of this phone, and what the app does when it gets close
     /// to it.
     ///
-    /// Why it exists: on WP8.1 the memory is not declared anywhere - the manifest
+    /// On WP8.1 the memory is not declared anywhere - the manifest
     /// schema does not have it - and it is not visible. The system warns and then
     /// suspends or terminates; the documented way to listen to it is
     /// `MemoryManager`. The useful call here is `AppMemoryUsageIncreased`: when the
@@ -18,11 +18,11 @@ namespace WhatsappApp.Services
     /// Two things that do NOT exist on this platform, and that the compiler flags
     /// instead of leaving them uncovered at run time:
     ///
-    ///  - `AppMemoryUsageLimitChanging` exists since Windows 10 1607 (on WP8.1 it
-    ///    is not declared);
-    ///  - `AppMemoryUsageLevel` here has three values - Low, Medium, High - and
-    ///    **OverLimit does not exist** (CS0117): that one came with Windows 10.
-    ///    So the threshold to watch is `High`, and that is all.
+    /// - `AppMemoryUsageLimitChanging` exists since Windows 10 1607 (on WP8.1 it
+    /// is not declared);
+    /// - `AppMemoryUsageLevel` here has three values - Low, Medium, High - and
+    /// **OverLimit does not exist** (CS0117): that one came with Windows 10.
+    /// So the threshold to watch is `High`, and that is all.
     ///
     /// What it frees: the decoded avatar bitmaps - the heavy thing, one per
     /// conversation - and the history of the chats nobody is reading. It does not

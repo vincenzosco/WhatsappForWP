@@ -6,7 +6,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Awaits a task nobody can wait for, and keeps the fault.
     ///
-    /// Why it exists: `StartRecordingAsync()` was called without await inside a
+    /// `StartRecordingAsync()` was called without await inside a
     /// `#pragma warning disable 4014`, and an exception thrown at that call site
     /// went into a Task nobody observed. The tap did nothing, no sentence
     /// appeared, and no DIAG line appeared either: a failure that was invisible

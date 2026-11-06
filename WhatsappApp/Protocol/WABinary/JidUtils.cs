@@ -127,7 +127,7 @@ namespace WhatsappApp.Protocol.WABinary
         /// <summary>
         /// Whether a stanza's `from` names a conversation this app draws a row for.
         ///
-        /// Why it is a rule and not a check at each caller: the chat list is built from
+        /// The chat list is built from
         /// whatever arrives, so anything the server names becomes a row - and two of the
         /// addresses WhatsApp uses are not people. `status@broadcast` is the status list
         /// (its updates have their own screen), and `@newsletter` is a channel, which this
@@ -164,7 +164,7 @@ namespace WhatsappApp.Protocol.WABinary
         /// Why it is asked at the message path and not only at the list: a post arrives as an
         /// ordinary `message` stanza with no `enc` for this device at all, so the reader refused
         /// it (`no enc for this device`) and answered with a `retry` - for bytes that were never
-        /// damaged and a key that was never going to come. The run of 1 November 2026 asked two
+        /// damaged and a key that was never going to come. The run asked two
         /// channels to send again, once per connection.
         /// </summary>
         public static bool IsChannel(string jid)
@@ -177,7 +177,7 @@ namespace WhatsappApp.Protocol.WABinary
         /// Whether this address is a LID: the identifier WhatsApp uses for an account whose
         /// phone number this phone does not know yet.
         ///
-        /// Why it is a rule and not a check at each caller: a LID's user part is a long run
+        /// A LID's user part is a long run
         /// of digits, so anything that prints a JID's user as a number prints a phone number
         /// that belongs to nobody - `+258212345678901` in the chat list, in the chat header
         /// and on the contact page. `DisplayNameForJid` learned it the hard way: it had the

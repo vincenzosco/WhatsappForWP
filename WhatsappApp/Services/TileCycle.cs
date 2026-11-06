@@ -33,7 +33,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Which conversations the live tile cycles through, and in what order.
     ///
-    /// Why it exists: the tile used to be one notification, replaced in place, so it named
+    /// The tile used to be one notification, replaced in place, so it named
     /// one person and stayed on them until somebody else wrote. Windows has a notification
     /// queue that rotates what a tile shows, and the reference client uses it: with four
     /// people waiting, the tile is four faces rather than the last one forever.
@@ -90,7 +90,7 @@ namespace WhatsappApp.Services
         /// The turns the queue holds: every waiting conversation with its message, and - in
         /// the slots the messages leave over - the picture alone of the newest ones.
         ///
-        /// Why two kinds of turn: the tile of 23 October 2026 had one to give, a count over a
+        /// Why two kinds of turn: the tile had one to give, a count over a
         /// name, so every turn looked like the one before it and the tile read the same
         /// whichever way it landed. The request was that the face of somebody waiting should
         /// come up every now and then, and only for the people who wrote and are still
@@ -156,7 +156,7 @@ namespace WhatsappApp.Services
         /// Why they come last and not first: what a person is being told about is the
         /// conversation waiting for an answer, and a count of updates in front of it is what
         /// made the tile and the lock screen open with "3 new updates" while a message sat
-        /// unanswered - the report of 4 November 2026. The caller does not even build the turn
+        /// unanswered - the report. The caller does not even build the turn
         /// while a message is waiting (`NotificationService.RenderTile`), so in practice this
         /// is the tile of a phone with nothing unread; the order here is what keeps a future
         /// caller from putting the number back on top.

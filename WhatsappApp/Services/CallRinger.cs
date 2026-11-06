@@ -6,12 +6,12 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The phone ringing: one alert and one vibration, on while a call is ringing.
     ///
-    /// Why it exists: an offer arriving while the app is open showed a banner and nothing
+    /// An offer arriving while the app is open showed a banner and nothing
     /// else - no sound, no vibration, and no alert at all if the app was in the background
     /// but still connected. A call that only appears as a strip of text is a call nobody
     /// notices.
     ///
-    /// What it is not: a ringtone. WP8.1 plays a custom sound only through a `RingtonePlayer`
+    /// Not a ringtone. WP8.1 plays a custom sound only through a `RingtonePlayer`
     /// with a ringtone file that has to be installed as one, which is not something a store
     /// build can rely on; the alert and the vibration are what this build has, and the call
     /// screen is what stays in front of the person.

@@ -8,26 +8,26 @@
  * them is worse than no doc: the reader who needs it is the one who does not
  * get it. Three rules, all easy to break when a section is added in a hurry:
  *
- *  1. Every pair listed in PAIRS exists, and the two files have the **same
- *     headings in the same order at the same depth**. A section added to one
- *     language and not the other shows up here as a different heading count.
- *     The heading *text* is translated and therefore not compared.
+ * 1. Every pair listed in PAIRS exists, and the two files have the **same
+ * headings in the same order at the same depth**. A section added to one
+ * language and not the other shows up here as a different heading count.
+ * The heading *text* is translated and therefore not compared.
  *
- *  2. The `## Disclosure` section is present and is the **last** section of the
- *     pairs marked `disclosure: true` - the ones that present the project: what
- *     it is, that maintainers are wanted, that an AI agent wrote it, and who
- *     answers for the WhatsApp account. It lives there and not in every README,
- *     so there is one copy to keep honest instead of four.
+ * 2. The `## Disclosure` section is present and is the **last** section of the
+ * pairs marked `disclosure: true` - the ones that present the project: what
+ * it is, that maintainers are wanted, that an AI agent wrote it, and who
+ * answers for the WhatsApp account. It lives there and not in every README,
+ * so there is one copy to keep honest instead of four.
  *
- *  3. No emoji anywhere in the Markdown. The only exception is the warning sign
- *     (U+26A0, with or without the variation selector), for a real hazard: the
- *     risk of a banned phone number.
+ * 3. No emoji anywhere in the Markdown. The only exception is the warning sign
+ * (U+26A0, with or without the variation selector), for a real hazard: the
+ * risk of a banned phone number.
  *
  * Heading levels are compared, not text, so translating a title is free; moving,
  * adding or dropping a section is not.
  *
  * Usage:
- *   node tools/check-docs.js
+ * node tools/check-docs.js
  */
 'use strict';
 

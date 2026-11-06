@@ -8,7 +8,7 @@ namespace WhatsappApp.Protocol.Media
     /// The audio of one call, as a value: frames out sealed in SRTP, packets in opened,
     /// decrypted and put in the order they will be played in.
     ///
-    /// Why it exists: the pieces were written one at a time and each one was tested alone -
+    /// The pieces were written one at a time and each one was tested alone -
     /// `RtpPacket` (the header), `SrtpSession` (the encryption), `RtpJitterBuffer` (the order),
     /// `CallKeys` (the key material) - and a call needed the four wired together with the
     /// numbering and the counters that make them one thing. That wiring is small but it is
@@ -16,14 +16,14 @@ namespace WhatsappApp.Protocol.Media
     /// timestamp moves at **48 kHz even for a 16 kHz encoder** (RFC 7587), a packet whose tag
     /// does not verify is one packet to drop, and a gap is only lost when the playout says so.
     ///
-    /// What it deliberately is **not**:
+    /// Out of scope, deliberately:
     /// - **not a socket.** Nothing here knows an address. The transport that carries the
-    ///   bytes is the caller's, which is what lets this be tested on a desktop against
-    ///   itself and lets a relay be added later without touching this file.
+    /// bytes is the caller's, which is what lets this be tested on a desktop against
+    /// itself and lets a relay be added later without touching this file.
     /// - **not the key agreement.** The two directions' master key and salt arrive as
-    ///   parameters. Where they come from - the reference expands the call's `enc_key` into
-    ///   46 bytes and how those split is decided by its native engine - is documented in
-    ///   `CallKeys` and in the calls design document, and it is not invented here.
+    /// parameters. Where they come from - the reference expands the call's `enc_key` into
+    /// 46 bytes and how those split is decided by its native engine - is documented in
+    /// `CallKeys` and in the calls design document, and it is not invented here.
     /// - **not an encoder.** The payload is an Opus packet this class never looks inside.
     ///
     /// The clock: `Seal` advances the timestamp by the frame's own duration, so a caller that

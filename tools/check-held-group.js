@@ -7,7 +7,7 @@
  * Perche' esiste: un `skmsg` e la sender key del membro che l'ha scritto sono
  * due stanze, e l'ordine e' del server, non del mittente. Il messaggio che
  * arrivava per primo veniva rifiutato con "this phone holds no sender key for
- * ...", e la connessione rispondeva con un retry receipt: si vedeva solo se il
+ *.", e la connessione rispondeva con un retry receipt: si vedeva solo se il
  * mittente lo rimandava, e la chat restava vuota fino ad allora. La chiave e'
  * quasi sempre un istante dietro, quindi il messaggio si tiene
  * (`HeldGroupMessages`) e si legge quando la chiave arriva.
@@ -20,25 +20,25 @@
  * messaggio si tiene, non si ack, non si richiede.
  *
  * Regole:
- *  1. `IncomingMessage.cs` non lancia piu' `SenderKeyMissingException`: con quel
- *     `throw` torna una eccezione per ogni messaggio di gruppo senza chiave;
- *  2. `ReadGroup` risponde `IncomingRefusal.WaitsForSenderKey` quando il record
- *     della chiave non c'e';
- *  3. `NativeConnection.cs` guarda quel valore (`incoming.Refused ==`) e in quel
- *     ramo mette la stanza da parte (`_held.Hold`), senza ack (butterebbe via il
- *     messaggio) e senza retry (metterebbe il messaggio in corsa con una chiave
- *     gia' partita);
- *  4. dopo `ReadMessageAsync` il giro chiama `RetryHeldAsync`: senza quella riga
- *     il messaggio tenuto non viene piu' letto da nessuno;
- *  5. `HeldGroupMessages.cs` ha i suoi due tetti: un deposito che aspetta per
- *     sempre e' una fuga di memoria con una buona scusa;
- *  6. un payload che la chiave apre ma che non e' un messaggio risponde
- *     `IncomingRefusal.Unreadable`, e la connessione lo ack invece di richiederlo:
- *     gli stessi byte richiesti di nuovo sono gli stessi byte. La corsa del 24
- *     ottobre 2026 ha richiesto quattro messaggi danneggiati su ogni connessione.
+ * 1. `IncomingMessage.cs` non lancia piu' `SenderKeyMissingException`: con quel
+ * `throw` torna una eccezione per ogni messaggio di gruppo senza chiave;
+ * 2. `ReadGroup` risponde `IncomingRefusal.WaitsForSenderKey` quando il record
+ * della chiave non c'e';
+ * 3. `NativeConnection.cs` guarda quel valore (`incoming.Refused ==`) e in quel
+ * ramo mette la stanza da parte (`_held.Hold`), senza ack (butterebbe via il
+ * messaggio) e senza retry (metterebbe il messaggio in corsa con una chiave
+ * gia' partita);
+ * 4. dopo `ReadMessageAsync` il giro chiama `RetryHeldAsync`: senza quella riga
+ * il messaggio tenuto non viene piu' letto da nessuno;
+ * 5. `HeldGroupMessages.cs` ha i suoi due tetti: un deposito che aspetta per
+ * sempre e' una fuga di memoria con una buona scusa;
+ * 6. un payload che la chiave apre ma che non e' un messaggio risponde
+ * `IncomingRefusal.Unreadable`, e la connessione lo ack invece di richiederlo:
+ * gli stessi byte richiesti di nuovo sono gli stessi byte. La corsa del 24
+ * ottobre 2026 ha richiesto quattro messaggi danneggiati su ogni connessione.
  *
  * Usage:
- *   node tools/check-held-group.js
+ * node tools/check-held-group.js
  */
 'use strict';
 

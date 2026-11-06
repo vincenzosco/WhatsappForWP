@@ -13,15 +13,15 @@
  * same standards) is what makes the C# side prove the layout rather than agree with itself.
  *
  * The rules are transcribed from `@whiskeysockets/baileys` 6.7.18:
- *   - `Utils/chat-utils.js`: `mutationKeys` (HKDF `WhatsApp Mutation Keys`, 160 bytes),
- *     `generateMac` (operation byte, key id, data, length of the key id; HMAC-SHA512 cut to
- *     32), `generateSnapshotMac` (sum, version as eight big-endian bytes, name; HMAC-SHA256),
- *     `generatePatchMac` (snapshot MAC, value MACs, version, name; HMAC-SHA256);
- *   - `Utils/lt-hash.js`: `WhatsApp Patch Integrity`, HKDF to 128 bytes, 16-bit little-endian
- *     words added or subtracted with wrap;
- *   - `WAProto`: the field numbers used below.
+ * - `Utils/chat-utils.js`: `mutationKeys` (HKDF `WhatsApp Mutation Keys`, 160 bytes),
+ * `generateMac` (operation byte, key id, data, length of the key id; HMAC-SHA512 cut to
+ * 32), `generateSnapshotMac` (sum, version as eight big-endian bytes, name; HMAC-SHA256),
+ * `generatePatchMac` (snapshot MAC, value MACs, version, name; HMAC-SHA256);
+ * - `Utils/lt-hash.js`: `WhatsApp Patch Integrity`, HKDF to 128 bytes, 16-bit little-endian
+ * words added or subtracted with wrap;
+ * - `WAProto`: the field numbers used below.
  *
- * Usage:  node tools/emit-appstate-fixture.js
+ * Usage: node tools/emit-appstate-fixture.js
  */
 'use strict';
 

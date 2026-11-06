@@ -13,29 +13,29 @@
  * mostrata.
  *
  * Regole:
- *  1. ogni chiamata a ImageHelper.From*Async passa la misura di decodifica;
- *  2. nessuna misura di decodifica supera la larghezza dello schermo (720 copre
- *     un 480 px a 1,5x);
- *  3. ImageHelper imposta DecodePixelWidth prima di SetSourceAsync (dopo non ha
- *     effetto);
- *  4. la copia dell'elenco chat (ChatCache) non tiene i byte di un'immagine:
- *     quelli stanno nella cache degli avatar, che ha dei tetti ed e' letta
- *     prima che le righe salvate vengano applicate;
- *  5. ImageHelper costruisce la bitmap sul thread della vista: chiede
- *     HasThreadAccess e, se non c'e', salta sul dispatcher. Una BitmapImage
- *     costruita da un thread del pool risponde RPC_E_WRONG_THREAD (0x8001010E) e
- *     la figura si perde - la riga resta con le iniziali e il log ha una riga
- *     sola (la corsa del 2026-10-22).
- *  6. in un processo senza finestra non si costruisce ne' si tocca niente di
- *     XAML: `UiThread.Dispatcher()` risponde null nel task di sfondo, e li' una
- *     bitmap non si decodifica e le righe non si rinominano (lo fa l'app che le
- *     disegna). Il 23-24 ottobre 2026 ogni sveglio lasciava due righe: una
- *     RPC_E_WRONG_THREAD da `Contact.LoadAvatarAsync` e una 0x8000000E da
- *     `ContactDirectory/Apply`, che chiamava `CoreApplication.MainView` in un
- *     processo dove quella vista non esiste.
+ * 1. ogni chiamata a ImageHelper.From*Async passa la misura di decodifica;
+ * 2. nessuna misura di decodifica supera la larghezza dello schermo (720 copre
+ * un 480 px a 1,5x);
+ * 3. ImageHelper imposta DecodePixelWidth prima di SetSourceAsync (dopo non ha
+ * effetto);
+ * 4. la copia dell'elenco chat (ChatCache) non tiene i byte di un'immagine:
+ * quelli stanno nella cache degli avatar, che ha dei tetti ed e' letta
+ * prima che le righe salvate vengano applicate;
+ * 5. ImageHelper costruisce la bitmap sul thread della vista: chiede
+ * HasThreadAccess e, se non c'e', salta sul dispatcher. Una BitmapImage
+ * costruita da un thread del pool risponde RPC_E_WRONG_THREAD (0x8001010E) e
+ * la figura si perde - la riga resta con le iniziali e il log ha una riga
+ * sola (la corsa del 2026-10-22).
+ * 6. in un processo senza finestra non si costruisce ne' si tocca niente di
+ * XAML: `UiThread.Dispatcher()` risponde null nel task di sfondo, e li' una
+ * bitmap non si decodifica e le righe non si rinominano (lo fa l'app che le
+ * disegna). Il 23-24 ottobre 2026 ogni sveglio lasciava due righe: una
+ * RPC_E_WRONG_THREAD da `Contact.LoadAvatarAsync` e una 0x8000000E da
+ * `ContactDirectory/Apply`, che chiamava `CoreApplication.MainView` in un
+ * processo dove quella vista non esiste.
  *
  * Usage:
- *   node tools/check-memory.js
+ * node tools/check-memory.js
  */
 'use strict';
 

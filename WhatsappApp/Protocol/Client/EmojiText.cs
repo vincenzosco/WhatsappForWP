@@ -9,7 +9,7 @@ namespace WhatsappApp.Protocol.Client
     /// are replaced by the nearest older one, and what has no older cousin is dropped
     /// instead of being drawn as an empty box.
     ///
-    /// Why it exists at all: Windows Phone 8.1 shipped with the emoji of Unicode 6.1 and
+    /// Windows Phone 8.1 shipped with the emoji of Unicode 6.1 and
     /// has never had a font update, so every emoji added since - the mechanical arm, the
     /// ringed planet, the light blue heart everybody sends from a newer phone - is a
     /// codepoint with no glyph. The platform draws a box, and the message reads as a
@@ -37,8 +37,8 @@ namespace WhatsappApp.Protocol.Client
         ///
         /// Why the app converts them and not the phone: Windows Phone 8.1's own keyboard
         /// turns `:)` into a face only for a `Chat` field and only while its setting is on,
-        /// and a keyboard that is not Microsoft's never does. The request of 29 October 2026
-        /// was "si possano mandare emoji o :)", so the composer does it on the way out and
+        /// and a keyboard that is not Microsoft's never does. The request
+        /// was "si possano mandare emoji o:)", so the composer does it on the way out and
         /// what the other side receives is the face itself, not a colon.
         ///
         /// Every face on the right is Unicode 6.0: turning a typed `:)` into a box would be

@@ -124,7 +124,7 @@ namespace WhatsappApp.Services
             {
                 // The label is not built with the parenthesis right after the
                 // dot: check-resw.js reads every call with a literal string as a
-                // key to look for in the .resw files, and built that way it looked
+                // key to look for in the.resw files, and built that way it looked
                 // like a missing key (even when written in a comment).
                 Diag.Failed("Loc.Get key " + key, ex);
                 return fallback;

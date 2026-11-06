@@ -24,7 +24,7 @@ namespace ProtocolTests.Vectors
     /// ```
     ///
     /// The field numbers of the two protobufs came off the same encoder, one field at a
-    /// time: `080110021a20...` is `id` 1, `iteration` 2, `chainKey` 3, `signingKey` 4 for the
+    /// time: `080110021a20.` is `id` 1, `iteration` 2, `chainKey` 3, `signingKey` 4 for the
     /// distribution, and `id` 1, `iteration` 2, `ciphertext` 3 for the message.
     /// </summary>
     public static class SenderKeyFixture

@@ -13,7 +13,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The tile of one chat on the Start screen.
     ///
-    /// Why it exists: a conversation worth reaching in one tap is worth a tile of its own.
+    /// A conversation worth reaching in one tap is worth a tile of its own.
     /// The official client lets a chat be pinned and the tile carries that person's picture
     /// and how many of their messages are waiting; a tap opens the chat.
     ///
@@ -50,7 +50,7 @@ namespace WhatsappApp.Services
         /// Why it is kept and not only fetched: the tile is redrawn on every unread change,
         /// and the row hands it the chat's `AvatarData` - the 96x96 preview the chat list
         /// draws. On a card of 336 that preview is a face enlarged 3.5 times, which is the
-        /// "foto troppo zoommata e non adattata" of 23 October 2026. The full picture is
+        /// "foto troppo zoommata e non adattata". The full picture is
         /// asked once per chat and kept here, so the next redraw is composed from it too.
         /// </summary>
         private static readonly Dictionary<string, string> Sharp =
@@ -217,7 +217,7 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The same, for a caller that knows the picture but not the number.
         ///
-        /// Why it exists: the copy of the chat list on the phone carries no unread counts on
+        /// The copy of the chat list on the phone carries no unread counts on
         /// purpose (`ChatCache.Slim`), so the startup sweep that redraws the tiles knows every
         /// row as zero. Publishing that zero cleared the badge of every pinned chat at every
         /// start, and the count only comes back with a message. With `countKnown` false the
@@ -242,7 +242,7 @@ namespace WhatsappApp.Services
         /// that shows a person's face at the size of the screen's own tile, and the preview
         /// WhatsApp sends is 96 pixels square. Composed on the 336 card that is a face
         /// enlarged 3.5 times - soft, and at 150 dp it fills the whole tile - which is what
-        /// the phone reported on 23 October 2026 while the tile's own geometry was already
+        /// the phone reported while the tile's own geometry was already
         /// right: on WP8.1 a peek template flips and shows the square image across the tile.
         ///
         /// A start draws the tiles before the login, so this asks only once the account is in
@@ -376,7 +376,7 @@ namespace WhatsappApp.Services
         ///
         /// The two lines are the app tile's two lines (`TileText`): the name in the template's
         /// large font and the last message under it, with the count taking the second line only
-        /// when there is no message to quote. The request of 23 October 2026 was that the two
+        /// when there is no message to quote. The request was that the two
         /// tiles read the same way.
         /// </summary>
         private static async Task RenderAsync(string chatId, string name, int count, string avatarData, string body,
@@ -406,7 +406,7 @@ namespace WhatsappApp.Services
             //
             // Why that order and not a `Clear` and a rebuild: `Updater.Clear()` came first
             // here, so anything that threw afterwards left the chat's tile **empty** - no
-            // picture, no name, nothing - and the refusal of 24 October 2026 threw exactly
+            // picture, no name, nothing - and the refusal threw exactly
             // there. A notification replaces the content of the tile on its own, so the clear
             // bought nothing and cost the tile its content when the platform said no.
             XmlDocument xml;
@@ -443,7 +443,7 @@ namespace WhatsappApp.Services
             // 71x71: the picture, and nothing else fits. The number travels on the badge.
             // The card of that size and not the square one: a binding fills the tile with the
             // image it is given and crops the rest, so the 336 card here showed the middle of
-            // the face, magnified (23 October 2026).
+            // the face, magnified ().
             AddSmall(xml, visual, card == null ? AppIcon : card.Small);
 
             // The platform's answer, named: `WPN_E_INVALID_APP` (0x803E0102) from here is not

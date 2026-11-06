@@ -147,7 +147,7 @@ namespace ProtocolTests
             // Alice's session as it is created: the bundle is known and the peer has not
             // answered, so the key can only be written as a `pkmsg`. The offer carries it
             // anyway: an offer with no key is a phone that never rings, which is the call
-            // of 4 November 2026 in the phone's log (`with no key`, then `reason timeout`).
+            // in the phone's log (`with no key`, then `reason timeout`).
             var devices = new List<KeyValuePair<string, SessionRecord>>();
             devices.Add(new KeyValuePair<string, SessionRecord>(BobDevice, SignalSessions.Alice(random)));
 

@@ -23,12 +23,12 @@ namespace ProtocolTests
         {
             CallCandidate candidate = CallCandidates.Host("1.2.3.4", 5, 0);
 
-            // field 1 (id)     0A 09 "1.2.3.4:5"
-            // field 2 (ip)     12 04 01 02 03 04
-            // field 3 (port)   18 05
-            // field 4 (type)   20 00   a host candidate
-            // field 5 (prio)   28 00
-            // field 6 (proto)  30 00   UDP
+            // field 1 (id) 0A 09 "1.2.3.4:5"
+            // field 2 (ip) 12 04 01 02 03 04
+            // field 3 (port) 18 05
+            // field 4 (type) 20 00 a host candidate
+            // field 5 (prio) 28 00
+            // field 6 (proto) 30 00 UDP
             Assert.AreEqual("0A09312E322E332E343A351204010203041805200028003000", Hex(candidate.Data));
             Assert.AreEqual(0, candidate.Priority, "the priority is on the node as well");
         }

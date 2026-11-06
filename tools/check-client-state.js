@@ -11,49 +11,49 @@
  * run su quattro. Nessun test del protocollo puo' vederlo, perche' i due pezzi
  * mancanti vivono nell'app:
  *
- *  1. `ClientPayload.Login` chiede di essere portata su **passiva** (`passive` e
- *     `pull` a 1), e il riferimento completa quel login con `sendPassiveIq('active')`
- *     sul nodo `success` (`Socket/socket.js`, il gestore `CB:success`). Un client
- *     che si logga e poi tace resta la meta' passiva del proprio login;
- *  2. il canale `ib`/`notification` deve essere **letto**: il figlio e' cio' su cui
- *     il riferimento fa dispatch, e `downgrade_webclient` e' l'unico che rifiuta il
- *     client (`ws.on('CB:ib,,downgrade_webclient', ...)` chiude la connessione). Non
- *     leggerlo lascia `ib` indistinguibile da un bootstrap normale, e nella lista
- *     dei run c'e' solo la riga "nothing reads it yet";
- *  3. una lettura che fallisce deve dire **quanti e quali byte** erano in volo: sul
- *     telefono la fine della conversazione e' sempre la stessa forma (pochi byte,
- *     poi `0x80072EFE`), e senza quei byte il log di un run morto al bootstrap e'
- *     un login e un'eccezione;
- *  4. il login legge **fino a `success`**, non un nodo solo: il bootstrap parla su
- *     `ib` e puo' farlo prima della risposta, e il nodo letto dal login e' l'unico
- *     che nessun altro vedra' mai. Quelli arrivati prima vanno messi in coda e
- *     ridati al lettore (`_beforeLogin`);
- *  5. un messaggio si **conferma dopo** averlo letto: l'`ack` ferma i reinvii, e un
- *     ack su un'apertura fallita rende la perdita definitiva (e' cosi' che la sync
- *     della history poteva sparire per sempre). Il fallimento risponde con
- *     `IncomingMessage.RetryReceipt`;
- *  6. un pairing **dimentica** lo stato del protocollo prima di salvare il nuovo
- *     account: il MAC di Signal copre le due chiavi d'identita', quindi le sessioni
- *     scritte con quella vecchia non leggono piu' niente. Il run del 18 ottobre 2026
- *     e' esattamente questo - `the message's MAC does not verify` su ogni messaggio,
- *     dal telefono dello stesso account e da un contatto;
- *  7. il login **adotta** la signed pre-key dell'account: quelle chiavi partono da uno,
- *     quindi uno store rimasto dal pairing precedente ha lo stesso id su un'altra
- *     chiave privata, mentre il path responder puo' confrontare solo l'id. Il mittente
- *     usa la chiave pubblicata (quella nuova) e noi ne usiamo un'altra: stesso MAC rotto.
+ * 1. `ClientPayload.Login` chiede di essere portata su **passiva** (`passive` e
+ * `pull` a 1), e il riferimento completa quel login con `sendPassiveIq('active')`
+ * sul nodo `success` (`Socket/socket.js`, il gestore `CB:success`). Un client
+ * che si logga e poi tace resta la meta' passiva del proprio login;
+ * 2. il canale `ib`/`notification` deve essere **letto**: il figlio e' cio' su cui
+ * il riferimento fa dispatch, e `downgrade_webclient` e' l'unico che rifiuta il
+ * client (`ws.on('CB:ib,,downgrade_webclient',.)` chiude la connessione). Non
+ * leggerlo lascia `ib` indistinguibile da un bootstrap normale, e nella lista
+ * dei run c'e' solo la riga "nothing reads it yet";
+ * 3. una lettura che fallisce deve dire **quanti e quali byte** erano in volo: sul
+ * telefono la fine della conversazione e' sempre la stessa forma (pochi byte,
+ * poi `0x80072EFE`), e senza quei byte il log di un run morto al bootstrap e'
+ * un login e un'eccezione;
+ * 4. il login legge **fino a `success`**, non un nodo solo: il bootstrap parla su
+ * `ib` e puo' farlo prima della risposta, e il nodo letto dal login e' l'unico
+ * che nessun altro vedra' mai. Quelli arrivati prima vanno messi in coda e
+ * ridati al lettore (`_beforeLogin`);
+ * 5. un messaggio si **conferma dopo** averlo letto: l'`ack` ferma i reinvii, e un
+ * ack su un'apertura fallita rende la perdita definitiva (e' cosi' che la sync
+ * della history poteva sparire per sempre). Il fallimento risponde con
+ * `IncomingMessage.RetryReceipt`;
+ * 6. un pairing **dimentica** lo stato del protocollo prima di salvare il nuovo
+ * account: il MAC di Signal copre le due chiavi d'identita', quindi le sessioni
+ * scritte con quella vecchia non leggono piu' niente. Il run del 18 ottobre 2026
+ * e' esattamente questo - `the message's MAC does not verify` su ogni messaggio,
+ * dal telefono dello stesso account e da un contatto;
+ * 7. il login **adotta** la signed pre-key dell'account: quelle chiavi partono da uno,
+ * quindi uno store rimasto dal pairing precedente ha lo stesso id su un'altra
+ * chiave privata, mentre il path responder puo' confrontare solo l'id. Il mittente
+ * usa la chiave pubblicata (quella nuova) e noi ne usiamo un'altra: stesso MAC rotto.
  *
  * Regole:
- *  1. `NativeConnection.cs` manda la passive iq `active` dopo il login
- *     (`AnnounceClientStateAsync`);
- *  2. `NativeConnection.cs` instrada `InboundKind.Notification` su
- *     `ReadNotificationAsync`, che nomina il figlio con
- *     `InboundRouter.NotificationType`;
- *  3. `NativeConnection.cs` riconosce il rifiuto con `ClientState.IsClientRefusal`;
- *  4. `WhatsAppSocket.cs` nomina i byte rimasti quando una lettura fallisce
- *     (`PendingHex`).
+ * 1. `NativeConnection.cs` manda la passive iq `active` dopo il login
+ * (`AnnounceClientStateAsync`);
+ * 2. `NativeConnection.cs` instrada `InboundKind.Notification` su
+ * `ReadNotificationAsync`, che nomina il figlio con
+ * `InboundRouter.NotificationType`;
+ * 3. `NativeConnection.cs` riconosce il rifiuto con `ClientState.IsClientRefusal`;
+ * 4. `WhatsAppSocket.cs` nomina i byte rimasti quando una lettura fallisce
+ * (`PendingHex`).
  *
  * Usage:
- *   node tools/check-client-state.js
+ * node tools/check-client-state.js
  */
 'use strict';
 

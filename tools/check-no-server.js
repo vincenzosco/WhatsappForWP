@@ -15,12 +15,12 @@
  * nessuno aveva tolto.
  *
  * Regole:
- *  1. nessuno dei dieci file del vecchio percorso esiste;
- *  2. nessuna cartella del server esiste (`WhatsappBridge/`, `WhatsappServer/`,
- *     `registry/`, la skill `run-the-login-server`);
- *  3. nessuna chiave delle impostazioni e' rimasta: il telefono non ha un
- *     indirizzo, una porta, un endpoint o un token di servizio da conservare;
- *  4. i README e le skill non nominano piu' l'adattatore, GOWA o il server.
+ * 1. nessuno dei dieci file del vecchio percorso esiste;
+ * 2. nessuna cartella del server esiste (`WhatsappBridge/`, `WhatsappServer/`,
+ * `registry/`, la skill `run-the-login-server`);
+ * 3. nessuna chiave delle impostazioni e' rimasta: il telefono non ha un
+ * indirizzo, una porta, un endpoint o un token di servizio da conservare;
+ * 4. i README e le skill non nominano piu' l'adattatore, GOWA o il server.
  *
  * La parola inglese "adapter" da sola non si segnala: la skill
  * `improve-codebase-architecture` la usa nel senso di "ports & adapters", che non
@@ -30,7 +30,7 @@
  * come tale.
  *
  * Usage:
- *   node tools/check-no-server.js
+ * node tools/check-no-server.js
  */
 'use strict';
 

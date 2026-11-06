@@ -13,7 +13,7 @@ namespace WhatsappApp.Services
     /// in Settings - Tema (one of the package's wallpapers, or the doodle) or, when that
     /// choice is plain white, the phone's accent colour.
     ///
-    /// Why it exists: the tile is the app's face on the Start screen, and it stayed the
+    /// The tile is the app's face on the Start screen, and it stayed the
     /// green app mark whatever the conversation and the list were painted with - a phone
     /// whose chats were a blue wallpaper had a green tile. What the phone can carry in a
     /// notification is an image path, so the choice is turned into one here, once per

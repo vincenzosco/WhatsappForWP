@@ -8,7 +8,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// A received voice note, turned into a file this phone can play.
     ///
-    /// Why it exists: a WhatsApp voice note is Ogg/Opus, and WP8.1 has no Opus decoder -
+    /// A WhatsApp voice note is Ogg/Opus, and WP8.1 has no Opus decoder -
     /// `MediaElement` opens the file and answers `MediaFailed`, which is the note that
     /// "arrives and does not play". The decoder was already in `waopus.dll` (libopus'
     /// `opus_decoder.c`, compiled for the encoder's arithmetic), so the missing half was

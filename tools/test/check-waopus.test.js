@@ -45,7 +45,7 @@ test('ogni funzione importata e una che WhatsAppNative importa dallo stesso modu
   const nativePath = path.join(__dirname, '..', '..', '.tools', 'xap', 'WhatsAppNative.dll');
 
   if (!fs.existsSync(nativePath)) {
-    // Il pacchetto estratto e in .tools, che non e nel repository.
+    // Il pacchetto estratto e in.tools, che non e nel repository.
     t.skip('serve .tools/xap/WhatsAppNative.dll');
     return;
   }

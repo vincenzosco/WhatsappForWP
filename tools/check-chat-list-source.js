@@ -17,7 +17,7 @@
  * Regola: il tag che dichiara `x:Name="MessagesListView"` non ha `ItemsSource`.
  *
  * Usage:
- *   node tools/check-chat-list-source.js
+ * node tools/check-chat-list-source.js
  */
 'use strict';
 

@@ -22,8 +22,8 @@
  * grafica.
  *
  * Usage:
- *   node tools/make-brand-assets.js              # riscrive i file
- *   node tools/make-brand-assets.js --preview    # riscrive + anteprima ASCII
+ * node tools/make-brand-assets.js # riscrive i file
+ * node tools/make-brand-assets.js --preview # riscrive + anteprima ASCII
  */
 'use strict';
 

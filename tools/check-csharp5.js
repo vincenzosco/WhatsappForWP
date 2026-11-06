@@ -3,14 +3,14 @@
  * tools/check-csharp5.js
  *
  * Guard for the Windows Phone 8.1 app. It fails on two classes of problem:
- *  1. C# 6/7 syntax: the WP8.1 toolchain compiles the app with the legacy
- *     C# 5 compiler, so such syntax breaks the build with errors such as
- *     "Invalid token '=' in class, struct, or interface member declaration"
- *     and "Unexpected character '$'".
- *  2. Windows 8.1/Windows 10-only members that the reduced WP8.1 WinRT
- *     projection does not expose, which break the build with CS1501/CS1061.
+ * 1. C# 6/7 syntax: the WP8.1 toolchain compiles the app with the legacy
+ * C# 5 compiler, so such syntax breaks the build with errors such as
+ * "Invalid token '=' in class, struct, or interface member declaration"
+ * and "Unexpected character '$'".
+ * 2. Windows 8.1/Windows 10-only members that the reduced WP8.1 WinRT
+ * projection does not expose, which break the build with CS1501/CS1061.
  *
- * Usage:  node tools/check-csharp5.js
+ * Usage: node tools/check-csharp5.js
  * Exit code 0 = every file is compatible, 1 = violations found.
  */
 'use strict';
@@ -38,7 +38,7 @@ const RULES = [
   { name: 'nameof(...)', re: /\bnameof\s*\(/ },
   { name: 'discard assignment (_ = ...)', re: /^\s*_+\s*=[^=]/ },
   { name: 'using static', re: /^\s*using\s+static\s/ },
-  // An async entry point needs C# 7.1 (and .NET 4.6.1+); on this toolchain the
+  // An async entry point needs C# 7.1 (and.NET 4.6.1+); on this toolchain the
   // compiler answers CS0028 "wrong signature to be an entry point" plus CS5001
   // "does not contain a static 'Main' method", so the project never builds at
   // all - a whole project sits broken with one line like that.
@@ -48,7 +48,7 @@ const RULES = [
 // Extension methods that only exist when `using System.Linq;` is in scope.
 // Their absence is a build error the syntax rules above cannot see: the
 // WP8.1 compiler answers CS1061, e.g. "'string' does not contain a definition
-// for 'All' ... missing a using directive or an assembly reference".
+// for 'All'. missing a using directive or an assembly reference".
 // Deliberately narrow: instance methods with the same name (MemoryStream's
 // ToArray, ICollection's Contains, Math.Min/Max) are not in the list.
 const LINQ_USING = /^\s*using\s+System\.Linq\s*;/m;
@@ -78,7 +78,7 @@ const API_RULES = [
  * risponde CS1985 ("Impossibile attendere nel corpo di una clausola catch").
  * Non e' una proprieta' della riga ma di dove la riga si trova, quindi le
  * regole per riga qui sopra non lo vedono: lo ha trovato la build Windows, non
- * questo guard. Un await su una lambda ("=> ... await") appartiene alla lambda,
+ * questo guard. Un await su una lambda ("=>. await") appartiene alla lambda,
  * non al catch, e C# 5 lo accetta: si segnala solo un await nudo.
  */
 function awaitInCatchBlocks(code) {

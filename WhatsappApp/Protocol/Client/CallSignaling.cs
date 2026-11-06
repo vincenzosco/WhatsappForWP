@@ -477,12 +477,12 @@ namespace WhatsappApp.Protocol.Client
     /// The shapes are the official client's, verb by verb, and the two details that make the
     /// difference between a call that connects and one that does not are both here:
     ///
-    ///  - the id travels twice - `id` on the `call` node (so the stanza can be
-    ///    acknowledged) and `call-id` on the verb (so the other phone knows which call the
-    ///    payload is about);
-    ///  - an offer carries the encrypted call key (`enc`) and the transport candidates (`te`)
-    ///    beside the media. Without them the other phone rings and can neither decrypt the
-    ///    media nor reach this one.
+    /// - the id travels twice - `id` on the `call` node (so the stanza can be
+    /// acknowledged) and `call-id` on the verb (so the other phone knows which call the
+    /// payload is about);
+    /// - an offer carries the encrypted call key (`enc`) and the transport candidates (`te`)
+    /// beside the media. Without them the other phone rings and can neither decrypt the
+    /// media nor reach this one.
     ///
     /// What is **not** here: the Signal encryption itself. `CallKeyPayload.Ciphertext` is
     /// bytes the caller has already encrypted to the peer's devices; the seam is
@@ -525,7 +525,7 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>
         /// The client version a call node announces.
         ///
-        /// Why it is not this app's own number: the two call nodes captured on 4 November 2026
+        /// Why it is not this app's own number: the two call nodes captured
         /// from other phones both carry it - `version="2.26.42.74" platform="android"` and
         /// `version="2.26.42.77" platform="iphone"` - and the callee reads it to decide which
         /// features the caller can do. A version that reads as an ancient build is a call the
@@ -546,8 +546,8 @@ namespace WhatsappApp.Protocol.Client
         /// seconds.
         ///
         /// Ninety is longer than any ring: a call still being offered when the app opens is
-        /// answered, and a copy that waited minutes in the queue - the four offers of 4
-        /// November 2026, up to thirteen minutes old - is a call that is over.
+        /// answered, and a copy that waited minutes in the queue - up to thirteen minutes
+        /// old - is a call that is over.
         /// </summary>
         public const int MaxOfflineAgeSeconds = 90;
 
@@ -643,7 +643,7 @@ namespace WhatsappApp.Protocol.Client
         ///
         /// Why this overload exists: the server routes a `call` node only when the offer has the
         /// shape the official client sends, and a mis-ordered one is refused outright (`error
-        /// 439` in the reconstructions). The offer this app sent until 4 November 2026 had no
+        /// 439` in the reconstructions). The offer this app sent until had no
         /// `call-creator`, one audio stream, no `net`, no `capability`, no `encopt`, and its
         /// `te` were children of the offer instead of children of a `destination` - and the
         /// other phone never rang for a call the log said was offered.
@@ -671,7 +671,7 @@ namespace WhatsappApp.Protocol.Client
         /// recipient whose session is being opened, and an `enc` of type `pkmsg` is exactly
         /// that. The message path has carried it from the start (`OutgoingMessage`,
         /// `shouldIncludeDeviceIdentity`); the offer did not, and a call whose five keys were
-        /// all `pkmsg` went out with no identity at all - the log of 4 November 2026, two
+        /// all `pkmsg` went out with no identity at all - the log, two
         /// offers, not one ack from the server, both ending `reason timeout`. A recipient is
         /// entitled to ignore a pre-key message without it, which is a phone that does not
         /// ring.
@@ -716,7 +716,7 @@ namespace WhatsappApp.Protocol.Client
         /// point of the shape: the offer is prepared, and the values arrive when a captured
         /// node gives them, without a rewrite on the day they do.
         ///
-        /// Where the names come from: the offer captured on 4 November 2026 carries all six,
+        /// Where the names come from: the offer captured carries all six,
         /// and the same tokens sit in the official client's own dex (`caller_pn`,
         /// `caller_country_code`, `joinable` in classes2, `metadata` and `voip_settings` beside
         /// them), so the spelling is read and not guessed. The values are what is still missing.
@@ -725,21 +725,21 @@ namespace WhatsappApp.Protocol.Client
         /// one string table of `call_control::stanza_deserializer::stanzas::offer`, read out of
         /// libwhatsappmerged's pool (x 14,410,496):
         ///
-        ///     handle_incoming_xmpp_receipt  offer  audio  &lt;unknown&gt;  receipt
-        ///     call-creator  parse_xmpp_offer: empty call-id  voip_settings  relay
-        ///     group_info  av_upgrade  link_info  handle_incoming_xmpp_receipt: empty call-id
+        /// handle_incoming_xmpp_receipt offer audio &lt;unknown&gt; receipt
+        /// call-creator parse_xmpp_offer: empty call-id voip_settings relay
+        /// group_info av_upgrade link_info handle_incoming_xmpp_receipt: empty call-id
         ///
         /// which gives this table, in this order:
         ///
-        ///     #   name             kind       where it sits
-        ///     1   audio            child      first name the table registers for the offer
-        ///     2   voip_settings    child      after the `call-creator` attribute
-        ///     3   relay            child      after `voip_settings`
-        ///     4   group_info       child      after `relay`
-        ///     5   av_upgrade       child      after `group_info`
-        ///     6   link_info        child      after `av_upgrade`
-        ///     -   receipt          not an offer child: the receipt stanza of the same unit
-        ///     -   &lt;unknown&gt;       a sentinel, not an element
+        /// # name kind where it sits
+        /// 1 audio child first name the table registers for the offer
+        /// 2 voip_settings child after the `call-creator` attribute
+        /// 3 relay child after `voip_settings`
+        /// 4 group_info child after `relay`
+        /// 5 av_upgrade child after `group_info`
+        /// 6 link_info child after `av_upgrade`
+        /// - receipt not an offer child: the receipt stanza of the same unit
+        /// - &lt;unknown&gt; a sentinel, not an element
         ///
         /// and on the verb, in the same order: `call-creator`, then the caller's own
         /// `caller_pn`, `caller_country_code`, `joinable`, and `device_class` beside them.
@@ -820,7 +820,7 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// A pre-accept with the media it will use: `<preaccept call-id><audio/><video/>...`.
+        /// A pre-accept with the media it will use: `<preaccept call-id><audio/><video/>.`.
         /// The official client sends the whole audio list here and only the first in `accept`.
         /// </summary>
         public static BinaryNode PreAccept(
@@ -845,7 +845,7 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>
         /// The answer, with the one audio stream and the candidates that reach this phone.
-        /// The official client takes the first audio node only (`GetAudioNodes(...).Take(1)`):
+        /// The official client takes the first audio node only (`GetAudioNodes(.).Take(1)`):
         /// the stream is negotiated by then, and a list here is a list nobody reads.
         /// </summary>
         public static BinaryNode Accept(
@@ -862,7 +862,7 @@ namespace WhatsappApp.Protocol.Client
         /// The same answer, with the fingerprint of the certificate this side signs the media
         /// handshake with. It rides on `destination`, beside the candidates it belongs to: the
         /// APK's transport negotiation carries the credential, the candidates and the fingerprint
-        /// as one message (`Web P2P: sending type 13 (..., has_ufrag=%d, num_cands=%d, has_fp=%d)`),
+        /// as one message (`Web P2P: sending type 13 (., has_ufrag=%d, num_cands=%d, has_fp=%d)`),
         /// and `destination` is where this client already writes the candidates.
         ///
         /// The attribute name is this build's, and named as an inference: the native library
@@ -1221,7 +1221,7 @@ namespace WhatsappApp.Protocol.Client
         /// The call's id as this sender wrote it.
         ///
         /// Why more than one spelling: the official client logs **"no call-id in the payload
-        /// of incoming &lt;call&gt; node"** - read out of its DEX on 2 November 2026 - so in its
+        /// of incoming &lt;call&gt; node"** - read out of its DEX - so in its
         /// own traffic the id travels in the payload (the verb child) under `call-id`, while
         /// this client writes `id` on the node. A reader that insisted on `id` alone answers
         /// null for a real offer, and `AnnounceCall` drops it as unreadable: the phone simply
@@ -1298,7 +1298,7 @@ namespace WhatsappApp.Protocol.Client
         /// caller, and the copy the callee receives always carries it); the reference client is
         /// said to leave it to the server on the way out, and this client writes it because the
         /// server has already shown it will route nothing at all for a call it cannot attribute
-        /// - the log of 4 November 2026 has two offers and no ack, while an ordinary message
+        /// - the log has two offers and no ack, while an ordinary message
         /// with the same routing got `class="message"` in under a second.
         ///
         /// It goes first, before `to` and `id`, because that is the order the spec's examples

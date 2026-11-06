@@ -1,7 +1,7 @@
 namespace WhatsappApp.Protocol.Qr
 {
     /// <summary>
-    /// The QR standard's error correction tables, versions 1..40, in the order
+    /// The QR standard's error correction tables, versions 1.40, in the order
     /// Low, Medium, Quartile, High.
     ///
     /// They are facts of the specification, and they were printed from the reference
@@ -12,7 +12,7 @@ namespace WhatsappApp.Protocol.Qr
     /// </summary>
     internal static class QrTables
     {
-        /// <summary>Versions 1..40 exist; this encoder carries all of them.</summary>
+        /// <summary>Versions 1.40 exist; this encoder carries all of them.</summary>
         public const int MaxVersion = 40;
 
         /// <summary>Error correction blocks, by version and level.</summary>

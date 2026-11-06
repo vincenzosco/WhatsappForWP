@@ -30,9 +30,9 @@ namespace WhatsappApp.Pages
     /// The timer does two things, and the second one is why it exists: it moves the duration
     /// on an answered call, and it ends a call that nobody picked up after
     /// `DataService.CallSetupSeconds`. Before that rule existed the phone kept a call it had
-    /// offered forever: the read loop logged "a call is already up, so ... was not called" on
+    /// offered forever: the read loop logged "a call is already up, so. was not called" on
     /// the next dial, and no new call could be placed until the app was restarted. That is in
-    /// the phone's own log, on 2 November 2026.
+    /// the phone's own log,.
     ///
     /// The media is not here and does not exist yet: an answered call is a call whose
     /// signalling succeeded. See `docs/superpowers/specs/2026-11-02-voice-and-video-calls-design.md`.

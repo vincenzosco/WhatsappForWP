@@ -13,7 +13,7 @@ namespace WhatsappApp.Services
     /// both reference clients fill them from the file
     /// (`baileys`, `messages-media.js`, `prepareWAMessageMedia`; `whatsmeow`, `prepareMedia`).
     /// A photo that leaves without them is a bubble the receiving phone has no size for - the
-    /// photo of 1 November 2026 arrived as `ack` and drew nothing at all - and the thumbnail
+    /// photo arrived as `ack` and drew nothing at all - and the thumbnail
     /// at 13 is what the receiver draws in the chat list before it has the bytes.
     ///
     /// Both are best effort, and that is deliberate: a picture this phone cannot read is
@@ -68,7 +68,7 @@ namespace WhatsappApp.Services
         /// decode in the memory there is).
         ///
         /// The scaling is done here and not by the decoder: asking `BitmapTransform` for a
-        /// `ScaledWidth` is what the pinned tile stopped trusting (23 October 2026, an
+        /// `ScaledWidth` is what the pinned tile stopped trusting (, an
         /// E_INVALIDARG, and before that a 96x96 answer to a 336 request). One full decode
         /// plus an average of the blocks is arithmetic that either works or says so.
         /// </summary>

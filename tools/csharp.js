@@ -9,10 +9,10 @@
  * due modi diversi costa due falsi positivi. I due casi che l'hanno resa
  * necessaria:
  *
- *  - un commento che cita il modello `TileWide310x150IconWithBadge` veniva letto
- *    come l'uso del modello;
- *  - un commento che cita `SetSourceAsync` sembrava una chiamata fatta prima di
- *    `DecodePixelWidth`.
+ * - un commento che cita il modello `TileWide310x150IconWithBadge` veniva letto
+ * come l'uso del modello;
+ * - un commento che cita `SetSourceAsync` sembrava una chiamata fatta prima di
+ * `DecodePixelWidth`.
  *
  * E il motivo per cui non basta cercare `//`: "ms-appx:///Assets/TileIcon.png"
  * ha due barre dentro, e cancellare da li' in poi cancellerebbe proprio il

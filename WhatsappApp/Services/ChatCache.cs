@@ -39,7 +39,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The chat list of the last session, kept on the phone.
     ///
-    /// Why it exists: at startup the connection is not there yet, and the list
+    /// At startup the connection is not there yet, and the list
     /// arrives with the sync that follows a login. Without this copy the app opens
     /// on an empty list for the seconds it takes, and it looks like nothing
     /// happened.
@@ -204,7 +204,7 @@ namespace WhatsappApp.Services
                 // The file the move was aimed at went away between the look and the move: a
                 // link wipes the copy (`DeleteAsync`) without waiting behind this queue, and a
                 // move over a file that is no longer there is `0x80070002` - the line the run of
-                // 4 November 2026 logged as `ChatCache.Save: FileNotFoundException`, with the
+                // logged as `ChatCache.Save: FileNotFoundException`, with the
                 // list written to the temporary file and then dropped. The rename has nothing
                 // left to replace, and it is the write that has to survive.
                 vanished = true;

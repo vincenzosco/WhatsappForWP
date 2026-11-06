@@ -31,7 +31,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The profile pictures that arrived with the chat list, kept on the phone.
     ///
-    /// Why it exists: the chat list arrives with the picture of every
+    /// The chat list arrives with the picture of every
     /// conversation, and the app decodes and draws it. But the bytes did not
     /// survive anything - the list copy (ChatCache) leaves them out on purpose,
     /// because it is the file read before the connection exists and must stay

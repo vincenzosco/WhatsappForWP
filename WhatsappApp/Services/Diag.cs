@@ -13,11 +13,11 @@ namespace WhatsappApp.Services
     /// <summary>
     /// One place for the failures the app decides to survive.
     ///
-    /// Why it exists: every silent `catch` hides a real failure, and in the
+    /// Every silent `catch` hides a real failure, and in the
     /// debugger log a WinRT exception arrives as
     ///
-    ///     A first chance exception of type 'System.Exception' occurred ...
-    ///     WinRT information: The operation identifier is not valid.
+    /// A first chance exception of type 'System.Exception' occurred.
+    /// WinRT information: The operation identifier is not valid.
     ///
     /// without saying *which* call threw it. Here the failure is recorded with
     /// the exact site and the HRESULT, which is the only thing that tells a member
@@ -185,7 +185,7 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The same, for the lines that have to be on disk at once.
         ///
-        /// Why it exists: `Ok` waits for the flush interval, so up to a second of
+        /// `Ok` waits for the flush interval, so up to a second of
         /// ordinary lines sit in memory, and a run that dies inside that second
         /// leaves the last step it took invisible - the phone's run of 2026-10-08
         /// stopped at the frame before the bind, with no line saying whether the
@@ -325,7 +325,7 @@ namespace WhatsappApp.Services
 
         // ── the watchdog ─────────────────────────────────────────────────────────
 
-        // Why it exists: the connection loop runs on the ui thread (the page that
+        // The connection loop runs on the ui thread (the page that
         // draws a message is the thread that opened the socket), so one call that
         // does not return takes the whole app with it - and the log stops at the
         // line before it, which is the one line that does not say where. The
@@ -488,7 +488,7 @@ namespace WhatsappApp.Services
         /// Writes what is not in the file yet and does not return until it is there, or
         /// the wait runs out.
         ///
-        /// Why it exists: `Flush(true)` only *queues* the write, and on 23-24 October 2026
+        /// `Flush(true)` only *queues* the write, and
         /// that made the log lie about the one thing it was there to answer. The background
         /// check ends with `Flush(true)` and then completes its deferral, and the system takes
         /// the process down with the write still in the queue: 21 wakes, not one
@@ -552,7 +552,7 @@ namespace WhatsappApp.Services
         /// a phone left in a crash loop must still answer with the newest lines.
         ///
         /// Why it appends: rewriting was the only write this file had, so every line cost
-        /// a read of the file and a write of it - on 24 October 2026 the log sat at its
+        /// a read of the file and a write of it - the log sat at its
         /// ceiling of 64 KB and each line on the phone cost 128 KB of I/O. The background
         /// check logs some thirty lines a wake, the write queue fell behind the run, and the
         /// last lines of every wake were still in it when the process ended. The append is
@@ -681,7 +681,7 @@ namespace WhatsappApp.Services
             }
 
             // The file starts over with every run. The previous run's lines are not what
-            // this one did, and on 3 November 2026 a log that grew across runs was the
+            // this one did, and a log that grew across runs was the
             // first thing looked at when the app did not open from the custom tile: a
             // tail of another run reads as this one's.
             //

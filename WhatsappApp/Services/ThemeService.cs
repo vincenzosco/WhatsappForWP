@@ -23,10 +23,10 @@ namespace WhatsappApp.Services
         /// <summary>The word under the thumbnail, already localized.</summary>
         public string Name { get; set; }
 
-        /// <summary>The full image, `ms-appx:///...`; null for the plain background.</summary>
+        /// <summary>The full image, `ms-appx:///.`; null for the plain background.</summary>
         public string ImageUri { get; set; }
 
-        /// <summary>The small image the grid draws, `ms-appx:///...`; null for plain.</summary>
+        /// <summary>The small image the grid draws, `ms-appx:///.`; null for plain.</summary>
         public string ThumbUri { get; set; }
 
         /// <summary>The one chosen on this phone.</summary>
@@ -127,7 +127,7 @@ namespace WhatsappApp.Services
             // Decoded at a bounded size, not at the file's own: a wallpaper is a full-screen
             // picture, the pages that paint it are cached and re-entered, and this phone has
             // been seen running out of memory (`ChatCache.Save: OutOfMemoryException` in the
-            // 3 November 2026 log). A decode that does not fit is a background that silently
+            // log). A decode that does not fit is a background that silently
             // never appears, which is what "the background does not apply" looks like.
             image.DecodePixelType = DecodePixelType.Physical;
             image.DecodePixelWidth = WallpaperWidth;

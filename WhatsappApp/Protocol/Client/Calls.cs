@@ -145,7 +145,7 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>
         /// Refusing a call: `call` with a `reject` child carrying the call's id, addressed to
-        /// the caller (`whatsmeow`, `send.go` and `call.go`, `RejectCall`: `<call to=... id=...>
+        /// the caller (`whatsmeow`, `send.go` and `call.go`, `RejectCall`: `<call to=. id=.>
         /// <reject/></call>`).
         /// </summary>
         public static BinaryNode Reject(string callId, string jid)

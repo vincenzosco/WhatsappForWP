@@ -9,9 +9,9 @@ namespace ProtocolTests
     /// own test suite runs against - by a script in a directory outside this
     /// repository. The command that regenerates it:
     ///
-    ///   mkdir -p /tmp/signalref && cd /tmp/signalref && npm init -y
-    ///   npm install libsignal-protocol
-    ///   REPO=<the repository> node emit-signal-fixture.js
+    /// mkdir -p /tmp/signalref && cd /tmp/signalref && npm init -y
+    /// npm install libsignal-protocol
+    /// REPO=<the repository> node emit-signal-fixture.js
     ///
     /// Both sides are here: what the sender must produce byte for byte, and the
     /// private halves the receiver needs to open it. Nothing in it was typed.

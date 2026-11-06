@@ -12,7 +12,7 @@ namespace WhatsappApp.Protocol.Media
     /// packets back so the one that is late has somewhere to go, releases them in sequence
     /// order, and counts what it had to throw away.
     ///
-    /// What it is not: a decoder and not a clock. It answers "which packet is next" and
+    /// Not a decoder and not a clock. It answers "which packet is next" and
     /// nothing about *when* - the playout that consumes it owns the twenty milliseconds,
     /// asks for the next packet, and decides when a gap has waited long enough to be
     /// called lost (`Skip`).
@@ -20,13 +20,13 @@ namespace WhatsappApp.Protocol.Media
     /// Two things here are easy to get wrong and are the reason for the tests:
     ///
     /// - the sequence number is **sixteen bits**, so it wraps every 65536 packets (about
-    ///   twenty-two minutes at sixty a second). Taken as an integer, packet 0 after 65535
-    ///   reads as a jump *backwards*, and a naive buffer discards the whole rest of the
-    ///   call. `Extend` reads it as the nearest value to what came before, which is what
-    ///   makes the wrap disappear.
+    /// twenty-two minutes at sixty a second). Taken as an integer, packet 0 after 65535
+    /// reads as a jump *backwards*, and a naive buffer discards the whole rest of the
+    /// call. `Extend` reads it as the nearest value to what came before, which is what
+    /// makes the wrap disappear.
     /// - a packet that arrives **after** its slot has been played is not deliverable: it
-    ///   belongs to audio the user already heard, and playing it now would replay it out
-    ///   of place. It is dropped and counted, never buffered.
+    /// belongs to audio the user already heard, and playing it now would replay it out
+    /// of place. It is dropped and counted, never buffered.
     /// </summary>
     public sealed class RtpJitterBuffer
     {

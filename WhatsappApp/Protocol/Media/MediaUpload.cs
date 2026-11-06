@@ -36,7 +36,7 @@ namespace WhatsappApp.Protocol.Media
         /// <summary>
         /// The picture's own size, which the message has to carry: `height` is 6 and `width`
         /// is 7 in a photo, and a receiving client lays the bubble out from them. A photo of
-        /// 1 November 2026 left with both at zero and drew nothing on the other phone.
+        /// left with both at zero and drew nothing on the other phone.
         /// Zero means "not measured", and then no field is written.
         /// </summary>
         public int Width;
@@ -60,17 +60,17 @@ namespace WhatsappApp.Protocol.Media
     /// The scheme is the reference's (`@whiskeysockets/baileys`, `Utils/messages-media.js`):
     ///
     /// - the keys come off `MediaKeys` - the same three from the same 32-byte media key -
-    ///   and the body is `AES-256-CBC(cipherKey, iv, file) || mac`, where the mac is the
-    ///   first **ten** bytes of `HMAC-SHA256(macKey, iv || ciphertext)` (`encryptedStream`,
-    ///   lines 309 to 383);
+    /// and the body is `AES-256-CBC(cipherKey, iv, file) || mac`, where the mac is the
+    /// first **ten** bytes of `HMAC-SHA256(macKey, iv || ciphertext)` (`encryptedStream`,
+    /// lines 309 to 383);
     /// - `fileSha256` is over the **plaintext** and `fileEncSha256` over the **body**
-    ///   including the mac, which is what the receiver checks and therefore what is
-    ///   pinned here (`ProtocolTests/MediaUploadTests.cs` recomputes both);
+    /// including the mac, which is what the receiver checks and therefore what is
+    /// pinned here (`ProtocolTests/MediaUploadTests.cs` recomputes both);
     /// - the upload is a `POST` to `https://{host}{/mms/<type>}/{enc}?auth=&token=`, with
-    ///   `Content-Type: application/octet-stream` and `Origin: https://web.whatsapp.com`,
-    ///   and the host answers `{ "url": ..., "direct_path": ... }`
-    ///   (`getWAUploadToServer`, lines 643 to 697; the path map is `Defaults/index.js`
-    ///   lines 85 to 93, the origin `Defaults/index.js:7`).
+    /// `Content-Type: application/octet-stream` and `Origin: https://web.whatsapp.com`,
+    /// and the host answers `{ "url"., "direct_path". }`
+    /// (`getWAUploadToServer`, lines 643 to 697; the path map is `Defaults/index.js`
+    /// lines 85 to 93, the origin `Defaults/index.js:7`).
     ///
     /// The `/` and `+` of the base64 hash are turned into `-` and `_` and the padding is
     /// dropped before it goes in the URL (`encodeBase64EncodedStringForUpload`,
@@ -268,7 +268,7 @@ namespace WhatsappApp.Protocol.Media
         ///
         /// WhatsApp's own clients play a voice note as **Ogg/Opus** and nothing else, so a
         /// `ptt` carrying anything else is a bubble with a play button that does nothing:
-        /// the note of 2 November 2026, delivered, read, and silent. The phone records AAC
+        /// the note, delivered, read, and silent. The phone records AAC
         /// in an MP4 (WP8.1 has no Opus encoder), and the same bytes sent as an ordinary
         /// audio message do play, because there the receiver's player decodes the file.
         /// </summary>

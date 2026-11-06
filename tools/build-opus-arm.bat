@@ -8,19 +8,19 @@ rem no phone-specific project settings. The C runtime is linked statically (/MT)
 rem the DLL imports nothing from the C runtime and cannot disagree with the phone's.
 rem
 rem Usage:
-rem   tools\build-opus-arm.bat [opus-src] [out-dll]
+rem tools\build-opus-arm.bat [opus-src] [out-dll]
 rem
-rem   opus-src  the libopus checkout (default: .tools\opus-src)
-rem   out-dll   where the DLL lands   (default: WhatsappApp\waopus.dll)
+rem opus-src the libopus checkout (default.tools\opus-src)
+rem out-dll where the DLL lands (default: WhatsappApp\waopus.dll)
 rem
 rem Preparation is one command - the sources are not vendored, the built DLL is what
 rem the repository ships:
-rem   git clone --depth 1 https://github.com/xiph/opus.git .tools\opus-src
+rem git clone --depth 1 https://github.com/xiph/opus.git.tools\opus-src
 rem
 rem What this script cannot do, and what the guard at the end says out loud:
 rem the CRT this toolset links is the desktop ARM one, so the image imports
 rem `KERNEL32.dll` and the console half of the CRT start-up (`WriteConsoleW`,
-rem `SetStdHandle`, `GetCommandLineW`). On 4 and 5 November 2026 the phone
+rem `SetStdHandle`, `GetCommandLineW`). On 4 and the phone
 rem answered `0x8007007E` to exactly that image, while the three ARM modules it
 rem does load import `api-ms-win-core-*` and never `KERNEL32.dll`. `/APPCONTAINER`
 rem was tried and is not the answer: those modules have the bit clear, and the

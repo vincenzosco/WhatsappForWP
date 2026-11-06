@@ -173,7 +173,7 @@ namespace ProtocolTests
             // The leaf and intermediate details of the certificate WhatsApp's server sent
             // on 2026-10-10, copied out of the live probe. They are frozen here on
             // purpose: the field numbers of `NoiseCertificate.Details` have no readable
-            // .proto, and a wrong one is invisible until a signature is verified against
+            //.proto, and a wrong one is invisible until a signature is verified against
             // the wrong bytes. What proved these numbers was this capture - the leaf's key
             // field came back equal to the static key the handshake had just decrypted.
             CertChain.Details leaf = CertChain.DecodeDetails(Hex(

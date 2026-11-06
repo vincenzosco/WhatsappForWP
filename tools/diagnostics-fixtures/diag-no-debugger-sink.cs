@@ -1,7 +1,7 @@
-// Estratto di Diag.cs senza il sink del debugger: i due sink scrivono con
-// Debug.WriteLine direttamente, e non esiste un EmitToDebugger. Il guard deve
-// dire che quella riga non arriva piu' nella finestra Output di Visual Studio.
-// Il guard legge del testo, non compila: questo fixture dice cosa deve esserci.
+// Extract of Diag.cs without the debugger sink: both sinks call Debug.WriteLine
+// directly and there is no EmitToDebugger, so the guard has to say that the line no
+// longer reaches the Output window of Visual Studio. The guard reads text, it does
+// not compile: this fixture says what has to be there.
 
         private const string FileName = "diag.log";
         private const string MarkerName = "diag-run.marker";

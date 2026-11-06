@@ -9,7 +9,7 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Makes a video smaller before it is sent.
     ///
-    /// Why it exists: sending is what the phone pays for, and a clip straight out
+    /// Sending is what the phone pays for, and a clip straight out
     /// of the camera is tens of megabytes that travel, base64-encoded, through one
     /// socket. Re-encoding it to 480 lines shrinks it by an order of magnitude and
     /// the send takes a fraction of the time.

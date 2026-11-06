@@ -11,7 +11,7 @@ namespace WhatsappApp.Protocol.Signal
     /// specification's own notation, because only one of the two is what WhatsApp
     /// runs:
     ///
-    ///   [0xFF x 32][DH1 = DH(IKA, SPKB)][DH2 = DH(EKA, IKB)][DH3 = DH(EKA, SPKB)][DH4 = DH(EKA, OPKB)]
+    /// [0xFF x 32][DH1 = DH(IKA, SPKB)][DH2 = DH(EKA, IKB)][DH3 = DH(EKA, SPKB)][DH4 = DH(EKA, OPKB)]
     ///
     /// and then `HKDF(material, salt = 32 zero bytes, info = "WhisperText")`, whose first
     /// 32-byte chunk is the session's root key. The 32 bytes of `0xFF` in front are not

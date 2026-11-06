@@ -12,7 +12,7 @@ namespace ProtocolTests
     /// call id shows up here instead of as a call that connects and says nothing.
     ///
     /// The shapes being pinned come from the reference's `DefaultCryptoCallback`, decompiled
-    /// out of the APK on 2 November 2026 - see `CallKeys` for the exact call sites.
+    /// out of the APK - see `CallKeys` for the exact call sites.
     /// </summary>
     public static class CallKeysTests
     {
@@ -123,7 +123,7 @@ namespace ProtocolTests
             Assert.Throws<ProtocolException>(delegate { CallKeys.SplitMedia(new byte[45]); });
         }
 
-        /// <summary>The key the vectors were computed with: the bytes 0x00 .. 0x1f.</summary>
+        /// <summary>The key the vectors were computed with: the bytes 0x00. 0x1f.</summary>
         private static byte[] Key()
         {
             var key = new byte[CallKeys.CallKeyLength];

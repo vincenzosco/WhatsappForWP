@@ -14,36 +14,36 @@
  *
  * Tre nomi devono essere lo stesso, e nessuno dei tre si lamenta da solo:
  *
- *  1. `EntryPoint` di `<Extension Category="windows.backgroundTasks">`;
- *  2. `ActivatableClassId` del server in-process (`CLRHost.dll`: la classe e'
- *     gestita, la carica l'host del CLR dalla winmd del componente);
- *  3. il nome completo del tipo che implementa `IBackgroundTask`, namespace
- *     compreso, nel progetto del componente.
+ * 1. `EntryPoint` di `<Extension Category="windows.backgroundTasks">`;
+ * 2. `ActivatableClassId` del server in-process (`CLRHost.dll`: la classe e'
+ * gestita, la carica l'host del CLR dalla winmd del componente);
+ * 3. il nome completo del tipo che implementa `IBackgroundTask`, namespace
+ * compreso, nel progetto del componente.
  *
  * E, perche' la registrazione chieda davvero quella classe, anche
  * `BackgroundSync.EntryPoint` deve dire lo stesso: e' il valore che finisce in
  * `BackgroundTaskBuilder.TaskEntryPoint`.
  *
  * Regole:
- *  1. la manifest dichiara il task `timer` e la classe attivabile con Path
- *     `CLRHost.dll`;
- *  2. l'`EntryPoint` del task, l'`ActivatableClassId` e il tipo compilato nel
- *     componente sono la stessa stringa;
- *  3. `BackgroundSync.EntryPoint` e' quella stessa stringa;
- *  4. il file del task e' un `<Compile Include>` del progetto del componente;
- *  5. la registrazione chiede al telefono il permesso di lavorare in background,
- *     e non si accontenta di trovare la registrazione gia' fatta: il telefono
- *     puo' toglierlo dopo (l'utente dalle impostazioni, o il risparmio
- *     energetico) e la registrazione resta dov'era, mentre niente si sveglia piu'.
- *     Su questa piattaforma e' il caso che gli agent si scrivono contro
- *     (`IsScheduled` falso = il sistema ha tolto il task), e qui il segnale e'
- *     `BackgroundExecutionManager.GetAccessStatus()`;
- *  6. la pagina delle impostazioni dice quando il telefono ha rifiutato: un
- *     interruttore acceso che non fa partire niente e' la cosa peggiore, e la
- *     riga che lo spiega e' l'unico posto in cui l'utente lo viene a sapere.
+ * 1. la manifest dichiara il task `timer` e la classe attivabile con Path
+ * `CLRHost.dll`;
+ * 2. l'`EntryPoint` del task, l'`ActivatableClassId` e il tipo compilato nel
+ * componente sono la stessa stringa;
+ * 3. `BackgroundSync.EntryPoint` e' quella stessa stringa;
+ * 4. il file del task e' un `<Compile Include>` del progetto del componente;
+ * 5. la registrazione chiede al telefono il permesso di lavorare in background,
+ * e non si accontenta di trovare la registrazione gia' fatta: il telefono
+ * puo' toglierlo dopo (l'utente dalle impostazioni, o il risparmio
+ * energetico) e la registrazione resta dov'era, mentre niente si sveglia piu'.
+ * Su questa piattaforma e' il caso che gli agent si scrivono contro
+ * (`IsScheduled` falso = il sistema ha tolto il task), e qui il segnale e'
+ * `BackgroundExecutionManager.GetAccessStatus()`;
+ * 6. la pagina delle impostazioni dice quando il telefono ha rifiutato: un
+ * interruttore acceso che non fa partire niente e' la cosa peggiore, e la
+ * riga che lo spiega e' l'unico posto in cui l'utente lo viene a sapere.
  *
  * Usage:
- *   node tools/check-background-task.js
+ * node tools/check-background-task.js
  */
 'use strict';
 
@@ -158,7 +158,7 @@ function backgroundTaskProblems(files) {
       'looks exactly like a check that works');
   }
 
-  // ...e il "gia' registrato" da solo non basta a fermarsi.
+  //.e il "gia' registrato" da solo non basta a fermarsi.
   else if (!/RegisteredEntryPoint\(\)\s*==\s*EntryPoint\s*&&\s*IsPermitted\(\)/.test(files.sync)) {
     problems.push('WhatsappApp/Services/BackgroundSync.cs: the "already registered" ' +
       'return does not ask IsPermitted() - a registration the phone has stopped ' +

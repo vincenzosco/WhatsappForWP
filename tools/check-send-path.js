@@ -4,7 +4,7 @@
  *
  * Guard on the exits of the composer.
  *
- * Why it exists: on 28 October 2026 an operator reported that messages and media
+ * Why it exists: an operator reported that messages and media
  * were not going out, and the phone's own `diag.log` had nothing to say - not one
  * line from the send path. The reason was in the code: five `return`s on the way
  * out, each of them silent. `SendMessage` dropped a second tap while a send was
@@ -15,7 +15,7 @@
  * the same, which is the one thing a log must never allow.
  *
  * The rule: every `return;` in the send path sits in a block that says why -
- * `Diag.Ok(...)`, `Diag.Failed(...)`, `BeginSend(...)` which logs the refusal
+ * `Diag.Ok(.)`, `Diag.Failed(.)`, `BeginSend(.)` which logs the refusal
  * itself, or the hand-off to the attachment path. The evidence is looked for in
  * the statement that holds the `return` and not in the lines above it: a `Diag`
  * line belonging to the previous `if` does not explain this one, which is exactly
@@ -26,7 +26,7 @@
  * send succeeded. It holds one property, that no exit on the way out is mute.
  *
  * Usage:
- *   node tools/check-send-path.js
+ * node tools/check-send-path.js
  */
 'use strict';
 

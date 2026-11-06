@@ -37,7 +37,7 @@ namespace WhatsappApp.Tasks
                     // from a thread of its own: `RunNow` is blocked in a wait at that moment and
                     // its thread is not coming back, so this handler is the only place that can
                     // say a run was canceled rather than finished. Without it the two looked
-                    // identical in `diag.log` - the 21 wakes of 23-24 October 2026, not one of
+                    // identical in `diag.log` - twenty-one wakes, not one of
                     // them with a closing line, and no way to tell which had reached the save.
                     taskInstance.Canceled += OnCanceled;
                 }

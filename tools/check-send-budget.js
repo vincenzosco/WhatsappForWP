@@ -8,26 +8,26 @@
  * domanda davanti alla scrittura aspettava `NativeConnection.AnswerSeconds` (20 s) per conto
  * suo - la lista device, i bundle per device, i bundle per persona, il token di privacy due
  * volte - e nessuno limitava la somma: tre domande mute erano sessanta secondi di cerchio, e
- * il log del telefono ne portava la prova (`the per-device bundle query ... the server did not
+ * il log del telefono ne portava la prova (`the per-device bundle query. the server did not
  * answer`, tre volte). Il messaggio non ha bisogno di quasi nessuna di quelle risposte per
  * esistere: quella che non puo' saltare e' la chiave di un device, ed e' l'unica che tiene il
  * limite ordinario.
  *
  * Regole:
- *  1. `SendBudget` vale tre secondi, e la sua aritmetica sta nel core, dove il runner la prova;
- *  2. `RequestAsync` accetta una scadenza propria, invece di usare sempre `AnswerSeconds`;
- *  3. la lista device si chiede dentro il budget e, se non risponde, si usa l'ultima che il
- *     telefono ha (`LastDevices`): un invio non deve fallire per una domanda lenta;
- *  4. il token di privacy si salta quando il budget e' finito (il client ufficiale manda senza);
- *  5. ogni invio apre il budget (`SendClock()`), altrimenti il limite non c'e';
- *  6. i bundle tengono `AnswerSeconds` solo quando nessun device ha gia' una sessione: quella
- *     e' la chiave senza cui il messaggio non puo' esistere.
+ * 1. `SendBudget` vale tre secondi, e la sua aritmetica sta nel core, dove il runner la prova;
+ * 2. `RequestAsync` accetta una scadenza propria, invece di usare sempre `AnswerSeconds`;
+ * 3. la lista device si chiede dentro il budget e, se non risponde, si usa l'ultima che il
+ * telefono ha (`LastDevices`): un invio non deve fallire per una domanda lenta;
+ * 4. il token di privacy si salta quando il budget e' finito (il client ufficiale manda senza);
+ * 5. ogni invio apre il budget (`SendClock()`), altrimenti il limite non c'e';
+ * 6. i bundle tengono `AnswerSeconds` solo quando nessun device ha gia' una sessione: quella
+ * e' la chiave senza cui il messaggio non puo' esistere.
  *
  * Perche' un guardiano e non un test: `NativeConnection` e' codice WinRT e il runner desktop
  * non lo compila.
  *
  * Usage:
- *   node tools/check-send-budget.js
+ * node tools/check-send-budget.js
  */
 'use strict';
 

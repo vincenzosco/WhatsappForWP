@@ -20,11 +20,11 @@ namespace WhatsappApp.Protocol.Crypto
     /// signatures and verifications a handshake and a pre-key upload do, and it can be
     /// checked by reading it next to the textbook formulas:
     ///
-    ///     a + b   : add, then subtract p while the sum is at least p
-    ///     a - b   : subtract, and add p back when the result went negative
-    ///     a * b   : schoolbook into 16 limbs, then fold `2^256 = 38 (mod p)`
-    ///               until nothing above the eighth limb is left
-    ///     a^-1    : a^(p - 2), the Fermat inverse
+    /// a + b: add, then subtract p while the sum is at least p
+    /// a - b: subtract, and add p back when the result went negative
+    /// a * b: schoolbook into 16 limbs, then fold `2^256 = 38 (mod p)`
+    /// until nothing above the eighth limb is left
+    /// a^-1: a^(p - 2), the Fermat inverse
     ///
     /// The whole file is exercised against RFC 8032's vectors through
     /// <see cref="Ed25519"/>; that is the test that matters, because it is a check on

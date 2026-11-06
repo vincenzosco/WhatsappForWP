@@ -12,7 +12,7 @@
  *
  * The build is a static CRT (/MT), so the DLL imports nothing from the C runtime
  * and cannot disagree with the one the phone ships. That alone was not enough:
- * on 4 November 2026 the phone answered "Unable to load DLL 'waopus.dll'"
+ * the phone answered "Unable to load DLL 'waopus.dll'"
  * (0x8007007E) for a file that was in the package and imported only KERNEL32.
  *
  * The first explanation was the header - a process inside an app container

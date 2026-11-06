@@ -13,18 +13,18 @@
  * chiamante, ed era quindi invisibile in un log in cui tutto il resto si vede.
  *
  * Regole:
- *  1. ogni `#pragma warning disable 4014` contiene una sola istruzione;
- *  2. quella istruzione e' una chiamata il cui fault e' osservato, cioe':
- *     - `RunGuardedAsync(...)`, che lo cattura e lo registra, oppure
- *     - una chiamata a un metodo definito nell'app il cui corpo contiene un
- *       `catch` (il metodo risponde di se stesso), oppure
- *     - `Task.Run(...)` con una chiamata diretta il cui metodo risponde di se;
- *  3. una chiamata a un metodo che l'app non definisce e' un problema: la
- *     guardia non puo' sapere se osserva il suo fault, e "non lo so" e' quello
- *     che questa guardia esiste per non accettare.
+ * 1. ogni `#pragma warning disable 4014` contiene una sola istruzione;
+ * 2. quella istruzione e' una chiamata il cui fault e' osservato, cioe':
+ * - `RunGuardedAsync(.)`, che lo cattura e lo registra, oppure
+ * - una chiamata a un metodo definito nell'app il cui corpo contiene un
+ * `catch` (il metodo risponde di se stesso), oppure
+ * - `Task.Run(.)` con una chiamata diretta il cui metodo risponde di se;
+ * 3. una chiamata a un metodo che l'app non definisce e' un problema: la
+ * guardia non puo' sapere se osserva il suo fault, e "non lo so" e' quello
+ * che questa guardia esiste per non accettare.
  *
  * Usage:
- *   node tools/check-fire-and-forget.js
+ * node tools/check-fire-and-forget.js
  */
 'use strict';
 
@@ -183,7 +183,7 @@ function regionProblems(region, file, known) {
   // Una sola istruzione fra le due direttive: due chiamate in una regione
   // significano che una delle due e' stata aggiunta senza guardarla. I `;`
   // dentro una lambda o un delegato non contano: `Writes.RunAsync(delegate {
-  // return ...; });` e' una chiamata sola.
+  // return.; });` e' una chiamata sola.
   const semicolons = topLevelSemicolons(text);
   if (semicolons > 1) {
     problems.push(`${file}:${region.line}: more than one statement is fired without ` +

@@ -136,7 +136,7 @@ namespace WhatsappApp.Protocol.WaProto
 
         /// <summary>
         /// `NoiseCertificate.Details`. The field numbers come from decoding the server's
-        /// own certificate rather than from a .proto: the leaf's field 3 is the static
+        /// own certificate rather than from a.proto: the leaf's field 3 is the static
         /// key the handshake decrypted, and the leaf's issuer serial equals the
         /// intermediate's serial, which is what pins 1, 2 and 3. A wrong number here is
         /// invisible until something verifies a signature against the wrong bytes.

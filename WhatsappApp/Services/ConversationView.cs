@@ -12,7 +12,7 @@ namespace WhatsappApp.Services
     /// The conversation's view state: which collection the list shows, where the
     /// newest bubble is, and the scroll viewer it is reached through.
     ///
-    /// Why it exists: the E_UNEXPECTED that left a chat empty came from inserting
+    /// The E_UNEXPECTED that left a chat empty came from inserting
     /// into a collection the ListView was already watching, and it moved to the
     /// scroll when the insert was fixed. That is one seam - the list, the bind and
     /// the scroll all touch the same three things - and it was spread across the

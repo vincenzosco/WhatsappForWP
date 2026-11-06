@@ -16,16 +16,16 @@
  * di una volta".
  *
  * Regole:
- *  1. la pagina segue il burst che si chiude: sottoscrive
- *     DataService.Instance.HistoryCompleted, si toglie, e nel gestore chiede la
- *     chat in primo piano (ActiveChatId) prima di muovere la vista
- *     (ScrollToBottom);
- *  2. la freccia in fondo alla conversazione e' cablata al suo gestore, sta
- *     sopra la lista, parte nascosta, e il suo gestore chiede il fondo alla
- *     vista.
+ * 1. la pagina segue il burst che si chiude: sottoscrive
+ * DataService.Instance.HistoryCompleted, si toglie, e nel gestore chiede la
+ * chat in primo piano (ActiveChatId) prima di muovere la vista
+ * (ScrollToBottom);
+ * 2. la freccia in fondo alla conversazione e' cablata al suo gestore, sta
+ * sopra la lista, parte nascosta, e il suo gestore chiede il fondo alla
+ * vista.
  *
  * Usage:
- *   node tools/check-chat-scroll.js
+ * node tools/check-chat-scroll.js
  */
 'use strict';
 
@@ -53,7 +53,7 @@ function methodBody(text, signature) {
 /**
  * Il blocco di un pulsante: dal suo <Button al </Button>. Una stringa vuota
  * quando il pulsante non c'e' o quando il blocco si mangerebbe il pulsante dopo
- * di lui, che e' il caso di un <Button ... /> chiuso in se'.
+ * di lui, che e' il caso di un <Button. /> chiuso in se'.
  */
 function buttonBlock(xaml, name) {
   const at = xaml.indexOf('x:Name="' + name + '"');

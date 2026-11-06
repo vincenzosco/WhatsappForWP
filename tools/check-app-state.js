@@ -12,32 +12,32 @@
  * link (`APP_STATE_SYNC_KEY_SHARE`). Ogni pezzo di questo filo e' in una riga che
  * nessun test del protocollo puo' vedere, perche' vive nell'app:
  *
- *  1. `NativeConnection.cs` legge la condivisione **prima** della regola che
- *     scarta le copie di questo account. La condivisione e' una copia nostra (la
- *     scrive il telefono), quindi applicare quella regola prima significa buttare
- *     via l'unico modo di leggere il proprio registro;
- *  2. le chiavi si salvano con l'account (`_store.Save`): il telefono le condivide
- *     **una volta**, e una chiave tenuta solo in memoria rende il registro
- *     leggibile per un avvio solo;
- *  3. al login si rileggono dal disco (`RememberStoredAppStateKeys`), o la chiave
- *     salvata non serve a niente;
- *  4. la sync si chiede sia dopo il login sia dopo la condivisione: un client che
- *     chiede solo al login aspetta un riavvio per mostrare i nomi, e uno che
- *     chiede solo dopo la condivisione non chiede niente al primo avvio dopo un
- *     re-link;
- *  5. una collezione che non verifica **non** porta via le altre: la sync sono
- *     cinque collezioni, e un catch che le chiude tutte lascia il registro vuoto
- *     per una collezione che questo telefono non sa leggere;
- *  6. i nomi si scrivono nel libro sotto tutti e tre gli indirizzi che l'azione
- *     nomina (l'indice, il numero e il `@lid`), e la lista si ridisegna
- *     (`AnnounceRows`): le righe sono gia' a schermo, un nome che non le tocca non
- *     si vede;
- *  7. `AppStateSync.cs` verifica la snapshot MAC e la patch MAC, e applica **solo**
- *     i contatti: la stessa collezione porta pin, mute e archivio, che sono di
- *     questo telefono (`ChatPreferences`) e che una snapshot non deve riscrivere.
+ * 1. `NativeConnection.cs` legge la condivisione **prima** della regola che
+ * scarta le copie di questo account. La condivisione e' una copia nostra (la
+ * scrive il telefono), quindi applicare quella regola prima significa buttare
+ * via l'unico modo di leggere il proprio registro;
+ * 2. le chiavi si salvano con l'account (`_store.Save`): il telefono le condivide
+ * **una volta**, e una chiave tenuta solo in memoria rende il registro
+ * leggibile per un avvio solo;
+ * 3. al login si rileggono dal disco (`RememberStoredAppStateKeys`), o la chiave
+ * salvata non serve a niente;
+ * 4. la sync si chiede sia dopo il login sia dopo la condivisione: un client che
+ * chiede solo al login aspetta un riavvio per mostrare i nomi, e uno che
+ * chiede solo dopo la condivisione non chiede niente al primo avvio dopo un
+ * re-link;
+ * 5. una collezione che non verifica **non** porta via le altre: la sync sono
+ * cinque collezioni, e un catch che le chiude tutte lascia il registro vuoto
+ * per una collezione che questo telefono non sa leggere;
+ * 6. i nomi si scrivono nel libro sotto tutti e tre gli indirizzi che l'azione
+ * nomina (l'indice, il numero e il `@lid`), e la lista si ridisegna
+ * (`AnnounceRows`): le righe sono gia' a schermo, un nome che non le tocca non
+ * si vede;
+ * 7. `AppStateSync.cs` verifica la snapshot MAC e la patch MAC, e applica **solo**
+ * i contatti: la stessa collezione porta pin, mute e archivio, che sono di
+ * questo telefono (`ChatPreferences`) e che una snapshot non deve riscrivere.
  *
  * Usage:
- *   node tools/check-app-state.js
+ * node tools/check-app-state.js
  */
 'use strict';
 

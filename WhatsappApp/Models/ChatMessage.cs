@@ -111,7 +111,7 @@ namespace WhatsappApp.Models
         /// glyph for are the older ones `EmojiText` names, instead of the boxes they used
         /// to be (`Benny🩵` read as `Benny` and a box).
         ///
-        /// Why it is a second property and not the setter: `Text` is the message. It goes
+        /// `Text` is the message. It goes
         /// to the wire, into the cache and back out on a forward, and substituting it at
         /// the door would send a different emoji from the one that was written. Only what
         /// the screen draws asks this, and it is computed and not stored.

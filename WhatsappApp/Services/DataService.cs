@@ -76,7 +76,7 @@ namespace WhatsappApp.Services
         /// suspension is the promise that often is not kept - the process is terminated for
         /// memory, or closed from the task switcher - and every message the run had read went
         /// with it, while WhatsApp had already counted them as delivered and never sent them
-        /// again. The phone of 4 November 2026 is exactly that: the conversation stopped at
+        /// again. The phone is exactly that: the conversation stopped at
         /// the last clean close, in the list and inside the chat. The message now arms this
         /// writer, so the window is the quiet period and not the whole run.
         /// </summary>
@@ -304,7 +304,7 @@ namespace WhatsappApp.Services
             // Without this a pinned tile kept the card the build that composed it left
             // behind, and a change to how the card is drawn reached the phone only when the
             // next message happened to arrive in that chat - which is why the fix of
-            // 23 October 2026 could ship and leave the Start screen exactly as it was.
+            // could ship and leave the Start screen exactly as it was.
             PublishPinnedTiles();
         }
 
@@ -328,8 +328,8 @@ namespace WhatsappApp.Services
         /// How long a call may ring with nobody answering before this phone calls it over.
         ///
         /// Why it is not zero and not forever: an offer that never got an answer used to keep
-        /// the session occupied for good - the phone's own log of 2 November 2026 has
-        /// "a call is already up, so ... was not called" on the dial after it, and no new call
+        /// the session occupied for good - the phone's own log has
+        /// "a call is already up, so. was not called" on the dial after it, and no new call
         /// could be placed until the app was restarted. Forty-five seconds is longer than any
         /// person lets a phone ring and shorter than the wait that had no end.
         /// </summary>
@@ -618,7 +618,7 @@ namespace WhatsappApp.Services
             {
                 // A name, not an address: `DisplayNameForJid` asks the book, then the LID
                 // pair, then the number, so a call from a `@lid` stops announcing itself as
-                // its fourteen digits (`5479483...`, seen on the phone on 3 November 2026).
+                // its fourteen digits (`5479483.`, seen on the phone).
                 CallRinger.Start(DisplayNameForJid(_call.PeerJid));
             }
             else
@@ -1045,7 +1045,7 @@ namespace WhatsappApp.Services
 
             // **The list first, the conversations after it**, and the order is the whole
             // point. Every tail is a read and a write of its own file, one at a time through
-            // `MessageCache`'s queue: on the phone of 23 October 2026 56 of them took the
+            // `MessageCache`'s queue: on the phone 56 of them took the
             // better part of two minutes (56 `messages_*.json` against 169 rows), and the list
             // was written *after* them. A close - which is what closing the app is - landed in
             // the middle, `chats.json` was never written at all, and the next start drew an
@@ -1121,7 +1121,7 @@ namespace WhatsappApp.Services
         ///
         /// Why it cannot wait for the end of the run: every writer this service had was an
         /// ending - the end of a sync, a suspension, the end of a background check - and a
-        /// run does not always end that way. On 24 October 2026 the app was stopped from the
+        /// run does not always end that way. On the app was stopped from the
         /// debugger with a row that had just arrived: no suspension, so no snapshot, and the
         /// next start drew the list of the day before (2 rows against 56 `messages_*.json`
         /// on the phone). A crash, a force close and a battery pulled out all end the same
@@ -1294,7 +1294,7 @@ namespace WhatsappApp.Services
                         keep.LastMessageAt = gone.LastMessageAt;
                     }
 
-                    // The name: a row called `Gruppo 1203...` or `+39389...` is a description
+                    // The name: a row called `Gruppo 1203.` or `+39389.` is a description
                     // of its address, and it must not beat the name the other row carries.
                     string name = ChatListMerge.BestName(keep.Name, keep.Id, gone.Name, gone.Id);
                     if (!string.IsNullOrEmpty(name) && name != keep.Name)
@@ -2369,7 +2369,7 @@ namespace WhatsappApp.Services
 
             // And the ones the book could not name, with the numbers on screen: the log said
             // how many contacts it read, never which chats were left as digits, so a list of
-            // `+39...` had no answer in it (28 October 2026: fourteen of them).
+            // `+39.` had no answer in it (: fourteen of them).
             int left = 0;
             string sample = "";
             for (int i = 0; i < _contacts.Count; i++)
@@ -2420,7 +2420,7 @@ namespace WhatsappApp.Services
             _freshChatRows.Add(message);
 
             // The row is on the phone from now, not from the next graceful ending: the run
-            // of 24 October 2026 was stopped from the debugger and took its rows with it
+            // was stopped from the debugger and took its rows with it
             // (see ScheduleListSave).
             ScheduleListSave();
         }
@@ -2612,7 +2612,7 @@ namespace WhatsappApp.Services
             // receipt names the chat as the *wire* spells it - the sender's device
             // (`393492556507:0@s.whatsapp.net`), a `@lid` whose number this list files the
             // chat under - while the conversations are keyed by `ChatIdFor`. The lookup
-            // therefore missed and the second and third ticks of 1 November 2026 were dropped
+            // therefore missed and the second and third ticks were dropped
             // in silence: the bubble said "sent" for ever.
             ObservableCollection<ChatMessage> messages = null;
 
@@ -2644,7 +2644,7 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Whether a status is a step forward from the one the row already carries.
         ///
-        /// Why it exists: the answers a sent message gets - the server's ack (`Sent`) and the
+        /// The answers a sent message gets - the server's ack (`Sent`) and the
         /// recipient's receipts (`Delivered`, `Read`) - are separate frames, and nothing
         /// orders them. A `delivered` that arrived behind the `read` it belongs with, or an
         /// ack behind both, rewrote the bubble backwards: a message the person had already
@@ -2815,7 +2815,7 @@ namespace WhatsappApp.Services
             if (jid.EndsWith("@g.us")) return string.Format(Loc.Get("DataService_Group", "Group {0}"), user);
 
             // A `@lid` with no known number is not a number: its digits are an identifier, and
-            // printing them as `+...` is exactly the wrong phone number the user saw. The
+            // printing them as `+.` is exactly the wrong phone number the user saw. The
             // check comes **before** the digits one and not after it: a LID's user part is a
             // long run of digits, so it satisfied the branch below and the guard written for
             // it never ran (`JidUtils.IsLid`).
@@ -2889,7 +2889,7 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The row of a chat, made when the list does not have it yet.
         ///
-        /// Why it exists: a tile on the Start screen is tapped from outside the app, and a
+        /// A tile on the Start screen is tapped from outside the app, and a
         /// cold start opens the chat before the list has been filled - from the cache or
         /// from WhatsApp. A chat opened that way has to be a row like any other, or the page
         /// it opens on has nothing to name it by. The name carried in the tile's arguments
@@ -2932,7 +2932,7 @@ namespace WhatsappApp.Services
         /// Every pinned chat is published once: its tile is composed from the picture and the
         /// count this phone knows now.
         ///
-        /// Why it is a sweep and not only the message path: `PinnedTile.Update` is called
+        /// `PinnedTile.Update` is called
         /// when a count changes, and a start changes no count - so a tile composed by an older
         /// build stayed on the Start screen until somebody wrote in that chat. The shell keeps
         /// its own copy of the tile, which is why the code had to be told to draw it again.
@@ -2982,11 +2982,11 @@ namespace WhatsappApp.Services
         {
             if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
 
-            // La foto grande della tile, una volta per chat: la riga porta `AvatarData`, che e'
-            // la preview 96x96 della lista, e una tile composta da quella e' una faccia
-            // ingrandita 3,5 volte (vedi `PinnedTile.AskForPicture`). Ogni publish la chiede,
-            // e la chat che l'ha gia' ricevuta risponde dal suo dizionario senza toccare la
-            // rete; il budget delle richieste e' dentro `AskForPicture`.
+// The tile's full-size picture, once per chat: the row carries `AvatarData`, which
+// is the 96x96 preview of the list, and a tile built from that is a face blown up
+// 3.5 times (see `PinnedTile.AskForPicture`). Every publish asks for it, and a chat
+// that already has it answers from its dictionary without touching the network; the
+// request budget lives inside `AskForPicture`.
             PinnedTile.AskForPicture(contact.Id, contact.Name, contact.UnreadCount,
                 contact.LastMessage, countKnown);
 
@@ -3329,7 +3329,7 @@ namespace WhatsappApp.Services
             // And the pinned tiles, once the account is really in. The start's sweep runs
             // before the login, so the picture it asks for has nobody to answer it: the tile
             // then shows the chat list's 96x96 preview, drawn large, which is the blurry face
-            // of 23 October 2026 - and it stays that way for the whole run unless a message
+            // - and it stays that way for the whole run unless a message
             // arrives in that chat, because a publish is what asks again. This is the publish
             // that was missing; `PinnedTile.AskForPicture` refuses to ask before this point.
             //
@@ -3695,7 +3695,7 @@ namespace WhatsappApp.Services
         /// The list, re-read from this device's own client: every row applied again, two rows
         /// that are one chat folded, and the order the times ask for.
         ///
-        /// Why it exists: a stanza off the socket was the only writer the list had, so a name
+        /// A stanza off the socket was the only writer the list had, so a name
         /// learned after its row (`NativeConnection.NameGroupsAsync`), a pair learned after
         /// the row it would fold, or a row the server has and this list never heard of (a
         /// stanza that never arrived) stayed wrong until the app was restarted. It asks
@@ -3799,7 +3799,7 @@ namespace WhatsappApp.Services
         /// preview or the unread count. False for a row that is already on screen exactly as
         /// the client holds it.
         ///
-        /// Why it exists: the refresh walked every row through `ApplyChat` on every tick - a
+        /// The refresh walked every row through `ApplyChat` on every tick - a
         /// property change per row, a move in the ordered collection and a notification for
         /// the count - for rows that carry nothing new. A list of three hundred chats was
         /// redrawn every thirty seconds and a row could move under the reader's finger while

@@ -5,18 +5,18 @@ namespace WhatsappApp.Protocol.Crypto
     /// <summary>
     /// The group of the twisted Edwards curve `-x^2 + y^2 = 1 + d x^2 y^2` over the field
     /// of <see cref="Field25519"/>, which is where Ed25519 lives. Points are held in
-    /// extended coordinates `(X : Y : Z : T)` with `x = X/Z`, `y = Y/Z`, `T = XY/Z` - the
+    /// extended coordinates `(X: Y: Z: T)` with `x = X/Z`, `y = Y/Z`, `T = XY/Z` - the
     /// form whose addition formula is complete (no special case for the identity or for
     /// a point added to itself).
     ///
     /// Two conventions matter and are easy to get wrong silently:
     ///
     /// - The **encoding** is the little-endian y-coordinate with the sign of x in the top
-    ///   bit of byte 31. Decompression recovers x from the curve equation and picks the
-    ///   root whose sign matches.
+    /// bit of byte 31. Decompression recovers x from the curve equation and picks the
+    /// root whose sign matches.
     /// - The **scalar** is used as given. Ed25519's order is `l`, so `[k]B = [k mod l]B`,
-    ///   and `XEdDsa` relies on exactly that: it signs with an X25519 private key that was
-    ///   never reduced modulo `l`.
+    /// and `XEdDsa` relies on exactly that: it signs with an X25519 private key that was
+    /// never reduced modulo `l`.
     ///
     /// The scalar multiplication walks four bits at a time over a table of the first
     /// sixteen multiples of the point and picks with `Cmov`, so the table index does not
@@ -41,7 +41,7 @@ namespace WhatsappApp.Protocol.Crypto
             _t = t;
         }
 
-        /// <summary>The neutral element, `(0 : 1 : 1 : 0)`.</summary>
+        /// <summary>The neutral element, `(0: 1: 1: 0)`.</summary>
         public static Edwards25519 Identity()
         {
             return new Edwards25519(Field25519.Zero(), Field25519.One(), Field25519.One(), Field25519.Zero());
@@ -169,7 +169,7 @@ namespace WhatsappApp.Protocol.Crypto
             return new Edwards25519(e.Mul(f), g.Mul(h), f.Mul(g), e.Mul(h));
         }
 
-        /// <summary>`-P`, which is `(-X : Y : Z : -T)` on this curve.</summary>
+        /// <summary>`-P`, which is `(-X: Y: Z: -T)` on this curve.</summary>
         public Edwards25519 Negate()
         {
             return new Edwards25519(_x.Negate(), _y, _z, _t.Negate());

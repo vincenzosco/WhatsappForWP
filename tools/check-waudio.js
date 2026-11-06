@@ -8,20 +8,20 @@
  * Why it exists: this image is the first one in this repository that imports
  * something other than an API set. `MFPlat.DLL` is the phone's own Media
  * Foundation module, and the probe exists because whether the phone resolves a
- * given function inside it is not a question the SDK answers. On 6 November 2026
+ * given function inside it is not a question the SDK answers. On
  * the answer was `0x8007007F` for `MFEnumDeviceSources`, and the fix was to
  * import only what `WhatsAppNative.dll` proves the device exports. A guard cannot
  * run the loader - only the device can - but it can keep the decided things
  * decided:
  *
- *  1. the machine is ARMNT, because an image built for another machine is not
- *     even a candidate;
- *  2. no `KERNEL32.dll`, and no console or argv function: that is the desktop
- *     surface, and the 0x8007007E of 4-5 November 2026 came from it. `MFPlat.dll`
- *     is allowed and named, so the list stays an allowlist;
- *  3. the Media Foundation imports are exactly the five functions the phone is
- *     proven to export - a sixth name is how 0x8007007F happens;
- *  4. the two exported entry points are the ones the managed side calls.
+ * 1. the machine is ARMNT, because an image built for another machine is not
+ * even a candidate;
+ * 2. no `KERNEL32.dll`, and no console or argv function: that is the desktop
+ * surface, and the 0x8007007E came from it. `MFPlat.dll`
+ * is allowed and named, so the list stays an allowlist;
+ * 3. the Media Foundation imports are exactly the five functions the phone is
+ * proven to export - a sixth name is how 0x8007007F happens;
+ * 4. the two exported entry points are the ones the managed side calls.
  *
  * `APPCONTAINER` is not a rule, for the same reason as in `check-waopus.js`: the
  * modules that load on this phone have the bit clear and the one that was

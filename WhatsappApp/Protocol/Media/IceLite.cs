@@ -15,15 +15,15 @@ namespace WhatsappApp.Protocol.Media
     ///
     /// What it does, in the order RFC 8445 requires:
     /// - a Binding request is accepted only with the ICE username of the pair
-    ///   (`remoteUfrag:localUfrag`) and a MESSAGE-INTEGRITY made with the peer's password;
+    /// (`remoteUfrag:localUfrag`) and a MESSAGE-INTEGRITY made with the peer's password;
     /// - PRIORITY has to be there (a check without it is not a check, section 7.3.1.1);
     /// - a peer that says it is ICE-CONTROLLED is told 487 Role Conflict, because a lite
-    ///   agent is always the controlled side;
+    /// agent is always the controlled side;
     /// - the source address of the check **is** the peer-reflexive candidate, so the answer
-    ///   names it in XOR-MAPPED-ADDRESS and the pair is usable from that moment;
+    /// names it in XOR-MAPPED-ADDRESS and the pair is usable from that moment;
     /// - USE-CANDIDATE nominates that pair, and the first nomination wins.
     ///
-    /// What it is not: the controlling agent's side of ICE - no checks of its own, no
+    /// Not the controlling agent's side of ICE - no checks of its own, no
     /// gathering, no TURN. And it is not yet **on** a socket: `Handle` takes the datagram and
     /// the address it came from and answers the bytes to send back, so the caller keeps the
     /// transport and this class stays testable without one.

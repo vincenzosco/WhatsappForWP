@@ -15,7 +15,7 @@ namespace ProtocolTests
     /// Why this matters here and not on the phone: `AppStateSync` verifies three MACs and an
     /// LT-Hash before it names anybody, so a client that gets any of them wrong reads no name
     /// at all - and on the phone that looks exactly like an account whose address book is
-    /// empty, with one quiet `app-state: ... was not read` line. The fixture
+    /// empty, with one quiet `app-state. was not read` line. The fixture
     /// (`ProtocolTests/Vectors/AppStateFixture.cs`, written by
     /// `tools/emit-appstate-fixture.js` with Node's own crypto) is a snapshot and a patch
     /// built by the *reference's* rules, so these tests disagree loudly with a reader that
@@ -246,7 +246,7 @@ namespace ProtocolTests
         [Test]
         public static void ACollectionThatDoesNotParseIsSkippedAndTheOthersStillRead()
         {
-            // The phone's own log, 4 November 2026: one snapshot the reader could not walk
+            // The phone's own log,: one snapshot the reader could not walk
             // (`a protobuf field is not one: number 69477, wire type 6`) threw out of the
             // middle of `Read`, so the five collections the server sends in one answer were
             // all lost and the line named none of them. `regular_low` here is that snapshot:

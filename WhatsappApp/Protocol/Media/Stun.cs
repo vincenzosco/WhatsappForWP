@@ -138,7 +138,7 @@ namespace WhatsappApp.Protocol.Media
             Add(StunAttribute.XorAddress(StunAttributeType.XorMappedAddress, endpoint, TransactionId));
         }
 
-        /// <summary>An ERROR-CODE: the class (3..6) and number (RFC 5389, section 15.6).</summary>
+        /// <summary>An ERROR-CODE: the class (3.6) and number (RFC 5389, section 15.6).</summary>
         public void AddError(int code, string reason)
         {
             Add(StunAttribute.Error(code, reason));

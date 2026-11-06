@@ -12,13 +12,13 @@ namespace WhatsappApp.Services
     /// <summary>
     /// The message check that runs while the app is suspended.
     ///
-    /// Why it exists: this app speaks WhatsApp from the phone, and WP8.1 closes a
+    /// This app speaks WhatsApp from the phone, and WP8.1 closes a
     /// socket when the app is suspended - there is no push service behind it. The
     /// only way a message that arrives with the app closed produces a notification
     /// is a background task that wakes, connects, reads what is waiting, updates the
     /// tile and the badge, and closes again.
     ///
-    /// What it is not: a real-time client. A `TimeTrigger` on WP8.1 has a **floor of
+    /// Not a real-time client. A `TimeTrigger` on WP8.1 has a **floor of
     /// 15 minutes** - ten is not an interval the system accepts, and asking for it
     /// registers nothing - and no promise about the exact moment; 15 is the interval
     /// this asks for, and the system decides when it happens (battery saver can refuse
@@ -100,7 +100,7 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// The phone took the wake down in the middle - the 30-second ceiling of a WP8.1
-        /// background task, on its own thread. This is the outcome of 23-24 October 2026,
+        /// background task, on its own thread. This is the outcome,
         /// which until now was indistinguishable from a wake that never arrived.
         /// </summary>
         public const string OutcomeCanceled = "canceled";
@@ -119,7 +119,7 @@ namespace WhatsappApp.Services
         ///
         /// It is here and not only in the local of `RunNow` because the system cancels a task
         /// on its own thread: the line the task writes when it is canceled has to say how far
-        /// the run had got, and on 23-24 October 2026 there was no such line at all - 21 wakes
+        /// the run had got, and there was no such line at all - 21 wakes
         /// and not one of them said whether it had finished or been taken down in the middle.
         /// </summary>
         public static long ElapsedMilliseconds

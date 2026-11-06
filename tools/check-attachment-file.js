@@ -14,17 +14,17 @@
  * allegato, e un lettore che decide sulla bolla e non solo sul nome.
  *
  * Regole:
- *  1. in AttachmentInbox.cs la copia si chiama NextCopyName(...) e il nome
- *     condiviso `"outgoing_attachment"` non compare;
- *  2. in ChatPage.xaml.cs ToggleVoice confronta la bolla prima del nome
- *     (`bool anotherMessage = _voiceMessage != message`);
- *  3. in ChatPage.xaml.cs Downloadable non rifiuta ogni messaggio in uscita:
- *     un vocale mandato da un altro dispositivo arriva come riga di cronologia
- *     in uscita, senza byte qui, e il tocco deve poterlo chiedere
- *     (`!message.IsIncoming && !message.IsHistory`).
+ * 1. in AttachmentInbox.cs la copia si chiama NextCopyName(.) e il nome
+ * condiviso `"outgoing_attachment"` non compare;
+ * 2. in ChatPage.xaml.cs ToggleVoice confronta la bolla prima del nome
+ * (`bool anotherMessage = _voiceMessage != message`);
+ * 3. in ChatPage.xaml.cs Downloadable non rifiuta ogni messaggio in uscita:
+ * un vocale mandato da un altro dispositivo arriva come riga di cronologia
+ * in uscita, senza byte qui, e il tocco deve poterlo chiedere
+ * (`!message.IsIncoming && !message.IsHistory`).
  *
  * Usage:
- *   node tools/check-attachment-file.js
+ * node tools/check-attachment-file.js
  */
 'use strict';
 
@@ -66,7 +66,7 @@ function untypedExtensions(text, file) {
     if (seen[ext]) continue;
     seen[ext] = true;
 
-    // The kind of this extension is the first `return "..."` after it: KindName's
+    // The kind of this extension is the first `return "."` after it: KindName's
     // branches are lists of EndsWith followed by their answer.
     const answer = kindBody.slice(match.index).match(/return "(image|video|audio|document)"/);
     const kind = answer ? answer[1] : 'document';

@@ -7,7 +7,7 @@ namespace WhatsappApp.Protocol.WaProto
     /// The history payload: the chats and the messages that were already there when this
     /// phone was linked.
     ///
-    /// Why it is a payload and not a handful of nodes: WhatsApp does not send a chat list.
+    /// WhatsApp does not send a chat list.
     /// It sends one `HistorySync` protobuf - compressed, and either inline in the
     /// notification or behind a media download - and every client parses it into
     /// conversations and messages itself. The reference does exactly that in

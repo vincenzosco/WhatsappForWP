@@ -141,7 +141,7 @@ namespace WhatsappApp.Protocol.Media
     /// the three is told apart by its first byte. Doing that in one place is what keeps the
     /// socket - which WP8.1 owns and this project cannot fake - a loop of four lines.
     ///
-    /// What it is not: a socket, a timer, a retransmission schedule or a candidate gatherer.
+    /// Not a socket, a timer, a retransmission schedule or a candidate gatherer.
     /// `Receive` is handed the datagram and the address it came from and returns the datagrams
     /// to send, so the whole path is exercised in memory; `Resend` is the handshake's datagram
     /// again, for a caller whose own timer decided the answer was lost (there is no clock here,

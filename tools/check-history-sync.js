@@ -9,13 +9,13 @@
  * aggiunto (il core li marca `IsHistory` e lascia fuori cio' che non si disegna),
  * e perche' quel lavoro arrivi a schermo servono due cablaggi:
  *
- *  1. `NativeConnection.ApplySync` deve alzare `MessageArrived` per ogni messaggio
- *     di quella risposta. Senza quelle righe il sync riempie solo la lista: ogni
- *     conversazione si apre vuota, e la pagina aspetta invano un burst che non si
- *     chiude (`HistoryCompleted` si alza sui chat che hanno ricevuto righe);
- *  2. `DataService.OnNativeMessage` deve copiare `incoming.IsHistory` sulla riga
- *     che costruisce. Senza quel bit ogni messaggio vecchio arriva come nuovo: un
- *     avviso per messaggio e un contatore unread in piu' a ogni sync.
+ * 1. `NativeConnection.ApplySync` deve alzare `MessageArrived` per ogni messaggio
+ * di quella risposta. Senza quelle righe il sync riempie solo la lista: ogni
+ * conversazione si apre vuota, e la pagina aspetta invano un burst che non si
+ * chiude (`HistoryCompleted` si alza sui chat che hanno ricevuto righe);
+ * 2. `DataService.OnNativeMessage` deve copiare `incoming.IsHistory` sulla riga
+ * che costruisce. Senza quel bit ogni messaggio vecchio arriva come nuovo: un
+ * avviso per messaggio e un contatore unread in piu' a ogni sync.
  *
  * E una terza, che e' di sicurezza e non di schermo: un sync si applica solo se
  * la stanza e' di questo account. `historySyncNotification` e' un protocol message
@@ -36,15 +36,15 @@
  * leggere.
  *
  * Regole:
- *  1. `NativeConnection.cs` alza `MessageArrived` sui messaggi risposti da
- *     `ApplyHistory` (e non li tiene solo nelle righe);
- *  2. `DataService.cs` copia `incoming.IsHistory` sulla riga della cronologia;
- *  3. `NativeConnection.cs` applica il sync solo dopo `IncomingMessage.IsMine`;
- *  4. l'ack di una stanza esce solo dopo `ApplyHistoryAsync`, e un sync fallito
- *     chiede di essere rimandato (`AskAgainAsync`) invece di essere ackato.
+ * 1. `NativeConnection.cs` alza `MessageArrived` sui messaggi risposti da
+ * `ApplyHistory` (e non li tiene solo nelle righe);
+ * 2. `DataService.cs` copia `incoming.IsHistory` sulla riga della cronologia;
+ * 3. `NativeConnection.cs` applica il sync solo dopo `IncomingMessage.IsMine`;
+ * 4. l'ack di una stanza esce solo dopo `ApplyHistoryAsync`, e un sync fallito
+ * chiede di essere rimandato (`AskAgainAsync`) invece di essere ackato.
  *
  * Usage:
- *   node tools/check-history-sync.js
+ * node tools/check-history-sync.js
  */
 'use strict';
 

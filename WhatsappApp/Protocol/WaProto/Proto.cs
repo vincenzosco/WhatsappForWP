@@ -21,7 +21,7 @@ namespace WhatsappApp.Protocol.WaProto
     {
         private readonly List<byte> _bytes = new List<byte>(64);
 
-        /// <summary>Field 1..15, wire type 2: a length-delimited byte run.</summary>
+        /// <summary>Field 1.15, wire type 2: a length-delimited byte run.</summary>
         public ProtoWriter Bytes(int field, byte[] value)
         {
             if (value == null) return this;
@@ -32,7 +32,7 @@ namespace WhatsappApp.Protocol.WaProto
             return this;
         }
 
-        /// <summary>Field 1..15, wire type 0: a varint.</summary>
+        /// <summary>Field 1.15, wire type 0: a varint.</summary>
         public ProtoWriter Varint(int field, ulong value)
         {
             WriteTag(field, 0);
@@ -216,7 +216,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 // An end-group with no start: its tag is already consumed, and there is
                 // nothing left of it to step over. Refusing it is what stranded a status on
-                // 4 November 2026 - the server re-sent that message for the rest of the run
+                // - the server re-sent that message for the rest of the run
                 // ("did not read: unsupported protobuf wire type 4"), each retry re-paid the
                 // decode, and the eye saw a chat that would not move. The fields before the
                 // marker were read and stay read; the walk continues after it, which is what
@@ -265,10 +265,10 @@ namespace WhatsappApp.Protocol.WaProto
         /// How much of `bytes` a protobuf occupies - from the first byte to the end of the
         /// last whole field - or 0 when the first byte does not begin one.
         ///
-        /// Why it exists: `Message.DecodePadded` answers "is this the padding" by parsing,
+        /// `Message.DecodePadded` answers "is this the padding" by parsing,
         /// and parsing refuses with an exception. A plaintext that did not open on the first
         /// guess therefore cost one exception per guess - up to sixteen of them - and a
-        /// debugger prints every first-chance exception it sees, so the run of 24 October 2026
+        /// debugger prints every first-chance exception it sees, so the run
         /// was seventeen `Eccezione generata` lines per message that carried no padding.
         ///
         /// This is the same walk `ReadField` and `SkipField` make, written without a single
@@ -320,7 +320,7 @@ namespace WhatsappApp.Protocol.WaProto
         /// bytes, so a message that carried a group was measured as ending where the group
         /// began, no candidate tail of `EndOfPadded` was whole, and `DecodePadded` fell back to
         /// decoding the *padded* buffer - which is the row of `a protobuf field announces 16
-        /// bytes with 14 left` on the phone of 1 November 2026, three messages that could never
+        /// bytes with 14 left` on the phone, three messages that could never
         /// be read and were asked for again.
         /// </summary>
         private static int FieldEnd(byte[] bytes, int index, int limit)
@@ -397,7 +397,7 @@ namespace WhatsappApp.Protocol.WaProto
         /// arrives with a last byte that names a length the buffer does not have. Read as the
         /// count, it cut two bytes off the message and the phone refused a message it had
         /// decrypted correctly: `a protobuf field announces 16 bytes with 14 left`, four times
-        /// in the run of 24 October 2026. The reader therefore asks which of the sixteen tails
+        /// in the run. The reader therefore asks which of the sixteen tails
         /// leaves a whole protobuf, the declared one first and then the smallest cut, and answers
         /// the first that does - 0 when none does, which is a plaintext this client cannot read.
         ///
@@ -408,7 +408,7 @@ namespace WhatsappApp.Protocol.WaProto
         /// the difference between a message and a refusal: WhatsApp's own padding is the count
         /// repeated, so nine bytes of `09` behind a message walk as one valid 64-bit field
         /// (tag `0x09` is field 1, wire type 1) and the padded buffer measures *whole* - which
-        /// is how the echo of 1 November 2026 was read as a protobuf and then refused with `a
+        /// is how the echo was read as a protobuf and then refused with `a
         /// protobuf field announces 9 bytes with 7 left`. Whichever tail the count names is
         /// asked about first, and the padded buffer is only accepted when no candidate is
         /// whole.
@@ -445,7 +445,7 @@ namespace WhatsappApp.Protocol.WaProto
         ///
         /// It is **sixteen**, not fifteen: the padding is a whole block of sixteen with a
         /// count of one to sixteen behind it (the shape `unpadRandomMax16` names). Eight
-        /// extra bytes of the re-link of 1 November 2026 were searched for in fifteen tails
+        /// extra bytes of the re-link were searched for in fifteen tails
         /// and found in none, and the copy was refused with `a protobuf field announces 16
         /// bytes with 14 left` - the sixteen bytes of padding read as one of the message's
         /// own fields.
