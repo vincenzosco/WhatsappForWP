@@ -4342,6 +4342,16 @@ namespace WhatsappApp.Services
             {
                 Diag.Ok("native: the call " + callId + " names " + signal.Relays.Count
                     + " relay(s) and this phone holds no media socket to measure them from");
+
+                // The mark said "handled" for a list nothing measured: a node that arrives before
+                // the socket exists - the answer can be read before `call media` is up - would
+                // otherwise be the last chance this call ever had to elect a relay.
+                lock (_relayGate)
+                {
+                    if (string.Equals(_electedRelayCall, callId, StringComparison.Ordinal))
+                        _electedRelayCall = null;
+                }
+
                 return;
             }
 

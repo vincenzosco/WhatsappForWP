@@ -155,6 +155,13 @@ namespace WhatsappApp.Services
                 if (encoder == null || decoder == null)
                 {
                     Diag.Ok("call audio: this package has no Opus codec, so the call carries no audio");
+
+                    // Whatever half of the pair did open is a native handle, and this tick is
+                    // one of fifty a second for as long as the call lasts: a refusal that kept
+                    // it would be a leak nobody sees until the phone is out of memory.
+                    if (decoder != null) decoder.Dispose();
+                    if (encoder != null) encoder.Dispose();
+
                     return false;
                 }
 
@@ -167,7 +174,15 @@ namespace WhatsappApp.Services
                     delegate { return media.Pending > 0; });
 
                 playback = CallPlayback.Start(Player(), playout);
-                if (playback == null) return false;
+                if (playback == null)
+                {
+                    // The same for a speaker that did not open: the codecs were made for a call
+                    // that is not going to have one, so they go back now.
+                    decoder.Dispose();
+                    encoder.Dispose();
+
+                    return false;
+                }
 
                 lock (_gate)
                 {
@@ -181,7 +196,25 @@ namespace WhatsappApp.Services
 
                 // The microphone last: a speaker that is up and a capture that is not is a
                 // call where one direction works, and both are named in the log.
-                if (!await CallMicrophone.StartAsync(sender))
+                bool captured = await CallMicrophone.StartAsync(sender);
+
+                // The call can end inside that await - the timer sees it gone, `StopAsync` tears
+                // the speaker down and forgets this sender - while the microphone opens a moment
+                // later for a call that is over. A capture nobody stops records until the next
+                // call opens one, and on this phone that is privacy and battery both.
+                CallAudioSender current;
+                lock (_gate) current = _sender;
+
+                if (current != sender)
+                {
+                    // Only this call's capture: a newer call's microphone is not this one's to
+                    // close, and `StopAsync(sender)` is what says which is which.
+                    if (captured) await CallMicrophone.StopAsync(sender);
+
+                    return false;
+                }
+
+                if (!captured)
                 {
                     Diag.Ok("call audio: the call can hear but not speak, because the microphone did not open");
                 }

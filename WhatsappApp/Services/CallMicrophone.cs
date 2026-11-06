@@ -254,6 +254,22 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Closes the microphone only if it is still the one recording for `sender`. A call that
+        /// ended while its capture was opening is still holding the device when the next call
+        /// starts, and closing the newer capture because the older call asked would leave the
+        /// call being answered with no voice at all.
+        /// </summary>
+        public static Task StopAsync(CallAudioSender sender)
+        {
+            lock (_gate)
+            {
+                if (sender != null && !ReferenceEquals(_sender, sender)) return Task.FromResult(true);
+            }
+
+            return StopAsync();
+        }
+
+        /// <summary>
         /// Closes the microphone and says what the call's own voice cost: how many bytes came
         /// out of it, over how long, and - when the header turned out to be something else -
         /// why it never became audio.
@@ -415,12 +431,10 @@ namespace WhatsappApp.Services
                     {
                         // The call ended and another began while this read was in flight: its
                         // reader is not this one any more, and moving it would cut the first
-                        // frames of the new call.
-                        if (_run != run)
-                        {
-                            reader.Dispose();
-                            return;
-                        }
+                        // frames of the new call. The reader is already disposed above; closing
+                        // it again here was a second close of one object, thrown from inside a
+                        // lock, which is the one place an exception stops a call's microphone.
+                        if (_run != run) return;
 
                         _read += got;
                     }
