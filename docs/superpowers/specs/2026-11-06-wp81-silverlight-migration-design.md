@@ -47,7 +47,19 @@ Retarget the existing project to the Silverlight scheduled-task-agent assembly r
 
 ## Platform Boundary Map
 
-The conversion must inventory and port concrete uses rather than apply namespace substitutions blindly:
+The conversion must inventory and port concrete uses rather than apply namespace substitutions blindly. The source scan found these migration groups:
+
+| Group | Current source surface | Silverlight migration posture |
+| --- | --- | --- |
+| UI/XAML | `App.xaml`, the 12 page/control XAML files, code-behind, converters, UI-bound models, `UiThread`, `ConversationView`, `CallAudioPipe`, `CallPlayback`, and `ImageHelper` | Replace `Windows.UI.Xaml` with Silverlight `System.Windows`/`Microsoft.Phone` page, navigation, control, dispatcher, and resource types. |
+| Storage/settings | `FileSessionStorage`, `NativeCredentialStorage`, chat/message/name/avatar/status/call caches, attachment/media stores, `Diag`, `SettingsService`, `ThemeService`, `TileImage`, and `TileTheme` | Keep file formats and logical paths; use `ApplicationData` only where the WP8.1 Silverlight WinRT subset supports it, otherwise use `IsolatedStorageFile`. Verify shared local-folder mapping and update behavior. |
+| Networking | `WebSocketTransport`, `CallMediaSocket`, and `NativeConnection` | The WP Runtime API catalog applies to Silverlight 8.1 and lists UDP/stream socket types; verify the exact WebSocket type and actual TLS/socket behavior. Replace unsupported types without changing the wire contract. |
+| Capture/playback | `AudioRecorder`, `CallMicrophone`, `CallPlayback`, `AudioCodecCheck`, `VideoCompressor`, `VideoThumbnail`, `VoiceNoteEncoder`, and `WinRtMediaFetcher` | WP8.1 Silverlight documents `MediaCapture` support; use the Silverlight `MediaElement` and preserve native codec interop where the phone loads it. Verify each transcoding/file API against the target SDK. |
+| Background/notifications/tiles | `BackgroundSync`, `BackgroundSyncTask`, `NotificationService`, and `PinnedTile` | Replace `IBackgroundTask` with the existing project converted to `ScheduledTaskAgent`; use the Silverlight 8.1 WNS/phone manifest route and supported tile APIs. Respect agent quota and cadence. |
+| Sharing/contacts/pickers | `App.xaml.cs`, `ChatPage`, `DiagnosticsPage`, `HomePage`, `ContactDirectory`, `PeopleHub`, and `ImagePickerService` | Replace WinRT share activation with Silverlight `ShareLaunchingEventArgs`; retain WinRT ContactPicker/FileOpenPicker only if the Silverlight target supports the exact call, otherwise use the corresponding phone task. |
+| Localization | both `Strings/*/Resources.resw` files, `x:Uid`, `Loc`, and localized page markup | Convert to Silverlight `.resx`/resource bindings without losing English/Italian keys or fallback text. |
+
+The checked-in source files can still contain WinRT APIs that Windows Phone Silverlight 8.1 exposes through its supported WinRT subset; the table distinguishes those from APIs that need a replacement or an explicit compile/runtime check.
 
 - **XAML/UI:** `Windows.UI.Xaml` pages, `Frame`, `FlipView`, `ListView`, dialogs, resource dictionaries, navigation, and dispatcher calls become Silverlight page/navigation/control/resource patterns. Lists and chat bubbles must preserve virtualization and low-memory behavior.
 - **Sockets:** preserve the WebSocket framing/TLS contract and the UDP call socket contract. Select only socket APIs actually available in the WP8.1 Silverlight target (including the platform's supported `System.Net.Sockets` or WinRT-compatible surface); verify on device or emulator, not only by compiling.
