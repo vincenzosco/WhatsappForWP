@@ -187,7 +187,6 @@ namespace WhatsappApp.Pages
             // binding happens later, once the saved copy is in.
             _view = new ConversationView(MessagesListView, Dispatcher);
             _recording = new RecordingSession();
-            Diag.Ok("probe build: scroll waits for the layout, position watch permanent");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

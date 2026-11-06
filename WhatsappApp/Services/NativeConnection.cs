@@ -405,6 +405,21 @@ namespace WhatsappApp.Services
         private int _callMediaPort;
 
         /// <summary>
+        /// The call whose relays were already measured and elected, so a node that arrives
+        /// twice does not probe them and answer the election a second time.
+        /// </summary>
+        private string _electedRelayCall;
+
+        /// <summary>One election at a time: the list is measured and answered as one thing.</summary>
+        private readonly object _relayGate = new object();
+
+        /// <summary>
+        /// How long one relay is given to answer a probe. A call is ringing while these run,
+        /// and a relay silent for this long is one this phone should not wait for.
+        /// </summary>
+        private const int RelayProbeTimeoutMs = 1200;
+
+        /// <summary>
         /// How many local candidates the last offer or answer carried. The socket knows its own
         /// traffic but not this: the addresses are gathered in `CallCandidatesAsync` and written
         /// into a stanza, and a screen that says "0 candidates" when the stanza had two would be
@@ -3820,6 +3835,22 @@ namespace WhatsappApp.Services
                 + (signal.Audio == null ? "" : ", " + signal.Audio.Count + " audio")
                 + (signal.RelayLatency == null ? "" : ", " + signal.RelayLatency.Count + " relay(s)"));
 
+            // Whether the answer carried the network's relay list. The reference clients take a
+            // call's relays from this answer and put the media through the one they elect
+            // (`WhiskeySockets/Baileys#40`), so a run that got no relay at all is a different
+            // problem from one that got the list and never elected, and this line is what tells
+            // the two apart on a phone nobody can watch.
+            Diag.Ok("native: the call " + signal.CallId + " came with "
+                + (signal.Rte == null ? "no rte" : "an rte")
+                + " and " + (signal.Relays == null ? 0 : signal.Relays.Count) + " relay(s)");
+
+            if (signal.Relays != null && signal.Relays.Count > 0)
+            {
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("native/call relay", ElectRelayAsync(signal));
+#pragma warning restore 4014
+            }
+
             // The `te` content is the one field of a call node whose shape this app writes from
             // the reference and cannot check: the hex of what a real phone sends is the sample
             // that settles it, so every received candidate is written out byte for byte. Capped
@@ -4283,6 +4314,94 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Measures the relays an answer offered, tells the other side what each answered, and
+        /// elects the one the media is meant to go through.
+        ///
+        /// Why the measurement happens here and not while the call rings: the list does not exist
+        /// before the answer, and a relay measured before the phone is reachable is a number about
+        /// nothing. Each probe leaves the socket the call's media already uses, which is also what
+        /// tells the relay where this phone is.
+        ///
+        /// Nothing is elected when nothing answered, and that is said rather than guessed: an
+        /// election on a latency nobody measured is a token sent to a relay nobody reached.
+        /// </summary>
+        private async Task ElectRelayAsync(CallSignal signal)
+        {
+            if (signal == null || string.IsNullOrEmpty(signal.CallId)) return;
+
+            string callId = signal.CallId;
+
+            lock (_relayGate)
+            {
+                if (string.Equals(_electedRelayCall, callId, StringComparison.Ordinal)) return;
+                _electedRelayCall = callId;
+            }
+
+            WhatsappApp.Protocol.Transport.CallMediaSocket socket = _callMediaSocket;
+            if (socket == null)
+            {
+                Diag.Ok("native: the call " + callId + " names " + signal.Relays.Count
+                    + " relay(s) and this phone holds no media socket to measure them from");
+                return;
+            }
+
+            string peer = string.IsNullOrEmpty(signal.From) ? signal.To : signal.From;
+            var measured = new List<CallRelayLatency>();
+
+            try
+            {
+                for (int i = 0; i < signal.Relays.Count; i++)
+                {
+                    CallRelay relay = signal.Relays[i];
+
+                    if (relay == null || string.IsNullOrEmpty(relay.Host) || relay.Port <= 0)
+                    {
+                        Diag.Ok("native: call " + callId + " relay " + i
+                            + " names no address this phone can probe ("
+                            + (relay == null || relay.Endpoint == null ? "no te2" : relay.Endpoint) + ")");
+                        continue;
+                    }
+
+                    int roundTrip = await socket.ProbeAsync(relay.Host, relay.Port, RelayProbeTimeoutMs);
+
+                    if (roundTrip < 0)
+                    {
+                        Diag.Ok("native: call " + callId + " relay " + i + " at " + relay.Endpoint
+                            + " did not answer in " + RelayProbeTimeoutMs + " ms");
+                        continue;
+                    }
+
+                    Diag.Ok("native: call " + callId + " relay " + i + " at " + relay.Endpoint
+                        + " answered in " + roundTrip + " ms");
+
+                    measured.Add(new CallRelayLatency
+                    {
+                        Latency = roundTrip,
+                        Data = relay.Token == null ? new byte[0] : relay.Token
+                    });
+                }
+
+                if (measured.Count == 0)
+                {
+                    Diag.Ok("native: the call " + callId + " offered " + signal.Relays.Count
+                        + " relay(s) and none answered, so none is elected and the candidates stay the path");
+                    return;
+                }
+
+                await SendRelayLatencyAsync(callId, peer, measured);
+
+                int best = CallSignaling.Election(measured);
+                if (best < 0) return;
+
+                await SendRelayElectionAsync(callId, peer, measured[best].Latency, measured[best].Data);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("native: the relays of the call " + callId, ex);
+            }
+        }
+
+        /// <summary>
         /// Takes this call's media path off the socket. The socket and its port stay - the next
         /// offer names the same one - and the transport is left with no timer driving it.
         /// </summary>
@@ -4337,6 +4456,10 @@ namespace WhatsappApp.Services
             _incomingCallKey = null;
             _incomingCallId = null;
             _incomingKeyTask = null;
+
+            // The next call elects its own relay: a call id is unique among calls, and one kept
+            // here would keep the next call's answer from being measured.
+            lock (_relayGate) { _electedRelayCall = null; }
 
             if (transport == null) return;
 

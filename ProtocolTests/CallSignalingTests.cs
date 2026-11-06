@@ -846,5 +846,74 @@ namespace ProtocolTests
             Assert.AreEqual(direct.Children()[0].Attrs["call-id"], viaCalls.Children()[0].Attrs["call-id"]);
             Assert.AreEqual(direct.Children()[0].Children().Count, viaCalls.Children()[0].Children().Count);
         }
+
+        /// <summary>
+        /// The relay list an answer carries: a `relay` per relay, its `te2` the address, its
+        /// `token` the bytes an election hands back. Read off the node, because nothing in this
+        /// build writes the answer the network sends.
+        /// </summary>
+        [Test]
+        public static void ARelayListIsReadOffTheAnswer()
+        {
+            var firstTe2 = new BinaryNode("te2");
+            firstTe2.Content = "157.240.1.2:3478";
+            var firstToken = new BinaryNode("token");
+            firstToken.Content = new byte[] { 9, 8, 7 };
+
+            var first = new BinaryNode("relay");
+            first.Content = new List<BinaryNode> { firstTe2, firstToken };
+
+            var second = new BinaryNode("relay");
+            second.Attrs.Add("te2", "[2606:4700::1]:3479");
+
+            var verb = new BinaryNode("accept");
+            verb.Attrs.Add("call-id", CallId);
+            verb.Content = new List<BinaryNode> { first, second };
+
+            var node = new BinaryNode("call");
+            node.Attrs.Add("from", Peer);
+            node.Attrs.Add("id", CallId);
+            node.Content = new List<BinaryNode> { verb };
+
+            CallSignal signal = CallSignaling.Read(node);
+
+            Assert.IsTrue(signal.Rte == null, "the answer carried no `rte`");
+            Assert.IsTrue(signal.Relays != null && signal.Relays.Count == 2, "one entry per `relay`");
+            Assert.AreEqual("157.240.1.2", signal.Relays[0].Host);
+            Assert.AreEqual(3478, signal.Relays[0].Port);
+            Assert.IsTrue(signal.Relays[0].Token != null && signal.Relays[0].Token.Length == 3,
+                "the token is the child's bytes");
+            Assert.AreEqual("2606:4700::1", signal.Relays[1].Host, "brackets are not part of the address");
+            Assert.AreEqual(3479, signal.Relays[1].Port);
+        }
+
+        /// <summary>A node with no relay and no `rte` reads as none instead of inventing one.</summary>
+        [Test]
+        public static void AnAnswerWithNoRelaysReadsAsNone()
+        {
+            CallSignal signal = CallSignaling.Read(CallSignaling.Offer(CallId, Peer, false));
+
+            Assert.IsTrue(signal.Relays == null, "an offer names no relay");
+            Assert.IsTrue(signal.Rte == null, "and no `rte` either");
+        }
+
+        /// <summary>
+        /// The election is the lowest measured latency, and the first of equals: the rule both
+        /// ends have to agree on, which is why it is here and not in the app.
+        /// </summary>
+        [Test]
+        public static void TheElectionTakesTheLowestLatency()
+        {
+            var relays = new List<CallRelayLatency>
+            {
+                new CallRelayLatency { Latency = 61, Data = new byte[] { 1 } },
+                new CallRelayLatency { Latency = 42, Data = new byte[] { 2 } },
+                new CallRelayLatency { Latency = 42, Data = new byte[] { 3 } }
+            };
+
+            Assert.AreEqual(1, CallSignaling.Election(relays), "42 ms beats 61, and the first 42 wins");
+            Assert.AreEqual(-1, CallSignaling.Election(new List<CallRelayLatency>()), "nothing to elect");
+            Assert.AreEqual(-1, CallSignaling.Election(null));
+        }
     }
 }

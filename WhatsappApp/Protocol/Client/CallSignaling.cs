@@ -350,6 +350,30 @@ namespace WhatsappApp.Protocol.Client
     }
 
     /// <summary>
+    /// One relay the network offered for a call: where it is, and the token that names it.
+    ///
+    /// The answer to an offer carries them - the flow the reference thread documents
+    /// (`WhiskeySockets/Baileys#40`): a `relay` per relay, its `te2` the address to probe and
+    /// its `token` the bytes handed back when one is elected. Nothing else about a relay is
+    /// known here: the latency is measured with a datagram, and the election is that
+    /// measurement's answer.
+    /// </summary>
+    public sealed class CallRelay
+    {
+        /// <summary>The address as the node spelled it, for the log and for the probe.</summary>
+        public string Endpoint;
+
+        /// <summary>The host without the port, which is what a socket is handed, or null.</summary>
+        public string Host;
+
+        /// <summary>The port, or 0 when the node named no readable one.</summary>
+        public int Port;
+
+        /// <summary>What an election hands back, or null when the node carried no bytes.</summary>
+        public byte[] Token;
+    }
+
+    /// <summary>
     /// The encrypted call key: `<enc type="msg" v="2" count="1">ciphertext</enc>`.
     ///
     /// `type` is the Signal ciphertext type the official client writes with
@@ -421,6 +445,16 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>The relay latencies of a `relaylatency`, or null.</summary>
         public List<CallRelayLatency> RelayLatency;
+
+        /// <summary>
+        /// The relays the network offered for this call, or null. They arrive on the answer to an
+        /// offer, one `relay` per relay, and the media goes through the one elected from their
+        /// measured latencies.
+        /// </summary>
+        public List<CallRelay> Relays;
+
+        /// <summary>The server's `rte` child, or null: the other half of the same answer.</summary>
+        public BinaryNode Rte;
 
         /// <summary>The video state of a `video` verb, or -1 when the node carries none.</summary>
         public int VideoState = -1;
@@ -1000,6 +1034,27 @@ namespace WhatsappApp.Protocol.Client
             return Wrap(callId, to, Verb("relayelection", callId, null, new List<BinaryNode> { te }));
         }
 
+        /// <summary>
+        /// Which relay is the one, given what each answered: the lowest latency, and the first of
+        /// equals.
+        ///
+        /// Why here and not at the measurement: the rule is the wire's, both ends elect from the
+        /// same list, and one that lived in the app would be a second copy of it.
+        /// </summary>
+        public static int Election(IList<CallRelayLatency> relays)
+        {
+            if (relays == null || relays.Count == 0) return -1;
+
+            int best = -1;
+            for (int i = 0; i < relays.Count; i++)
+            {
+                if (relays[i] == null) continue;
+                if (best < 0 || relays[i].Latency < relays[best].Latency) best = i;
+            }
+
+            return best;
+        }
+
         /// <summary>The video of a call started, stopped or turned: `<video call-id state orientation/>`.</summary>
         public static BinaryNode Video(string callId, string to, int state, int orientation)
         {
@@ -1089,6 +1144,8 @@ namespace WhatsappApp.Protocol.Client
                 ReadMedia(verb, signal);
                 ReadNumbers(verb, signal);
             }
+
+            ReadRelays(node, verb, signal);
 
             return signal;
         }
@@ -1185,6 +1242,100 @@ namespace WhatsappApp.Protocol.Client
 
                 if (child.Tag == "registration") signal.HasRegistration = true;
             }
+        }
+
+        /// <summary>
+        /// The relays an answer offers, and whether it carried the server's `rte` beside them.
+        ///
+        /// Read from the verb and from the `call` node: the reconstructions of the flow do not
+        /// agree about which one holds the list, and a reader that picked one would answer "no
+        /// relay" for the half of the traffic that spells it the other way.
+        /// </summary>
+        private static void ReadRelays(BinaryNode node, BinaryNode verb, CallSignal signal)
+        {
+            signal.Rte = Tagged(node, "rte");
+            if (signal.Rte == null) signal.Rte = Tagged(verb, "rte");
+
+            var relays = new List<CallRelay>();
+            CollectRelays(node, relays);
+            if (verb != null && verb != node) CollectRelays(verb, relays);
+
+            if (relays.Count > 0) signal.Relays = relays;
+        }
+
+        /// <summary>The first child with a tag, or null: a null parent has none.</summary>
+        private static BinaryNode Tagged(BinaryNode parent, string tag)
+        {
+            return parent == null ? null : parent.Child(tag);
+        }
+
+        /// <summary>Every `relay` child of a node, in the order the node carried them.</summary>
+        private static void CollectRelays(BinaryNode parent, List<CallRelay> into)
+        {
+            if (parent == null) return;
+
+            IList<BinaryNode> children = parent.Children();
+            if (children == null) return;
+
+            for (int i = 0; i < children.Count; i++)
+            {
+                BinaryNode child = children[i];
+                if (child == null || child.Tag != "relay") continue;
+
+                CallRelay relay = ReadRelay(child);
+                if (relay != null) into.Add(relay);
+            }
+        }
+
+        /// <summary>
+        /// One `relay`: its `te2` is the address and its `token` the bytes, as a child or as an
+        /// attribute. A relay whose address cannot be read is still returned with `Port` 0 -
+        /// the count is what tells "relays this build cannot reach" from "no relay at all".
+        /// </summary>
+        private static CallRelay ReadRelay(BinaryNode node)
+        {
+            var relay = new CallRelay();
+
+            BinaryNode te2 = node.Child("te2");
+            string endpoint = te2 == null ? null : te2.Text();
+            if (string.IsNullOrEmpty(endpoint)) endpoint = node.Attrs["te2"];
+            if (string.IsNullOrEmpty(endpoint)) endpoint = node.Text();
+
+            relay.Endpoint = endpoint;
+            SplitEndpoint(endpoint, relay);
+
+            BinaryNode token = node.Child("token");
+            byte[] bytes = token == null ? null : token.Bytes();
+            if (bytes == null) bytes = node.Bytes();
+
+            relay.Token = bytes;
+            return relay;
+        }
+
+        /// <summary>
+        /// `host:port`, and `[address]:port` for the other family, into the two fields a socket
+        /// needs. Anything else leaves the port 0 rather than guessing one.
+        /// </summary>
+        private static void SplitEndpoint(string endpoint, CallRelay relay)
+        {
+            if (string.IsNullOrEmpty(endpoint)) return;
+
+            string text = endpoint.Trim();
+            int colon = text.LastIndexOf(':');
+            if (colon <= 0 || colon == text.Length - 1) return;
+
+            string host = text.Substring(0, colon);
+            if (host.Length > 1 && host[0] == '[' && host[host.Length - 1] == ']')
+            {
+                host = host.Substring(1, host.Length - 2);
+            }
+
+            int port;
+            if (!int.TryParse(text.Substring(colon + 1), out port)) return;
+            if (port <= 0 || port > 65535) return;
+
+            relay.Host = host;
+            relay.Port = port;
         }
 
         /// <summary>The numbers a verb carries as attributes, and the state words.</summary>

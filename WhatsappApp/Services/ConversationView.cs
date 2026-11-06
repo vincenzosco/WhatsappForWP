@@ -193,7 +193,6 @@ namespace WhatsappApp.Services
         private void OnListLayoutUpdated(object sender, object e)
         {
             ScrollViewer viewer = Viewer();
-            Diag.Ok("probe position layout: viewer=" + (viewer != null));
             if (viewer == null) return;
 
             StopWaitingForViewer();
@@ -324,8 +323,6 @@ namespace WhatsappApp.Services
                 try
                 {
                     _list.ScrollIntoView(target);
-                    Diag.Ok("probe flush: scrolled to a row, offset=" + Offset()
-                        + " scrollable=" + Scrollable());
                     return;
                 }
                 catch (Exception ex)
@@ -337,8 +334,6 @@ namespace WhatsappApp.Services
             // Nothing to name - an empty collection, a bottom asked for before the
             // bind - so the viewer is the only handle left.
             ScrollViewer viewer = Viewer();
-            Diag.Ok("probe flush: no row, viewer=" + (viewer != null)
-                + " scrollable=" + Scrollable());
             if (viewer != null && viewer.ScrollableHeight > 0)
             {
                 ChangeViewToBottom(viewer);
@@ -350,13 +345,6 @@ namespace WhatsappApp.Services
         {
             ScrollViewer viewer = Viewer();
             return viewer == null ? -1 : viewer.VerticalOffset;
-        }
-
-        /// <summary>The viewer's scrollable height, or -1 while there is no viewer.</summary>
-        private double Scrollable()
-        {
-            ScrollViewer viewer = Viewer();
-            return viewer == null ? -1 : viewer.ScrollableHeight;
         }
 
         /// <summary>

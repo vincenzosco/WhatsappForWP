@@ -95,6 +95,22 @@ namespace WhatsappApp.Protocol.Transport
         /// <summary>When a path was attached, so every line says how long it took to get there.</summary>
         private long _attachedMs;
 
+        /// <summary>How long one relay is given to answer a probe, if the caller names none.</summary>
+        public const int ProbeTimeoutMs = 1200;
+
+        /// <summary>
+        /// One probe in flight: the transaction id that tells its answer from every other STUN
+        /// message on this port, when it was sent, and the task the caller is waiting on.
+        /// </summary>
+        private sealed class Probe
+        {
+            public byte[] TransactionId;
+            public long StartedMs;
+            public TaskCompletionSource<int> Answer;
+        }
+
+        private readonly Dictionary<string, Probe> _probes = new Dictionary<string, Probe>();
+
         /// <summary>The UDP port the socket is bound to, which is what a candidate names.</summary>
         public int Port { get; private set; }
 
@@ -332,6 +348,94 @@ namespace WhatsappApp.Protocol.Transport
             return "[" + text + "]:" + endpoint.Port;
         }
 
+        /// <summary>
+        /// How long a relay takes to answer, in milliseconds, or -1 when it did not answer within
+        /// `timeoutMs`.
+        ///
+        /// A STUN Binding request leaves from the socket the call's media already uses, so the
+        /// relay learns this phone's address from the same datagram the measurement is about. The
+        /// answer is matched by transaction id and not by address: a relay may answer from an
+        /// address its node did not name, and the id is what the answer is about.
+        /// </summary>
+        public async Task<int> ProbeAsync(string host, int port, int timeoutMs)
+        {
+            if (string.IsNullOrEmpty(host) || port <= 0) return -1;
+
+            HostName address;
+            try
+            {
+                address = new HostName(host);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("call media: the relay " + host + " is not an address", ex);
+                return -1;
+            }
+
+            byte[] transactionId = new byte[StunDiscovery.TransactionIdLength];
+            byte[] seed = Guid.NewGuid().ToByteArray();
+            System.Buffer.BlockCopy(seed, 0, transactionId, 0,
+                Math.Min(seed.Length, transactionId.Length));
+
+            var probe = new Probe();
+            probe.TransactionId = transactionId;
+            probe.Answer = new TaskCompletionSource<int>();
+            probe.StartedMs = NowMilliseconds();
+
+            string key = host + ":" + port;
+            lock (_probes) { _probes[key] = probe; }
+
+            try
+            {
+                await SendAsync(StunDiscovery.Request(transactionId), address, port.ToString());
+
+                Task finished = await Task.WhenAny(probe.Answer.Task, Task.Delay(timeoutMs));
+
+                return finished == probe.Answer.Task ? probe.Answer.Task.Result : -1;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("call media: the relay probe to " + key, ex);
+                return -1;
+            }
+            finally
+            {
+                lock (_probes) { _probes.Remove(key); }
+            }
+        }
+
+        /// <summary>
+        /// Completes the probe a datagram answers, and says whether it answered one. A relay's
+        /// reply is this socket's before it is the path's - it is not from the peer, and the
+        /// transport would count it as a datagram from an address it never nominated.
+        /// </summary>
+        private bool AnswerProbe(byte[] datagram)
+        {
+            if (!StunMessage.Looks(datagram, 0, datagram.Length)) return false;
+
+            Probe answered = null;
+            string key = null;
+
+            lock (_probes)
+            {
+                foreach (KeyValuePair<string, Probe> pair in _probes)
+                {
+                    if (StunDiscovery.Read(datagram, pair.Value.TransactionId) == null) continue;
+
+                    answered = pair.Value;
+                    key = pair.Key;
+                    break;
+                }
+
+                if (key != null) _probes.Remove(key);
+            }
+
+            if (answered == null) return false;
+
+            answered.Answer.TrySetResult((int)(NowMilliseconds() - answered.StartedMs));
+            return true;
+        }
+
         /// <summary>Stops the clock and closes the socket. Safe to call more than once.</summary>
         public void Dispose()
         {
@@ -347,6 +451,18 @@ namespace WhatsappApp.Protocol.Transport
                 socket = _socket;
                 _timer = null;
                 _socket = null;
+            }
+
+            // A probe whose socket is closing will never be answered: completing it says so, and
+            // an election waiting on it finishes instead of waiting out its own deadline.
+            lock (_probes)
+            {
+                foreach (KeyValuePair<string, Probe> pair in _probes)
+                {
+                    pair.Value.Answer.TrySetResult(-1);
+                }
+
+                _probes.Clear();
             }
 
             if (timer != null) timer.Cancel();
@@ -377,6 +493,9 @@ namespace WhatsappApp.Protocol.Transport
                 var datagram = new byte[length];
                 reader.ReadBytes(datagram);
                 reader.Dispose();
+
+                // A relay answering a probe is read here and goes no further.
+                if (AnswerProbe(datagram)) return;
 
                 Interlocked.Increment(ref _received);
 
