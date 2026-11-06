@@ -11,7 +11,10 @@ rem Why the import libraries are built here: the phone's loader resolves a modul
 rem name before it resolves symbols, so an image that names a desktop module is
 rem refused with 0x8007007E (that is the whole story of waopus.dll on 4 and 5
 rem November 2026). tools\audio\*.def name the modules the phone ships, and
-rem `lib /def` turns each into the import library the link line uses.
+rem `lib /def` turns each into the import library the link line uses. Media
+rem Foundation is the first surface here that is not an API set: MFPlat.dll and
+rem Mfreadwrite.dll are the phone's own modules, and whether the loader resolves
+rem them is the question the probe exists to answer.
 rem
 rem Usage:
 rem   tools\build-waudio-arm.bat [out-dll]
@@ -23,8 +26,13 @@ rem repository root first, and a relative object path was observed here to fail
 rem the `if exist` test and then the link's input open, on the same file `dir`
 rem listed. Absolute paths make the question moot.
 rem
+rem The link writes into .tools and the DLL is copied out afterwards: `link`
+rem always emits an export object next to its output, and a stray waaudio.exp in
+rem the package folder is a file the guard and the repository both have to
+rem ignore. .tools is not in the repository.
+rem
 rem The C runtime is not linked: the entry point is this package's own
-rem (tools/opus/waentry.c, /ENTRY:WaDllMain /NOIMPLIB), so stdio, argv and the locale never
+rem (tools/opus/waentry.c, /ENTRY:WaDllMain), so stdio, argv and the locale never
 rem reach the import table, and the kernel functions the remaining CRT objects ask
 rem for are satisfied by the API-set libraries instead of KERNEL32.dll.
 
@@ -76,12 +84,14 @@ cl %CFLAGS% /Fo"%OBJ%\waentry.obj" "%ROOT%\tools\opus\waentry.c"
 if errorlevel 1 exit /b 1
 
 echo waudio: linking...
-link /nologo /DLL /MACHINE:ARM /ENTRY:WaDllMain /NOIMPLIB /INCREMENTAL:NO /NODEFAULTLIB:kernel32.lib ^
-  /OUT:"%OBJ%waaudio.dll" "%OBJ%\waaudio.obj" "%OBJ%\waentry.obj" ^
+link /nologo /DLL /MACHINE:ARM /ENTRY:WaDllMain /INCREMENTAL:NO /NODEFAULTLIB:kernel32.lib /NOIMPLIB ^
+  /OUT:"%OBJ%\waaudio.dll" "%OBJ%\waaudio.obj" "%OBJ%\waentry.obj" ^
   "%OBJ%\wamf.lib" "%OBJ%\wamfrw.lib" "%OBJ%\wacom.lib" "%OBJ%\waheap.lib" "%OBJ%\waerr.lib" ^
   "%KITS%\Lib\%UCRT_VER%\um\arm\mfuuid.lib"
 if errorlevel 1 exit /b 1
 
-copy /y "%OBJ%waaudio.dll" "%OUT%" >/dev/null
+copy /y "%OBJ%\waaudio.dll" "%OUT%" >nul
+if errorlevel 1 exit /b 1
+
 echo waudio: %OUT%
 endlocal
