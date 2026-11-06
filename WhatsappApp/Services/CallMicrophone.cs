@@ -48,6 +48,15 @@ namespace WhatsappApp.Services
         private static bool _running;
         private static bool _starting;
 
+        // Which call the pump that is running belongs to. A pump outlives one call's reset:
+        // it can be inside a read when the call ends and the next one starts, and a read that
+        // belongs to the call before must not move the reader of the call after.
+        private static int _run;
+
+        // The microphone that is being closed. A call answered while the previous capture is
+        // still stopping would open a second `MediaCapture` on a device that is still in use.
+        private static Task _closing;
+
         private static long _read;
         private static int _headLength;
         private static bool _headerDone;
@@ -85,6 +94,22 @@ namespace WhatsappApp.Services
 
             MediaCapture capture = null;
             var stream = new InMemoryRandomAccessStream();
+            int run;
+
+            // The previous call is still letting its microphone go: opening on top of it fails
+            // with a device in use, and the line that would follow says a call has no voice.
+            Task closing = _closing;
+            if (closing != null)
+            {
+                try
+                {
+                    await closing;
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("call audio/waiting for the microphone to close", ex);
+                }
+            }
 
             try
             {
@@ -133,10 +158,11 @@ namespace WhatsappApp.Services
                     _bytes = 0;
                     _startedMs = NowMilliseconds();
                     _running = true;
+                    run = ++_run;
                 }
 
 #pragma warning disable 4014
-                Guarded.RunGuardedAsync("call audio/the pump", PumpAsync());
+                Guarded.RunGuardedAsync("call audio/the pump", PumpAsync(run));
 #pragma warning restore 4014
 
                 Diag.Ok("call audio: the microphone records into a stream as a WAV at "
@@ -161,13 +187,16 @@ namespace WhatsappApp.Services
         /// out of it, over how long, and - when the header turned out to be something else -
         /// why it never became audio.
         /// </summary>
-        public static async Task StopAsync()
+        public static Task StopAsync()
         {
             MediaCapture capture;
             InMemoryRandomAccessStream stream;
 
             lock (_gate)
             {
+                // The number moves, so a pump that is between two reads finds itself out of
+                // date at the next one and stops instead of reading into the next call.
+                _run++;
                 _running = false;
                 _sender = null;
 
@@ -177,6 +206,19 @@ namespace WhatsappApp.Services
                 _stream = null;
             }
 
+            Task closing = CloseAsync(capture, stream);
+            _closing = closing;
+
+            return closing;
+        }
+
+        /// <summary>
+        /// Stops the recorder and lets the device and the stream go, then says what the call's
+        /// own voice cost. Nothing is read here that another thread writes without the lock: a
+        /// 64-bit field on this platform is two words, and half of each is not a number.
+        /// </summary>
+        private static async Task CloseAsync(MediaCapture capture, InMemoryRandomAccessStream stream)
+        {
             bool stopped = capture == null;
 
             if (capture != null)
@@ -218,8 +260,17 @@ namespace WhatsappApp.Services
 
             if (capture != null)
             {
-                Diag.Ok("call audio: the microphone is closed after " + (NowMilliseconds() - _startedMs)
-                    + " ms and " + _bytes + " byte(s) of PCM"
+                int bytes;
+                long startedMs;
+
+                lock (_gate)
+                {
+                    bytes = _bytes;
+                    startedMs = _startedMs;
+                }
+
+                Diag.Ok("call audio: the microphone is closed after " + (NowMilliseconds() - startedMs)
+                    + " ms and " + bytes + " byte(s) of PCM"
                     + (stopped ? "" : ", without stopping") + (Description()));
             }
         }
@@ -238,7 +289,7 @@ namespace WhatsappApp.Services
         /// twenty milliseconds at a time. The loop is the clock and the reader at once: a
         /// reader on a timer of its own would be a second clock the sender has to trust.
         /// </summary>
-        private static async Task PumpAsync()
+        private static async Task PumpAsync(int run)
         {
             while (true)
             {
@@ -247,7 +298,7 @@ namespace WhatsappApp.Services
 
                 lock (_gate)
                 {
-                    if (!_running) return;
+                    if (!_running || _run != run) return;
 
                     sender = _sender;
                     stream = _stream;
@@ -282,16 +333,32 @@ namespace WhatsappApp.Services
                     reader.ReadBytes(bytes);
                     reader.Dispose();
 
-                    lock (_gate) _read += got;
+                    lock (_gate)
+                    {
+                        // The call ended and another began while this read was in flight: its
+                        // reader is not this one any more, and moving it would cut the first
+                        // frames of the new call.
+                        if (_run != run)
+                        {
+                            reader.Dispose();
+                            return;
+                        }
 
-                    Feed(sender, bytes);
+                        _read += got;
+                    }
+
+                    if (!Feed(sender, bytes))
+                    {
+                        Close();
+                        return;
+                    }
                 }
                 catch (Exception ex)
                 {
                     // A stream the recorder closed under the reader is the end of the call,
                     // and one pass that throws is one pass: the loop says so and stops.
                     Diag.Failed("call audio/reading the microphone", ex);
-                    lock (_gate) _refusal = "the stream could not be read";
+                    Close();
 
                     return;
                 }
@@ -302,13 +369,13 @@ namespace WhatsappApp.Services
         /// One read of the stream, behind the header. Until the `data` chunk is found nothing
         /// is PCM, and the walk is what finds it; after it, every byte is audio.
         /// </summary>
-        private static void Feed(CallAudioSender sender, byte[] bytes)
+        private static bool Feed(CallAudioSender sender, byte[] bytes)
         {
             if (_headerDone)
             {
                 _bytes += bytes.Length;
                 sender.Push(bytes, 0, bytes.Length);
-                return;
+                return true;
             }
 
             int room = HeaderBytes - _headLength;
@@ -319,7 +386,7 @@ namespace WhatsappApp.Services
 
             if (!FindData())
             {
-                if (_refusal != null) return;
+                if (_refusal != null) return false;
 
                 // A header that does not fit in the window is not a header this phone writes:
                 // refusing is better than reading the middle of one as samples.
@@ -328,9 +395,10 @@ namespace WhatsappApp.Services
                     _refusal = "the capture wrote " + HeaderBytes
                         + " byte(s) with no data chunk, so it is not a WAV";
                     Diag.Ok("call audio: " + _refusal);
+                    return false;
                 }
 
-                return;
+                return true;
             }
 
             _headerDone = true;
@@ -353,6 +421,30 @@ namespace WhatsappApp.Services
 
             Diag.Ok("call audio: the first " + _bytes + " byte(s) of PCM are behind a "
                 + fromHead + "-byte header, which is what a call's microphone gives");
+
+            return true;
+        }
+
+        /// <summary>
+        /// Gives up this call's microphone: a stream that is not the format a call encodes, or
+        /// one the recorder took away under the reader, leaves nothing to pump. A pump left
+        /// running would read a stream nobody consumes for the rest of the call, at eight
+        /// kilobytes a pass, and the recording would grow behind it.
+        /// </summary>
+        private static void Close()
+        {
+            lock (_gate)
+            {
+                if (!_running) return;
+
+                _run++;
+                _running = false;
+                _sender = null;
+
+                if (_refusal == null) _refusal = "the stream could not be read";
+            }
+
+            Guarded.RunGuardedAsync("call audio/closing the microphone", StopAsync());
         }
 
         /// <summary>

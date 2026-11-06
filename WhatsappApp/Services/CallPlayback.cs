@@ -31,6 +31,11 @@ namespace WhatsappApp.Services
 
         private bool _closed;
 
+        // Where the next frame goes on the player's timeline. A sample's timestamp is the
+        // position it is played at, so it has to move with every frame; a stream whose frames
+        // all say the same instant is a stream the player has no order for.
+        private TimeSpan _next;
+
         private CallPlayback(MediaStreamSource source, MediaElement element, CallAudioPlayout playout)
         {
             _source = source;
@@ -106,8 +111,10 @@ namespace WhatsappApp.Services
 
                 TimeSpan duration = TimeSpan.FromMilliseconds(CallAudioPlayout.FrameMilliseconds);
 
-                MediaStreamSample sample = MediaStreamSample.CreateFromBuffer(bytes, duration);
+                MediaStreamSample sample = MediaStreamSample.CreateFromBuffer(bytes, _next);
                 sample.Duration = duration;
+
+                _next += duration;
 
                 args.Request.Sample = sample;
             }

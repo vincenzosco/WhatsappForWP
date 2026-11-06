@@ -108,7 +108,7 @@ namespace WhatsappApp.Services
 
                 _starting = true;
                 Guarded.RunGuardedAsync("call audio/opened",
-                    StartAsync(media, DataService.Instance.SendCallAudio));
+                    StartAsync(media, DataService.Instance.SendCallAudio, call.Muted));
             }
             catch (Exception ex)
             {
@@ -119,19 +119,22 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Opens both directions of one call. `send` is the media path's `SendAudio` and
         /// `media` is the audio of the handshake that just finished; the speaker is this
-        /// class's own, made on the calling thread, which is the UI thread.
+        /// class's own, made on the calling thread, which is the UI thread. `muted` is where the
+        /// call screen's switch already was: a call that was muted before the far end answered
+        /// starts muted, and not a second of the room goes out first.
         /// </summary>
-        public static async Task<bool> StartAsync(CallMediaSession media, CallAudioSender.Send send)
+        public static async Task<bool> StartAsync(CallMediaSession media, CallAudioSender.Send send,
+            bool muted)
         {
-            if (media == null || send == null) return false;
-            if (_running) return false;
-
             CallOpus.CallEncoder encoder = null;
             CallOpus.CallDecoder decoder = null;
             CallPlayback playback = null;
 
             try
             {
+                if (media == null || send == null) return false;
+                if (_running) return false;
+
                 encoder = CallOpus.CreateEncoder();
                 decoder = CallOpus.CreateDecoder();
 
@@ -142,6 +145,8 @@ namespace WhatsappApp.Services
                 }
 
                 var sender = new CallAudioSender(encoder.Encode, send);
+                sender.Muted = muted;
+
                 var playout = new CallAudioPlayout(decoder.Decode, media.Take, media.SkipGap);
 
                 playback = CallPlayback.Start(Player(), playout);
