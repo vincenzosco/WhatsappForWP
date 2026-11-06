@@ -23,12 +23,17 @@ namespace WhatsappApp.Services
         private bool _recording;
 
         /// <summary>
-        /// A cancel that arrived while the microphone was still opening. It cannot stop a
-        /// capture that does not exist yet, so the start reads it when it returns and
-        /// stops the one it just made - otherwise leaving the chat mid-start left the
-        /// microphone recording for a page that was gone.
+        /// How many cancels have happened. A start that is still waiting for the microphone
+        /// reads it before it awaits and compares it after: a cancel that arrived in between
+        /// changes the number, and the start stops the capture it has just made - otherwise
+        /// leaving the chat mid-start left the microphone recording for a page that was gone.
+        ///
+        /// A number and not a flag, because a flag can be cleared by somebody else: with a
+        /// flag, a cancel followed at once by a second start let the *first* start read the
+        /// flag the second one had already reset, believe it was still wanted, and mark a
+        /// recording nobody owned as running.
         /// </summary>
-        private bool _cancelled;
+        private int _cancels;
 
         /// <summary>
         /// True from the tap to the end, including the moment the microphone is still
@@ -64,8 +69,12 @@ namespace WhatsappApp.Services
         {
             if (_recording || _starting) return false;
 
-            _cancelled = false;
             _starting = true;
+
+            // Read before the await and compared after it: a cancel that lands while the
+            // microphone opens changes this number (see the field's own note).
+            int mine = _cancels;
+
             bool started;
             try
             {
@@ -88,11 +97,10 @@ namespace WhatsappApp.Services
 
             if (!started) return false;
 
-            if (_cancelled)
+            if (_cancels != mine)
             {
-                // Cancel landed while AudioRecorder was opening the capture: the
+                // A cancel landed while AudioRecorder was opening the capture: the
                 // recording it just made belongs to nobody.
-                _cancelled = false;
                 await AudioRecorder.CancelAsync();
                 return false;
             }
@@ -136,7 +144,7 @@ namespace WhatsappApp.Services
         public async Task CancelAsync()
         {
             // Read by a start that is still waiting for the microphone (see StartAsync).
-            _cancelled = true;
+            _cancels++;
             _starting = false;
             _recording = false;
 
