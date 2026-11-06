@@ -189,64 +189,57 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The call key out of an offer when the device that sealed it is not written on the
-        /// node: the session that opens it says which device it was.
-        ///
-        /// An offer arrives from the caller's **account**, and the `<enc>` is
-        /// addressed to one of its devices. The node does not say which one - the ciphertext is
-        /// to a Signal session, not to an address - so the receiving phone tries the sessions it
-        /// holds with that account and keeps the one that opens. The wrong ones fail on the tag,
-        /// which is what a trial costs here.
-        ///
-        /// A list where nothing opens is refused rather than returned as null: the caller then
-        /// has one line in its log naming how many devices were tried, instead of an answer that
-        /// looks like "no key" for an offer whose key was simply not for this phone.
+        /// Opens a call key from the sender device named by the incoming call stanza. A new
+        /// `pkmsg` starts or replaces the responder session just like an ordinary incoming
+        /// message; the session and one-time pre-key are committed only after the call key
+        /// plaintext has been validated.
         /// </summary>
-        public static CallKeyReceived UnwrapFrom(
-            CallKeyPayload payload, IList<KeyValuePair<string, SessionRecord>> sessions)
+        public static CallKeyReceived UnwrapFrom(CallKeyPayload payload, string senderDeviceJid,
+            Credentials credentials, SessionStore sessions, PreKeyStore preKeys, IRandomSource random)
         {
             if (payload == null || payload.Ciphertext == null || payload.Ciphertext.Length == 0)
-            {
                 throw new ProtocolException("a call key payload carries no ciphertext");
-            }
+            if (string.IsNullOrEmpty(senderDeviceJid))
+                throw new ProtocolException("an incoming call key needs the sender device JID");
+            if (credentials == null) throw new ProtocolException("an incoming call key needs this device's credentials");
+            if (sessions == null) throw new ProtocolException("an incoming call key needs the session store");
+            if (random == null) throw new ProtocolException("an incoming call key needs randomness for its session");
 
-            if (sessions == null || sessions.Count == 0)
+            bool preKey = string.Equals(payload.Type, PreKeyType, StringComparison.OrdinalIgnoreCase);
+            if (preKey && preKeys == null)
+                throw new ProtocolException("a pre-key call payload needs this device's pre-key store");
+
+            uint usedPreKeyId;
+            SessionRecord session = IncomingMessage.SessionFor(payload.Ciphertext, preKey,
+                senderDeviceJid, credentials, sessions, preKeys, random, out usedPreKeyId);
+
+            if (session.AlreadyRead(payload.Ciphertext, preKey))
+                throw new ProtocolException("the call key from " + senderDeviceJid + " was already read");
+
+            byte[] plaintext = session.Decrypt(payload.Ciphertext, preKey);
+            Message message = Message.DecodePadded(plaintext);
+            byte[] callKey = message.CallKey();
+
+            if (callKey == null || callKey.Length != CallKeys.CallKeyLength)
             {
-                throw new ProtocolException("a received call key needs the devices it may have been sealed for");
+                throw new ProtocolException("the decrypted call key is "
+                    + (callKey == null ? null : callKey.Length.ToString())
+                    + " bytes, not " + CallKeys.CallKeyLength);
             }
 
-            int tried = 0;
-            string last = null;
-
-            for (int i = 0; i < sessions.Count; i++)
+            sessions.Save(senderDeviceJid, session);
+            if (usedPreKeyId != 0)
             {
-                string device = sessions[i].Key;
-                SessionRecord session = sessions[i].Value;
-
-                if (session == null || !session.HasSession) continue;
-
-                tried++;
-
-                try
-                {
-                    byte[] key = Unwrap(payload, session);
-
-                    var received = new CallKeyReceived();
-                    received.Key = key;
-                    received.DeviceJid = device;
-                    return received;
-                }
-                catch (ProtocolException error)
-                {
-                    // Not this device's copy: a Signal message opens on one session and fails on
-                    // every other, so one wrong session is a trial and not a reason to stop.
-                    last = error.Message;
-                }
+                if (preKeys == null || preKeys.Consume(usedPreKeyId) == null)
+                    throw new ProtocolException("the call key used a one-time pre-key that is no longer stored");
             }
 
-            throw new ProtocolException("no session opened the call key (" + tried
-                + " device(s) tried" + (last == null ? "" : ", the last said: " + last) + ")");
+            var received = new CallKeyReceived();
+            received.Key = callKey;
+            received.DeviceJid = senderDeviceJid;
+            return received;
         }
+
     }
 
     /// <summary>

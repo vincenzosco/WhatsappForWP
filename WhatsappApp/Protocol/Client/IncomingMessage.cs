@@ -791,7 +791,7 @@ namespace WhatsappApp.Protocol.Client
         /// session: the one-time pre-key that started it has been spent, and re-running the
         /// agreement would be refused - correctly (`StartResponder`).
         /// </summary>
-        private static SessionRecord SessionFor(byte[] wire, bool preKey, string from,
+        internal static SessionRecord SessionFor(byte[] wire, bool preKey, string from,
             Credentials credentials, SessionStore sessions, PreKeyStore preKeys,
             IRandomSource random, out uint usedPreKeyId)
         {

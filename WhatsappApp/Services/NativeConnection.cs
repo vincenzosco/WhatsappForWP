@@ -500,12 +500,11 @@ namespace WhatsappApp.Services
         private byte[] _incomingCallKey;
 
         private string _incomingCallId;
+        private CallSignal _incomingCallSignal;
 
         /// <summary>
-        /// The lookup of that key while it is still running: the device list is a round trip,
-        /// and the person can answer the call before it comes back. The answer waits for this
-        /// task, bounded by the send budget the lookup itself uses, so a fast tap does not start
-        /// a media path with no key.
+        /// The pre-key responder exchange while it is still running. Accept waits for this
+        /// task so a fast tap cannot send an answer for a key this device has not opened.
         /// </summary>
         private System.Threading.Tasks.Task _incomingKeyTask;
 
@@ -3880,6 +3879,8 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            if (signal.Kind == CallKind.Offer) _incomingCallSignal = signal;
+
             Diag.Ok("native: call " + signal.CallId + " " + signal.Kind
                 + (signal.IsVideo ? " (video)" : "")
                 + (string.IsNullOrEmpty(signal.From) ? "" : " from " + signal.From)
@@ -3898,9 +3899,17 @@ namespace WhatsappApp.Services
 
             if (signal.Relays != null && signal.Relays.Count > 0)
             {
+                if (_callMediaSocket == null)
+                {
+                    Diag.Ok("native: relay probing for call " + signal.CallId
+                        + " is deferred until this device binds its media socket");
+                }
+                else
+                {
 #pragma warning disable 4014
-                Guarded.RunGuardedAsync("native/call relay", ProbeRelaysAsync(signal));
+                    Guarded.RunGuardedAsync("native/call relay", ProbeRelaysAsync(signal));
 #pragma warning restore 4014
+                }
             }
 
             // The `te` content is the one field of a call node whose shape this app writes from
@@ -3987,10 +3996,11 @@ namespace WhatsappApp.Services
 
             try
             {
-                NativeSession session = OpenSession();
-                DirectTarget target = await DevicesAsync(session, peer, SendClock());
-
-                CallKeyReceived received = CallKeyExchange.UnwrapFrom(signal.Key, target.Devices);
+                Credentials account = _account;
+                SessionStore sessions = await SessionsAsync();
+                PreKeyStore preKeys = await PreKeysAsync();
+                CallKeyReceived received = CallKeyExchange.UnwrapFrom(signal.Key, peer,
+                    account, sessions, preKeys, _random);
 
                 // The call can have ended while the device list was being asked for: a key that
                 // arrives after its call is a key with no media to open, and keeping it would
@@ -4004,8 +4014,8 @@ namespace WhatsappApp.Services
 
                 _incomingCallKey = received.Key;
 
-                Diag.Ok("native: the call " + signal.CallId + " key opened on " + received.DeviceJid
-                    + " (" + target.Devices.Count + " device(s) of " + peer + ")");
+                Diag.Ok("native: the call " + signal.CallId + " key opened from sender device "
+                    + received.DeviceJid);
             }
             catch (Exception ex)
             {
@@ -4534,6 +4544,7 @@ namespace WhatsappApp.Services
             // The next call measures its own candidates: a call id is unique among calls, and
             // a retained probe mark would prevent those reachability checks.
             lock (_relayGate) { _relayProbeCall = null; }
+            _incomingCallSignal = null;
 
             if (transport == null) return;
 
@@ -4597,15 +4608,38 @@ namespace WhatsappApp.Services
             Diag.Ok("native: pre-accepted the call " + callId);
         }
 
+        private async Task<byte[]> RequireIncomingCallKeyAsync(
+            NativeSession session, string callId, string jid, string creator)
+        {
+            if (string.Equals(_incomingCallId, callId, StringComparison.Ordinal))
+            {
+                System.Threading.Tasks.Task keyTask = _incomingKeyTask;
+                if (keyTask != null) await keyTask;
+
+                byte[] key = _incomingCallKey;
+                if (key != null && string.Equals(_incomingCallId, callId, StringComparison.Ordinal))
+                    return key;
+            }
+
+            Credentials account = _account;
+            uint registrationId = account == null ? 0 : account.RegistrationId;
+            await session.SendAsync(Calls.RejectUndecryptable(callId, jid, creator, 0, registrationId));
+            ForgetCallCreator(callId);
+            StopCallMedia();
+
+            throw new ProtocolException("the call " + callId
+                + " was refused because this device could not open its call key");
+        }
+
         /// <summary>
-        /// This phone answers a call that is ringing, and says the same two things the offer
-        /// said: the stream it will receive, and the address the caller sends it to. An accept
-        /// without candidates is a call the other side has up and nowhere to put the audio.
+        /// This phone answers only after opening the call key. It then says the same streams
+        /// and address the offer expects, so an accept cannot claim a media path with no key.
         /// </summary>
         public async Task AcceptCallAsync(string callId, string jid)
         {
             NativeSession session = OpenSession();
             string creator = CallCreatorFor(callId);
+            byte[] key = await RequireIncomingCallKeyAsync(session, callId, jid, creator);
 
             // The same two streams the offer names, in the same order.
             var audio = new List<CallAudio>();
@@ -4626,29 +4660,19 @@ namespace WhatsappApp.Services
             Diag.Ok("native: accepted the call " + callId + " from " + jid
                 + " with " + candidates.Count + " candidate(s)");
 
-            // The offer's key may still be on its way: the device list is a round trip and the
-            // person answered first. Waited for, so the answer does not start a media path with
-            // no key - the one case where the call is up and the caller's hello has nowhere to
-            // go. Bounded by the send budget the lookup itself uses.
-            System.Threading.Tasks.Task keyTask = _incomingKeyTask;
-            if (keyTask != null) await keyTask;
-
-            // The media starts here, and the key is the one the offer's `<enc>` carried: the
-            // caller pins the certificate the answer just named and opens the handshake on the
-            // port the candidates published, so a path built before this node had no peer to
-            // wait for and a path never built would answer the first hello with silence.
-            byte[] key = _incomingCallKey;
-            bool opened = key != null && string.Equals(_incomingCallId, callId, StringComparison.Ordinal);
-
-            if (opened)
+            CallSignal incoming = _incomingCallSignal;
+            if (incoming != null && string.Equals(incoming.CallId, callId, StringComparison.Ordinal)
+                && incoming.Relays != null && incoming.Relays.Count > 0)
             {
-                await StartCallMediaAsync(callId, key, false, null);
+#pragma warning disable 4014
+                Guarded.RunGuardedAsync("native/call relay", ProbeRelaysAsync(incoming));
+#pragma warning restore 4014
             }
-            else
-            {
-                Diag.Ok("native: the call " + callId
-                    + " has no key this phone could open, so its media is not started");
-            }
+
+            // The caller opens the handshake on the port the candidates published. The key
+            // was already verified before the accept went out, so this path cannot strand the
+            // remote hello on a key that did not open locally.
+            await StartCallMediaAsync(callId, key, false, null);
         }
 
         /// <summary>
@@ -4740,6 +4764,7 @@ namespace WhatsappApp.Services
         {
             NativeSession session = OpenSession();
             string creator = CallCreatorFor(callId);
+            await RequireIncomingCallKeyAsync(session, callId, jid, creator);
 
             await session.SendAsync(Calls.Accept(callId, jid, creator, audio, video, candidates, null));
             Diag.Ok("native: accepted the call " + callId + " from " + jid);

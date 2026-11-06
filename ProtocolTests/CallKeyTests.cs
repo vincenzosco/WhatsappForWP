@@ -3,6 +3,7 @@ using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Signal;
 using WhatsappApp.Protocol.WaProto;
+using WhatsappApp.Protocol.WABinary;
 
 namespace ProtocolTests
 {
@@ -22,8 +23,58 @@ namespace ProtocolTests
         private const string CallId = "CALLKEY0001";
         private const string BobDevice = "15551230000.0@s.whatsapp.net";
 
-        /// <summary>Another phone of the same account, whose session must not open Bob's copy.</summary>
-        private const string OtherDevice = "15551230000.7@s.whatsapp.net";
+        private static PreKeyBundle Bundle(Credentials recipient, BinaryNode upload)
+        {
+            BinaryNode key = upload.Child("list").Children()[0];
+            var bundle = new PreKeyBundle();
+            bundle.RegistrationId = recipient.RegistrationId;
+            bundle.IdentityKey = recipient.IdentityPublicKey;
+            bundle.PreKeyId = UInt24(key.Child("id").Bytes());
+            bundle.HasPreKey = true;
+            bundle.PreKeyPublic = key.Child("value").Bytes();
+            bundle.SignedPreKeyId = recipient.SignedPreKeyId;
+            bundle.HasSignedPreKey = true;
+            bundle.SignedPreKeyPublic = recipient.SignedPreKeyPublic;
+            bundle.SignedPreKeySignature = recipient.SignedPreKeySignature;
+            return bundle;
+        }
+
+        private static CallKeyPayload PreKeyCallPayload(byte[] key, SessionRecord sender,
+            IRandomSource random)
+        {
+            byte[] plaintext = OutgoingMessage.Pad(Message.ForCall(key).Encode(), random);
+            return new CallKeyPayload
+            {
+                Type = CallKeyExchange.PreKeyType,
+                Version = CallKeyExchange.KeyVersion,
+                Ciphertext = sender.Encrypt(plaintext)
+            };
+        }
+
+        private static uint UInt24(byte[] bytes)
+        {
+            return ((uint)bytes[0] << 16) | ((uint)bytes[1] << 8) | bytes[2];
+        }
+
+        private sealed class Memory : ISessionStorage
+        {
+            private readonly Dictionary<string, byte[]> _blobs = new Dictionary<string, byte[]>();
+
+            public bool TryRead(string key, out byte[] value)
+            {
+                return _blobs.TryGetValue(key, out value);
+            }
+
+            public void Write(string key, byte[] value)
+            {
+                _blobs[key] = value;
+            }
+
+            public void Remove(string key)
+            {
+                _blobs.Remove(key);
+            }
+        }
 
         /// <summary>One ordinary message, delivered the way a phone delivers it.</summary>
         private static void Deliver(
@@ -163,6 +214,140 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void AnIncomingPreKeyCallStartsAndPersistsItsResponderSession()
+        {
+            var random = new SignalSessions.CounterRandom();
+            const string CallerDevice = "15551230000:4@s.whatsapp.net";
+            const string RecipientDevice = "15559990000@s.whatsapp.net";
+
+            Credentials caller = Credentials.Create(random);
+            Credentials recipient = Credentials.Create(random);
+            recipient.Jid = RecipientDevice;
+
+            var recipientPreKeys = new PreKeyStore(new Memory());
+            BinaryNode upload = PreKeyUpload.Node(recipient, recipientPreKeys, random, 1);
+            PreKeyBundle bundle = Bundle(recipient, upload);
+            var senderSessions = new SessionStore(new Memory(), random);
+            SessionRecord senderSession = DeviceDirectory.Session(
+                RecipientDevice, bundle, caller, senderSessions, random);
+            byte[] key = CallKeyExchange.NewCallKey(random);
+            CallKeyPayload payload = PreKeyCallPayload(key, senderSession, random);
+            var recipientSessions = new SessionStore(new Memory(), random);
+
+            CallKeyReceived received = CallKeyExchange.UnwrapFrom(payload, CallerDevice,
+                recipient, recipientSessions, recipientPreKeys, random);
+
+            Assert.AreEqual(Hex(key), Hex(received.Key));
+            Assert.AreEqual(CallerDevice, received.DeviceJid);
+            Assert.IsTrue(recipientSessions.Load(CallerDevice) != null,
+                "the new responder session is stored only after the key message opens");
+            Assert.AreEqual(0, recipientPreKeys.Remaining,
+                "the one-time pre-key is consumed after successful decryption");
+        }
+
+        [Test]
+        public static void AnIncomingCallKeyOpensOnItsEstablishedSenderSession()
+        {
+            var random = new SignalSessions.CounterRandom();
+            const string SenderDevice = "15551230000.0@s.whatsapp.net";
+            SessionRecord sender = SignalSessions.Alice(
+                new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
+            SessionRecord receiver = SignalSessions.Bob(
+                new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
+
+            Deliver(sender, receiver, SignalFixture.Conversation.Plaintexts[0], random);
+            Deliver(sender, receiver, SignalFixture.Conversation.Plaintexts[1], random);
+            sender.Decrypt(SignalFixture.Hex(SignalFixture.Conversation.Received[0]), false);
+
+            byte[] key = CallKeyExchange.NewCallKey(random);
+            byte[] plaintext = OutgoingMessage.Pad(Message.ForCall(key).Encode(), random);
+            var payload = new CallKeyPayload
+            {
+                Type = CallKeyExchange.EstablishedType,
+                Version = CallKeyExchange.KeyVersion,
+                Ciphertext = sender.Encrypt(plaintext)
+            };
+            var receiverSessions = new SessionStore(new Memory(), random);
+            receiverSessions.Save(SenderDevice, receiver);
+            var recipient = Credentials.Create(random);
+
+            CallKeyReceived received = CallKeyExchange.UnwrapFrom(payload, SenderDevice,
+                recipient, receiverSessions, null, random);
+
+            Assert.AreEqual(Hex(key), Hex(received.Key));
+            Assert.AreEqual(SenderDevice, received.DeviceJid);
+        }
+
+        [Test]
+        public static void AnIncomingCallReplacesAStaleSessionForANewPreKeyBaseKey()
+        {
+            var random = new SignalSessions.CounterRandom();
+            const string CallerDevice = "15551230000:4@s.whatsapp.net";
+            const string RecipientDevice = "15559990000@s.whatsapp.net";
+
+            Credentials caller = Credentials.Create(random);
+            Credentials staleCaller = Credentials.Create(random);
+            Credentials recipient = Credentials.Create(random);
+            recipient.Jid = RecipientDevice;
+
+            var recipientPreKeys = new PreKeyStore(new Memory());
+            BinaryNode upload = PreKeyUpload.Node(recipient, recipientPreKeys, random, 1);
+            PreKeyBundle bundle = Bundle(recipient, upload);
+            var recipientSessions = new SessionStore(new Memory(), random);
+
+            SessionRecord stale = DeviceDirectory.Session(RecipientDevice, bundle, staleCaller,
+                new SessionStore(new Memory(), random), random);
+            recipientSessions.Save(CallerDevice, stale);
+            byte[] staleIdentity = (byte[])stale.TheirIdentityPublic.Clone();
+
+            SessionRecord senderSession = DeviceDirectory.Session(RecipientDevice, bundle, caller,
+                new SessionStore(new Memory(), random), random);
+            byte[] key = CallKeyExchange.NewCallKey(random);
+            CallKeyReceived received = CallKeyExchange.UnwrapFrom(
+                PreKeyCallPayload(key, senderSession, random), CallerDevice,
+                recipient, recipientSessions, recipientPreKeys, random);
+
+            Assert.AreEqual(Hex(key), Hex(received.Key));
+            Assert.IsFalse(Hex(staleIdentity) == Hex(recipientSessions.Load(CallerDevice).TheirIdentityPublic),
+                "a pkmsg with an unseen base key replaces the identity the stale session knew");
+        }
+
+        [Test]
+        public static void AnInvalidCallPlaintextDoesNotSaveASessionOrSpendItsPreKey()
+        {
+            var random = new SignalSessions.CounterRandom();
+            const string CallerDevice = "15551230000:4@s.whatsapp.net";
+            const string RecipientDevice = "15559990000@s.whatsapp.net";
+
+            Credentials caller = Credentials.Create(random);
+            Credentials recipient = Credentials.Create(random);
+            recipient.Jid = RecipientDevice;
+            var recipientPreKeys = new PreKeyStore(new Memory());
+            BinaryNode upload = PreKeyUpload.Node(recipient, recipientPreKeys, random, 1);
+            PreKeyBundle bundle = Bundle(recipient, upload);
+            SessionRecord senderSession = DeviceDirectory.Session(RecipientDevice, bundle,
+                caller, new SessionStore(new Memory(), random), random);
+            var recipientSessions = new SessionStore(new Memory(), random);
+            byte[] plaintext = OutgoingMessage.Pad(Message.Text("not a call key").Encode(), random);
+            var payload = new CallKeyPayload
+            {
+                Type = CallKeyExchange.PreKeyType,
+                Version = CallKeyExchange.KeyVersion,
+                Ciphertext = senderSession.Encrypt(plaintext)
+            };
+
+            Assert.Throws<ProtocolException>(delegate
+            {
+                CallKeyExchange.UnwrapFrom(payload, CallerDevice, recipient,
+                    recipientSessions, recipientPreKeys, random);
+            });
+            Assert.IsTrue(recipientSessions.Load(CallerDevice) == null,
+                "a session is not committed until the decrypted message contains a call key");
+            Assert.AreEqual(1, recipientPreKeys.Remaining,
+                "an invalid payload leaves the one-time pre-key available for a retry");
+        }
+
+        [Test]
         public static void ADeviceWithNoSessionAtAllIsSkippedAndSaidSo()
         {
             var random = new SignalSessions.CounterRandom();
@@ -173,80 +358,6 @@ namespace ProtocolTests
             Assert.Throws<ProtocolException>(delegate
             {
                 CallKeyExchange.Wrap(CallKeyExchange.NewCallKey(random), devices, random);
-            });
-        }
-
-        /// <summary>
-        /// The session that opens the key says which device it came for: the receiving phone is
-        /// not told, so it tries the devices it knows and keeps the one whose tag verifies.
-        /// </summary>
-        [Test]
-        public static void TheSessionThatOpensTheKeyNamesTheDeviceItCameFrom()
-        {
-            var padding = new SignalSessions.CounterRandom();
-
-            SessionRecord alice = SignalSessions.Alice(
-                new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
-            SessionRecord bob = SignalSessions.Bob(
-                new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
-
-            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[0], padding);
-            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[1], padding);
-            alice.Decrypt(SignalFixture.Hex(SignalFixture.Conversation.Received[0]), false);
-
-            byte[] key = CallKeyExchange.NewCallKey(padding);
-
-            var sealedFor = new List<KeyValuePair<string, SessionRecord>>();
-            sealedFor.Add(new KeyValuePair<string, SessionRecord>(BobDevice, alice));
-
-            CallKeyOffer offer = CallKeyExchange.Wrap(key, sealedFor, padding);
-
-            // Another phone of the same account first: its session is a real one, and the key
-            // was not written for it, so it has to be tried and refused before Bob's opens.
-            var received = new List<KeyValuePair<string, SessionRecord>>();
-            received.Add(new KeyValuePair<string, SessionRecord>(
-                OtherDevice, SignalSessions.Bob(new SignalSessions.CounterRandom())));
-            received.Add(new KeyValuePair<string, SessionRecord>(BobDevice, bob));
-
-            CallKeyReceived opened = CallKeyExchange.UnwrapFrom(offer.Payloads[0], received);
-
-            Assert.AreEqual(Hex(key), Hex(opened.Key), "the same 32 bytes after the trial");
-            Assert.AreEqual(BobDevice, opened.DeviceJid,
-                "the device whose session opened it, not the first one tried");
-        }
-
-        /// <summary>
-        /// A key no stored session opens is refused with the count, not silently null: the
-        /// caller of this has one line to write, and the count is what says whether the phone
-        /// knew the caller's devices at all.
-        /// </summary>
-        [Test]
-        public static void AKeyNoSessionOpensIsRefusedAndSaysHowManyWereTried()
-        {
-            var padding = new SignalSessions.CounterRandom();
-
-            SessionRecord alice = SignalSessions.Alice(
-                new FixedRandom(SignalFixture.X3dh.AliceStepRatchetPrivate));
-            SessionRecord bob = SignalSessions.Bob(
-                new FixedRandom(SignalFixture.BobSide.SendingRatchetPrivate));
-
-            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[0], padding);
-            Deliver(alice, bob, SignalFixture.Conversation.Plaintexts[1], padding);
-            alice.Decrypt(SignalFixture.Hex(SignalFixture.Conversation.Received[0]), false);
-
-            var sealedFor = new List<KeyValuePair<string, SessionRecord>>();
-            sealedFor.Add(new KeyValuePair<string, SessionRecord>(BobDevice, alice));
-
-            CallKeyOffer offer = CallKeyExchange.Wrap(
-                CallKeyExchange.NewCallKey(padding), sealedFor, padding);
-
-            var strangers = new List<KeyValuePair<string, SessionRecord>>();
-            strangers.Add(new KeyValuePair<string, SessionRecord>(
-                OtherDevice, SignalSessions.Bob(new SignalSessions.CounterRandom())));
-
-            Assert.Throws<ProtocolException>(delegate
-            {
-                CallKeyExchange.UnwrapFrom(offer.Payloads[0], strangers);
             });
         }
 

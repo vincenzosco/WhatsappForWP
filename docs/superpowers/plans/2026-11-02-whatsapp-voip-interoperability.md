@@ -65,6 +65,38 @@
 - [x] Implement builders/readers in `CallSignaling` and keep `Calls` as a forwarding facade; do not send a `relayelection` message as a substitute for the selected `transport` until its exact role is verified.
 - [x] Run the protocol suite (743 tests), `node tools/check-csharp5.js`, and `node tools/check-comments.js`.
 
+### Task 2a: Open incoming call-key pre-key messages safely
+
+**Files:**
+- Modify: `WhatsappApp/Protocol/Client/CallKeyExchange.cs`
+- Modify: `WhatsappApp/Protocol/Client/IncomingMessage.cs`
+- Modify: `WhatsappApp/Services/NativeConnection.cs`
+- Modify: `ProtocolTests/CallKeyTests.cs`
+
+**Observed failure:** An official Android offer reached WP8.1, but the incoming `pkmsg` call key could not open against five pre-existing sessions. The last refusal was an identity-key/session-peer mismatch. WP8.1 still sent `accept`, and the media path did not start. The same run showed the incoming relay probe occurring before the media socket existed.
+
+- [x] Reuse the ordinary incoming-message responder-session rule for call-key `pkmsg`: use the sender JID in the call stanza; start or replace a responder session for an unseen base key.
+- [x] Persist the session and consume a one-time pre-key only after the decrypted padded message contains a valid call key.
+- [x] Wait for a usable call key before sending `accept`; refuse an undecryptable key instead of claiming the call is connected.
+- [x] Defer inbound relay reachability probes until after the accepted call binds its media socket.
+- [x] Test a fresh responder, stale-session replacement, and invalid plaintext rollback; protocol suite passes (745 tests).
+
+### Task 2a: Open incoming call-key pre-key messages safely
+
+**Files:**
+- Modify: `WhatsappApp/Protocol/Client/CallKeyExchange.cs`
+- Modify: `WhatsappApp/Protocol/Client/IncomingMessage.cs`
+- Modify: `WhatsappApp/Services/NativeConnection.cs`
+- Modify: `ProtocolTests/CallKeyTests.cs`
+
+**Observed failure:** An official Android offer reached WP8.1, but its incoming `pkmsg` call key failed against all five attempted sessions; the last refusal was an identity-key/session-peer mismatch. WP8.1 still sent `accept`, although the media could not start. The same trace showed relay probing before the local media socket existed.
+
+- [x] Reuse the ordinary incoming-message responder-session rule for call-key `pkmsg`: start or replace the responder session for an unseen base key using the sender JID from the call stanza.
+- [x] Persist the session and consume its one-time pre-key only after the decrypted padded message contains a valid call key.
+- [x] Wait for an opened call key before sending `accept`; send an undecryptable-key rejection instead of accepting without media keying.
+- [x] Defer inbound relay reachability probes until the accepted call binds its media socket.
+- [x] Test a fresh responder, stale-session replacement, and invalid-plaintext rollback; protocol suite passes (745 tests).
+
 ### Task 3: Replace the self-consistent key schedule and RTP profile with participant-scoped media keys
 
 **Files:**
@@ -147,4 +179,5 @@
 
 - The relay signaling slice corrects relay block parsing and latency reports, but candidate probing still sends an unauthenticated STUN Binding request. It does not allocate a relay, elect a route, or move media; Task 4 remains necessary.
 - WACRG's relay-candidate reconstruction specifies omitted `token_id` and `auth_token_id` as index 0. Invalid index text, duplicate table IDs, unpopulated slots, and out-of-range references remain unresolved instead of falling back to another token.
-- Task 3 has not started. The plan's independent fixed-vector gate remains unmet; an attempt to generate synthetic key-derived values was blocked by the environment, so no participant-key or WARP RTP implementation was added. Obtain pinned external fixtures or explicit authorization for that local vector-generation step before proceeding.
+- The ISETool run proved that an official Android offer and its relay block reach WP8.1. The call-key `pkmsg` failed before media negotiation because the production path only tried existing sessions; the app nevertheless sent `accept`. The same run exposed an inbound relay-probe/socket ordering race. Task 2a now reuses the ordinary responder-session rule, gates accept on a valid key, and defers relay probes until a socket exists. A new live call is still required to verify this fix on the phone.
+- Task 3 has not started. The independent fixed-vector gate remains unmet; an attempt to generate synthetic key-derived values was blocked by the environment, so no participant-key or WARP RTP implementation was added. Obtain pinned external fixtures or explicit authorization for that local vector-generation step before proceeding.
