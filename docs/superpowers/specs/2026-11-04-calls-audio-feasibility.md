@@ -351,3 +351,29 @@ voci 5-7 non c'e': in Java si trovano solo i dati della chiamata (`CallInfo.rela
 `H26xSupportResult`, `EncodedVideoPassthrough` con i suoi `native*`), mentre nodi relay,
 token WARP e fanout di gruppo vivono nelle librerie native. Quindi la voce 5 non si ricava
 dall'APK decompilato: serve una cattura, come diceva la sezione 6.
+
+## 8. 6 novembre 2026 - che cosa dice l'APK della chiamata di gruppo
+
+Osservato in `.tools/apk/src-full` (jadx sul pacchetto installato, non dedotto):
+
+- `com.whatsapp.calling.infra.voipcalling.CallOfferInfo` porta `callId`, `fromJid`,
+  `groupJid`, `callGroupInfo`, `isVideoCall`, `isJoinableCall`, `callLinkToken`,
+  `groupPhash`, `participantHash`, `epochTimeMillis`, `silenceReason`, `isOfferExpired`,
+  `isCallEnded`.
+- `com.whatsapp.calling.infra.ParticipantInfo` porta `accountKind`, `callGridRank`,
+  `devicePlatform`, `isMuted`, `isHandRaised`, `isDominantSpeaker`, `isReconnecting`,
+  `isRequestingRotatedVideo`, `isAudioVideoSwitchSupported`.
+- `com.whatsapp.calling.voipcalling.EncodedVideoPassthrough` espone `FORMAT_H264`/
+  `FORMAT_H265` e i metodi `native*` che ricevono un frame gia' codificato.
+
+Non osservato, e non ricavabile da qui: i nomi dei nodi e degli attributi sul filo. Un
+`grep` su `com/whatsapp` per `"call_id"`, `"call-id"`, `"call-creator"`, `"call_offer"`,
+`"joinable"`, `"group_call"`, `"call_participant"` restituisce zero file: la
+serializzazione vive nel codice nativo, e l'unica parola di relay che il Java nomina e'
+`CallInfo.relayCallUuid`.
+
+Conclusione onesta per le voci 5 e 7: il modello dei dati e' noto (un id di chiamata, un
+`groupJid`, un token di link joinable, un hash dei partecipanti e uno stato per
+partecipante: dispositivo, posizione in griglia, muto, mano alzata), mentre il fanout e la
+negoziazione dei relay restano nel nativo. Nessuna delle due si puo' implementare
+dall'APK decompilato: servono le catture citate nella sezione 6.
