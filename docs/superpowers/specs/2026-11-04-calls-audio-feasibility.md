@@ -330,14 +330,13 @@ indistinguibile da un difetto di segnalazione. Il valore di ritorno e' il passo 
 fermato (1 `MFStartup`, 2 attributi, 3 enumerazione, 4 nessun dispositivo, 5 attivazione,
 6 source reader, 7 tipo nativo) e il testo porta l'`HRESULT` di quel passo.
 
-**Costruito e verificato qui, non ancora sul telefono.** `tools/build-waudio-arm.bat`
-produce un'immagine ARMNT che importa `MFPlat.dll`, `Mfreadwrite.dll` e
+**Costruito qui, e poi misurato sul telefono.** `tools/build-waudio-arm.bat` produce
+un'immagine ARMNT che importa `MFPlat.dll`, `Mfreadwrite.dll` e
 `api-ms-win-core-com-l1-1-0.dll` - i due moduli Media Foundation sono la prima cosa che
-questo repository importa fuori dagli API set, ed e' esattamente cio' che la sonda deve
-scoprire: se il telefono li risolve. `node tools/check-waudio.js` e' verde, `waaudio.dll`
-entra nel pacchetto (`Content` in `WhatsApp.csproj`) e `CallAudioProbe.Run()` scrive una
-riga in `diag.log` all'avvio. Cio' che resta e' il deploy e quella riga: fino ad allora la
-voce 2 e' "pronta da misurare", non "fatta".
+questo repository importa fuori dagli API set. `waaudio.dll` entra nel pacchetto
+(`Content` in `WhatsApp.csproj`) e `CallAudioProbe.Run()` scrive una riga in `diag.log`
+all'avvio. Il primo deploy ha risposto `0x8007007F`, e la sezione 9 racconta cosa ha
+insegnato: la sonda ora e' la versione 2, e sul telefono dice `media foundation starts`.
 
 **VS2013 Update 4 e' installato.** L'ISO `vs2013.4.iso` era in `Downloads`; l'installazione
 `/passive /full` e' passata e `Microsoft Visual Studio 12.0` c'e'. Il toolset C++ di
@@ -377,3 +376,59 @@ Conclusione onesta per le voci 5 e 7: il modello dei dati e' noto (un id di chia
 partecipante: dispositivo, posizione in griglia, muto, mano alzata), mentre il fanout e la
 negoziazione dei relay restano nel nativo. Nessuna delle due si puo' implementare
 dall'APK decompilato: servono le catture citate nella sezione 6.
+
+## 9. 6 novembre 2026 - cosa ha risposto il telefono alla sonda
+
+Questa sezione e' la voce 2 misurata su un Nokia con Windows Phone 8.1, non ragionata.
+
+**Il deploy, prima.** `AppDeployCmd.exe /install` e `ISETool.exe ts` uscivano con 139
+senza stampare nulla. La causa non era il percorso del pacchetto ma l'ambiente: la shell
+che li lanciava passava `TEMP=/tmp`, e i due strumenti .NET cadono quando la cartella
+temporanea non e' un percorso di Windows. Con `TEMP` e `TMP` su
+`C:\Users\<utente>\AppData\Local\Temp` installazione, avvio e copia dello store
+rispondono `Completato.` con codice 0. Il comando utile, quindi, e' sempre dentro un
+`.bat` che prima imposta quelle due variabili.
+
+**Il primo esito: `0x8007007F`.** La riga letta da `diag.log` era
+
+```
+call audio: waaudio.dll did not load (DllNotFoundException 0x80131524 Unable to load DLL 'waaudio.dll': The specified procedure could not be found. (Exception from HRESULT: 0x8007007F))
+```
+
+E' una frase diversa dallo `0x8007007E` dei giorni precedenti, e la differenza e' tutta
+l'informazione: `0x7E` e' un modulo che il loader non trova, `0x7F` e' una funzione dentro
+un modulo che il telefono ha. Il file era nel pacchetto, e una delle funzioni che importa
+non esiste sul dispositivo.
+
+**Quale funzione, senza indovinare.** L'unico documento di cosa il telefono espone e' il
+suo `WhatsAppNative.dll`. Lette le sue importazioni, da `MFPlat.DLL` arrivano sette nomi:
+
+```
+MFStartup, MFShutdown, MFCreateSample, MFCreateMediaBufferWrapper,
+MFCreateAttributes, MFCreateMediaType, MFCreateMFByteStreamOnStream
+```
+
+e `Mfreadwrite.dll` non compare affatto. La sonda della versione 1 importava
+`MFEnumDeviceSources` da `MFPlat` e `MFCreateSourceReaderFromMediaSource` da
+`Mfreadwrite`: due nomi che su questo telefono non si risolvono. Non e' un errore di
+link, e' la superficie documentata da Windows che non e' quella di questo dispositivo.
+
+**La versione 2.** `tools/audio/waaudio.c` ora usa solo i quattro nomi che il telefono
+prova di avere (`MFStartup`, `MFCreateAttributes`, `MFCreateMediaType`,
+`MFCreateSample`), con `tools/audio/wamf.def` che limita l'import a quei nomi e
+`tools/check-waudio.js` che rifiuta qualunque altro. `WaAudioProbeVersion` risponde 2, e
+`CallAudioProbe.Describe()` rifiuta una DLL che risponda un numero diverso: una DLL
+vecchia rimasta nel pacchetto non puo' far sembrare verificato cio' che non lo e'.
+
+**L'esito sul telefono, versione 2:**
+
+```
+ok: call audio: media foundation starts (mfstartup ok; attributes ok; media type ok; sample ok)
+```
+
+Quindi: Media Foundation su questo telefono si avvia, e le sue fabbriche di oggetti ci
+sono. Cio' che manca e' l'enumerazione delle sorgenti di cattura, e non e' un dettaglio
+che si aggira con un cast: senza un modo per ottenere un `IMFMediaSource` da cui leggere
+campioni, la sonda non puo' dire ne' se un microfono c'e' ne' a che formato consegna.
+La voce 2 resta quindi "Media Foundation c'e', la sorgente di cattura no", che e' una
+risposta vera e verificata, non il formato audio che serviva all'encoder.

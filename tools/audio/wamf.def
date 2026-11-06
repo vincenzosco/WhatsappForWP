@@ -1,15 +1,21 @@
 ; The Media Foundation imports waaudio.dll links against.
 ;
 ; Why a .def and not `Mfplat.lib`: the import library that ships with Kits 10 for
-; ARM names `Mfplat.dll`, which is what a desktop Windows image links against.
-; The phone ships Media Foundation as `MFPlat.dll`, and a module name is copied
-; verbatim into the import descriptor - so the name matters more than the
-; functions. `lib /def:wamf.def /machine:arm` produces a library whose descriptor
-; names the module the phone has.
+; ARM names `Mfplat.dll`, which is what a desktop Windows image links against. The
+; phone ships the module as `MFPlat.DLL` - that is the spelling `WhatsAppNative.dll`
+; imports from - and a module name is copied verbatim into the import descriptor.
+;
+; Why exactly these four: on 6 November 2026 the phone answered 0x8007007F
+; (procedure not found) to version 1, which imported `MFEnumDeviceSources` and the
+; source reader. The seven functions this phone's MFPlat.DLL is proven to export are
+; the ones WhatsAppNative.dll imports: MFStartup, MFShutdown, MFCreateSample,
+; MFCreateMediaBufferWrapper, MFCreateAttributes, MFCreateMediaType and
+; MFCreateMFByteStreamOnStream. The probe uses four of them.
 LIBRARY MFPlat.dll
 
 EXPORTS
     MFStartup
     MFShutdown
     MFCreateAttributes
-    MFEnumDeviceSources
+    MFCreateMediaType
+    MFCreateSample

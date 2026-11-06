@@ -1,8 +1,0 @@
-; The source reader lives in its own module, and on the phone that module is
-; `Mfreadwrite.dll` - the same split as on the desktop, with a different file
-; name. `wamf.def` explains why the name is written here instead of coming from
-; the SDK's import library.
-LIBRARY Mfreadwrite.dll
-
-EXPORTS
-    MFCreateSourceReaderFromMediaSource

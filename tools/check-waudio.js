@@ -5,20 +5,23 @@
  * Guard for the second native DLL the phone loads: `WhatsappApp/waaudio.dll`,
  * the Media Foundation probe of `tools/audio/waaudio.c`.
  *
- * Why it exists: this image is the first one in this repository that must import
- * something other than an API set. Media Foundation on the phone is `MFPlat.dll`
- * and `Mfreadwrite.dll`, and whether the phone resolves those two names is
- * exactly the question the probe asks at run time. A guard cannot answer that -
- * only the device can - but it can keep the two things that are decidable here
- * from being broken silently:
+ * Why it exists: this image is the first one in this repository that imports
+ * something other than an API set. `MFPlat.DLL` is the phone's own Media
+ * Foundation module, and the probe exists because whether the phone resolves a
+ * given function inside it is not a question the SDK answers. On 6 November 2026
+ * the answer was `0x8007007F` for `MFEnumDeviceSources`, and the fix was to
+ * import only what `WhatsAppNative.dll` proves the device exports. A guard cannot
+ * run the loader - only the device can - but it can keep the decided things
+ * decided:
  *
  *  1. the machine is ARMNT, because an image built for another machine is not
  *     even a candidate;
  *  2. no `KERNEL32.dll`, and no console or argv function: that is the desktop
- *     surface, and the 0x8007007E of 4-5 November 2026 came from it. Media
- *     Foundation imports are allowed and named, so the list stays an allowlist
- *     and a stray `ole32.dll` still fails here;
- *  3. the two exported entry points are the ones the managed side calls.
+ *     surface, and the 0x8007007E of 4-5 November 2026 came from it. `MFPlat.dll`
+ *     is allowed and named, so the list stays an allowlist;
+ *  3. the Media Foundation imports are exactly the five functions the phone is
+ *     proven to export - a sixth name is how 0x8007007F happens;
+ *  4. the two exported entry points are the ones the managed side calls.
  *
  * `APPCONTAINER` is not a rule, for the same reason as in `check-waopus.js`: the
  * modules that load on this phone have the bit clear and the one that was
@@ -47,7 +50,19 @@ const CONSOLE = [
 ];
 
 /** Modules the phone ships for these calls. Everything else must be an API set. */
-const ALLOWED = ['mfplat.dll', 'mfreadwrite.dll'];
+const ALLOWED = ['mfplat.dll'];
+
+/**
+ * The Media Foundation functions this phone's MFPlat.DLL is proven to export:
+ * they are the ones `WhatsAppNative.dll` imports, read from the module itself.
+ */
+const MFPLAT = [
+  'MFStartup',
+  'MFShutdown',
+  'MFCreateAttributes',
+  'MFCreateMediaType',
+  'MFCreateSample'
+];
 
 const EXPORTS = ['WaAudioProbe', 'WaAudioProbeVersion'];
 
@@ -181,6 +196,16 @@ function problems(info) {
       ': the phone is not known to ship that module, and the package does not');
   }
 
+  const mfplat = info.imports.filter((entry) => entry.name.toLowerCase() === 'mfplat.dll');
+  for (const entry of mfplat) {
+    const unknown = (entry.functions || []).filter((name) => MFPLAT.indexOf(name) < 0);
+    if (unknown.length) {
+      found.push('imports ' + unknown.join(', ') + ' from MFPlat: the phone exports seven ' +
+        'functions from that module and these are not among them, which is the 0x8007007F ' +
+        'of 6 November 2026');
+    }
+  }
+
   const console = [];
   for (const entry of info.imports) {
     for (const name of entry.functions || []) {
@@ -230,4 +255,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { peInfo, problems, DLL, EXPORTS, ALLOWED };
+module.exports = { peInfo, problems, DLL, EXPORTS, ALLOWED, MFPLAT };
