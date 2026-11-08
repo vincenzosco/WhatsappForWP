@@ -190,7 +190,6 @@ namespace WhatsappApp.Pages
             AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
             AutomationProperties.SetName(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
             AutomationProperties.SetName(RecentMessagesButton, Loc.Get("ChatPage_JumpToRecentTooltip", "Jump to the newest messages"));
-            AutomationProperties.SetName(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             AutomationProperties.SetName(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
             MessagePlaceholderText.Text = Loc.Get("ChatPage_Input.PlaceholderText", "Type a message");
             RecordingLabelText.Text = Loc.Get("ChatPage_RecordingLabel.Text", "Recording");
@@ -1002,35 +1001,6 @@ namespace WhatsappApp.Pages
         {
             HideFullScreen();
             e.Handled = true;
-        }
-
-        /// <summary>
-        /// The profile photo full screen: it is decoded at the screen size, as for a
-        /// bubble, and it is closed by tapping it (ImageViewer). Without bytes
-        /// nothing opens: there is no request to make here, the chat list has
-        /// already requested them.
-        /// </summary>
-        private async void HeaderAvatar_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
-        {
-            e.Handled = true;
-            if (_contact == null || string.IsNullOrEmpty(_contact.AvatarData)) return;
-
-            try
-            {
-                // The header is a 40 px circle and the full-screen view is the same
-                // picture enlarged: decoding it at the viewer size (720) is a copy
-                // held while the conversation behind it is still being laid out, and
-                // the 52 px one is indistinguishable on a phone screen.
-                var bitmap = await ImageHelper.FromBase64Async(_contact.AvatarData, Contact.AvatarDecodePixels);
-                if (bitmap == null) return;
-                ImageViewerImage.Source = bitmap;
-                ImageViewer.Visibility = Visibility.Visible;
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("ChatPage.HeaderAvatar_Tapped", ex);
-                HideFullScreen();
-            }
         }
 
         /// <summary>The name opens the info: the picture stays for the picture.</summary>

@@ -104,33 +104,13 @@
                 </Path>
             </Button>
 
-            <Border x:Name="HeaderAvatar" Grid.Column="1"
-                    Width="40" Height="40" CornerRadius="20"
-                    Margin="8,0,0,0" VerticalAlignment="Center"
-                    Tap="HeaderAvatar_Tapped">
-                <Grid>
-                    <Ellipse Width="40" Height="40"
-                             Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                    <Border Width="40" Height="40" CornerRadius="20"
-                            Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
-                        <Border.Background>
-                            <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
-                        </Border.Background>
-                    </Border>
-                    <TextBlock Text="{Binding Initials}"
-                               Foreground="White" FontSize="15" FontWeight="SemiBold"
-                               VerticalAlignment="Center" HorizontalAlignment="Center"
-                               Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-                </Grid>
-            </Border>
-
             <Grid x:Name="ContactHeader" Grid.Column="2"
                   Background="Transparent"
                   Margin="8,0,0,4"
                   Tap="ContactHeader_Tapped">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
-                               Foreground="White" FontSize="40" FontFamily="Segoe WP Semilight"
+                               Foreground="White" FontSize="54" FontFamily="Segoe WP Semilight"
                                TextTrimming="WordEllipsis"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
                                Foreground="#B0FFFFFF" FontSize="15" Margin="0,-4,0,0"/>
@@ -190,23 +170,22 @@
                          MessageBubbleContainer (24 * zoom), non un margine scelto a
                          occhio. La bolla ci sta dentro e si ferma a MaxWidth. -->
                     <Grid Margin="24,0,24,0" HorizontalAlignment="Stretch" Hold="Bubble_Holding">
-                        <!-- Incoming bubble. Radius 3 and the little tail are the
-                             shape of the official MessageBubble: a corner that is
-                             barely rounded, not the pill of the phone's chat. -->
-                        <!-- La coda e' il TailSize ufficiale, 15 x 10, e i tre punti
-                             sono quelli di MessageBubble: (0,0), (0,10), (15,10). -->
+                        <!-- Incoming bubble: a flat rectangle with the 15 x 10
+                             tail at its top-left corner, the shape every reference
+                             screenshot shows. The three tail points are (0,0),
+                             (0,10), (15,10). -->
                         <Polygon Points="0,0 0,10 15,10" Fill="#FF00A8C7"
                                  HorizontalAlignment="Left" VerticalAlignment="Top"
                                  Margin="0,0,0,0"
                                  Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}"/>
                         <Border Background="#FF00A8C7"
-                                CornerRadius="3"
+                                CornerRadius="0"
                                 MaxWidth="324"
                                 Margin="0,10,0,0"
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
                                         MaxWidth="300" MaxHeight="200"
@@ -218,7 +197,7 @@
                                 <!-- A video: a dark box with the triangle, tapped
                                      to open it full screen. Before the bytes it is
                                      the same tap that fetches them. -->
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Width="220" Height="140"
                                         Background="#FF263238"
@@ -262,7 +241,7 @@
                                      The tap is the button: the border has no
                                      Tapped of its own, which is what kept the
                                      button and the border from both firing. -->
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
                                         Background="#FF263238"
@@ -349,7 +328,7 @@
                                      already on the wire and the size is known
                                      once the bytes are all here; before that the
                                      card shows the name alone. -->
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Width="220"
                                         Background="#FF263238"
@@ -361,7 +340,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0"
-                                                Width="40" Height="40" CornerRadius="4"
+                                                Width="40" Height="40" CornerRadius="0"
                                                 Background="#FF37474F"
                                                 VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DocumentBadge}"
@@ -391,29 +370,30 @@
                                            TextTrimming="WordEllipsis"/>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="White" FontSize="19"/>
+                                           Foreground="White" FontSize="18"/>
                                 <TextBlock Text="{Binding FormattedTime}"
                                            HorizontalAlignment="Right" Margin="0,3,0,0"
-                                           Foreground="#CCFFFFFF" FontSize="12"/>
+                                           Foreground="#CCFFFFFF" FontSize="13"/>
                             </StackPanel>
                         </Border>
 
                         <!-- Outgoing bubble: the accent colour, white text, and the
-                             same 3 px corner as the received one. -->
-                        <!-- La stessa coda, specchiata: e' il ScaleX = -1 che il
-                             client ufficiale applica alla coda delle sue bolle. -->
-                        <Polygon Points="15,0 15,10 0,10" Fill="#FF075E54"
-                                 HorizontalAlignment="Right" VerticalAlignment="Top"
+                             same square corner as the received one. -->
+                        <!-- The same 15 x 10 tail, turned to hang under the
+                             bottom-right corner: the received bubble's tail is at
+                             the top-left, the sent one mirrors it downward. -->
+                        <Polygon Points="0,0 15,0 15,10" Fill="#FF075E54"
+                                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                  Margin="0,0,0,0"
                                  Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}"/>
                         <Border Background="#FF075E54"
-                                CornerRadius="3"
+                                CornerRadius="0"
                                 MaxWidth="324"
-                                Margin="0,10,0,0"
+                                Margin="0,0,0,10"
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
                                         MaxWidth="300" MaxHeight="200"
@@ -425,7 +405,7 @@
                                 <!-- A video: a dark box with the triangle, tapped
                                      to open it full screen. Before the bytes it is
                                      the same tap that fetches them. -->
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Width="220" Height="140"
                                         Background="#FF263238"
@@ -469,7 +449,7 @@
                                      The tap is the button: the border has no
                                      Tapped of its own, which is what kept the
                                      button and the border from both firing. -->
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Width="220" Height="56"
                                         Background="#FF263238"
@@ -556,7 +536,7 @@
                                      already on the wire and the size is known
                                      once the bytes are all here; before that the
                                      card shows the name alone. -->
-                                <Border CornerRadius="4"
+                                <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Width="220"
                                         Background="#FF263238"
@@ -568,7 +548,7 @@
                                             <ColumnDefinition Width="*"/>
                                         </Grid.ColumnDefinitions>
                                         <Border Grid.Column="0"
-                                                Width="40" Height="40" CornerRadius="4"
+                                                Width="40" Height="40" CornerRadius="0"
                                                 Background="#FF37474F"
                                                 VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DocumentBadge}"
@@ -602,11 +582,11 @@
                                            TextTrimming="WordEllipsis"/>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="White" FontSize="19"/>
+                                           Foreground="White" FontSize="18"/>
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0"
                                             Opacity="0.8">
                                     <TextBlock Text="{Binding FormattedTime}"
-                                               Foreground="#CCFFFFFF" FontSize="12"/>
+                                               Foreground="#CCFFFFFF" FontSize="13"/>
                                     <!-- One tick sent, two delivered, two blue read: the glyph
                                          comes from the status converter and the colour from
                                          `MsgStatusToColor`, which is why this used to stay
@@ -691,7 +671,7 @@
               Background="Transparent"
               Visibility="Collapsed">
             <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
-                    CornerRadius="3"
+                    CornerRadius="0"
                     Padding="14,13,14,11"
                     Margin="4,2,4,2"
                     HorizontalAlignment="Left">
@@ -795,7 +775,7 @@
                 <!-- A document: the badge and the name, drawn where an image
                      shows its thumbnail. -->
                 <Border x:Name="SelectedDocumentPreview" Grid.Column="0"
-                        Width="40" Height="40" Margin="12,12,0,12" CornerRadius="4"
+                        Width="40" Height="40" Margin="12,12,0,12" CornerRadius="0"
                         Background="#FF37474F"
                         Visibility="Collapsed">
                     <TextBlock x:Name="SelectedDocumentPreviewText"
@@ -881,27 +861,21 @@
                     <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
                     <Path Stroke="White" StrokeThickness="2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="24" Height="24">
-                        <!-- IconPhoto -->
+                          Width="24" Height="24"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!-- IconAttach -->
                         <Path.Data>
                             <PathGeometry>
                                 <PathGeometry.Figures>
-                                    <PathFigure StartPoint="3.5,5.5" IsClosed="True">
+                                    <PathFigure StartPoint="9,18">
                                         <PathFigure.Segments>
-                                            <PolyLineSegment Points="20.5,5.5 20.5,18.5 3.5,18.5"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="3.5,15">
-                                        <PathFigure.Segments>
-                                            <PolyLineSegment Points="8.5,10 12.5,14 15.5,11.5 20.5,15.5"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="7.5,8">
-                                        <PathFigure.Segments>
-                                            <ArcSegment Size="1.3,1.3" RotationAngle="0" IsLargeArc="True"
-                                                        SweepDirection="Clockwise" Point="7.5,10.6"/>
-                                            <ArcSegment Size="1.3,1.3" RotationAngle="0" IsLargeArc="True"
-                                                        SweepDirection="Clockwise" Point="7.5,8"/>
+                                            <LineSegment Point="9,7.5"/>
+                                            <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
+                                                        SweepDirection="Clockwise" Point="15,7.5"/>
+                                            <LineSegment Point="15,15"/>
+                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                        SweepDirection="Clockwise" Point="11,15"/>
+                                            <LineSegment Point="11,9.5"/>
                                         </PathFigure.Segments>
                                     </PathFigure>
                                 </PathGeometry.Figures>
@@ -921,7 +895,7 @@
                         Click="MentionButton_Click"/>
 
                 <Grid Grid.Column="2">
-                <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFE7E7E7" CornerRadius="5">
+                <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFCCCCCC" CornerRadius="0">
                     <Grid>
                     <TextBlock x:Name="MessagePlaceholderText"
                                Text=""
@@ -933,7 +907,8 @@
                     <TextBox x:Name="MessageTextBox"
                              Text=""
                          VerticalAlignment="Center"
-                         Height="40"
+                         MinHeight="40"
+                         TextWrapping="Wrap"
                          FontSize="20"
                          Background="Transparent"
                          BorderThickness="0"
@@ -959,7 +934,7 @@
                 </Border>
                 <!-- The little tail the reference composer hangs under the right
                      end of the speech-shaped input box. -->
-                <Path Fill="#FFE7E7E7" Width="10" Height="8"
+                <Path Fill="#FFCCCCCC" Width="10" Height="8"
                       HorizontalAlignment="Right" VerticalAlignment="Bottom"
                       Margin="0,0,2,0" IsHitTestVisible="False">
                     <!-- IconBubbleTail -->
@@ -1057,14 +1032,31 @@
                         Click="SendButton_Click">
                     <Grid Width="44" Height="44">
                     <Ellipse Width="44" Height="44" Stroke="White" StrokeThickness="1.5"/>
-                    <Path Fill="White" Width="22" Height="22">
+                    <Path Stroke="White" StrokeThickness="2" Width="24" Height="24"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
                         <!-- IconSend -->
                         <Path.Data>
                             <PathGeometry>
                                 <PathGeometry.Figures>
-                                    <PathFigure StartPoint="2.5,20.5" IsClosed="True">
+                                    <PathFigure StartPoint="3,5" IsClosed="True">
                                         <PathFigure.Segments>
-                                            <PolyLineSegment Points="21.5,12 2.5,3.5 2.5,9.8 15,12 2.5,14.2"/>
+                                            <PolyLineSegment Points="21,5 21,19 3,19"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="7,9">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="17,9"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="7,12">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="17,12"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="7,15">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="12,15"/>
                                         </PathFigure.Segments>
                                     </PathFigure>
                                 </PathGeometry.Figures>
