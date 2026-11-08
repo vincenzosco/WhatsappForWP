@@ -8,6 +8,65 @@
     Background="#FF000000">
 
     <phone:PhoneApplicationPage.Resources>
+        <!-- The reference toggle: a flat 64 x 28 rectangle with a 2 px white
+             border, the accent fill and the square thumb when it is on, and the
+             empty track with the thumb at the left when it is off. The plain
+             CheckBox carries the IsChecked and Checked/Unchecked surface the
+             page already uses; only the look is ours. -->
+        <Style x:Key="SettingsToggleStyle" TargetType="CheckBox">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CheckStates">
+                                    <VisualState x:Name="Unchecked">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="ToggleThumb"
+                                                             Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                             To="0" Duration="0:0:0"/>
+                                            <DoubleAnimation Storyboard.TargetName="ToggleFill"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Checked">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="ToggleThumb"
+                                                             Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                             To="38" Duration="0:0:0"/>
+                                            <DoubleAnimation Storyboard.TargetName="ToggleFill"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="1" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Indeterminate"/>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid Width="64" Height="28">
+                                <Rectangle x:Name="ToggleFill" Stroke="White" StrokeThickness="2"
+                                           Fill="{StaticResource WhatsAppAccentBrush}" Opacity="0"/>
+                                <Rectangle Stroke="White" StrokeThickness="2" Fill="Transparent"/>
+                                <Border x:Name="ToggleThumb" Background="White" Width="20" Height="20"
+                                        HorizontalAlignment="Left" VerticalAlignment="Center"
+                                        Margin="3,0,0,0">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform X="0"/>
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <pages:ThemeThumbnailConverter x:Key="ThemeThumbnail"/>
         <pages:ThemePlainSampleConverter x:Key="ThemePlainSample"/>
     </phone:PhoneApplicationPage.Resources>
@@ -108,7 +167,7 @@
                     <TextBlock x:Name="MessagesToggleState" Foreground="White"
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
-                    <toolkit:ToggleSwitch x:Name="MessagesToggle" Grid.Column="1"
+                    <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="MessagesToggle" Grid.Column="1"
                                           Foreground="#FF00AFA9" VerticalAlignment="Center"
                                           Checked="MessagesToggle_Toggled"
                                           Unchecked="MessagesToggle_Toggled"/>
@@ -124,7 +183,7 @@
                     <TextBlock x:Name="StatusesToggleState" Foreground="White"
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
-                    <toolkit:ToggleSwitch x:Name="StatusesToggle" Grid.Column="1"
+                    <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="StatusesToggle" Grid.Column="1"
                                           Foreground="#FF00AFA9" VerticalAlignment="Center"
                                           Checked="StatusesToggle_Toggled"
                                           Unchecked="StatusesToggle_Toggled"/>
@@ -140,7 +199,7 @@
                     <TextBlock x:Name="CallsToggleState" Foreground="White"
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
-                    <toolkit:ToggleSwitch x:Name="CallsToggle" Grid.Column="1"
+                    <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="CallsToggle" Grid.Column="1"
                                           Foreground="#FF00AFA9" VerticalAlignment="Center"
                                           Checked="CallsToggle_Toggled"
                                           Unchecked="CallsToggle_Toggled"/>
@@ -156,7 +215,7 @@
                     <TextBlock x:Name="BackgroundToggleState" Foreground="White"
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
-                    <toolkit:ToggleSwitch x:Name="BackgroundToggle" Grid.Column="1"
+                    <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="BackgroundToggle" Grid.Column="1"
                                           Foreground="#FF00AFA9" VerticalAlignment="Center"
                                           Checked="BackgroundToggle_Toggled"
                                           Unchecked="BackgroundToggle_Toggled"/>

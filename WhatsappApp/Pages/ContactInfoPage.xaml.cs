@@ -34,6 +34,7 @@ namespace WhatsappApp.Pages
             InitializeComponent();
 
             AutomationProperties.SetName(BackButton, Loc.Get("ContactInfoPage_BackTooltip", "Back"));
+            AutomationProperties.SetName(BigAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info").ToUpper();
             CallButton.Content = Loc.Get("Call_Start", "Call");
             NumberLabel.Text = Loc.Get("ContactInfoPage_Number", "Phone number");
