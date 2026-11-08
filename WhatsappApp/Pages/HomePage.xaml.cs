@@ -45,10 +45,13 @@ namespace WhatsappApp.Pages
             InitializeComponent();
 
             ChatListView.ItemsSource = DataService.Instance.Contacts;
-            Header.SetLabels(
-                Loc.Get("Nav_Chats", "chats"),
-                Loc.Get("Nav_Status", "status"),
-                Loc.Get("Nav_Calls", "calls"));
+
+            // The pivot draws its own headers, the Metro way - the same large
+            // lowercase labels the reference client shows, active and inactive
+            // handled by the control itself.
+            ((PivotItem)Sections.Items[0]).Header = Loc.Get("Nav_Chats", "chats").ToLowerInvariant();
+            ((PivotItem)Sections.Items[1]).Header = Loc.Get("Nav_Status", "status").ToLowerInvariant();
+            ((PivotItem)Sections.Items[2]).Header = Loc.Get("Nav_Calls", "calls").ToLowerInvariant();
 
             NewChatLabel.Text = Loc.Get("ChatsPage_NewChatTooltip", "New chat");
             SearchLabel.Text = Loc.Get("ChatsPage_SearchTooltip", "Search");
@@ -73,7 +76,7 @@ namespace WhatsappApp.Pages
             DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
             EndCallButton.Content = Loc.Get("Call_End", "End");
 
-            Header.Selected += Header_Selected;
+            Header.SetUnread(DataService.Instance.UnreadChats());
             _ready = true;
         }
 
@@ -130,7 +133,6 @@ namespace WhatsappApp.Pages
 
             bool changed = index != _section;
             _section = index;
-            Header.SetSelected(index);
 
             if (notify && Sections.SelectedIndex != index)
             {
@@ -174,11 +176,6 @@ namespace WhatsappApp.Pages
             return AppSection.Chats;
         }
 
-        private void Header_Selected(object sender, int index)
-        {
-            Show(index, true);
-        }
-
         private void Sections_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             if (_movingTabs || !_ready) return;
@@ -192,10 +189,7 @@ namespace WhatsappApp.Pages
 
         private void RefreshBadges()
         {
-            Header.SetCounts(
-                DataService.Instance.UnreadChats(),
-                DataService.Instance.UnseenStatuses(),
-                DataService.Instance.MissedCalls());
+            Header.SetUnread(DataService.Instance.UnreadChats());
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

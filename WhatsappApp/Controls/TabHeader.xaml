@@ -5,85 +5,19 @@
 
     <UserControl.Resources>
         <SolidColorBrush x:Key="TabAccentBrush" Color="#FF00A8C7"/>
-        <Style x:Key="TabButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="HorizontalAlignment" Value="Stretch"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-        </Style>
-        <Style x:Key="TabLabelStyle" TargetType="TextBlock">
-            <Setter Property="FontSize" Value="34"/>
-            <Setter Property="FontFamily" Value="Segoe WP Semilight"/>
-            <Setter Property="Foreground" Value="#FF92999A"/>
-            <Setter Property="VerticalAlignment" Value="Center"/>
-            <Setter Property="TextTrimming" Value="WordEllipsis"/>
-        </Style>
     </UserControl.Resources>
 
-    <Grid Background="#FF080B0C" Margin="10,2,10,0">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-        </Grid.RowDefinitions>
-
-        <!-- Brand row: the original client shows the app name and the unread
-             messages badge above the section labels. -->
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="4,0,0,0">
-            <TextBlock x:Name="WhatsappTitleLabel" Text="WhatsApp"
-                       FontSize="15" FontWeight="Bold" Foreground="White"
-                       VerticalAlignment="Center"/>
-            <Border x:Name="WhatsappTitleBadge" Background="{StaticResource TabAccentBrush}"
-                    Width="22" Height="22" CornerRadius="11" Margin="8,0,0,0"
-                    Visibility="Collapsed">
-                <TextBlock x:Name="WhatsappTitleBadgeText" Foreground="White" FontSize="14"
-                           FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-            </Border>
-        </StackPanel>
-
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
-            </Grid.ColumnDefinitions>
-            <Button x:Name="ChatsTabButton" Grid.Column="0" Style="{StaticResource TabButtonStyle}"
-                    Margin="0,0,18,0" Click="ChatsTabButton_Click">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock x:Name="ChatsTabLabel" Style="{StaticResource TabLabelStyle}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Button>
-            <Button x:Name="StatusTabButton" Grid.Column="1" Style="{StaticResource TabButtonStyle}"
-                    Margin="0,0,18,0" Click="StatusTabButton_Click">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock x:Name="StatusTabLabel" Style="{StaticResource TabLabelStyle}"/>
-                        <Border x:Name="StatusTabBadge" Background="{StaticResource TabAccentBrush}"
-                                Width="22" Height="22" CornerRadius="11" Margin="6,3,0,0" Visibility="Collapsed">
-                            <TextBlock x:Name="StatusTabBadgeText" Foreground="White" FontSize="14"
-                                       FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </StackPanel>
-                </StackPanel>
-            </Button>
-            <Button x:Name="CallsTabButton" Grid.Column="2" Style="{StaticResource TabButtonStyle}"
-                    Click="CallsTabButton_Click">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                        <TextBlock x:Name="CallsTabLabel" Style="{StaticResource TabLabelStyle}"/>
-                        <Border x:Name="CallsTabBadge" Background="{StaticResource TabAccentBrush}"
-                                Width="22" Height="22" CornerRadius="11" Margin="6,3,0,0" Visibility="Collapsed">
-                            <TextBlock x:Name="CallsTabBadgeText" Foreground="White" FontSize="14"
-                                       FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                    </StackPanel>
-                </StackPanel>
-            </Button>
-        </Grid>
-    </Grid>
+    <!-- The brand row: the reference client shows the app name and the unread
+         messages badge above the pivot's own section headers. -->
+    <StackPanel Background="#FF080B0C" Orientation="Horizontal" Margin="24,4,12,0">
+        <TextBlock x:Name="WhatsappTitleLabel" Text="WhatsApp"
+                   FontSize="15" FontWeight="Bold" Foreground="White"
+                   VerticalAlignment="Center"/>
+        <Border x:Name="WhatsappTitleBadge" Background="{StaticResource TabAccentBrush}"
+                Width="22" Height="22" CornerRadius="11" Margin="8,0,0,0"
+                Visibility="Collapsed">
+            <TextBlock x:Name="WhatsappTitleBadgeText" Foreground="White" FontSize="14"
+                       FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+        </Border>
+    </StackPanel>
 </UserControl>

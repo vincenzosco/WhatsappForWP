@@ -13,9 +13,6 @@
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <SolidColorBrush x:Key="HomeAccentBrush" Color="#FF00A8C7"/>
-        <DataTemplate x:Key="EmptyPivotHeaderTemplate">
-            <Grid Width="0" Height="0"/>
-        </DataTemplate>
         <!--
             The bottom bar the reference client shows: a row of outlined circles
             with the glyph inside, and the overflow as plain dots at the right
@@ -184,7 +181,6 @@
             </Border>
 
             <phone:Pivot x:Name="Sections" Grid.Row="2" Background="Transparent"
-                          HeaderTemplate="{StaticResource EmptyPivotHeaderTemplate}"
                           SelectionChanged="Sections_SelectionChanged">
                 <phone:PivotItem Header=" ">
                     <Grid Background="Transparent">
