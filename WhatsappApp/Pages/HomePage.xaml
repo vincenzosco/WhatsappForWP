@@ -16,18 +16,110 @@
         <DataTemplate x:Key="EmptyPivotHeaderTemplate">
             <Grid Width="0" Height="0"/>
         </DataTemplate>
+        <!--
+            The bottom bar the reference client shows: a row of outlined circles
+            with the glyph inside, and the overflow as plain dots at the right
+            edge. The template draws the circle (a button has no CornerRadius on
+            this projection) and dims the whole tile while it is held - a control
+            that gives no sign of the press is tapped twice.
+        -->
         <Style x:Key="AppBarButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="MinWidth" Value="0"/>
             <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="Width" Value="76"/>
+            <Setter Property="Width" Value="64"/>
             <Setter Property="Height" Value="64"/>
             <Setter Property="HorizontalContentAlignment" Value="Center"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="MouseOver"/>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.55" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.4" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid x:Name="Tile" Width="46" Height="46">
+                                <Ellipse Fill="{TemplateBinding Background}"
+                                         Stroke="White" StrokeThickness="1.5"/>
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="OverflowButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="MouseOver"/>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.55" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.4" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid x:Name="Tile">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
         <Style x:Key="AppBarLabelStyle" TargetType="TextBlock">
+            <!-- Hidden: the reference circles carry no label under the glyph.
+                 The text is still set, because it is the name a long press
+                 reads and the automation layer announces. -->
+            <Setter Property="Visibility" Value="Collapsed"/>
             <Setter Property="FontSize" Value="11"/>
             <Setter Property="FontFamily" Value="Segoe WP Semilight"/>
             <Setter Property="Foreground" Value="White"/>
@@ -215,31 +307,48 @@
 
         <Grid Grid.Row="2" Background="#FF171717" MinHeight="64">
             <Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"/>
-            <StackPanel x:Name="ChatsBar" Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="SearchButton" Style="{StaticResource AppBarButtonStyle}" Click="SearchButton_Click">
-                    <StackPanel VerticalAlignment="Center">
-                        <Grid Width="24" Height="24" HorizontalAlignment="Center">
-                            <Ellipse Width="16" Height="16" Stroke="White" StrokeThickness="2"
-                                     HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1,1,0,0"/>
-                            <Rectangle Width="10" Height="2" Fill="White" HorizontalAlignment="Right"
-                                       VerticalAlignment="Bottom" Margin="0,0,0,2">
-                                <Rectangle.RenderTransform><RotateTransform Angle="45"/></Rectangle.RenderTransform>
-                            </Rectangle>
-                        </Grid>
-                        <TextBlock x:Name="SearchLabel" Style="{StaticResource AppBarLabelStyle}"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="NewChatButton" Style="{StaticResource AppBarButtonStyle}" Click="NewChatButton_Click">
-                    <StackPanel VerticalAlignment="Center">
-                        <!-- IconNewChat -->
-                        <Grid Width="24" Height="24" HorizontalAlignment="Center">
-                            <Rectangle Width="18" Height="2" Fill="White"/>
-                            <Rectangle Width="2" Height="18" Fill="White"/>
-                        </Grid>
-                        <TextBlock x:Name="NewChatLabel" Style="{StaticResource AppBarLabelStyle}"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="MoreButton" Style="{StaticResource AppBarButtonStyle}" Click="MoreButton_Click">
+            <Grid x:Name="ChatsBar">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button x:Name="SearchButton" Style="{StaticResource AppBarButtonStyle}" Click="SearchButton_Click">
+                        <StackPanel VerticalAlignment="Center">
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center">
+                                <Ellipse Width="16" Height="16" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1,1,0,0"/>
+                                <Rectangle Width="10" Height="2" Fill="White" HorizontalAlignment="Right"
+                                           VerticalAlignment="Bottom" Margin="0,0,0,2">
+                                    <Rectangle.RenderTransform><RotateTransform Angle="45"/></Rectangle.RenderTransform>
+                                </Rectangle>
+                            </Grid>
+                            <TextBlock x:Name="SearchLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="NewChatButton" Style="{StaticResource AppBarButtonStyle}" Click="NewChatButton_Click">
+                        <StackPanel VerticalAlignment="Center">
+                            <!-- IconNewChat -->
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center">
+                                <Rectangle Width="18" Height="2" Fill="White"/>
+                                <Rectangle Width="2" Height="18" Fill="White"/>
+                            </Grid>
+                            <TextBlock x:Name="NewChatLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                        </StackPanel>
+                    </Button>
+                    <Button x:Name="SettingsButton" Style="{StaticResource AppBarButtonStyle}" Click="SettingsButton_Click">
+                        <StackPanel VerticalAlignment="Center">
+                            <!-- IconSettings -->
+                            <Grid Width="22" Height="22" HorizontalAlignment="Center">
+                                <Ellipse Width="16" Height="16" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Ellipse Width="5" Height="5" Fill="White"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Width="2" Height="22" Fill="White"/>
+                                <Rectangle Width="22" Height="2" Fill="White"/>
+                            </Grid>
+                            <TextBlock x:Name="SettingsLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <Button x:Name="MoreButton" Style="{StaticResource OverflowButtonStyle}"
+                        Click="MoreButton_Click" HorizontalAlignment="Right">
                     <StackPanel VerticalAlignment="Center">
                         <!-- IconOverflow -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -250,42 +359,31 @@
                         <TextBlock x:Name="MoreLabel" Style="{StaticResource AppBarLabelStyle}"/>
                     </StackPanel>
                 </Button>
-                <Button x:Name="SettingsButton" Style="{StaticResource AppBarButtonStyle}" Click="SettingsButton_Click">
-                    <StackPanel VerticalAlignment="Center">
-                        <!-- IconSettings -->
-                        <Grid Width="22" Height="22" HorizontalAlignment="Center">
-                            <Ellipse Width="16" Height="16" Stroke="White" StrokeThickness="2"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Ellipse Width="5" Height="5" Fill="White"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Rectangle Width="2" Height="22" Fill="White"/>
-                            <Rectangle Width="22" Height="2" Fill="White"/>
-                        </Grid>
-                        <TextBlock x:Name="SettingsLabel" Style="{StaticResource AppBarLabelStyle}"/>
-                    </StackPanel>
-                </Button>
-            </StackPanel>
-            <StackPanel x:Name="StatusBar" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Collapsed">
-                <Button x:Name="RefreshStatusButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshStatusButton_Click">
-                    <StackPanel VerticalAlignment="Center">
-                        <Grid Width="22" Height="22" HorizontalAlignment="Center">
-                            <Ellipse Width="17" Height="17" Stroke="White" StrokeThickness="2"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Rectangle Width="8" Height="4" Fill="#FF101516" HorizontalAlignment="Center"
-                                       VerticalAlignment="Top"/>
-                            <Path Stroke="White" StrokeThickness="2">
-                                <!-- IconRefreshStatus -->
-                                <Path.Data>
-                                    <PathGeometry><PathGeometry.Figures><PathFigure StartPoint="16,2" IsClosed="True">
-                                        <PathFigure.Segments><LineSegment Point="20,2"/><LineSegment Point="19,6"/></PathFigure.Segments>
-                                    </PathFigure></PathGeometry.Figures></PathGeometry>
-                                </Path.Data>
-                            </Path>
-                        </Grid>
-                        <TextBlock x:Name="RefreshStatusLabel" Style="{StaticResource AppBarLabelStyle}"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="StatusMoreButton" Style="{StaticResource AppBarButtonStyle}" Click="StatusMoreButton_Click">
+            </Grid>
+            <Grid x:Name="StatusBar" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button x:Name="RefreshStatusButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshStatusButton_Click">
+                        <StackPanel VerticalAlignment="Center">
+                            <Grid Width="22" Height="22" HorizontalAlignment="Center">
+                                <Ellipse Width="17" Height="17" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Width="8" Height="4" Fill="#FF101516" HorizontalAlignment="Center"
+                                           VerticalAlignment="Top"/>
+                                <Path Stroke="White" StrokeThickness="2">
+                                    <!-- IconRefreshStatus -->
+                                    <Path.Data>
+                                        <PathGeometry><PathGeometry.Figures><PathFigure StartPoint="16,2" IsClosed="True">
+                                            <PathFigure.Segments><LineSegment Point="20,2"/><LineSegment Point="19,6"/></PathFigure.Segments>
+                                        </PathFigure></PathGeometry.Figures></PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                            </Grid>
+                            <TextBlock x:Name="RefreshStatusLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <Button x:Name="StatusMoreButton" Style="{StaticResource OverflowButtonStyle}"
+                        Click="StatusMoreButton_Click" HorizontalAlignment="Right">
                     <!-- IconOverflow -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
@@ -293,28 +391,31 @@
                         <Ellipse Width="4" Height="4" Fill="#FF20C4BC" Margin="2,0"/>
                     </StackPanel>
                 </Button>
-            </StackPanel>
-            <StackPanel x:Name="CallsBar" Orientation="Horizontal" HorizontalAlignment="Right" Visibility="Collapsed">
-                <Button x:Name="RefreshCallsButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshCallsButton_Click">
-                    <StackPanel VerticalAlignment="Center">
-                        <Grid Width="22" Height="22" HorizontalAlignment="Center">
-                            <Ellipse Width="17" Height="17" Stroke="White" StrokeThickness="2"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            <Rectangle Width="8" Height="4" Fill="#FF101516" HorizontalAlignment="Center"
-                                       VerticalAlignment="Top"/>
-                            <Path Stroke="White" StrokeThickness="2">
-                                <!-- IconRefreshCalls -->
-                                <Path.Data>
-                                    <PathGeometry><PathGeometry.Figures><PathFigure StartPoint="16,2" IsClosed="True">
-                                        <PathFigure.Segments><LineSegment Point="20,2"/><LineSegment Point="19,6"/></PathFigure.Segments>
-                                    </PathFigure></PathGeometry.Figures></PathGeometry>
-                                </Path.Data>
-                            </Path>
-                        </Grid>
-                        <TextBlock x:Name="RefreshCallsLabel" Style="{StaticResource AppBarLabelStyle}"/>
-                    </StackPanel>
-                </Button>
-                <Button x:Name="CallsMoreButton" Style="{StaticResource AppBarButtonStyle}" Click="CallsMoreButton_Click">
+            </Grid>
+            <Grid x:Name="CallsBar" Visibility="Collapsed">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                    <Button x:Name="RefreshCallsButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshCallsButton_Click">
+                        <StackPanel VerticalAlignment="Center">
+                            <Grid Width="22" Height="22" HorizontalAlignment="Center">
+                                <Ellipse Width="17" Height="17" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Width="8" Height="4" Fill="#FF101516" HorizontalAlignment="Center"
+                                           VerticalAlignment="Top"/>
+                                <Path Stroke="White" StrokeThickness="2">
+                                    <!-- IconRefreshCalls -->
+                                    <Path.Data>
+                                        <PathGeometry><PathGeometry.Figures><PathFigure StartPoint="16,2" IsClosed="True">
+                                            <PathFigure.Segments><LineSegment Point="20,2"/><LineSegment Point="19,6"/></PathFigure.Segments>
+                                        </PathFigure></PathGeometry.Figures></PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                            </Grid>
+                            <TextBlock x:Name="RefreshCallsLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+                <Button x:Name="CallsMoreButton" Style="{StaticResource OverflowButtonStyle}"
+                        Click="CallsMoreButton_Click" HorizontalAlignment="Right">
                     <!-- IconOverflow -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
@@ -322,7 +423,7 @@
                         <Ellipse Width="4" Height="4" Fill="#FF20C4BC" Margin="2,0"/>
                     </StackPanel>
                 </Button>
-            </StackPanel>
+            </Grid>
         </Grid>
 
         <Grid x:Name="ModalOverlay" Grid.RowSpan="3" Background="#D9000000" Visibility="Collapsed">

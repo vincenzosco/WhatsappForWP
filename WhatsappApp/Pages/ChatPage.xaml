@@ -878,7 +878,7 @@
                         Margin="0,4,0,4"
                         Click="AttachButton_Click">
                     <Grid Width="40" Height="40">
-                    <Ellipse Width="40" Height="40" Fill="#FF303030"/>
+                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
                     <Path Stroke="White" StrokeThickness="2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                           Width="24" Height="24">
@@ -920,7 +920,8 @@
                         Content="@" FontSize="20" Foreground="White"
                         Click="MentionButton_Click"/>
 
-                <Border Grid.Column="2" Margin="0,0,4,0" Background="#FFE7E7E7" CornerRadius="20">
+                <Grid Grid.Column="2">
+                <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFE7E7E7" CornerRadius="20">
                     <Grid>
                     <TextBlock x:Name="MessagePlaceholderText"
                                Text=""
@@ -956,6 +957,25 @@
                     </TextBox>
                     </Grid>
                 </Border>
+                <!-- The little tail the reference composer hangs under the right
+                     end of the speech-shaped input box. -->
+                <Path Fill="#FFE7E7E7" Width="10" Height="8"
+                      HorizontalAlignment="Right" VerticalAlignment="Bottom"
+                      Margin="0,0,2,0" IsHitTestVisible="False">
+                    <!-- IconBubbleTail -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="0,0" IsClosed="True">
+                                    <PathFigure.Segments>
+                                        <PolyLineSegment Points="10,0 4,8"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
+                </Grid>
 
                 <Button x:Name="RecordButton" Grid.Column="3"
                         Background="Transparent"
@@ -964,7 +984,7 @@
                         Margin="0,4,0,4"
                         Click="RecordButton_Click">
                     <Grid Width="40" Height="40">
-                    <Ellipse Width="40" Height="40" Fill="#FF303030"/>
+                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
                     <Path Stroke="White" StrokeThickness="2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                           Width="24" Height="24">
@@ -1036,7 +1056,7 @@
                         BorderThickness="0" Padding="0"
                         Click="SendButton_Click">
                     <Grid Width="44" Height="44">
-                    <Ellipse Width="44" Height="44" Fill="#FF00A8C7"/>
+                    <Ellipse Width="44" Height="44" Stroke="White" StrokeThickness="1.5"/>
                     <Path Fill="White" Width="22" Height="22">
                         <!-- IconSend -->
                         <Path.Data>
