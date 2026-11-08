@@ -59,7 +59,7 @@
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="16,4,16,24">
+            <StackPanel Margin="24,4,24,24">
                 <TextBlock x:Name="ThemeLabel" Foreground="White"
                            FontSize="42" FontFamily="Segoe WP Semilight"/>
                 <TextBlock x:Name="ThemeHint" Foreground="#FFB0B0B0"

@@ -130,7 +130,7 @@
                   Tap="ContactHeader_Tapped">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
-                               Foreground="White" FontSize="36" FontFamily="Segoe WP Semilight"
+                               Foreground="White" FontSize="40" FontFamily="Segoe WP Semilight"
                                TextTrimming="WordEllipsis"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
                                Foreground="#B0FFFFFF" FontSize="15" Margin="0,-4,0,0"/>
@@ -921,7 +921,7 @@
                         Click="MentionButton_Click"/>
 
                 <Grid Grid.Column="2">
-                <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFE7E7E7" CornerRadius="20">
+                <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFE7E7E7" CornerRadius="5">
                     <Grid>
                     <TextBlock x:Name="MessagePlaceholderText"
                                Text=""
