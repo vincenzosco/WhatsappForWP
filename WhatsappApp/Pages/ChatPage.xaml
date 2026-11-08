@@ -142,11 +142,11 @@
                              tail at its top-left corner, the shape every reference
                              screenshot shows. The three tail points are (0,0),
                              (0,10), (15,10). -->
-                        <Polygon Points="0,0 0,10 15,10" Fill="#FF00A8C7"
+                        <Polygon Points="0,0 0,10 15,10" Fill="{StaticResource ChatIncomingBrush}"
                                  HorizontalAlignment="Left" VerticalAlignment="Top"
                                  Margin="0,0,0,0"
                                  Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}"/>
-                        <Border Background="#FF00A8C7"
+                        <Border Background="{StaticResource ChatIncomingBrush}"
                                 CornerRadius="0"
                                 MaxWidth="324"
                                 Margin="0,10,0,0"
@@ -334,14 +334,14 @@
                                 </Border>
                                 <TextBlock Text="{Binding SenderName}" TextWrapping="NoWrap"
                                            Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="#FFE7FFFF" FontSize="13" Margin="0,0,0,3"
+                                           Foreground="{StaticResource ChatBubbleMetaBrush}" FontSize="13" Margin="0,0,0,3"
                                            TextTrimming="WordEllipsis"/>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
                                            Foreground="White" FontSize="18"/>
                                 <TextBlock Text="{Binding FormattedTime}"
                                            HorizontalAlignment="Right" Margin="0,3,0,0"
-                                           Foreground="#CCFFFFFF" FontSize="13"/>
+                                           Foreground="{StaticResource ChatBubbleMetaBrush}" FontSize="13"/>
                             </StackPanel>
                         </Border>
 
@@ -350,11 +350,11 @@
                         <!-- The same 15 x 10 tail, turned to hang under the
                              bottom-right corner: the received bubble's tail is at
                              the top-left, the sent one mirrors it downward. -->
-                        <Polygon Points="0,0 15,0 15,10" Fill="#FF075E54"
+                        <Polygon Points="0,0 15,0 15,10" Fill="{StaticResource ChatOutgoingBrush}"
                                  HorizontalAlignment="Right" VerticalAlignment="Bottom"
                                  Margin="0,0,0,0"
                                  Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}"/>
-                        <Border Background="#FF075E54"
+                        <Border Background="{StaticResource ChatOutgoingBrush}"
                                 CornerRadius="0"
                                 MaxWidth="324"
                                 Margin="0,0,0,10"
@@ -546,7 +546,7 @@
                                      was unreadable on a light accent. -->
                                 <TextBlock Text="{Binding SenderName}" TextWrapping="NoWrap"
                                            Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="#FFE7FFFF" FontSize="13" Margin="0,0,0,3"
+                                           Foreground="{StaticResource ChatBubbleMetaBrush}" FontSize="13" Margin="0,0,0,3"
                                            TextTrimming="WordEllipsis"/>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
@@ -554,7 +554,7 @@
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0"
                                             Opacity="0.8">
                                     <TextBlock Text="{Binding FormattedTime}"
-                                               Foreground="#CCFFFFFF" FontSize="13"/>
+                                               Foreground="{StaticResource ChatBubbleMetaBrush}" FontSize="13"/>
                                     <!-- One tick sent, two delivered, two blue read: the glyph
                                          comes from the status converter and the colour from
                                          `MsgStatusToColor`, which is why this used to stay
@@ -1287,7 +1287,7 @@
                         <Button x:Name="AttachmentAlbumsButton" Grid.Row="0" Grid.Column="0"
                                 Width="112" Height="112" MinWidth="0" MinHeight="0"
                                 Margin="4" Padding="8" BorderThickness="0"
-                                Background="#FF00A8C7" Foreground="White"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentAlbumsButton_Click">
                             <TextBlock x:Name="AttachmentAlbumsLabel" Text=""
                                        FontSize="13" TextWrapping="Wrap"
@@ -1296,7 +1296,7 @@
                         <Button x:Name="AttachmentPhotoButton" Grid.Row="0" Grid.Column="1"
                                 Width="112" Height="112" MinWidth="0" MinHeight="0"
                                 Margin="4" Padding="8" BorderThickness="0"
-                                Background="#FF00A8C7" Foreground="White"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentPhotoButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Stroke="White" StrokeThickness="1.8" Width="28" Height="24"
@@ -1336,7 +1336,7 @@
                         <Button x:Name="AttachmentVideoButton" Grid.Row="0" Grid.Column="2"
                                 Width="112" Height="112" MinWidth="0" MinHeight="0"
                                 Margin="4" Padding="8" BorderThickness="0"
-                                Background="#FF00A8C7" Foreground="White"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentVideoButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Fill="White" Width="28" Height="28" HorizontalAlignment="Center">
@@ -1362,7 +1362,7 @@
                         <Button x:Name="AttachmentAudioButton" Grid.Row="1" Grid.Column="0"
                                 Width="112" Height="112" MinWidth="0" MinHeight="0"
                                 Margin="4" Padding="8" BorderThickness="0"
-                                Background="#FF00A8C7" Foreground="White"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentAudioButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Stroke="White" StrokeThickness="2" Width="28" Height="28"
@@ -1401,7 +1401,7 @@
                         <Button x:Name="AttachmentLocationButton" Grid.Row="1" Grid.Column="1"
                                 Width="112" Height="112" MinWidth="0" MinHeight="0"
                                 Margin="4" Padding="8" BorderThickness="0"
-                                Background="#FF00A8C7" Foreground="White"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentLocationButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Stroke="White" StrokeThickness="1.8" Width="28" Height="28"
@@ -1440,7 +1440,7 @@
                         <Button x:Name="AttachmentContactButton" Grid.Row="1" Grid.Column="2"
                                 Width="112" Height="112" MinWidth="0" MinHeight="0"
                                 Margin="4" Padding="8" BorderThickness="0"
-                                Background="#FF00A8C7" Foreground="White"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentContactButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Path Stroke="White" StrokeThickness="1.8" Width="28" Height="28"

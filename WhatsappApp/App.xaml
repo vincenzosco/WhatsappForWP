@@ -24,6 +24,15 @@
             <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#D9000000"/>
             <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF21B8B5"/>
 
+            <!-- The chat palette, all derived from one accent: the received
+                 bubble is the accent itself, the sent one its darker shade, the
+                 name and time lines a lighter translucent accent. The reference
+                 shows two accents - teal and cobalt - and the phone's accent
+                 picks between them (Accent.Apply repaints these at start-up). -->
+            <SolidColorBrush x:Key="ChatIncomingBrush" Color="#FF00ABA9"/>
+            <SolidColorBrush x:Key="ChatOutgoingBrush" Color="#FF00747A"/>
+            <SolidColorBrush x:Key="ChatBubbleMetaBrush" Color="#BEBAE7E7"/>
+
             <Color x:Key="WhatsAppHeaderColor">#FF101719</Color>
             <Color x:Key="WhatsAppAppBarColor">#FF101719</Color>
             <Color x:Key="WhatsAppSentBubbleColor">#FF075E54</Color>
