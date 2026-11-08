@@ -76,6 +76,12 @@ namespace WhatsappApp
 
         private void RootFrame_Navigated(object sender, NavigationEventArgs e)
         {
+            // A page has landed: the launch is over and the mappings stop asking
+            // where it should have gone. The flag is cleared here and not at the
+            // first mapping, because a launch can map more than once (the safety
+            // net in `EnsureStartupPage` and the manifest's own navigation), and
+            // the second raw one used to land the home page over the pair page.
+            _initialNavigationPending = false;
             OpenPendingChat();
             DepositPickerContinuation();
         }
@@ -116,7 +122,6 @@ namespace WhatsappApp
             }
 
             if (!_initialNavigationPending) return uri;
-            _initialNavigationPending = false;
 
             if (_shareOperation != null || _forceHomeForContinuation)
             {
@@ -138,6 +143,10 @@ namespace WhatsappApp
             StartTarget target = StartDecision.Decide(
                 NativeCredentialStorage.Session().HasSession,
                 SessionState.Expired);
+
+            Diag.Ok("start: " + (target == StartTarget.Pair
+                ? "no account stored, the pair page"
+                : "the account is stored, the chats"));
 
             return new Uri(target == StartTarget.Pair ? PairPageUri : HomePageUri, UriKind.Relative);
         }
