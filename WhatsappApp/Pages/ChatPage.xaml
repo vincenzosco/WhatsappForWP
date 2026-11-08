@@ -117,38 +117,6 @@
                 </StackPanel>
             </Grid>
 
-            <!-- Il pulsante della chiamata, dove lo mette il client ufficiale: a
-                 destra del nome e del numero, nella barra della chat. Chiama la
-                 persona di questa conversazione; per un gruppo il pulsante sparisce
-                 (il codice lo nasconde), perche' questo client chiama uno alla volta. -->
-            <Button x:Name="CallHeaderButton" Grid.Column="3"
-                    Background="Transparent" BorderThickness="0"
-                    MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,0,12,0" Padding="0"
-                    VerticalAlignment="Center"
-                    Click="CallHeaderButton_Click">
-                <Path Fill="White" Width="24" Height="24"
-                      HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <!-- IconCall -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="19.5,20" IsClosed="True">
-                                    <PathFigure.Segments>
-                                        <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
-                                        <LineSegment Point="7.5,4.5"/>
-                                        <LineSegment Point="9,9"/>
-                                        <LineSegment Point="7,11"/>
-                                        <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
-                                        <LineSegment Point="15,15"/>
-                                        <LineSegment Point="19.5,16.5"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
         </Grid>
 
         <!-- Messages -->
@@ -697,10 +665,11 @@
 
         <!-- Input area: the white strip of the official app, with the box a
              shade darker so the field reads as a field. -->
-        <Grid Grid.Row="3" Background="#FF171717">
+        <Grid Grid.Row="3" Background="Transparent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="56"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
             <!-- Selected image preview -->
@@ -841,41 +810,50 @@
             </Grid>
 
             <!-- Input row -->
-            <Grid Grid.Row="1">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <Button x:Name="AttachButton" Grid.Column="0"
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                <Button x:Name="RecordButton" Grid.Column="0"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
-                        Click="AttachButton_Click">
+                        Click="RecordButton_Click">
                     <Grid Width="40" Height="40">
                     <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
                     <Path Stroke="White" StrokeThickness="2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="24" Height="24"
-                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <!-- IconAttach -->
+                          Width="24" Height="24">
+                        <!-- IconMicrophone -->
                         <Path.Data>
                             <PathGeometry>
                                 <PathGeometry.Figures>
-                                    <PathFigure StartPoint="9,18">
+                                    <PathFigure StartPoint="10,7" IsClosed="True">
                                         <PathFigure.Segments>
-                                            <LineSegment Point="9,7.5"/>
-                                            <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
-                                                        SweepDirection="Clockwise" Point="15,7.5"/>
-                                            <LineSegment Point="15,15"/>
-                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                                        SweepDirection="Clockwise" Point="11,15"/>
-                                            <LineSegment Point="11,9.5"/>
+                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                        SweepDirection="Clockwise" Point="14,7"/>
+                                            <LineSegment Point="14,12"/>
+                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
+                                                        SweepDirection="Clockwise" Point="10,12"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="7,11">
+                                        <PathFigure.Segments>
+                                            <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
+                                                        SweepDirection="Counterclockwise" Point="17,11"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="12,16">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="12,19"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                    <PathFigure StartPoint="9,19">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="15,19"/>
                                         </PathFigure.Segments>
                                     </PathFigure>
                                 </PathGeometry.Figures>
@@ -884,8 +862,28 @@
                     </Path>
                     </Grid>
                 </Button>
-
-                <!-- Group only: @ names a member. Collapsed in a one-to-one chat. -->
+                <Button x:Name="StopRecordButton" Grid.Column="0"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4"
+                        Visibility="Collapsed"
+                        Click="StopRecordButton_Click">
+                    <Path Fill="#FFE53935" Width="20" Height="20">
+                        <!-- IconStop -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="6,6" IsClosed="True">
+                                        <PathFigure.Segments>
+                                            <PolyLineSegment Points="18,6 18,18 6,18"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
                 <Button x:Name="MentionButton" Grid.Column="1"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
@@ -952,77 +950,13 @@
                 </Path>
                 </Grid>
 
-                <Button x:Name="RecordButton" Grid.Column="3"
-                        Background="Transparent"
-                        MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
-                        Click="RecordButton_Click">
-                    <Grid Width="40" Height="40">
-                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
-                    <Path Stroke="White" StrokeThickness="2"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="24" Height="24">
-                        <!-- IconMicrophone -->
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathGeometry.Figures>
-                                    <PathFigure StartPoint="10,7" IsClosed="True">
-                                        <PathFigure.Segments>
-                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                        SweepDirection="Clockwise" Point="14,7"/>
-                                            <LineSegment Point="14,12"/>
-                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                        SweepDirection="Clockwise" Point="10,12"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="7,11">
-                                        <PathFigure.Segments>
-                                            <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
-                                                        SweepDirection="Counterclockwise" Point="17,11"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="12,16">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="12,19"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="9,19">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="15,19"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                </PathGeometry.Figures>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                    </Grid>
-                </Button>
+                </Grid>
 
-                <Button x:Name="StopRecordButton" Grid.Column="4"
-                        Background="Transparent"
-                        MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
-                        Visibility="Collapsed"
-                        Click="StopRecordButton_Click">
-                    <Path Fill="#FFE53935" Width="20" Height="20">
-                        <!-- IconStop -->
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathGeometry.Figures>
-                                    <PathFigure StartPoint="6,6" IsClosed="True">
-                                        <PathFigure.Segments>
-                                            <PolyLineSegment Points="18,6 18,18 6,18"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                </PathGeometry.Figures>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                </Button>
-
-                <Button x:Name="SendButton" Grid.Column="5"
+                <!-- The ring bar of the reference: the circles sit centred and the
+                     overflow dots hang at the right edge. -->
+                <Grid Grid.Row="2" Background="#FF222222" MinHeight="64">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Button x:Name="SendButton" 
                         Background="Transparent"
                         Foreground="White"
                         MinWidth="0" MinHeight="0"
@@ -1065,7 +999,118 @@
                     </Path>
                     </Grid>
                 </Button>
-            </Grid>
+                <Button x:Name="AttachButton" 
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4"
+                        Click="AttachButton_Click">
+                    <Grid Width="40" Height="40">
+                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
+                    <Path Stroke="White" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="24" Height="24"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!-- IconAttach -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="9,18">
+                                        <PathFigure.Segments>
+                                            <LineSegment Point="9,7.5"/>
+                                            <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
+                                                        SweepDirection="Clockwise" Point="15,7.5"/>
+                                            <LineSegment Point="15,15"/>
+                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
+                                                        SweepDirection="Clockwise" Point="11,15"/>
+                                            <LineSegment Point="11,9.5"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                    </Grid>
+                </Button>
+                <!-- The call button lives in the ring bar, where the official
+                     client puts it: it calls the person of this conversation and
+                     hides for a group, because this client calls one at a time. -->
+                <Button x:Name="CallHeaderButton" 
+                        Background="Transparent" BorderThickness="0"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" Margin="0,0,12,0" Padding="0"
+                        VerticalAlignment="Center"
+                        Click="CallHeaderButton_Click">
+                    <Path Fill="White" Width="24" Height="24"
+                          HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <!-- IconCall -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="19.5,20" IsClosed="True">
+                                        <PathFigure.Segments>
+                                            <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
+                                            <LineSegment Point="7.5,4.5"/>
+                                            <LineSegment Point="9,9"/>
+                                            <LineSegment Point="7,11"/>
+                                            <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
+                                            <LineSegment Point="15,15"/>
+                                            <LineSegment Point="19.5,16.5"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                </Button>
+                <Button x:Name="SmileyButton"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4"
+                        Click="SmileyButton_Click">
+                    <Grid Width="40" Height="40">
+                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
+                    <Grid Width="22" Height="22">
+                        <Ellipse Width="3" Height="3" Fill="White"
+                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
+                        <Ellipse Width="3" Height="3" Fill="White"
+                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,4,0"/>
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- IconSmiley -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="4,9">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Clockwise" Point="18,9"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                    </Grid>
+                    </Grid>
+                </Button>
+                    </StackPanel>
+                <Button x:Name="MoreButton"
+                        HorizontalAlignment="Right" VerticalAlignment="Center"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48" BorderThickness="0" Padding="0"
+                        Margin="0,4,0,4"
+                        Click="MoreButton_Click">
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                    </StackPanel>
+                </Button>
+                </Grid>
         </Grid>
 
         <!-- The voice-note player. One for the whole page, not one per bubble:
@@ -1083,8 +1128,6 @@
                       MediaEnded="VoicePlayer_MediaEnded"
                       MediaFailed="VoicePlayer_MediaFailed"/>
 
-        <!-- Full-screen image. It sits above everything and closes on tap:
-             no button, no new icon, no new string. -->
         <Grid x:Name="ImageViewer" Grid.RowSpan="4"
               Background="#F0000000"
               Visibility="Collapsed"

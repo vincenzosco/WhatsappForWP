@@ -186,6 +186,8 @@ namespace WhatsappApp.Pages
             AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
             AutomationProperties.SetName(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
             AutomationProperties.SetName(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
+            AutomationProperties.SetName(SmileyButton, Loc.Get("ChatPage_EmojiTooltip", "Emoji"));
+            AutomationProperties.SetName(MoreButton, Loc.Get("ChatsPage_MoreTooltip", "More"));
             AutomationProperties.SetName(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
             AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
             AutomationProperties.SetName(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
@@ -628,6 +630,13 @@ namespace WhatsappApp.Pages
                 MessagePlaceholderText.Visibility = string.IsNullOrEmpty(MessageTextBox.Text)
                     ? Visibility.Visible : Visibility.Collapsed;
             }
+            // The mic sits left of the box while it is empty and stands down the
+            // moment there is text: the reference composer shows it only then.
+            if (_recording != null && !_recording.IsRecording)
+            {
+                RecordButton.Visibility = string.IsNullOrEmpty(MessageTextBox.Text)
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
             string text = (MessageTextBox.Text ?? "").Trim();
             if (text.Length == 0) { StopTyping(); return; }
 
@@ -1008,6 +1017,13 @@ namespace WhatsappApp.Pages
         {
             if (_contact == null) return;
             e.Handled = true;
+            OpenContactInfo();
+        }
+
+        /// <summary>The contact or group page, from the header and from the overflow menu.</summary>
+        private void OpenContactInfo()
+        {
+            if (_contact == null) return;
             PhoneApplicationService.Current.State["WhatsappApp.NavigationParameter"] = _contact;
             NavigationService.Navigate(new Uri("/Pages/ContactInfoPage.xaml", UriKind.Relative));
         }
@@ -2424,6 +2440,26 @@ namespace WhatsappApp.Pages
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("ChatPage/wait for ack", WaitForAckAsync(message));
 #pragma warning restore 4014
+        }
+
+        /// <summary>The smiley opens the keyboard: its Chat scope is what puts the
+        /// emoji key beside the space bar.</summary>
+        private void SmileyButton_Click(object sender, RoutedEventArgs e)
+        {
+            MessageTextBox.Focus();
+        }
+
+        /// <summary>The overflow of the ring bar: the chat's own page actions.</summary>
+        private void MoreButton_Click(object sender, RoutedEventArgs e)
+        {
+            var actions = new List<PopupAction>();
+
+            PopupAction info = new PopupAction();
+            info.Text = Loc.Get("ChatPage_ContactInfoTooltip", "Contact info");
+            info.Invoke = OpenContactInfo;
+            actions.Add(info);
+
+            ShowActionPopup(MoreButton, actions);
         }
 
         private void SendButton_Click(object sender, RoutedEventArgs e)

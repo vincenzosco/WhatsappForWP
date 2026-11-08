@@ -652,5 +652,8 @@
   <data name="Settings_Off" xml:space="preserve">
     <value>Off</value>
   </data>
+  <data name="ChatPage_EmojiTooltip" xml:space="preserve">
+    <value>Emoji</value>
+  </data>
 </root>
 
