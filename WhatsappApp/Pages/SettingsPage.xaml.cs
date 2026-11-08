@@ -68,6 +68,23 @@ namespace WhatsappApp.Pages
             _loading = false;
 
             ShowBackgroundState();
+            PaintToggleStates();
+        }
+
+        /// <summary>The big On/Off each toggle row shows beside its switch.</summary>
+        private void PaintToggleStates()
+        {
+            PaintToggleState(MessagesToggleState, MessagesToggle.IsChecked == true);
+            PaintToggleState(StatusesToggleState, StatusesToggle.IsChecked == true);
+            PaintToggleState(CallsToggleState, CallsToggle.IsChecked == true);
+            PaintToggleState(BackgroundToggleState, BackgroundToggle.IsChecked == true);
+        }
+
+        private static void PaintToggleState(TextBlock label, bool on)
+        {
+            label.Text = on
+                ? Loc.Get("Settings_On", "On")
+                : Loc.Get("Settings_Off", "Off");
         }
 
         private ThemeChoice FindSelectedTheme()
@@ -102,6 +119,7 @@ namespace WhatsappApp.Pages
             if (_loading) return;
 
             SettingsService.MessageAlertsEnabled = MessagesToggle.IsChecked == true;
+            PaintToggleStates();
             Diag.Ok("settings: message alerts " + (MessagesToggle.IsChecked == true ? "on" : "off"));
         }
 
@@ -110,6 +128,7 @@ namespace WhatsappApp.Pages
             if (_loading) return;
 
             SettingsService.StatusAlertsEnabled = StatusesToggle.IsChecked == true;
+            PaintToggleStates();
             Diag.Ok("settings: status alerts " + (StatusesToggle.IsChecked == true ? "on" : "off"));
         }
 
@@ -118,6 +137,7 @@ namespace WhatsappApp.Pages
             if (_loading) return;
 
             SettingsService.CallAlertsEnabled = CallsToggle.IsChecked == true;
+            PaintToggleStates();
             Diag.Ok("settings: call alerts " + (CallsToggle.IsChecked == true ? "on" : "off"));
         }
 
@@ -127,6 +147,7 @@ namespace WhatsappApp.Pages
 
             bool enabled = BackgroundToggle.IsChecked == true;
             SettingsService.BackgroundCheckEnabled = enabled;
+            PaintToggleStates();
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("SettingsPage/background", BackgroundSync.SetEnabledAsync(enabled));

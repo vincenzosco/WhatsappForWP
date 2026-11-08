@@ -646,5 +646,11 @@
   <data name="Call_Message" xml:space="preserve">
     <value>Message</value>
   </data>
+  <data name="Settings_On" xml:space="preserve">
+    <value>On</value>
+  </data>
+  <data name="Settings_Off" xml:space="preserve">
+    <value>Off</value>
+  </data>
 </root>
 
