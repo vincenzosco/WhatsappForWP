@@ -151,6 +151,25 @@ function threadProblems(source, file) {
   const code = stripComments(source);
   if (code.indexOf('BitmapImage') < 0) return problems;
 
+  const silverlight = /using\s+System\.Windows\.Media\.Imaging/.test(code);
+  if (silverlight) {
+    if (!/CheckAccess\s*\(/.test(code)) {
+      problems.push(`${file}: builds a Silverlight BitmapImage without Dispatcher.CheckAccess() - ` +
+        'a bitmap created from a worker thread fails with RPC_E_WRONG_THREAD and the row keeps its initials');
+      return problems;
+    }
+    if (!/BeginInvoke\s*\(/.test(code)) {
+      problems.push(`${file}: checks dispatcher access but does not marshal bitmap construction with BeginInvoke()`);
+    }
+    if (!/UiThread\.Dispatcher\s*\(\s*\)/.test(code)) {
+      problems.push(`${file}: does not ask UiThread.Dispatcher() before creating a Silverlight bitmap`);
+    }
+    if (!/dispatcher\s*==\s*null/.test(code) || !/return null/.test(code)) {
+      problems.push(`${file}: a headless process must return null instead of constructing a bitmap`);
+    }
+    return problems;
+  }
+
   if (!/HasThreadAccess/.test(code)) {
     problems.push(`${file}: builds a BitmapImage without asking which thread it is on ` +
       '(HasThreadAccess): on a pool thread the platform answers RPC_E_WRONG_THREAD ' +

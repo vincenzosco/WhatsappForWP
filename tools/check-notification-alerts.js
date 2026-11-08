@@ -190,9 +190,17 @@ function alertProblems(files) {
         'the switch has nowhere to be remembered');
     }
 
-    if (!new RegExp('SettingsService\\.' + item.setting + '\\s*=').test(files.settingsPage)) {
-      problems.push('WhatsappApp/Pages/SettingsPage.xaml.cs: nothing writes SettingsService.' +
-        item.setting + ' - the switch on the page and the one the alert reads are not the same fact');
+    const toggleHandler = item.toggle + '_Toggled';
+    const handlerBody = methodBody(files.settingsPage, 'private void ' + toggleHandler + '(') || '';
+    if (!new RegExp('SettingsService\\.' + item.setting + '\\s*=\\s*' + item.toggle +
+        '\\.IsChecked\\s*==\\s*true').test(handlerBody)) {
+      problems.push('WhatsappApp/Pages/SettingsPage.xaml.cs: ' + toggleHandler +
+        ' does not save SettingsService.' + item.setting + ' from the actual toggle state');
+    }
+    if (!new RegExp('x:Name="' + item.toggle + '"[\\s\\S]*?Checked="' + toggleHandler +
+        '"[\\s\\S]*?Unchecked="' + toggleHandler + '"').test(files.settingsXaml)) {
+      problems.push('WhatsappApp/Pages/SettingsPage.xaml: ' + item.toggle +
+        ' is not wired for both checked and unchecked states');
     }
 
     if (!new RegExp('x:Name="' + item.toggle + '"').test(files.settingsXaml)) {

@@ -63,19 +63,23 @@ function bodyAt(source, signature) {
 function problemsFor(source) {
   const problems = [];
 
+  // Silverlight's ResourceDictionary answers to `Contains`, the WinRT map to
+  // `ContainsKey`: both are the ask-before-read this guard wants.
+  const asked = (body) => body.indexOf('ContainsKey') >= 0 || body.indexOf('.Contains(') >= 0;
+
   const apply = bodyAt(source, 'public static void Apply()');
   if (!apply) {
     problems.push(`${ACCENT}: no Apply(): the one place that paints the accent is gone`);
   } else {
-    if (apply.indexOf('ContainsKey') < 0) {
-      problems.push(`${ACCENT}: Apply reads a resource without asking ContainsKey first: a ` +
-        'name this build does not have is a COMException from inside the WinRT map, and the ' +
-        'debugger stops on it at every start - the two "Cannot find a resource with the given ' +
-        'key" first-chance exceptions of 24 October 2026');
+    if (!asked(apply)) {
+      problems.push(`${ACCENT}: Apply reads a resource without asking ContainsKey (or the ` +
+        'Silverlight Contains) first: a name this build does not have is an exception from ' +
+        'inside the map, and the debugger stops on it at every start - the two "Cannot find a ' +
+        'resource with the given key" first-chance exceptions of 24 October 2026');
     }
     if (apply.indexOf('try') >= 0) {
       problems.push(`${ACCENT}: Apply has a try again: the lookup that needs one is the ` +
-        'lookup that has to be replaced by ContainsKey');
+        'lookup that has to be replaced by an ask-before-read');
     }
   }
 
@@ -83,9 +87,9 @@ function problemsFor(source) {
   if (!brush) {
     problems.push(`${ACCENT}: no SetBrush(): the brushes the pages resolve are painted by it`);
   } else {
-    if (brush.indexOf('ContainsKey') < 0) {
-      problems.push(`${ACCENT}: SetBrush reads the resource dictionary without ContainsKey: ` +
-        'the same COMException, once per brush');
+    if (!asked(brush)) {
+      problems.push(`${ACCENT}: SetBrush reads the resource dictionary without ContainsKey (or ` +
+        'the Silverlight Contains): the same exception, once per brush');
     }
     if (brush.indexOf('Application.Current') < 0 || brush.indexOf('== null') < 0) {
       problems.push(`${ACCENT}: SetBrush does not survive a process with no application: the ` +

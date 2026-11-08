@@ -13,12 +13,12 @@
  * quella catena e' muto se manca:
  *
  * - senza `RefreshLaunchRoute` la rotta non viene mai scritta;
- * - senza `TakeRoute` in `App.OnLaunched` la rotta resta sul telefono per sempre;
+ * - senza `TakeRoute` in `App.MapInitialUri` la rotta resta sul telefono per sempre;
  * - senza `MarkOpened` la sezione non sa di essere stata guardata, e la stessa rotta
  * resta vera per sempre: e' il modo in cui una scorciatoia diventa un rapimento.
  *
  * Regole:
- * 1. `App.OnLaunched` prende la rotta una volta e la **nomina nel log**;
+ * 1. `App.MapInitialUri` prende la rotta una volta e la **nomina nel log**; `OnLaunching` avvia la navigazione Silverlight;
  * 2. un avvio atterra sulle chat: `HomePage.OnNavigatedTo` mostra l'indice 0, e nessuno
  * puo' portarlo su un'altra tab - `SessionService.PendingSection` non esiste piu'
  * (28 ottobre 2026: ogni avvio apriva la tab Stato, e la richiesta e' stata
@@ -72,22 +72,30 @@ function methodBody(text, signature) {
 function launchRouteProblems(files) {
   const problems = [];
 
-  // 1. L'avvio prende la rotta, la nomina, e non ne fa una sezione.
-  const launched = methodBody(files.app, 'protected override void OnLaunched(');
-  if (!launched) {
-    problems.push('WhatsappApp/App.xaml.cs: no OnLaunched - there is nowhere the route of a tap could arrive');
+  // 1. Silverlight launches through PhoneApplicationService.Launching and AppUriMapper.
+  const launching = methodBody(files.app, 'private void OnLaunching(') || '';
+  const mapped = methodBody(files.app, 'private Uri MapInitialUri(') || '';
+  if (!launching || !/EnsureStartupPage\s*\(\s*\)/.test(launching)) {
+    problems.push('WhatsappApp/App.xaml.cs: OnLaunching does not start the Silverlight frame navigation');
+  }
+  if (!mapped) {
+    problems.push('WhatsappApp/App.xaml.cs: no MapInitialUri - the Silverlight launch has no route decision');
   } else {
-    if (!/SessionService\.TakeRoute\s*\(/.test(launched)) {
-      problems.push('WhatsappApp/App.xaml.cs: OnLaunched never calls SessionService.TakeRoute() - ' +
-        'a tap on the tile arrives as a plain launch and the route it left is the only thing that says where it was');
+    if (!/SessionService\.TakeRoute\s*\(/.test(mapped)) {
+      problems.push('WhatsappApp/App.xaml.cs: MapInitialUri never calls SessionService.TakeRoute() - ' +
+        'a tile tap arrives as a plain launch and the route it left is the only thing that says where it was');
     }
-    if (!/Diag\.Ok\s*\([^)]*route/.test(launched)) {
-      problems.push('WhatsappApp/App.xaml.cs: OnLaunched takes the route and never names it - ' +
+    if (!/Diag\.Ok\s*\([^)]*route/.test(mapped)) {
+      problems.push('WhatsappApp/App.xaml.cs: MapInitialUri takes the route and never names it - ' +
         'a tap that lands somewhere unexpected has to be readable in diag.log');
     }
-    if (/SessionService\.PendingSection/.test(launched)) {
-      problems.push('WhatsappApp/App.xaml.cs: OnLaunched turns the route into a pending section - ' +
+    if (/SessionService\.PendingSection/.test(mapped)) {
+      problems.push('WhatsappApp/App.xaml.cs: MapInitialUri turns the route into a pending section - ' +
         'a start is the chats (28 October 2026: every launch opened the Status tab)');
+    }
+    if (!/StartDecision\.Decide\s*\(/.test(mapped)
+        || !/StartTarget\.Pair\s*\?\s*PairPageUri\s*:\s*HomePageUri/.test(mapped)) {
+      problems.push('WhatsappApp/App.xaml.cs: a session-less Silverlight launch does not map to PairPage');
     }
   }
 

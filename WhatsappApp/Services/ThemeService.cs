@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using Windows.Storage;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace WhatsappApp.Services
 {
@@ -23,10 +23,10 @@ namespace WhatsappApp.Services
         /// <summary>The word under the thumbnail, already localized.</summary>
         public string Name { get; set; }
 
-        /// <summary>The full image, `ms-appx:///.`; null for the plain background.</summary>
+        /// <summary>The full image from the XAP; null for the plain background.</summary>
         public string ImageUri { get; set; }
 
-        /// <summary>The small image the grid draws, `ms-appx:///.`; null for plain.</summary>
+        /// <summary>The small image the grid draws from the XAP; null for plain.</summary>
         public string ThumbUri { get; set; }
 
         /// <summary>The one chosen on this phone.</summary>
@@ -68,7 +68,7 @@ namespace WhatsappApp.Services
         public const string PlainKey = "plain";
 
         /// <summary>The doodle wallpaper of the released package (`Images/Background.jpg`).</summary>
-        private const string ClassicImage = "ms-appx:///Assets/ChatBackground.jpg";
+        private const string ClassicImage = "Assets/ChatBackground.jpg";
 
         private const string SettingKey = "ChatWallpaper";
 
@@ -129,9 +129,8 @@ namespace WhatsappApp.Services
             // been seen running out of memory (`ChatCache.Save: OutOfMemoryException` in the
             // log). A decode that does not fit is a background that silently
             // never appears, which is what "the background does not apply" looks like.
-            image.DecodePixelType = DecodePixelType.Physical;
             image.DecodePixelWidth = WallpaperWidth;
-            image.UriSource = new Uri(choice.ImageUri);
+            image.UriSource = new Uri("/" + choice.ImageUri, UriKind.Relative);
             return image;
         }
 
@@ -211,8 +210,8 @@ namespace WhatsappApp.Services
                 {
                     Key = "wall-" + n,
                     Name = prefix + " " + n,
-                    ImageUri = "ms-appx:///Assets/Wallpapers/" + name,
-                    ThumbUri = "ms-appx:///Assets/Wallpapers/thumbs/" + name
+                    ImageUri = "Assets/Wallpapers/" + name,
+                    ThumbUri = "Assets/Wallpapers/thumbs/" + name
                 });
             }
 

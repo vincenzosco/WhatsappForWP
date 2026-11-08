@@ -1,8 +1,9 @@
 using System;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Media;
+using System.Windows.Navigation;
+using Microsoft.Phone.Controls;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
@@ -21,14 +22,21 @@ namespace WhatsappApp.Pages
     /// `NativeConnection`, and the only thing this page can still do is hand the
     /// screen to `PairPage`, which is where a code that links a device is drawn.
     /// </summary>
-    public sealed partial class ConnectionPage : Page
+    public sealed partial class ConnectionPage : PhoneApplicationPage
     {
         private readonly CredentialStore _store = new CredentialStore(new NativeCredentialStorage());
 
         public ConnectionPage()
         {
-            this.InitializeComponent();
-            ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            InitializeComponent();
+            AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            LinkedLabel.Text = Loc.Get("ConnectionPage_LinkedLabel.Text", "Linked number");
+            AccountHintText.Text = Loc.Get("ConnectionPage_NotLinked.Text",
+                "This phone is not linked. Tap below to show the QR code.");
+            StatusLabel.Text = Loc.Get("ConnectionPage_StatusLabel.Text", "Connection");
+            LinkDeviceButton.Content = Loc.Get("ConnectionPage_LinkDevice.Content", "Link a device");
+            LinkDeviceHint.Text = Loc.Get("ConnectionPage_LinkDeviceHint.Text",
+                "Linking a device replaces the account this phone uses.");
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -133,6 +141,12 @@ namespace WhatsappApp.Pages
 
         private void OnStatusChanged(object sender, string status)
         {
+            if (!Deployment.Current.Dispatcher.CheckAccess())
+            {
+                Deployment.Current.Dispatcher.BeginInvoke(delegate { ShowStatus(); });
+                return;
+            }
+
             ShowStatus();
         }
 
@@ -142,15 +156,15 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void LinkDeviceButton_Click(object sender, RoutedEventArgs e)
         {
-            Frame.Navigate(typeof(PairPage));
+            NavigationService.Navigate(new Uri("/Pages/PairPage.xaml", UriKind.Relative));
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (Frame.CanGoBack)
-                Frame.GoBack();
+            if (NavigationService.CanGoBack)
+                NavigationService.GoBack();
             else
-                Frame.Navigate(typeof(HomePage));
+                NavigationService.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
         }
     }
 }

@@ -497,7 +497,7 @@
     <value>Controllo in background</value>
   </data>
   <data name="Settings_BackgroundHint.Text" xml:space="preserve">
-    <value>Ogni 15 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. 15 minuti e' l'intervallo piu' breve che Windows permette: il momento esatto lo decide lui e puo' rimandarlo.</value>
+    <value>Se Windows lo consente, l'app si sveglia circa ogni 30 minuti per controllare i messaggi e aggiornare tile e schermata di blocco. Windows decide l'orario esatto e puo' ritardare o saltare un controllo.</value>
   </data>
   <data name="Settings_BackgroundState.Text" xml:space="preserve">
     <value>Il telefono non permette alle app di lavorare in background: il controllo non si sveglia finche' non lo riattivi nelle sue impostazioni.</value>
@@ -635,4 +635,4 @@
     <value>Chiamata in arrivo</value>
   </data>
 </root>
-
+

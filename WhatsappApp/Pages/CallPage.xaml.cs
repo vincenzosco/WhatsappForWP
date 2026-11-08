@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
-using Windows.UI;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Threading;
+using Microsoft.Phone.Controls;
 using WhatsappApp.Models;
 using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WABinary;
@@ -37,7 +38,7 @@ namespace WhatsappApp.Pages
     /// The media is not here and does not exist yet: an answered call is a call whose
     /// signalling succeeded. See `docs/superpowers/specs/2026-11-02-voice-and-video-calls-design.md`.
     /// </summary>
-    public sealed partial class CallPage : Page
+    public sealed partial class CallPage : PhoneApplicationPage
     {
         private readonly DispatcherTimer _tick = new DispatcherTimer();
 
@@ -72,6 +73,7 @@ namespace WhatsappApp.Pages
             AcceptLabel.Text = Loc.Get("Call_Accept", "Accept");
             DeclineLabel.Text = Loc.Get("Call_Decline", "Decline");
             EndLabel.Text = Loc.Get("Call_End", "End");
+            MessageLabel.Text = Loc.Get("Call_Message", "Message");
 
             // One second: the duration on screen moves once a second, and the deadline for an
             // unanswered call is measured in seconds.
@@ -98,6 +100,11 @@ namespace WhatsappApp.Pages
         private void OnCallChanged(object sender, EventArgs e)
         {
             if (_left) return;
+            if (!Deployment.Current.Dispatcher.CheckAccess())
+            {
+                Deployment.Current.Dispatcher.BeginInvoke(delegate { Draw(); });
+                return;
+            }
 
             Draw();
         }
@@ -106,7 +113,7 @@ namespace WhatsappApp.Pages
         /// Once a second: a call nobody answered is ended here, and everything else is drawn
         /// again - the duration is a fact of the clock, not of a stanza.
         /// </summary>
-        private void OnTick(object sender, object e)
+        private void OnTick(object sender, EventArgs e)
         {
             if (_left) return;
 
@@ -192,19 +199,20 @@ namespace WhatsappApp.Pages
             EndCallButton.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
             EndLabel.Text = over ? Loc.Get("Call_Close", "Close") : Loc.Get("Call_End", "End");
 
-            // A call that is over has one control, "Close": the two switches above are
-            // collapsed, and a button pinned to the fifth column of a five-column row is one
-            // button sitting at the right edge with three empty slots beside it. Across the
-            // whole row is where a single button belongs, and the live call keeps the row of
-            // three it was designed for.
-            Grid.SetColumn(EndCallButton, over ? 0 : 4);
-            Grid.SetColumnSpan(EndCallButton, over ? 5 : 1);
+            // A call that is over has one control, "Close": the switches above are
+            // collapsed, and a button pinned to the last column of the row is one button
+            // sitting at the right edge with empty slots beside it. Across the whole row is
+            // where a single button belongs, and the live call keeps the row of four it was
+            // designed for.
+            Grid.SetColumn(EndCallButton, over ? 0 : 6);
+            Grid.SetColumnSpan(EndCallButton, over ? 7 : 1);
 
             // The two switches, and the same rule as the rest: they belong to a call that is
             // up or being set up. Each tile says which way its switch is, and is lit while it
             // is the unusual way - the microphone off, the sound on the loudspeaker.
             MuteCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
             SpeakerCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+            MessageCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
 
             MuteLabel.Text = call.Muted
                 ? Loc.Get("Call_Muted", "Microphone off")
@@ -305,7 +313,7 @@ namespace WhatsappApp.Pages
         private static void PaintSwitch(Button tile, bool engaged)
         {
             tile.Background = new SolidColorBrush(engaged
-                ? Color.FromArgb(0xFF, 0x25, 0xD3, 0x66)
+                ? Color.FromArgb(0xFF, 0x00, 0xAF, 0xA9)
                 : Color.FromArgb(0xFF, 0x2A, 0x2A, 0x2A));
         }
 
@@ -318,7 +326,7 @@ namespace WhatsappApp.Pages
             if (_left) return;
 
             _left = true;
-            if (Frame != null && Frame.CanGoBack) Frame.GoBack();
+            if (NavigationService != null && NavigationService.CanGoBack) NavigationService.GoBack();
         }
 
         /// <summary>The picture of the person, from the row or from the copy on the phone.</summary>
@@ -327,6 +335,9 @@ namespace WhatsappApp.Pages
             if (jid == _avatarJid) return;
 
             _avatarJid = jid;
+            CallPhoto.Source = null;
+            CallPhoto.Visibility = Visibility.Collapsed;
+            AvatarCircle.Visibility = Visibility.Visible;
             AvatarCircle.Fill = new SolidColorBrush(Color.FromArgb(0xFF, 0x2A, 0x2A, 0x2A));
             InitialsText.Visibility = Visibility.Visible;
 
@@ -348,7 +359,9 @@ namespace WhatsappApp.Pages
             BitmapImage bitmap = await ImageHelper.FromBase64Async(data, PicturePixels);
             if (bitmap == null || jid != _avatarJid) return;
 
-            AvatarCircle.Fill = new ImageBrush { ImageSource = bitmap, Stretch = Stretch.UniformToFill };
+            CallPhoto.Source = bitmap;
+            CallPhoto.Visibility = Visibility.Visible;
+            AvatarCircle.Visibility = Visibility.Collapsed;
             InitialsText.Visibility = Visibility.Collapsed;
         }
 
@@ -365,6 +378,20 @@ namespace WhatsappApp.Pages
         private void SpeakerCallButton_Click(object sender, RoutedEventArgs e)
         {
             DataService.Instance.ToggleSpeaker();
+        }
+
+        /// <summary>
+        /// The chat with the person on the line: the conversation opens without
+        /// hanging up first, like the original client.
+        /// </summary>
+        private void MessageCallButton_Click(object sender, RoutedEventArgs e)
+        {
+            CallSession call = DataService.Instance.Call;
+            if (call == null || string.IsNullOrEmpty(call.PeerJid)) return;
+
+            string name = NameCache.Book.NameFor(call.PeerJid);
+            Contact contact = DataService.Instance.ContactFor(call.PeerJid, name);
+            if (contact != null) HomePage.NavigateToPage("ChatPage", contact);
         }
 
         private void AcceptCallButton_Click(object sender, RoutedEventArgs e)

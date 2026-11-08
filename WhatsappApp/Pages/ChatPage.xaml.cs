@@ -3,21 +3,23 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Diagnostics;
 using System.IO;
-using Windows.ApplicationModel.DataTransfer;
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Navigation;
+using System.Windows.Threading;
+using Microsoft.Phone.Controls;
+using Microsoft.Phone.Shell;
 using Windows.Storage;
 using Windows.Storage.Streams;
+using Windows.Storage.Pickers;
 using Windows.System;
-using Windows.UI;
-using Windows.UI.Input;
-using Windows.UI.Popups;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Animation;
-using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Models;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.WABinary;
@@ -25,7 +27,7 @@ using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
 {
-    public sealed partial class ChatPage : Page
+    public sealed partial class ChatPage : PhoneApplicationPage
     {
         private Contact _contact;
         // The members picked from the @ menu for the message being written.
@@ -166,22 +168,47 @@ namespace WhatsappApp.Pages
         /// </summary>
         private bool _left;
 
+        private Popup _actionPopup;
+
+        private sealed class PopupAction
+        {
+            public string Text;
+            public object Tag;
+            public Action Invoke;
+            public RoutedEventHandler Click;
+        }
+
         public ChatPage()
         {
             this.InitializeComponent();
+            SystemTray.IsVisible = true;
 
-            // Icon-only buttons: the label lives in the tooltip.
-            ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
-            ToolTipService.SetToolTip(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
-            ToolTipService.SetToolTip(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
-            ToolTipService.SetToolTip(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
-            ToolTipService.SetToolTip(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
-            ToolTipService.SetToolTip(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
-            ToolTipService.SetToolTip(RecentMessagesButton, Loc.Get("ChatPage_JumpToRecentTooltip", "Jump to the newest messages"));
-
-            // The picture and the name are two targets: the tooltip tells them apart.
-            ToolTipService.SetToolTip(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
-            ToolTipService.SetToolTip(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
+            AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            AutomationProperties.SetName(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
+            AutomationProperties.SetName(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
+            AutomationProperties.SetName(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
+            AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
+            AutomationProperties.SetName(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
+            AutomationProperties.SetName(RecentMessagesButton, Loc.Get("ChatPage_JumpToRecentTooltip", "Jump to the newest messages"));
+            AutomationProperties.SetName(HeaderAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
+            AutomationProperties.SetName(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
+            MessagePlaceholderText.Text = Loc.Get("ChatPage_Input.PlaceholderText", "Type a message");
+            RecordingLabelText.Text = Loc.Get("ChatPage_RecordingLabel.Text", "Recording");
+            AttachmentPickerTitle.Text = Loc.Get("ChatPage_AttachMediaTitle", "Allega media")
+                .ToUpper(CultureInfo.CurrentCulture);
+            AttachmentAlbumsLabel.Text = Loc.Get("ChatMessage_Albums", "Album");
+            AttachmentPhotoLabel.Text = Loc.Get("ChatMessage_Photo", "Photo");
+            AttachmentVideoLabel.Text = Loc.Get("ChatMessage_Video", "Video");
+            AttachmentAudioLabel.Text = Loc.Get("ChatMessage_Audio", "Audio");
+            AttachmentLocationLabel.Text = Loc.Get("ChatMessage_Location", "Posizione");
+            AttachmentContactLabel.Text = Loc.Get("ChatMessage_Contact", "Contatto");
+            AutomationProperties.SetName(AttachmentPickerDismissButton, Loc.Get("ChatPage_Cancel", "Cancel"));
+            AutomationProperties.SetName(AttachmentAlbumsButton, AttachmentAlbumsLabel.Text);
+            AutomationProperties.SetName(AttachmentPhotoButton, AttachmentPhotoLabel.Text);
+            AutomationProperties.SetName(AttachmentVideoButton, AttachmentVideoLabel.Text);
+            AutomationProperties.SetName(AttachmentAudioButton, AttachmentAudioLabel.Text);
+            AutomationProperties.SetName(AttachmentLocationButton, AttachmentLocationLabel.Text);
+            AutomationProperties.SetName(AttachmentContactButton, AttachmentContactLabel.Text);
 
             // The list is handed to the view module now, before it has a source:
             // binding happens later, once the saved copy is in.
@@ -196,7 +223,16 @@ namespace WhatsappApp.Pages
             _left = false;
             ApplyTheme();
 
-            var contact = e.Parameter as Contact;
+            Contact contact = null;
+            object navigationParameter;
+            const string navigationParameterKey = "WhatsappApp.NavigationParameter";
+            if (PhoneApplicationService.Current.State.TryGetValue(navigationParameterKey, out navigationParameter))
+            {
+                PhoneApplicationService.Current.State.Remove(navigationParameterKey);
+                contact = navigationParameter as Contact;
+            }
+            if (contact == null) contact = DataService.Instance.SelectedContact;
+
             if (contact != null)
             {
                 _contact = contact;
@@ -230,9 +266,9 @@ namespace WhatsappApp.Pages
 
                 // Load messages: first the ones on the phone, so the conversation
                 // shows right away, then the real history. The list is bound after
-                // that copy is in, and not here: inserting into a collection the
-                // ListView is already watching, in the middle of a navigation,
-                // answered E_UNEXPECTED and the conversation stayed empty.
+                // that copy is in, and not here: inserting into a collection already
+                // observed by the message list during navigation answered E_UNEXPECTED
+                // and left the conversation empty.
                 _messages = DataService.Instance.GetMessages(contact.Id);
                 MarkRead();
                 // The chat is the active one before the list is bound: the bind
@@ -254,8 +290,8 @@ namespace WhatsappApp.Pages
                 // The next phone log then reads this line and, if the process still
                 // dies after a chat opens, the site it reached is the last thing
                 // before App/unhandled: the crash report has to name itself.
-                Diag.OkNow("opened chat " + contact.Id + ", memory "
-                    + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
+                Diag.OkNow("opened chat " + contact.Id + ", managed memory "
+                    + (GC.GetTotalMemory(false) / (1024L * 1024L)) + " MB");
 
                 // Whether a burst is still on its way decides how the list binds: at
                 // once when there is none to wait for, and only when it closes when
@@ -312,7 +348,7 @@ namespace WhatsappApp.Pages
             ImageSource image = ThemeService.ImageFor(ThemeService.Current);
             if (image == null)
             {
-                Background = new SolidColorBrush(Colors.White);
+                Background = new SolidColorBrush(Colors.Black);
                 return;
             }
 
@@ -320,10 +356,22 @@ namespace WhatsappApp.Pages
             Background = ChatWallpaper;
         }
 
+        protected override void OnBackKeyPress(CancelEventArgs e)
+        {
+            if (AttachmentPickerOverlay.Visibility == Visibility.Visible)
+            {
+                AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+                e.Cancel = true;
+            }
+
+            base.OnBackKeyPress(e);
+        }
+
         protected override void OnNavigatedFrom(NavigationEventArgs e)
         {
             base.OnNavigatedFrom(e);
 
+            AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
             _left = true;
 
             DataService.Instance.MessageArrived -= OnMessageArrived;
@@ -393,7 +441,8 @@ namespace WhatsappApp.Pages
             await DataService.Instance.StartCallAsync(jid, false);
 
             CallSession call = DataService.Instance.Call;
-            if (Frame != null && call != null && call.Occupied) Frame.Navigate(typeof(CallPage));
+            if (call != null && call.Occupied)
+                NavigationService.Navigate(new Uri("/Pages/CallPage.xaml", UriKind.Relative));
         }
 
         /// Readable number of a JID (e.g. +393401234567 for people). Empty for
@@ -575,6 +624,11 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void MessageTextBox_TextChanged(object sender, TextChangedEventArgs e)
         {
+            if (MessagePlaceholderText != null)
+            {
+                MessagePlaceholderText.Visibility = string.IsNullOrEmpty(MessageTextBox.Text)
+                    ? Visibility.Visible : Visibility.Collapsed;
+            }
             string text = (MessageTextBox.Text ?? "").Trim();
             if (text.Length == 0) { StopTyping(); return; }
 
@@ -599,7 +653,7 @@ namespace WhatsappApp.Pages
         /// still in the box, and the contact must stop seeing the dots. While the
         /// words keep coming the state is refreshed instead.
         /// </summary>
-        private void OnTypingTimerTick(object sender, object e)
+        private void OnTypingTimerTick(object sender, EventArgs e)
         {
             if ((DateTime.Now - _lastKeystroke).TotalSeconds >= TypingRefreshSeconds)
             {
@@ -702,8 +756,8 @@ namespace WhatsappApp.Pages
             // On disk at once: this is the line that has to survive the crash it
             // measures, and the memory it names is what tells a fail-fast of the
             // runtime from the phone terminating the app on its budget.
-            Diag.OkNow("bound " + _shown.Count + " of " + _messages.Count + " rows, memory "
-                + (Windows.System.MemoryManager.AppMemoryUsage / (1024UL * 1024UL)) + " MB");
+            Diag.OkNow("bound " + _shown.Count + " of " + _messages.Count + " rows, managed memory "
+                + (GC.GetTotalMemory(false) / (1024L * 1024L)) + " MB");
 
             if (isActiveChat)
             {
@@ -880,7 +934,7 @@ namespace WhatsappApp.Pages
         /// </summary>
         private const int ViewerDecodePixels = 720;
 
-        private async void Media_Tapped(object sender, TappedRoutedEventArgs e)
+        private async void Media_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
         {
             var element = sender as FrameworkElement;
             var message = element == null ? null : element.DataContext as ChatMessage;
@@ -944,7 +998,7 @@ namespace WhatsappApp.Pages
             }
         }
 
-        private void ImageViewer_Tapped(object sender, TappedRoutedEventArgs e)
+        private void ImageViewer_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
         {
             HideFullScreen();
             e.Handled = true;
@@ -956,7 +1010,7 @@ namespace WhatsappApp.Pages
         /// nothing opens: there is no request to make here, the chat list has
         /// already requested them.
         /// </summary>
-        private async void HeaderAvatar_Tapped(object sender, TappedRoutedEventArgs e)
+        private async void HeaderAvatar_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
         {
             e.Handled = true;
             if (_contact == null || string.IsNullOrEmpty(_contact.AvatarData)) return;
@@ -980,11 +1034,12 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>The name opens the info: the picture stays for the picture.</summary>
-        private void ContactHeader_Tapped(object sender, TappedRoutedEventArgs e)
+        private void ContactHeader_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
         {
             if (_contact == null) return;
             e.Handled = true;
-            Frame.Navigate(typeof(ContactInfoPage), _contact);
+            PhoneApplicationService.Current.State["WhatsappApp.NavigationParameter"] = _contact;
+            NavigationService.Navigate(new Uri("/Pages/ContactInfoPage.xaml", UriKind.Relative));
         }
 
         private void HideFullScreen()
@@ -999,6 +1054,10 @@ namespace WhatsappApp.Pages
         /// stream to keep open for the life of the page. A voice note does not
         /// come here any more: it plays in its own bubble.
         /// </summary>
+        private DispatcherTimer _videoTimer;
+        private bool _videoPaused;
+        private bool _videoSeekUpdating;
+
         private void PlayVideo(ChatMessage message)
         {
             if (message == null || string.IsNullOrEmpty(message.MediaFilePath)) return;
@@ -1008,12 +1067,133 @@ namespace WhatsappApp.Pages
                 StopVideo();
                 VideoPlayer.Source = new Uri("ms-appdata:///local/" + message.MediaFilePath);
                 VideoViewer.Visibility = Visibility.Visible;
+                VideoTransportPanel.Visibility = Visibility.Visible;
+                VideoPlaybackButton.IsEnabled = false;
+                VideoSeekSlider.Value = 0;
+                VideoSeekSlider.IsEnabled = false;
+                _videoPaused = false;
+                VideoPlayIcon.Visibility = Visibility.Collapsed;
+                VideoPauseIcon.Visibility = Visibility.Visible;
                 VideoPlayer.Play();
             }
             catch (Exception ex)
             {
                 Diag.Failed("ChatPage.PlayVideo", ex);
                 ShowVideoError();
+            }
+        }
+
+        private void VideoPlayer_MediaOpened(object sender, RoutedEventArgs e)
+        {
+            if (_left || VideoViewer.Visibility != Visibility.Visible
+                || VideoTransportPanel.Visibility != Visibility.Visible) return;
+
+            try
+            {
+                double duration = VideoPlayer.NaturalDuration.HasTimeSpan
+                    ? VideoPlayer.NaturalDuration.TimeSpan.TotalSeconds
+                    : 0;
+                VideoSeekSlider.Maximum = duration > 0 ? duration : 1;
+                VideoSeekSlider.IsEnabled = duration > 0;
+                VideoPlaybackButton.IsEnabled = true;
+                if (duration > 0) StartVideoTimer();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.VideoPlayerOpened", ex);
+            }
+        }
+
+        private void VideoPlayer_MediaEnded(object sender, RoutedEventArgs e)
+        {
+            StopVideoTimer();
+            _videoPaused = true;
+            _videoSeekUpdating = true;
+            try
+            {
+                VideoSeekSlider.Value = VideoSeekSlider.Maximum;
+            }
+            finally
+            {
+                _videoSeekUpdating = false;
+            }
+            VideoPlayIcon.Visibility = Visibility.Visible;
+            VideoPauseIcon.Visibility = Visibility.Collapsed;
+        }
+
+        private void VideoPlaybackButton_Click(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                if (_videoPaused)
+                {
+                    if (VideoSeekSlider.IsEnabled && VideoSeekSlider.Value >= VideoSeekSlider.Maximum)
+                        VideoPlayer.Position = TimeSpan.Zero;
+                    VideoPlayer.Play();
+                    _videoPaused = false;
+                    VideoPlayIcon.Visibility = Visibility.Collapsed;
+                    VideoPauseIcon.Visibility = Visibility.Visible;
+                    StartVideoTimer();
+                }
+                else
+                {
+                    VideoPlayer.Pause();
+                    _videoPaused = true;
+                    VideoPlayIcon.Visibility = Visibility.Visible;
+                    VideoPauseIcon.Visibility = Visibility.Collapsed;
+                    StopVideoTimer();
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.VideoPlaybackButton", ex);
+            }
+        }
+
+        private void VideoSeekSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            if (_videoSeekUpdating || VideoSeekSlider == null || !VideoSeekSlider.IsEnabled) return;
+
+            try
+            {
+                VideoPlayer.Position = TimeSpan.FromSeconds(e.NewValue);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.VideoSeek", ex);
+            }
+        }
+
+        private void StartVideoTimer()
+        {
+            if (_videoTimer == null)
+            {
+                _videoTimer = new DispatcherTimer();
+                _videoTimer.Interval = TimeSpan.FromMilliseconds(250);
+                _videoTimer.Tick += VideoTimer_Tick;
+            }
+            _videoTimer.Start();
+        }
+
+        private void StopVideoTimer()
+        {
+            if (_videoTimer != null) _videoTimer.Stop();
+        }
+
+        private void VideoTimer_Tick(object sender, EventArgs e)
+        {
+            try
+            {
+                _videoSeekUpdating = true;
+                VideoSeekSlider.Value = VideoPlayer.Position.TotalSeconds;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage.VideoPosition", ex);
+            }
+            finally
+            {
+                _videoSeekUpdating = false;
             }
         }
 
@@ -1246,8 +1426,8 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void VoicePlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
-                ? e.ErrorMessage
+            string reason = e != null && e.ErrorException != null
+                ? e.ErrorException.Message
                 : "media failed";
             Diag.Failed("ChatPage/VoicePlayer", new InvalidOperationException(reason));
 
@@ -1282,7 +1462,7 @@ namespace WhatsappApp.Pages
         /// MediaElement.Position is not a dependency property: there is no binding
         /// to hang it on.
         /// </summary>
-        private void PlaybackTimer_Tick(object sender, object e)
+        private void PlaybackTimer_Tick(object sender, EventArgs e)
         {
             var message = _voiceMessage;
             if (message == null)
@@ -1350,11 +1530,11 @@ namespace WhatsappApp.Pages
             if (failed) await ShowDocumentErrorAsync();
         }
 
-        private async System.Threading.Tasks.Task ShowDocumentErrorAsync()
+        private System.Threading.Tasks.Task ShowDocumentErrorAsync()
         {
-            var dialog = new MessageDialog(Loc.Get("ChatPage_DocumentError",
+            MessageBox.Show(Loc.Get("ChatPage_DocumentError",
                 "There is no app on this phone that can open this file."));
-            await dialog.ShowAsync();
+            return System.Threading.Tasks.Task.FromResult(0);
         }
 
         private void VideoCloseButton_Click(object sender, RoutedEventArgs e)
@@ -1365,10 +1545,9 @@ namespace WhatsappApp.Pages
         private void VideoPlayer_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
             // A video the phone cannot decode. It used to just close the screen, so
-            // a failure and an empty tap looked the same; now the sentence stays. On
-            // WP8.1 the event carries only the message, not the exception.
-            string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
-                ? e.ErrorMessage
+            // a failure and an empty tap looked the same; now the sentence stays.
+            string reason = e != null && e.ErrorException != null
+                ? e.ErrorException.Message
                 : "media failed";
             Diag.Failed("ChatPage/VideoPlayer", new InvalidOperationException(reason));
             ShowVideoError();
@@ -1384,6 +1563,10 @@ namespace WhatsappApp.Pages
             {
                 Diag.Failed("ChatPage.ShowVideoError", ex);
             }
+            StopVideoTimer();
+            VideoTransportPanel.Visibility = Visibility.Collapsed;
+            VideoPlaybackButton.IsEnabled = false;
+            VideoSeekSlider.IsEnabled = false;
             VideoErrorText.Text = Loc.Get("ChatPage_VideoError", "This video cannot be played.");
             VideoErrorText.Visibility = Visibility.Visible;
         }
@@ -1391,6 +1574,17 @@ namespace WhatsappApp.Pages
         /// <summary>Closes the player. Safe to call even with nothing playing.</summary>
         private void StopVideo()
         {
+            StopVideoTimer();
+            _videoPaused = true;
+            VideoTransportPanel.Visibility = Visibility.Collapsed;
+            VideoPlaybackButton.IsEnabled = false;
+            VideoSeekSlider.IsEnabled = false;
+            _videoSeekUpdating = true;
+            VideoSeekSlider.Value = 0;
+            _videoSeekUpdating = false;
+            VideoPlayIcon.Visibility = Visibility.Visible;
+            VideoPauseIcon.Visibility = Visibility.Collapsed;
+
             try
             {
                 VideoPlayer.Stop();
@@ -1745,7 +1939,7 @@ namespace WhatsappApp.Pages
                 IList<string> members = await NativeConnection.Instance.GroupMembersAsync(_contact.Id);
                 if (members == null || members.Count == 0) return;
 
-                var flyout = new MenuFlyout();
+                var actions = new List<PopupAction>();
                 for (int i = 0; i < members.Count; i++)
                 {
                     string jid = members[i];
@@ -1753,11 +1947,15 @@ namespace WhatsappApp.Pages
                     if (string.IsNullOrEmpty(name)) name = DisplayNumber(jid);
                     if (string.IsNullOrEmpty(name)) continue;
 
-                    var item = new MenuFlyoutItem { Text = name, Tag = jid };
-                    item.Click += MentionItem_Click;
-                    flyout.Items.Add(item);
+                    string capturedJid = jid;
+                    PopupAction action = new PopupAction();
+                    action.Text = name;
+                    action.Tag = capturedJid;
+                    action.Click = MentionItem_Click;
+                    actions.Add(action);
                 }
-                flyout.ShowAt(MentionButton);
+
+                ShowActionPopup(MentionButton, actions);
             }
             catch (Exception ex)
             {
@@ -1767,10 +1965,15 @@ namespace WhatsappApp.Pages
 
         private void MentionItem_Click(object sender, RoutedEventArgs e)
         {
-            var item = sender as MenuFlyoutItem;
-            if (item == null) return;
+            Button button = sender as Button;
+            PopupAction action = button == null ? null : button.Tag as PopupAction;
+            if (action == null) return;
 
-            string jid = item.Tag as string;
+            InsertMention(action.Tag as string);
+        }
+
+        private void InsertMention(string jid)
+        {
             if (string.IsNullOrEmpty(jid)) return;
 
             _pendingMentions.Add(jid);
@@ -1782,10 +1985,174 @@ namespace WhatsappApp.Pages
             MessageTextBox.SelectionStart = MessageTextBox.Text.Length;
         }
 
+        private void ShowActionPopup(FrameworkElement anchor, IList<PopupAction> actions)
+        {
+            if (anchor == null || actions == null || actions.Count == 0) return;
+
+            if (_actionPopup != null) _actionPopup.IsOpen = false;
+
+            StackPanel items = new StackPanel();
+            for (int i = 0; i < actions.Count; i++)
+            {
+                Button button = new Button();
+                button.Content = actions[i].Text;
+                button.Tag = actions[i];
+                button.Height = 48;
+                button.MinHeight = 0;
+                button.HorizontalContentAlignment = HorizontalAlignment.Left;
+                button.Padding = new Thickness(16, 0, 16, 0);
+                button.Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x10, 0x1C, 0x20));
+                button.Foreground = new SolidColorBrush(Colors.White);
+                button.BorderThickness = new Thickness(0);
+                button.Click += PopupAction_Click;
+                items.Children.Add(button);
+            }
+
+            double width = ActualWidth;
+            double height = ActualHeight;
+            double menuWidth = Math.Min(280.0, width - 24.0);
+            double menuHeight = Math.Min(actions.Count * 48.0, height - 32.0);
+            Border menu = new Border();
+            menu.Width = menuWidth;
+            menu.MaxHeight = menuHeight;
+            menu.Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x10, 0x1C, 0x20));
+            menu.BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x25, 0xD3, 0x66));
+            menu.BorderThickness = new Thickness(1);
+            menu.Child = new ScrollViewer { Content = items, MaxHeight = menuHeight };
+
+            Point origin = anchor.TransformToVisual(null).Transform(new Point(0, 0));
+            double x = Math.Max(12.0, Math.Min(origin.X, width - menuWidth - 12.0));
+            double y = origin.Y + anchor.ActualHeight;
+            if (y + menuHeight > height) y = Math.Max(8.0, origin.Y - menuHeight);
+
+            Grid overlay = new Grid();
+            overlay.Width = width;
+            overlay.Height = height;
+            overlay.Background = new SolidColorBrush(Colors.Transparent);
+
+            Button dismiss = new Button();
+            dismiss.Width = width;
+            dismiss.Height = height;
+            dismiss.MinWidth = 0;
+            dismiss.MinHeight = 0;
+            dismiss.IsTabStop = false;
+            dismiss.Background = new SolidColorBrush(Colors.Transparent);
+            dismiss.BorderThickness = new Thickness(0);
+            dismiss.Click += delegate { if (_actionPopup != null) _actionPopup.IsOpen = false; };
+            overlay.Children.Add(dismiss);
+
+            menu.HorizontalAlignment = HorizontalAlignment.Left;
+            menu.VerticalAlignment = VerticalAlignment.Top;
+            menu.Margin = new Thickness(x, y, 0, 0);
+            overlay.Children.Add(menu);
+
+            _actionPopup = new Popup();
+            _actionPopup.Child = overlay;
+            _actionPopup.IsOpen = true;
+        }
+
+        private void PopupAction_Click(object sender, RoutedEventArgs e)
+        {
+            Button button = sender as Button;
+            PopupAction action = button == null ? null : button.Tag as PopupAction;
+            if (action == null) return;
+
+            if (_actionPopup != null) _actionPopup.IsOpen = false;
+            if (action.Click != null) action.Click(sender, e);
+            else if (action.Invoke != null) action.Invoke();
+        }
+
+        private System.Threading.Tasks.Task<bool> ShowPromptAsync(string title, string body,
+            string acceptText, string cancelText)
+        {
+            var completion = new System.Threading.Tasks.TaskCompletionSource<bool>();
+            double width = ActualWidth;
+            double height = ActualHeight;
+
+            Grid overlay = new Grid();
+            overlay.Width = width;
+            overlay.Height = height;
+            overlay.Background = new SolidColorBrush(Color.FromArgb(0xB0, 0, 0, 0));
+
+            StackPanel content = new StackPanel();
+            TextBlock heading = new TextBlock();
+            heading.Text = title;
+            heading.Foreground = new SolidColorBrush(Colors.White);
+            heading.FontSize = 24;
+            heading.FontWeight = FontWeights.SemiBold;
+            heading.TextWrapping = TextWrapping.Wrap;
+            content.Children.Add(heading);
+
+            TextBlock message = new TextBlock();
+            message.Text = body;
+            message.Margin = new Thickness(0, 12, 0, 20);
+            message.Foreground = new SolidColorBrush(Color.FromArgb(0xFF, 0xD8, 0xE2, 0xE2));
+            message.FontSize = 16;
+            message.TextWrapping = TextWrapping.Wrap;
+            content.Children.Add(message);
+
+            StackPanel buttons = new StackPanel();
+            buttons.Orientation = System.Windows.Controls.Orientation.Horizontal;
+            buttons.HorizontalAlignment = HorizontalAlignment.Right;
+            if (!string.IsNullOrEmpty(cancelText))
+            {
+                Button cancel = new Button();
+                cancel.Content = cancelText;
+                cancel.Width = 104;
+                cancel.Height = 48;
+                cancel.MinWidth = 0;
+                cancel.MinHeight = 0;
+                cancel.Margin = new Thickness(0, 0, 8, 0);
+                cancel.Click += delegate(object sender, RoutedEventArgs e)
+                {
+                    if (_actionPopup != null) _actionPopup.IsOpen = false;
+                    completion.TrySetResult(false);
+                };
+                buttons.Children.Add(cancel);
+            }
+
+            Button accept = new Button();
+            accept.Content = acceptText;
+            accept.Width = 104;
+            accept.Height = 48;
+            accept.MinWidth = 0;
+            accept.MinHeight = 0;
+            accept.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x07, 0x5E, 0x54));
+            accept.Foreground = new SolidColorBrush(Colors.White);
+            accept.Click += delegate(object sender, RoutedEventArgs e)
+            {
+                if (_actionPopup != null) _actionPopup.IsOpen = false;
+                completion.TrySetResult(true);
+            };
+            buttons.Children.Add(accept);
+            content.Children.Add(buttons);
+
+            Border card = new Border();
+            card.Width = Math.Min(360.0, width - 32.0);
+            card.Padding = new Thickness(20);
+            card.Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x10, 0x1C, 0x20));
+            card.BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x25, 0xD3, 0x66));
+            card.BorderThickness = new Thickness(1);
+            card.HorizontalAlignment = HorizontalAlignment.Center;
+            card.VerticalAlignment = VerticalAlignment.Center;
+            card.Child = content;
+            overlay.Children.Add(card);
+
+            _actionPopup = new Popup();
+            _actionPopup.Child = overlay;
+            _actionPopup.IsOpen = true;
+            return completion.Task;
+        }
+
+        private async System.Threading.Tasks.Task ShowNoticeAsync(string title, string body, string buttonText)
+        {
+            await ShowPromptAsync(title, body, buttonText, null);
+        }
+
         private async void AddAndSendMessage(ChatMessage message)
         {
             // DataService is the only insertion point: _messages is the same
-            // ObservableCollection observed by the ListView.
+            // ObservableCollection observed by the conversation list.
             DataService.Instance.AddMessage(_contact.Id, message);
             MessageTextBox.Text = "";
 
@@ -1846,10 +2213,8 @@ namespace WhatsappApp.Pages
         /// words has nothing to copy - because an entry that does nothing teaches the wrong
         /// thing.
         /// </summary>
-        private void Bubble_Holding(object sender, HoldingRoutedEventArgs e)
+        private void Bubble_Holding(object sender, System.Windows.Input.GestureEventArgs e)
         {
-            if (e.HoldingState != HoldingState.Started) return;
-
             var element = sender as FrameworkElement;
             var message = element == null ? null : element.DataContext as ChatMessage;
             if (message == null) return;
@@ -1860,35 +2225,29 @@ namespace WhatsappApp.Pages
 
         private void ShowMessageMenu(FrameworkElement bubble, ChatMessage message)
         {
-            var flyout = new MenuFlyout();
+            var actions = new List<PopupAction>();
 
-            // No "copy" entry: WP8.1's Windows Runtime has no clipboard
-            // (`Windows.winmd` of the phone kit names no `Clipboard` at all, and the build
-            // answers CS0103), so an entry for it would be a menu item that does nothing.
-            // The limit is stated in the README pair instead.
-
-            // Taking the message back from everybody: only what this phone sent, and only
-            // while WhatsApp still accepts it. Above "delete here" because it is the stronger
-            // of the two, and a person reaching for it should not hit the weaker one first.
+            // Copy is not offered because the phone platform exposes no clipboard API.
             if (CanRevokeForEveryone(message))
             {
-                var everyone = new MenuFlyoutItem
+                PopupAction everyone = new PopupAction();
+                everyone.Text = Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone");
+                everyone.Invoke = delegate
                 {
-                    Text = Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone")
+                    Guarded.RunGuardedAsync("ChatPage/revoke", ConfirmRevokeAsync(message));
                 };
-                // Guarded and not an `async (s, a) =>`: an event handler's task has nobody
-                // to observe it, and a dialog that failed to open would take the app down.
-                everyone.Click += (s, a) => Guarded.RunGuardedAsync("ChatPage/revoke", ConfirmRevokeAsync(message));
-                flyout.Items.Add(everyone);
+                actions.Add(everyone);
             }
 
-            // On this phone only: the other side keeps its copy. The wire has a message
-            // for the other kind of deletion, and this one is not it.
-            var delete = new MenuFlyoutItem { Text = Loc.Get("ChatPage_DeleteHere", "Delete here") };
-            delete.Click += (s, a) => Guarded.RunGuardedAsync("ChatPage/delete here", ConfirmDeleteHereAsync(message));
-            flyout.Items.Add(delete);
+            PopupAction delete = new PopupAction();
+            delete.Text = Loc.Get("ChatPage_DeleteHere", "Delete here");
+            delete.Invoke = delegate
+            {
+                Guarded.RunGuardedAsync("ChatPage/delete here", ConfirmDeleteHereAsync(message));
+            };
+            actions.Add(delete);
 
-            flyout.ShowAt(bubble);
+            ShowActionPopup(bubble, actions);
         }
 
         /// <summary>
@@ -1921,21 +2280,13 @@ namespace WhatsappApp.Pages
         /// </summary>
         private async System.Threading.Tasks.Task ConfirmRevokeAsync(ChatMessage message)
         {
-            var dialog = new ContentDialog
-            {
-                Title = Loc.Get("ChatPage_DeleteEveryoneTitle", "Delete for everyone?"),
-                Content = new TextBlock
-                {
-                    Text = Loc.Get("ChatPage_DeleteEveryoneBody",
-                        "It disappears for everybody in this chat, on every device they use."),
-                    TextWrapping = TextWrapping.Wrap
-                },
-                PrimaryButtonText = Loc.Get("ChatPage_DeleteConfirm", "Delete"),
-                SecondaryButtonText = Loc.Get("ChatPage_Cancel", "Cancel")
-            };
-
-            var answer = await dialog.ShowAsync();
-            if (answer != ContentDialogResult.Primary) return;
+            bool confirmed = await ShowPromptAsync(
+                Loc.Get("ChatPage_DeleteEveryoneTitle", "Delete for everyone?"),
+                Loc.Get("ChatPage_DeleteEveryoneBody",
+                    "It disappears for everybody in this chat, on every device they use."),
+                Loc.Get("ChatPage_DeleteConfirm", "Delete"),
+                Loc.Get("ChatPage_Cancel", "Cancel"));
+            if (!confirmed) return;
 
             string chatId = DataService.Instance.ChatIdFor(_contact.Id);
 
@@ -1965,22 +2316,13 @@ namespace WhatsappApp.Pages
             Diag.Ok("message revoked for everybody: " + message.Id);
         }
 
-        private static async System.Threading.Tasks.Task ExplainRevokeFailureAsync()
+        private System.Threading.Tasks.Task ExplainRevokeFailureAsync()
         {
-            var dialog = new ContentDialog
-            {
-                Title = Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone"),
-                Content = new TextBlock
-                {
-                    Text = Loc.Get("ChatPage_DeleteEveryoneFailed",
-                        "WhatsApp did not take the message back. The message is still here; try again when the phone is connected."),
-                    TextWrapping = TextWrapping.Wrap
-                },
-                // Not CloseButtonText: WP8.1's ContentDialog has no such property.
-                SecondaryButtonText = Loc.Get("Common_Ok", "OK")
-            };
-
-            await dialog.ShowAsync();
+            return ShowNoticeAsync(
+                Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone"),
+                Loc.Get("ChatPage_DeleteEveryoneFailed",
+                    "WhatsApp did not take the message back. The message is still here; try again when the phone is connected."),
+                Loc.Get("Common_Ok", "OK"));
         }
 
         /// <summary>
@@ -1989,21 +2331,13 @@ namespace WhatsappApp.Pages
         /// </summary>
         private async System.Threading.Tasks.Task ConfirmDeleteHereAsync(ChatMessage message)
         {
-            var dialog = new ContentDialog
-            {
-                Title = Loc.Get("ChatPage_DeleteHereTitle", "Delete this message?"),
-                Content = new TextBlock
-                {
-                    Text = Loc.Get("ChatPage_DeleteHereBody",
-                        "It disappears from this phone. The other person keeps their copy."),
-                    TextWrapping = TextWrapping.Wrap
-                },
-                PrimaryButtonText = Loc.Get("ChatPage_DeleteConfirm", "Delete"),
-                SecondaryButtonText = Loc.Get("ChatPage_Cancel", "Cancel")
-            };
-
-            var answer = await dialog.ShowAsync();
-            if (answer != ContentDialogResult.Primary) return;
+            bool confirmed = await ShowPromptAsync(
+                Loc.Get("ChatPage_DeleteHereTitle", "Delete this message?"),
+                Loc.Get("ChatPage_DeleteHereBody",
+                    "It disappears from this phone. The other person keeps their copy."),
+                Loc.Get("ChatPage_DeleteConfirm", "Delete"),
+                Loc.Get("ChatPage_Cancel", "Cancel"));
+            if (!confirmed) return;
 
             DataService.Instance.RemoveMessage(DataService.Instance.ChatIdFor(_contact.Id), message.Id);
             Diag.Ok("message deleted here: " + message.Id);
@@ -2137,13 +2471,13 @@ namespace WhatsappApp.Pages
         /// `AcceptsReturn="False"` closes the other half: a return must not put a newline
         /// in a message the bubble draws as one line.
         /// </summary>
-        private void MessageTextBox_KeyDown(object sender, KeyRoutedEventArgs e)
+        private void MessageTextBox_KeyDown(object sender, KeyEventArgs e)
         {
             SendOnReturn(e);
         }
 
         /// <summary>The same key, from the event the on-screen keyboard delivers.</summary>
-        private void MessageTextBox_KeyUp(object sender, KeyRoutedEventArgs e)
+        private void MessageTextBox_KeyUp(object sender, KeyEventArgs e)
         {
             SendOnReturn(e);
         }
@@ -2154,9 +2488,9 @@ namespace WhatsappApp.Pages
         /// refused" are two different failures, and on the phone they used to look the
         /// same - a return that did nothing at all.
         /// </summary>
-        private void SendOnReturn(KeyRoutedEventArgs e)
+        private void SendOnReturn(KeyEventArgs e)
         {
-            if (e.Key != Windows.System.VirtualKey.Enter) return;
+            if (e.Key != Key.Enter) return;
 
             e.Handled = true;
 
@@ -2171,9 +2505,9 @@ namespace WhatsappApp.Pages
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (Frame.CanGoBack)
+            if (NavigationService.CanGoBack)
             {
-                Frame.GoBack();
+                NavigationService.GoBack();
             }
         }
 
@@ -2229,18 +2563,19 @@ namespace WhatsappApp.Pages
         /// dialog that cannot be shown is logged, not thrown into a Task
         /// nobody observes.
         /// </summary>
-        private async System.Threading.Tasks.Task ShowRecordErrorAsync()
+        private System.Threading.Tasks.Task ShowRecordErrorAsync()
         {
             try
             {
-                await new MessageDialog(
-                    Loc.Get("ChatPage_RecordError", "Could not start the recording. " +
-                        "Check that this app may use the microphone.")).ShowAsync();
+                MessageBox.Show(Loc.Get("ChatPage_RecordError", "Could not start the recording. " +
+                    "Check that this app may use the microphone."));
             }
             catch (Exception ex)
             {
                 Diag.Failed("ChatPage/RecordError", ex);
             }
+
+            return System.Threading.Tasks.Task.FromResult(0);
         }
 
         private void StopRecordButton_Click(object sender, RoutedEventArgs e)
@@ -2355,27 +2690,86 @@ namespace WhatsappApp.Pages
             if (_recordTimer != null) _recordTimer.Stop();
         }
 
-        private void RecordTimer_Tick(object sender, object e)
+        private void RecordTimer_Tick(object sender, EventArgs e)
         {
             RecordTimerText.Text = FormatClock((DateTime.Now - _recording.StartedAt).TotalSeconds);
         }
 
-        /// <summary>
-        /// Attach button: it asks for the system picker. The answer does not arrive
-        /// here - it arrives at App.OnActivated after the app has been reactivated -
-        /// so there is nothing to await.
-        /// </summary>
         private void AttachButton_Click(object sender, RoutedEventArgs e)
         {
+            AttachmentPickerOverlay.Visibility = Visibility.Visible;
+        }
+
+        private void AttachmentPickerDismissButton_Click(object sender, RoutedEventArgs e)
+        {
+            AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void AttachmentAlbumsButton_Click(object sender, RoutedEventArgs e)
+        {
+            // The reference grid has six tiles and no generic file tile, so this
+            // tile opens the unfiltered picker and every file type stays
+            // reachable; Photo, Video and Audio remain as quick filters.
+            AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
             try
             {
                 ImagePickerService.RequestFile();
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage/pick", ex);
-                Debug.WriteLine(
-                    string.Format(Loc.Get("ChatPage_ImageError", "Could not open the image: {0}"), ex.Message));
+                Diag.Failed("ChatPage/pick files", ex);
+                AttachmentPickerOverlay.Visibility = Visibility.Visible;
+            }
+        }
+
+        private void AttachmentPhotoButton_Click(object sender, RoutedEventArgs e)
+        {
+            RequestFilteredFiles(new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp" });
+        }
+
+        private void AttachmentVideoButton_Click(object sender, RoutedEventArgs e)
+        {
+            RequestFilteredFiles(new[] { ".mp4", ".mov", ".3gp", ".avi", ".mkv", ".webm" });
+        }
+
+        private void AttachmentAudioButton_Click(object sender, RoutedEventArgs e)
+        {
+            RequestFilteredFiles(new[] { ".m4a", ".mp3", ".aac", ".wav", ".amr", ".ogg", ".opus" });
+        }
+
+        private void AttachmentContactButton_Click(object sender, RoutedEventArgs e)
+        {
+            Diag.Ok("attachment: contact sharing is not available on this client");
+            AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void AttachmentLocationButton_Click(object sender, RoutedEventArgs e)
+        {
+            // The protocol has no location message yet, so the tile reports the
+            // state instead of pretending to send one.
+            Diag.Ok("attachment: location sharing is not available on this client");
+            AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+        }
+
+        private void RequestFilteredFiles(IList<string> extensions)
+        {
+            AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+            try
+            {
+                FileOpenPicker picker = new FileOpenPicker();
+                picker.ViewMode = PickerViewMode.Thumbnail;
+                picker.SuggestedStartLocation = PickerLocationId.PicturesLibrary;
+                for (int i = 0; i < extensions.Count; i++)
+                    picker.FileTypeFilter.Add(extensions[i]);
+
+#pragma warning disable 618
+                picker.PickMultipleFilesAndContinue();
+#pragma warning restore 618
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/pick filtered files", ex);
+                AttachmentPickerOverlay.Visibility = Visibility.Visible;
             }
         }
 
@@ -2497,6 +2891,20 @@ namespace WhatsappApp.Pages
             // parent - and would have come back with the next bar that is shown without a pick.
             SelectedVideoPreview.Visibility = Visibility.Collapsed;
             ImagePreviewBar.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    public sealed class LocalizedMessageTextConverter : System.Windows.Data.IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string key = parameter as string;
+            return string.IsNullOrEmpty(key) ? "" : Loc.Get(key, "Try again");
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return null;
         }
     }
 }

@@ -1,8 +1,8 @@
 using System;
 using System.Text;
+using System.Security.Cryptography;
+using Microsoft.Phone.Info;
 using Windows.Storage;
-using Windows.Storage.Streams;
-using Windows.System.Profile;
 
 namespace WhatsappApp.Services
 {
@@ -62,11 +62,10 @@ namespace WhatsappApp.Services
         /// handset by.
         ///
         /// It has to outlive the install. LocalSettings does not: WP8.1 deletes them
-        /// on uninstall. The package-specific hardware token does, and it is the same
-        /// for the same package on the same phone, so it is the id - the stored value
-        /// is only a cache of it. A platform that refuses the call (it is not on every
-        /// device) falls back to the random id, which is stable for the life of the
-        /// install and no further.
+        /// on uninstall. The platform device id is hashed with this app's assembly name
+        /// and stored as hexadecimal, so the same app on the same phone gets the same
+        /// value. A platform that refuses the call falls back to a random id, which is
+        /// stable for the life of the install and no further.
         /// </summary>
         public static string DeviceId
         {
@@ -92,26 +91,26 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The package-specific hardware token as hexadecimal, or null when the
-        /// phone does not answer. It is deliberately not truncated: two phones must
-        /// not collide on it.
+        /// An app-scoped digest of the platform device id as hexadecimal, or null when
+        /// the phone does not answer. It is deliberately not truncated.
         /// </summary>
         private static string HardwareDeviceId()
         {
             try
             {
-                var token = HardwareIdentification.GetPackageSpecificToken(null);
-                if (token == null || token.Id == null) return null;
+                byte[] deviceId = DeviceExtendedProperties.GetValue("DeviceUniqueId") as byte[];
+                if (deviceId == null || deviceId.Length == 0) return null;
 
-                var buffer = token.Id;
-                var bytes = new byte[(int)buffer.Length];
+                // Scope the platform-wide token to this app and avoid exposing the raw device id.
+                byte[] appName = Encoding.UTF8.GetBytes(typeof(SettingsService).Assembly.GetName().Name);
+                byte[] input = new byte[appName.Length + deviceId.Length];
+                Buffer.BlockCopy(appName, 0, input, 0, appName.Length);
+                Buffer.BlockCopy(deviceId, 0, input, appName.Length, deviceId.Length);
 
-                // The reader holds a native buffer: disposing it hands the memory back
-                // instead of leaving it to the finalizer on a phone this app is trying to
-                // keep under its budget.
-                using (DataReader reader = DataReader.FromBuffer(buffer))
+                byte[] bytes;
+                using (SHA256Managed algorithm = new SHA256Managed())
                 {
-                    reader.ReadBytes(bytes);
+                    bytes = algorithm.ComputeHash(input);
                 }
 
                 var text = new StringBuilder(bytes.Length * 2);

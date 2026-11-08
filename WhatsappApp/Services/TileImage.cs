@@ -396,8 +396,8 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileNameOf(card));
-                await file.DeleteAsync();
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileNameOf(card));
+                if (item != null) await item.DeleteAsync();
             }
             catch (Exception)
             {
@@ -583,7 +583,9 @@ namespace WhatsappApp.Services
                 }
             }
 
-            StorageFile mark = await PackageFolder().GetFileAsync(AppMarkPath);
+            IStorageItem item = await PackageFolder().TryGetItemAsync(AppMarkPath);
+            StorageFile mark = item as StorageFile;
+            if (mark == null) return null;
             using (IRandomAccessStream stream = await mark.OpenAsync(FileAccessMode.Read))
             {
                 return await PictureOfAsync(stream, TileCanvas.Picture);

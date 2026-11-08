@@ -1,77 +1,30 @@
 using System;
-using Windows.ApplicationModel.Resources;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Resources;
+using System.Reflection;
+using System.Windows;
 using Windows.Storage;
 
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The single access point to the localized strings
-    /// (Strings\&lt;language&gt;\Resources.resw). The language is chosen by the
-    /// system from the device one; if a resource is missing the fallback text is
-    /// used, so an error in the resources never blows the app up.
+    /// The localized string lookup for the foreground app and its headless scheduled task.
     /// </summary>
     public static class Loc
     {
-        private static ResourceLoader _loader;
+        private static ResourceManager _manager;
+        private static bool _managerUnavailable;
+        private static bool _prewarmed;
 
-        /// <summary>
-        /// True after GetForCurrentView has failed once. Without this, every
-        /// Loc.Get retried the same call and logged its exception: one failure
-        /// became one exception per string.
-        /// </summary>
-        private static bool _loaderUnavailable;
-
-        private static ResourceLoader Loader
-        {
-            get
-            {
-                if (_loader != null || _loaderUnavailable) return _loader;
-
-                try
-                {
-                    _loader = ResourceLoader.GetForCurrentView();
-                }
-                catch (Exception ex)
-                {
-                    _loaderUnavailable = true;
-                    Diag.Failed("Loc.Loader", ex);
-                }
-                return _loader;
-            }
-        }
-
-        /// <summary>
-        /// Creates the loader on the UI thread. GetForCurrentView cannot be called
-        /// from a background thread; once created, however, the loader can be
-        /// queried from any thread.
-        ///
-        /// It is also the only place a retry happens after a failure: if the first
-        /// attempt started from a background thread, here the block is cleared and
-        /// it is tried again, on the right thread.
-        /// </summary>
         public static void Prewarm()
         {
-            _loaderUnavailable = false;
-
-            var loader = Loader;
-            if (loader != null)
-            {
-                try { loader.GetString("Nav_Chats"); }
-                catch (Exception ex) { Diag.Failed("Loc.Prewarm", ex); }
-            }
-
-            // The strings a background task draws on the tile are not reachable from
-            // there: a background task has no view and no ResourceLoader. They are
-            // written down here, on the UI thread, and `Get` reads the copy when the
-            // loader is unavailable.
+            _prewarmed = true;
+            Get("Nav_Chats", "Chats");
             RememberForBackground("TileUnreadOne", "1 unread message");
             RememberForBackground("TileUnreadMany", "{0} unread messages");
         }
 
-        /// <summary>
-        /// Reads a string now and keeps it in LocalSettings, so a process without a
-        /// view (the background check) can still draw it in the user's language.
-        /// </summary>
         private static void RememberForBackground(string key, string fallback)
         {
             try
@@ -84,13 +37,13 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>The copy written by `RememberForBackground`, or null.</summary>
         private static string RememberedForBackground(string key)
         {
             try
             {
                 object value;
-                if (ApplicationData.Current.LocalSettings.Values.TryGetValue("Loc." + key, out value) && value != null)
+                if (ApplicationData.Current.LocalSettings.Values.TryGetValue("Loc." + key, out value)
+                    && value != null)
                 {
                     string text = value.ToString();
                     if (!string.IsNullOrEmpty(text)) return text;
@@ -106,29 +59,80 @@ namespace WhatsappApp.Services
 
         public static string Get(string key, string fallback)
         {
-            var loader = Loader;
-            if (loader == null)
+            if (string.IsNullOrEmpty(key)) return fallback;
+
+            if (!_prewarmed)
             {
-                // A background task: no view, so no ResourceLoader - the copy the
-                // UI thread wrote is the only localized source left.
                 string remembered = RememberedForBackground(key);
                 return remembered ?? fallback;
             }
 
+            ResourceManager manager = Manager();
+            if (manager == null) return fallback;
+
             try
             {
-                string value = loader.GetString(key);
+                string value = manager.GetString(key, CultureInfo.CurrentUICulture);
                 return string.IsNullOrEmpty(value) ? fallback : value;
             }
             catch (Exception ex)
             {
-                // The label is not built with the parenthesis right after the
-                // dot: check-resw.js reads every call with a literal string as a
-                // key to look for in the.resw files, and built that way it looked
-                // like a missing key (even when written in a comment).
+                _managerUnavailable = true;
+                _manager = null;
                 Diag.Failed("Loc.Get key " + key, ex);
                 return fallback;
             }
+        }
+
+        private static ResourceManager Manager()
+        {
+            if (_manager != null || _managerUnavailable) return _manager;
+
+            Assembly assembly = typeof(Loc).Assembly;
+            var candidates = new List<string>();
+            candidates.Add("WhatsappApp.Strings.Resources");
+            candidates.Add("WhatsappApp.Resources");
+            candidates.Add("Resources");
+
+            string[] resourceNames = assembly.GetManifestResourceNames();
+            for (int i = 0; i < resourceNames.Length; i++)
+            {
+                string resourceName = resourceNames[i];
+                const string Extension = ".resources";
+                if (!resourceName.EndsWith(Extension, StringComparison.OrdinalIgnoreCase)) continue;
+
+                string baseName = resourceName.Substring(0, resourceName.Length - Extension.Length);
+                if (baseName.IndexOf("Resources", StringComparison.OrdinalIgnoreCase) >= 0
+                    && !candidates.Contains(baseName))
+                {
+                    candidates.Add(baseName);
+                }
+            }
+
+            for (int i = 0; i < candidates.Count; i++)
+            {
+                try
+                {
+                    var candidate = new ResourceManager(candidates[i], assembly);
+                    string probe = candidate.GetString("Nav_Chats", CultureInfo.CurrentUICulture);
+                    if (!string.IsNullOrEmpty(probe))
+                    {
+                        _manager = candidate;
+                        return _manager;
+                    }
+                }
+                catch (MissingManifestResourceException)
+                {
+                }
+                catch (Exception)
+                {
+                }
+            }
+
+            _managerUnavailable = true;
+            Diag.Failed("Loc.ResourceManager",
+                new MissingManifestResourceException("the localized Silverlight resources are not registered"));
+            return null;
         }
     }
 }

@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Threading;
 using WhatsappApp.Protocol.Media;
 
 namespace WhatsappApp.Services
@@ -17,10 +17,8 @@ namespace WhatsappApp.Services
     /// peer's fingerprint - sampled once a second by a timer the app owns.
     ///
     /// The speaker is a `MediaElement` this class creates for the call and puts in a `Popup`,
-    /// not the one a page could draw. A `MediaElement` plays only while it is in a live tree,
-    /// and `Window.Current.Content` is the frame every navigation in this app casts to, so the
-    /// element goes one level aside: the popup overlays nothing (its child is zero-sized) and
-    /// survives the page that opened the call.
+    /// not the one a page could draw. A `MediaElement` plays only while it is in a live visual
+    /// tree, so the zero-sized popup keeps it alive across page navigation.
     ///
     /// The switch on the call screen is `Muted`, and it mutes the sender and not the capture: a
     /// call that stops sending frames is a call the far end decides has gone away.
@@ -88,7 +86,7 @@ namespace WhatsappApp.Services
         /// them when it is not. Nothing here raises an event - a handshake step is not one - so
         /// the question is asked rather than waited for.
         /// </summary>
-        private static void OnTick(object sender, object e)
+        private static void OnTick(object sender, EventArgs e)
         {
             try
             {
@@ -103,7 +101,7 @@ namespace WhatsappApp.Services
                 {
                     if (_running)
                     {
-                        Guarded.RunGuardedAsync("call audio/closed", StopAsync());
+                        Guarded.RunGuarded("call audio/closed", StopAsync);
                     }
 
                     return;
@@ -121,8 +119,10 @@ namespace WhatsappApp.Services
                 if (_running || _starting) return;
 
                 _starting = true;
-                Guarded.RunGuardedAsync("call audio/opened",
-                    StartAsync(media, DataService.Instance.SendCallAudio, call.Muted));
+                Guarded.RunGuarded("call audio/opened", delegate
+                {
+                    return StartAsync(media, DataService.Instance.SendCallAudio, call.Muted);
+                });
             }
             catch (Exception ex)
             {
@@ -324,12 +324,10 @@ namespace WhatsappApp.Services
             element.Width = 0;
             element.Height = 0;
             element.AutoPlay = false;
-            element.IsLooping = false;
             element.IsHitTestVisible = false;
 
             var host = new Popup();
             host.Child = element;
-            host.IsLightDismissEnabled = false;
             host.IsOpen = true;
 
             _element = element;

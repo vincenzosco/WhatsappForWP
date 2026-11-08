@@ -46,6 +46,11 @@ namespace WhatsappApp.Services
         /// </summary>
         public static string Describe()
         {
+            if (!NativeInterop.IsSupported)
+            {
+                return Dll + " unavailable: " + NativeInterop.UnavailableReason;
+            }
+
             try
             {
                 int version = WaAudioProbeVersion();
@@ -97,6 +102,12 @@ namespace WhatsappApp.Services
         /// </summary>
         public static void Run()
         {
+            if (!NativeInterop.IsSupported)
+            {
+                NativeInterop.ReportUnavailable("call audio probe");
+                return;
+            }
+
             Diag.Ok("call audio: " + Describe());
         }
 

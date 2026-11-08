@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Windows.ApplicationModel.Contacts;
-using Windows.UI.Core;
+using System.Windows.Threading;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.WABinary;
 
@@ -203,7 +203,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private static async Task ApplyToTheListAsync()
         {
-            CoreDispatcher dispatcher = UiThread.Dispatcher();
+            Dispatcher dispatcher = UiThread.Dispatcher();
 
             if (dispatcher == null)
             {
@@ -219,7 +219,7 @@ namespace WhatsappApp.Services
 
             try
             {
-                await dispatcher.RunAsync(CoreDispatcherPriority.Normal, delegate
+                await UiThread.RunAsync(dispatcher, delegate
                 {
                     DataService.Instance.ApplyAddressBook();
                 });

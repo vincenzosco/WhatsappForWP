@@ -1,7 +1,6 @@
 using System;
-using Windows.ApplicationModel.Core;
+using System.Windows.Threading;
 using Windows.System;
-using Windows.UI.Core;
 
 namespace WhatsappApp.Services
 {
@@ -121,17 +120,12 @@ namespace WhatsappApp.Services
             {
                 Diag.Ok("memory under pressure: releasing decoded images");
 
-                // The system raises this event on its own thread, and what the trim touches
-                // - the avatar bitmaps and the chat lists - is bound to XAML: changing it
-                // from there is a cross-thread change to a bound collection. The flag above
-                // is set at once so nothing new is decoded while the trim is queued.
-                CoreWindow window = CoreApplication.MainView.CoreWindow;
-                if (window == null || window.Dispatcher == null) return;
+                // Memory notifications arrive off the UI thread, and the trim touches
+                // collections and bitmaps bound to the Silverlight visual tree.
+                Dispatcher dispatcher = UiThread.Dispatcher();
+                if (dispatcher == null) return;
 
-                // RunAsync and not a direct call: the freed rows are bound to XAML, and the
-                // delegate answers for its own fault because nothing awaits this.
-#pragma warning disable 4014
-                window.Dispatcher.RunAsync(CoreDispatcherPriority.Normal, delegate
+                dispatcher.BeginInvoke(delegate
                 {
                     try
                     {
@@ -142,7 +136,6 @@ namespace WhatsappApp.Services
                         Diag.Failed("MemoryWatcher/trim", ex);
                     }
                 });
-#pragma warning restore 4014
             }
         }
 

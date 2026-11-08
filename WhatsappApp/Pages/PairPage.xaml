@@ -1,8 +1,9 @@
-<Page
+<phone:PhoneApplicationPage
     x:Class="WhatsappApp.Pages.PairPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="White">
+    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
+    Background="#FF000000" Orientation="Portrait">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -12,60 +13,41 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- The chosen wallpaper, under the same veil the home list uses: the page that
-             links a phone is the first one a new install shows, and a white screen here
-             was the one place the background stopped. Collapsed for the plain white theme. -->
         <Image x:Name="PageWallpaper" Grid.RowSpan="4"
                Stretch="UniformToFill"
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-        <Rectangle Grid.RowSpan="4"
-                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+        <Rectangle Grid.RowSpan="4" Fill="#CC000000"/>
 
-        <!-- Title bar: the 54 px SemiLight title of the released `PageTitlePanel`,
-             on the page's own background and not on a second white bar. -->
         <Grid Grid.Row="0" Background="Transparent">
-            <TextBlock x:Uid="PairPage_Title" Text="Link this phone"
-                       Margin="16,-10,16,-6" VerticalAlignment="Bottom"
-                       FontSize="54" FontFamily="Segoe WP Semilight" Foreground="#FF333333" TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="TitleText" Margin="16,-10,16,-6" VerticalAlignment="Bottom"
+                       FontSize="54" FontFamily="Segoe WP Semilight" Foreground="White"
+                       TextTrimming="WordEllipsis"/>
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="16,12,16,12">
-
-                <!-- The text is a fixed dark grey on purpose, not the theme's
-                     foreground: this page has a light background of its own, so on a
-                     phone set to the dark theme the default white text would be
-                     white on white. -->
-                <TextBlock x:Uid="PairPage_Instructions" Text="Open WhatsApp on your phone, go to Settings, Linked devices, Link a device, and scan this code. The code changes every few seconds on its own: keep the camera on it."
-                           Foreground="#FF333333" TextWrapping="Wrap" FontSize="15"/>
-
-                <!-- The code. Its size is fixed by the drawer (four pixels per module
-                     plus the quiet zone), so no Stretch: a scaled QR is a blurred one,
-                     and a blurred one is a scan that fails. -->
-                <Image x:Name="QrImage" Margin="0,16,0,16" HorizontalAlignment="Center"/>
-
-                <TextBlock x:Uid="PairPage_Waiting" Text="Waiting for the scan..."
-                           Foreground="#FF333333" TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"/>
-
-                <!-- Shown instead of the waiting line when the codes have run out, or
-                     when WhatsApp refused the session this phone had stored. -->
-                <TextBlock x:Name="ExpiredText" x:Uid="PairPage_ExpiredSession" Text="This code has expired. Ask for a new one and scan that."
-                           Foreground="#FF333333" TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
+                <TextBlock x:Name="InstructionsText" Foreground="#FFE0E0E0"
+                           TextWrapping="Wrap" FontSize="16"/>
+                <Border HorizontalAlignment="Center" Background="White" Padding="8" Margin="0,16,0,16">
+                    <Image x:Name="QrImage" Stretch="None"/>
+                </Border>
+                <TextBlock x:Name="WaitingText" Foreground="#FFB0B0B0"
+                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="ExpiredText" Foreground="#FFB0B0B0"
+                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
                            Visibility="Collapsed"/>
-
-                <TextBlock x:Name="ErrorText" x:Uid="PairPage_Error" Text="The connection to WhatsApp failed. Check that this phone has a network and try again."
-                           Foreground="#FF333333" TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
+                <TextBlock x:Name="ErrorText" Foreground="#FFFF6B6B"
+                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
                            Visibility="Collapsed"/>
-
             </StackPanel>
         </ScrollViewer>
 
-        <ProgressBar x:Name="BusyBar" Grid.Row="2" IsIndeterminate="True" Margin="16,0,16,0"/>
+        <ProgressBar x:Name="BusyBar" Grid.Row="2" IsIndeterminate="True"
+                     Foreground="#FF00AFA9" Margin="16,0,16,0"/>
 
-        <Button x:Name="RetryButton" x:Uid="PairPage_Retry" Grid.Row="3"
-                Content="Try again" Margin="16,12,16,20"
+        <Button x:Name="RetryButton" Grid.Row="3" Content=""
+                Background="#FF00AFA9" Foreground="White" Margin="16,12,16,20"
                 HorizontalAlignment="Stretch" Visibility="Collapsed"
                 Click="RetryButton_Click"/>
-
     </Grid>
-</Page>
+</phone:PhoneApplicationPage>

@@ -1,6 +1,6 @@
 using System;
 using System.Threading.Tasks;
-using Windows.UI.Xaml;
+using System.Windows.Threading;
 
 namespace WhatsappApp.Services
 {
@@ -73,7 +73,7 @@ namespace WhatsappApp.Services
             _timer.Start();
         }
 
-        private void OnTick(object sender, object e)
+        private void OnTick(object sender, EventArgs e)
         {
             _timer.Stop();
             _running = true;

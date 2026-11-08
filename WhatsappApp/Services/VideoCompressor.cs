@@ -44,7 +44,13 @@ namespace WhatsappApp.Services
             try
             {
                 StorageFolder folder = ApplicationData.Current.LocalFolder;
-                StorageFile source = await folder.GetFileAsync(localFileName);
+                IStorageItem item = await folder.TryGetItemAsync(localFileName);
+                StorageFile source = item as StorageFile;
+                if (source == null)
+                {
+                    Diag.Ok("video: the source file is missing, sending the original reference");
+                    return localFileName;
+                }
 
                 ulong originalSize = (await source.GetBasicPropertiesAsync()).Size;
                 if (originalSize >= MinBytes)

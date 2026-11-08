@@ -1,111 +1,57 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using System.IO.IsolatedStorage;
+using System.Runtime.InteropServices.WindowsRuntime;
 using System.Text;
 using System.Threading.Tasks;
-using Windows.Data.Xml.Dom;
+using Microsoft.Phone.Shell;
 using Windows.Storage;
-using Windows.UI.Notifications;
-using Windows.UI.StartScreen;
+using Windows.Storage.Streams;
+using WhatsappApp.Protocol.Client;
 
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The tile of one chat on the Start screen.
-    ///
-    /// A conversation worth reaching in one tap is worth a tile of its own.
-    /// The official client lets a chat be pinned and the tile carries that person's picture
-    /// and how many of their messages are waiting; a tap opens the chat.
-    ///
-    /// **Every size shows the picture and the number**, which is what the request asked and
-    /// what the four bindings below are for: 71x71 (the picture, and the count in the badge,
-    /// because that size has no line of text), 150x150, 310x150 wide and 310x310. They all
-    /// travel in **one** notification, so a change cannot arrive on one size and not on the
-    /// others - the same rule `NotificationService` uses for the app's own tile.
-    ///
-    /// The count is the chat's **unread** messages, not a lifetime total: it goes down when
-    /// the chat is opened, which is what makes the tile a thing to act on rather than a
-    /// receipt. `DataService` publishes it from the one place that changes it.
-    ///
-    /// What the tile is not: a copy of the app's tile. That one says "somebody is waiting";
-    /// this one says "this person is, and this is their chat".
+    /// A chat tile on the Start screen. Windows Phone Silverlight exposes the shell's
+    /// FlipTileData model rather than WinRT's secondary-tile notification XML.
     /// </summary>
     public static class PinnedTile
     {
-        /// <summary>The argument prefix a tile carries, which is how a tap finds its chat.</summary>
+        /// <summary>The prefix carried by the tile's launch route.</summary>
         public const string ArgumentPrefix = "chat:";
 
-        /// <summary>
-        /// What separates the chat from the name in the arguments. A `|` cannot be part of a
-        /// JID or of a name short enough to be a tile's title, so the two cannot be confused.
-        /// </summary>
         private const char ArgumentSeparator = '|';
-
-        /// <summary>WP8.1 refuses a tile id over this length, and one with other characters.</summary>
         private const int MaxTileIdLength = 64;
+        private const int MaxImageBytes = 200 * 1024;
+        private const string LocalFolderPrefix = "ms-appdata:///local/";
+        private const string ShellContentFolder = "Shared/ShellContent";
+        private const string ShellContentUriPrefix = "isostore:/Shared/ShellContent/";
+        private const string AppIcon = "Assets/TileIcon.png";
+        private const string AppWideIcon = "Assets/TileIconWide.png";
 
-        /// <summary>
-        /// The full-size picture of a pinned chat, as the bytes a card is composed from.
-        ///
-        /// Why it is kept and not only fetched: the tile is redrawn on every unread change,
-        /// and the row hands it the chat's `AvatarData` - the 96x96 preview the chat list
-        /// draws. On a card of 336 that preview is a face enlarged 3.5 times, which is the
-        /// "foto troppo zoommata e non adattata". The full picture is
-        /// asked once per chat and kept here, so the next redraw is composed from it too.
-        /// </summary>
         private static readonly Dictionary<string, string> Sharp =
             new Dictionary<string, string>(StringComparer.Ordinal);
-
-        /// <summary>
-        /// How many times one chat's full picture is asked for in a run.
-        ///
-        /// Why a budget and not one attempt: the tiles are drawn at a start, before the
-        /// login, so the first answer is "no session yet" - and giving up there leaves the
-        /// tile blurry for the whole run. Why not unlimited: a chat whose picture the server
-        /// never has would be a request per message.
-        /// </summary>
-        private const int MaxPictureAttempts = 3;
 
         private static readonly Dictionary<string, int> Attempts =
             new Dictionary<string, int>(StringComparer.Ordinal);
 
-        /// <summary>The chats whose full picture is being fetched right now.</summary>
         private static readonly HashSet<string> Asking = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>
-        /// The tiles the notification platform refused in this run, by chat.
-        ///
-        /// Why it is kept: `TileUpdateManager.CreateTileUpdaterForSecondaryTile` answers
-        /// `WPN_E_INVALID_APP` (0x803E0102, "The application identifier provided is invalid")
-        /// when the notification platform cannot tie the tile to this app - a stale record
-        /// left by a redeploy, or a platform that has stopped (Microsoft names both, and
-        /// neither is something the app can repair). Every publish would retry it, spend a
-        /// disk write on a card nobody shows and leave a line per message, so the answer is
-        /// remembered for the run: the tile keeps what it has, and the next start tries once.
-        /// </summary>
         private static readonly HashSet<string> Refused = new HashSet<string>(StringComparer.Ordinal);
-
-        /// <summary>The lock the three above are guarded by.</summary>
         private static readonly object Pictures = new object();
+        private static readonly SerialQueue ShellImageWrites = new SerialQueue();
+        private static readonly SerialQueue TileWrites = new SerialQueue();
 
-        private const string SmallLogo = "ms-appx:///Assets/Square71x71Logo.png";
-        private const string MediumLogo = "ms-appx:///Assets/Logo.png";
-        private const string WideLogo = "ms-appx:///Assets/WideLogo.png";
-
-        /// <summary>The app mark, for a chat whose picture has not arrived.</summary>
-        private const string AppIcon = "ms-appx:///Assets/TileIcon.png";
-
-        /// <summary>The same mark at the wide tile's proportion: a square one is cropped.</summary>
-        private const string AppWideIcon = "ms-appx:///Assets/TileIconWide.png";
+        private const int MaxPictureAttempts = 3;
 
         /// <summary>
-        /// The tile id of a chat: stable across runs (a second pin of the same chat is the
-        /// same tile), and made only of what the platform accepts - letters, digits and
-        /// underscores, at most 64 of them.
+        /// Returns the stable, shell-safe identity used for the chat. Secondary tiles carry
+        /// the original chat id in their query route; this value remains available to callers
+        /// that need a compact tile identity.
         /// </summary>
         public static string TileIdFor(string chatId)
         {
             var builder = new StringBuilder("chat-");
+            if (chatId == null) return builder.ToString();
 
             for (int i = 0; i < chatId.Length && builder.Length < MaxTileIdLength; i++)
             {
@@ -116,14 +62,14 @@ namespace WhatsappApp.Services
             return builder.ToString();
         }
 
-        /// <summary>Whether this chat already has a tile on the Start screen.</summary>
+        /// <summary>Whether this chat already has a secondary tile on Start.</summary>
         public static bool IsPinned(string chatId)
         {
             if (string.IsNullOrEmpty(chatId)) return false;
 
             try
             {
-                return SecondaryTile.Exists(TileIdFor(chatId));
+                return FindTile(chatId) != null;
             }
             catch (Exception ex)
             {
@@ -133,11 +79,9 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Pins the chat, or takes its tile away when it has one. True when a tile is on the
-        /// Start screen at the end.
-        ///
-        /// `RequestCreateAsync` shows the system's own sheet, which asks the person to
-        /// confirm and lets them rename the tile: the app does not ask twice.
+        /// Pins the chat or removes its tile. Silverlight's synchronous ShellTile APIs do not
+        /// expose the WinRT RequestCreateAsync/RequestDeleteAsync result, so the final state is
+        /// checked against the shell's active-tile list.
         /// </summary>
         public static async Task<bool> ToggleAsync(string chatId, string name, string avatarData, string body)
         {
@@ -147,52 +91,33 @@ namespace WhatsappApp.Services
 
             try
             {
-                if (IsPinned(chatId))
+                ShellTile existing = FindTile(chatId);
+                if (existing != null)
                 {
-                    bool removed = await new SecondaryTile(TileIdFor(chatId)).RequestDeleteAsync();
-                    Diag.Ok("pinned tile: " + chatId + (removed ? " removed" : " kept"));
-
-                    // The tile the platform refused is the one that is gone: a chat pinned
-                    // again gets a fresh tile and a fresh chance to be drawn.
-                    if (removed) Forget(chatId);
-
-                    return !removed;
+                    existing.Delete();
+                    bool remains = FindTile(chatId) != null;
+                    Diag.Ok("pinned tile: " + chatId + (remains ? " kept" : " removed"));
+                    if (!remains) Forget(chatId);
+                    return remains;
                 }
 
-                // The short name and the display name are the person's name; the logo is the
-                // square one until the picture arrives. The `TileOptions` constructor is the
-                // obsolete one on this platform (CS0618): the name is put on the sizes it
-                // fits by `VisualElements`, which is the shape that replaced it.
-                var tile = new SecondaryTile(
-                    TileIdFor(chatId),
-                    display,
-                    ArgumentPrefix + chatId + ArgumentSeparator + display,
-                    new Uri(MediumLogo),
-                    TileSize.Default);
+                FlipTileData initial = new FlipTileData();
+                initial.Title = display;
+                initial.BackTitle = display;
+                initial.BackContent = " ";
+                initial.SmallBackgroundImage = PackageImage(AppIcon);
+                initial.BackgroundImage = PackageImage(AppIcon);
+                initial.BackBackgroundImage = PackageImage(AppIcon);
+                initial.WideBackgroundImage = PackageImage(AppWideIcon);
+                initial.WideBackBackgroundImage = PackageImage(AppWideIcon);
+                initial.Count = 0;
 
-                tile.DisplayName = display;
-                tile.VisualElements.ShowNameOnSquare150x150Logo = true;
-                tile.VisualElements.ShowNameOnWide310x150Logo = true;
-
-                // The sizes the Start screen can draw this tile at. Each one is given the
-                // asset it needs before the tile exists: a size left out falls back to the
-                // square logo and loses its proportion.
-                tile.VisualElements.Square71x71Logo = new Uri(SmallLogo);
-                tile.VisualElements.Wide310x150Logo = new Uri(WideLogo);
-                tile.VisualElements.Square310x310Logo = new Uri(MediumLogo);
-
-                bool created = await tile.RequestCreateAsync();
+                ShellTile.Create(NavigationUri(chatId, display), initial, true);
+                bool created = FindTile(chatId) != null;
                 if (!created) return false;
 
                 Forget(chatId);
-
-                // The tile exists with the package's logos; the picture and the count come
-                // on a notification, which is the only thing a running app may change.
-                await RenderAsync(chatId, display, 0, PictureFor(chatId, avatarData), body, true);
-
-                // And the picture the tile was just composed from is the preview the list
-                // draws: the full one is asked for here, and the card is drawn again when it
-                // arrives (see `AskForPicture`).
+                await QueueRenderAsync(chatId, display, 0, PictureFor(chatId, avatarData), body, true);
                 AskForPicture(chatId, display, 0, body, true);
 
                 Diag.Ok("pinned tile: " + chatId + " added");
@@ -205,68 +130,38 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>
-        /// The chat's count changed: its tile says so. Called from the one place that changes
-        /// a row's unread count, and safe on a chat with no tile - it does nothing.
-        /// </summary>
+        /// <summary>The chat's unread count changed; update it when the chat is pinned.</summary>
         public static void Update(string chatId, string name, int count, string avatarData, string body)
         {
             Update(chatId, name, count, avatarData, body, true);
         }
 
         /// <summary>
-        /// The same, for a caller that knows the picture but not the number.
-        ///
-        /// The copy of the chat list on the phone carries no unread counts on
-        /// purpose (`ChatCache.Slim`), so the startup sweep that redraws the tiles knows every
-        /// row as zero. Publishing that zero cleared the badge of every pinned chat at every
-        /// start, and the count only comes back with a message. With `countKnown` false the
-        /// tile is drawn - picture, name, message - and the badge is left exactly as the shell
-        /// had it.
+        /// Updates the visible tile. When the count is unknown, Count is left unset so the
+        /// shell keeps its existing count rather than treating a cache miss as zero.
         /// </summary>
-        public static void Update(string chatId, string name, int count, string avatarData, string body, bool countKnown)
+        public static void Update(string chatId, string name, int count, string avatarData, string body,
+            bool countKnown)
         {
             if (string.IsNullOrEmpty(chatId)) return;
             if (!IsPinned(chatId)) return;
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("PinnedTile/update",
-                RenderAsync(chatId, name, count, PictureFor(chatId, avatarData), body, countKnown));
+                QueueRenderAsync(chatId, name, count, PictureFor(chatId, avatarData), body, countKnown));
 #pragma warning restore 4014
         }
 
-        /// <summary>
-        /// Asks WhatsApp for the picture a pinned chat's tile should show, once per chat.
-        ///
-        /// Why the full picture and not the preview the list draws: the tile is the one place
-        /// that shows a person's face at the size of the screen's own tile, and the preview
-        /// WhatsApp sends is 96 pixels square. Composed on the 336 card that is a face
-        /// enlarged 3.5 times - soft, and at 150 dp it fills the whole tile - which is what
-        /// the phone reported while the tile's own geometry was already
-        /// right: on WP8.1 a peek template flips and shows the square image across the tile.
-        ///
-        /// A start draws the tiles before the login, so this asks only once the account is in
-        /// (`NativeConnection.IsLoggedIn`): asking earlier answers `there is no open account to
-        /// send on` - a failure line at every start and one of the three attempts spent on a
-        /// question nobody can answer yet. The sweep that runs when the login completes asks
-        /// (`DataService`), and so does every publish after it, up to `MaxPictureAttempts` in a
-        /// run. A chat the server answers no picture for keeps the preview and is not asked
-        /// again.
-        /// </summary>
+        /// <summary>Asks WhatsApp for a pinned chat's full-size picture, within a per-run budget.</summary>
         public static void AskForPicture(string chatId, string name, int count, string body, bool countKnown)
         {
-            if (string.IsNullOrEmpty(chatId)) return;
-            if (!IsPinned(chatId)) return;
-
-            // Not a skipped attempt: nothing was spent, and the ask happens as soon as the
-            // login is done.
+            if (string.IsNullOrEmpty(chatId) || !IsPinned(chatId)) return;
             if (!NativeConnection.Instance.IsLoggedIn) return;
 
             lock (Pictures)
             {
                 string sharp;
-                if (Sharp.TryGetValue(chatId, out sharp)) return;
-                if (Asking.Contains(chatId)) return;
+                if (Sharp.TryGetValue(chatId, out sharp) || Asking.Contains(chatId)) return;
 
                 int attempts;
                 Attempts.TryGetValue(chatId, out attempts);
@@ -283,9 +178,92 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The picture a card is composed from: the chat's full-size one once it is here, and
-        /// the caller's (the preview the list draws) until then.
+        /// Copies a composed WinRT local-folder image into the isolated-storage location the
+        /// Silverlight shell can read. Package-relative paths are returned unchanged.
         /// </summary>
+        internal static Task<Uri> ShellImageUriAsync(string image)
+        {
+            if (string.IsNullOrEmpty(image)) return Task.FromResult<Uri>(null);
+            if (!image.StartsWith(LocalFolderPrefix, StringComparison.Ordinal))
+            {
+                return Task.FromResult(new Uri(image, UriKind.RelativeOrAbsolute));
+            }
+
+            return ShellImageWrites.RunAsync(delegate { return CopyShellImageAsync(image); });
+        }
+
+        /// <summary>The chat id a secondary-tile navigation URI names, or null for other launches.</summary>
+        public static string ChatFromArguments(string arguments)
+        {
+            string payload = TileArguments(arguments);
+            if (string.IsNullOrEmpty(payload) || !payload.StartsWith(ArgumentPrefix, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            string rest = payload.Substring(ArgumentPrefix.Length);
+            int split = rest.IndexOf(ArgumentSeparator);
+            return split < 0 ? rest : rest.Substring(0, split);
+        }
+
+        /// <summary>The display name stored with a chat's secondary-tile route.</summary>
+        public static string NameFromArguments(string arguments)
+        {
+            string payload = TileArguments(arguments);
+            if (string.IsNullOrEmpty(payload) || !payload.StartsWith(ArgumentPrefix, StringComparison.Ordinal))
+            {
+                return null;
+            }
+
+            string rest = payload.Substring(ArgumentPrefix.Length);
+            int split = rest.IndexOf(ArgumentSeparator);
+            return split < 0 ? null : rest.Substring(split + 1);
+        }
+
+        private static string TileArguments(string arguments)
+        {
+            if (string.IsNullOrEmpty(arguments)) return null;
+            if (arguments.StartsWith(ArgumentPrefix, StringComparison.Ordinal)) return arguments;
+
+            int queryStart = arguments.IndexOf('?');
+            if (queryStart < 0 || queryStart == arguments.Length - 1) return null;
+
+            string[] fields = arguments.Substring(queryStart + 1).Split('&');
+            for (int i = 0; i < fields.Length; i++)
+            {
+                int equals = fields[i].IndexOf('=');
+                if (equals < 0) continue;
+
+                string key = Uri.UnescapeDataString(fields[i].Substring(0, equals));
+                if (key != "tile") continue;
+
+                return Uri.UnescapeDataString(fields[i].Substring(equals + 1));
+            }
+
+            return null;
+        }
+
+        private static Uri NavigationUri(string chatId, string name)
+        {
+            string arguments = ArgumentPrefix + chatId + ArgumentSeparator + name;
+            return new Uri("/Pages/HomePage.xaml?tile=" + Uri.EscapeDataString(arguments), UriKind.Relative);
+        }
+
+        private static ShellTile FindTile(string chatId)
+        {
+            foreach (ShellTile tile in ShellTile.ActiveTiles)
+            {
+                Uri route = tile.NavigationUri;
+                if (route == null) continue;
+                if (string.Equals(ChatFromArguments(route.OriginalString), chatId, StringComparison.Ordinal))
+                {
+                    return tile;
+                }
+            }
+
+            return null;
+        }
+
         private static string PictureFor(string chatId, string given)
         {
             lock (Pictures)
@@ -295,26 +273,16 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>
-        /// One chat's full picture, and the tile redrawn from it.
-        ///
-        /// Every failure is named and survived: a phone with no session, or a contact whose
-        /// picture is private, is a tile that keeps the preview - not a tile that disappears.
-        /// </summary>
         private static async Task FetchPictureAsync(string chatId, string name, int count, string body,
             bool countKnown)
         {
             try
             {
                 AvatarAnswer picture = await NativeConnection.Instance.RequestAvatarAsync(chatId, false);
-
                 byte[] jpeg = picture == null ? null : picture.Jpeg;
 
                 if (jpeg == null || jpeg.Length == 0)
                 {
-                    // An answer, not a failure: this chat has no picture to give, and the
-                    // preview the list drew is the best this tile is going to have. The
-                    // budget is spent, so it is not asked again in this run.
                     lock (Pictures) Attempts[chatId] = MaxPictureAttempts;
                     Diag.Ok("pinned tile: " + chatId + " has no picture to give");
                     return;
@@ -325,13 +293,10 @@ namespace WhatsappApp.Services
 
                 Diag.Ok("pinned tile: " + jpeg.Length + " byte(s) of picture for " + chatId
                     + ", composed again from it");
-
-                await RenderAsync(chatId, name, count, sharp, body, countKnown);
+                await QueueRenderAsync(chatId, name, count, sharp, body, countKnown);
             }
             catch (Exception error)
             {
-                // No session yet, or none any more: the attempt is spent, the preview stays,
-                // and the next publish (a message, a count) tries again.
                 Diag.Failed("PinnedTile/picture " + chatId, error);
             }
             finally
@@ -340,308 +305,80 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>
-        /// The chat a tile's arguments name, or null when the launch did not come from one.
-        /// </summary>
-        public static string ChatFromArguments(string arguments)
+        private static Task QueueRenderAsync(string chatId, string name, int count, string avatarData, string body,
+            bool countKnown)
         {
-            return PartOfArguments(arguments, true);
+            return TileWrites.RunAsync(delegate
+            {
+                return RenderAsync(chatId, name, count, avatarData, body, countKnown);
+            });
         }
 
-        /// <summary>
-        /// The name the tile was created with, carried in its arguments so a first start from
-        /// a tile can name the chat before the list has loaded.
-        /// </summary>
-        public static string NameFromArguments(string arguments)
-        {
-            return PartOfArguments(arguments, false);
-        }
-
-        private static string PartOfArguments(string arguments, bool chat)
-        {
-            if (string.IsNullOrEmpty(arguments)) return null;
-            if (!arguments.StartsWith(ArgumentPrefix, StringComparison.Ordinal)) return null;
-
-            string rest = arguments.Substring(ArgumentPrefix.Length);
-            int split = rest.IndexOf(ArgumentSeparator);
-
-            if (chat) return split < 0 ? rest : rest.Substring(0, split);
-            return split < 0 ? null : rest.Substring(split + 1);
-        }
-
-        /// <summary>
-        /// Draws the tile in every size the Start screen can ask for, and puts the count on
-        /// the badge as well: at 71x71 there is no line to write a number in, so the badge is
-        /// what carries it there.
-        ///
-        /// The two lines are the app tile's two lines (`TileText`): the name in the template's
-        /// large font and the last message under it, with the count taking the second line only
-        /// when there is no message to quote. The request was that the two
-        /// tiles read the same way.
-        /// </summary>
         private static async Task RenderAsync(string chatId, string name, int count, string avatarData, string body,
             bool countKnown)
         {
-            string tileId = TileIdFor(chatId);
-
-            // Before the card and the lines, not after: a tile the platform refused is a card
-            // written for a tile nobody is going to draw.
             lock (Pictures)
             {
                 if (Refused.Contains(chatId)) return;
             }
 
-            TileCard card = await StoreImageAsync(chatId, avatarData);
-            string image = card == null ? null : card.Square;
-            string wide = image == null ? AppWideIcon : TileImage.WideOf(image);
+            TileCard card;
+            try
+            {
+                card = await StoreImageAsync(chatId, avatarData);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("PinnedTile/compose " + chatId, ex);
+                return;
+            }
+
+            Uri square = card == null ? PackageImage(AppIcon) : await ShellImageUriAsync(card.Square);
+            Uri wide = card == null ? PackageImage(AppWideIcon) : await ShellImageUriAsync(card.Wide);
+            Uri small = card == null ? PackageImage(AppIcon) : await ShellImageUriAsync(card.Small);
 
             string sender = string.IsNullOrEmpty(name) ? chatId : name;
-
-            // An unknown count is not zero: with no message to quote, the second line stays
-            // empty rather than saying nobody is waiting.
-            string unread = countKnown ? NotificationService.UnreadText(count) : "";
+            string unread = countKnown ? NotificationService.UnreadText(Math.Max(0, count)) : "";
             TileLines lines = TileText.For(sender, body, unread);
 
-            // The tile's whole content is composed before the tile is touched.
-            //
-            // Why that order and not a `Clear` and a rebuild: `Updater.Clear()` came first
-            // here, so anything that threw afterwards left the chat's tile **empty** - no
-            // picture, no name, nothing - and the refusal threw exactly
-            // there. A notification replaces the content of the tile on its own, so the clear
-            // bought nothing and cost the tile its content when the platform said no.
-            XmlDocument xml;
+            var data = new FlipTileData();
+            data.Title = NonEmpty(lines.First);
+            data.BackTitle = NonEmpty(sender);
+            data.BackContent = NonEmpty(lines.Second);
+            data.WideBackContent = NonEmpty(lines.Second);
+            data.SmallBackgroundImage = small;
+            data.BackgroundImage = square;
+            data.BackBackgroundImage = square;
+            data.WideBackgroundImage = wide;
+            data.WideBackBackgroundImage = wide;
+            if (countKnown) data.Count = Math.Min(Math.Max(0, count), 99);
+
+            ShellTile tile = FindTile(chatId);
+            if (tile == null) return;
+
+            Exception failure = null;
             try
             {
-                xml = TileUpdateManager.GetTemplateContent(
-                    TileTemplateType.TileSquare150x150PeekImageAndText02);
-            }
-            catch (Exception failed)
-            {
-                Diag.Failed("PinnedTile/compose " + chatId, failed);
-                return;
-            }
-
-            var visual = xml.SelectSingleNode("/tile/visual") as XmlElement;
-
-            // A template with no visual is a tile this method cannot draw: nothing is
-            // touched, and the tile keeps what it has.
-            if (visual == null) return;
-
-            // The medium tile: who this chat is, in the template's large font, and what they
-            // said under it - the app tile's own two lines, so the two are read the same way.
-            var medium = visual.SelectSingleNode("binding") as XmlElement;
-            Fill(xml, medium, lines.First, lines.Second, image ?? AppIcon);
-
-            // The wide tile and the large one say the same thing. The wide one asks for the
-            // wide card: the square card in a 2.07:1 binding is filled and cropped, which
-            // magnifies the face and takes its top and chin off.
-            Add(xml, visual, TileTemplateType.TileWide310x150PeekImageAndText02,
-                lines.First, lines.Second, wide);
-            Add(xml, visual, TileTemplateType.TileSquare310x310ImageAndText02,
-                lines.First, lines.Second, image ?? AppIcon);
-
-            // 71x71: the picture, and nothing else fits. The number travels on the badge.
-            // The card of that size and not the square one: a binding fills the tile with the
-            // image it is given and crops the rest, so the 336 card here showed the middle of
-            // the face, magnified ().
-            AddSmall(xml, visual, card == null ? AppIcon : card.Small);
-
-            // The platform's answer, named: `WPN_E_INVALID_APP` (0x803E0102) from here is not
-            // this file's mistake and not this message's, so it must not read like one
-            // (`Refused`). C# 5 allows no await in a catch, hence the local.
-            Exception refused = null;
-            try
-            {
-                var updater = TileUpdateManager.CreateTileUpdaterForSecondaryTile(tileId);
-                updater.Update(new TileNotification(xml));
-            }
-            catch (Exception error)
-            {
-                refused = error;
-            }
-
-            if (refused != null)
-            {
-                await RefuseAsync(chatId, tileId, refused);
-                return;
-            }
-
-            if (countKnown) SetBadge(tileId, count);
-        }
-
-        /// <summary>
-        /// A tile this chat no longer has to be careful with: it was just created, or it was
-        /// just taken away. Both are a different tile from the one the platform refused.
-        /// </summary>
-        private static void Forget(string chatId)
-        {
-            lock (Pictures)
-            {
-                Refused.Remove(chatId);
-                Attempts.Remove(chatId);
-            }
-        }
-
-        /// <summary>
-        /// The notification platform refused this tile: it is named once, the shell's own view
-        /// of it is written beside it, and the tile is left alone for the rest of the run.
-        ///
-        /// Why the shell is asked as well: `WPN_E_INVALID_APP` means the platform cannot tie
-        /// the tile to this app, and the two ways that happens look identical in a log - the
-        /// shell no longer has the tile (a redeploy took it, and the chat should offer the pin
-        /// again) or the shell has it and the notification record for this app no longer does
-        /// (the tile is stuck until it is un-pinned and pinned again). `Exists` and the list
-        /// `FindAllAsync` answers are what tells them apart on the next run.
-        /// </summary>
-        private static async Task RefuseAsync(string chatId, string tileId, Exception error)
-        {
-            lock (Pictures)
-            {
-                if (!Refused.Add(chatId)) return;
-            }
-
-            Diag.Failed("PinnedTile/update " + chatId, error);
-
-            try
-            {
-                string listed = "none";
-                IReadOnlyList<SecondaryTile> tiles = await SecondaryTile.FindAllAsync();
-                for (int i = 0; i < tiles.Count; i++)
-                {
-                    if (tiles[i].TileId != tileId) continue;
-
-                    listed = "present";
-                    break;
-                }
-
-                Diag.Ok("pinned tile: the platform refused " + tileId + ", and the shell says "
-                    + (SecondaryTile.Exists(tileId) ? "it exists" : "it is gone")
-                    + " and lists it " + listed + " - the tile keeps what it has until the app restarts");
-            }
-            catch (Exception shell)
-            {
-                Diag.Failed("PinnedTile/shell " + chatId, shell);
-            }
-        }
-
-        /// <summary>One binding for another size, imported from that size's own template.</summary>
-        private static void Add(XmlDocument xml, XmlElement visual, TileTemplateType template,
-            string first, string second, string image)
-        {
-            try
-            {
-                var other = TileUpdateManager.GetTemplateContent(template);
-                var binding = other.SelectSingleNode("/tile/visual/binding");
-                if (binding == null) return;
-
-                var imported = xml.ImportNode(binding, true) as XmlElement;
-                if (imported == null) return;
-
-                visual.AppendChild(imported);
-                Fill(xml, imported, first, second, image);
+                tile.Update(data);
             }
             catch (Exception ex)
             {
-                // A size the phone refuses cannot take the others with it.
-                Diag.Failed("PinnedTile/Add", ex);
+                failure = ex;
             }
+
+            if (failure != null) Refuse(chatId, failure);
         }
 
-        /// <summary>
-        /// The small tile: one picture and no text, composed at that tile's own side. Its
-        /// template ships without an `image` element, so one is created - with the
-        /// notification's document, not with the template's, or inserting it raises.
-        /// </summary>
-        private static void AddSmall(XmlDocument xml, XmlElement visual, string image)
+        private static string NonEmpty(string value)
         {
-            try
-            {
-                var other = TileUpdateManager.GetTemplateContent(TileTemplateType.TileSquare71x71Image);
-                var binding = other.SelectSingleNode("/tile/visual/binding");
-                if (binding == null) return;
-
-                var imported = xml.ImportNode(binding, true) as XmlElement;
-                if (imported == null) return;
-
-                visual.AppendChild(imported);
-
-                var element = imported.SelectSingleNode("image") as XmlElement;
-                if (element == null)
-                {
-                    element = xml.CreateElement("image");
-                    element.SetAttribute("id", "1");
-                    imported.AppendChild(element);
-                }
-
-                element.SetAttribute("src", image);
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("PinnedTile/AddSmall", ex);
-            }
+            return string.IsNullOrEmpty(value) ? " " : value;
         }
 
-        /// <summary>What one binding says: two lines and the picture.</summary>
-        private static void Fill(XmlDocument xml, XmlElement binding, string first, string second, string image)
+        private static Uri PackageImage(string path)
         {
-            if (binding == null) return;
-
-            var texts = binding.SelectNodes("text");
-            if (texts.Length > 0 && first.Length > 0) texts[0].AppendChild(xml.CreateTextNode(first));
-            if (texts.Length > 1 && second.Length > 0) texts[1].AppendChild(xml.CreateTextNode(second));
-
-            var element = binding.SelectSingleNode("image") as XmlElement;
-            if (element == null)
-            {
-                element = xml.CreateElement("image");
-                element.SetAttribute("id", "1");
-                binding.AppendChild(element);
-            }
-
-            element.SetAttribute("src", image);
+            return new Uri(path, UriKind.Relative);
         }
 
-        /// <summary>
-        /// The number on the tile's badge: 0 removes it. It is what says the count at 71x71,
-        /// and the only shape of it the shell draws over the picture.
-        /// </summary>
-        private static void SetBadge(string tileId, int count)
-        {
-            try
-            {
-                var updater = BadgeUpdateManager.CreateBadgeUpdaterForSecondaryTile(tileId);
-
-                if (count <= 0)
-                {
-                    updater.Clear();
-                    return;
-                }
-
-                var xml = BadgeUpdateManager.GetTemplateContent(BadgeTemplateType.BadgeNumber);
-                var badge = (XmlElement)xml.SelectSingleNode("/badge");
-                badge.SetAttribute("value", Math.Min(count, 99).ToString(CultureInfo.InvariantCulture));
-                updater.Update(new BadgeNotification(xml));
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("PinnedTile/SetBadge", ex);
-            }
-        }
-
-        /// <summary>
-        /// The chat's picture as a file the tile can point at, or null when there is none:
-        /// a tile wants a path, not the bytes.
-        ///
-        /// It is a *card*, not the 96x96 preview: `TileImage` crops the picture to its centre
-        /// square, scales it once to the tile and lets it cover the tile, because a template
-        /// with an image paints it over the whole tile and a small face blown up to 150 or 310
-        /// pixels is a magnified face, not a portrait - and a margin around it is a border
-        /// nobody asked for. A chat with no picture gets the app mark inside the same card, at
-        /// half the tile, so the glyph keeps its air.
-        ///
-        /// The name is `pin-…`, of its own, so it cannot collide with the picture the app's
-        /// own tile keeps for the same chat and the two cannot take each other's file away.
-        /// </summary>
         private static Task<TileCard> StoreImageAsync(string chatId, string avatarData)
         {
             return TileImage.StoreAsync(ImageFileName(chatId), avatarData);
@@ -656,8 +393,76 @@ namespace WhatsappApp.Services
                 builder.Append(char.IsLetterOrDigit(c) ? c : '_');
             }
             builder.Append(".jpg");
-
             return builder.ToString();
+        }
+
+        private static void Forget(string chatId)
+        {
+            lock (Pictures)
+            {
+                Refused.Remove(chatId);
+                Attempts.Remove(chatId);
+            }
+        }
+
+        private static void Refuse(string chatId, Exception error)
+        {
+            lock (Pictures)
+            {
+                if (!Refused.Add(chatId)) return;
+            }
+
+            Diag.Failed("PinnedTile/update " + chatId, error);
+            Diag.Ok("pinned tile: the Silverlight shell refused the tile for " + chatId
+                + "; it is left unchanged until it is pinned again or the app restarts");
+        }
+
+        private static async Task<Uri> CopyShellImageAsync(string image)
+        {
+            string fileName = image.Substring(LocalFolderPrefix.Length);
+            if (string.IsNullOrEmpty(fileName) || fileName.IndexOf('/') >= 0 || fileName.IndexOf('\\') >= 0)
+            {
+                throw new InvalidOperationException("The tile image path is not a local file name");
+            }
+
+            string shellName = "wa-" + fileName;
+            string shellPath = ShellContentFolder + "/" + shellName;
+            bool exists;
+            using (IsolatedStorageFile store = IsolatedStorageFile.GetUserStoreForApplication())
+            {
+                exists = store.FileExists(shellPath);
+            }
+
+            if (!exists)
+            {
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(fileName);
+                StorageFile source = item as StorageFile;
+                if (source == null)
+                {
+                    Diag.Ok("pinned tile: the composed image is missing, using the app mark");
+                    return PackageImage(AppIcon);
+                }
+                IBuffer buffer = await FileIO.ReadBufferAsync(source);
+                byte[] bytes = buffer.ToArray();
+                if (bytes.Length == 0 || bytes.Length > MaxImageBytes)
+                {
+                    throw new InvalidOperationException("The tile image is outside the shell size limit");
+                }
+
+                using (IsolatedStorageFile store = IsolatedStorageFile.GetUserStoreForApplication())
+                {
+                    if (!store.DirectoryExists(ShellContentFolder)) store.CreateDirectory(ShellContentFolder);
+                    if (!store.FileExists(shellPath))
+                    {
+                        using (IsolatedStorageFileStream output = store.CreateFile(shellPath))
+                        {
+                            output.Write(bytes, 0, bytes.Length);
+                        }
+                    }
+                }
+            }
+
+            return new Uri(ShellContentUriPrefix + shellName, UriKind.Absolute);
         }
 
         private static string Cut(string value, int max)
@@ -665,7 +470,6 @@ namespace WhatsappApp.Services
             string text = value ?? "";
             if (text.Length <= max) return text;
 
-            // An emoji is two UTF-16 units: a cut between them leaves half of it, which draws as nothing.
             int keep = max - 1;
             if (keep > 0 && char.IsHighSurrogate(text[keep - 1])) keep--;
             return text.Substring(0, keep) + "\u2026";

@@ -2,88 +2,43 @@
     x:Class="WhatsappApp.App"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:local="using:WhatsappApp">
+    xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone">
+
+    <Application.ApplicationLifetimeObjects>
+        <shell:PhoneApplicationService />
+    </Application.ApplicationLifetimeObjects>
 
     <Application.Resources>
         <ResourceDictionary>
-            <!-- WhatsApp Global Colors.
+            <!-- The historical phone palette uses black surfaces, quiet teal accents, and light text. -->
+            <Color x:Key="PhoneAccentColor">#FF00A8C7</Color>
+            <SolidColorBrush x:Key="PhoneAccentBrush" Color="#FF00A8C7"/>
+            <SolidColorBrush x:Key="PhoneBackgroundBrush" Color="#FF000000"/>
+            <SolidColorBrush x:Key="PhoneForegroundBrush" Color="#FFF2F5F5"/>
 
-                 These are the values the WP8.1 Silverlight app carries in
-                 `themes/generic.xaml` and in its item templates, read out of the
-                 official package: the header is the dark teal of the app bar, the
-                 accent is the green of the sent bubble and of the selected
-                 section, the received bubble is the #EFEFEF of the light theme,
-                 and the list is white while the conversation carries the doodle
-                 wallpaper (Assets/ChatBackground.jpg). -->
             <SolidColorBrush x:Key="WhatsAppDarkTealBrush" Color="#FF075E54"/>
-            <SolidColorBrush x:Key="WhatsAppTealBrush" Color="#FF128C7E"/>
-            <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF25D366"/>
-            <SolidColorBrush x:Key="WhatsAppLightGreenBrush" Color="#FFDCF8C6"/>
-            <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="WhatsAppTealBrush" Color="#FF087A77"/>
+            <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF00A8C7"/>
+            <SolidColorBrush x:Key="WhatsAppLightGreenBrush" Color="#FF123B39"/>
+            <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FF000000"/>
+            <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#D9000000"/>
+            <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF21B8B5"/>
 
-            <!-- The veil the lists put over the chosen wallpaper: the image keeps
-                 the page on the same theme as the conversation, and 60% white leaves
-                 it visible while the two lines of a chat row keep their contrast.
-                 The range is measured, not guessed: #B8 (72%) hid the picture - the
-                 list looked white whatever was chosen - and #80 (50%) buried the grey
-                 preview (#939393) on a busy or dark wallpaper, where it sat at about
-                 1.1:1. At #99 the preview is above 2:1 on anything but a mid-grey
-                 photo, and the picture still reads as a picture. -->
-            <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#99FFFFFF"/>
-            <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF34A7ED"/>
+            <Color x:Key="WhatsAppHeaderColor">#FF101719</Color>
+            <Color x:Key="WhatsAppAppBarColor">#FF101719</Color>
+            <Color x:Key="WhatsAppSentBubbleColor">#FF075E54</Color>
+            <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="{StaticResource WhatsAppHeaderColor}"/>
+            <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF00A8C7"/>
+            <SolidColorBrush x:Key="WhatsAppAccentDarkBrush" Color="#FF007D7A"/>
+            <SolidColorBrush x:Key="WhatsAppAccentTextBrush" Color="#FFF2F5F5"/>
+            <SolidColorBrush x:Key="WhatsAppAppBarBrush" Color="{StaticResource WhatsAppAppBarColor}"/>
+            <SolidColorBrush x:Key="WhatsAppSentBubbleBrush" Color="{StaticResource WhatsAppSentBubbleColor}"/>
+            <SolidColorBrush x:Key="WhatsAppReceivedBubbleBrush" Color="#FF00A8C7"/>
+            <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#FFF2F5F5"/>
+            <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#FF9AA6A6"/>
+            <SolidColorBrush x:Key="WhatsAppSeparatorBrush" Color="#FF293234"/>
 
-            <!-- The accent-driven brushes. Their Color is replaced at start with
-                 the phone's accent (Services/Accent.cs), the way the official
-                 package asks the theme for PhoneAccentBrush: app bar, selected
-                 tab, underline, badges and the sent bubble all follow it. -->
-            <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="#FF25D366"/>
-            <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
-            <SolidColorBrush x:Key="WhatsAppAccentDarkBrush" Color="#FF1FAD54"/>
-            <SolidColorBrush x:Key="WhatsAppAccentTextBrush" Color="#FFFFFFFF"/>
-            <SolidColorBrush x:Key="WhatsAppAppBarBrush" Color="#FF25D366"/>
-            <SolidColorBrush x:Key="WhatsAppSentBubbleBrush" Color="#FF25D366"/>
-            <SolidColorBrush x:Key="WhatsAppReceivedBubbleBrush" Color="#FFEFEFEF"/>
-            <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#FF333333"/>
-            <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#FF939393"/>
-            <SolidColorBrush x:Key="WhatsAppSeparatorBrush" Color="#14000000"/>
-
-            <!-- No icon geometries live here on purpose.
-
-                 This is a Windows Phone 8.1 *WinRT* app (Windows.UI.Xaml), and
-                 assigning a Geometry held in a ResourceDictionary to Path.Data
-                 through {StaticResource} throws at runtime:
-
-                   XamlParseException: Failed to assign to property
-                   'Windows.UI.Xaml.Shapes.Path.Data'. [Line: N Position: M]
-
-                 A Geometry is not shareable through a StaticResource in WinRT
-                 (microsoft-ui-xaml issues #1909 and #5780). The only form that
-                 works is the geometry inlined on the consuming Path:
-
-                   <Path Stroke="..." Width="24" Height="24">
-                       <Path.Data>
-                           <PathGeometry>
-                               <PathGeometry.Figures>
-                                   <PathFigure StartPoint="...">...</PathFigure>
-                               </PathGeometry.Figures>
-                           </PathGeometry>
-                       </Path.Data>
-                   </Path>
-
-                 The element form is also mandatory: PathGeometry.Figures="M..."
-                 does not compile, because the WP8.1 XAML type converter for
-                 PathFigureCollection refuses a string.
-
-                 "Segoe MDL2 Assets" is out for the same reason icons exist at
-                 all: it is a Windows 10 font that WP8.1 does not ship, so a
-                 glyph-based button renders blank.
-
-                 tools/check-icons.js enforces all three rules. -->
-
-            <!-- Override the default app background: the official list is white;
-                 the conversation paints the wallpaper over it, and the home list the
-                 chosen one under its veil. -->
-            <SolidColorBrush x:Key="ApplicationPageBackgroundThemeBrush" Color="#FFFFFFFF"/>
+            <!-- Silverlight phone controls supply the original Segoe WP typography and compact chrome. -->
         </ResourceDictionary>
     </Application.Resources>
 

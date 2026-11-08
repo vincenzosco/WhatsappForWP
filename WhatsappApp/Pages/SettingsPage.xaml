@@ -1,25 +1,16 @@
-<Page
+<phone:PhoneApplicationPage
     x:Class="WhatsappApp.Pages.SettingsPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:conv="using:WhatsappApp.Converters"
-    Background="White">
+    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
+    xmlns:toolkit="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone.Controls.Toolkit"
+    xmlns:pages="clr-namespace:WhatsappApp.Pages"
+    Background="#FF000000">
 
-    <Page.Resources>
-        <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
-
-        <!-- Cells without padding or animations: the grid is 40+ thumbnails and a
-             low-end WP8.1 phone should not do more work than it draws. -->
-        <Style x:Key="ThemeItemContainerStyle" TargetType="GridViewItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
-            <Setter Property="IsTabStop" Value="False"/>
-        </Style>
-    </Page.Resources>
+    <phone:PhoneApplicationPage.Resources>
+        <pages:ThemeThumbnailConverter x:Key="ThemeThumbnail"/>
+        <pages:ThemePlainSampleConverter x:Key="ThemePlainSample"/>
+    </phone:PhoneApplicationPage.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -27,21 +18,11 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- The chosen wallpaper, under the same veil the home list uses. The settings
-             screen belongs to the app too, and a background that stopped at the chat
-             list made this page look like a different one. Collapsed for the plain
-             white theme, where the page background is the whole answer. -->
         <Image x:Name="PageWallpaper" Grid.RowSpan="2"
                Stretch="UniformToFill"
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
-        <Rectangle Grid.RowSpan="2"
-                   Fill="{StaticResource WhatsAppHomeVeilBrush}"/>
+        <Rectangle Grid.RowSpan="2" Fill="#E6000000"/>
 
-        <!-- The official secondary header: the back arrow, and the title in the
-             54 px SemiLight of the released `PageTitlePanel`, the panel every
-             settings screen of WhatsApp 2.17 draws. -->
-        <!-- Transparent and not white: the header sits on the page's own background,
-             which is the wallpaper and its veil, not a second white bar in front of it. -->
         <Grid Grid.Row="0" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
@@ -49,12 +30,11 @@
             </Grid.ColumnDefinitions>
 
             <Button x:Name="BackButton" Grid.Column="0"
-                    Background="Transparent"
+                    Background="Transparent" Foreground="White"
                     MinWidth="0" MinHeight="0"
                     Width="48" Height="48" Margin="0,6,0,0" Padding="0"
-                    Click="BackButton_Click"
-                    BorderThickness="0">
-                <Path Stroke="#FF333333" StrokeThickness="2.4"
+                    Click="BackButton_Click" BorderThickness="0">
+                <Path Stroke="#FFFFFFFF" StrokeThickness="2.4"
                       StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                       Width="24" Height="24">
                     <!-- IconBack -->
@@ -72,192 +52,111 @@
                 </Path>
             </Button>
 
-            <TextBlock x:Uid="Settings_Title" Grid.Column="1" Text="Impostazioni"
-                       Foreground="#FF333333" FontSize="54" FontFamily="Segoe WP Semilight"
-                       VerticalAlignment="Bottom" Margin="8,-10,0,-6"
-                       TextTrimming="CharacterEllipsis"/>
+            <TextBlock x:Name="TitleText" Grid.Column="1"
+                       Foreground="White" FontSize="20" FontWeight="SemiBold"
+                       VerticalAlignment="Bottom" Margin="8,0,0,8"
+                       TextTrimming="WordEllipsis"/>
         </Grid>
 
-        <!-- The wallpapers are the released package's own (Images/Wallpapers),
-             thumbnail and all: one tap paints the conversation and the list. The
-             grid scrolls on its own, so the header and the account button travel
-             with it instead of sitting in two more fixed rows on a 480 px screen. -->
-        <GridView x:Name="ThemeGrid" Grid.Row="1"
-                  Background="Transparent"
-                  Padding="12,0,12,12"
-                  SelectionMode="None"
-                  IsItemClickEnabled="True"
-                  ItemClick="ThemeGrid_ItemClick"
-                  ItemContainerStyle="{StaticResource ThemeItemContainerStyle}">
-            <GridView.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <ItemsWrapGrid Orientation="Horizontal"
-                                   ItemWidth="144" ItemHeight="196"/>
-                </ItemsPanelTemplate>
-            </GridView.ItemsPanel>
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
+            <StackPanel Margin="16,4,16,24">
+                <TextBlock x:Name="ThemeLabel" Foreground="White"
+                           FontSize="42" FontFamily="Segoe WP Semilight"/>
+                <TextBlock x:Name="ThemeHint" Foreground="#FFB0B0B0"
+                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,6"/>
 
-            <GridView.Header>
-                <StackPanel Margin="4,8,4,6">
-                    <TextBlock x:Uid="Settings_ThemeLabel" Text="Tema"
-                               Foreground="#FF333333"
-                               FontSize="24" FontWeight="SemiBold"/>
-                    <TextBlock x:Uid="Settings_ThemeHint"
-                               Text="Lo sfondo delle chat e dell'elenco. La scelta vale per tutta l'app."
-                               Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
-                               Margin="0,2,0,0"/>
-                </StackPanel>
-            </GridView.Header>
-
-            <GridView.ItemTemplate>
-                <DataTemplate>
-                    <Grid Width="132" Height="184" Margin="6,0,6,12">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="140"/>
-                            <RowDefinition Height="*"/>
-                        </Grid.RowDefinitions>
-
-                        <!-- The square the thumbnail fills. A wallpaper the package
-                             does not carry (plain white) leaves the "Aa" showing,
-                             which is what the background looks like. -->
-                        <Border Grid.Row="0" Background="#FFF4F4F4" CornerRadius="4">
-                            <Grid>
-                                <TextBlock x:Uid="Settings_ThemePlainSample" Text="Aa"
-                                           FontSize="40" FontFamily="Segoe WP Semilight"
-                                           Foreground="#FFBDBDBD"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                <Image Source="{Binding ThumbUri}" Stretch="UniformToFill"/>
-                                <Border BorderThickness="2" BorderBrush="Transparent" CornerRadius="4"/>
-                                <Border Width="28" Height="28" CornerRadius="14"
-                                        Background="{StaticResource WhatsAppAccentBrush}"
-                                        HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                                        Margin="0,0,8,8"
-                                        Visibility="{Binding Selected, Converter={StaticResource BoolToVisibility}}">
-                                    <Path Stroke="White" StrokeThickness="2"
-                                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                          Width="14" Height="14"
-                                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                                        <!-- IconCheck -->
-                                        <Path.Data>
-                                            <PathGeometry>
-                                                <PathGeometry.Figures>
-                                                    <PathFigure StartPoint="2,7">
-                                                        <PathFigure.Segments>
-                                                            <PolyLineSegment Points="5.5,10.5 12,3.5"/>
-                                                        </PathFigure.Segments>
-                                                    </PathFigure>
-                                                </PathGeometry.Figures>
-                                            </PathGeometry>
-                                        </Path.Data>
-                                    </Path>
+                <ListBox x:Name="ThemeGrid" Background="Transparent" BorderThickness="0"
+                         SelectionChanged="ThemeGrid_ItemClick">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="56" Margin="0,2,0,2">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="56"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Border Grid.Column="0" Width="48" Height="48"
+                                        CornerRadius="24" Background="#FF242424">
+                                    <Grid>
+                                        <Image Source="{Binding ThumbUri, Converter={StaticResource ThemeThumbnail}}"
+                                               Stretch="UniformToFill"/>
+                                        <TextBlock Text="{Binding ThumbUri, Converter={StaticResource ThemePlainSample}}"
+                                                   Foreground="#FFBDBDBD" FontSize="18"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Grid>
                                 </Border>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}"
+                                           Foreground="White" FontSize="18"
+                                           VerticalAlignment="Center" Margin="12,0,0,0"
+                                           TextTrimming="WordEllipsis"/>
                             </Grid>
-                        </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-                        <TextBlock Grid.Row="1" Text="{Binding Name}"
-                                   Foreground="#FF333333" FontSize="15"
-                                   TextTrimming="WordEllipsis"
-                                   HorizontalAlignment="Center" Margin="0,6,0,0"/>
-                    </Grid>
-                </DataTemplate>
-            </GridView.ItemTemplate>
+                <TextBlock x:Name="AlertsLabel" Foreground="White"
+                           FontSize="42" FontFamily="Segoe WP Semilight" Margin="0,18,0,0"/>
+                <TextBlock x:Name="AlertsHint" Foreground="#FFB0B0B0"
+                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
-            <GridView.Footer>
-                <StackPanel Margin="4,8,4,24">
-                    <!-- Which alerts arrive. Three separate switches and not one: a person
-                         who is in a group all day turns the messages off and still wants
-                         the calls, and one switch for all three would make them choose.
-                         The tile and the number on the icon are not here: they are a
-                         summary, not an alert. -->
-                    <TextBlock x:Uid="Settings_AlertsLabel" Text="Avvisi"
-                               Foreground="#FF333333"
-                               FontSize="24" FontWeight="SemiBold"/>
-                    <TextBlock x:Uid="Settings_AlertsHint"
-                               Text="Quali avvisi compaiono nell'area notifiche. La tile e il numero sull'icona non cambiano."
-                               Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
-                               Margin="0,2,0,6"/>
+                <TextBlock x:Name="MessagesLabel" Foreground="White" FontSize="19" FontWeight="SemiBold"/>
+                <toolkit:ToggleSwitch x:Name="MessagesToggle" Foreground="#FF00AFA9" Margin="0,0,0,4"
+                                      Checked="MessagesToggle_Toggled"
+                                      Unchecked="MessagesToggle_Toggled"/>
 
-                    <TextBlock x:Uid="Settings_AlertsMessages" Text="Messaggi"
-                               Foreground="#FF333333" FontSize="15"/>
-                    <ToggleSwitch x:Name="MessagesToggle"
-                                  Margin="0,0,0,4"
-                                  Toggled="MessagesToggle_Toggled"/>
+                <TextBlock x:Name="StatusesLabel" Foreground="White" FontSize="19" FontWeight="SemiBold"/>
+                <toolkit:ToggleSwitch x:Name="StatusesToggle" Foreground="#FF00AFA9" Margin="0,0,0,4"
+                                      Checked="StatusesToggle_Toggled"
+                                      Unchecked="StatusesToggle_Toggled"/>
 
-                    <TextBlock x:Uid="Settings_AlertsStatuses" Text="Stati"
-                               Foreground="#FF333333" FontSize="15"/>
-                    <ToggleSwitch x:Name="StatusesToggle"
-                                  Margin="0,0,0,4"
-                                  Toggled="StatusesToggle_Toggled"/>
+                <TextBlock x:Name="CallsLabel" Foreground="White" FontSize="19" FontWeight="SemiBold"/>
+                <toolkit:ToggleSwitch x:Name="CallsToggle" Foreground="#FF00AFA9" Margin="0,0,0,12"
+                                      Checked="CallsToggle_Toggled"
+                                      Unchecked="CallsToggle_Toggled"/>
 
-                    <TextBlock x:Uid="Settings_AlertsCalls" Text="Chiamate perse"
-                               Foreground="#FF333333" FontSize="15"/>
-                    <ToggleSwitch x:Name="CallsToggle"
-                                  Margin="0,0,0,12"
-                                  Toggled="CallsToggle_Toggled"/>
+                <TextBlock x:Name="BackgroundLabel" Foreground="White"
+                           FontSize="42" FontFamily="Segoe WP Semilight"/>
+                <TextBlock x:Name="BackgroundHint" Foreground="#FFB0B0B0"
+                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,4"/>
+                <toolkit:ToggleSwitch x:Name="BackgroundToggle" Foreground="#FF00AFA9" Margin="0,4,0,4"
+                                      Checked="BackgroundToggle_Toggled"
+                                      Unchecked="BackgroundToggle_Toggled"/>
+                <TextBlock x:Name="BackgroundState" Foreground="#FFFF6B6B"
+                           FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12"
+                           Visibility="Collapsed"/>
 
-                    <!-- The periodic check while the app is suspended. The switch is
-                         bare: the two lines above it carry the words, so there is no
-                         Header or On/Off Content to translate twice. -->
-                    <TextBlock x:Uid="Settings_BackgroundLabel" Text="Controllo in background"
-                               Foreground="#FF333333"
-                               FontSize="24" FontWeight="SemiBold"/>
-                    <TextBlock x:Uid="Settings_BackgroundHint"
-                               Text="Ogni 15 minuti l'app si sveglia, controlla i messaggi e aggiorna tile e schermo di blocco. 15 minuti e' l'intervallo piu' breve che Windows permette: il momento esatto lo decide lui e puo' rimandarlo."
-                               Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
-                               Margin="0,2,0,4"/>
-                    <ToggleSwitch x:Name="BackgroundToggle"
-                                  Margin="0,4,0,4"
-                                  Toggled="BackgroundToggle_Toggled"/>
-                    <!-- Shown only when the phone has refused: a switch that is on while
-                         nothing will ever wake is the worst of both, and the sentence is
-                         the only place that says why nothing arrives. -->
-                    <TextBlock x:Uid="Settings_BackgroundState"
-                               Text="Il telefono non permette alle app di lavorare in background: il controllo non si sveglia finche' non lo riattivi nelle sue impostazioni."
-                               Foreground="#FFC62828" FontSize="13" TextWrapping="Wrap"
-                               Margin="0,0,0,12" Visibility="Collapsed"
-                               x:Name="BackgroundState"/>
-
-                    <TextBlock x:Uid="Settings_AccountLabel" Text="Account"
-                               Foreground="#FF333333"
-                               FontSize="24" FontWeight="SemiBold"/>
-                    <TextBlock x:Uid="Settings_AccountHint"
-                               Text="Il numero collegato, lo stato della connessione e il collegamento di un altro telefono."
-                               Foreground="#FF606060" FontSize="13" TextWrapping="Wrap"
-                               Margin="0,2,0,8"/>
-                    <!-- A settings row, not a coloured primary button: the released
-                         settings screens are plain 24 px text over a hairline, and
-                         the chevron says the row opens a page of its own. -->
-                    <Grid>
-                        <Rectangle Height="1" Fill="#14000000" VerticalAlignment="Top"
-                                   Margin="0,-8,0,0"/>
-                        <Button x:Name="AccountButton" x:Uid="Settings_AccountButton"
-                                Content="Account e connessione"
-                                Background="Transparent"
-                                Foreground="#FF333333" FontSize="24" FontFamily="Segoe WP Semilight"
-                                MinWidth="0" MinHeight="0" Height="56" BorderThickness="0"
-                                Padding="0" HorizontalAlignment="Stretch"
-                                HorizontalContentAlignment="Left"
-                                Click="AccountButton_Click"/>
-                        <Path Stroke="#FF939393" StrokeThickness="2"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Width="12" Height="20" HorizontalAlignment="Right"
-                              VerticalAlignment="Center" IsHitTestVisible="False">
-                            <!-- IconChevron -->
-                            <Path.Data>
-                                <PathGeometry>
-                                    <PathGeometry.Figures>
-                                        <PathFigure StartPoint="2,2">
-                                            <PathFigure.Segments>
-                                                <PolyLineSegment Points="10,10 2,18"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                    </PathGeometry.Figures>
-                                </PathGeometry>
-                            </Path.Data>
-                        </Path>
-                        <Rectangle Height="1" Fill="#14000000" VerticalAlignment="Bottom"/>
-                    </Grid>
-                </StackPanel>
-            </GridView.Footer>
-        </GridView>
+                <TextBlock x:Name="AccountLabel" Foreground="White"
+                           FontSize="42" FontFamily="Segoe WP Semilight"/>
+                <TextBlock x:Name="AccountHint" Foreground="#FFB0B0B0"
+                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,8"/>
+                <Grid>
+                    <Rectangle Height="1" Fill="#40FFFFFF" VerticalAlignment="Top"/>
+                    <Button x:Name="AccountButton" Content=""
+                            Background="Transparent" Foreground="White"
+                            FontSize="24" FontFamily="Segoe WP Semilight"
+                            MinWidth="0" MinHeight="0" Height="56" BorderThickness="0"
+                            Padding="0" HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Left"
+                            Click="AccountButton_Click"/>
+                    <Path Stroke="#FFB0B0B0" StrokeThickness="2"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                          Width="12" Height="20" HorizontalAlignment="Right"
+                          VerticalAlignment="Center" IsHitTestVisible="False">
+                        <!-- IconChevron -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="2,2">
+                                        <PathFigure.Segments>
+                                            <PolyLineSegment Points="10,10 2,18"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
+                    <Rectangle Height="1" Fill="#40FFFFFF" VerticalAlignment="Bottom"/>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
     </Grid>
-</Page>
+</phone:PhoneApplicationPage>

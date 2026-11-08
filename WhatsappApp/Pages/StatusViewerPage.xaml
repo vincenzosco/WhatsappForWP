@@ -1,8 +1,9 @@
-<Page
+<phone:PhoneApplicationPage
     x:Class="WhatsappApp.Pages.StatusViewerPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    Background="Black">
+    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
+    Background="#FF000000">
 
     <!-- One person's updates, full screen: what they posted, who they are and when.
          The numbers are WaStatusViewControl's: an 84 px header over a gradient that
@@ -113,8 +114,6 @@
             <Image x:Name="StatusImage" Stretch="Uniform" Visibility="Collapsed"/>
 
             <MediaElement x:Name="StatusVideo"
-                          AreTransportControlsEnabled="True"
-                          AutoPlay="True"
                           Stretch="Uniform"
                           Visibility="Collapsed"
                           MediaFailed="StatusVideo_MediaFailed"
@@ -128,10 +127,10 @@
                        VerticalAlignment="Center" HorizontalAlignment="Center"
                        Margin="24,0,24,0" Visibility="Collapsed"/>
 
-            <ProgressRing x:Name="Loading" IsActive="False"
-                          Width="48" Height="48" Foreground="White"
-                          HorizontalAlignment="Center" VerticalAlignment="Center"
-                          Visibility="Collapsed"/>
+            <ProgressBar x:Name="Loading" IsIndeterminate="False"
+                         Width="120" Height="8" Foreground="#FF00AFA9"
+                         HorizontalAlignment="Center" VerticalAlignment="Center"
+                         Visibility="Collapsed"/>
 
             <!-- The download failed: the words say so and the button asks again. A row
                  whose photo is gone is still an update, and one tap should not be the
@@ -139,15 +138,13 @@
             <StackPanel x:Name="MissingPanel" Visibility="Collapsed"
                         VerticalAlignment="Center" HorizontalAlignment="Center"
                         MaxWidth="360" Margin="24,0,24,0">
-                <TextBlock x:Name="MissingText" x:Uid="StatusViewer_Missing"
-                           Text="This update could not be loaded."
+                <TextBlock x:Name="MissingText"
                            Foreground="White" Opacity="0.65" FontSize="18" TextWrapping="Wrap"
                            TextAlignment="Center"/>
-                <Button x:Name="RetryButton" x:Uid="StatusViewer_Retry"
-                        Content="Try again"
-                        Background="{StaticResource WhatsAppAccentBrush}"
+                <Button x:Name="RetryButton"
+                        Background="#FF00AFA9"
                         Foreground="White" FontSize="16" FontWeight="SemiBold"
-                        Height="44" BorderThickness="0" Padding="20,0"
+                        MinWidth="0" MinHeight="0" Height="44" BorderThickness="0" Padding="20,0"
                         HorizontalAlignment="Center" Margin="0,14,0,0"
                         Click="RetryButton_Click"/>
             </StackPanel>
@@ -163,7 +160,6 @@
                 <Rectangle Fill="#201E21" Opacity="0.5"/>
 
                 <ScrollViewer MaxHeight="120" VerticalAlignment="Bottom"
-                              HorizontalScrollMode="Disabled"
                               VerticalScrollBarVisibility="Auto">
                     <TextBlock x:Name="CaptionText" Text=""
                                Foreground="White" FontSize="24" TextWrapping="Wrap"
@@ -238,4 +234,4 @@
             </Grid>
         </Grid>
     </Grid>
-</Page>
+</phone:PhoneApplicationPage>

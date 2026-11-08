@@ -1,0 +1,650 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <xsd:schema id="root" xmlns="" xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:msdata="urn:schemas-microsoft-com:xml-msdata">
+    <xsd:import namespace="http://www.w3.org/XML/1998/namespace" />
+    <xsd:element name="root" msdata:IsDataSet="true">
+      <xsd:complexType>
+        <xsd:choice maxOccurs="unbounded">
+          <xsd:element name="metadata">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" />
+              </xsd:sequence>
+              <xsd:attribute name="name" use="required" type="xsd:string" />
+              <xsd:attribute name="type" type="xsd:string" />
+              <xsd:attribute name="mimetype" type="xsd:string" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="assembly">
+            <xsd:complexType>
+              <xsd:attribute name="alias" type="xsd:string" />
+              <xsd:attribute name="name" type="xsd:string" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="data">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+                <xsd:element name="comment" type="xsd:string" minOccurs="0" msdata:Ordinal="2" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" msdata:Ordinal="1" />
+              <xsd:attribute name="type" type="xsd:string" msdata:Ordinal="3" />
+              <xsd:attribute name="mimetype" type="xsd:string" msdata:Ordinal="4" />
+              <xsd:attribute ref="xml:space" />
+            </xsd:complexType>
+          </xsd:element>
+          <xsd:element name="resheader">
+            <xsd:complexType>
+              <xsd:sequence>
+                <xsd:element name="value" type="xsd:string" minOccurs="0" msdata:Ordinal="1" />
+              </xsd:sequence>
+              <xsd:attribute name="name" type="xsd:string" use="required" />
+            </xsd:complexType>
+          </xsd:element>
+        </xsd:choice>
+      </xsd:complexType>
+    </xsd:element>
+  </xsd:schema>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <data name="Nav_Chats" xml:space="preserve">
+    <value>Chats</value>
+  </data>
+  <data name="Nav_Status" xml:space="preserve">
+    <value>Status</value>
+  </data>
+  <data name="Nav_Calls" xml:space="preserve">
+    <value>Calls</value>
+  </data>
+  <data name="ChatsPage_EmptyTitle.Text" xml:space="preserve">
+    <value>No chats yet</value>
+  </data>
+  <data name="ChatsPage_EmptyHint.Text" xml:space="preserve">
+    <value>Tap new chat to start</value>
+  </data>
+  <data name="StatusPage_EmptyTitle.Text" xml:space="preserve">
+    <value>Updates are not available</value>
+  </data>
+  <data name="StatusPage_EmptyHint.Text" xml:space="preserve">
+    <value>Updates your contacts post appear here, and tapping one tells them you have seen it.</value>
+  </data>
+  <data name="CallsPage_EmptyHint" xml:space="preserve">
+    <value>WhatsApp recorded no incoming calls in the chats the server scanned. Call records come from the server's own history: incoming calls only, from the most recent 25 chats.</value>
+  </data>
+  <data name="CallsPage_Scanning" xml:space="preserve">
+    <value>Looking for calls...</value>
+  </data>
+  <data name="CallsPage_Answered" xml:space="preserve">
+    <value>Answered call</value>
+  </data>
+  <data name="CallsPage_Missed" xml:space="preserve">
+    <value>Missed call</value>
+  </data>
+  <data name="Notification_MissedCall" xml:space="preserve">
+    <value>Missed call</value>
+  </data>
+  <data name="Notification_Status" xml:space="preserve">
+    <value>New status</value>
+  </data>
+  <data name="CallsPage_Declined" xml:space="preserve">
+    <value>Declined call</value>
+  </data>
+  <data name="CallsPage_Busy" xml:space="preserve">
+    <value>Call, line busy</value>
+  </data>
+  <data name="CallsPage_Cancelled" xml:space="preserve">
+    <value>Cancelled call</value>
+  </data>
+  <data name="CallsPage_Incoming" xml:space="preserve">
+    <value>Incoming call</value>
+  </data>
+  <data name="CallsPage_Outgoing" xml:space="preserve">
+    <value>Outgoing call</value>
+  </data>
+  <data name="CallsPage_Video" xml:space="preserve">
+    <value>Video</value>
+  </data>
+  <data name="CallsPage_NotConnected" xml:space="preserve">
+    <value>Not connected to the server: call records are unavailable.</value>
+  </data>
+  <data name="Common_Ok" xml:space="preserve">
+    <value>OK</value>
+  </data>
+  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+    <value>Delete for everyone</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneTitle" xml:space="preserve">
+    <value>Delete for everyone?</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneBody" xml:space="preserve">
+    <value>It disappears for everybody in this chat, on every device they use.</value>
+  </data>
+  <data name="ChatPage_DeleteEveryoneFailed" xml:space="preserve">
+    <value>WhatsApp did not take the message back. The message is still here; try again when the phone is connected.</value>
+  </data>
+  <data name="Common_Refresh" xml:space="preserve">
+    <value>refresh</value>
+  </data>
+  <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
+    <value>New chat</value>
+  </data>
+  <data name="ChatsPage_SettingsTooltip" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="NewChat_Title" xml:space="preserve">
+    <value>New chat</value>
+  </data>
+  <data name="NewChat_Prompt" xml:space="preserve">
+    <value>Phone number with country code (e.g. 393401234567)</value>
+  </data>
+  <data name="NewChat_Open" xml:space="preserve">
+    <value>Open</value>
+  </data>
+  <data name="NewChat_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="NewChat_PickContact" xml:space="preserve">
+    <value>Choose from contacts</value>
+  </data>
+  <data name="NewChat_Synced" xml:space="preserve">
+    <value>Conversations already on the server</value>
+  </data>
+  <data name="NewChat_Invalid" xml:space="preserve">
+    <value>Enter a valid number with country code (e.g. 393401234567).</value>
+  </data>
+  <data name="ChatPage_Input.PlaceholderText" xml:space="preserve">
+    <value>Type a message</value>
+  </data>
+  <data name="ChatPage_ImageSelected.Text" xml:space="preserve">
+    <value>Image selected</value>
+  </data>
+  <data name="ChatPage_VideoSelected" xml:space="preserve">
+    <value>Video selected</value>
+  </data>
+  <data name="ChatPage_DocumentSelected" xml:space="preserve">
+    <value>Document selected</value>
+  </data>
+  <data name="ChatPage_AudioSelected" xml:space="preserve">
+    <value>Voice note selected</value>
+  </data>
+  <data name="ChatPage_RecordingLabel.Text" xml:space="preserve">
+    <value>Recording</value>
+  </data>
+  <data name="ChatPage_RecordTooltip" xml:space="preserve">
+    <value>Record a voice note</value>
+  </data>
+  <data name="ChatPage_StopRecordTooltip" xml:space="preserve">
+    <value>Stop the recording</value>
+  </data>
+  <data name="ChatPage_RecordError" xml:space="preserve">
+    <value>Could not start the recording. Check that this app may use the microphone.</value>
+  </data>
+  <data name="ChatPage_VideoError" xml:space="preserve">
+    <value>This video cannot be played.</value>
+  </data>
+  <data name="ChatPage_AudioError" xml:space="preserve">
+    <value>This voice note cannot be played.</value>
+  </data>
+  <data name="ChatPage_DocumentError" xml:space="preserve">
+    <value>There is no app on this phone that can open this file.</value>
+  </data>
+  <data name="ChatPage_Me" xml:space="preserve">
+    <value>Me</value>
+  </data>
+  <data name="ChatPage_Retry.Text" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="ChatPage_DeleteHere" xml:space="preserve">
+    <value>Delete here</value>
+  </data>
+  <data name="ChatPage_DeleteHereTitle" xml:space="preserve">
+    <value>Delete this message?</value>
+  </data>
+  <data name="ChatPage_DeleteHereBody" xml:space="preserve">
+    <value>It disappears from this phone. The other person keeps their copy.</value>
+  </data>
+  <data name="ChatPage_DeleteConfirm" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="ChatPage_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="App_ShareFailed" xml:space="preserve">
+    <value>The shared file could not be read.</value>
+  </data>
+  <data name="ChatPage_BackTooltip" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="ChatPage_AttachTooltip" xml:space="preserve">
+    <value>Attach a photo or a video</value>
+  </data>
+  <data name="ChatPage_SendTooltip" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="ChatPage_ClearImageTooltip" xml:space="preserve">
+    <value>Remove the image</value>
+  </data>
+  <data name="ChatMessage_Photo" xml:space="preserve">
+    <value>Photo</value>
+  </data>
+  <data name="ChatMessage_Audio" xml:space="preserve">
+    <value>Audio</value>
+  </data>
+  <data name="ChatMessage_Video" xml:space="preserve">
+    <value>Video</value>
+  </data>
+  <data name="ChatMessage_File" xml:space="preserve">
+    <value>File</value>
+  </data>
+  <data name="ChatMessage_Yesterday" xml:space="preserve">
+    <value>Yesterday</value>
+  </data>
+  <data name="DataService_Group" xml:space="preserve">
+    <value>Group {0}</value>
+  </data>
+  <data name="ConnectionPage_AccountTitle" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="ConnectionPage_LinkedLabel.Text" xml:space="preserve">
+    <value>Linked number</value>
+  </data>
+  <data name="ConnectionPage_NotLinked.Text" xml:space="preserve">
+    <value>This phone is not linked. Tap below to show the QR code.</value>
+  </data>
+  <data name="ChatsPage_PendingImage.Text" xml:space="preserve">
+    <value>An image is ready: open a chat to send it</value>
+  </data>
+  <data name="ChatsPage_MoreTooltip" xml:space="preserve">
+    <value>More</value>
+  </data>
+  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="ChatsPage_SearchTooltip" xml:space="preserve">
+    <value>Search</value>
+  </data>
+  <data name="ChatsPage_SearchClose" xml:space="preserve">
+    <value>Close the search</value>
+  </data>
+  <data name="ChatsPage_PinChat" xml:space="preserve">
+    <value>Pin a chat</value>
+  </data>
+  <data name="ChatsPage_UnpinAll" xml:space="preserve">
+    <value>Unpin all</value>
+  </data>
+  <data name="ChatsPage_ReadAll" xml:space="preserve">
+    <value>Read all chats</value>
+  </data>
+  <data name="ChatsPage_PinTitle" xml:space="preserve">
+    <value>Pin chats</value>
+  </data>
+  <data name="ChatsPage_PinHint" xml:space="preserve">
+    <value>Pinned chats stay at the top of the list, on this phone.</value>
+  </data>
+  <data name="ChatsPage_PinDone" xml:space="preserve">
+    <value>Done</value>
+  </data>
+  <data name="ChatsPage_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+  </data>
+  <data name="ChatsPage_Pin" xml:space="preserve">
+    <value>Pin</value>
+  </data>
+  <data name="ChatsPage_Unpin" xml:space="preserve">
+    <value>Unpin</value>
+  </data>
+  <data name="ChatsPage_AddTile" xml:space="preserve">
+    <value>Add to Start</value>
+  </data>
+  <data name="ChatsPage_RemoveTile" xml:space="preserve">
+    <value>Remove from Start</value>
+  </data>
+  <data name="ChatsPage_Mute" xml:space="preserve">
+    <value>Mute</value>
+  </data>
+  <data name="ChatsPage_Unmute" xml:space="preserve">
+    <value>Unmute</value>
+  </data>
+  <data name="ChatsPage_ShowInPeople" xml:space="preserve">
+    <value>Show in People</value>
+  </data>
+  <data name="ChatsPage_Delete" xml:space="preserve">
+    <value>Delete chat</value>
+  </data>
+  <data name="ChatsPage_DeleteTitle" xml:space="preserve">
+    <value>Delete this chat?</value>
+  </data>
+  <data name="ChatsPage_DeleteBody" xml:space="preserve">
+    <value>It disappears from this phone. Nothing is deleted from WhatsApp, and a new message brings it back.</value>
+  </data>
+  <data name="ChatsPage_DeleteConfirm" xml:space="preserve">
+    <value>Delete</value>
+  </data>
+  <data name="ContactInfoPage_Title" xml:space="preserve">
+    <value>Contact info</value>
+  </data>
+  <data name="ContactInfoPage_BackTooltip" xml:space="preserve">
+    <value>Back</value>
+  </data>
+  <data name="ContactInfoPage_Number" xml:space="preserve">
+    <value>Phone number</value>
+  </data>
+  <data name="ContactInfoPage_About" xml:space="preserve">
+    <value>About</value>
+  </data>
+  <data name="ContactInfoPage_Business" xml:space="preserve">
+    <value>Business</value>
+  </data>
+  <data name="ContactInfoPage_Email" xml:space="preserve">
+    <value>Email</value>
+  </data>
+  <data name="ContactInfoPage_Address" xml:space="preserve">
+    <value>Address</value>
+  </data>
+  <data name="ContactInfoPage_Categories" xml:space="preserve">
+    <value>Categories</value>
+  </data>
+  <data name="ContactInfoPage_Hours" xml:space="preserve">
+    <value>Hours</value>
+  </data>
+  <data name="ContactInfoPage_GroupDescription" xml:space="preserve">
+    <value>Group description</value>
+  </data>
+  <data name="ContactInfoPage_MembersCount" xml:space="preserve">
+    <value>Members ({0})</value>
+  </data>
+  <data name="ContactInfoPage_Admin" xml:space="preserve">
+    <value>Admin</value>
+  </data>
+  <data name="ContactInfoPage_SuperAdmin" xml:space="preserve">
+    <value>Super admin</value>
+  </data>
+  <data name="ContactInfoPage_NoInfo" xml:space="preserve">
+    <value>The name, the number and the picture are what this phone knows. WhatsApp's about, business and group details are not read by this client yet.</value>
+  </data>
+  <data name="ChatPage_ProfilePhotoTooltip" xml:space="preserve">
+    <value>Show the profile photo</value>
+  </data>
+  <data name="ChatPage_ContactInfoTooltip" xml:space="preserve">
+    <value>Contact info</value>
+  </data>
+  <data name="ChatPage_JumpToRecentTooltip" xml:space="preserve">
+    <value>Jump to the newest messages</value>
+  </data>
+  <data name="TileUnreadOne" xml:space="preserve">
+    <value>1 unread message</value>
+  </data>
+  <data name="TileUnreadMany" xml:space="preserve">
+    <value>{0} unread messages</value>
+  </data>
+  <data name="TileStatusLabel" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="TileStatusOne" xml:space="preserve">
+    <value>1 new update</value>
+  </data>
+  <data name="TileStatusMany" xml:space="preserve">
+    <value>{0} new updates</value>
+  </data>
+  <data name="ChatsPage_Diagnostics.Content" xml:space="preserve">
+    <value>Why is it empty?</value>
+  </data>
+  <data name="DiagnosticsPage_Title.Text" xml:space="preserve">
+    <value>Diagnostics</value>
+  </data>
+  <data name="DiagnosticsPage_Clear.Content" xml:space="preserve">
+    <value>Clear</value>
+  </data>
+  <data name="DiagnosticsPage_SelectAll.Content" xml:space="preserve">
+    <value>Select all</value>
+  </data>
+  <data name="DiagnosticsPage_Share.Content" xml:space="preserve">
+    <value>Share</value>
+  </data>
+  <data name="DiagnosticsPage_Selected" xml:space="preserve">
+    <value>The whole report is selected: use Copy in the text menu.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareOpened" xml:space="preserve">
+    <value>Choose an app to send the report to.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareFailed" xml:space="preserve">
+    <value>The report could not be shared.</value>
+  </data>
+  <data name="DiagnosticsPage_ShareTitle" xml:space="preserve">
+    <value>WhatsApp diagnostics</value>
+  </data>
+  <data name="DiagnosticsPage_Hint.Text" xml:space="preserve">
+    <value>What the app did, and where it tried to connect. Long press the text to select and copy it, select it all, or share it with another app. The same lines are in diag.log in the app's folder.</value>
+  </data>
+  <data name="PairPage_Title.Text" xml:space="preserve">
+    <value>Link this phone</value>
+  </data>
+  <data name="PairPage_Instructions.Text" xml:space="preserve">
+    <value>Open WhatsApp on the other phone, go to Settings, Linked devices, Link a device, and scan this code. This code changes every few seconds on its own: keep the camera on it.</value>
+  </data>
+  <data name="PairPage_Waiting.Text" xml:space="preserve">
+    <value>Waiting for the scan...</value>
+  </data>
+  <data name="PairPage_ExpiredSession.Text" xml:space="preserve">
+    <value>The code has expired. Ask for a new one and scan that.</value>
+  </data>
+  <data name="PairPage_Error.Text" xml:space="preserve">
+    <value>The connection to WhatsApp failed. Check that this phone has a network and try again.</value>
+  </data>
+  <data name="PairPage_Retry.Content" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="ConnectionPage_StatusLabel.Text" xml:space="preserve">
+    <value>Connection</value>
+  </data>
+  <data name="ConnectionPage_LinkDevice.Content" xml:space="preserve">
+    <value>Link a device</value>
+  </data>
+  <data name="ConnectionPage_LinkDeviceHint.Text" xml:space="preserve">
+    <value>Linking a device replaces the account this phone uses.</value>
+  </data>
+  <data name="ConnectionPage_ClientIdle" xml:space="preserve">
+    <value>Not connected.</value>
+  </data>
+  <data name="ChatsPage_NotConnected" xml:space="preserve">
+    <value>Connecting to WhatsApp...</value>
+  </data>
+  <data name="ChatsPage_WaitingTitle" xml:space="preserve">
+    <value>Getting your chats</value>
+  </data>
+  <data name="ChatsPage_WaitingHint" xml:space="preserve">
+    <value>WhatsApp is sending them now</value>
+  </data>
+  <data name="Settings_Title.Text" xml:space="preserve">
+    <value>Settings</value>
+  </data>
+  <data name="Settings_ThemeLabel.Text" xml:space="preserve">
+    <value>Theme</value>
+  </data>
+  <data name="Settings_ThemeHint.Text" xml:space="preserve">
+    <value>The background of chats and of the list. The choice applies to the whole app.</value>
+  </data>
+  <data name="Settings_AlertsLabel.Text" xml:space="preserve">
+    <value>Notifications</value>
+  </data>
+  <data name="Settings_AlertsHint.Text" xml:space="preserve">
+    <value>Which alerts show up in the notification area. The tile and the number on the icon do not change.</value>
+  </data>
+  <data name="Settings_AlertsMessages.Text" xml:space="preserve">
+    <value>Messages</value>
+  </data>
+  <data name="Settings_AlertsStatuses.Text" xml:space="preserve">
+    <value>Updates</value>
+  </data>
+  <data name="Settings_AlertsCalls.Text" xml:space="preserve">
+    <value>Missed calls</value>
+  </data>
+  <data name="Settings_BackgroundLabel.Text" xml:space="preserve">
+    <value>Background check</value>
+  </data>
+  <data name="Settings_BackgroundHint.Text" xml:space="preserve">
+    <value>If Windows allows it, the app wakes about every 30 minutes to check messages and update the tile and lock screen. Windows chooses the exact time and may delay or skip a check.</value>
+  </data>
+  <data name="Settings_BackgroundState.Text" xml:space="preserve">
+    <value>The phone does not allow apps to work in the background: the check will not wake until you turn it back on in the phone's settings.</value>
+  </data>
+  <data name="Settings_AccountLabel.Text" xml:space="preserve">
+    <value>Account</value>
+  </data>
+  <data name="Settings_AccountHint.Text" xml:space="preserve">
+    <value>The linked number, the state of the connection and linking another phone.</value>
+  </data>
+  <data name="Settings_AccountButton.Content" xml:space="preserve">
+    <value>Account and connection</value>
+  </data>
+  <data name="Settings_ThemePlainSample.Text" xml:space="preserve">
+    <value>Aa</value>
+  </data>
+  <data name="Settings_ThemeClassic" xml:space="preserve">
+    <value>Classic</value>
+  </data>
+  <data name="Settings_ThemePlain" xml:space="preserve">
+    <value>White</value>
+  </data>
+  <data name="Settings_ThemeWallpaper" xml:space="preserve">
+    <value>Wallpaper</value>
+  </data>
+  <data name="StatusViewer_Missing.Text" xml:space="preserve">
+    <value>This update could not be loaded.</value>
+  </data>
+  <data name="StatusViewer_Retry.Content" xml:space="preserve">
+    <value>Try again</value>
+  </data>
+  <data name="StatusViewer_Previous" xml:space="preserve">
+    <value>Previous update</value>
+  </data>
+  <data name="StatusViewer_Next" xml:space="preserve">
+    <value>Next update</value>
+  </data>
+  <data name="StatusViewer_Count" xml:space="preserve">
+    <value>{0} of {1}</value>
+  </data>
+  <data name="StatusPage_Updates" xml:space="preserve">
+    <value>{0} updates</value>
+  </data>
+  <data name="StatusPage_MarkAllViewed" xml:space="preserve">
+    <value>Mark all as viewed</value>
+  </data>
+  <data name="CallsPage_MarkAllSeen" xml:space="preserve">
+    <value>Mark all as seen</value>
+  </data>
+  <data name="Call_Voice" xml:space="preserve">
+    <value>Voice call</value>
+  </data>
+  <data name="Call_Video" xml:space="preserve">
+    <value>Video call</value>
+  </data>
+  <data name="Call_Incoming" xml:space="preserve">
+    <value>Incoming call</value>
+  </data>
+  <data name="Call_Connecting" xml:space="preserve">
+    <value>Connecting...</value>
+  </data>
+  <data name="Call_Active" xml:space="preserve">
+    <value>In call</value>
+  </data>
+  <data name="Call_Ended" xml:space="preserve">
+    <value>Call ended</value>
+  </data>
+  <data name="Call_NoAudio" xml:space="preserve">
+    <value>Call audio starts when the other phone answers.</value>
+  </data>
+  <data name="Call_MediaLine" xml:space="preserve">
+    <value>Media: {0}</value>
+  </data>
+  <data name="Call_MediaWaiting" xml:space="preserve">
+    <value>waiting for the other phone</value>
+  </data>
+  <data name="Call_MediaHandshaking" xml:space="preserve">
+    <value>handshake running</value>
+  </data>
+  <data name="Call_MediaReady" xml:space="preserve">
+    <value>connected</value>
+  </data>
+  <data name="Call_MediaFailed" xml:space="preserve">
+    <value>failed</value>
+  </data>
+  <data name="Call_MediaCandidates" xml:space="preserve">
+    <value>Candidates: {0}</value>
+  </data>
+  <data name="Call_MediaPeer" xml:space="preserve">
+    <value>Peer: {0}</value>
+  </data>
+  <data name="Call_MediaNoPeer" xml:space="preserve">
+    <value>none yet</value>
+  </data>
+  <data name="Call_MediaPackets" xml:space="preserve">
+    <value>Packets: {0} in, {1} out</value>
+  </data>
+  <data name="Call_MediaDropped" xml:space="preserve">
+    <value>Dropped: {0}</value>
+  </data>
+  <data name="Call_MediaUntrusted" xml:space="preserve">
+    <value>Handshake not verified</value>
+  </data>
+  <data name="Call_Accept" xml:space="preserve">
+    <value>Accept</value>
+  </data>
+  <data name="Call_Decline" xml:space="preserve">
+    <value>Decline</value>
+  </data>
+  <data name="Call_End" xml:space="preserve">
+    <value>End</value>
+  </data>
+  <data name="Call_Start" xml:space="preserve">
+    <value>Call</value>
+  </data>
+  <data name="Call_Calling" xml:space="preserve">
+    <value>Calling...</value>
+  </data>
+  <data name="Call_Close" xml:space="preserve">
+    <value>Close</value>
+  </data>
+  <data name="Call_Mute" xml:space="preserve">
+    <value>Microphone on</value>
+  </data>
+  <data name="Call_Muted" xml:space="preserve">
+    <value>Microphone off</value>
+  </data>
+  <data name="Call_Speaker" xml:space="preserve">
+    <value>Speaker off</value>
+  </data>
+  <data name="Call_SpeakerOn" xml:space="preserve">
+    <value>Speaker on</value>
+  </data>
+  <data name="Notification_IncomingCall" xml:space="preserve">
+    <value>Incoming call</value>
+  </data>
+  <data name="ChatPage_AttachMediaTitle" xml:space="preserve">
+    <value>Attach media</value>
+  </data>
+  <data name="ChatMessage_Albums" xml:space="preserve">
+    <value>Albums</value>
+  </data>
+  <data name="ChatMessage_Location" xml:space="preserve">
+    <value>Location</value>
+  </data>
+  <data name="ChatMessage_Contact" xml:space="preserve">
+    <value>Contact</value>
+  </data>
+  <data name="Call_Message" xml:space="preserve">
+    <value>Message</value>
+  </data>
+</root>
+

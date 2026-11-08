@@ -204,7 +204,9 @@ function problemsFor(input) {
     problems.push(DIAG_REL + ': WriteLinesAsync is gone (did the log writer move?' +
       ' then this guard must move too)');
   } else {
-    const fetched = writer.indexOf('GetFileAsync');
+    // The fetch can be inline (GetFileAsync) or the ExistingFileAsync helper
+    // that wraps it: what the guard wants is the fetch before the create.
+    const fetched = Math.max(writer.indexOf('GetFileAsync'), writer.indexOf('ExistingFileAsync'));
     const created = writer.indexOf('CreateFileAsync');
     if (writer.indexOf('FileIO.WriteTextAsync') < 0) {
       problems.push(DIAG_REL + ': WriteLinesAsync does not write the log through' +
@@ -233,8 +235,11 @@ function problemsFor(input) {
         ' in diag.log, the background: checked in that would have said whether the run had' +
         ' finished or been killed among the missing ones');
     }
-    if (task !== '' && !/\.Canceled\s*\+=/.test(task)) {
-      problems.push(TASK_REL + ': the task does not listen for taskInstance.Canceled.' +
+    // WinRT subscribes `taskInstance.Canceled +=`; the Silverlight scheduled
+    // agent overrides `OnCancel`. Both are the task listening for cancellation.
+    if (task !== '' && !/(?:\.Canceled\s*\+=|OnCancel\s*\()/.test(task)) {
+      problems.push(TASK_REL + ': the task does not listen for taskInstance.Canceled' +
+        ' (or the Silverlight OnCancel).' +
         ' The system cancels a run that spent its budget, from a thread of its own, and the' +
         ' run itself is blocked in a wait: without the handler a canceled check and a finished' +
         ' one are the same absence in the log (21 wakes of 23-24 October 2026)');

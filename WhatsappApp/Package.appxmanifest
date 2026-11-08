@@ -15,7 +15,7 @@
     <Resource Language="x-generate" />
   </Resources>
   <Applications>
-    <Application Id="App" Executable="$targetnametoken$.exe" EntryPoint="WhatsappApp.App">
+    <Application Id="App" Executable="AGHost.exe" EntryPoint="Pages/HomePage.xaml">
       <!-- BackgroundColor #45D82C: il verde dell'icona ufficiale, cosi' la
            tile e la barra di avvio sono lo stesso marchio e non un riquadro
            bianco attorno a un logo. ForegroundText light e' la meta' che serve
@@ -38,7 +38,7 @@
             <Task Type="timer" />
           </BackgroundTasks>
         </Extension>
-        <Extension Category="windows.shareTarget" Executable="$targetnametoken$.exe" EntryPoint="WhatsappApp.App">
+        <Extension Category="windows.shareTarget" Executable="AGHost.exe" EntryPoint="Pages/HomePage.xaml">
           <ShareTarget>
             <SupportedFileTypes>
               <FileType>.jpg</FileType>

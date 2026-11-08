@@ -56,6 +56,7 @@ namespace WhatsappApp.Services
         /// <summary>The encoder of one call, or null when this package cannot make one.</summary>
         public static CallEncoder CreateEncoder()
         {
+            if (!NativeInterop.IsSupported) return null;
             if (!VoiceNoteEncoder.IsAvailable) return null;
 
             try
@@ -79,6 +80,7 @@ namespace WhatsappApp.Services
         /// <summary>The decoder of one call, or null when this package cannot make one.</summary>
         public static CallDecoder CreateDecoder()
         {
+            if (!NativeInterop.IsSupported) return null;
             if (!VoiceNoteEncoder.IsAvailable) return null;
 
             try
@@ -117,6 +119,7 @@ namespace WhatsappApp.Services
             /// </summary>
             public byte[] Encode(short[] samples, int count)
             {
+                if (!NativeInterop.IsSupported) return null;
                 if (_handle == IntPtr.Zero || samples == null) return null;
 
                 try
@@ -138,6 +141,12 @@ namespace WhatsappApp.Services
 
             public void Dispose()
             {
+                if (!NativeInterop.IsSupported)
+                {
+                    _handle = IntPtr.Zero;
+                    return;
+                }
+
                 IntPtr handle = _handle;
                 _handle = IntPtr.Zero;
 
@@ -166,6 +175,7 @@ namespace WhatsappApp.Services
             /// </summary>
             public byte[] Decode(byte[] packet)
             {
+                if (!NativeInterop.IsSupported) return null;
                 if (_handle == IntPtr.Zero || packet == null || packet.Length == 0) return null;
 
                 try
@@ -192,6 +202,12 @@ namespace WhatsappApp.Services
 
             public void Dispose()
             {
+                if (!NativeInterop.IsSupported)
+                {
+                    _handle = IntPtr.Zero;
+                    return;
+                }
+
                 IntPtr handle = _handle;
                 _handle = IntPtr.Zero;
 

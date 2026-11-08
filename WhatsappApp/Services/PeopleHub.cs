@@ -1,6 +1,6 @@
 using System;
+using System.Windows;
 using Windows.ApplicationModel.Contacts;
-using Windows.Foundation;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.WABinary;
 
@@ -10,12 +10,11 @@ namespace WhatsappApp.Services
     /// The phone's People hub, opened from a chat: the person behind a conversation, on the
     /// card the rest of the phone reads.
     ///
-    /// Why a card and not a contact this app writes: the WP8.1 projection of
-    /// `ContactStore` has no `AddContactAsync` - the compiler answers CS1061 - and the way a
-    /// Runtime app puts somebody in the People hub is `ContactManager.ShowContactCard`, which
-    /// is the hub's own surface: from there the person is saved, called or messaged with the
-    /// rules the phone already has. A chat that is a number in this app is a contact on that
-    /// card, and one tap later the dialler and the People tile know about them too.
+    /// Why a card and not a contact this app writes: the installed WP8.1 Silverlight
+    /// projection exposes `ContactManager.ShowContactCard` and does not expose
+    /// `ContactStore.AddContactAsync`. The People hub owns the card: from there the person is
+    /// saved, called or messaged with the rules the phone already has. A chat that is a number
+    /// in this app is a contact on that card, and the dialler and People tile can use it too.
     ///
     /// What is deliberately not offered: a group (a group is not a person and has no number
     /// to show), a `@lid` (its digits are an identifier, not a number) and a chat that has no
@@ -67,7 +66,8 @@ namespace WhatsappApp.Services
                 phone.Kind = ContactPhoneKind.Mobile;
                 contact.Phones.Add(phone);
 
-                ContactManager.ShowContactCard(contact, anchor);
+                var cardAnchor = new Windows.Foundation.Rect(anchor.X, anchor.Y, anchor.Width, anchor.Height);
+                ContactManager.ShowContactCard(contact, cardAnchor);
 
                 Diag.Ok("people: card for " + number);
             }

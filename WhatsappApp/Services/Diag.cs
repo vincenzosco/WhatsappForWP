@@ -569,15 +569,7 @@ namespace WhatsappApp.Services
                 // lost, crash tail included (seen on the phone on 2026-10-07).
                 // No `await` in the catch: C# 5 answers CS1985, so a failed fetch
                 // leaves a null that the create below fills in.
-                StorageFile file = null;
-                try
-                {
-                    file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                }
-                catch (Exception)
-                {
-                    file = null;
-                }
+                StorageFile file = await ExistingFileAsync(FileName);
 
                 if (file == null)
                 {
@@ -800,14 +792,13 @@ namespace WhatsappApp.Services
 
         private static async Task<IStorageItem> ExistingItemAsync(string name)
         {
-            try
-            {
-                return await ApplicationData.Current.LocalFolder.GetFileAsync(name);
-            }
-            catch (FileNotFoundException)
-            {
-                return null;
-            }
+            return await ApplicationData.Current.LocalFolder.TryGetItemAsync(name);
+        }
+
+        private static async Task<StorageFile> ExistingFileAsync(string name)
+        {
+            IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(name);
+            return item as StorageFile;
         }
 
         /// <summary>The last <paramref name="chars"/> characters, the crash report's shape.</summary>

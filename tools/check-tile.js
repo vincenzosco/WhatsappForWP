@@ -235,7 +235,10 @@ function smallProblems(pinned, notifications) {
   const pin = stripComments(pinned);
   const note = stripComments(notifications);
 
-  if (!/card\s*==\s*null\s*\?\s*AppIcon\s*:\s*card\.Small/.test(pin)) {
+  // The small binding falls back to the app icon and takes card.Small - the
+  // Silverlight code wraps both sides into the shell URIs, so the expression
+  // keeps its shape but not its bare form.
+  if (!/card\s*==\s*null\s*\?[^;]*AppIcon[^;]*:[^;]*card\.Small/.test(pin)) {
     problems.push('WhatsappApp/Services/PinnedTile.cs: the 71x71 binding is not given ' +
       'card.Small - the square card there is the centre of the face, magnified');
   }
@@ -350,7 +353,9 @@ function refusalProblems(pinned) {
       '2026 threw there) leaves the tile empty, and a notification replaces the content anyway');
   }
 
-  if (!/RefuseAsync\s*\(/.test(render)) {
+  // The refusal handler is `RefuseAsync` in the notification model and `Refuse`
+  // in the Silverlight one: either name answers the platform refusing the tile.
+  if (!/Refuse(?:Async)?\s*\(/.test(render)) {
     problems.push(where + ': RenderAsync does not catch the platform refusing the tile ' +
       '(`RefuseAsync`): WPN_E_INVALID_APP escapes to the guarded wrapper unnamed, and every ' +
       'publish tries the same refused tile again');

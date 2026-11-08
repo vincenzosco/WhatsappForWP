@@ -1,13 +1,15 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Threading;
+using Microsoft.Phone.Controls;
+using Microsoft.Phone.Shell;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Qr;
 using WhatsappApp.Protocol.Transport;
@@ -34,7 +36,7 @@ namespace WhatsappApp.Pages
     /// answering, the session is over - the codes cannot be revived - so the page says so
     /// and offers a new attempt, which is a new identity and a new set of codes.
     /// </summary>
-    public sealed partial class PairPage : Page
+    public sealed partial class PairPage : PhoneApplicationPage
     {
         /// <summary>
         /// Four pixels per module, which is the smallest module a phone camera reads
@@ -69,7 +71,8 @@ namespace WhatsappApp.Pages
         /// Held while a code is on screen and released with it: an expired page has
         /// nothing to read, and holding a phone awake for it is a phone with no battery.
         /// </summary>
-        private Windows.System.Display.DisplayRequest _displayRequest;
+        private IdleDetectionMode _originalIdleDetectionMode;
+        private bool _idleDetectionModeSaved;
         private bool _displayRequestActive;
 
         private DispatcherTimer _rotation;
@@ -90,7 +93,16 @@ namespace WhatsappApp.Pages
 
         public PairPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
+            TitleText.Text = Loc.Get("PairPage_Title.Text", "Link this phone");
+            InstructionsText.Text = Loc.Get("PairPage_Instructions.Text",
+                "Open WhatsApp on the other phone, go to Settings, Linked devices, Link a device, and scan this code. This code changes every few seconds on its own: keep the camera on it.");
+            WaitingText.Text = Loc.Get("PairPage_Waiting.Text", "Waiting for the scan...");
+            ExpiredText.Text = Loc.Get("PairPage_ExpiredSession.Text",
+                "The code has expired. Ask for a new one and scan that.");
+            ErrorText.Text = Loc.Get("PairPage_Error.Text",
+                "The connection to WhatsApp failed. Check that this phone has a network and try again.");
+            RetryButton.Content = Loc.Get("PairPage_Retry.Content", "Try again");
         }
 
         /// <summary>
@@ -109,6 +121,7 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
+            _left = false;
             ApplyTheme();
 
 #pragma warning disable 4014
@@ -246,10 +259,10 @@ namespace WhatsappApp.Pages
                 // still in front. Navigating from a page the user already left pulled them
                 // out of whatever they had opened, and a detached page answered it with a
                 // NullReferenceException that painted "the connection failed" over a success.
-                Frame frame = Frame;
-                if (!_left && frame != null)
+                System.Windows.Navigation.NavigationService navigation = NavigationService;
+                if (!_left && navigation != null)
                 {
-                    frame.Navigate(typeof(HomePage));
+                    navigation.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
                 }
             }
             catch (Exception error)
@@ -257,6 +270,7 @@ namespace WhatsappApp.Pages
                 Diag.Failed("PairPage/pairing", error);
 
                 StopRotation();
+                ReleaseScreenOn();
                 if (_session != null) _session.Close();
 
                 ErrorText.Visibility = Visibility.Visible;
@@ -290,7 +304,7 @@ namespace WhatsappApp.Pages
             _rotation = null;
         }
 
-        private void Rotation_Tick(object sender, object e)
+        private void Rotation_Tick(object sender, EventArgs e)
         {
             _shown++;
 
@@ -321,14 +335,8 @@ namespace WhatsappApp.Pages
             int side = (count + 2 * QrCode.QuietZone) * PixelsPerModule;
             int margin = QrCode.QuietZone * PixelsPerModule;
 
-            var pixels = new byte[side * side * 4];
-            for (int i = 0; i < pixels.Length; i += 4)
-            {
-                pixels[i] = 0xFF;
-                pixels[i + 1] = 0xFF;
-                pixels[i + 2] = 0xFF;
-                pixels[i + 3] = 0xFF;
-            }
+            var pixels = new int[side * side];
+            for (int i = 0; i < pixels.Length; i++) pixels[i] = unchecked((int)0xFFFFFFFF);
 
             for (int row = 0; row < count; row++)
             {
@@ -342,21 +350,15 @@ namespace WhatsappApp.Pages
 
                         for (int x = 0; x < PixelsPerModule; x++)
                         {
-                            int at = (line + margin + column * PixelsPerModule + x) * 4;
-                            pixels[at] = 0;
-                            pixels[at + 1] = 0;
-                            pixels[at + 2] = 0;
+                            int at = line + margin + column * PixelsPerModule + x;
+                            pixels[at] = unchecked((int)0xFF000000);
                         }
                     }
                 }
             }
 
             var bitmap = new WriteableBitmap(side, side);
-            using (Stream buffer = bitmap.PixelBuffer.AsStream())
-            {
-                buffer.Write(pixels, 0, pixels.Length);
-            }
-
+            Array.Copy(pixels, bitmap.Pixels, pixels.Length);
             bitmap.Invalidate();
 
             QrImage.Source = bitmap;
@@ -383,24 +385,35 @@ namespace WhatsappApp.Pages
             if (_displayRequestActive) return;
             try
             {
-                if (_displayRequest == null) _displayRequest = new Windows.System.Display.DisplayRequest();
-                _displayRequest.RequestActive();
+                PhoneApplicationService service = PhoneApplicationService.Current;
+                if (!_idleDetectionModeSaved)
+                {
+                    _originalIdleDetectionMode = service.UserIdleDetectionMode;
+                    _idleDetectionModeSaved = true;
+                }
+                service.UserIdleDetectionMode = IdleDetectionMode.Disabled;
                 _displayRequestActive = true;
             }
             catch (Exception error)
             {
-                // Active-request limit reached, or member not implemented on this
-                // phone: we carry on without.
                 Diag.Failed("PairPage/KeepScreenOn", error);
             }
         }
 
         private void ReleaseScreenOn()
         {
-            if (!_displayRequestActive || _displayRequest == null) return;
-            try { _displayRequest.RequestRelease(); }
-            catch (Exception error) { Diag.Failed("PairPage/ReleaseScreenOn", error); }
+            if (!_displayRequestActive) return;
+            try
+            {
+                if (_idleDetectionModeSaved)
+                    PhoneApplicationService.Current.UserIdleDetectionMode = _originalIdleDetectionMode;
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("PairPage/ReleaseScreenOn", error);
+            }
             _displayRequestActive = false;
+            _idleDetectionModeSaved = false;
         }
 
         private static int SecondsPerCode(int count)

@@ -136,8 +136,14 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(FileName);
-                string text = await FileIO.ReadTextAsync(file);
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileName);
+                if (item == null)
+                {
+                    _loaded = true;
+                    return;
+                }
+
+                string text = await FileIO.ReadTextAsync((StorageFile)item);
                 if (string.IsNullOrEmpty(text)) return;
 
                 var serializer = new DataContractJsonSerializer(typeof(CallLogFile));
@@ -202,11 +208,6 @@ namespace WhatsappApp.Services
                 }
 
                 Diag.Ok("call log: read " + _tables.Count + " calls and " + _tables.LinkCount + " links");
-            }
-            catch (FileNotFoundException)
-            {
-                // First run: there is no file yet, and that is not an error.
-                _loaded = true;
             }
             catch (Exception ex)
             {

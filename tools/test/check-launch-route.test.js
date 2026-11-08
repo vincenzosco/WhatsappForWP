@@ -33,6 +33,12 @@ test('un avvio che non prende la rotta apre sempre la stessa sezione', () => {
   assert.match(launchRouteProblems(broken).join('\n'), /TakeRoute/);
 });
 
+test('un avvio Silverlight senza decisione non mostra la schermata di pairing', () => {
+  const broken = files();
+  broken.app = broken.app.replace(/StartDecision\.Decide\(/g, 'NeverDecide(');
+  assert.match(launchRouteProblems(broken).join('\n'), /does not map to PairPage/);
+});
+
 test('una rotta che riappare come sezione in attesa riporta lapp su un altra tab', () => {
   const broken = files();
   broken.app = broken.app.replace('Diag.Ok("launch: the tile was showing "',

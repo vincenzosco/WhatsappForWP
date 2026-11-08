@@ -1,93 +1,169 @@
 using System;
-using System.Collections.Generic;
+using System.Globalization;
+using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
+using Windows.Networking;
 using Windows.Networking.Sockets;
-using Windows.Storage.Streams;
+using Windows.Security.Cryptography;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Protocol.Transport
 {
-    /// <summary>
-    /// The phone's half of <see cref="ITransport"/>: one WebSocket message is one
-    /// protocol payload, over WinRT's `MessageWebSocket`.
-    ///
-    /// It is the counterpart of `ProtocolTests/DesktopTransport.cs`, and the two are
-    /// deliberately the same shape - `ClientWebSocket` on the desktop, `MessageWebSocket`
-    /// on the phone - so the driver that pairs this device is the driver that was already
-    /// run against the real WhatsApp server from a machine.
-    ///
-    /// It is **not** under `Protocol/Transport` because the core is portable: this file is
-    /// the only one there that names a WinRT type, and `ProtocolTests.csproj` excludes it
-    /// by name, exactly so the desktop host can compile its siblings.
-    ///
-    /// Reading is pull-based - `ReceiveAsync` - because that is what the driver wants, but
-    /// WinRT delivers messages by event. The bridge between the two is a one-slot handoff:
-    /// a message that arrives with nobody waiting is queued, and a read with nothing queued
-    /// waits for the next one. One reader at a time, which is what `WhatsAppSocket` is.
-    /// </summary>
     public sealed class WebSocketTransport : ITransport
     {
-        private readonly Queue<byte[]> _arrived = new Queue<byte[]>();
+        private const string Origin = "https://web.whatsapp.com";
+        private const int MaximumHandshakeBytes = 16384;
 
-        /// <summary>Guards the queue, the waiter and the close reason: all three are touched from both the UI thread and the socket's.</summary>
         private readonly object _gate = new object();
+        private readonly SemaphoreSlim _sending = new SemaphoreSlim(1, 1);
+        private readonly SemaphoreSlim _receiving = new SemaphoreSlim(1, 1);
 
-        private TaskCompletionSource<byte[]> _waiting;
-        private Exception _failure;
-        private MessageWebSocket _socket;
-        private DataWriter _writer;
+        private StreamSocket _socket;
+        private Stream _input;
+        private Stream _output;
+        private bool _closed;
 
-        /// <summary>
-        /// One write at a time. `SendAsync` is called from independent tasks - the reader's
-        /// acks, the keep-alive's ping, a receipt, a presence change, and the user's own
-        /// message - and a `DataWriter` is a buffer, not a queue: a second `WriteBytes`
-        /// during the first `StoreAsync` appends its node to the message being drained, so
-        /// the server receives two stanzas glued into one frame and reads neither.
-        /// </summary>
-        private readonly System.Threading.SemaphoreSlim _sending =
-            new System.Threading.SemaphoreSlim(1, 1);
-
-        /// <summary>
-        /// Opens the connection.
-        ///
-        /// The `Origin` header is not decoration: the server refuses a client that does
-        /// not claim to be the web client, which is why the desktop transport sets it too.
-        /// </summary>
         public async Task ConnectAsync(string url)
         {
-            _socket = new MessageWebSocket();
+            Uri uri;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out uri)
+                || !string.Equals(uri.Scheme, "wss", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrEmpty(uri.Host) || !string.IsNullOrEmpty(uri.Fragment))
+                throw new ProtocolException("a secure WebSocket URL is required");
 
-            // Binary, and through `Control`: the WP8.1 projection does not expose a
-            // `MessageType` on the socket itself (the ARM build answered CS1061), and the
-            // default is text - which would put the protocol's bytes through a UTF-8
-            // encoder and change every one of them above 0x7f.
-            _socket.Control.MessageType = SocketMessageType.Binary;
+            var socket = new StreamSocket();
+            lock (_gate)
+            {
+                if (_closed || _socket != null)
+                    throw new ProtocolException("the WebSocket transport is already closed or connected");
+                _socket = socket;
+            }
 
-            _socket.SetRequestHeader("Origin", "https://web.whatsapp.com");
-            _socket.Closed += OnClosed;
-            _socket.MessageReceived += OnMessageReceived;
-
-            await _socket.ConnectAsync(new Uri(url));
-
-            // One writer for the life of the connection: a message is sent when
-            // `StoreAsync` is called, and the stream is left attached on purpose.
-            _writer = new DataWriter(_socket.OutputStream);
-            Diag.Ok("whatsapp: connected to " + url);
-        }
-
-        /// <summary>Sends one encoded node as one message.</summary>
-        public async Task SendAsync(byte[] payload)
-        {
-            await _sending.WaitAsync();
-
+            Stream input = null;
+            Stream output = null;
+            Stream activeInput = null;
+            Stream activeOutput = null;
             try
             {
-                DataWriter writer = _writer;
-                if (writer == null) throw new ProtocolException("the connection is not open");
+                var host = new HostName(uri.DnsSafeHost);
+                await socket.ConnectAsync(host, uri.Port.ToString(CultureInfo.InvariantCulture),
+                    SocketProtectionLevel.Tls12);
 
-                writer.WriteBytes(payload);
-                await writer.StoreAsync();
-                await writer.FlushAsync();
+                input = socket.InputStream.AsStreamForRead();
+                output = socket.OutputStream.AsStreamForWrite();
+                lock (_gate)
+                {
+                    if (_closed) throw new ProtocolException("the WebSocket transport was closed while connecting");
+                    _input = input;
+                    _output = output;
+                    activeInput = input;
+                    activeOutput = output;
+                    input = null;
+                    output = null;
+                }
+
+                byte[] nonce = new byte[16];
+                CryptographicBuffer.CopyToByteArray(CryptographicBuffer.GenerateRandom(16), out nonce);
+                string key = Convert.ToBase64String(nonce);
+
+                byte[] request = WebSocketHandshake.BuildRequestBytes(uri, Origin, key);
+                await activeOutput.WriteAsync(request, 0, request.Length).ConfigureAwait(false);
+                await activeOutput.FlushAsync().ConfigureAwait(false);
+
+                string response = await ReadResponseHeadersAsync(activeInput).ConfigureAwait(false);
+                WebSocketHandshake.ValidateResponse(response, key);
+                Diag.Ok("whatsapp: connected to " + url);
+            }
+            catch
+            {
+                DisposeStream(input, "WebSocketTransport/failed input");
+                DisposeStream(output, "WebSocketTransport/failed output");
+                Close();
+                throw;
+            }
+        }
+
+        public Task SendAsync(byte[] payload)
+        {
+            if (payload == null) throw new ProtocolException("a WebSocket message has no payload");
+            return WriteFrameAsync(2, payload);
+        }
+
+        public async Task<byte[]> ReceiveAsync()
+        {
+            await _receiving.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                Stream input = Input();
+                using (var assembler = new WebSocketMessageAssembler())
+                {
+                    while (true)
+                    {
+                        WebSocketFrame frame = await ReadFrameAsync(input).ConfigureAwait(false);
+
+                        if (frame.Opcode == 8)
+                        {
+                            await WriteFrameAsync(8, frame.Payload).ConfigureAwait(false);
+                            throw new ProtocolException("the server closed the WebSocket connection");
+                        }
+
+                        if (frame.Opcode == 9)
+                        {
+                            await WriteFrameAsync(10, frame.Payload).ConfigureAwait(false);
+                            continue;
+                        }
+
+                        if (frame.Opcode == 10) continue;
+
+                        byte[] message = assembler.Accept(frame);
+                        if (message != null) return message;
+                    }
+                }
+            }
+            finally
+            {
+                _receiving.Release();
+            }
+        }
+
+        public void Close()
+        {
+            StreamSocket socket;
+            Stream input;
+            Stream output;
+
+            lock (_gate)
+            {
+                if (_closed) return;
+                _closed = true;
+                socket = _socket;
+                input = _input;
+                output = _output;
+                _socket = null;
+                _input = null;
+                _output = null;
+            }
+
+            DisposeStream(input, "WebSocketTransport/close input");
+            DisposeStream(output, "WebSocketTransport/close output");
+
+            if (socket == null) return;
+            try { socket.Dispose(); }
+            catch (Exception error) { Diag.Failed("WebSocketTransport/close socket", error); }
+        }
+
+        private async Task WriteFrameAsync(byte opcode, byte[] payload)
+        {
+            await _sending.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                Stream output = Output();
+                byte[] mask = new byte[4];
+                CryptographicBuffer.CopyToByteArray(CryptographicBuffer.GenerateRandom(4), out mask);
+                byte[] frame = WebSocketFrameCodec.EncodeClient(opcode, payload, mask);
+                await output.WriteAsync(frame, 0, frame.Length).ConfigureAwait(false);
+                await output.FlushAsync().ConfigureAwait(false);
             }
             finally
             {
@@ -95,153 +171,96 @@ namespace WhatsappApp.Protocol.Transport
             }
         }
 
-        /// <summary>
-        /// The next message, waiting for it if it has not arrived.
-        ///
-        /// Throws when the connection is closed or has failed: a read that returned an
-        /// empty payload instead would be read as a node that decoded from nothing.
-        /// </summary>
-        public Task<byte[]> ReceiveAsync()
+        private static async Task<string> ReadResponseHeadersAsync(Stream input)
         {
-            lock (_gate)
+            var bytes = new MemoryStream();
+            var oneByte = new byte[1];
+
+            while (bytes.Length < MaximumHandshakeBytes)
             {
-                if (_arrived.Count > 0) return Task.FromResult(_arrived.Dequeue());
-                if (_failure != null) return Failure(_failure);
+                int read = await input.ReadAsync(oneByte, 0, 1).ConfigureAwait(false);
+                if (read == 0) throw new ProtocolException("the server closed during the WebSocket upgrade");
 
-                _waiting = new TaskCompletionSource<byte[]>();
-                return _waiting.Task;
-            }
-        }
-
-        /// <summary>Closes the connection. Safe to call more than once.</summary>
-        public void Close()
-        {
-            MessageWebSocket socket;
-            lock (_gate)
-            {
-                socket = _socket;
-                if (_failure == null) _failure = new ProtocolException("the connection was closed");
-                Release(null);
-            }
-
-            if (socket == null) return;
-
-            try
-            {
-                socket.Dispose();
-            }
-            catch (Exception error)
-            {
-                // A socket that is already gone is the state Close() wants.
-                Diag.Failed("WebSocketTransport/close", error);
-            }
-        }
-
-        /// <summary>
-        /// The message WinRT delivered.
-        ///
-        /// It returns void because that is the only shape an event handler has here, so
-        /// nothing may escape it: a fault is written down and handed to the reader that is
-        /// waiting, which is where it matters.
-        ///
-        /// **The reader `GetDataReader()` hands over is already loaded.** The event is
-        /// raised once per whole message and the reader holds it, which is what makes
-        /// `UnconsumedBufferLength` meaningful before anything is read; asking it to load
-        /// its own message answers `E_INVALID_OPERATION` (0x800710DD). It did, on the
-        /// device - every message threw before a byte came out, so the first read of a
-        /// pairing failed and the page showed an error it could not explain (the `LoadAsync`
-        /// that used to be here was copied from `DataReader(stream)` code, where loading is
-        /// exactly what is required).
-        /// </summary>
-        private void OnMessageReceived(MessageWebSocket sender, MessageWebSocketMessageReceivedEventArgs args)
-        {
-            try
-            {
-                // Disposed with the message: the reader holds a native buffer, and a history
-                // sync alone hands over hundreds of them.
-                byte[] payload;
-
-                using (DataReader reader = args.GetDataReader())
+                bytes.WriteByte(oneByte[0]);
+                int count = (int)bytes.Length;
+                if (count >= 4)
                 {
-                    uint length = reader.UnconsumedBufferLength;
-
-                    // An empty message is not a frame and not a close: handing it to the
-                    // reader would end a session that is perfectly fine, and the server never
-                    // sends one, so it is written down and stepped over.
-                    if (length == 0)
+                    byte[] current = bytes.GetBuffer();
+                    if (current[count - 4] == 13 && current[count - 3] == 10
+                        && current[count - 2] == 13 && current[count - 1] == 10)
                     {
-                        Diag.Ok("WebSocketTransport: an empty message arrived and was ignored");
-                        return;
+                        var headerBytes = new byte[count];
+                        Buffer.BlockCopy(current, 0, headerBytes, 0, count);
+                        return WebSocketHandshake.DecodeResponseHeaders(headerBytes);
                     }
-
-                    payload = new byte[length];
-                    reader.ReadBytes(payload);
                 }
-
-                lock (_gate) Release(payload);
             }
-            catch (Exception error)
-            {
-                Diag.Failed("WebSocketTransport/receive", error);
 
-                lock (_gate)
-                {
-                    if (_failure == null) _failure = error;
-                    Release(null);
-                }
+            throw new ProtocolException("the WebSocket upgrade headers exceeded the size limit");
+        }
+
+        private static async Task<WebSocketFrame> ReadFrameAsync(Stream input)
+        {
+            var header = new byte[14];
+            await ReadExactAsync(input, header, 0, 2).ConfigureAwait(false);
+
+            int headerLength = 2;
+            int frameLength = WebSocketFrameCodec.GetFrameLength(header, 0, headerLength);
+            while (frameLength < 0)
+            {
+                if (headerLength == header.Length)
+                    throw new ProtocolException("the WebSocket frame header is too long");
+
+                await ReadExactAsync(input, header, headerLength, 1).ConfigureAwait(false);
+                headerLength++;
+                frameLength = WebSocketFrameCodec.GetFrameLength(header, 0, headerLength);
+            }
+
+            if (frameLength < headerLength)
+                throw new ProtocolException("the WebSocket frame length is smaller than its header");
+
+            var bytes = new byte[frameLength];
+            Buffer.BlockCopy(header, 0, bytes, 0, headerLength);
+            await ReadExactAsync(input, bytes, headerLength, frameLength - headerLength).ConfigureAwait(false);
+            return WebSocketFrameCodec.Decode(bytes);
+        }
+
+        private static async Task ReadExactAsync(Stream input, byte[] buffer, int offset, int count)
+        {
+            int read = 0;
+            while (read < count)
+            {
+                int amount = await input.ReadAsync(buffer, offset + read, count - read).ConfigureAwait(false);
+                if (amount == 0) throw new ProtocolException("the server closed inside a WebSocket frame");
+                read += amount;
             }
         }
 
-        /// <summary>
-        /// The peer hung up. The reader that is waiting gets the reason instead of
-        /// waiting forever: a pairing session that is never answered is a QR on screen
-        /// that nothing will ever scan into a session.
-        ///
-        /// The sender is `IWebSocket` and not `MessageWebSocket`: that is the delegate
-        /// WP8.1 signs this event with (CS0123 otherwise).
-        /// </summary>
-        private void OnClosed(IWebSocket sender, WebSocketClosedEventArgs args)
+        private Stream Input()
         {
-            Exception failure = new ProtocolException("the server closed the connection ("
-                + args.Code + ": " + args.Reason + ")");
-
-            bool first;
             lock (_gate)
             {
-                first = _failure == null;
-                if (first) _failure = failure;
-                Release(null);
+                if (_closed || _input == null)
+                    throw new ProtocolException("the WebSocket connection is not open");
+                return _input;
             }
-
-            if (first) Diag.Failed("WebSocketTransport/closed", failure);
         }
 
-        /// <summary>
-        /// Hands a message to the waiter, or queues it. Called with `_gate` held.
-        /// </summary>
-        private void Release(byte[] payload)
+        private Stream Output()
         {
-            if (_waiting == null)
+            lock (_gate)
             {
-                if (payload != null) _arrived.Enqueue(payload);
-                return;
+                if (_closed || _output == null)
+                    throw new ProtocolException("the WebSocket connection is not open");
+                return _output;
             }
-
-            TaskCompletionSource<byte[]> waiter = _waiting;
-            _waiting = null;
-
-            if (payload != null) waiter.SetResult(payload);
-            else waiter.SetException(_failure == null
-                ? new ProtocolException("the connection was closed")
-                : _failure);
         }
 
-        /// <summary>A read on a connection that is already gone: a faulted task, not a throw.</summary>
-        private static Task<byte[]> Failure(Exception error)
+        private static void DisposeStream(Stream stream, string where)
         {
-            var source = new TaskCompletionSource<byte[]>();
-            source.SetException(error);
-            return source.Task;
+            if (stream == null) return;
+            try { stream.Dispose(); }
+            catch (Exception error) { Diag.Failed(where, error); }
         }
     }
 }

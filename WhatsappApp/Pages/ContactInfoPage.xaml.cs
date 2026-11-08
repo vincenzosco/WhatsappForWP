@@ -1,11 +1,15 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Threading.Tasks;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using Microsoft.Phone.Controls;
+using Microsoft.Phone.Shell;
 using WhatsappApp.Models;
 using WhatsappApp.Services;
 
@@ -13,18 +17,11 @@ namespace WhatsappApp.Pages
 {
     /// <summary>
     /// The information of a person or a group: the large picture, the name and the
-    /// number, and - when something can fill them - the about, the business profile
-    /// and a group's description and members.
-    ///
-    /// The name and the number are this phone's own: they came with the chat row, and
-    /// the page shows them without asking anybody. The picture is asked of WhatsApp
-    /// itself (`NativeConnection.RequestAvatarAsync` - the query answers a URL, the URL
-    /// answers the JPEG). Everything the rest of the page draws needs a reader this client
-    /// does not have yet (the about text, the business profile, the group metadata), so the
-    /// page states the limit instead of leaving a heading with nothing under it.
+    /// number, and the details this client can currently read.
     /// </summary>
-    public sealed partial class ContactInfoPage : Page
+    public sealed partial class ContactInfoPage : PhoneApplicationPage
     {
+        private const string NavigationParameterKey = "WhatsappApp.NavigationParameter";
         private Contact _contact;
 
         private readonly ObservableCollection<ContactMember> _members =
@@ -34,11 +31,10 @@ namespace WhatsappApp.Pages
 
         public ContactInfoPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
 
-            ToolTipService.SetToolTip(BackButton, Loc.Get("ContactInfoPage_BackTooltip", "Back"));
-
-            TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info");
+            AutomationProperties.SetName(BackButton, Loc.Get("ContactInfoPage_BackTooltip", "Back"));
+            TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info").ToUpper();
             CallButton.Content = Loc.Get("Call_Start", "Call");
             NumberLabel.Text = Loc.Get("ContactInfoPage_Number", "Phone number");
             AboutLabel.Text = Loc.Get("ContactInfoPage_About", "About");
@@ -59,24 +55,21 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
-            // The page is part of the app, so it carries the background the rest of it
-            // carries: the wallpaper and its veil, read on every navigation because the
-            // choice can have changed while this page was off screen.
             ApplyTheme();
 
-            _contact = e.Parameter as Contact;
+            object parameter;
+            if (PhoneApplicationService.Current.State.TryGetValue(NavigationParameterKey, out parameter))
+            {
+                PhoneApplicationService.Current.State.Remove(NavigationParameterKey);
+                _contact = parameter as Contact;
+            }
             if (_contact == null) return;
 
-            // The avatar and the initials come from the contact: the page does not
-            // rebuild them.
             DataContext = _contact;
             NameText.Text = _contact.Name;
+            ApplyAvatar();
 
-            // A group is not called from here: this client's call signalling is one-to-one
-            // (`CallSignaling` builds an offer to one address), and a button that offered a
-            // group call the app cannot place would be the wrong promise.
             CallButton.Visibility = IsGroup(_contact.Id) ? Visibility.Collapsed : Visibility.Visible;
-
             RequestInfo();
         }
 
@@ -86,18 +79,6 @@ namespace WhatsappApp.Pages
             HideFullScreen();
         }
 
-        /// <summary>
-        /// Fills what this phone already knows, and asks WhatsApp for the picture.
-        ///
-        /// There is nothing to await for the first half: the row the chat list drew is
-        /// the source, and this is the same contact object. The picture is a query with
-        /// an answer, and it is guarded like every other network call.
-        /// </summary>
-        /// <summary>
-        /// Calls this person: the offer goes out and the page steps back, because the call
-        /// banner lives on the home screen - a call placed from here with no banner in front
-        /// of it would be a press that seemed to do nothing.
-        /// </summary>
         private void CallButton_Click(object sender, RoutedEventArgs e)
         {
             if (_contact == null) return;
@@ -105,22 +86,19 @@ namespace WhatsappApp.Pages
             Guarded.RunGuardedAsync("ContactInfoPage/start call", StartCallAndOpenAsync(_contact.Id));
         }
 
-        /// <summary>Starts the call and then opens the screen that shows it.</summary>
         private async Task StartCallAndOpenAsync(string jid)
         {
             await DataService.Instance.StartCallAsync(jid, false);
 
             CallSession call = DataService.Instance.Call;
-            if (Frame == null) return;
+            if (NavigationService == null) return;
 
-            if (call != null && call.Occupied) Frame.Navigate(typeof(CallPage));
-            else if (Frame.CanGoBack) Frame.GoBack();
+            if (call != null && call.Occupied)
+                NavigationService.Navigate(new Uri("/Pages/CallPage.xaml", UriKind.Relative));
+            else if (NavigationService.CanGoBack)
+                NavigationService.GoBack();
         }
 
-        /// <summary>
-        /// The chosen background, under the veil the home list uses. Plain white is the
-        /// absence of an image: the veil over nothing is the page's own background.
-        /// </summary>
         private void ApplyTheme()
         {
             ImageSource image = ThemeService.ImageFor(ThemeService.Current);
@@ -128,10 +106,51 @@ namespace WhatsappApp.Pages
             PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
+        private void ApplyAvatar()
+        {
+            BigAvatarInitials.Text = _contact.Initials;
+            BigAvatarCircle.Fill = InitialBrush(_contact.Initials);
+
+            BitmapImage avatar = _contact.Avatar;
+            if (avatar == null)
+            {
+                BigAvatarPicture.Visibility = Visibility.Collapsed;
+                BigAvatarInitials.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                BigAvatarPicture.Background = new ImageBrush
+                {
+                    ImageSource = avatar,
+                    Stretch = Stretch.UniformToFill
+                };
+                BigAvatarPicture.Visibility = Visibility.Visible;
+                BigAvatarInitials.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private static Brush InitialBrush(string initials)
+        {
+            Color[] colors = new Color[]
+            {
+                Color.FromArgb(255, 82, 93, 138), Color.FromArgb(255, 30, 142, 62),
+                Color.FromArgb(255, 227, 116, 0), Color.FromArgb(255, 229, 37, 44),
+                Color.FromArgb(255, 13, 107, 153), Color.FromArgb(255, 123, 31, 162),
+                Color.FromArgb(255, 194, 24, 91), Color.FromArgb(255, 56, 142, 60),
+                Color.FromArgb(255, 25, 118, 210), Color.FromArgb(255, 245, 124, 0),
+                Color.FromArgb(255, 69, 90, 100), Color.FromArgb(255, 175, 180, 35),
+                Color.FromArgb(255, 0, 105, 92), Color.FromArgb(255, 93, 64, 55),
+                Color.FromArgb(255, 81, 45, 168), Color.FromArgb(255, 48, 63, 159)
+            };
+
+            string value = initials ?? "?";
+            int index = (value.GetHashCode() & 0x7FFFFFFF) % colors.Length;
+            return new SolidColorBrush(colors[index]);
+        }
+
         private static bool IsGroup(string jid)
         {
             if (string.IsNullOrEmpty(jid)) return false;
-
             return jid.EndsWith("@g.us", StringComparison.OrdinalIgnoreCase);
         }
 
@@ -150,14 +169,7 @@ namespace WhatsappApp.Pages
             }
         }
 
-        /// <summary>
-        /// The full picture, from WhatsApp itself: the query answers a URL, the URL answers
-        /// the JPEG, and the cache keeps the bytes because the URL expires.
-        ///
-        /// No picture is not a failure: the page then shows the initials the bubble already
-        /// draws, and nothing is logged as broken.
-        /// </summary>
-        private async System.Threading.Tasks.Task RequestPictureAsync()
+        private async Task RequestPictureAsync()
         {
             try
             {
@@ -167,11 +179,11 @@ namespace WhatsappApp.Pages
                 if (jpeg == null || jpeg.Length == 0) return;
 
                 string data = Convert.ToBase64String(jpeg);
-
                 if (_contact.AvatarData != data)
                 {
                     _contact.AvatarData = data;
                     await _contact.LoadAvatarAsync();
+                    ApplyAvatar();
                 }
 
                 AvatarCache.Remember(_contact.Id, data);
@@ -182,13 +194,6 @@ namespace WhatsappApp.Pages
             }
         }
 
-        /// <summary>
-        /// The number the way a person reads one: the user part of the JID, without the
-        /// device and without the server. A group has no number at all - its JID is not
-        /// a phone - so it shows none rather than a made-up one, and neither has a LID
-        /// whose number this phone does not know: its digits are an identifier, and
-        /// `+<identifier>` is a phone number nobody has.
-        /// </summary>
         private static string DisplayNumber(string jid)
         {
             if (string.IsNullOrEmpty(jid)) return null;
@@ -197,19 +202,13 @@ namespace WhatsappApp.Pages
 
             int at = jid.IndexOf('@');
             string user = at < 0 ? jid : jid.Substring(0, at);
-
             int device = user.IndexOf(':');
             if (device >= 0) user = user.Substring(0, device);
-
             if (user.Length == 0) return null;
+
             return "+" + user;
         }
 
-        /// <summary>
-        /// Fills the page from what there is. Everything here is optional except the
-        /// name: a heading with nothing under it is worse than one heading fewer, which
-        /// is why each block shows itself only when it has something to say.
-        /// </summary>
         private void Apply(ContactInfo info)
         {
             if (info != null)
@@ -239,8 +238,6 @@ namespace WhatsappApp.Pages
                 ApplyGroup(info.Group);
             }
 
-            // And the limit, always: this is the sentence that says why the page is
-            // short, and it is true whether or not anything above was filled.
             EmptyText.Visibility = Visibility.Visible;
         }
 
@@ -253,7 +250,6 @@ namespace WhatsappApp.Pages
             }
 
             BusinessPanel.Visibility = Visibility.Visible;
-
             ShowIf(BusinessEmailLabel, BusinessEmailText, business.Email);
             ShowIf(BusinessAddressLabel, BusinessAddressText, business.Address);
 
@@ -270,10 +266,6 @@ namespace WhatsappApp.Pages
             BusinessHoursLabel.Visibility = _hours.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
-        /// <summary>
-        /// A label and its value appear only when the value is there: a heading
-        /// with nothing under it is worse than one heading fewer.
-        /// </summary>
         private static void ShowIf(TextBlock label, TextBlock value, string text)
         {
             bool has = !string.IsNullOrEmpty(text);
@@ -291,7 +283,6 @@ namespace WhatsappApp.Pages
             }
 
             GroupPanel.Visibility = Visibility.Visible;
-
             bool hasDescription = !string.IsNullOrEmpty(group.Description);
             GroupDescriptionLabel.Visibility = hasDescription ? Visibility.Visible : Visibility.Collapsed;
             GroupDescriptionText.Visibility = hasDescription ? Visibility.Visible : Visibility.Collapsed;
@@ -307,20 +298,16 @@ namespace WhatsappApp.Pages
                 Loc.Get("ContactInfoPage_MembersCount", "Members ({0})"), _members.Count);
         }
 
-        /// <summary>
-        /// The full-screen picture is decoded at the screen size: the large circle
-        /// is 160 px and enlarging it would leave it blurry.
-        /// </summary>
         private const int ViewerDecodePixels = 720;
 
-        private async void BigAvatar_Tapped(object sender, TappedRoutedEventArgs e)
+        private async void BigAvatar_Tapped(object sender, MouseButtonEventArgs e)
         {
             e.Handled = true;
             if (_contact == null || string.IsNullOrEmpty(_contact.AvatarData)) return;
 
             try
             {
-                var bitmap = await ImageHelper.FromBase64Async(_contact.AvatarData, ViewerDecodePixels);
+                BitmapImage bitmap = await ImageHelper.FromBase64Async(_contact.AvatarData, ViewerDecodePixels);
                 if (bitmap == null) return;
                 ImageViewerImage.Source = bitmap;
                 ImageViewer.Visibility = Visibility.Visible;
@@ -332,7 +319,7 @@ namespace WhatsappApp.Pages
             }
         }
 
-        private void ImageViewer_Tapped(object sender, TappedRoutedEventArgs e)
+        private void ImageViewer_Tapped(object sender, MouseButtonEventArgs e)
         {
             HideFullScreen();
             e.Handled = true;
@@ -346,10 +333,8 @@ namespace WhatsappApp.Pages
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (Frame.CanGoBack)
-            {
-                Frame.GoBack();
-            }
+            if (NavigationService != null && NavigationService.CanGoBack)
+                NavigationService.GoBack();
         }
     }
 }

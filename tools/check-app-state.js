@@ -52,6 +52,8 @@ const LEARN_CALL = 'LearnAppStateKeys(session, incoming, account);';
 const ECHO_RETURN = 'if (incoming.IsOurEcho) return;';
 const STORED_CALL = 'RememberStoredAppStateKeys(account);';
 const SYNC_CALL = 'Guarded.RunGuardedAsync("NativeConnection/app state", SyncAppStateAsync(session));';
+const SYNC_CALL_DELEGATE = 'Guarded.RunGuarded("NativeConnection/app state", delegate';
+const SYNC_CALL_DELEGATE_BODY = 'return SyncAppStateAsync(session);';
 const LEARN = 'private bool LearnAppStateKeys(';
 const SYNC = 'private async Task SyncAppStateAsync(';
 const REMEMBER = 'private static bool RememberSavedContact(';
@@ -125,7 +127,14 @@ function appStateProblems(files) {
       'never read back, so the share of the last run is worth nothing');
   }
 
-  const syncs = count(connection, SYNC_CALL);
+  // Both shapes observe the fire-and-forget task: the literal one and the delegate
+  // form the fire-and-forget guard requires (no Task is built at the call site).
+  const syncs = count(connection, SYNC_CALL) + count(connection, SYNC_CALL_DELEGATE);
+  const delegateSyncs = count(connection, SYNC_CALL_DELEGATE);
+  if (count(connection, SYNC_CALL_DELEGATE_BODY) < delegateSyncs) {
+    problems.push(`${CONNECTION}: a ${SYNC_CALL_DELEGATE} block does not call ${SYNC_CALL_DELEGATE_BODY}: ` +
+      'the guard is named but the sync is not asked');
+  }
   if (syncs < 2) {
     problems.push(`${CONNECTION}: ${SYNC_CALL} appears ${syncs} time(s) and must appear twice - ` +
       'after the login (the keys of a previous run) and after a share (the first run after a ' +

@@ -231,9 +231,7 @@ namespace WhatsappApp.Services
                     run = ++_run;
                 }
 
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("call audio/the pump", PumpAsync(run));
-#pragma warning restore 4014
+                Guarded.RunGuarded("call audio/the pump", delegate { return PumpAsync(run); });
 
                 Diag.Ok("call audio: the microphone records into " + (inMemory ? "memory" : "a file")
                     + " as a WAV at " + CallAudioSender.SampleRate + " Hz mono");
@@ -536,7 +534,7 @@ namespace WhatsappApp.Services
                 if (_refusal == null) _refusal = "the stream could not be read";
             }
 
-            Guarded.RunGuardedAsync("call audio/closing the microphone", StopAsync());
+            Guarded.RunGuarded("call audio/closing the microphone", StopAsync);
         }
 
         /// <summary>
@@ -628,7 +626,7 @@ namespace WhatsappApp.Services
         {
             if (file == null) return;
 
-            Guarded.RunGuardedAsync("call audio/letting the call's file go", DeleteAsync(file));
+            Guarded.RunGuarded("call audio/letting the call's file go", delegate { return DeleteAsync(file); });
         }
 
         private static async Task DeleteAsync(StorageFile file)

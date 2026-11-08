@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.IO.Compression;
+using Ionic.Zlib;
 
 namespace WhatsappApp.Protocol.WABinary
 {
@@ -8,16 +8,10 @@ namespace WhatsappApp.Protocol.WABinary
     /// The inflate for the bytes that arrive deflated: the history bootstrap, and - since
     /// `0x02` frames are read instead of refused - the big nodes of the sync.
     ///
-    /// Why by hand: the payload is deflate inside a zlib wrapper (`0x78.`, the two-byte
-    /// header a `zlib.deflate` writes, with a four-byte Adler-32 trailer), and the.NET
-    /// class is a *raw* deflate. Feeding the wrapper to `DeflateStream` as-is answers
-    /// "invalid data" - the first two bytes it sees are a header it reads as a block.
-    ///
-    /// So the header is skipped and the trailer is left alone: `DeflateStream` stops at the
-    /// end of the deflate stream and never reads them. The header test is the format's own
-    /// (the low nibble of the first byte is the compression method, and 8 is deflate), so
-    /// the same call also takes a payload that turns out to be raw deflate after all,
-    /// instead of refusing a payload that would have worked.
+    /// The wire payload is deflate inside a zlib wrapper (`0x78.`, a two-byte header
+    /// followed by the raw DEFLATE stream and a four-byte Adler-32 trailer). The portable
+    /// `DeflateStream` consumes the raw stream, so the zlib header is skipped and the
+    /// trailer is left unread. A payload that is already raw DEFLATE is also accepted.
     ///
     /// It lives here, next to the codec, because both the frame reader and the history
     /// bootstrap inflate: a `WABinary` class reaching into `Client` for a byte utility

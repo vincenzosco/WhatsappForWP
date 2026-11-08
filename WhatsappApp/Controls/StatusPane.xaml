@@ -2,141 +2,66 @@
     x:Class="WhatsappApp.Controls.StatusPane"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:conv="using:WhatsappApp.Converters">
+    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
+    xmlns:conv="clr-namespace:WhatsappApp.Converters">
 
     <UserControl.Resources>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
-
-        <Style x:Key="StatusItemContainerStyle" TargetType="ListViewItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="IsTabStop" Value="False"/>
-        </Style>
+        <SolidColorBrush x:Key="StatusAccentBrush" Color="#FF00A8C7"/>
     </UserControl.Resources>
 
-    <Grid Background="Transparent">
-        <ListView x:Name="StatusListView"
-                  ItemContainerStyle="{StaticResource StatusItemContainerStyle}"
-                  Background="Transparent"
-                  SelectionMode="None"
-                  IsItemClickEnabled="True"
-                  ItemClick="Status_Click">
-            <ListView.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <VirtualizingStackPanel/>
-                </ItemsPanelTemplate>
-            </ListView.ItemsPanel>
-            <ListView.ItemTemplate>
+    <Grid Background="Black">
+        <phone:LongListSelector x:Name="StatusListView" Background="Transparent"
+                                SelectionChanged="Status_Click">
+            <phone:LongListSelector.ItemTemplate>
                 <DataTemplate>
-                    <!-- The item of WaStatusList: 30 px in from the left, 24 from the
-                         right, 12 above and below, which is the margin the official
-                         StatusItemControl is given. -->
-                    <Grid MinHeight="68" Background="Transparent" Margin="30,12,24,12">
+                    <Grid MinHeight="68" Background="Transparent" Margin="24,12,24,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="68"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
-
                         <Grid Grid.Column="0" Width="68" Height="68" VerticalAlignment="Top">
-                            <!-- The ring is what the row says about itself: a person with
-                                 anything unwatched is ringed in the accent, and the ring goes
-                                 when the viewer has sent its `read` for the last of them.
-                                 Without it a list of yesterday's updates looks exactly like
-                                 a list of new ones. -->
-                            <!-- The official SegmentedCircle laid round the picture:
-                                 radius 34 + 5, so a 78 px circle pulled 5 px up and
-                                 left, which leaves it centred on the 68 px face. -->
-                            <!-- Centred on the 68 px face: the 78 px ring hangs 5 px over
-                                 each side, which is what the official control draws. -->
                             <Ellipse Width="78" Height="78" StrokeThickness="2"
-                                     HorizontalAlignment="Center" VerticalAlignment="Center"
-                                     Stroke="{StaticResource WhatsAppAccentBrush}"
+                                     Stroke="{StaticResource StatusAccentBrush}"
                                      Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-                            <Ellipse Width="68" Height="68"
-                                     Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-
-                            <!-- The author's picture, when the chat list knows one: the same
-                                 face the conversation shows, drawn in the circle the initial
-                                 was in. An ellipse and not an Image with a clip, because
-                                 WP8.1 has no circular clip and the brush fills it. -->
+                            <Ellipse Width="68" Height="68" Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
                             <Ellipse Width="68" Height="68"
                                      Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}}">
                                 <Ellipse.Fill>
                                     <ImageBrush ImageSource="{Binding Owner.Avatar}" Stretch="UniformToFill"/>
                                 </Ellipse.Fill>
                             </Ellipse>
-
-                            <TextBlock Text="{Binding Initials}"
-                                       Foreground="White" FontSize="26" FontWeight="SemiBold"
-                                       Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"
-                                       VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                            <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="26"
+                                       FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"
+                                       Visibility="{Binding Owner.HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                         </Grid>
-
-                        <!-- One row per person: `Latest` is their newest update, and
-                             `Detail` says either "3 updates" or the words of the only one. -->
-                        <!-- The 18 px step is the one StatusItemControl sets on its
-                             details panel; the name and the line under it are the
-                             item's own 32 and 20. -->
                         <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="18,0,0,0">
-                            <TextBlock Text="{Binding Latest.SenderName}" Foreground="#FF333333" FontSize="32"
-                                       FontFamily="Segoe WP Semilight" TextTrimming="WordEllipsis"
-                                       Margin="0,-6,0,0"/>
+                            <TextBlock Text="{Binding Latest.SenderName}" Foreground="White" FontSize="32"
+                                       FontFamily="Segoe WP Semilight" TextTrimming="WordEllipsis"/>
                             <TextBlock Text="{Binding Detail}" Foreground="#FF939393" FontSize="20"
-                                       TextWrapping="Wrap" MaxLines="3" TextTrimming="WordEllipsis"/>
-                            <!-- Only while something here is still unwatched: a thumbnail of an
-                                 update already seen is the row promising a first look that
-                                 has happened. -->
-                            <Border CornerRadius="4" Margin="0,4,0,0"
-                                    Visibility="{Binding ShowPreview, Converter={StaticResource BoolToVisibility}}"
-                                    MaxWidth="220" MaxHeight="160" HorizontalAlignment="Left">
+                                       TextWrapping="Wrap" TextTrimming="WordEllipsis" MaxHeight="72"/>
+                            <Border MaxWidth="220" MaxHeight="160" CornerRadius="4" Margin="0,4,0,0"
+                                    HorizontalAlignment="Left"
+                                    Visibility="{Binding ShowPreview, Converter={StaticResource BoolToVisibility}}">
                                 <Image Source="{Binding Latest.MediaImage}" Stretch="UniformToFill"/>
                             </Border>
                         </StackPanel>
-
                         <TextBlock Grid.Column="2" Text="{Binding Latest.FormattedTime}" Foreground="#FF939393"
                                    FontSize="20" VerticalAlignment="Top" Margin="8,0,0,0"/>
                     </Grid>
                 </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+            </phone:LongListSelector.ItemTemplate>
+        </phone:LongListSelector>
 
-        <!-- Empty and still-filling are two different things, and only a row says
-             the difference (the same rule as the page this pane came from). -->
-        <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="320">
-            <Path Stroke="#FFBDBDBD" StrokeThickness="2"
-                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                  Width="48" Height="48" Stretch="Uniform" HorizontalAlignment="Center">
-                <!-- IconStatus -->
-                <Path.Data>
-                    <PathGeometry>
-                        <PathGeometry.Figures>
-                            <PathFigure StartPoint="12,4" IsClosed="True">
-                                <PathFigure.Segments>
-                                    <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
-                                                SweepDirection="Clockwise" Point="12,20"/>
-                                    <ArcSegment Size="8,8" RotationAngle="0" IsLargeArc="True"
-                                                SweepDirection="Clockwise" Point="12,4"/>
-                                </PathFigure.Segments>
-                            </PathFigure>
-                            <PathFigure StartPoint="12,7.5">
-                                <PathFigure.Segments>
-                                    <PolyLineSegment Points="12,12.3 16,14.5"/>
-                                </PathFigure.Segments>
-                            </PathFigure>
-                        </PathGeometry.Figures>
-                    </PathGeometry>
-                </Path.Data>
-            </Path>
-            <TextBlock x:Uid="StatusPage_EmptyTitle" Text="No status updates"
-                       Foreground="#FF9E9E9E" FontSize="16"
-                       HorizontalAlignment="Center" Margin="0,10,0,0"/>
-            <TextBlock x:Uid="StatusPage_EmptyHint" Text="Updates your contacts post appear here, and tapping one tells them you have seen it."
-                       Foreground="#FFBDBDBD" FontSize="13" TextWrapping="Wrap" TextAlignment="Center"
-                       HorizontalAlignment="Center" Margin="0,2,0,0"/>
+        <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="300">
+            <Ellipse Width="40" Height="40" Stroke="#FF566061" StrokeThickness="2"
+                     HorizontalAlignment="Center"/>
+            <TextBlock x:Name="EmptyTitle" Foreground="#FFB0B0B0" FontSize="17"
+                       HorizontalAlignment="Center" Margin="0,8,0,0"/>
+            <TextBlock x:Name="EmptyHint" Foreground="#FF787878" FontSize="13"
+                       TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" Margin="0,3,0,0"/>
         </StackPanel>
     </Grid>
 </UserControl>

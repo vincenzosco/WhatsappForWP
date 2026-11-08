@@ -3,7 +3,7 @@ using System.Threading.Tasks;
 using Windows.Media.Editing;
 using Windows.Storage;
 using Windows.Storage.Streams;
-using Windows.UI.Xaml.Media.Imaging;
+using System.Windows.Media.Imaging;
 
 namespace WhatsappApp.Services
 {
@@ -33,7 +33,9 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(localFileName);
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(localFileName);
+                StorageFile file = item as StorageFile;
+                if (file == null) return null;
                 MediaClip clip = await MediaClip.CreateFromFileAsync(file);
 
                 var composition = new MediaComposition();

@@ -4,7 +4,8 @@ using System.Threading.Tasks;
 using Windows.Graphics.Imaging;
 using Windows.Storage;
 using Windows.Storage.Streams;
-using Windows.UI;
+using Windows.UI.Notifications;
+using System.Windows.Media;
 
 namespace WhatsappApp.Services
 {
@@ -62,6 +63,24 @@ namespace WhatsappApp.Services
         private const string KeyWide = "TileTheme.Wide";
         private const string KeySmall = "TileTheme.Small";
         private const string KeyComposed = "TileTheme.Key";
+
+        /// <summary>
+        /// The tile keeps more than one message and the platform turns them: the
+        /// notification queue is what does the turning, so the service switches it
+        /// on here instead of drawing one message for ever.
+        /// </summary>
+        public static void EnableNotificationQueue(bool enabled)
+        {
+            try
+            {
+                TileUpdateManager.CreateTileUpdaterForApplication()
+                    .EnableNotificationQueue(enabled);
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("TileTheme/EnableNotificationQueue", ex);
+            }
+        }
 
         /// <summary>
         /// The card the last run composed, read back from the phone.
@@ -179,7 +198,8 @@ namespace WhatsappApp.Services
                 {
                     // A packaged asset, read by its ms-appx URI: the same file the chat list
                     // and the conversations are painted with, so the tile cannot disagree.
-                    StorageFile file = await StorageFile.GetFileFromApplicationUriAsync(new Uri(chosen.ImageUri));
+                    StorageFile file = await StorageFile.GetFileFromApplicationUriAsync(
+                        new Uri("ms-appx:///" + chosen.ImageUri, UriKind.Absolute));
                     IBuffer buffer = await FileIO.ReadBufferAsync(file);
                     return Convert.ToBase64String(buffer.ToArray());
                 }

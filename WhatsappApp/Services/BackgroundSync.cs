@@ -1,11 +1,8 @@
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Threading;
 using System.Threading.Tasks;
-using Windows.ApplicationModel.Background;
+using Microsoft.Phone.Scheduler;
 using Windows.Storage;
-using WhatsappApp.Protocol.Client;
 
 namespace WhatsappApp.Services
 {
@@ -18,16 +15,13 @@ namespace WhatsappApp.Services
     /// is a background task that wakes, connects, reads what is waiting, updates the
     /// tile and the badge, and closes again.
     ///
-    /// Not a real-time client. A `TimeTrigger` on WP8.1 has a **floor of
-    /// 15 minutes** - ten is not an interval the system accepts, and asking for it
-    /// registers nothing - and no promise about the exact moment; 15 is the interval
-    /// this asks for, and the system decides when it happens (battery saver can refuse
-    /// it). The log line at the end of a run is the record of how long it took.
+    /// Not a real-time client. Silverlight periodic agents run on the system's
+    /// approximately 30-minute schedule; the app cannot choose a shorter interval or
+    /// the exact wake time. Battery and system policy can also delay or refuse a run.
+    /// The log line at the end of a run is the record of how long it took.
     ///
-    /// The interval is also **registered**, not just asked for: a task the phone already
-    /// has keeps the trigger it was created with, so a new build that asks for a different
-    /// interval changes nothing until the old registration is taken out. That is why the
-    /// interval is remembered next to the task and compared on every start.
+    /// The registration is remembered alongside the task so a build that changes the
+    /// requested cadence or task class can remove and recreate an older registration.
     /// </summary>
     public static class BackgroundSync
     {
@@ -38,43 +32,32 @@ namespace WhatsappApp.Services
         public const string EntryPoint = "WhatsappApp.Tasks.BackgroundSyncTask";
 
         /// <summary>
-        /// How often the system is asked to wake the task.
-        ///
-        /// 15 is the smallest a `TimeTrigger` accepts on WP8.1 (ten throws, and the
-        /// catch below turns that into "the check never runs" with a line in the log
-        /// that says the system refused it), so this is as close to "every ten minutes"
-        /// as the platform allows. The system adds its own delay on top.
+        /// The effective cadence of a Silverlight periodic task. The system controls
+        /// the actual wake time and may delay or skip a run.
         /// </summary>
-        public const int IntervalMinutes = 15;
+        public const int IntervalMinutes = 30;
 
         /// <summary>
-        /// The interval the registration on this phone was made with. A task keeps its
-        /// own trigger, so this is what decides whether the one on the phone is still
-        /// the one this build asks for.
+        /// The effective cadence this build targets. This saved value lets a later
+        /// build detect and replace registration metadata from an older cadence.
         /// </summary>
         private const string KeyInterval = "BackgroundCheck.IntervalMinutes";
 
         /// <summary>
-        /// The class the registration on this phone was made with.
-        ///
-        /// It is remembered for the same reason the interval is: a registration stores
-        /// the entry point it was created with, and it keeps it. A build that moves the
-        /// task - it lived in the app's own assembly until the manifest stopped being
-        /// enough - would otherwise leave the phone waking a class that no longer exists,
-        /// for as long as the user does not turn the check off and on again. What is
-        /// stored here is what was asked for, and a value that does not match this build
-        /// is a registration to take out and make again.
+        /// The agent class this build targets. The scheduler identifies actions by name,
+        /// so this local value detects when a build changes the class declared in the
+        /// Silverlight manifest and should refresh the existing action.
         /// </summary>
         private const string KeyEntryPoint = "BackgroundCheck.EntryPoint";
+        private const string KeyRegistrationUnavailable = "BackgroundCheck.RegistrationUnavailable";
 
         /// <summary>
         /// How long a whole run may take.
         ///
-        /// WP8.1 closes the process of a background task after about **30 seconds**, and
-        /// it closes it wherever it is: a run still saving when that happens leaves a file
-        /// half written, which is worse than a run that read less. Twenty is the part this
-        /// code can control, and the waits below stay inside it; the ten left are the load
-        /// of the process itself, which happens before the first line of the log.
+        /// Silverlight agents have a short execution ceiling, and the process can end
+        /// wherever a run is: a run still saving then can leave a file half written, which
+        /// is worse than a run that read less. Twenty seconds is the work budget this code
+        /// controls; the remaining time is left for agent startup and final diagnostics.
         /// </summary>
         private static readonly TimeSpan RunBudget = TimeSpan.FromSeconds(20);
 
@@ -99,9 +82,9 @@ namespace WhatsappApp.Services
         public const string OutcomeFailed = "failed";
 
         /// <summary>
-        /// The phone took the wake down in the middle - the 30-second ceiling of a WP8.1
-        /// background task, on its own thread. This is the outcome,
-        /// which until now was indistinguishable from a wake that never arrived.
+        /// The previous invocation ended before it recorded a terminal outcome. Silverlight
+        /// agents have no supported cancellation callback, so the next invocation detects
+        /// this from the persisted running marker.
         /// </summary>
         public const string OutcomeCanceled = "canceled";
 
@@ -115,12 +98,9 @@ namespace WhatsappApp.Services
         private static bool _running;
 
         /// <summary>
-        /// How long the run in progress has been going.
-        ///
-        /// It is here and not only in the local of `RunNow` because the system cancels a task
-        /// on its own thread: the line the task writes when it is canceled has to say how far
-        /// the run had got, and there was no such line at all - 21 wakes
-        /// and not one of them said whether it had finished or been taken down in the middle.
+        /// How long the current run has been going. A terminated invocation cannot
+        /// update its own outcome; the next run uses the persisted running marker to
+        /// report that it ended before completion.
         /// </summary>
         public static long ElapsedMilliseconds
         {
@@ -150,28 +130,17 @@ namespace WhatsappApp.Services
             if (!SettingsService.BackgroundCheckEnabled) return;
 
             // A registration is not the same thing as a check that runs. The phone can
-            // take the permission away after it was given - the user turns background
-            // work off for this app, or battery saver does it for a while - and the
-            // registration stays exactly where it was: `IsRegistered` keeps saying yes
-            // while nothing ever wakes. It is the failure the scheduled agents of this
-            // platform are written against (`IsScheduled` false means the system took
-            // the task away and it has to be made again), and the same reading is what
-            // lets the settings page say the truth instead of showing a switch that is
-            // on while the phone has already refused.
+            // disable a scheduled agent in its background-task settings, so availability
+            // checks the action's IsScheduled state as well as whether a registration exists.
+            // The saved metadata also lets the app notice when the system removed the action.
             Refresh();
         }
 
         /// <summary>
-        /// Asks the phone again, and registers the check when the answer has changed.
-        ///
-        /// Why this is not left to `Start` alone: the phone's answer is not a fact this app
-        /// keeps. The user can take background work away and give it back in the phone's own
-        /// settings, and battery saver takes it away by itself; the registration stays exactly
-        /// where it was in both directions. A build that only looked at start-up kept writing
-        /// "nothing will wake" after the user had already turned it back on, and kept a task
-        /// registered with the trigger of a build that no longer exists. Called from `Start`
-        /// and from every resume, which is the first moment the answer can have changed while
-        /// this process was not running.
+        /// Checks the scheduled-action registration and recreates it when the saved
+        /// cadence or task class no longer matches. Silverlight exposes no separate
+        /// background-access query; an absent registration with prior registration metadata
+        /// is treated as unavailable, while registration failures are recorded for settings.
         /// </summary>
         public static void Refresh()
         {
@@ -179,12 +148,11 @@ namespace WhatsappApp.Services
 
             if (!IsPermitted())
             {
-                Diag.Ok("background: the phone is not letting this app work in the background, nothing will wake");
+                Diag.Ok("background: the scheduled check is unavailable, asking the system to register it again");
 
-                // Asked anyway, as the start-up path always did: `RequestAccessAsync` is the
-                // only way this app gets the permission in the first place, and a refusal is
-                // the system's answer to that question, not a reason to stop asking when the
-                // user may have changed their mind in the phone's settings.
+                // A registration attempt is still made when the system previously refused
+                // or removed the task, so a user who re-enables background work can recover
+                // without changing the app's setting.
 #pragma warning disable 4014
                 Guarded.RunGuardedAsync("BackgroundSync/request", SetEnabledAsync(true));
 #pragma warning restore 4014
@@ -194,12 +162,12 @@ namespace WhatsappApp.Services
             if (IsRegistered() && RegisteredInterval() == IntervalMinutes
                 && RegisteredEntryPoint() == EntryPoint) return;
 
-            // Not registered at all, or registered with another interval or class: one question
-            // to the system covers both, and `SetEnabledAsync` is the only place that asks it.
-            Diag.Ok("background: the phone allows it"
+            // Missing or stale registration: SetEnabledAsync owns removal, registration,
+            // and reporting any refusal from the scheduler.
+            Diag.Ok("background: the scheduled check is missing or outdated"
                 + (IsRegistered()
-                    ? ", but the registration is not the one this build asks for - making it again"
-                    : " and nothing is registered - making the check now"));
+                    ? ", registering it again"
+                    : ", registering it now"));
 
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("BackgroundSync/refresh", SetEnabledAsync(true));
@@ -207,12 +175,11 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Registers or unregisters the task. The request goes to the system because
-        /// a background task needs the user's permission: the first time this runs,
-        /// WP8.1 asks whether the app may work in the background. A refusal is
-        /// written down and the app keeps working in the foreground only.
+        /// Registers or unregisters the task. The scheduler reports refusal through
+        /// registration state or an exception; both are recorded while foreground work
+        /// remains available.
         /// </summary>
-        public static async Task SetEnabledAsync(bool enabled)
+        public static Task SetEnabledAsync(bool enabled)
         {
             try
             {
@@ -220,58 +187,52 @@ namespace WhatsappApp.Services
                 {
                     Unregister();
                     Diag.Ok("background: the check is off");
-                    return;
+                    return Task.FromResult<object>(null);
                 }
 
-                // The task the phone has was made with some interval, and a task keeps
-                // the trigger it was registered with. Without this the build that asked
-                // for a shorter check would keep the old one forever - which is a phone
-                // that keeps waking every half hour whatever the source says. The entry
-                // point is remembered for the same reason: a task keeps that too.
-                //
-                // The permission is part of the question: a registration that is still
-                // there while the system has refused background work is a task that will
-                // not run, so it is asked for again here - which is also the only way the
-                // app finds out that the user has turned it back on in the phone's own
-                // settings, since nothing tells it when that happens.
                 if (IsRegistered() && RegisteredInterval() == IntervalMinutes
-                    && RegisteredEntryPoint() == EntryPoint && IsPermitted()) return;
+                    && RegisteredEntryPoint() == EntryPoint && IsPermitted())
+                {
+                    return Task.FromResult<object>(null);
+                }
+
                 if (IsRegistered())
                 {
                     Unregister();
                     Diag.Ok("background: the registration was made by another build, registering again");
                 }
 
-                BackgroundAccessStatus access = await BackgroundExecutionManager.RequestAccessAsync();
-                if (access == BackgroundAccessStatus.Denied)
-                {
-                    Diag.Ok("background: the system refused the check");
-                    return;
-                }
-
-                var builder = new BackgroundTaskBuilder();
-                builder.Name = TaskName;
-                builder.TaskEntryPoint = EntryPoint;
-                builder.SetTrigger(new TimeTrigger(IntervalMinutes, false));
-                builder.AddCondition(new SystemCondition(SystemConditionType.InternetAvailable));
-                builder.Register();
+                var task = new PeriodicTask(TaskName);
+                task.Description = "Check for new WhatsApp messages";
+                ScheduledActionService.Add(task);
 
                 ApplicationData.Current.LocalSettings.Values[KeyInterval] = IntervalMinutes;
                 ApplicationData.Current.LocalSettings.Values[KeyEntryPoint] = EntryPoint;
+                ApplicationData.Current.LocalSettings.Values[KeyRegistrationUnavailable] = false;
 
-                Diag.Ok("background: the check runs every " + IntervalMinutes + " minute(s)");
+                Diag.Ok("background: the scheduled check runs about every " + IntervalMinutes + " minute(s)");
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (!IsRegistered())
+                {
+                    SetRegistrationUnavailable(true);
+                    Diag.Ok("background: the system refused or could not schedule the check");
+                }
+                Diag.Failed("BackgroundSync/SetEnabled", ex);
             }
             catch (Exception ex)
             {
                 Diag.Failed("BackgroundSync/SetEnabled", ex);
             }
+
+            return Task.FromResult<object>(null);
         }
 
         /// <summary>
         /// One check: open the account, let the backlog arrive, put the count on the
-        /// tile and the badge, close. It blocks on purpose - a background task owns a
-        /// thread and has a deferral to finish, and the protocol continuations run on
-        /// the thread pool, not on this thread.
+        /// tile and the badge, close. It blocks on purpose so the scheduled agent does
+        /// not call NotifyComplete before the protocol continuations and final writes finish.
         /// </summary>
         public static void RunNow()
         {
@@ -304,14 +265,12 @@ namespace WhatsappApp.Services
                 // that never connected has nothing to read, and waiting anyway is a
                 // background task spending its budget on a socket that is not there.
                 //
-                // Not Thread.Sleep: the WP8.1 Runtime profile the app compiles against
-                // does not carry that type (CS0103). Waiting on a task is the same pause
-                // without the missing reference.
+                // Waiting on a task keeps the bounded pause available to both the
+                // foreground app and the Silverlight scheduled-agent target.
                 if (WaitForConnection(ConnectLimit))
                 {
-                    // Named, with the time it took: the run has a budget of twenty seconds
-                    // inside a host that takes the process down at thirty, and until now
-                    // nothing said which of the steps spent what.
+                    // Named, with the time it took: the run has a twenty-second work budget,
+                    // and this identifies the time consumed before reading the backlog.
                     Diag.OkNow("background: connected after " + watch.ElapsedMilliseconds + " ms");
                     WaitForBacklog(watch.Elapsed);
                     Diag.OkNow("background: the read window is over after " + watch.ElapsedMilliseconds + " ms");
@@ -373,9 +332,7 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The interval the task on this phone was registered with, or 0 when this phone
-        /// has never written one - which is a registration made by an older build, and one
-        /// that has to be made again.
+        /// The interval saved for this phone's registration, or 0 when there is none.
         /// </summary>
         private static int RegisteredInterval()
         {
@@ -397,9 +354,7 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The class the task on this phone was registered for, or empty when this phone
-        /// has never written one - which is a registration made by a build that kept the
-        /// task in the app assembly, and one that has to be made again.
+        /// The class saved for this phone's registration, or empty when there is none.
         /// </summary>
         private static string RegisteredEntryPoint()
         {
@@ -433,8 +388,8 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// How the last wake ended: one of the `Outcome*` words, or empty when the phone
-        /// has never recorded one. `running` is a wake that started and left no ending,
-        /// which on this platform means the system took it down.
+        /// has never recorded one. `running` is a wake that started and left no ending;
+        /// the next agent invocation reports it as interrupted.
         /// </summary>
         public static string LastOutcome
         {
@@ -455,8 +410,8 @@ namespace WhatsappApp.Services
 
         /// <summary>
         /// Says on the phone how a wake is going, in the same place the diagnostics page
-        /// reads: written at the start as `running` and overwritten with the ending, so a
-        /// wake the system cut in half is still visible after the process is gone.
+        /// reads: written at the start as `running` and overwritten with the ending, so
+        /// an invocation that exits without an ending remains visible on the next start.
         /// </summary>
         private static void RememberWake(string outcome, int unread, long milliseconds)
         {
@@ -474,25 +429,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The system is taking the wake down, and the task that owns the deferral says so.
-        /// Called from the component's `Canceled` handler, which runs on a thread of the
-        /// system's choosing while `RunNow` is still blocked in a wait - so this only
-        /// writes its own line and does not touch anything the run is using.
+        /// Records a previous invocation that was terminated before it replaced the
+        /// running marker. Silverlight's ScheduledTaskAgent.OnCancel is unsupported, so
+        /// the next OnInvoke supplies the scheduler's last-exit reason.
         /// </summary>
         public static void MarkCanceled(string reason)
         {
             lock (Gate)
             {
-                // A cancellation callback can race the end of RunNow. Once the run has
-                // recorded a terminal outcome, it must remain the last outcome shown by
-                // diagnostics; only an interrupted run may be marked canceled.
-                if (!_running || LastOutcome != OutcomeRunning) return;
+                if (LastOutcome != OutcomeRunning) return;
 
-                RememberWake(OutcomeCanceled, LastUnread, ElapsedMilliseconds);
+                RememberWake(OutcomeCanceled, LastUnread, LastMilliseconds);
             }
 
-            Diag.OkNow("background: the system canceled the check after "
-                + ElapsedMilliseconds + " ms (" + reason + ")");
+            Diag.Ok("background: the previous check was interrupted (" + reason + ")");
         }
 
         private static long LastNumber(string key, long fallback)
@@ -530,21 +480,46 @@ namespace WhatsappApp.Services
             return "";
         }
 
+        private static bool RegistrationUnavailable()
+        {
+            try
+            {
+                object value;
+                return ApplicationData.Current.LocalSettings.Values.TryGetValue(
+                    KeyRegistrationUnavailable, out value) && value is bool && (bool)value;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/RegistrationUnavailable", ex);
+                return false;
+            }
+        }
+
+        private static void SetRegistrationUnavailable(bool unavailable)
+        {
+            try
+            {
+                ApplicationData.Current.LocalSettings.Values[KeyRegistrationUnavailable] = unavailable;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/SetRegistrationUnavailable", ex);
+            }
+        }
+
         /// <summary>
-        /// Whether the phone lets this app run in the background at all.
-        ///
-        /// Asked of the system and never remembered: the answer changes without the app
-        /// being told anything - the user can turn it off while the app is suspended, and
-        /// battery saver does it on its own - so a remembered yes would be a check that
-        /// never wakes and a settings page that keeps promising it does. `Denied` is the
-        /// one answer a registration cannot overrule; everything else on this platform is
-        /// a permission the user granted, with the system free to delay the moment.
+        /// Whether the scheduled check appears available. Silverlight has no direct
+        /// background-access status API, so this uses current scheduling state and the
+        /// recorded result of an attempted registration.
         /// </summary>
         public static bool IsPermitted()
         {
             try
             {
-                return BackgroundExecutionManager.GetAccessStatus() != BackgroundAccessStatus.Denied;
+                ScheduledAction action = ScheduledActionService.Find(TaskName);
+                if (action != null) return action.IsScheduled;
+                if (RegistrationUnavailable()) return false;
+                return RegisteredInterval() == 0 && RegisteredEntryPoint() == "";
             }
             catch (Exception ex)
             {
@@ -560,10 +535,7 @@ namespace WhatsappApp.Services
         {
             try
             {
-                foreach (IBackgroundTaskRegistration registration in BackgroundTaskRegistration.AllTasks.Values)
-                {
-                    if (registration != null && registration.Name == TaskName) return true;
-                }
+                return ScheduledActionService.Find(TaskName) != null;
             }
             catch (Exception ex)
             {
@@ -577,17 +549,15 @@ namespace WhatsappApp.Services
         {
             try
             {
-                var found = new List<IBackgroundTaskRegistration>();
-                foreach (IBackgroundTaskRegistration registration in BackgroundTaskRegistration.AllTasks.Values)
+                if (ScheduledActionService.Find(TaskName) != null)
                 {
-                    if (registration != null && registration.Name == TaskName) found.Add(registration);
+                    ScheduledActionService.Remove(TaskName);
                 }
-
-                for (int i = 0; i < found.Count; i++) found[i].Unregister(true);
 
                 // Nothing is registered now, so nothing remembers what it was made with either.
                 ApplicationData.Current.LocalSettings.Values[KeyInterval] = 0;
                 ApplicationData.Current.LocalSettings.Values[KeyEntryPoint] = "";
+                ApplicationData.Current.LocalSettings.Values[KeyRegistrationUnavailable] = false;
             }
             catch (Exception ex)
             {

@@ -1,25 +1,28 @@
-<Page
+<phone:PhoneApplicationPage
     x:Class="WhatsappApp.Pages.ChatPage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-    xmlns:conv="using:WhatsappApp.Converters">
+    xmlns:conv="clr-namespace:WhatsappApp.Converters"
+    xmlns:pages="clr-namespace:WhatsappApp.Pages"
+    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone" Orientation="Portrait">
 
     <!-- The wallpaper, as the settings page chose it (Services/ThemeService): by
          default the doodle the released app ships in Images/Background.jpg, or one
          of the package's own Images/Wallpapers. It is the page background, so the
          bubbles scroll over it and both the list and the typing bubble see it. -->
-    <Page.Background>
+    <phone:PhoneApplicationPage.Background>
         <ImageBrush x:Name="ChatWallpaper"
-                    ImageSource="ms-appx:///Assets/ChatBackground.jpg"
+                    ImageSource="/Assets/ChatBackground.jpg"
                     Stretch="UniformToFill"/>
-    </Page.Background>
+    </phone:PhoneApplicationPage.Background>
 
-    <Page.Resources>
+    <phone:PhoneApplicationPage.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <conv:MessageStatusToStringConverter x:Key="MsgStatusToString"/>
         <conv:MessageStatusToColorConverter x:Key="MsgStatusToColor"/>
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
+        <pages:LocalizedMessageTextConverter x:Key="LocalizedMessageText"/>
 
         <!-- The brushes are the application's (App.xaml), not this page's: a copy
              here did not follow the phone accent, and its light-green sent bubble
@@ -53,17 +56,7 @@
                 <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0"/>
             </DoubleAnimationUsingKeyFrames>
         </Storyboard>
-
-        <!-- Containers without padding/animations: the bubbles use the whole
-             width and each item costs less layout while scrolling. -->
-        <Style x:Key="MessageItemContainerStyle" TargetType="ListViewItem">
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="Margin" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
-            <Setter Property="IsTabStop" Value="False"/>
-        </Style>
-    </Page.Resources>
+    </phone:PhoneApplicationPage.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -79,7 +72,7 @@
         <!-- Header: back + picture + name/status. The picture is a thing of its
              own apart from the name row: tapping it opens it full screen,
              tapping the name opens the contact info. -->
-        <Grid Grid.Row="0" Background="{StaticResource WhatsAppHeaderBrush}" Height="60">
+        <Grid Grid.Row="0" Background="Black" Height="84">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -114,7 +107,7 @@
             <Border x:Name="HeaderAvatar" Grid.Column="1"
                     Width="40" Height="40" CornerRadius="20"
                     Margin="8,0,0,0" VerticalAlignment="Center"
-                    Tapped="HeaderAvatar_Tapped">
+                    Tap="HeaderAvatar_Tapped">
                 <Grid>
                     <Ellipse Width="40" Height="40"
                              Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
@@ -134,13 +127,13 @@
             <Grid x:Name="ContactHeader" Grid.Column="2"
                   Background="Transparent"
                   Margin="8,0,0,4"
-                  Tapped="ContactHeader_Tapped">
+                  Tap="ContactHeader_Tapped">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
-                               Foreground="White" FontSize="23"
+                               Foreground="White" FontSize="36" FontFamily="Segoe WP Semilight"
                                TextTrimming="WordEllipsis"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
-                               Foreground="#B0FFFFFF" FontSize="13" Margin="0,-2,0,0"/>
+                               Foreground="#B0FFFFFF" FontSize="15" Margin="0,-4,0,0"/>
                 </StackPanel>
             </Grid>
 
@@ -184,16 +177,11 @@
              DataContext (a Contact, not a collection) and fights that writer,
              which left the conversation empty with a run of first chance
              SYSTEM.NI.DLL exceptions and no DIAG line. -->
-        <ListView x:Name="MessagesListView" Grid.Row="1"
-                  ItemContainerStyle="{StaticResource MessageItemContainerStyle}"
-                  Background="Transparent"
-                  SelectionMode="None">
-            <ListView.ItemsPanel>
-                <ItemsPanelTemplate>
-                    <VirtualizingStackPanel/>
-                </ItemsPanelTemplate>
-            </ListView.ItemsPanel>
-            <ListView.ItemTemplate>
+        <phone:LongListSelector x:Name="MessagesListView" Grid.Row="1"
+                                Background="Transparent"
+                                IsGroupingEnabled="False"
+                                LayoutMode="List">
+            <phone:LongListSelector.ItemTemplate>
                 <DataTemplate>
                     <!-- The long press is on the whole bubble, incoming and outgoing: it
                          is the only way to reach a message's own actions (copy the text,
@@ -201,17 +189,17 @@
                     <!-- Margin 24 a destra e a sinistra: sono le due colonne fisse di
                          MessageBubbleContainer (24 * zoom), non un margine scelto a
                          occhio. La bolla ci sta dentro e si ferma a MaxWidth. -->
-                    <Grid Margin="24,0,24,0" HorizontalAlignment="Stretch" Holding="Bubble_Holding">
+                    <Grid Margin="24,0,24,0" HorizontalAlignment="Stretch" Hold="Bubble_Holding">
                         <!-- Incoming bubble. Radius 3 and the little tail are the
                              shape of the official MessageBubble: a corner that is
                              barely rounded, not the pill of the phone's chat. -->
                         <!-- La coda e' il TailSize ufficiale, 15 x 10, e i tre punti
                              sono quelli di MessageBubble: (0,0), (0,10), (15,10). -->
-                        <Polygon Points="0,0 0,10 15,10" Fill="{StaticResource WhatsAppReceivedBubbleBrush}"
+                        <Polygon Points="0,0 0,10 15,10" Fill="#FF00A8C7"
                                  HorizontalAlignment="Left" VerticalAlignment="Top"
                                  Margin="0,0,0,0"
                                  Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}"/>
-                        <Border Background="{StaticResource WhatsAppReceivedBubbleBrush}"
+                        <Border Background="#FF00A8C7"
                                 CornerRadius="3"
                                 MaxWidth="324"
                                 Margin="0,10,0,0"
@@ -222,7 +210,7 @@
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
                                         MaxWidth="300" MaxHeight="200"
-                                        Tapped="Media_Tapped">
+                                        Tap="Media_Tapped">
                                     <Image Source="{Binding MediaImage}"
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
@@ -235,7 +223,7 @@
                                         Width="220" Height="140"
                                         Background="#FF263238"
                                         Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
-                                        Tapped="Media_Tapped">
+                                        Tap="Media_Tapped">
                                     <Grid>
                                         <!-- The cover frame, when the phone could
                                              make one: with it the box says which
@@ -261,7 +249,7 @@
                                         </Path>
                                         <!-- The pieces are arriving: without this the tap
                                              looks like it did nothing. -->
-                                        <ProgressRing IsActive="True" Width="26" Height="26"
+                                        <ProgressBar IsIndeterminate="True" Width="26" Height="4"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -349,7 +337,7 @@
                                                    Visibility="{Binding AudioFailed, Converter={StaticResource BoolToVisibility}}"
                                                    Foreground="White" FontSize="12"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                        <ProgressBar IsIndeterminate="True" Width="24" Height="4"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -366,7 +354,7 @@
                                         Width="220"
                                         Background="#FF263238"
                                         Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisibility}}"
-                                        Tapped="Media_Tapped">
+                                        Tap="Media_Tapped">
                                     <Grid Margin="10,8,10,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -384,28 +372,29 @@
                                                     VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DocumentTitle}"
                                                        Foreground="White" FontSize="14"
-                                                       TextWrapping="Wrap" MaxLines="2"
-                                                       TextTrimming="CharacterEllipsis"/>
+                                                       TextWrapping="Wrap"
+                                                       TextTrimming="WordEllipsis"/>
                                             <TextBlock Text="{Binding MediaSizeText}"
                                                        Foreground="#B0FFFFFF" FontSize="11"
                                                        Margin="0,2,0,0"/>
                                         </StackPanel>
-                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                        <ProgressBar IsIndeterminate="True" Width="24" Height="4"
                                                       Grid.ColumnSpan="2"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
                                     </Grid>
                                 </Border>
+                                <TextBlock Text="{Binding SenderName}" TextWrapping="NoWrap"
+                                           Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}"
+                                           Foreground="#FFE7FFFF" FontSize="13" Margin="0,0,0,3"
+                                           TextTrimming="WordEllipsis"/>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="{StaticResource WhatsAppTextPrimaryBrush}" FontSize="20"/>
-                                <!-- 18.667 e' il SmallTextFontSizeStatic del client
-                                     ufficiale, non un valore arrotondato a occhio: e' la
-                                     stessa taglia che MessageBubble da' all'ora. -->
+                                           Foreground="White" FontSize="19"/>
                                 <TextBlock Text="{Binding FormattedTime}"
-                                           HorizontalAlignment="Right" Margin="0,4,0,0"
-                                           Foreground="{StaticResource WhatsAppTextSecondaryBrush}" FontSize="18.667"/>
+                                           HorizontalAlignment="Right" Margin="0,3,0,0"
+                                           Foreground="#CCFFFFFF" FontSize="12"/>
                             </StackPanel>
                         </Border>
 
@@ -413,11 +402,11 @@
                              same 3 px corner as the received one. -->
                         <!-- La stessa coda, specchiata: e' il ScaleX = -1 che il
                              client ufficiale applica alla coda delle sue bolle. -->
-                        <Polygon Points="15,0 15,10 0,10" Fill="{StaticResource WhatsAppSentBubbleBrush}"
+                        <Polygon Points="15,0 15,10 0,10" Fill="#FF075E54"
                                  HorizontalAlignment="Right" VerticalAlignment="Top"
                                  Margin="0,0,0,0"
                                  Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}"/>
-                        <Border Background="{StaticResource WhatsAppSentBubbleBrush}"
+                        <Border Background="#FF075E54"
                                 CornerRadius="3"
                                 MaxWidth="324"
                                 Margin="0,10,0,0"
@@ -428,7 +417,7 @@
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
                                         MaxWidth="300" MaxHeight="200"
-                                        Tapped="Media_Tapped">
+                                        Tap="Media_Tapped">
                                     <Image Source="{Binding MediaImage}"
                                            Stretch="UniformToFill"
                                            HorizontalAlignment="Center"/>
@@ -441,7 +430,7 @@
                                         Width="220" Height="140"
                                         Background="#FF263238"
                                         Visibility="{Binding IsVideo, Converter={StaticResource BoolToVisibility}}"
-                                        Tapped="Media_Tapped">
+                                        Tap="Media_Tapped">
                                     <Grid>
                                         <!-- The cover frame, when the phone could
                                              make one: with it the box says which
@@ -467,7 +456,7 @@
                                         </Path>
                                         <!-- The pieces are arriving: without this the tap
                                              looks like it did nothing. -->
-                                        <ProgressRing IsActive="True" Width="26" Height="26"
+                                        <ProgressBar IsIndeterminate="True" Width="26" Height="4"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -555,7 +544,7 @@
                                                    Visibility="{Binding AudioFailed, Converter={StaticResource BoolToVisibility}}"
                                                    Foreground="White" FontSize="12"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                        <ProgressBar IsIndeterminate="True" Width="24" Height="4"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
                                                       Visibility="{Binding IsMediaLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -572,7 +561,7 @@
                                         Width="220"
                                         Background="#FF263238"
                                         Visibility="{Binding IsDocument, Converter={StaticResource BoolToVisibility}}"
-                                        Tapped="Media_Tapped">
+                                        Tap="Media_Tapped">
                                     <Grid Margin="10,8,10,8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="Auto"/>
@@ -590,13 +579,13 @@
                                                     VerticalAlignment="Center">
                                             <TextBlock Text="{Binding DocumentTitle}"
                                                        Foreground="White" FontSize="14"
-                                                       TextWrapping="Wrap" MaxLines="2"
-                                                       TextTrimming="CharacterEllipsis"/>
+                                                       TextWrapping="Wrap"
+                                                       TextTrimming="WordEllipsis"/>
                                             <TextBlock Text="{Binding MediaSizeText}"
                                                        Foreground="#B0FFFFFF" FontSize="11"
                                                        Margin="0,2,0,0"/>
                                         </StackPanel>
-                                        <ProgressRing IsActive="True" Width="24" Height="24"
+                                        <ProgressBar IsIndeterminate="True" Width="24" Height="4"
                                                       Grid.ColumnSpan="2"
                                                       Foreground="White"
                                                       HorizontalAlignment="Center" VerticalAlignment="Center"
@@ -607,20 +596,24 @@
                                      dark (the usual case), #333 when it is light, which is what
                                      Accent.Apply puts in WhatsAppAccentTextBrush. A fixed white
                                      was unreadable on a light accent. -->
+                                <TextBlock Text="{Binding SenderName}" TextWrapping="NoWrap"
+                                           Visibility="{Binding IsGroup, Converter={StaticResource BoolToVisibility}}"
+                                           Foreground="#FFE7FFFF" FontSize="13" Margin="0,0,0,3"
+                                           TextTrimming="WordEllipsis"/>
                                 <TextBlock Text="{Binding ShownText}" TextWrapping="Wrap"
                                            Visibility="{Binding ShowsText, Converter={StaticResource BoolToVisibility}}"
-                                           Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="20"/>
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,4,0,0"
-                                            Opacity="0.7">
+                                           Foreground="White" FontSize="19"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,3,0,0"
+                                            Opacity="0.8">
                                     <TextBlock Text="{Binding FormattedTime}"
-                                               Foreground="{StaticResource WhatsAppAccentTextBrush}" FontSize="18.667"/>
+                                               Foreground="#CCFFFFFF" FontSize="12"/>
                                     <!-- One tick sent, two delivered, two blue read: the glyph
                                          comes from the status converter and the colour from
                                          `MsgStatusToColor`, which is why this used to stay
                                          white for "read" too (2026-11-01). -->
                                     <TextBlock Text="{Binding Status, Converter={StaticResource MsgStatusToString}}"
                                                Foreground="{Binding Status, Converter={StaticResource MsgStatusToColor}}"
-                                               FontSize="18.667" Margin="4,0,0,0"/>
+                                               FontSize="12" Margin="4,0,0,0"/>
                                 </StackPanel>
                                 <!-- The send failed and the bubble says it: the way out is
                                      here and not in the keyboard. It sends the same text or
@@ -639,7 +632,7 @@
                                         Background="Transparent"
                                         Click="RetryMessageButton_Click"
                                         Visibility="{Binding CanRetry, Converter={StaticResource BoolToVisibility}}">
-                                    <TextBlock x:Uid="ChatPage_Retry" Text="Try again"
+                                    <TextBlock Text="{Binding Status, Converter={StaticResource LocalizedMessageText}, ConverterParameter=ChatPage_Retry.Text}"
                                                FontSize="12"
                                                Foreground="{StaticResource WhatsAppAccentTextBrush}"/>
                                 </Button>
@@ -647,8 +640,8 @@
                         </Border>
                     </Grid>
                 </DataTemplate>
-            </ListView.ItemTemplate>
-        </ListView>
+            </phone:LongListSelector.ItemTemplate>
+        </phone:LongListSelector>
 
         <!-- WhatsApp's arrow back to the newest message, over the conversation
              in the bottom left. One 44x44 target: the dark circle and the down
@@ -724,7 +717,7 @@
 
         <!-- Input area: the white strip of the official app, with the box a
              shade darker so the field reads as a field. -->
-        <Grid Grid.Row="3" Background="White">
+        <Grid Grid.Row="3" Background="#FF171717">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="56"/>
@@ -732,7 +725,7 @@
 
             <!-- Selected image preview -->
             <Grid x:Name="ImagePreviewBar" Grid.Row="0" Height="64"
-                  Background="#FFE8E8E8" Visibility="Collapsed">
+                  Background="#FF292929" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
@@ -745,7 +738,7 @@
                      without drawing anything. -->
                 <Path x:Name="SelectedVideoPreview" Grid.Column="0"
                       Width="30" Height="30" Margin="17,17,0,17"
-                      Fill="#FF606060"
+                      Fill="White"
                       Visibility="Collapsed">
                     <!-- IconPlay -->
                     <Path.Data>
@@ -764,7 +757,7 @@
                      its thumbnail. Nothing is decoded for it. -->
                 <Path x:Name="SelectedAudioPreview" Grid.Column="0"
                       Width="30" Height="30" Margin="17,17,0,17"
-                      Fill="#FF606060"
+                      Fill="White"
                       Visibility="Collapsed">
                     <!-- IconMicrophone -->
                     <Path.Data>
@@ -809,19 +802,19 @@
                                Text=""
                                Foreground="White" FontSize="9" FontWeight="SemiBold"
                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                               TextTrimming="CharacterEllipsis"/>
+                               TextTrimming="WordEllipsis"/>
                 </Border>
-                <TextBlock x:Uid="ChatPage_ImageSelected" x:Name="PreviewLabel" Grid.Column="1"
-                           Text="Image selected"
+                <TextBlock x:Name="PreviewLabel" Grid.Column="1"
+                           Text=""
                            VerticalAlignment="Center"
-                           Foreground="#FF606060" FontSize="13"
+                           Foreground="#FFE0E8E8" FontSize="13"
                            Margin="8,0,0,0"/>
                 <Button x:Name="ClearImageButton" Grid.Column="2"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
                         Width="44" Height="44" BorderThickness="0" Padding="0"
                         Click="ClearImageButton_Click">
-                    <Path Stroke="#FF808080" StrokeThickness="2.4"
+                    <Path Stroke="#FF9BAEB0" StrokeThickness="2.4"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round"
                           Width="24" Height="24">
                         <!-- IconClose -->
@@ -848,7 +841,7 @@
             <!-- Recording: a red dot and the elapsed time. It shares row 0 with
                  the preview bar and never shows together with it. -->
             <Grid x:Name="RecordingBar" Grid.Row="0" Height="64"
-                  Background="#FFFCE4E4" Visibility="Collapsed">
+                  Background="#FF292929" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
@@ -857,14 +850,14 @@
                 <Ellipse Grid.Column="0" Width="12" Height="12"
                          Margin="16,0,0,0" VerticalAlignment="Center"
                          Fill="#FFE53935"/>
-                <TextBlock x:Uid="ChatPage_RecordingLabel" Grid.Column="1"
-                           Text="Recording"
+                <TextBlock x:Name="RecordingLabelText" Grid.Column="1"
+                           Text=""
                            VerticalAlignment="Center" Margin="10,0,0,0"
-                           Foreground="#FF606060" FontSize="13"/>
+                           Foreground="#FFE0E8E8" FontSize="13"/>
                 <TextBlock x:Name="RecordTimerText" Grid.Column="2"
                            Text=""
                            VerticalAlignment="Center" Margin="8,0,0,0"
-                           Foreground="#FF606060" FontSize="13"/>
+                           Foreground="#FFE0E8E8" FontSize="13"/>
             </Grid>
 
             <!-- Input row -->
@@ -884,7 +877,9 @@
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="AttachButton_Click">
-                    <Path Stroke="#FF808080" StrokeThickness="2"
+                    <Grid Width="40" Height="40">
+                    <Ellipse Width="40" Height="40" Fill="#FF303030"/>
+                    <Path Stroke="White" StrokeThickness="2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                           Width="24" Height="24">
                         <!-- IconPhoto -->
@@ -913,6 +908,7 @@
                             </PathGeometry>
                         </Path.Data>
                     </Path>
+                    </Grid>
                 </Button>
 
                 <!-- Group only: @ names a member. Collapsed in a one-to-one chat. -->
@@ -921,22 +917,30 @@
                         MinWidth="0" MinHeight="0"
                         Width="40" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4" Visibility="Collapsed"
-                        Content="@" FontSize="20" Foreground="#FF808080"
+                        Content="@" FontSize="20" Foreground="White"
                         Click="MentionButton_Click"/>
 
-                <TextBox x:Name="MessageTextBox" x:Uid="ChatPage_Input" Grid.Column="2"
-                         Text=""
-                         PlaceholderText="Type a message"
+                <Border Grid.Column="2" Margin="0,0,4,0" Background="#FFE7E7E7" CornerRadius="20">
+                    <Grid>
+                    <TextBlock x:Name="MessagePlaceholderText"
+                               Text=""
+                               IsHitTestVisible="False"
+                               VerticalAlignment="Center"
+                               Margin="12,0,4,0"
+                               Foreground="#FF777777"
+                               FontSize="20"/>
+                    <TextBox x:Name="MessageTextBox"
+                             Text=""
                          VerticalAlignment="Center"
                          Height="40"
                          FontSize="20"
-                         Background="#FFF2F2F2"
+                         Background="Transparent"
                          BorderThickness="0"
                          KeyDown="MessageTextBox_KeyDown"
                          KeyUp="MessageTextBox_KeyUp"
                          AcceptsReturn="False"
                          TextChanged="MessageTextBox_TextChanged"
-                         Margin="0,0,4,0">
+                         Foreground="#FF333333">
                     <!-- The scope is what puts the emoji key on the keyboard: Windows
                          Phone 8.1 shows the smiley next to the space bar only for `Chat`,
                          and with it the keyboard turns a typed `:)` into the emoji it has.
@@ -949,7 +953,9 @@
                             </InputScope.Names>
                         </InputScope>
                     </TextBox.InputScope>
-                </TextBox>
+                    </TextBox>
+                    </Grid>
+                </Border>
 
                 <Button x:Name="RecordButton" Grid.Column="3"
                         Background="Transparent"
@@ -957,7 +963,9 @@
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="RecordButton_Click">
-                    <Path Stroke="#FF808080" StrokeThickness="2"
+                    <Grid Width="40" Height="40">
+                    <Ellipse Width="40" Height="40" Fill="#FF303030"/>
+                    <Path Stroke="White" StrokeThickness="2"
                           StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
                           Width="24" Height="24">
                         <!-- IconMicrophone -->
@@ -993,6 +1001,7 @@
                             </PathGeometry>
                         </Path.Data>
                     </Path>
+                    </Grid>
                 </Button>
 
                 <Button x:Name="StopRecordButton" Grid.Column="4"
@@ -1019,13 +1028,15 @@
                 </Button>
 
                 <Button x:Name="SendButton" Grid.Column="5"
-                        Background="{StaticResource WhatsAppAccentBrush}"
+                        Background="Transparent"
                         Foreground="White"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48"
                         Margin="0,4,8,4"
                         BorderThickness="0" Padding="0"
                         Click="SendButton_Click">
+                    <Grid Width="44" Height="44">
+                    <Ellipse Width="44" Height="44" Fill="#FF00A8C7"/>
                     <Path Fill="White" Width="22" Height="22">
                         <!-- IconSend -->
                         <Path.Data>
@@ -1040,6 +1051,7 @@
                             </PathGeometry>
                         </Path.Data>
                     </Path>
+                    </Grid>
                 </Button>
             </Grid>
         </Grid>
@@ -1055,7 +1067,6 @@
                       IsHitTestVisible="False"
                       HorizontalAlignment="Left" VerticalAlignment="Top"
                       AutoPlay="False"
-                      AreTransportControlsEnabled="False"
                       MediaOpened="VoicePlayer_MediaOpened"
                       MediaEnded="VoicePlayer_MediaEnded"
                       MediaFailed="VoicePlayer_MediaFailed"/>
@@ -1065,7 +1076,7 @@
         <Grid x:Name="ImageViewer" Grid.RowSpan="4"
               Background="#F0000000"
               Visibility="Collapsed"
-              Tapped="ImageViewer_Tapped">
+              Tap="ImageViewer_Tapped">
             <Image x:Name="ImageViewerImage" Stretch="Uniform"/>
         </Grid>
 
@@ -1077,10 +1088,74 @@
               Background="Black"
               Visibility="Collapsed">
             <MediaElement x:Name="VideoPlayer"
-                          AreTransportControlsEnabled="True"
                           AutoPlay="True"
                           Stretch="Uniform"
+                          MediaOpened="VideoPlayer_MediaOpened"
+                          MediaEnded="VideoPlayer_MediaEnded"
                           MediaFailed="VideoPlayer_MediaFailed"/>
+            <Grid x:Name="VideoTransportPanel"
+                  Height="56"
+                  VerticalAlignment="Bottom"
+                  Background="#CC091518"
+                  Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="56"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <Button x:Name="VideoPlaybackButton" Grid.Column="0"
+                        IsEnabled="False"
+                        Background="Transparent"
+                        MinWidth="0" MinHeight="0"
+                        Width="48" Height="48"
+                        BorderThickness="0" Padding="0"
+                        Click="VideoPlaybackButton_Click">
+                    <Grid>
+                        <Path x:Name="VideoPlayIcon" Fill="White" Width="20" Height="20"
+                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                              Visibility="Collapsed">
+                            <!-- IconPlay -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="6,3" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="22,12 6,21"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                        <Path x:Name="VideoPauseIcon" Fill="White" Width="18" Height="18"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- IconPause -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="5,3" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="9,3 9,21 5,21"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                        <PathFigure StartPoint="15,3" IsClosed="True">
+                                            <PathFigure.Segments>
+                                                <PolyLineSegment Points="19,3 19,21 15,21"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                    </Grid>
+                </Button>
+                <Slider x:Name="VideoSeekSlider" Grid.Column="1"
+                        Minimum="0" Maximum="1" Value="0"
+                        IsEnabled="False"
+                        VerticalAlignment="Center"
+                        Margin="8,0,16,0"
+                        Foreground="{StaticResource WhatsAppAccentBrush}"
+                        ValueChanged="VideoSeekSlider_ValueChanged"/>
+            </Grid>
             <Button x:Name="VideoCloseButton"
                     Background="Transparent"
                     MinWidth="0" MinHeight="0"
@@ -1120,5 +1195,233 @@
                        Margin="24,0,24,0"
                        Visibility="Collapsed"/>
         </Grid>
+
+        <!-- Each entry opens the phone's continuation-based file picker with a
+             matching filter; the selection still reaches AttachmentInbox. -->
+        <Grid x:Name="AttachmentPickerOverlay" Grid.RowSpan="4"
+              Background="#B0000000"
+              Visibility="Collapsed">
+            <Button x:Name="AttachmentPickerDismissButton"
+                    Background="Transparent"
+                    BorderThickness="0"
+                    MinWidth="0" MinHeight="0"
+                    Click="AttachmentPickerDismissButton_Click"/>
+            <Border Width="400"
+                    MaxWidth="460"
+                    Padding="12"
+                    Background="#FF242424"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <StackPanel>
+                    <TextBlock x:Name="AttachmentPickerTitle"
+                               Text=""
+                               Foreground="White"
+                               FontSize="22"
+                               Margin="8,0,8,12"
+                               TextWrapping="Wrap"/>
+                    <Grid HorizontalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <Button x:Name="AttachmentAlbumsButton" Grid.Row="0" Grid.Column="0"
+                                Width="112" Height="112" MinWidth="0" MinHeight="0"
+                                Margin="4" Padding="8" BorderThickness="0"
+                                Background="#FF00A8C7" Foreground="White"
+                                Click="AttachmentAlbumsButton_Click">
+                            <TextBlock x:Name="AttachmentAlbumsLabel" Text=""
+                                       FontSize="13" TextWrapping="Wrap"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Button>
+                        <Button x:Name="AttachmentPhotoButton" Grid.Row="0" Grid.Column="1"
+                                Width="112" Height="112" MinWidth="0" MinHeight="0"
+                                Margin="4" Padding="8" BorderThickness="0"
+                                Background="#FF00A8C7" Foreground="White"
+                                Click="AttachmentPhotoButton_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Stroke="White" StrokeThickness="1.8" Width="28" Height="24"
+                                      HorizontalAlignment="Center">
+                                    <!-- IconPhoto -->
+                                    <Path.Data>
+                                        <PathGeometry>
+                                            <PathGeometry.Figures>
+                                                <PathFigure StartPoint="3.5,5.5" IsClosed="True">
+                                                    <PathFigure.Segments>
+                                                        <PolyLineSegment Points="20.5,5.5 20.5,18.5 3.5,18.5"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                                <PathFigure StartPoint="3.5,15">
+                                                    <PathFigure.Segments>
+                                                        <PolyLineSegment Points="8.5,10 12.5,14 15.5,11.5 20.5,15.5"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                                <PathFigure StartPoint="7.5,8">
+                                                    <PathFigure.Segments>
+                                                        <ArcSegment Size="1.3,1.3" RotationAngle="0" IsLargeArc="True"
+                                                                    SweepDirection="Clockwise" Point="7.5,10.6"/>
+                                                        <ArcSegment Size="1.3,1.3" RotationAngle="0" IsLargeArc="True"
+                                                                    SweepDirection="Clockwise" Point="7.5,8"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                            </PathGeometry.Figures>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                                <TextBlock x:Name="AttachmentPhotoLabel" Text=""
+                                           FontSize="19" TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="AttachmentVideoButton" Grid.Row="0" Grid.Column="2"
+                                Width="112" Height="112" MinWidth="0" MinHeight="0"
+                                Margin="4" Padding="8" BorderThickness="0"
+                                Background="#FF00A8C7" Foreground="White"
+                                Click="AttachmentVideoButton_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Fill="White" Width="28" Height="28" HorizontalAlignment="Center">
+                                    <!-- IconPlay -->
+                                    <Path.Data>
+                                        <PathGeometry>
+                                            <PathGeometry.Figures>
+                                                <PathFigure StartPoint="6,3" IsClosed="True">
+                                                    <PathFigure.Segments>
+                                                        <PolyLineSegment Points="22,12 6,21"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                            </PathGeometry.Figures>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                                <TextBlock x:Name="AttachmentVideoLabel" Text=""
+                                           FontSize="19" TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="AttachmentAudioButton" Grid.Row="1" Grid.Column="0"
+                                Width="112" Height="112" MinWidth="0" MinHeight="0"
+                                Margin="4" Padding="8" BorderThickness="0"
+                                Background="#FF00A8C7" Foreground="White"
+                                Click="AttachmentAudioButton_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Stroke="White" StrokeThickness="2" Width="28" Height="28"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" HorizontalAlignment="Center">
+                                    <!-- IconAudio -->
+                                    <Path.Data>
+                                        <PathGeometry>
+                                            <PathGeometry.Figures>
+                                                <PathFigure StartPoint="16,4">
+                                                    <PathFigure.Segments>
+                                                        <LineSegment Point="16,18"/>
+                                                        <BezierSegment Point1="16,22" Point2="9,23" Point3="7,20"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                                <PathFigure StartPoint="16,5">
+                                                    <PathFigure.Segments>
+                                                        <LineSegment Point="22,7"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                                <PathFigure StartPoint="16,10">
+                                                    <PathFigure.Segments>
+                                                        <LineSegment Point="21,12"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                            </PathGeometry.Figures>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                                <TextBlock x:Name="AttachmentAudioLabel" Text=""
+                                           FontSize="19" TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="AttachmentLocationButton" Grid.Row="1" Grid.Column="1"
+                                Width="112" Height="112" MinWidth="0" MinHeight="0"
+                                Margin="4" Padding="8" BorderThickness="0"
+                                Background="#FF00A8C7" Foreground="White"
+                                Click="AttachmentLocationButton_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Stroke="White" StrokeThickness="1.8" Width="28" Height="28"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" HorizontalAlignment="Center">
+                                    <!-- IconLocation -->
+                                    <Path.Data>
+                                        <PathGeometry>
+                                            <PathGeometry.Figures>
+                                                <PathFigure StartPoint="14,24.5" IsClosed="True">
+                                                    <PathFigure.Segments>
+                                                        <LineSegment Point="5.5,11.5"/>
+                                                        <ArcSegment Size="8.5,8.5" RotationAngle="0" IsLargeArc="True"
+                                                                    SweepDirection="Clockwise" Point="22.5,11.5"/>
+                                                        <LineSegment Point="14,24.5"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                                <PathFigure StartPoint="14,8.5" IsClosed="True">
+                                                    <PathFigure.Segments>
+                                                        <ArcSegment Size="2.6,2.6" RotationAngle="0" IsLargeArc="True"
+                                                                    SweepDirection="Clockwise" Point="14,13.7"/>
+                                                        <ArcSegment Size="2.6,2.6" RotationAngle="0" IsLargeArc="True"
+                                                                    SweepDirection="Clockwise" Point="14,8.5"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                            </PathGeometry.Figures>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                                <TextBlock x:Name="AttachmentLocationLabel" Text=""
+                                           FontSize="17" TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Button>
+                        <Button x:Name="AttachmentContactButton" Grid.Row="1" Grid.Column="2"
+                                Width="112" Height="112" MinWidth="0" MinHeight="0"
+                                Margin="4" Padding="8" BorderThickness="0"
+                                Background="#FF00A8C7" Foreground="White"
+                                Click="AttachmentContactButton_Click">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Path Stroke="White" StrokeThickness="1.8" Width="28" Height="28"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round" HorizontalAlignment="Center">
+                                    <!-- IconContact -->
+                                    <Path.Data>
+                                        <PathGeometry>
+                                            <PathGeometry.Figures>
+                                                <PathFigure StartPoint="12,3" IsClosed="True">
+                                                    <PathFigure.Segments>
+                                                        <ArcSegment Size="4,4" RotationAngle="0" IsLargeArc="False"
+                                                                    SweepDirection="Clockwise" Point="12,11"/>
+                                                        <ArcSegment Size="4,4" RotationAngle="0" IsLargeArc="False"
+                                                                    SweepDirection="Clockwise" Point="12,3"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                                <PathFigure StartPoint="4,22">
+                                                    <PathFigure.Segments>
+                                                        <ArcSegment Size="8,6" RotationAngle="0" IsLargeArc="False"
+                                                                    SweepDirection="Clockwise" Point="20,22"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                            </PathGeometry.Figures>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                                <TextBlock x:Name="AttachmentContactLabel" Text=""
+                                           FontSize="17" TextWrapping="Wrap"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           Margin="0,6,0,0"/>
+                            </StackPanel>
+                        </Button>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
-</Page>
+</phone:PhoneApplicationPage>

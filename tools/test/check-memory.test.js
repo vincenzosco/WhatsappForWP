@@ -235,7 +235,8 @@ test('ImageHelper del progetto costruisce la bitmap sul thread della vista', () 
   const source = fs.readFileSync(
     path.join(__dirname, '..', '..', 'WhatsappApp', 'Services', 'ImageHelper.cs'), 'utf8');
   assert.deepStrictEqual(memory.threadProblems(source, HELPER), []);
-  assert.ok(source.includes('RPC_E_WRONG_THREAD'));
+  assert.match(source, /dispatcher\.CheckAccess\(\)/);
+  assert.match(source, /BeginInvoke\(/);
 });
 
 test('una bitmap costruita senza chiedere il thread si segnala', () => {

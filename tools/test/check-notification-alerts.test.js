@@ -99,7 +99,7 @@ test('un interruttore che nessuno salva torna spento al riavvio', () => {
 test('una pagina che non scrive la scelta mostra un interruttore finto', () => {
   const broken = files();
   broken.settingsPage = broken.settingsPage.replace(
-    'SettingsService.MessageAlertsEnabled = MessagesToggle.IsOn;', ';');
+    'SettingsService.MessageAlertsEnabled = MessagesToggle.IsChecked == true;', ';');
   assert.match(alertProblems(broken).join('\n'), /MessageAlertsEnabled/);
 });
 

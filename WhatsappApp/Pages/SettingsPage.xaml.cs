@@ -1,8 +1,13 @@
 using System;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using Microsoft.Phone.Controls;
 using WhatsappApp.Services;
 
 namespace WhatsappApp.Pages
@@ -10,30 +15,40 @@ namespace WhatsappApp.Pages
     /// <summary>
     /// The settings screen: the chat wallpaper and the way to the account. It is
     /// the page the app bar's settings button opens; everything about the linked
-    /// number and the connection stayed on `ConnectionPage`, reachable from here,
-    /// so the two do not become one page that does everything.
-    ///
-    /// The wallpapers are the released package's own images (`Images/Wallpapers`),
-    /// not a palette copied from a screenshot: choosing one paints the conversation
-    /// and the home list exactly as the official app would.
+    /// number and the connection stayed on ConnectionPage, reachable from here.
     /// </summary>
-    public sealed partial class SettingsPage : Page
+    public sealed partial class SettingsPage : PhoneApplicationPage
     {
-        /// <summary>
-        /// True while the page is filling itself: setting `IsOn` raises `Toggled`, and
-        /// without this the page would write the setting it just read and register the
-        /// task again every time it opens.
-        /// </summary>
         private bool _loading;
 
         public SettingsPage()
         {
-            this.InitializeComponent();
-            ToolTipService.SetToolTip(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            InitializeComponent();
+            AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
 
-            // The grid binds the catalogue itself; `Selected` on each entry is what
-            // the check mark follows, so a tap repaints one cell instead of
-            // rebuilding the list and sending the scroll back to the top.
+            TitleText.Text = Loc.Get("Settings_Title.Text", "Settings").ToUpper(CultureInfo.CurrentCulture);
+            ThemeLabel.Text = Loc.Get("Settings_ThemeLabel.Text", "Theme").ToLower(CultureInfo.CurrentCulture);
+            ThemeHint.Text = Loc.Get("Settings_ThemeHint.Text",
+                "The background of chats and of the list. The choice applies to the whole app.");
+            AlertsLabel.Text = Loc.Get("Settings_AlertsLabel.Text", "Notifications").ToLower(CultureInfo.CurrentCulture);
+            AlertsHint.Text = Loc.Get("Settings_AlertsHint.Text",
+                "Which alerts show up in the notification area. The tile and the number on the icon do not change.");
+            MessagesLabel.Text = Loc.Get("Settings_AlertsMessages.Text", "Messages")
+                .ToUpper(CultureInfo.CurrentCulture);
+            StatusesLabel.Text = Loc.Get("Settings_AlertsStatuses.Text", "Updates")
+                .ToUpper(CultureInfo.CurrentCulture);
+            CallsLabel.Text = Loc.Get("Settings_AlertsCalls.Text", "Missed calls")
+                .ToUpper(CultureInfo.CurrentCulture);
+            BackgroundLabel.Text = Loc.Get("Settings_BackgroundLabel.Text", "Background check").ToLower(CultureInfo.CurrentCulture);
+            BackgroundHint.Text = Loc.Get("Settings_BackgroundHint.Text",
+                "If Windows allows it, the app wakes about every 30 minutes to check messages and update the tile and lock screen. Windows chooses the exact time and may delay or skip a check.");
+            BackgroundState.Text = Loc.Get("Settings_BackgroundState.Text",
+                "The phone does not allow apps to work in the background: the check will not wake until you turn it back on in the phone's settings.");
+            AccountLabel.Text = Loc.Get("Settings_AccountLabel.Text", "Account").ToLower(CultureInfo.CurrentCulture);
+            AccountHint.Text = Loc.Get("Settings_AccountHint.Text",
+                "The linked number, the state of the connection and linking another phone.");
+            AccountButton.Content = Loc.Get("Settings_AccountButton.Content", "Account and connection");
+
             ThemeGrid.ItemsSource = ThemeService.Choices;
         }
 
@@ -41,28 +56,29 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
-            // Painted on every navigation, and not once in the constructor: this page is
-            // where the choice is made, so it also has to show the new one when somebody
-            // comes back to it rather than the one it was built with.
             ApplyTheme();
-
             Diag.Ok("settings: " + ThemeService.Choices.Count + " theme(s), current " + ThemeService.Current);
 
             _loading = true;
-            MessagesToggle.IsOn = SettingsService.MessageAlertsEnabled;
-            StatusesToggle.IsOn = SettingsService.StatusAlertsEnabled;
-            CallsToggle.IsOn = SettingsService.CallAlertsEnabled;
-            BackgroundToggle.IsOn = SettingsService.BackgroundCheckEnabled;
+            MessagesToggle.IsChecked = SettingsService.MessageAlertsEnabled;
+            StatusesToggle.IsChecked = SettingsService.StatusAlertsEnabled;
+            CallsToggle.IsChecked = SettingsService.CallAlertsEnabled;
+            BackgroundToggle.IsChecked = SettingsService.BackgroundCheckEnabled;
+            ThemeGrid.SelectedItem = FindSelectedTheme();
             _loading = false;
 
             ShowBackgroundState();
         }
 
-        /// <summary>
-        /// Puts the chosen background behind this page, under the same veil the home
-        /// list uses. Plain white is the absence of an image, not a white picture: the
-        /// veil over nothing is the page's own background.
-        /// </summary>
+        private ThemeChoice FindSelectedTheme()
+        {
+            for (int i = 0; i < ThemeService.Choices.Count; i++)
+            {
+                if (ThemeService.Choices[i].Selected) return ThemeService.Choices[i];
+            }
+            return null;
+        }
+
         private void ApplyTheme()
         {
             ImageSource image = ThemeService.ImageFor(ThemeService.Current);
@@ -70,19 +86,9 @@ namespace WhatsappApp.Pages
             PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
-        /// <summary>
-        /// What the phone says about the switch above it.
-        ///
-        /// The switch is this app's own choice, and the phone has one of its own: the user
-        /// can take background work away from the app in the phone's settings, and battery
-        /// saver does it for a while by itself. The registration then stays and nothing
-        /// wakes, so the switch would read "on" for a check that never runs. The line is
-        /// read on every visit - it is the answer of the moment, not a flag.
-        /// </summary>
         private void ShowBackgroundState()
         {
             bool permitted = BackgroundSync.IsPermitted();
-
             BackgroundState.Visibility = permitted ? Visibility.Collapsed : Visibility.Visible;
 
             if (!permitted)
@@ -91,66 +97,49 @@ namespace WhatsappApp.Pages
             }
         }
 
-        /// <summary>
-        /// Which alerts arrive. Each switch is its own question and its own key: they are
-        /// read where the alert is raised (`NotificationService`), so a change here is
-        /// in force from the next message - no restart and no re-registration.
-        /// </summary>
         private void MessagesToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
 
-            SettingsService.MessageAlertsEnabled = MessagesToggle.IsOn;
-            Diag.Ok("settings: message alerts " + (MessagesToggle.IsOn ? "on" : "off"));
+            SettingsService.MessageAlertsEnabled = MessagesToggle.IsChecked == true;
+            Diag.Ok("settings: message alerts " + (MessagesToggle.IsChecked == true ? "on" : "off"));
         }
 
         private void StatusesToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
 
-            SettingsService.StatusAlertsEnabled = StatusesToggle.IsOn;
-            Diag.Ok("settings: status alerts " + (StatusesToggle.IsOn ? "on" : "off"));
+            SettingsService.StatusAlertsEnabled = StatusesToggle.IsChecked == true;
+            Diag.Ok("settings: status alerts " + (StatusesToggle.IsChecked == true ? "on" : "off"));
         }
 
         private void CallsToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
 
-            SettingsService.CallAlertsEnabled = CallsToggle.IsOn;
-            Diag.Ok("settings: call alerts " + (CallsToggle.IsOn ? "on" : "off"));
+            SettingsService.CallAlertsEnabled = CallsToggle.IsChecked == true;
+            Diag.Ok("settings: call alerts " + (CallsToggle.IsChecked == true ? "on" : "off"));
         }
 
-        /// <summary>
-        /// The periodic check is a registration with the system, not only a flag: the
-        /// switch writes the choice and registers or cancels the task (see
-        /// `BackgroundSync`). The first time it is turned on, Windows may ask for the
-        /// permission a background task needs.
-        /// </summary>
         private void BackgroundToggle_Toggled(object sender, RoutedEventArgs e)
         {
             if (_loading) return;
 
-            SettingsService.BackgroundCheckEnabled = BackgroundToggle.IsOn;
+            bool enabled = BackgroundToggle.IsChecked == true;
+            SettingsService.BackgroundCheckEnabled = enabled;
 
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("SettingsPage/background",
-                BackgroundSync.SetEnabledAsync(BackgroundToggle.IsOn));
+            Guarded.RunGuardedAsync("SettingsPage/background", BackgroundSync.SetEnabledAsync(enabled));
 #pragma warning restore 4014
 
-            // Registering asks the phone again, and the answer may have changed while
-            // this page was open: the line follows the switch instead of waiting for the
-            // next visit.
             ShowBackgroundState();
         }
 
-        /// <summary>
-        /// One tap decides. The choice is written down and the pages that paint it
-        /// read it on their next navigation: the home list is cached and gets an
-        /// `OnNavigatedTo` when this page pops, and a chat is built every time.
-        /// </summary>
-        private void ThemeGrid_ItemClick(object sender, ItemClickEventArgs e)
+        private void ThemeGrid_ItemClick(object sender, SelectionChangedEventArgs e)
         {
-            var choice = e.ClickedItem as ThemeChoice;
+            if (_loading || e.AddedItems.Count == 0) return;
+
+            ThemeChoice choice = e.AddedItems[0] as ThemeChoice;
             if (choice == null) return;
 
             ThemeService.Choose(choice.Key);
@@ -158,15 +147,49 @@ namespace WhatsappApp.Pages
 
         private void AccountButton_Click(object sender, RoutedEventArgs e)
         {
-            Frame.Navigate(typeof(ConnectionPage));
+            NavigationService.Navigate(new Uri("/Pages/ConnectionPage.xaml", UriKind.Relative));
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)
         {
-            if (Frame.CanGoBack)
-                Frame.GoBack();
+            if (NavigationService.CanGoBack)
+                NavigationService.GoBack();
             else
-                Frame.Navigate(typeof(HomePage));
+                NavigationService.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
+        }
+    }
+
+    public sealed class ThemePlainSampleConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string uri = value as string;
+            return string.IsNullOrEmpty(uri)
+                ? Loc.Get("Settings_ThemePlainSample.Text", "Aa")
+                : "";
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return null;
+        }
+    }
+
+    public sealed class ThemeThumbnailConverter : IValueConverter
+    {
+        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            string uri = value as string;
+            if (string.IsNullOrEmpty(uri)) return null;
+
+            var image = new BitmapImage();
+            image.UriSource = new Uri(uri, UriKind.RelativeOrAbsolute);
+            return image;
+        }
+
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            return null;
         }
     }
 }

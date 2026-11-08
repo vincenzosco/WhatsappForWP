@@ -21,6 +21,23 @@ namespace WhatsappApp.Services
     public static class Guarded
     {
         /// <summary>
+        /// Starts work that has no awaiting caller and logs its fault. The delegate
+        /// keeps synchronous failures inside the same observation boundary.
+        /// </summary>
+        public static async void RunGuarded(string where, Func<Task> work)
+        {
+            try
+            {
+                if (work == null) return;
+                await work();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed(where, ex);
+            }
+        }
+
+        /// <summary>
         /// Runs the work and logs its fault. It never throws: the caller had no
         /// way to observe it, which is the whole point.
         /// </summary>
@@ -53,7 +70,7 @@ namespace WhatsappApp.Services
             return RunGuardedAsync(where, StartGuarded(where, work));
         }
 
-        private static async Task StartGuarded(string where, Func<Task> work)
+        public static async Task StartGuarded(string where, Func<Task> work)
         {
             Task task;
             try

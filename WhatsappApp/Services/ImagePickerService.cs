@@ -5,16 +5,16 @@ namespace WhatsappApp.Services
     /// <summary>
     /// Opens the WP8.1 file picker.
     ///
-    /// It uses PickMultipleFilesAndContinue and NOT the Async forms: the
-    /// Microsoft documentation says PickSingleFileAsync is not supported on
-    /// Windows Phone (neither for Windows Runtime nor for Silverlight) and points
-    /// at PickSingleFileAndContinue. On the phone the first one failed, and the
-    /// attach button looked dead.
+    /// The installed WP8.1 Silverlight projection includes FileOpenPicker and
+    /// PickMultipleFilesAndContinue. It uses that continuation API and not an
+    /// Async form: PickSingleFileAsync is not supported on Windows Phone, for
+    /// either app model, and the phone points at PickSingleFileAndContinue. A
+    /// PhotoChooserTask would omit the existing video, audio and document choices.
     ///
-    /// The difference that matters: PickSingleFileAndContinue returns nothing. It
-    /// deactivates the app, and the chosen file comes back to App.OnActivated as a
-    /// PickFileContinuation. The result therefore does not pass through here: App
-    /// deposits it in AttachmentInbox.
+    /// PickMultipleFilesAndContinue returns nothing. It deactivates the app, and
+    /// the files arrive through FileOpenPickerContinuationEventArgs when the app
+    /// resumes. The app shell deposits them in AttachmentInbox; cancelling yields
+    /// no files and leaves the current attachment state alone.
     ///
     /// Documents are in the list because the picker is the only way in: with only
     /// images and videos there was no route at all to send a PDF, and a PDF goes out

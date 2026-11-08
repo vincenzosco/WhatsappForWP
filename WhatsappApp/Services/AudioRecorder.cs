@@ -234,7 +234,9 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(_fileName);
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(_fileName);
+                StorageFile file = item as StorageFile;
+                if (file == null) return null;
                 var properties = await file.GetBasicPropertiesAsync();
                 if (properties.Size == 0) return null;
             }

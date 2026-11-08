@@ -37,6 +37,12 @@ namespace WhatsappApp.Services
         /// </summary>
         public static async Task RunAsync()
         {
+            if (!NativeInterop.IsSupported)
+            {
+                bool available = VoiceNoteEncoder.IsAvailable;
+                return;
+            }
+
             bool inPackage = false;
             IStorageItem item = null;
 

@@ -2,7 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Windows.UI.Xaml.Media.Imaging;
+using System.Windows.Media.Imaging;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
 

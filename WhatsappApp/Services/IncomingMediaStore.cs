@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -185,13 +184,10 @@ namespace WhatsappApp.Services
 
                 try
                 {
-                    StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(message.MediaFilePath);
-                    await file.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                    IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(message.MediaFilePath);
+                    if (item == null) continue;
+                    await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
                     dropped++;
-                }
-                catch (FileNotFoundException)
-                {
-                    // Nothing to drop.
                 }
                 catch (Exception ex)
                 {

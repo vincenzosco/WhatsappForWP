@@ -8,7 +8,7 @@ using System.Globalization;
 using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage.Streams;
-using Windows.UI.Xaml.Media.Imaging;
+using System.Windows.Media.Imaging;
 using WhatsappApp.Protocol.Client;
 using WhatsappApp.Services;
 

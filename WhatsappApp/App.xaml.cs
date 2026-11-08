@@ -1,159 +1,131 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
-using Windows.ApplicationModel;
+using System.Threading.Tasks;
+using Microsoft.Phone.Controls;
+using Microsoft.Phone.Shell;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Navigation;
+using System.Windows.Threading;
 using Windows.ApplicationModel.Activation;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.ApplicationModel.DataTransfer.ShareTarget;
-using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.Storage;
 using Windows.Storage.Streams;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
-using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Animation;
-using Windows.UI.Xaml.Navigation;
 using WhatsappApp.Controls;
 using WhatsappApp.Pages;
 using WhatsappApp.Services;
 
-// The Blank Application template is documented at http://go.microsoft.com/fwlink/?LinkId=391641
-
 namespace WhatsappApp
 {
     /// <summary>
-    /// Provides application-specific behavior to supplement the default Application class.
+    /// Owns the Windows Phone Silverlight application lifecycle and navigation frame.
     /// </summary>
     public sealed partial class App : Application
     {
-        private TransitionCollection transitions;
+        private const string HomePageUri = "/Pages/HomePage.xaml";
+        private const string PairPageUri = "/Pages/PairPage.xaml";
 
-        // Navigate() fails by returning false, not by throwing: the real reason
-        // arrives here. Without this, a XAML error in a page shows up as
-        // "Failed to create initial page" and nothing else.
-        private Exception navigationFailure;
-
-        // Services and watchdogs exist once per process: a share can reactivate
-        // an already-started app, and they must not be duplicated.
-        private bool servicesStarted;
-
-        // The heartbeat the diagnostics watchdog reads: while this timer ticks, the
-        // ui thread is answering, and a run that stops ticking is written down with
-        // the step the connection loop had reached (see `Diag.StartWatchdog`).
+        private PhoneApplicationFrame _rootFrame;
+        private bool _phoneApplicationInitialized;
+        private bool _initialNavigationPending = true;
+        private bool _allowLaunchRoute;
+        private bool _forceHomeForContinuation;
+        private bool _servicesStarted;
+        private bool _isForeground;
+        private bool _leavingForeground;
+        private int _lifecycleVersion;
         private DispatcherTimer _uiHeartbeat;
+        private ShareOperation _shareOperation;
+        private FileOpenPickerContinuationEventArgs _pickerContinuation;
 
-        /// <summary>
-        /// Initializes the singleton application object. This is the first line of
-        /// authored code executed, and as such is the logical equivalent of main() or WinMain().
-        /// </summary>
+        /// <summary>Initializes the Silverlight app, frame, and phone lifecycle events.</summary>
         public App()
         {
-            this.InitializeComponent();
-            this.Suspending += this.OnSuspending;
-            this.Resuming += this.OnResuming;
+            InitializeComponent();
+            InitializePhoneApplication();
 
-            // A fatal exception on the UI thread used to kill the process before
-            // any Diag line was written: the log stopped at the assembly list and
-            // the crash had no name. These handlers put the type, the HRESULT, the
-            // message and the frames in the log before that happens.
-            this.UnhandledException += this.OnUnhandled;
-            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += this.OnUnobservedTask;
+            PhoneApplicationService service = PhoneApplicationService.Current;
+            service.Launching += OnLaunching;
+            service.Activated += OnActivated;
+            service.Deactivated += OnDeactivated;
+            service.Closing += OnClosing;
+            service.ContractActivated += OnContractActivated;
 
-            // Only the UI thread is covered, and on this platform it cannot be
-            // otherwise: Windows Phone 8.1 declares no `AppDomain` at all (the ARM
-            // build answered `error CS0103: the name 'AppDomain' does not exist`),
-            // so an exception raised on a thread that is not the UI thread has no
-            // hook here and takes the process down without a line. What a background
-            // failure can do about it is not be raised: every worker goes through
-            // `Guarded`, which records the failure and keeps the app alive.
+            UnhandledException += OnUnhandled;
+            TaskScheduler.UnobservedTaskException += OnUnobservedTask;
         }
 
-        /// <summary>
-        /// An exception nobody caught. It is written down first; a debug build
-        /// then survives it, because the run that is being diagnosed is worth more
-        /// alive than dead. A release build still goes down: an app that lost its
-        /// UI is worse than an app that closes.
-        /// </summary>
-        private void OnUnhandled(object sender, UnhandledExceptionEventArgs e)
+        private void InitializePhoneApplication()
         {
-            Diag.Failed("App/unhandled", e.Exception);
+            if (_phoneApplicationInitialized) return;
 
-            // The frames too: the type and the HRESULT name the failure, and only
-            // the stack says which call raised it.
-            Diag.Stack(e.Exception);
-
-            // Forced: the lines above are only in memory until they are written,
-            // and this is the one moment where the process may not survive to
-            // write them later. A crash with no line is the failure nobody can fix.
-            Diag.Flush(true);
-#if DEBUG
-            e.Handled = true;
-#endif
+            _rootFrame = new PhoneApplicationFrame();
+            _rootFrame.UriMapper = new AppUriMapper(this);
+            _rootFrame.NavigationFailed += RootFrame_NavigationFailed;
+            _rootFrame.Navigated += CompleteInitializePhoneApplication;
+            _rootFrame.Navigated += RootFrame_Navigated;
+            _phoneApplicationInitialized = true;
         }
 
-
-        /// <summary>
-        /// A Task whose fault nobody read. The phone used to die with no line at
-        /// all, which is the same blind spot one task lower.
-        /// </summary>
-        private void OnUnobservedTask(object sender, System.Threading.Tasks.UnobservedTaskExceptionEventArgs e)
+        private void CompleteInitializePhoneApplication(object sender, NavigationEventArgs e)
         {
-            Diag.Failed("App/unobserved-task", e.Exception);
-            Diag.Stack(e.Exception);
-            Diag.Flush(true);
-            e.SetObserved();
+            if (RootVisual != _rootFrame) RootVisual = _rootFrame;
+            _rootFrame.Navigated -= CompleteInitializePhoneApplication;
         }
 
-        /// <summary>
-        /// Invoked when the application is launched normally by the end user. Other
-        /// entry points will be used to open a specific file, to display search
-        /// results, and so on.
-        /// </summary>
-        /// <param name="e">Details about the launch request and process.</param>
-        protected override void OnLaunched(LaunchActivatedEventArgs e)
+        private void RootFrame_Navigated(object sender, NavigationEventArgs e)
         {
-#if DEBUG
-            if (System.Diagnostics.Debugger.IsAttached)
-            {
-                this.DebugSettings.EnableFrameRateCounter = true;
-            }
-#endif
+            OpenPendingChat();
+            DepositPickerContinuation();
+        }
 
-            StartServicesOnce();
+        private void OpenPendingChat()
+        {
+            HomePage home = _rootFrame.Content as HomePage;
+            if (home != null) home.OpenPinnedChat();
+        }
 
-            // The app is what the user is looking at until the OS says otherwise
-            // (`OnSuspending`), and while it is, a message toast is noise: the message
-            // is already on the screen. The background wake is another process and
-            // starts with the opposite answer (see `NotificationService.SetForeground`).
-            NotificationService.SetForeground(true);
+        /// <summary>Captures failures from native Silverlight navigation before they reach the shell.</summary>
+        private void RootFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)
+        {
+            string route = e.Uri == null ? "unknown route" : e.Uri.ToString();
+            Diag.Failed("App/navigation " + route, e.Exception);
+        }
 
-            // A tile on the Start screen names the chat it opens, and it arrives here as the
-            // launch arguments: the same launch entry point, with a reason attached. The page
-            // that can act on it is the home page, which is built below on a cold start and
-            // already alive on a launch from a running app.
-            string tileChat = PinnedTile.ChatFromArguments(e.Arguments);
-            if (!string.IsNullOrEmpty(tileChat))
+        private Uri MapInitialUri(Uri uri)
+        {
+            if (uri == null) return null;
+
+            string tileArguments = QueryValue(uri, "tile");
+            if (tileArguments == null) tileArguments = QueryValue(uri, "arguments");
+            if (tileArguments == null) tileArguments = QueryValue(uri, "launchArgs");
+
+            string tileChat = PinnedTile.ChatFromArguments(tileArguments);
+            bool hasTileRoute = !string.IsNullOrEmpty(tileChat);
+            if (hasTileRoute)
             {
                 SessionService.PendingChatId = tileChat;
-                SessionService.PendingChatName = PinnedTile.NameFromArguments(e.Arguments);
+                SessionService.PendingChatName = PinnedTile.NameFromArguments(tileArguments);
                 Diag.Ok("pinned tile: launching into " + tileChat);
+
+                if (!_initialNavigationPending)
+                {
+                    return new Uri(HomePageUri, UriKind.Relative);
+                }
             }
-            else if (e.PreviousExecutionState != ApplicationExecutionState.Terminated)
+
+            if (!_initialNavigationPending) return uri;
+            _initialNavigationPending = false;
+
+            if (_shareOperation != null || _forceHomeForContinuation)
             {
-                // The app's own tile - and the lock screen, which shows the same tile -
-                // arrives as a plain launch: WP8.1 hands it the same empty arguments as the
-                // app list does, so nothing in the launch says where the tap was. What is
-                // left is the record the notification layer wrote of what the phone was
-                // showing while it was closed (`LaunchRoute`). It is taken and named here,
-                // and it no longer decides the tab: the app opens on the conversations, and
-                // the badge on the other two tabs is what says what is waiting there
-                // (asked for, when every launch landed on the Status tab).
+                _forceHomeForContinuation = false;
+                return new Uri(HomePageUri, UriKind.Relative);
+            }
+
+            if (!hasTileRoute && _allowLaunchRoute)
+            {
                 string route = SessionService.TakeRoute(DateTime.UtcNow);
                 if (!string.IsNullOrEmpty(route))
                 {
@@ -161,450 +133,358 @@ namespace WhatsappApp
                 }
             }
 
-            Frame rootFrame = EnsureFrame();
+            _allowLaunchRoute = false;
 
-            if (rootFrame.Content == null)
-            {
-                if (rootFrame.ContentTransitions != null)
-                {
-                    this.transitions = new TransitionCollection();
-                    foreach (var c in rootFrame.ContentTransitions)
-                    {
-                        this.transitions.Add(c);
-                    }
-                }
+            StartTarget target = StartDecision.Decide(
+                NativeCredentialStorage.Session().HasSession,
+                SessionState.Expired);
 
-                rootFrame.ContentTransitions = null;
-                rootFrame.Navigated += this.RootFrame_FirstNavigated;
-                rootFrame.NavigationFailed += this.RootFrame_NavigationFailed;
-
-                // Where this start goes. The decision is a rule and it lives in
-                // StartDecision, where it is a test (ProtocolTests/StartupTests.cs):
-                // no account stored - or an account WhatsApp has already refused -
-                // is the QR, and anything else is the chats. Nothing about the old
-                // server is an input, which is what keeps an install upgraded from
-                // the server build off its connection page.
-                //
-                // After a termination contacts and messages are not restored: they
-                // come from WhatsApp again on connection.
-                StartTarget target = StartDecision.Decide(
-                    NativeCredentialStorage.Session().HasSession,
-                    SessionState.Expired);
-
-                // One page hosts all three sections now (HomePage draws the tab
-                // strip and the panes); which tab it opens is read from
-                // SessionService in its OnNavigatedTo, so "the last section" and
-                // "the chats" are the same page with a different starting tab.
-                Type startPage = target == StartTarget.Pair
-                    ? typeof(PairPage)
-                    : typeof(HomePage);
-                if (!rootFrame.Navigate(startPage, e.Arguments))
-                {
-                    // The page name and the real exception, not just the template
-                    // sentence: without them a broken XAML is a silent crash.
-                    throw new Exception(
-                        "Failed to create initial page: " + startPage.FullName,
-                        this.navigationFailure);
-                }
-            }
-
-            // The page is there now, and a launch that found it already running has one thing
-            // left to do: open the chat a pinned tile named. The section is not part of it -
-            // a start is the chats (see HomePage.OnNavigatedTo).
-            var home = rootFrame.Content as HomePage;
-            if (home != null) home.OpenPinnedChat();
-
-            Window.Current.Activate();
+            return new Uri(target == StartTarget.Pair ? PairPageUri : HomePageUri, UriKind.Relative);
         }
 
-        /// <summary>
-        /// Navigation failed: keeps the exception for the OnLaunched message,
-        /// which would otherwise report only the false value.
-        /// </summary>
-        private void RootFrame_NavigationFailed(object sender, NavigationFailedEventArgs e)
+        private string QueryValue(Uri uri, string expectedKey)
         {
-            this.navigationFailure = e.Exception;
-        }
+            if (uri == null || string.IsNullOrEmpty(uri.OriginalString)) return null;
 
-        /// <summary>
-        /// Restores the content transitions after the application launches.
-        /// </summary>
-        /// <param name="sender">The object where the handler is attached.</param>
-        /// <param name="e">Details about the navigation event.</param>
-        private void RootFrame_FirstNavigated(object sender, NavigationEventArgs e)
-        {
-            var rootFrame = sender as Frame;
-            rootFrame.ContentTransitions = this.transitions ?? new TransitionCollection() { new NavigationThemeTransition() };
-            rootFrame.Navigated -= this.RootFrame_FirstNavigated;
-        }
-
-        /// <summary>
-        /// Invoked when application execution is being suspended. Application state
-        /// is saved without knowing whether the application will be terminated or
-        /// resumed with the contents of memory still intact.
-        /// </summary>
-        /// <param name="sender">The source of the suspend request.</param>
-        /// <param name="e">Details about the suspend request.</param>
-        private void OnSuspending(object sender, SuspendingEventArgs e)
-        {
-            var deferral = e.SuspendingOperation.GetDeferral();
-
-            // The deferral is completed inside LeaveWatchingAsync, and only there: if any of
-            // this throws on the way to it the OS waits out the suspension timeout and then
-            // kills the process, with the section unsaved and the run marker still saying a
-            // live run. So the two writes are guarded and the deferral is released here when
-            // the work that owns it never started.
-            bool leaving = false;
             try
             {
-                // Nothing is looked at from here on: a message that reaches the socket
-                // in the last moments before the process is frozen is worth a toast
-                // again, exactly like the one the background wake raises.
-                NotificationService.SetForeground(false);
+                string source = uri.OriginalString;
+                int queryStart = source.IndexOf('?');
+                if (queryStart < 0) return null;
 
-                // If the OS terminates the process while the app is suspended,
-                // OnLaunched restarts from here.
-                SessionService.Section = CurrentSection();
+                string query = source.Substring(queryStart + 1);
+                int fragmentStart = query.IndexOf('#');
+                if (fragmentStart >= 0) query = query.Substring(0, fragmentStart);
 
-                // This is how a run is supposed to end, and it is the only place that
-                // says so: the marker file the run left is removed here, so the next
-                // start reads a run that never reached this line as one that died. A
-                // suspension is not an exit - OnResuming puts the marker back.
-                Diag.EndRun();
+                string[] fields = query.Split('&');
+                for (int i = 0; i < fields.Length; i++)
+                {
+                    int separator = fields[i].IndexOf('=');
+                    if (separator < 0) continue;
 
-                leaving = true;
+                    string key = Uri.UnescapeDataString(fields[i].Substring(0, separator));
+                    if (!string.Equals(key, expectedKey, StringComparison.OrdinalIgnoreCase)) continue;
+
+                    string value = fields[i].Substring(separator + 1).Replace("+", "%20");
+                    return Uri.UnescapeDataString(value);
+                }
             }
             catch (Exception ex)
             {
-                Diag.Failed("App/suspend", ex);
+                Diag.Failed("App/launch-query " + expectedKey, ex);
             }
 
-            if (!leaving)
+            return null;
+        }
+
+        /// <summary>Maps the shell's initial URI to the pair, home, or shared-content route.</summary>
+        private sealed class AppUriMapper : UriMapperBase
+        {
+            private readonly App _app;
+
+            public AppUriMapper(App app)
             {
-                deferral.Complete();
-                return;
+                _app = app;
             }
 
-            // The socket is not closed here: the OS closes it on its own while the
-            // app is suspended, and WhatsApp's own client is what reconnects when
-            // the process comes back (see NativeConnection). The one thing that has
-            // to be sent within the deferral is the presence change, so the account
-            // stops being shown as online while this phone is frozen - the OS freezes
-            // the process without closing the socket, so nothing else would.
+            public override Uri MapUri(Uri uri)
+            {
+                return _app.MapInitialUri(uri);
+            }
+        }
+
+        /// <summary>
+        /// Silverlight share activation arrives here as ShareLaunchingEventArgs. The phone's
+        /// share contract also requires the initial URI to pass through the frame's URI mapper.
+        /// </summary>
+        private void OnLaunching(object sender, LaunchingEventArgs e)
+        {
+            ShareLaunchingEventArgs share = e as ShareLaunchingEventArgs;
+            if (share != null)
+            {
+                if (share.ShareTargetActivatedEventArgs == null
+                    || share.ShareTargetActivatedEventArgs.ShareOperation == null)
+                {
+                    Diag.Failed("App/share-launch", new InvalidOperationException("The share contract supplied no operation."));
+                }
+                else
+                {
+                    _shareOperation = share.ShareTargetActivatedEventArgs.ShareOperation;
+                }
+            }
+
+            _allowLaunchRoute = _shareOperation == null;
+            StartServicesOnce();
+            _isForeground = true;
+            NotificationService.SetForeground(true);
+
+            if (_shareOperation != null)
+            {
+                _forceHomeForContinuation = true;
 #pragma warning disable 4014
-            LeaveWatchingAsync(deferral);
+                Guarded.RunGuardedAsync("App/share", AcceptShareAsync(_shareOperation));
+#pragma warning restore 4014
+            }
+
+            EnsureStartupPage();
+        }
+
+        /// <summary>Restores foreground state after the phone reactivates this app.</summary>
+        private void OnActivated(object sender, ActivatedEventArgs e)
+        {
+            EnterForegroundFromActivation();
+            EnsureStartupPage();
+            OpenPendingChat();
+            DepositPickerContinuation();
+        }
+
+        /// <summary>Captures a Windows Phone picker continuation from the Silverlight contract event.</summary>
+        private void OnContractActivated(object sender, IActivatedEventArgs e)
+        {
+            FileOpenPickerContinuationEventArgs continuation = e as FileOpenPickerContinuationEventArgs;
+            if (continuation == null) return;
+
+            _pickerContinuation = continuation;
+            _forceHomeForContinuation = true;
+            EnterForegroundFromActivation();
+            EnsureStartupPage();
+
+            Deployment.Current.Dispatcher.BeginInvoke(delegate
+            {
+                DepositPickerContinuation();
+            });
+        }
+
+        private void EnterForegroundFromActivation()
+        {
+            StartServicesOnce();
+            NotificationService.SetForeground(true);
+
+            if (_isForeground) return;
+
+            _isForeground = true;
+            _leavingForeground = false;
+            _lifecycleVersion++;
+            Diag.MarkAlive();
+            BackgroundSync.Refresh();
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("App/OnActivated", ResumeAsync());
+#pragma warning restore 4014
+        }
+
+        private void EnsureStartupPage()
+        {
+            if (_rootFrame.Content != null || _rootFrame.Source != null) return;
+            _rootFrame.Navigate(new Uri(HomePageUri, UriKind.Relative));
+        }
+
+        /// <summary>Marks the app backgrounded and begins the bounded Silverlight deactivation work.</summary>
+        private void OnDeactivated(object sender, DeactivatedEventArgs e)
+        {
+            LeaveForeground();
+        }
+
+        private void OnClosing(object sender, ClosingEventArgs e)
+        {
+            LeaveForeground();
+        }
+
+        private void LeaveForeground()
+        {
+            _isForeground = false;
+            NotificationService.SetForeground(false);
+            if (_leavingForeground) return;
+
+            _leavingForeground = true;
+            try
+            {
+                SessionService.Section = CurrentSection();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/deactivate-section", ex);
+            }
+
+            int version = ++_lifecycleVersion;
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("App/deactivate", LeaveWatchingAsync(version));
 #pragma warning restore 4014
         }
 
         /// <summary>
-        /// Says "this phone is going away" and then completes the suspension.
-        ///
-        /// The wait is bounded on purpose: a suspended app is not given unlimited
-        /// time, and a socket that does not answer must not hold the app in the
-        /// foreground. The deferral is completed in a finally, so a failure releases
-        /// the app too. A phone with no session at all has nothing to say and leaves
-        /// at once.
+        /// Saves local state and announces unavailability while the Silverlight host is
+        /// deactivating. Unlike the WinRT suspension event, this lifecycle has no deferral.
         /// </summary>
-        private async void LeaveWatchingAsync(SuspendingDeferral deferral)
+        private async Task LeaveWatchingAsync(int version)
         {
-            // The list and the conversations as they are now, before the socket is told
-            // anything: a suspension is allowed to be the end of this run, and a row that
-            // arrived while the app was up would otherwise be gone from the next start's
-            // list. Awaited and not raced against a timeout like the presence below: a
-            // write cut in half is a `chats.json` the next start cannot read, which is an
-            // empty list - worse than the row it was saving.
             try
             {
                 await DataService.Instance.SaveSnapshotAsync();
             }
             catch (Exception ex)
             {
-                Diag.Failed("App/suspend-snapshot", ex);
+                Diag.Failed("App/deactivate-snapshot", ex);
             }
 
             try
             {
                 if (NativeConnection.Instance.IsConnected)
                 {
-                    System.Threading.Tasks.Task sending =
-                        NativeConnection.Instance.SendPresenceAsync("unavailable");
-                    await System.Threading.Tasks.Task.WhenAny(sending,
-                        System.Threading.Tasks.Task.Delay(2000));
+                    Task sending = NativeConnection.Instance.SendPresenceAsync("unavailable");
+                    await Task.WhenAny(sending, Task.Delay(2000));
                 }
             }
             catch (Exception ex)
             {
-                Diag.Failed("App/suspend-presence", ex);
+                Diag.Failed("App/deactivate-presence", ex);
             }
             finally
             {
-                deferral.Complete();
+                if (version == _lifecycleVersion) Diag.EndRun();
             }
         }
 
-        /// <summary>
-        /// The app comes back to the foreground. The socket it had is usually already
-        /// dead - the OS closes it when suspending the process - and nothing observes
-        /// a socket closed from the outside, so the client is told to look rather than
-        /// waiting for its own next keep-alive (see `NativeConnection`).
-        /// </summary>
-        private void OnResuming(object sender, object e)
-        {
-            // The run is alive again: the marker its suspension removed is put back,
-            // or a crash after this point would look like a run that ended cleanly.
-            Diag.MarkAlive();
-
-            // And the periodic check is asked about again: the phone's permission can have
-            // been given or taken while this app was suspended, and nothing tells a suspended
-            // process about it. Without this the check stayed unregistered - or registered
-            // with a trigger an older build asked for - until the next cold start.
-            BackgroundSync.Refresh();
-
-            // Suspension took the toast away; being in front is what gives it back.
-            NotificationService.SetForeground(true);
-
-            // The other half of the suspension frame: the socket is asked whether it is
-            // still there **before** the phone says it is here. WP8.1 freezes the process
-            // and the connection is usually gone by the time it resumes, so a presence sent
-            // without looking first is a sentence about a socket nobody checked - and the app
-            // went on showing the list it had while nothing new arrived (see
-            // `NativeConnection.CheckAsync`).
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("App/OnResuming", ResumeAsync());
-#pragma warning restore 4014
-        }
-
-        /// <summary>
-        /// The app is in front again: the connection is checked, and the account goes back
-        /// online only when the check found one to say it on. A check that fails is not a
-        /// failure here: the client dials again on its own, and this run has nothing left to
-        /// say.
-        /// </summary>
-        private static async System.Threading.Tasks.Task ResumeAsync()
+        private static async Task ResumeAsync()
         {
             if (!await NativeConnection.Instance.CheckAsync()) return;
-
             await NativeConnection.Instance.SendPresenceAsync("available");
         }
 
-        /// <summary>Section of the foreground page (a chat lives inside the chats).</summary>
         private static AppSection CurrentSection()
         {
-            var frame = Window.Current.Content as Frame;
+            Application app = Application.Current;
+            PhoneApplicationFrame frame = app == null ? null : app.RootVisual as PhoneApplicationFrame;
             if (frame == null) return AppSection.Chats;
 
-            var home = frame.Content as HomePage;
-            if (home != null) return home.CurrentSection;
-
-            return AppSection.Chats;
+            HomePage home = frame.Content as HomePage;
+            return home == null ? AppSection.Chats : home.CurrentSection;
         }
 
-        /// <summary>
-        /// Everything that must exist once per process, before the first page.
-        /// Both OnLaunched and a share call it: an app started by a share does not
-        /// go through OnLaunched.
-        /// </summary>
+        /// <summary>Starts process-wide services once, before the first page is shown.</summary>
         private void StartServicesOnce()
         {
-            if (servicesStarted) return;
-            servicesStarted = true;
+            if (_servicesStarted) return;
+            _servicesStarted = true;
 
-            // The resource loader cannot be created from a background thread:
-            // it is created here, once, on the UI thread.
             Loc.Prewarm();
-
-            // The phone's accent, before the first page resolves the brushes:
-            // app bar, selected tab, badges and sent bubble all use it, which is
-            // what the official package does through PhoneAccentBrush.
             Accent.Apply();
+            ApplyShellPalette();
 
-            // And the tile is painted with the same choice (`TileTheme`): the wallpaper the
-            // user set in Settings, or the accent when that choice is plain. Composed in its
-            // own time - it decodes a picture - and the tile is drawn again when it is ready.
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("App/tile theme", TileTheme.RefreshAsync());
 #pragma warning restore 4014
 
-            // The ui thread's own heartbeat, before anything that could stop it: a
-            // freeze is named by the thread that is still running, not by the one
-            // that stopped (see `Diag.StartWatchdog`).
             Diag.StartWatchdog();
             _uiHeartbeat = new DispatcherTimer();
             _uiHeartbeat.Interval = TimeSpan.FromSeconds(1);
-            _uiHeartbeat.Tick += this.OnUiHeartbeat;
+            _uiHeartbeat.Tick += OnUiHeartbeat;
             _uiHeartbeat.Start();
 
-            // The run is recorded on disk from here on, and the previous one is read
-            // in the same piece of work: the marker file it left is what says whether
-            // it ended on purpose. Reading and writing go through one writer in this
-            // order, so this run cannot find its own marker (see Diag).
-            //
-            // The crash report is the second half and it waits for the first: the tail
-            // it writes is what `Diag.StartRunAsync` has just read off the marker, and a
-            // report asked for before that read would find nothing to report and look
-            // like a run that ended properly.
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("Diag/StartRun", StartDiagnosticsAsync());
 #pragma warning restore 4014
 
-            // The hardware Back button is not wired to the frame by the platform
-            // on a Runtime app: without this the press leaves the app from the
-            // first page (see BackNavigator).
             BackNavigator.Start();
-
-            // The data service is hooked up here: it used to be created at the
-            // first page that touched it, and the messages that arrived
-            // meanwhile (or the synced contacts) had no listener.
             DataService.Instance.Start();
 
-            // A call that rings is a call screen wherever the app was left, and this is the
-            // only listener that outlives every page: a call that was a banner on the home
-            // tab was a call nobody saw while a conversation was open.
-            DataService.Instance.CallChanged -= this.OnCallChanged;
-            DataService.Instance.CallChanged += this.OnCallChanged;
+            DataService.Instance.CallChanged -= OnCallChanged;
+            DataService.Instance.CallChanged += OnCallChanged;
 
-            // The phone memory budget is watched from here on: it is the only
-            // way to know the app is about to be closed because of memory, and to
-            // free early what can be rebuilt.
             MemoryWatcher.Instance.Start();
 
-            // Whether this package carries the Opus codec, said once per run. It is a
-            // native file no compiler can miss: without it the app starts, records and
-            // sends, and only the voice notes are wrong - one goes out as M4A and one
-            // that arrives does not play (see AudioCodecCheck).
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("App/audio codec", AudioCodecCheck.RunAsync());
 #pragma warning restore 4014
 
-            // The second native check, and the one the call path waits on: whether this
-            // phone exposes a microphone through Media Foundation, and at what rate. It
-            // is a plain call and not a guarded task because the native side keeps no
-            // state between calls and answers at once; the line it writes is what decides
-            // whether the encoder is wired to a device or not.
             CallAudioProbe.Run();
-
-            // The microphone of a call is opened when the call's media path has proved the
-            // peer, not at start-up: holding the capture open on a phone that is not on a
-            // call is a microphone this app has no reason to want (see CallMicrophone).
-            //
-            // What decides when is the call itself, not the screen that draws it: a people
-            // who opens a conversation while talking keeps hearing and keeps being heard.
             CallAudioPipe.Start();
-
-            // The account this phone is linked as, brought online. This is the only
-            // connection there is: the login WhatsApp needs after a pairing, the
-            // client that keeps it, and the one that brings it back after a suspend
-            // (see NativeConnection). A start with no account stored does nothing
-            // here, and the QR of PairPage is the page.
             NativeConnection.Instance.Start();
-
-            // The periodic check while the app is suspended. It is the only way a
-            // message that arrives with the app closed reaches the tile, the badge
-            // and the lock screen: the socket does not survive a suspension, and
-            // there is no push service behind this client (see BackgroundSync).
             BackgroundSync.Start();
         }
 
-        /// <summary>
-        /// <summary>A call is ringing: its screen comes to the front, once.</summary>
+        private static void ApplyShellPalette()
+        {
+            Application app = Application.Current;
+            if (app == null) return;
+
+            SetBrushColor(app, "WhatsAppHeaderBrush", "WhatsAppHeaderColor");
+            SetBrushColor(app, "WhatsAppAppBarBrush", "WhatsAppAppBarColor");
+            SetBrushColor(app, "WhatsAppSentBubbleBrush", "WhatsAppSentBubbleColor");
+        }
+
+        private static void SetBrushColor(Application app, string brushKey, string colorKey)
+        {
+            if (!app.Resources.Contains(brushKey) || !app.Resources.Contains(colorKey)) return;
+
+            object colorValue = app.Resources[colorKey];
+            if (!(colorValue is Color)) return;
+
+            SolidColorBrush brush = app.Resources[brushKey] as SolidColorBrush;
+            if (brush != null) brush.Color = (Color)colorValue;
+        }
+
         private void OnCallChanged(object sender, EventArgs e)
         {
             CallSession call = DataService.Instance.Call;
             if (call == null || call.Phase != CallPhase.Ringing) return;
 
-            Frame root = EnsureFrame();
-            if (root == null) return;
-
-            // The same event reaches the home page's banner, which asks this same question:
-            // one of the two navigates and the other finds the call page already in front.
-            if (root.CurrentSourcePageType == typeof(CallPage)) return;
-
-            root.Navigate(typeof(CallPage));
+            try
+            {
+                Deployment.Current.Dispatcher.BeginInvoke(new Action(NavigateToCallPage));
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("App/call-dispatch", ex);
+            }
         }
 
-        /// The ui thread answered: the watchdog's silence counter starts again.
-        /// </summary>
-        private void OnUiHeartbeat(object sender, object e)
+        private void NavigateToCallPage()
+        {
+            CallSession call = DataService.Instance.Call;
+            if (call == null || call.Phase != CallPhase.Ringing) return;
+
+            PhoneApplicationFrame frame = _rootFrame;
+            if (frame == null) frame = EnsurePhoneApplicationFrame();
+            if (frame.Content is CallPage) return;
+
+            if (!frame.Navigate(new Uri("/Pages/CallPage.xaml", UriKind.Relative)))
+            {
+                Diag.Failed("App/call-navigation", new InvalidOperationException("The call page route was refused."));
+            }
+        }
+
+        private PhoneApplicationFrame EnsurePhoneApplicationFrame()
+        {
+            InitializePhoneApplication();
+            return _rootFrame;
+        }
+
+        private void OnUiHeartbeat(object sender, EventArgs e)
         {
             Diag.UiTick();
         }
 
-        /// <summary>
-        /// The log the run leaves behind, begun, and the crash of the previous run put
-        /// into it. One method because the order of the two is the whole point.
-        /// </summary>
-        private static async System.Threading.Tasks.Task StartDiagnosticsAsync()
+        private static async Task StartDiagnosticsAsync()
         {
             await Diag.StartRunAsync();
             CrashReport.Start();
         }
 
-        /// <summary>
-        /// The root frame, created if missing. Three section pages
-        /// (Chats/Status/Calls) with NavigationCacheMode.Enabled: the cache keeps
-        /// them alive, so moving from one section to another does not rebuild the
-        /// page (the chat list also keeps its scroll position).
-        /// </summary>
-        private static Frame EnsureFrame()
+        private void DepositPickerContinuation()
         {
-            var rootFrame = Window.Current.Content as Frame;
-            if (rootFrame != null) return rootFrame;
+            FileOpenPickerContinuationEventArgs continuation = _pickerContinuation;
+            if (continuation == null) return;
 
-            rootFrame = new Frame();
-            rootFrame.CacheSize = 3;
-            rootFrame.Language = Windows.Globalization.ApplicationLanguages.Languages[0];
-            Window.Current.Content = rootFrame;
-            return rootFrame;
-        }
+            _pickerContinuation = null;
+            if (continuation.Files == null || continuation.Files.Count == 0) return;
 
-        /// <summary>
-        /// Reactivation: this is not a launch. The only case this entry point must
-        /// handle is the file picker, which has no return value: the chosen file
-        /// arrives here.
-        /// </summary>
-        protected override void OnActivated(IActivatedEventArgs e)
-        {
-            base.OnActivated(e);
-
-            if (e == null || e.Kind != ActivationKind.PickFileContinuation) return;
-
-            // This activation can be the process start: the OS may terminate a suspended app
-            // while the picker is in front, and a continuation goes through OnActivated and
-            // not OnLaunched. Without the services and the frame the file is deposited with
-            // nobody subscribed to AttachmentInbox.Ready, and the user comes back to a blank
-            // window - including the case where they cancelled the picker.
-            if (Window.Current.Content == null)
-            {
-                StartServicesOnce();
-
-                // This activation is a process start, and the window about to be built
-                // is the one on screen: same rule as `OnLaunched`.
-                NotificationService.SetForeground(true);
-
-                var frame = EnsureFrame();
-                if (!(frame.Content is HomePage)) frame.Navigate(typeof(HomePage));
-                Window.Current.Activate();
-            }
-
-            var continuation = e as FileOpenPickerContinuationEventArgs;
-            if (continuation == null || continuation.Files == null || continuation.Files.Count == 0)
-            {
-                return;
-            }
-
-            // OnActivated is not async: the files are just deposited, and the page
-            // in front picks them up with the AttachmentInbox event.
 #pragma warning disable 4014
-            DepositPickedFilesAsync(continuation.Files);
+            Guarded.RunGuardedAsync("App/picker", DepositPickedFilesAsync(continuation.Files));
 #pragma warning restore 4014
         }
 
-        /// <summary>
-        /// The files chosen from the picker, copied one after another so the order is the one
-        /// they were picked in. A failure has nobody to collect it - OnActivated is not async
-        /// and nobody awaits this Task - so each copy is caught on its own.
-        /// </summary>
-        private async void DepositPickedFilesAsync(IReadOnlyList<StorageFile> files)
+        private async Task DepositPickedFilesAsync(IReadOnlyList<StorageFile> files)
         {
             for (int i = 0; i < files.Count; i++)
             {
@@ -619,70 +499,22 @@ namespace WhatsappApp
             }
         }
 
-        /// <summary>
-        /// Another application is sharing something with this one (Gallery, Photos,
-        /// browser). The image is deposited and the chats are brought to the
-        /// front: the next step is choosing who to send it to.
-        /// </summary>
-        protected override void OnShareTargetActivated(ShareTargetActivatedEventArgs e)
+        /// <summary>Reads a Windows Phone Silverlight share launch into the attachment inbox.</summary>
+        private async Task AcceptShareAsync(ShareOperation operation)
         {
-            base.OnShareTargetActivated(e);
-
-            if (e == null || e.ShareOperation == null) return;
-
-            // This activation can be the process start: the services and the frame
-            // do not exist yet.
-            StartServicesOnce();
-
-            // A share target is a start of this process too, and what it starts is the
-            // app in front: a message arriving now is on the screen, not in a toast.
-            NotificationService.SetForeground(true);
-
-            var rootFrame = EnsureFrame();
-            if (!(rootFrame.Content is HomePage))
-            {
-                rootFrame.Navigate(typeof(HomePage));
-            }
-            Window.Current.Activate();
-
-#pragma warning disable 4014
-            AcceptShareAsync(e.ShareOperation);
-#pragma warning restore 4014
-        }
-
-        /// <summary>
-        /// Reads what was shared, if it is an image.
-        ///
-        /// Two possible shapes: a list of files (almost every app) or a single
-        /// bitmap. Text is not used: the user asked to share an image, and the app
-        /// simply does nothing if there is none.
-        /// </summary>
-        private async System.Threading.Tasks.Task AcceptShareAsync(ShareOperation operation)
-        {
-            // The share state is reported in the order WP8.1 expects: started,
-            // then (when the bytes are there) data retrieved, then completed. A
-            // ReportCompleted without ReportStarted leaves the calling app waiting
-            // and brings down the process, and that is what happened when sharing
-            // a photo.
-            //
-            // No deferral: on WP8.1 ShareOperation has no GetDeferral (the Deferral
-            // type of Windows.Foundation does not even exist in this projection),
-            // and none is needed: the app receiving the share is in the foreground,
-            // and the operation stays valid while it is in front. The contract is
-            // the order of the three calls, not a deferral.
             try
             {
                 operation.ReportStarted();
 
-                var data = operation.Data;
+                DataPackageView data = operation.Data;
                 if (data != null)
                 {
                     if (data.Contains(StandardDataFormats.StorageItems))
                     {
-                        var items = await data.GetStorageItemsAsync();
+                        IReadOnlyList<IStorageItem> items = await data.GetStorageItemsAsync();
                         for (int i = 0; i < items.Count; i++)
                         {
-                            var file = items[i] as StorageFile;
+                            StorageFile file = items[i] as StorageFile;
                             if (file == null) continue;
 
                             await AttachmentInbox.PutAsync(file, null);
@@ -691,22 +523,15 @@ namespace WhatsappApp
                     }
                     else if (data.Contains(StandardDataFormats.Bitmap))
                     {
-                        var reference = await data.GetBitmapAsync();
-                        using (var stream = await reference.OpenReadAsync())
+                        RandomAccessStreamReference reference = await data.GetBitmapAsync();
+                        using (IRandomAccessStream stream = await reference.OpenReadAsync())
+                        using (DataReader reader = new DataReader(stream))
                         {
-                            using (var reader = new DataReader(stream))
-                            {
-                                uint size = (uint)stream.Size;
-                                uint loaded = await reader.LoadAsync(size);
-
-                                // The stream can answer fewer bytes than it said it had (a
-                                // provider that is not a file): reading `size` anyway
-                                // zero-fills the tail, and the share lands as a corrupt
-                                // picture reported as sent.
-                                var buffer = new byte[loaded];
-                                reader.ReadBytes(buffer);
-                                await AttachmentInbox.PutBytesAsync(buffer, "shared.png", "image/png", null);
-                            }
+                            uint size = (uint)stream.Size;
+                            uint loaded = await reader.LoadAsync(size);
+                            byte[] buffer = new byte[loaded];
+                            reader.ReadBytes(buffer);
+                            await AttachmentInbox.PutBytesAsync(buffer, "shared.png", "image/png", null);
                         }
                     }
                 }
@@ -719,10 +544,7 @@ namespace WhatsappApp
                 Diag.Failed("App/share", ex);
                 try
                 {
-                    // A failed share must be reported: without this the calling app
-                    // spins forever.
-                    operation.ReportError(Loc.Get("App_ShareFailed",
-                        "The shared file could not be read."));
+                    operation.ReportError(Loc.Get("App_ShareFailed", "The shared file could not be read."));
                 }
                 catch (Exception reportEx)
                 {
@@ -730,5 +552,24 @@ namespace WhatsappApp
                 }
             }
         }
+
+        private void OnUnhandled(object sender, ApplicationUnhandledExceptionEventArgs e)
+        {
+            Diag.Failed("App/unhandled", e.ExceptionObject);
+            Diag.Stack(e.ExceptionObject);
+            Diag.Flush(true);
+#if DEBUG
+            e.Handled = true;
+#endif
+        }
+
+        private void OnUnobservedTask(object sender, UnobservedTaskExceptionEventArgs e)
+        {
+            Diag.Failed("App/unobserved-task", e.Exception);
+            Diag.Stack(e.Exception);
+            Diag.Flush(true);
+            e.SetObserved();
+        }
+
     }
 }

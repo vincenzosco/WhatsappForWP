@@ -202,8 +202,8 @@ namespace WhatsappApp.Services
             {
                 try
                 {
-                    StorageFile existing = await _folder.GetFileAsync(FileName(key));
-                    await existing.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                    IStorageItem existing = await _folder.TryGetItemAsync(FileName(key));
+                    if (existing != null) await existing.DeleteAsync(StorageDeleteOption.PermanentDelete);
                 }
                 catch (Exception ex)
                 {

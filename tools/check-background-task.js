@@ -1,49 +1,18 @@
 #!/usr/bin/env node
 /**
- * tools/check-background-task.js
+ * Guard for the Silverlight scheduled agent that checks for messages while the app is closed.
  *
- * Guard per il task che il telefono deve poter istanziare.
+ * WP8.1 Silverlight uses ScheduledTaskAgent and PeriodicTask, not WinRT IBackgroundTask,
+ * BackgroundExecutionManager or activatable in-process servers. The agent class is named by
+ * WMAppManifest.xml and runs in its own process. Scheduled agents cannot run an OnCancel
+ * callback, so the task records a running marker and the next invocation reports the previous
+ * LastExitReason.
  *
- * Perche' esiste: su WP8.1 un task di sfondo non puo' stare nell'assembly
- * dell'app. Il sistema lo istanzia in un processo suo, a partire da una classe
- * che la manifest dichiara come attivabile; se la classe e' in WhatsappApp.exe
- * non c'e' niente da istanziare, e il fallimento e' **muto**: la registrazione
- * riesce, il log scrive "the check runs every 15 minute(s)", e poi nessun
- * "background: woke" compare mai. E' successo per due build, il 22 ottobre 2026,
- * con l'app ferma sulle 18:45 e il log identico per due ore.
+ * The guard keeps the app manifest, the scheduler, the agent assembly, and its entry point in
+ * agreement. It also ensures revoked registrations are noticed through ScheduledAction.IsScheduled
+ * and that a periodic registration uses the platform's 30-minute cadence.
  *
- * Tre nomi devono essere lo stesso, e nessuno dei tre si lamenta da solo:
- *
- * 1. `EntryPoint` di `<Extension Category="windows.backgroundTasks">`;
- * 2. `ActivatableClassId` del server in-process (`CLRHost.dll`: la classe e'
- * gestita, la carica l'host del CLR dalla winmd del componente);
- * 3. il nome completo del tipo che implementa `IBackgroundTask`, namespace
- * compreso, nel progetto del componente.
- *
- * E, perche' la registrazione chieda davvero quella classe, anche
- * `BackgroundSync.EntryPoint` deve dire lo stesso: e' il valore che finisce in
- * `BackgroundTaskBuilder.TaskEntryPoint`.
- *
- * Regole:
- * 1. la manifest dichiara il task `timer` e la classe attivabile con Path
- * `CLRHost.dll`;
- * 2. l'`EntryPoint` del task, l'`ActivatableClassId` e il tipo compilato nel
- * componente sono la stessa stringa;
- * 3. `BackgroundSync.EntryPoint` e' quella stessa stringa;
- * 4. il file del task e' un `<Compile Include>` del progetto del componente;
- * 5. la registrazione chiede al telefono il permesso di lavorare in background,
- * e non si accontenta di trovare la registrazione gia' fatta: il telefono
- * puo' toglierlo dopo (l'utente dalle impostazioni, o il risparmio
- * energetico) e la registrazione resta dov'era, mentre niente si sveglia piu'.
- * Su questa piattaforma e' il caso che gli agent si scrivono contro
- * (`IsScheduled` falso = il sistema ha tolto il task), e qui il segnale e'
- * `BackgroundExecutionManager.GetAccessStatus()`;
- * 6. la pagina delle impostazioni dice quando il telefono ha rifiutato: un
- * interruttore acceso che non fa partire niente e' la cosa peggiore, e la
- * riga che lo spiega e' l'unico posto in cui l'utente lo viene a sapere.
- *
- * Usage:
- * node tools/check-background-task.js
+ * Usage: node tools/check-background-task.js
  */
 'use strict';
 
@@ -51,139 +20,84 @@ const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
-const MANIFEST = 'WhatsappApp/Package.appxmanifest';
+const MANIFEST = 'WhatsappApp/Properties/WMAppManifest.xml';
 const TASK = 'WhatsappApp.Tasks/BackgroundSyncTask.cs';
 const TASK_PROJECT = 'WhatsappApp.Tasks/WhatsappApp.Tasks.csproj';
 const SYNC = 'WhatsappApp/Services/BackgroundSync.cs';
 const SETTINGS = 'WhatsappApp/Pages/SettingsPage.xaml.cs';
 const SETTINGS_XAML = 'WhatsappApp/Pages/SettingsPage.xaml';
 
-/** La stringa cercata in un attributo, o null. */
-function attribute(text, name) {
-  const match = new RegExp(name + '="([^"]+)"').exec(text);
-  return match ? match[1] : null;
-}
-
-/** Il valore letto da una `const string` del sorgente, o null. */
 function constString(source, name) {
   const match = new RegExp('const\\s+string\\s+' + name + '\\s*=\\s*"([^"]+)"').exec(source);
   return match ? match[1] : null;
 }
 
-/** Il nome completo del tipo che implementa IBackgroundTask, o null. */
 function taskType(source) {
   const namespace = /namespace\s+([\w.]+)/.exec(source);
-  const type = /class\s+(\w+)\s*:\s*IBackgroundTask/.exec(source);
+  const type = /class\s+(\w+)\s*:\s*ScheduledTaskAgent/.exec(source);
   if (!namespace || !type) return null;
   return namespace[1] + '.' + type[1];
 }
 
-/**
- * I problemi, dati i testi dei file. Puro: i test gli passano copie manomesse.
- */
 function backgroundTaskProblems(files) {
   const problems = [];
   const manifest = files.manifest;
-
-  // L'estensione del task, con il tipo che il sistema deve istanziare.
-  const extensions = manifest.match(/<Extension\s+Category="windows\.backgroundTasks"[\s\S]*?<\/Extension>/);
-  if (!extensions) {
-    problems.push('Package.appxmanifest: no <Extension Category="windows.backgroundTasks"> - ' +
-      'the system has no task of ours to wake');
-    return problems;
-  }
-
-  const entryPoint = attribute(extensions[0], 'EntryPoint');
-  if (!entryPoint) {
-    problems.push('Package.appxmanifest: the backgroundTasks extension has no EntryPoint');
-  }
-  if (!/<Task\s+Type="timer"/.test(extensions[0])) {
-    problems.push('Package.appxmanifest: the backgroundTasks extension is not <Task Type="timer"> - ' +
-      'a TimeTrigger registration has nothing it may run');
-  }
-
-  const visualElements = /<m3:VisualElements\b[^>]*>/.exec(manifest);
-  if (!visualElements || !/\bToastCapable="true"/.test(visualElements[0])) {
-    problems.push('Package.appxmanifest: m3:VisualElements must declare ToastCapable="true" - ' +
-      'background sync can update the tile but Windows will suppress message toasts');
-  }
-
-  // La dichiarazione che rende la classe istanziabile.
-  const server = manifest.match(/<Extension\s+Category="windows\.activatableClass\.inProcessServer"[\s\S]*?<\/Extension>/);
-  if (!server) {
-    problems.push('Package.appxmanifest: no <Extension Category="windows.activatableClass.inProcessServer"> - ' +
-      'the class exists, but nothing tells the system how to create it, so the wake never happens ' +
-      '(this is the failure of 22 October 2026)');
+  const agent = /<BackgroundServiceAgent\b[^>]*\/>/.exec(manifest);
+  if (!agent) {
+    problems.push('WMAppManifest.xml: no BackgroundServiceAgent - the phone has no Silverlight scheduled task to wake');
   } else {
-    const serverPath = /<Path>\s*([^<\s]+)\s*<\/Path>/.exec(server[0]);
-    if (!serverPath) {
-      problems.push('Package.appxmanifest: the in-process server has no <Path>');
-    } else if (serverPath[1].toLowerCase() !== 'clrhost.dll') {
-      problems.push('Package.appxmanifest: the in-process server points at "' + serverPath[1] +
-        '" instead of CLRHost.dll - a managed WinRT class is loaded by the CLR host, and an ' +
-        'executable here means the class can never be created');
+    const type = /\bType="([^"]+)"/.exec(agent[0]);
+    const name = /\bName="([^"]+)"/.exec(agent[0]);
+    if (!type) problems.push('WMAppManifest.xml: BackgroundServiceAgent has no Type');
+    if (!name) problems.push('WMAppManifest.xml: BackgroundServiceAgent has no Name');
+    const compiledType = taskType(files.task);
+    if (!compiledType) {
+      problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: no class derives from ScheduledTaskAgent');
+    } else if (type && compiledType !== type[1]) {
+      problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: the class is "' + compiledType +
+        '" but WMAppManifest.xml names "' + type[1] + '"');
     }
-
-    const activatable = attribute(server[0], 'ActivatableClassId');
-    if (!activatable) {
-      problems.push('Package.appxmanifest: the in-process server has no ActivatableClassId');
-    } else if (entryPoint && activatable !== entryPoint) {
-      problems.push('Package.appxmanifest: the task EntryPoint is "' + entryPoint +
-        '" but the activatable class is "' + activatable + '" - the system registers one name ' +
-        'and can only create the other');
+    if (type && files.sync && constString(files.sync, 'EntryPoint') !== type[1]) {
+      problems.push('WhatsappApp/Services/BackgroundSync.cs: EntryPoint does not match the manifest agent type');
+    }
+    if (name && files.sync && constString(files.sync, 'TaskName') !== name[1]) {
+      problems.push('WhatsappApp/Services/BackgroundSync.cs: TaskName does not match the manifest agent name');
     }
   }
 
-  // Il tipo compilato nel componente.
-  const type = taskType(files.task);
-  if (!type) {
-    problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: no class implementing IBackgroundTask ' +
-      '(or no namespace) - there is nothing for the manifest to name');
-  } else if (entryPoint && type !== entryPoint) {
-    problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: the class is "' + type +
-      '" but the manifest names "' + entryPoint + '"');
+  if (!/BackgroundAgentType>AgentLibrary</.test(files.taskProject)) {
+    problems.push('WhatsappApp.Tasks/WhatsappApp.Tasks.csproj: BackgroundAgentType must be AgentLibrary');
   }
-
-  // Il tipo deve essere compilato nel componente, non solo scritto.
-  if (!/<Compile\s+Include="[^"]*BackgroundSyncTask\.cs"/.test(files.taskProject)) {
-    problems.push('WhatsappApp.Tasks/WhatsappApp.Tasks.csproj: BackgroundSyncTask.cs is not a ' +
-      '<Compile Include> - the class is not in the component the manifest points at');
+  if (!/<Compile\s+Include="[^\"]*BackgroundSyncTask\.cs"/.test(files.taskProject)) {
+    problems.push('WhatsappApp.Tasks/WhatsappApp.Tasks.csproj: BackgroundSyncTask.cs is not compiled into the agent library');
   }
-
-  // Il permesso del telefono, letto e non ricordato.
-  if (!/GetAccessStatus\s*\(\s*\)/.test(files.sync)) {
-    problems.push('WhatsappApp/Services/BackgroundSync.cs: nothing reads ' +
-      'BackgroundExecutionManager.GetAccessStatus() - the phone can take background ' +
-      'work away after granting it, and a registration that stays while nothing wakes ' +
-      'looks exactly like a check that works');
+  if (!/class\s+BackgroundSyncTask\s*:\s*ScheduledTaskAgent/.test(files.task)) {
+    problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: the task must derive from ScheduledTaskAgent');
   }
-
-  //.e il "gia' registrato" da solo non basta a fermarsi.
-  else if (!/RegisteredEntryPoint\(\)\s*==\s*EntryPoint\s*&&\s*IsPermitted\(\)/.test(files.sync)) {
-    problems.push('WhatsappApp/Services/BackgroundSync.cs: the "already registered" ' +
-      'return does not ask IsPermitted() - a registration the phone has stopped ' +
-      'honouring is never made again, and the switch keeps saying it will');
+  if (!/protected\s+override\s+void\s+OnInvoke\s*\(\s*ScheduledTask\s+task\s*\)/.test(files.task)) {
+    problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: the scheduled agent has no OnInvoke(ScheduledTask)');
   }
-
-  // La pagina delle impostazioni deve dire quando il telefono ha detto no.
+  if (!/NotifyComplete\s*\(\s*\)/.test(files.task)) {
+    problems.push('WhatsappApp.Tasks/BackgroundSyncTask.cs: OnInvoke does not call NotifyComplete()');
+  }
+  if (!/new\s+PeriodicTask\s*\(\s*TaskName\s*\)/.test(files.sync)) {
+    problems.push('WhatsappApp/Services/BackgroundSync.cs: the scheduler does not register a PeriodicTask');
+  }
+  if (!/IntervalMinutes\s*=\s*30/.test(files.sync)) {
+    problems.push('WhatsappApp/Services/BackgroundSync.cs: Silverlight PeriodicTask cadence must be 30 minutes');
+  }
+  if (!/ScheduledActionService\.Find\s*\(\s*TaskName\s*\)/.test(files.sync)
+      || !/action\.IsScheduled/.test(files.sync)) {
+    problems.push('WhatsappApp/Services/BackgroundSync.cs: registration availability must use ScheduledAction.IsScheduled');
+  }
+  if (!/RegisteredEntryPoint\(\)\s*==\s*EntryPoint\s*&&\s*IsPermitted\(\)/.test(files.sync)) {
+    problems.push('WhatsappApp/Services/BackgroundSync.cs: an existing registration is accepted without rechecking IsPermitted()');
+  }
   if (!/BackgroundSync\.IsPermitted\s*\(\s*\)/.test(files.settings)) {
-    problems.push('WhatsappApp/Pages/SettingsPage.xaml.cs: the settings page never asks ' +
-      'BackgroundSync.IsPermitted() - a switch that is on while the phone has refused ' +
-      'looks like a working check');
+    problems.push('WhatsappApp/Pages/SettingsPage.xaml.cs: the settings page never asks BackgroundSync.IsPermitted()');
   }
   if (!/x:Name="BackgroundState"/.test(files.settingsXaml)) {
-    problems.push('WhatsappApp/Pages/SettingsPage.xaml: no element named BackgroundState - ' +
-      'there is nowhere to say the phone has refused background work');
-  }
-
-  // E la registrazione deve chiedere quella classe.
-  const registered = constString(files.sync, 'EntryPoint');
-  if (!registered) {
-    problems.push('WhatsappApp/Services/BackgroundSync.cs: no EntryPoint const - ' +
-      'the registration has no name to ask for');
-  } else if (entryPoint && registered !== entryPoint) {
-    problems.push('WhatsappApp/Services/BackgroundSync.cs: EntryPoint is "' + registered +
-      '" but the manifest names "' + entryPoint + '"');
+    problems.push('WhatsappApp/Pages/SettingsPage.xaml: no BackgroundState element explains a refused task');
   }
 
   return problems;
@@ -202,12 +116,11 @@ function main() {
 
   if (problems.length) {
     console.log(problems.join('\n'));
-    console.log(`\n${problems.length} problem(s) with the background task.`);
+    console.log('\n' + problems.length + ' problem(s) with the scheduled agent.');
     process.exit(1);
   }
-  console.log('OK: the manifest, the component and the registration name the same task.');
+  console.log('OK: the Silverlight manifest, scheduled agent, and periodic registration agree.');
 }
 
 if (require.main === module) main();
-
-module.exports = { backgroundTaskProblems, taskType, constString, attribute };
+module.exports = { backgroundTaskProblems, taskType, constString };

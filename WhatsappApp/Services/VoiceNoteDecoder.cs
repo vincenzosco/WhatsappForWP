@@ -82,6 +82,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private static byte[] Decode(OggOpus.Content content)
         {
+            if (!NativeInterop.IsSupported) return null;
+
             IntPtr decoder = IntPtr.Zero;
 
             try

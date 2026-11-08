@@ -2,14 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using Windows.UI;
-using Windows.UI.Core;
-using Windows.UI.Xaml;
-using Windows.UI.Xaml.Automation;
-using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Media.Imaging;
-using Windows.UI.Xaml.Navigation;
+using System.Windows;
+using System.Windows.Automation;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Navigation;
+using System.Windows.Threading;
+using Microsoft.Phone.Controls;
+using Microsoft.Phone.Shell;
 using WhatsappApp.Models;
 using WhatsappApp.Services;
 
@@ -36,7 +37,7 @@ namespace WhatsappApp.Pages
     /// row already distinguishes - a photo, a video, words alone - are the three the
     /// screen shows.
     /// </summary>
-    public sealed partial class StatusViewerPage : Page
+    public sealed partial class StatusViewerPage : PhoneApplicationPage
     {
         /// <summary>
         /// A status is drawn at the screen's size, and 720 is the width this phone
@@ -73,12 +74,15 @@ namespace WhatsappApp.Pages
         /// then the watched flag) and the second refresh must not start a second one.</summary>
         private bool _decoding;
 
+        private const string NavigationParameterKey = "WhatsappApp.NavigationParameter";
+
         public StatusViewerPage()
         {
-            this.InitializeComponent();
+            InitializeComponent();
 
+            MissingText.Text = Loc.Get("StatusViewer_Missing.Text", "This update could not be loaded.");
+            RetryButton.Content = Loc.Get("StatusViewer_Retry.Content", "Try again");
             string back = Loc.Get("ChatPage_BackTooltip", "Back");
-            ToolTipService.SetToolTip(CloseButton, back);
             AutomationProperties.SetName(CloseButton, back);
 
             // Icon-only buttons take no x:Uid (it would overwrite the Path): the tooltip
@@ -86,9 +90,7 @@ namespace WhatsappApp.Pages
             string previous = Loc.Get("StatusViewer_Previous", "Previous update");
             string next = Loc.Get("StatusViewer_Next", "Next update");
 
-            ToolTipService.SetToolTip(PreviousButton, previous);
             AutomationProperties.SetName(PreviousButton, previous);
-            ToolTipService.SetToolTip(NextButton, next);
             AutomationProperties.SetName(NextButton, next);
         }
 
@@ -96,7 +98,12 @@ namespace WhatsappApp.Pages
         {
             base.OnNavigatedTo(e);
 
-            _status = e.Parameter as ChatMessage;
+            object parameter;
+            if (PhoneApplicationService.Current.State.TryGetValue(NavigationParameterKey, out parameter))
+            {
+                PhoneApplicationService.Current.State.Remove(NavigationParameterKey);
+                _status = parameter as ChatMessage;
+            }
             if (_status == null)
             {
                 // A page with no row is a navigation that went wrong, not a status that
@@ -213,7 +220,7 @@ namespace WhatsappApp.Pages
             StatusImage.Visibility = Visibility.Collapsed;
             StatusVideo.Visibility = Visibility.Collapsed;
             MissingPanel.Visibility = Visibility.Collapsed;
-            Loading.IsActive = false;
+            Loading.IsIndeterminate = false;
             Loading.Visibility = Visibility.Collapsed;
             RetryButton.Visibility = Visibility.Visible;
 
@@ -348,17 +355,13 @@ namespace WhatsappApp.Pages
         /// file), the request failed, or it was marked watched. Every one of those is a
         /// reason to look again at what should be on screen.
         /// </summary>
-        private async void OnStatusChanged(object sender, PropertyChangedEventArgs e)
+        private void OnStatusChanged(object sender, PropertyChangedEventArgs e)
         {
-            // The bytes of a status are stored from the socket's own loop: whether that
-            // resumes on this thread or not is not something this page can assume, and
-            // touching the controls from another one throws. A dispatcher that refuses
-            // the call is named instead of ending the process.
-            if (!Dispatcher.HasThreadAccess)
+            if (!Deployment.Current.Dispatcher.CheckAccess())
             {
                 try
                 {
-                    await Dispatcher.RunAsync(CoreDispatcherPriority.Normal, delegate { Refresh(); });
+                    Deployment.Current.Dispatcher.BeginInvoke(delegate { Refresh(); });
                 }
                 catch (Exception ex)
                 {
@@ -398,8 +401,8 @@ namespace WhatsappApp.Pages
             CaptionText.Text = caption ? _status.ShownText : "";
             CaptionBar.Visibility = caption ? Visibility.Visible : Visibility.Collapsed;
 
-            Loading.IsActive = waiting && _status.IsMediaLoading;
-            Loading.Visibility = Loading.IsActive ? Visibility.Visible : Visibility.Collapsed;
+            Loading.IsIndeterminate = waiting && _status.IsMediaLoading;
+            Loading.Visibility = Loading.IsIndeterminate ? Visibility.Visible : Visibility.Collapsed;
 
             // "It could not be loaded" is only true once something was asked for and did
             // not come: on the first look at a status whose photo is still on its way, the
@@ -523,7 +526,7 @@ namespace WhatsappApp.Pages
                 if (_videoStarted) return;
                 _videoStarted = true;
 
-                StatusVideo.Source = new Uri("ms-appdata:///local/" + file);
+                StatusVideo.Source = new Uri("ms-appdata:///local/" + file, UriKind.Absolute);
                 StatusVideo.Play();
             }
             catch (Exception ex)
@@ -535,11 +538,8 @@ namespace WhatsappApp.Pages
 
         private void StatusVideo_MediaFailed(object sender, ExceptionRoutedEventArgs e)
         {
-            // On WP8.1 the event carries only the message, not the exception. The row
-            // stays and says the update could not be loaded, so a failure and a status
-            // that was never opened do not look the same.
-            string reason = (e != null && !string.IsNullOrEmpty(e.ErrorMessage))
-                ? e.ErrorMessage
+            string reason = e != null && e.ErrorException != null
+                ? e.ErrorException.Message
                 : "media failed";
             Diag.Failed("StatusViewerPage/video", new InvalidOperationException(reason));
 
@@ -547,6 +547,7 @@ namespace WhatsappApp.Pages
             // flag left set, Retry hid the panel, asked for the video again and `ShowVideo`
             // returned at its own guard - a button that did nothing.
             _videoStarted = false;
+            StopVideo();
 
             StatusVideo.Visibility = Visibility.Collapsed;
             MissingPanel.Visibility = Visibility.Visible;
@@ -579,6 +580,8 @@ namespace WhatsappApp.Pages
             {
                 Diag.Failed("StatusViewerPage/StopVideo", ex);
             }
+
+
         }
 
         // ------------------------------------------------------------ the clock
@@ -608,7 +611,7 @@ namespace WhatsappApp.Pages
             if (_timer != null && _timer.IsEnabled) _timer.Stop();
         }
 
-        private void Timer_Tick(object sender, object e)
+        private void Timer_Tick(object sender, EventArgs e)
         {
             StopTimer();
             Next();
@@ -682,16 +685,15 @@ namespace WhatsappApp.Pages
             StopTimer();
             StopVideo();
 
-            Frame frame = Frame;
-            if (frame == null) return;
+            if (NavigationService == null) return;
 
-            if (frame.CanGoBack)
+            if (NavigationService.CanGoBack)
             {
-                frame.GoBack();
+                NavigationService.GoBack();
                 return;
             }
 
-            frame.Navigate(typeof(HomePage));
+            NavigationService.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
         }
     }
 }

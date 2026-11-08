@@ -1,6 +1,6 @@
 'use strict';
 const test = require('node:test');
-const assert = require('node:assert');
+const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -9,7 +9,7 @@ const { backgroundTaskProblems, taskType, constString } = require('../check-back
 const ROOT = path.join(__dirname, '..', '..');
 const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const files = () => ({
-  manifest: read('WhatsappApp/Package.appxmanifest'),
+  manifest: read('WhatsappApp/Properties/WMAppManifest.xml'),
   task: read('WhatsappApp.Tasks/BackgroundSyncTask.cs'),
   taskProject: read('WhatsappApp.Tasks/WhatsappApp.Tasks.csproj'),
   sync: read('WhatsappApp/Services/BackgroundSync.cs'),
@@ -17,104 +17,82 @@ const files = () => ({
   settingsXaml: read('WhatsappApp/Pages/SettingsPage.xaml')
 });
 
-test('il task e dichiarato, compilato e registrato con lo stesso nome', () => {
+test('il task silverlight e dichiarato, compilato e registrato con lo stesso nome', () => {
   assert.deepStrictEqual(backgroundTaskProblems(files()), []);
 });
 
-test('il tipo compilato e namespace piu classe', () => {
-  const type = taskType('namespace A.B\n{\n    public sealed class T : IBackgroundTask\n');
-  assert.strictEqual(type, 'A.B.T');
+test('il tipo agente si legge come namespace piu classe', () => {
+  assert.strictEqual(taskType('namespace A.B\n{\n    public sealed class T : ScheduledTaskAgent\n'), 'A.B.T');
   assert.strictEqual(taskType('namespace A\n{\n    public sealed class T\n'), null);
 });
 
 test('la costante si legge dal sorgente', () => {
   assert.strictEqual(constString('public const string EntryPoint = "X.Y";', 'EntryPoint'), 'X.Y');
-  assert.strictEqual(constString('public const int IntervalMinutes = 15;', 'EntryPoint'), null);
+  assert.strictEqual(constString('public const int IntervalMinutes = 30;', 'EntryPoint'), null);
 });
 
-test('senza la dichiarazione della classe attivabile il task non parte mai', () => {
+test('senza la dichiarazione Silverlight di background non c e task da schedulare', () => {
   const broken = files();
-  broken.manifest = broken.manifest.replace(
-    /<Extension Category="windows\.activatableClass\.inProcessServer">[\s\S]*?<\/Extension>/,
-    ''
-  );
-  assert.match(backgroundTaskProblems(broken).join('\n'), /activatableClass\.inProcessServer/);
+  broken.manifest = broken.manifest.replace(/<BackgroundServiceAgent\b[^>]*\/>/, '');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /BackgroundServiceAgent/);
 });
 
-test('un Path che punta all eseguibile non istanzia nessuna classe', () => {
+test('un tipo agente diverso dal manifest non viene istanziato', () => {
   const broken = files();
-  broken.manifest = broken.manifest.replace('<Path>CLRHost.dll</Path>', '<Path>WhatsappApp.exe</Path>');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /CLRHost\.dll/);
+  broken.manifest = broken.manifest.replace('Type="WhatsappApp.Tasks.BackgroundSyncTask"',
+    'Type="WhatsappApp.Tasks.OtherTask"');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /WMAppManifest\.xml names/);
 });
 
-test('due nomi diversi sono un task che il sistema non sa creare', () => {
+test('un task senza NotifyComplete non chiude la sua attivazione', () => {
   const broken = files();
-  broken.manifest = broken.manifest.replace(
-    /(ActivatableClassId=")[^"]+"/,
-    '$1Altro.Nome"'
-  );
-  assert.match(backgroundTaskProblems(broken).join('\n'), /activatable class/);
+  broken.task = broken.task.replace(/NotifyComplete\s*\(\s*\)\s*;/, '');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /NotifyComplete/);
 });
 
-test('un task di tipo diverso da timer non risponde a un TimeTrigger', () => {
+test('una registrazione con il nome sbagliato non attiva il task previsto', () => {
   const broken = files();
-  broken.manifest = broken.manifest.replace('<Task Type="timer" />', '<Task Type="systemEvent" />');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /Type="timer"/);
+  broken.sync = broken.sync.replace('public const string TaskName = "WhatsAppMessageCheck";',
+    'public const string TaskName = "OtherTask";');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /TaskName/);
 });
 
-test('senza ToastCapable le toast dei messaggi vengono scartate dal sistema', () => {
-  const broken = files();
-  broken.manifest = broken.manifest.replace(' ToastCapable="true"', '');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /ToastCapable/);
-});
-
-test('una registrazione che chiede un altra classe non accende niente', () => {
-  const broken = files();
-  broken.sync = broken.sync.replace(
-    /public const string EntryPoint = "[^"]+";/,
-    'public const string EntryPoint = "WhatsappApp.BackgroundSyncTask";'
-  );
-  assert.match(backgroundTaskProblems(broken).join('\n'), /EntryPoint is/);
-});
-
-test('un file del task fuori dal progetto non finisce nel componente', () => {
+test('un file del task fuori dal progetto non finisce nell assembly agente', () => {
   const broken = files();
   broken.taskProject = broken.taskProject.replace(
-    /\s*<Compile Include="BackgroundSyncTask\.cs" \/>/,
-    ''
-  );
-  assert.match(backgroundTaskProblems(broken).join('\n'), /Compile Include/);
+    /\s*<Compile Include="BackgroundSyncTask\.cs" \/>/, '');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /not compiled/);
 });
 
-test('un task che non implementa IBackgroundTask non e un task', () => {
+test('una classe che non deriva da ScheduledTaskAgent non e un agente Silverlight', () => {
   const broken = files();
-  broken.task = broken.task.replace(/class BackgroundSyncTask : IBackgroundTask/, 'class BackgroundSyncTask');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /IBackgroundTask/);
+  broken.task = broken.task.replace(/class BackgroundSyncTask\s*:\s*ScheduledTaskAgent/,
+    'class BackgroundSyncTask');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /derive from ScheduledTaskAgent/);
 });
 
-test('una registrazione che non chiede il permesso crede al telefono per sempre', () => {
-  const broken = files();
-  // The shape this guard exists for: the task is there, so nothing is asked again,
-  // while the phone has already taken background work away.
-  broken.sync = broken.sync.replace(/BackgroundExecutionManager\.GetAccessStatus\(\)/g, '0');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /GetAccessStatus/);
-});
-
-test('un gia registrato che non ricontrolla il permesso non si riarma mai', () => {
+test('una registrazione non controlla il permesso al riavvio dopo la revoca', () => {
   const broken = files();
   broken.sync = broken.sync.replace(/RegisteredEntryPoint\(\) == EntryPoint && IsPermitted\(\)/g,
     'RegisteredEntryPoint() == EntryPoint');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /IsPermitted/);
+  assert.match(backgroundTaskProblems(broken).join('\n'), /without rechecking IsPermitted/);
 });
 
-test('una pagina impostazioni che non chiede al telefono mostra un interruttore che mente', () => {
+test('una pagina impostazioni che non verifica il permesso mostra un interruttore che mente', () => {
   const broken = files();
   broken.settings = broken.settings.replace(/BackgroundSync\.IsPermitted\(\)/g, 'true');
-  assert.match(backgroundTaskProblems(broken).join('\n'), /SettingsPage\.xaml\.cs/);
+  assert.match(backgroundTaskProblems(broken).join('\n'), /SettingsPage.xaml.cs/);
 });
 
 test('un rifiuto senza una riga che lo dica resta invisibile', () => {
   const broken = files();
   broken.settingsXaml = broken.settingsXaml.replace('x:Name="BackgroundState"', '');
   assert.match(backgroundTaskProblems(broken).join('\n'), /BackgroundState/);
+});
+
+test('la cadenza usa il minimo supportato dagli agenti Silverlight', () => {
+  const broken = files();
+  broken.sync = broken.sync.replace('public const int IntervalMinutes = 30;',
+    'public const int IntervalMinutes = 15;');
+  assert.match(backgroundTaskProblems(broken).join('\n'), /cadence must be 30 minutes/);
 });

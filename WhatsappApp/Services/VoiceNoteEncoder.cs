@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Windows.Storage;
@@ -73,12 +74,19 @@ namespace WhatsappApp.Services
         public static async Task<Encoded> FromWavAsync(string wavFileName)
         {
             if (string.IsNullOrEmpty(wavFileName)) return null;
+            if (!NativeInterop.IsSupported)
+            {
+                ReportUnsupported();
+                return null;
+            }
             if (!Available()) return null;
 
             byte[] bytes;
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.GetFileAsync(wavFileName);
+                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(wavFileName);
+                StorageFile file = item as StorageFile;
+                if (file == null) return null;
                 Windows.Storage.Streams.IBuffer buffer = await FileIO.ReadBufferAsync(file);
 
                 bytes = new byte[buffer.Length];
@@ -151,6 +159,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private static List<byte[]> Encode(Wave wave)
         {
+            if (!NativeInterop.IsSupported) return null;
+
             IntPtr encoder = wa_opus_create(wave.SampleRate, wave.Channels, 0);
             if (encoder == IntPtr.Zero)
             {
@@ -211,7 +221,20 @@ namespace WhatsappApp.Services
         /// </summary>
         public static bool IsAvailable
         {
-            get { return Available(); }
+            get
+            {
+                if (!NativeInterop.IsSupported)
+                {
+                    ReportUnsupported();
+                    return false;
+                }
+                return Available();
+            }
+        }
+
+        private static void ReportUnsupported()
+        {
+            NativeInterop.ReportUnavailable("voice: Opus codec");
         }
 
         /// <summary>
@@ -221,6 +244,11 @@ namespace WhatsappApp.Services
         /// </summary>
         private static bool Available()
         {
+            if (!NativeInterop.IsSupported)
+            {
+                ReportUnsupported();
+                return false;
+            }
             if (_asked) return _available;
             _asked = true;
 

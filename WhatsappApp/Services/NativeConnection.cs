@@ -206,7 +206,10 @@ namespace WhatsappApp.Services
         {
             if (node == null || string.IsNullOrEmpty(node.Attrs["id"])) return;
 
-            Guarded.RunGuardedAsync("NativeConnection/ack a call", SendSoonAsync(IncomingMessage.Ack(node)));
+            Guarded.RunGuarded("NativeConnection/ack a call", delegate
+            {
+                return SendSoonAsync(IncomingMessage.Ack(node));
+            });
         }
 
         /// <summary>
@@ -223,9 +226,11 @@ namespace WhatsappApp.Services
                 return;
             }
 
-            Guarded.RunGuardedAsync("NativeConnection/refuse a late call",
-                SendSoonAsync(CallSignaling.Reject(signal.CallId, signal.From,
-                    signal.CallCreator, "timeout")));
+            Guarded.RunGuarded("NativeConnection/refuse a late call", delegate
+            {
+                return SendSoonAsync(CallSignaling.Reject(signal.CallId, signal.From,
+                    signal.CallCreator, "timeout"));
+            });
         }
 
         /// <summary>One stanza out, on a session opened for it: what a read-loop send needs.</summary>
@@ -765,9 +770,10 @@ namespace WhatsappApp.Services
             // it here - which is what the pragma is for (C# 5 will not let a `void`
             // method express this). The task is kept anyway, because a restart has to
             // know when the old login has actually left.
-#pragma warning disable 4014
-            _loop = Guarded.RunGuardedAsync("NativeConnection/start", RunAsync(generation));
-#pragma warning restore 4014
+            _loop = Guarded.StartGuarded("NativeConnection/start", delegate
+            {
+                return RunAsync(generation);
+            });
         }
 
         /// <summary>
@@ -880,18 +886,20 @@ namespace WhatsappApp.Services
                     // already useful, and a sync that fails (or that has no key yet) must not
                     // hold up the reading of messages.
                     RememberStoredAppStateKeys(account);
-#pragma warning disable 4014
-                    Guarded.RunGuardedAsync("NativeConnection/app state", SyncAppStateAsync(session));
-#pragma warning restore 4014
+                    Guarded.RunGuarded("NativeConnection/app state", delegate
+                    {
+                        return SyncAppStateAsync(session);
+                    });
 
                     // The subjects of the groups this list already has. Until this ran only at
                     // the end of a sync, a device that had been linked for days had no sync to
                     // wait for and kept `Gruppo 1203.` for ever.
                     NameTheGroups();
 
-#pragma warning disable 4014
-                    Guarded.RunGuardedAsync("NativeConnection/keepalive", KeepAliveAsync(session));
-#pragma warning restore 4014
+                    Guarded.RunGuarded("NativeConnection/keepalive", delegate
+                    {
+                        return KeepAliveAsync(session);
+                    });
 
                     // A connection that worked resets the patience: the next drop waits a
                     // second again, not the half minute an hour of retrying had reached.
@@ -2932,9 +2940,7 @@ namespace WhatsappApp.Services
             Diag.Ok("native: nothing came back after the resume - dialling again");
             Status = "the connection was lost while suspended - dialling again";
 
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("NativeConnection/restart", RestartAsync());
-#pragma warning restore 4014
+            Guarded.RunGuarded("NativeConnection/restart", RestartAsync);
 
             return false;
         }
@@ -3344,9 +3350,10 @@ namespace WhatsappApp.Services
             NativeSession session = _session;
             if (session == null || !session.IsOpen) return;
 
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("NativeConnection/group names", NameGroupsAsync(session));
-#pragma warning restore 4014
+            Guarded.RunGuarded("NativeConnection/group names", delegate
+            {
+                return NameGroupsAsync(session);
+            });
         }
 
         /// <summary>
@@ -3499,9 +3506,10 @@ namespace WhatsappApp.Services
 
             if (!_appStateKeys.IsEmpty)
             {
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("NativeConnection/app state", SyncAppStateAsync(session));
-#pragma warning restore 4014
+                Guarded.RunGuarded("NativeConnection/app state", delegate
+                {
+                    return SyncAppStateAsync(session);
+                });
             }
 
             return shared.Count > 0;
@@ -3906,9 +3914,10 @@ namespace WhatsappApp.Services
                 }
                 else
                 {
-#pragma warning disable 4014
-                    Guarded.RunGuardedAsync("native/call relay", ProbeRelaysAsync(signal));
-#pragma warning restore 4014
+                    Guarded.RunGuarded("native/call relay", delegate
+                    {
+                        return ProbeRelaysAsync(signal);
+                    });
                 }
             }
 
@@ -3946,10 +3955,10 @@ namespace WhatsappApp.Services
                 byte[] key = _callKeyForMedia;
                 string fingerprint = signal.Fingerprint;
 
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("native/call media",
-                    StartCallMediaAsync(signal.CallId, key, true, fingerprint));
-#pragma warning restore 4014
+                Guarded.RunGuarded("native/call media", delegate
+                {
+                    return StartCallMediaAsync(signal.CallId, key, true, fingerprint);
+                });
             }
 
             // The other half of the key exchange: the offer's `<enc>` is sealed for one of this
@@ -4211,14 +4220,15 @@ namespace WhatsappApp.Services
 
             // The offer goes out again while the call rings, and the times it did are what the
             // timeout line reports (see RepeatOffersAsync).
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("native/call offers", RepeatOffersAsync(callId));
-#pragma warning restore 4014
+            Guarded.RunGuarded("native/call offers", delegate
+            {
+                return RepeatOffersAsync(callId);
+            });
 
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("native/call media early",
-                StartCallMediaAsync(callId, callKey, true, null));
-#pragma warning restore 4014
+            Guarded.RunGuarded("native/call media early", delegate
+            {
+                return StartCallMediaAsync(callId, callKey, true, null);
+            });
 
             // The key stays for the answer, which is still what the media is pinned against.
             _callKeyForMedia = callKey;
@@ -4664,9 +4674,10 @@ namespace WhatsappApp.Services
             if (incoming != null && string.Equals(incoming.CallId, callId, StringComparison.Ordinal)
                 && incoming.Relays != null && incoming.Relays.Count > 0)
             {
-#pragma warning disable 4014
-                Guarded.RunGuardedAsync("native/call relay", ProbeRelaysAsync(incoming));
-#pragma warning restore 4014
+                Guarded.RunGuarded("native/call relay", delegate
+                {
+                    return ProbeRelaysAsync(incoming);
+                });
             }
 
             // The caller opens the handshake on the port the candidates published. The key
