@@ -152,6 +152,8 @@
 
   <ItemGroup>
     <Content Include="Assets\ChatBackground.jpg" />
+    <Content Include="SplashScreenImage.jpg" />
+    <Content Include="SplashScreenImage.scale-240.jpg" />
     <Content Include="Libraries\Zlib.Portable.LICENSE.txt" />
     <Content Include="Libraries\Microsoft.Phone.Controls.Toolkit.LICENSE.txt" />
     <Content Include="Libraries\it-IT\Microsoft.Phone.Controls.Toolkit.resources.dll">

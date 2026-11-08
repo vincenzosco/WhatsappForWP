@@ -21,6 +21,11 @@
  * I PNG generati sono committati, quindi lo script gira solo quando cambia la
  * grafica.
  *
+ * The Silverlight splash (`WhatsappApp/SplashScreenImage.jpg`, 480x800, plus the
+ * `scale-240` variant at 1152x1920) is the same drawing derived from
+ * `official/SplashScreen-1152x1920.png` as JPEG: the phone reads the splash only
+ * at the XAP root and only under that name.
+ *
  * Usage:
  * node tools/make-brand-assets.js # riscrive i file
  * node tools/make-brand-assets.js --preview # riscrive + anteprima ASCII
