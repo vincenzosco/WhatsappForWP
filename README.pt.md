@@ -202,31 +202,31 @@ A chamada é sinalizada, não transportada. `Protocol/Client/CallSignaling.cs` c
 Execute estes na raiz do repositório antes de um pull request. Os guardas são o contrato: cada um pega uma falha que a build não vê.
 
 ```
-node tools/check-csharp5.js         C# 6/7 syntax and WinRT members WP8.1 does not have
-node tools/check-icons.js           inline vector icons, element form, same icon same geometry
-node tools/check-resw.js --strict   x:Uid, Loc.Get, both .resw files, no unused key
+node tools/check-csharp5.js         sintaxe C# 6/7 e membros WinRT que o WP8.1 não oferece
+node tools/check-icons.js           ícones vetoriais inline, formato dos elementos e geometria consistente
+node tools/check-resw.js --strict   x:Uid, Loc.Get, os dois arquivos .resw e nenhuma chave sem uso
 node tools/check-docs.js            grupo de READMEs, mesmos títulos, disclosure no fim, sem emoji
-node tools/check-memory.js          decode width, cache caps, per-chat ceiling
-node tools/check-tile.js            tile payload, asset sizes, and a tile the platform refuses
-node tools/check-waopus.js          the Opus DLL: ARMNT, no KERNEL32, API-set imports only, its exports
-node tools/check-actions.js         the app bar buttons
-node tools/check-fire-and-forget.js no task whose fault nobody observes
-node tools/check-project-files.js   every file the projects compile
-node tools/check-xaml-names.js      one x:Name per namescope
-node tools/check-client-state.js    the login's passive/active sentences and the notification channel
-node tools/check-background-task.js the task's activatable class, its 30 s budget, and the phone's permission
-node tools/check-diagnostics.js     the log that survives a crash
-node tools/check-launch-route.js    a tap on the tile: what it records and the one start that uses it
-node tools/check-notification-alerts.js  an update and a missed call announced once, and a badge that drops
-node tools/check-held-group.js       a group message that waits for its sender key instead of a retry
-node tools/check-avatar-refusal.js   a chat that refuses its picture, told apart from a missing login
-node tools/check-no-exception-probes.js  the padding is read, not guessed with a throw per trim
-node tools/check-app-state.js       the saved names: the shared keys are kept, the sync is asked, the rows are told
-node tools/check-chat-list-refresh.js  one chat per person, and a list that asks for its rows again
-node tools/check-one-row-per-chat.js  a chat row is created canonical and once: list, groups, statuses
-node tools/check-emoji.js           emoji the font lacks, and a typed smile that leaves as a face
-node tools/check-send-path.js       a tap the send path drops says why in diag.log
-node tools/check-device-identity.js a message that opens a session carries the account's signature over this device
+node tools/check-memory.js          largura de decodificação, limites de cache e limite por conversa
+node tools/check-tile.js            conteúdo do tile, tamanhos dos arquivos e tiles recusados pela plataforma
+node tools/check-waopus.js          DLL do Opus: ARMNT, sem KERNEL32, apenas imports API Set e exports
+node tools/check-actions.js         botões da barra do app
+node tools/check-fire-and-forget.js nenhuma tarefa cujo erro passe despercebido
+node tools/check-project-files.js   todos os arquivos compilados pelos projetos
+node tools/check-xaml-names.js      um x:Name por escopo de nomes
+node tools/check-client-state.js    etapas passiva/ativa do login e canal de notificações
+node tools/check-background-task.js classe ativável da tarefa, limite de 30 s e permissão do telefone
+node tools/check-diagnostics.js     registro que permanece após uma falha
+node tools/check-launch-route.js    toque no tile: o que ele registra e a inicialização que usa esse registro
+node tools/check-notification-alerts.js  atualização e chamada perdida anunciadas uma vez, e badge que diminui
+node tools/check-held-group.js       mensagem de grupo que aguarda a chave do remetente em vez de pedir reenvio
+node tools/check-avatar-refusal.js   recusa da foto de um contato distinguida de uma sessão não iniciada
+node tools/check-no-exception-probes.js  padding lido diretamente, sem adivinhar por meio de exceções
+node tools/check-app-state.js       nomes salvos: chaves preservadas, sincronização solicitada e linhas atualizadas
+node tools/check-chat-list-refresh.js  uma conversa por pessoa e lista que atualiza suas linhas
+node tools/check-one-row-per-chat.js  linha de conversa criada uma vez e com endereço canônico: lista, grupos, status
+node tools/check-emoji.js           emojis ausentes na fonte e emoticon digitado enviado como emoji
+node tools/check-send-path.js       falhas no envio registradas em diag.log
+node tools/check-device-identity.js mensagem que inicia uma sessão leva a assinatura da conta neste dispositivo
 node tools/check-chat-list-source.js, check-history-sync.js, check-send-status.js,
      check-attachment-file.js, check-chat-scroll.js, check-no-server.js, check-status-viewer.js
 ```
