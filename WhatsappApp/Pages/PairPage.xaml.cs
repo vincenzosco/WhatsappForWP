@@ -123,7 +123,6 @@ namespace WhatsappApp.Pages
 
             _left = false;
             ApplyTheme();
-
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("PairPage/pairing", RunAsync());
 #pragma warning restore 4014
@@ -143,6 +142,44 @@ namespace WhatsappApp.Pages
             StopRotation();
             ReleaseScreenOn();
             if (_session != null) _session.Close();
+        }
+
+        private void NavigateHomeAfterPairing()
+        {
+            if (_left)
+            {
+                Diag.Failed("PairPage/navigation", new InvalidOperationException(
+                    "Pairing succeeded after the PairPage had already left."));
+                return;
+            }
+
+            try
+            {
+                PhoneApplicationFrame frame = Application.Current == null
+                    ? null : Application.Current.RootVisual as PhoneApplicationFrame;
+                if (frame == null)
+                {
+                    throw new InvalidOperationException("The Silverlight root frame is unavailable after pairing.");
+                }
+
+                Uri destination = new Uri("/Pages/HomePage.xaml?paired=1", UriKind.Relative);
+                Diag.Ok("pair: requesting HomePage navigation on the UI dispatcher");
+                bool accepted = frame.Navigate(destination);
+                Diag.Ok("pair: HomePage navigation accepted: " + accepted);
+                if (!accepted)
+                {
+                    ErrorText.Text = Loc.Get("PairPage_NavigationFailed", "The account is linked, but the chats page could not be opened. Close and reopen the app.");
+                    ErrorText.Visibility = Visibility.Visible;
+                    RetryButton.Visibility = Visibility.Collapsed;
+                }
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("PairPage/navigation", error);
+                ErrorText.Text = Loc.Get("PairPage_NavigationFailed", "The account is linked, but the chats page could not be opened. Close and reopen the app.");
+                ErrorText.Visibility = Visibility.Visible;
+                RetryButton.Visibility = Visibility.Collapsed;
+            }
         }
 
         private void RetryButton_Click(object sender, RoutedEventArgs e)
@@ -237,6 +274,7 @@ namespace WhatsappApp.Pages
                 // account's day, and keeping it would put somebody else's updates on the
                 // new account's list.
                 await StatusCache.DeleteAsync();
+                await DataService.Instance.ResetForNewAccountAsync();
 
                 // And the answer the previous link gave: this account's history has not
                 // arrived yet.
@@ -264,16 +302,12 @@ namespace WhatsappApp.Pages
                 await NativeConnection.Instance.RestartAsync();
 
                 Diag.Ok("whatsapp: linked as " + paired.Jid);
+                Diag.Ok("pair: server accepted the scan");
 
-                // The link is real either way; only the navigation belongs to a page that is
-                // still in front. Navigating from a page the user already left pulled them
-                // out of whatever they had opened, and a detached page answered it with a
-                // NullReferenceException that painted "the connection failed" over a success.
-                System.Windows.Navigation.NavigationService navigation = NavigationService;
-                if (!_left && navigation != null)
-                {
-                    navigation.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
-                }
+                // Pairing completes on the async continuation, which can resume away
+                // from the Silverlight UI thread. Schedule the root-frame navigation
+                // on the dispatcher so it is not lost while this page is still live.
+                Deployment.Current.Dispatcher.BeginInvoke(NavigateHomeAfterPairing);
             }
             catch (Exception error)
             {

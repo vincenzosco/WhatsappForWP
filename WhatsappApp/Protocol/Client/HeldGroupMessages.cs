@@ -62,6 +62,15 @@ namespace WhatsappApp.Protocol.Client
             get { return _dropped; }
         }
 
+        /// <summary>Forgets stanzas held under the previous account's sender keys.</summary>
+        public void Clear()
+        {
+            _bySender.Clear();
+            _count = 0;
+            _dropped = 0;
+            _nextSeq = 0;
+        }
+
         /// <summary>True when this member has at least one message waiting in this group.</summary>
         public bool Has(string groupJid, string participant)
         {

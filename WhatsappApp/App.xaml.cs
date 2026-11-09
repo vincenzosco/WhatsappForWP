@@ -82,6 +82,8 @@ namespace WhatsappApp
             // net in `EnsureStartupPage` and the manifest's own navigation), and
             // the second raw one used to land the home page over the pair page.
             _initialNavigationPending = false;
+            string route = e.Uri == null ? "unknown" : e.Uri.ToString();
+            Diag.Ok("App/navigation landed on " + route);
             OpenPendingChat();
             DepositPickerContinuation();
         }
@@ -102,6 +104,15 @@ namespace WhatsappApp
         private Uri MapInitialUri(Uri uri)
         {
             if (uri == null) return null;
+
+            // The pairing page gives its explicit handoff a marker so it cannot be
+            // mistaken for the shell's initial route after the first frame landing.
+            string paired = QueryValue(uri, "paired");
+            if (string.Equals(paired, "1", StringComparison.Ordinal))
+            {
+                Diag.Ok("pair: the explicit HomePage handoff reached the URI mapper");
+                return new Uri(HomePageUri, UriKind.Relative);
+            }
 
             string tileArguments = QueryValue(uri, "tile");
             if (tileArguments == null) tileArguments = QueryValue(uri, "arguments");

@@ -3078,6 +3078,52 @@ namespace WhatsappApp.Services
             _historyRequested.Clear();
         }
 
+        /// <summary>Clears the in-memory state before this process starts showing a different account.</summary>
+        public async Task ResetForNewAccountAsync()
+        {
+            List<ChatMessage> oldMessages = new List<ChatMessage>();
+            foreach (ObservableCollection<ChatMessage> messages in _chatMessages.Values)
+            {
+                if (messages == null) continue;
+                for (int i = 0; i < messages.Count; i++)
+                {
+                    if (messages[i] != null) oldMessages.Add(messages[i]);
+                }
+            }
+
+            await IncomingMediaStore.DeleteAsync(oldMessages);
+
+            _contacts.Clear();
+            _contactIndex.Clear();
+            _chatMessages.Clear();
+            _calls.Clear();
+            _statuses.Clear();
+            _localCalls.Clear();
+            _freshChatRows.Clear();
+            _namedDuplicates.Clear();
+            _historyRequested.Clear();
+            _historyArrived.Clear();
+            _batchOpen = false;
+            _activeChatId = null;
+            _listening = false;
+            HistoryComplete = false;
+            _listSaveDue = 0;
+            _statusSnapshotRequested = 0;
+            _statusSnapshotWritten = 0;
+            _pinnedTilesAfterLogin = false;
+
+            NameCache.Clear();
+            AvatarCache.Clear();
+            ChatPreferences.Clear();
+            NotificationService.ResetForNewAccount();
+            if (_callLog != null) _callLog.Reset();
+            _call.Clear();
+            NativeConnection.Instance.ResetForNewAccount();
+
+            RaiseStatusesChanged();
+            PublishBadge();
+        }
+
         /// <summary>
         /// Says whether this chat history must be requested now, and if so remembers
         /// it: once per chat per session. Reopening the same chat shows it right away

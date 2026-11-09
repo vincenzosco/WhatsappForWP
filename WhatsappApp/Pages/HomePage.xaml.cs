@@ -30,6 +30,7 @@ namespace WhatsappApp.Pages
         private bool _movingTabs;
         private bool _ready;
         private int _section;
+        private bool _homeSearching;
         private readonly ObservableCollection<Contact> _matches = new ObservableCollection<Contact>();
         private bool _searching;
         private DispatcherTimer _callTicker;
@@ -53,24 +54,13 @@ namespace WhatsappApp.Pages
             ((PivotItem)Sections.Items[1]).Header = Loc.Get("Nav_Status", "status").ToLowerInvariant();
             ((PivotItem)Sections.Items[2]).Header = Loc.Get("Nav_Calls", "calls").ToLowerInvariant();
 
-            NewChatLabel.Text = Loc.Get("ChatsPage_NewChatTooltip", "New chat");
-            SearchLabel.Text = Loc.Get("ChatsPage_SearchTooltip", "Search");
-            MoreLabel.Text = Loc.Get("ChatsPage_MoreTooltip", "More");
-            SettingsLabel.Text = Loc.Get("ChatsPage_SettingsTooltip", "Settings");
-            RefreshStatusLabel.Text = Loc.Get("Common_Refresh", "refresh");
-            RefreshCallsLabel.Text = Loc.Get("Common_Refresh", "refresh");
             SearchPrompt.Text = Loc.Get("ChatsPage_Search.PlaceholderText", "Search");
             PendingAttachmentText.Text = Loc.Get("ChatsPage_PendingImage.Text",
                 "An image is ready: open a chat to send it");
             DiagnosticsButton.Content = Loc.Get("ChatsPage_Diagnostics.Content", "Why is it empty?");
 
-            SetAutomationName(NewChatButton, NewChatLabel.Text);
-            SetAutomationName(SearchButton, SearchLabel.Text);
             SetAutomationName(CloseSearchButton, Loc.Get("ChatsPage_SearchClose", "Close the search"));
-            SetAutomationName(MoreButton, MoreLabel.Text);
-            SetAutomationName(SettingsButton, SettingsLabel.Text);
-            SetAutomationName(RefreshStatusButton, RefreshStatusLabel.Text);
-            SetAutomationName(RefreshCallsButton, RefreshCallsLabel.Text);
+            SetAutomationName(ModalDismissButton, Loc.Get("ChatsPage_CloseMenu", "Close menu"));
 
             AcceptCallButton.Content = Loc.Get("Call_Accept", "Accept");
             DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
@@ -141,9 +131,10 @@ namespace WhatsappApp.Pages
                 _movingTabs = false;
             }
 
-            ChatsBar.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
-            StatusBar.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
-            CallsBar.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
+            if (_homeSearching && index != 0) CloseSearch();
+            ApplicationBar = index == 0 ? ChatsApplicationBar
+                : (index == 1 ? StatusApplicationBar : CallsApplicationBar);
+            UpdateChatsMenuItems();
 
             if (index == 1) StatusView.Activate(); else StatusView.Deactivate();
             if (index == 2) CallsView.Activate(); else CallsView.Deactivate();
@@ -190,11 +181,13 @@ namespace WhatsappApp.Pages
         private void RefreshBadges()
         {
             Header.SetUnread(DataService.Instance.UnreadChats());
+            UpdateChatsMenuItems();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            Diag.Ok("pair: HomePage is visible");
             SystemTray.IsVisible = true;
             SystemTray.BackgroundColor = Color.FromArgb(255, 8, 11, 12);
             SystemTray.ForegroundColor = Colors.White;
@@ -487,18 +480,97 @@ namespace WhatsappApp.Pages
             RefreshBadges();
         }
 
-        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        private void SearchApplicationBarButton_Click(object sender, EventArgs e)
         {
+            _homeSearching = true;
             SearchPanel.Visibility = Visibility.Visible;
             SearchPrompt.Visibility = string.IsNullOrEmpty(SearchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
+            ApplicationBar = null;
             SearchBox.Focus();
         }
 
         private void CloseSearchButton_Click(object sender, RoutedEventArgs e)
         {
+            CloseSearch();
+        }
+
+        private void CloseSearch()
+        {
+            _homeSearching = false;
             SearchBox.Text = "";
             SearchPrompt.Visibility = Visibility.Visible;
             SearchPanel.Visibility = Visibility.Collapsed;
+            if (_ready && _section == 0) ApplicationBar = ChatsApplicationBar;
+        }
+
+        private void NewChatApplicationBarButton_Click(object sender, EventArgs e)
+        {
+            NewChatButton_Click(sender, new RoutedEventArgs());
+        }
+
+        private void SettingsApplicationBarMenuItem_Click(object sender, EventArgs e)
+        {
+            SettingsButton_Click(sender, new RoutedEventArgs());
+        }
+
+        private void NewCallButton_Click(object sender, EventArgs e)
+        {
+            var picker = new PhoneNumberChooserTask();
+            EventHandler<PhoneNumberResult> handler = null;
+            handler = delegate(object source, PhoneNumberResult result)
+            {
+                picker.Completed -= handler;
+                if (result.TaskResult != TaskResult.OK) return;
+
+                string phone = NormalizePhone(result.PhoneNumber);
+                if (phone.Length < 6)
+                {
+                    Diag.Ok("calls: contact picker returned no usable number");
+                    return;
+                }
+
+                string jid = phone + "@s.whatsapp.net";
+                Guarded.RunGuardedAsync("HomePage/start call", StartCallAndOpenAsync(jid));
+            };
+            picker.Completed += handler;
+            try
+            {
+                picker.Show();
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("HomePage/call contact picker", ex);
+            }
+        }
+
+        private async Task StartCallAndOpenAsync(string jid)
+        {
+            await DataService.Instance.StartCallAsync(jid, false);
+            CallSession call = DataService.Instance.Call;
+            if (call != null && call.Occupied) NavigateToPage("CallPage", null);
+        }
+
+        private void RefreshStatusApplicationBarButton_Click(object sender, EventArgs e)
+        {
+            DataService.Instance.ScanStatuses();
+        }
+
+        private void RefreshCallsApplicationBarMenuItem_Click(object sender, EventArgs e)
+        {
+            CallsView.Refresh();
+        }
+
+        private void PinChatsMenuItem_Click(object sender, EventArgs e)
+        {
+            Guarded.RunGuardedAsync("HomePage/pin chats", ShowPinPickerAsync());
+        }
+
+        private void UpdateChatsMenuItems()
+        {
+            bool hasChats = DataService.Instance.Contacts.Count > 0;
+            ReadAllAppBarMenuItem.IsEnabled = hasChats;
+            PinChatsAppBarMenuItem.IsEnabled = hasChats;
+            UnpinAllAppBarMenuItem.IsEnabled = hasChats;
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -984,8 +1056,22 @@ namespace WhatsappApp.Pages
         private void ShowActionMenu(string title)
         {
             BeginModal(title, "", "", null, null);
+            ModalOverlay.Background = new SolidColorBrush(Colors.Transparent);
+            ModalCard.HorizontalAlignment = HorizontalAlignment.Right;
+            ModalCard.VerticalAlignment = VerticalAlignment.Bottom;
+            ModalCard.Width = 280;
+            ModalCard.MaxHeight = 420;
+            ModalCard.BorderThickness = new Thickness(0);
+            ModalCard.Margin = new Thickness(8, 8, 8, 76);
+            ModalTitle.Visibility = Visibility.Collapsed;
+            ModalDismissButton.Visibility = Visibility.Visible;
             ModalPrimaryButton.Visibility = Visibility.Collapsed;
             ModalSecondaryButton.Visibility = Visibility.Collapsed;
+        }
+
+        private void ModalDismissButton_Click(object sender, RoutedEventArgs e)
+        {
+            CloseModal();
         }
 
         private void AddModalOptionHandler(string text, RoutedEventHandler handler)
@@ -1048,6 +1134,15 @@ namespace WhatsappApp.Pages
             Action primaryAction, Action secondaryAction)
         {
             ModalContent.Children.Clear();
+            ModalCard.HorizontalAlignment = HorizontalAlignment.Center;
+            ModalCard.VerticalAlignment = VerticalAlignment.Center;
+            ModalCard.Width = double.NaN;
+            ModalCard.MaxHeight = 560;
+            ModalCard.BorderThickness = new Thickness(1);
+            ModalCard.Margin = new Thickness(22, 18, 22, 18);
+            ModalOverlay.Background = new SolidColorBrush(Color.FromArgb(217, 0, 0, 0));
+            ModalTitle.Visibility = Visibility.Visible;
+            ModalDismissButton.Visibility = Visibility.Collapsed;
             ModalTitle.Text = title;
             ModalPrimaryButton.Content = primary;
             ModalSecondaryButton.Content = secondary;
@@ -1061,6 +1156,7 @@ namespace WhatsappApp.Pages
         private void CloseModal()
         {
             ModalOverlay.Visibility = Visibility.Collapsed;
+            ModalDismissButton.Visibility = Visibility.Collapsed;
             _modalPrimaryAction = null;
             _modalSecondaryAction = null;
         }

@@ -29,7 +29,7 @@ namespace WhatsappApp.Services
         private const string FileName = "call-log.json";
 
         private readonly SerialQueue _writes = new SerialQueue();
-        private readonly CallLogTables _tables = new CallLogTables();
+        private CallLogTables _tables = new CallLogTables();
 
         private bool _loadStarted;
         private bool _loaded;
@@ -130,6 +130,14 @@ namespace WhatsappApp.Services
         private void SaveSoon()
         {
             _writes.RunAsync(() => SaveAsync());
+        }
+
+        /// <summary>Resets this process's call history after a new account is linked.</summary>
+        public void Reset()
+        {
+            _tables = new CallLogTables();
+            _loadStarted = false;
+            _loaded = false;
         }
 
         public async Task LoadAsync()

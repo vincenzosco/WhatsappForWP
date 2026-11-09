@@ -30,6 +30,8 @@ namespace WhatsappApp.Pages
     public sealed partial class ChatPage : PhoneApplicationPage
     {
         private Contact _contact;
+        private bool _messageSelectionMode;
+        private readonly List<ChatMessage> _selectedMessages = new List<ChatMessage>();
         // The members picked from the @ menu for the message being written.
         private readonly List<string> _pendingMentions = new List<string>();
         private ObservableCollection<ChatMessage> _messages;
@@ -182,8 +184,14 @@ namespace WhatsappApp.Pages
         {
             this.InitializeComponent();
             SystemTray.IsVisible = true;
+            ApplicationBar = ChatApplicationBar;
 
             AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
+            AutomationProperties.SetName(ContactInfoAppBarMenuItem, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
+            AutomationProperties.SetName(SelectMessagesAppBarMenuItem, Loc.Get("ChatPage_SelectMessagesAppBarMenuItem.Text", "Select messages"));
+            AutomationProperties.SetName(ForwardMessagesAppBarButton, Loc.Get("ChatPage_ForwardMessagesAppBarButton.Text", "Forward"));
+            AutomationProperties.SetName(CopyMessagesAppBarButton, Loc.Get("ChatPage_CopyMessagesAppBarButton.Text", "Copy"));
+            AutomationProperties.SetName(DeleteMessagesAppBarButton, Loc.Get("ChatPage_DeleteMessagesAppBarButton.Text", "Delete"));
             AutomationProperties.SetName(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
             AutomationProperties.SetName(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
             AutomationProperties.SetName(SmileyButton, Loc.Get("ChatPage_EmojiTooltip", "Emoji"));
@@ -246,6 +254,9 @@ namespace WhatsappApp.Pages
                 // The avatar and the initials come from the contact: the page does
                 // not rebuild them.
                 DataContext = contact;
+                _messageSelectionMode = false;
+                _selectedMessages.Clear();
+                ApplicationBar = ChatApplicationBar;
 
                 ContactNameText.Text = contact.Name;
 
@@ -503,6 +514,7 @@ namespace WhatsappApp.Pages
             // send the `paused` when the message follows at once, and the dots would
             // stay on screen for a conversation that is no longer being written.
             HideTyping();
+            if (_messageSelectionMode) RefreshSelectedMessages();
 
             // The conversation is brought to the newest bubble only when the reader
             // is already at the bottom. Following every message dragged the screen
@@ -2206,6 +2218,11 @@ namespace WhatsappApp.Pages
             if (message == null) return;
 
             e.Handled = true;
+            if (_messageSelectionMode)
+            {
+                ToggleSelectedMessage(message);
+                return;
+            }
             ShowMessageMenu(element, message);
         }
 
@@ -2447,6 +2464,80 @@ namespace WhatsappApp.Pages
         private void SmileyButton_Click(object sender, RoutedEventArgs e)
         {
             MessageTextBox.Focus();
+        }
+
+        private void ContactInfoAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            OpenContactInfo();
+        }
+
+        private void SelectMessagesAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            _messageSelectionMode = true;
+            _selectedMessages.Clear();
+            ApplicationBar = SelectedMessagesApplicationBar;
+            UpdateSelectionActions();
+        }
+
+        private void ForwardMessagesAppBarButton_Click(object sender, EventArgs e)
+        {
+            Diag.Ok("chat selection: forwarding is unavailable in this version");
+        }
+
+        private void CopyMessagesAppBarButton_Click(object sender, EventArgs e)
+        {
+            Diag.Ok("chat selection: copying is unavailable on this platform");
+        }
+
+        private void DeleteMessagesAppBarButton_Click(object sender, EventArgs e)
+        {
+            Diag.Ok("chat selection: deletion is not available until message selection can be confirmed");
+        }
+
+        private void ToggleSelectedMessage(ChatMessage message)
+        {
+            if (_selectedMessages.Contains(message)) _selectedMessages.Remove(message);
+            else _selectedMessages.Add(message);
+            if (_selectedMessages.Count == 0)
+            {
+                _messageSelectionMode = false;
+                ApplicationBar = ChatApplicationBar;
+                return;
+            }
+            UpdateSelectionActions();
+        }
+
+        private void RefreshSelectedMessages()
+        {
+            for (int i = _selectedMessages.Count - 1; i >= 0; i--)
+            {
+                if (!_messages.Contains(_selectedMessages[i])) _selectedMessages.RemoveAt(i);
+            }
+            if (_selectedMessages.Count == 0)
+            {
+                _messageSelectionMode = false;
+                ApplicationBar = ChatApplicationBar;
+                return;
+            }
+            UpdateSelectionActions();
+        }
+
+        private void UpdateSelectionActions()
+        {
+            bool any = _selectedMessages.Count > 0;
+            ForwardMessagesAppBarButton.IsEnabled = any && _selectedMessages.Count <= 10;
+            CopyMessagesAppBarButton.IsEnabled = any && AllSelectedMessagesAreText();
+            DeleteMessagesAppBarButton.IsEnabled = any;
+        }
+
+        private bool AllSelectedMessagesAreText()
+        {
+            for (int i = 0; i < _selectedMessages.Count; i++)
+            {
+                ChatMessage message = _selectedMessages[i];
+                if (message == null || message.Type != MessageType.Text || !message.ShowsText) return false;
+            }
+            return true;
         }
 
         /// <summary>The overflow of the ring bar: the chat's own page actions.</summary>

@@ -5,6 +5,7 @@
     xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
     xmlns:conv="clr-namespace:WhatsappApp.Converters"
     xmlns:controls="clr-namespace:WhatsappApp.Controls"
+    xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone"
     Background="Black" Orientation="Portrait"
 >
 
@@ -13,6 +14,30 @@
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <SolidColorBrush x:Key="HomeAccentBrush" Color="#FF00A8C7"/>
+        <shell:ApplicationBar x:Key="ChatsApplicationBar" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="SearchAppBarButton" x:Uid="Home_SearchAppBarButton" IconUri="/Assets/Reference/search.png" Text="Search" Click="SearchApplicationBarButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="NewChatAppBarButton" x:Uid="Home_NewChatAppBarButton" IconUri="/Assets/Reference/add.png" Text="New chat" Click="NewChatApplicationBarButton_Click"/>
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Name="ReadAllAppBarMenuItem" x:Uid="Home_ReadAllAppBarMenuItem" Text="Read all chats" Click="ReadAllMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Name="PinChatsAppBarMenuItem" x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Name="UnpinAllAppBarMenuItem" x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllMenuItem_Click"/>
+
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
+        <shell:ApplicationBar x:Key="StatusApplicationBar" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="RefreshStatusAppBarButton" x:Uid="Home_RefreshStatusAppBarButton" IconUri="/Assets/Reference/refresh.png" Text="Refresh" Click="RefreshStatusApplicationBarButton_Click"/>
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Name="MarkStatusesAppBarMenuItem" x:Uid="Home_MarkStatusesAppBarMenuItem" Text="Mark all as viewed" Click="MarkAllStatusesMenuItem_Click"/>
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
+        <shell:ApplicationBar x:Key="CallsApplicationBar" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="NewCallAppBarButton" x:Uid="Home_NewCallAppBarButton" IconUri="/Assets/Reference/ThemeDark/phone-solid.png" Text="Start a voice call" Click="NewCallButton_Click"/>
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Name="RefreshCallsAppBarMenuItem" x:Uid="Home_RefreshCallsAppBarMenuItem" Text="Refresh" Click="RefreshCallsApplicationBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Name="MarkCallsAppBarMenuItem" x:Uid="Home_MarkCallsAppBarMenuItem" Text="Mark all as seen" Click="MarkCallsSeenMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_SettingsAppBarMenuItem" Text="Settings" Click="SettingsApplicationBarMenuItem_Click"/>
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
         <!--
             The bottom bar the reference client shows: a row of outlined circles
             with the glyph inside, and the overflow as plain dots at the right
@@ -301,10 +326,10 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="2" Background="#FF171717" MinHeight="64">
+        <Grid Grid.Row="2" Background="#FF171717" MinHeight="64" Visibility="Collapsed">
             <Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"/>
             <Grid x:Name="ChatsBar">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="SearchButton" Style="{StaticResource AppBarButtonStyle}" Click="SearchButton_Click">
                         <StackPanel VerticalAlignment="Center">
                             <Grid Width="24" Height="24" HorizontalAlignment="Center">
@@ -344,7 +369,7 @@
                     </Button>
                 </StackPanel>
                 <Button x:Name="MoreButton" Style="{StaticResource OverflowButtonStyle}"
-                        Click="MoreButton_Click" HorizontalAlignment="Right">
+                        Click="MoreButton_Click" HorizontalAlignment="Right" MinWidth="0" MinHeight="0">
                     <StackPanel VerticalAlignment="Center">
                         <!-- IconOverflow -->
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -357,7 +382,7 @@
                 </Button>
             </Grid>
             <Grid x:Name="StatusBar" Visibility="Collapsed">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="RefreshStatusButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshStatusButton_Click">
                         <StackPanel VerticalAlignment="Center">
                             <Grid Width="22" Height="22" HorizontalAlignment="Center">
@@ -379,17 +404,17 @@
                     </Button>
                 </StackPanel>
                 <Button x:Name="StatusMoreButton" Style="{StaticResource OverflowButtonStyle}"
-                        Click="StatusMoreButton_Click" HorizontalAlignment="Right">
+                        Click="StatusMoreButton_Click" HorizontalAlignment="Right" MinWidth="0" MinHeight="0">
                     <!-- IconOverflow -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                        <Ellipse Width="4" Height="4" Fill="#FF20C4BC" Margin="2,0"/>
-                        <Ellipse Width="4" Height="4" Fill="#FF20C4BC" Margin="2,0"/>
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
                     </StackPanel>
                 </Button>
             </Grid>
             <Grid x:Name="CallsBar" Visibility="Collapsed">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button x:Name="RefreshCallsButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshCallsButton_Click">
                         <StackPanel VerticalAlignment="Center">
                             <Grid Width="22" Height="22" HorizontalAlignment="Center">
@@ -411,20 +436,23 @@
                     </Button>
                 </StackPanel>
                 <Button x:Name="CallsMoreButton" Style="{StaticResource OverflowButtonStyle}"
-                        Click="CallsMoreButton_Click" HorizontalAlignment="Right">
+                        Click="CallsMoreButton_Click" HorizontalAlignment="Right" MinWidth="0" MinHeight="0">
                     <!-- IconOverflow -->
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                        <Ellipse Width="4" Height="4" Fill="#FF20C4BC" Margin="2,0"/>
-                        <Ellipse Width="4" Height="4" Fill="#FF20C4BC" Margin="2,0"/>
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
                     </StackPanel>
                 </Button>
             </Grid>
         </Grid>
 
-        <Grid x:Name="ModalOverlay" Grid.RowSpan="3" Background="#D9000000" Visibility="Collapsed">
-            <Border Background="#FF171717" BorderBrush="#FF00A8C7" BorderThickness="1"
-                    Margin="22,18" MaxHeight="560" VerticalAlignment="Center">
+        <Grid x:Name="ModalOverlay" Grid.RowSpan="3" Background="Transparent" Visibility="Collapsed">
+            <Button x:Name="ModalDismissButton" Grid.RowSpan="3" Background="Transparent"
+                    BorderThickness="0" MinWidth="0" MinHeight="0" Padding="0"
+                    Click="ModalDismissButton_Click" Visibility="Collapsed"/>
+            <Border x:Name="ModalCard" Background="#FF171717" BorderBrush="#FF00A8C7"
+                    BorderThickness="1" Margin="8,18" MaxHeight="560" VerticalAlignment="Center">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>

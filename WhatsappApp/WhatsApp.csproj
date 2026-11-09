@@ -152,6 +152,35 @@
 
   <ItemGroup>
     <Content Include="Assets\ChatBackground.jpg" />
+    <Content Include="Assets\Reference\ThemeDark\archive.png" />
+    <Content Include="Assets\Reference\ThemeDark\copy.png" />
+    <Content Include="Assets\Reference\ThemeDark\delete.png" />
+    <Content Include="Assets\Reference\ThemeDark\forward.png" />
+    <Content Include="Assets\Reference\ThemeDark\inputbar-attach.png" />
+    <Content Include="Assets\Reference\ThemeDark\inputbar-emoji.png" />
+    <Content Include="Assets\Reference\ThemeDark\inputbar-keyboard.png" />
+    <Content Include="Assets\Reference\ThemeDark\inputbar-mic.png" />
+    <Content Include="Assets\Reference\ThemeDark\inputbar-send.png" />
+    <Content Include="Assets\Reference\ThemeDark\phone-solid.png" />
+    <Content Include="Assets\Reference\ThemeDark\status.png" />
+    <Content Include="Assets\Reference\ThemeDark\video-solid.png" />
+    <Content Include="Assets\Reference\ThemeLight\inputbar-attach.png" />
+    <Content Include="Assets\Reference\ThemeLight\inputbar-emoji.png" />
+    <Content Include="Assets\Reference\ThemeLight\inputbar-keyboard.png" />
+    <Content Include="Assets\Reference\ThemeLight\inputbar-mic.png" />
+    <Content Include="Assets\Reference\ThemeLight\inputbar-send.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\inputbar-mic-red.png" />
+    <Content Include="Assets\Reference\add.png" />
+    <Content Include="Assets\Reference\archive.png" />
+    <Content Include="Assets\Reference\camera-icon.png" />
+    <Content Include="Assets\Reference\copy.png" />
+    <Content Include="Assets\Reference\delete.png" />
+    <Content Include="Assets\Reference\forward.png" />
+    <Content Include="Assets\Reference\newgroup.png" />
+    <Content Include="Assets\Reference\phone-solid.png" />
+    <Content Include="Assets\Reference\refresh.png" />
+    <Content Include="Assets\Reference\search.png" />
+    <Content Include="Assets\Reference\video-solid.png" />
     <Content Include="SplashScreenImage.jpg" />
     <Content Include="SplashScreenImage.scale-240.jpg" />
     <Content Include="Libraries\Zlib.Portable.LICENSE.txt" />

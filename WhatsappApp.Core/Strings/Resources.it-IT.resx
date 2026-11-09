@@ -136,11 +136,50 @@
   <data name="Common_Refresh" xml:space="preserve">
     <value>aggiorna</value>
   </data>
-  <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
+  <data name="Home_SearchAppBarButton.Text" xml:space="preserve">
+    <value>Cerca</value>
+  </data>
+  <data name="Home_NewChatAppBarButton.Text" xml:space="preserve">
     <value>Nuova chat</value>
   </data>
-  <data name="ChatsPage_SettingsTooltip" xml:space="preserve">
+  <data name="Home_ReadAllAppBarMenuItem.Text" xml:space="preserve">
+    <value>Leggi tutte le chat</value>
+  </data>
+  <data name="Home_PinChatsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Fissa chat</value>
+  </data>
+  <data name="Home_UnpinAllAppBarMenuItem.Text" xml:space="preserve">
+    <value>Sblocca tutte</value>
+  </data>
+  <data name="Home_SettingsAppBarMenuItem.Text" xml:space="preserve">
     <value>Impostazioni</value>
+  </data>
+  <data name="Home_RefreshStatusAppBarButton.Text" xml:space="preserve">
+    <value>Aggiorna</value>
+  </data>
+  <data name="Home_MarkStatusesAppBarMenuItem.Text" xml:space="preserve">
+    <value>Segna tutti come visti</value>
+  </data>
+  <data name="Home_NewCallAppBarButton.Text" xml:space="preserve">
+    <value>Avvia chiamata vocale</value>
+  </data>
+  <data name="Home_RefreshCallsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Aggiorna</value>
+  </data>
+  <data name="Home_MarkCallsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Segna tutte come viste</value>
+  </data>
+  <data name="ChatPage_SelectMessagesAppBarMenuItem.Text" xml:space="preserve">
+    <value>Seleziona messaggi</value>
+  </data>
+  <data name="ChatPage_ForwardMessagesAppBarButton.Text" xml:space="preserve">
+    <value>Inoltra</value>
+  </data>
+  <data name="ChatPage_CopyMessagesAppBarButton.Text" xml:space="preserve">
+    <value>Copia</value>
+  </data>
+  <data name="ChatPage_DeleteMessagesAppBarButton.Text" xml:space="preserve">
+    <value>Elimina</value>
   </data>
   <data name="NewChat_Title" xml:space="preserve">
     <value>Nuova chat</value>
@@ -268,10 +307,10 @@
   <data name="ChatsPage_MoreTooltip" xml:space="preserve">
     <value>Altro</value>
   </data>
-  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
-    <value>Cerca</value>
+  <data name="ChatsPage_CloseMenu" xml:space="preserve">
+    <value>Chiudi menu</value>
   </data>
-  <data name="ChatsPage_SearchTooltip" xml:space="preserve">
+  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
     <value>Cerca</value>
   </data>
   <data name="ChatsPage_SearchClose" xml:space="preserve">
@@ -657,6 +696,9 @@
   </data>
   <data name="PairPage_Scanning" xml:space="preserve">
     <value>Inquadra questo codice con l’altro telefono.</value>
+  </data>
+  <data name="PairPage_NavigationFailed" xml:space="preserve">
+    <value>Il dispositivo è collegato, ma non è stato possibile aprire le chat. Chiudi e riapri l’app.</value>
   </data>
   <data name="PairPage_Brand.Text" xml:space="preserve">
     <value>WHATSAPP</value>

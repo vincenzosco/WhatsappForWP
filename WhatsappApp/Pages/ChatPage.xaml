@@ -4,7 +4,8 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:conv="clr-namespace:WhatsappApp.Converters"
     xmlns:pages="clr-namespace:WhatsappApp.Pages"
-    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone" Orientation="Portrait">
+    xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
+    xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone" Orientation="Portrait">
 
     <!-- The wallpaper, as the settings page chose it (Services/ThemeService): by
          default the doodle the released app ships in Images/Background.jpg, or one
@@ -33,6 +34,17 @@
              bubble is on screen. It is WhatsApp's animation drawn with three
              ellipses, so nothing has to be decoded to show it, and it is stopped
              (not just hidden) the moment the bubble goes away. -->
+        <shell:ApplicationBar x:Key="ChatApplicationBar" IsMenuEnabled="True">
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Name="ContactInfoAppBarMenuItem" x:Uid="ChatPage_ContactInfoAppBarMenuItem" Text="Contact info" Click="ContactInfoAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Name="SelectMessagesAppBarMenuItem" x:Uid="ChatPage_SelectMessagesAppBarMenuItem" Text="Select messages" Click="SelectMessagesAppBarMenuItem_Click"/>
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
+        <shell:ApplicationBar x:Key="SelectedMessagesApplicationBar" IsMenuEnabled="False">
+            <shell:ApplicationBarIconButton x:Name="ForwardMessagesAppBarButton" x:Uid="ChatPage_ForwardMessagesAppBarButton" IconUri="/Assets/Reference/ThemeDark/forward.png" Text="Forward" IsEnabled="False" Click="ForwardMessagesAppBarButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="CopyMessagesAppBarButton" x:Uid="ChatPage_CopyMessagesAppBarButton" IconUri="/Assets/Reference/ThemeDark/copy.png" Text="Copy" IsEnabled="False" Click="CopyMessagesAppBarButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="DeleteMessagesAppBarButton" x:Uid="ChatPage_DeleteMessagesAppBarButton" IconUri="/Assets/Reference/ThemeDark/delete.png" Text="Delete" IsEnabled="False" Click="DeleteMessagesAppBarButton_Click"/>
+        </shell:ApplicationBar>
         <Storyboard x:Key="TypingDots" RepeatBehavior="Forever">
             <DoubleAnimationUsingKeyFrames Storyboard.TargetName="TypingDot1"
                                            Storyboard.TargetProperty="(UIElement.RenderTransform).(CompositeTransform.TranslateY)"

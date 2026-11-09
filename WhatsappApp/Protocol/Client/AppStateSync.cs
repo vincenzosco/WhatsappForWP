@@ -56,6 +56,13 @@ namespace WhatsappApp.Protocol.Client
             return new List<AppStateKey>(_order);
         }
 
+        /// <summary>Forgets keys shared by the previous account.</summary>
+        public void Clear()
+        {
+            _keys.Clear();
+            _order.Clear();
+        }
+
         /// <summary>The key material a record names, or null when this device was never given it.</summary>
         public byte[] KeyFor(byte[] keyId)
         {

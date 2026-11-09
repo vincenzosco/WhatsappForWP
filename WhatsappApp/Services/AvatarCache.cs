@@ -177,6 +177,20 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>Forgets pictures from the previous linked account.</summary>
+        public static void Clear()
+        {
+            lock (Gate)
+            {
+                Known.Clear();
+                Order.Clear();
+                TooBig.Clear();
+                _chars = 0;
+                _version++;
+            }
+            Save();
+        }
+
         /// <summary>The picture kept for this chat, or null. After LoadAsync.</summary>
         public static string Get(string chatId)
         {
