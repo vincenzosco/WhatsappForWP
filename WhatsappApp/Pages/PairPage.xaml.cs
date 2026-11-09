@@ -94,10 +94,10 @@ namespace WhatsappApp.Pages
         public PairPage()
         {
             InitializeComponent();
-            TitleText.Text = Loc.Get("PairPage_Title.Text", "Link this phone");
+            TitleText.Text = Loc.Get("PairPage_Title.Text", "Link this");
             InstructionsText.Text = Loc.Get("PairPage_Instructions.Text",
-                "Open WhatsApp on the other phone, go to Settings, Linked devices, Link a device, and scan this code. This code changes every few seconds on its own: keep the camera on it.");
-            WaitingText.Text = Loc.Get("PairPage_Waiting.Text", "Waiting for the scan...");
+                "Open WhatsApp on the other phone, go to Settings, Linked devices, Link a device, and scan the code when it appears. Keep this screen open: the code changes every few seconds.");
+            WaitingText.Text = Loc.Get("PairPage_Connecting", "Connecting to WhatsApp...");
             ExpiredText.Text = Loc.Get("PairPage_ExpiredSession.Text",
                 "The code has expired. Ask for a new one and scan that.");
             ErrorText.Text = Loc.Get("PairPage_Error.Text",
@@ -172,7 +172,13 @@ namespace WhatsappApp.Pages
             BusyBar.Visibility = Visibility.Visible;
             ExpiredText.Visibility = Visibility.Collapsed;
             ErrorText.Visibility = Visibility.Collapsed;
-            QrImage.Visibility = Visibility.Visible;
+            RetryButton.Visibility = Visibility.Collapsed;
+            QrImage.Source = null;
+            QrImage.Visibility = Visibility.Collapsed;
+            QrFrame.Visibility = Visibility.Collapsed;
+            WaitingText.Text = Loc.Get("PairPage_Connecting", "Connecting to WhatsApp...");
+            WaitingText.Visibility = Visibility.Visible;
+            Diag.Ok("pair: opening connection; waiting for the server pairing code");
 
             try
             {
@@ -182,11 +188,15 @@ namespace WhatsappApp.Pages
                 _session = new PairingSession(_transport, credentials, new ProtocolLog(), _random);
 
                 IList<string> codes = await _session.StartAsync();
+                if (codes == null || codes.Count == 0)
+                    throw new InvalidOperationException("The pairing server returned no QR codes.");
+                Diag.Ok("pair: received " + codes.Count + " server code(s)");
 
                 _codes = codes;
                 _shown = 0;
 
                 Draw(codes[0]);
+                WaitingText.Text = Loc.Get("PairPage_Scanning", "Scan this code with your other phone.");
                 StartRotation(codes.Count);
 
                 Credentials paired = await _session.WaitForPairAsync(
@@ -273,6 +283,10 @@ namespace WhatsappApp.Pages
                 ReleaseScreenOn();
                 if (_session != null) _session.Close();
 
+                QrImage.Source = null;
+                QrImage.Visibility = Visibility.Collapsed;
+                QrFrame.Visibility = Visibility.Collapsed;
+                WaitingText.Visibility = Visibility.Collapsed;
                 ErrorText.Visibility = Visibility.Visible;
                 RetryButton.Visibility = Visibility.Visible;
             }
@@ -364,6 +378,10 @@ namespace WhatsappApp.Pages
             QrImage.Source = bitmap;
             QrImage.Width = side;
             QrImage.Height = side;
+            QrImage.HorizontalAlignment = HorizontalAlignment.Center;
+            QrImage.VerticalAlignment = VerticalAlignment.Center;
+            QrImage.Visibility = Visibility.Visible;
+            QrFrame.Visibility = Visibility.Visible;
 
             // There is a code on screen, so the screen has to stay on: see the field.
             // Idempotent, so the rotation calls it once per code for nothing.
@@ -434,7 +452,9 @@ namespace WhatsappApp.Pages
             ReleaseScreenOn();
 
             QrImage.Visibility = Visibility.Collapsed;
+            QrFrame.Visibility = Visibility.Collapsed;
             ExpiredText.Visibility = Visibility.Visible;
+            WaitingText.Visibility = Visibility.Collapsed;
             RetryButton.Visibility = Visibility.Visible;
         }
     }

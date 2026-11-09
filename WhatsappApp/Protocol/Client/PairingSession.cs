@@ -73,7 +73,9 @@ namespace WhatsappApp.Protocol.Client
         /// </summary>
         public async Task<IList<string>> StartAsync()
         {
+            _log.Info("pair: starting secure WebSocket and Noise handshake");
             await _socket.HandshakeAsync(WhatsAppSocket.DefaultUrl, _credentials);
+            _log.Info("pair: Noise handshake completed; waiting for pair-device");
             StartKeepAlive();
 
             while (true)

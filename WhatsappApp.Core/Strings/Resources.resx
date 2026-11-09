@@ -433,9 +433,6 @@
   <data name="PairPage_Instructions.Text" xml:space="preserve">
     <value>Open WhatsApp on the other phone, go to Settings, Linked devices, Link a device, and scan this code. This code changes every few seconds on its own: keep the camera on it.</value>
   </data>
-  <data name="PairPage_Waiting.Text" xml:space="preserve">
-    <value>Waiting for the scan...</value>
-  </data>
   <data name="PairPage_ExpiredSession.Text" xml:space="preserve">
     <value>The code has expired. Ask for a new one and scan that.</value>
   </data>
@@ -654,6 +651,15 @@
   </data>
   <data name="ChatPage_EmojiTooltip" xml:space="preserve">
     <value>Emoji</value>
+  </data>
+  <data name="PairPage_Connecting" xml:space="preserve">
+    <value>Connecting to WhatsApp...</value>
+  </data>
+  <data name="PairPage_Scanning" xml:space="preserve">
+    <value>Scan this code with your other phone.</value>
+  </data>
+  <data name="PairPage_Brand.Text" xml:space="preserve">
+    <value>WHATSAPP</value>
   </data>
 </root>
 

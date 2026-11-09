@@ -44,11 +44,15 @@ namespace WhatsappApp.Protocol.Transport
             Stream output = null;
             Stream activeInput = null;
             Stream activeOutput = null;
+            string phase = "TLS connect";
             try
             {
+                int port = WebSocketHandshake.PortFor(uri);
+                Diag.Ok("websocket: connecting to " + uri.DnsSafeHost + ":" + port);
                 var host = new HostName(uri.DnsSafeHost);
-                await socket.ConnectAsync(host, uri.Port.ToString(CultureInfo.InvariantCulture),
+                await socket.ConnectAsync(host, port.ToString(CultureInfo.InvariantCulture),
                     SocketProtectionLevel.Tls12);
+                Diag.Ok("websocket: TLS connected");
 
                 input = socket.InputStream.AsStreamForRead();
                 output = socket.OutputStream.AsStreamForWrite();
@@ -68,15 +72,19 @@ namespace WhatsappApp.Protocol.Transport
                 string key = Convert.ToBase64String(nonce);
 
                 byte[] request = WebSocketHandshake.BuildRequestBytes(uri, Origin, key);
+                phase = "HTTP upgrade write";
                 await activeOutput.WriteAsync(request, 0, request.Length).ConfigureAwait(false);
                 await activeOutput.FlushAsync().ConfigureAwait(false);
 
+                phase = "HTTP upgrade response";
                 string response = await ReadResponseHeadersAsync(activeInput).ConfigureAwait(false);
+                phase = "HTTP upgrade validation";
                 WebSocketHandshake.ValidateResponse(response, key);
                 Diag.Ok("whatsapp: connected to " + url);
             }
-            catch
+            catch (Exception error)
             {
+                Diag.Failed("WebSocketTransport/" + phase, error);
                 DisposeStream(input, "WebSocketTransport/failed input");
                 DisposeStream(output, "WebSocketTransport/failed output");
                 Close();

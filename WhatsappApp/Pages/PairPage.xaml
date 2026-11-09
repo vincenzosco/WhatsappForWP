@@ -18,27 +18,34 @@
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
         <Rectangle Grid.RowSpan="4" Fill="#CC000000"/>
 
-        <Grid Grid.Row="0" Background="Transparent">
-            <TextBlock x:Name="TitleText" Margin="16,-10,16,-6" VerticalAlignment="Bottom"
-                       FontSize="54" FontFamily="Segoe WP Semilight" Foreground="White"
-                       TextTrimming="WordEllipsis"/>
+        <Grid Grid.Row="0" Background="Transparent" Margin="0,0,0,8">
+            <StackPanel Margin="24,0,24,0" VerticalAlignment="Bottom">
+                <TextBlock x:Uid="PairPage_Brand" Text="WHATSAPP" Foreground="White" FontSize="15"
+                           FontWeight="SemiBold" Margin="0,0,0,2"/>
+                <TextBlock x:Name="TitleText" VerticalAlignment="Bottom"
+                           FontSize="54" FontFamily="Segoe WP Semilight" Foreground="White"
+                           TextWrapping="Wrap"/>
+            </StackPanel>
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="16,12,16,12">
+            <StackPanel Margin="24,8,24,12">
                 <TextBlock x:Name="InstructionsText" Foreground="#FFE0E0E0"
                            TextWrapping="Wrap" FontSize="16"/>
-                <Border HorizontalAlignment="Center" Background="White" Padding="8" Margin="0,16,0,16">
+                <Border x:Name="QrFrame" HorizontalAlignment="Center" Background="White"
+                        Padding="12" Margin="0,20,0,16" MinWidth="120" MinHeight="120"
+                        Visibility="Collapsed">
                     <Image x:Name="QrImage" Stretch="None"/>
                 </Border>
                 <TextBlock x:Name="WaitingText" Foreground="#FFB0B0B0"
-                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"/>
+                           TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
+                           TextAlignment="Center" Margin="0,4,0,8"/>
                 <TextBlock x:Name="ExpiredText" Foreground="#FFB0B0B0"
                            TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
-                           Visibility="Collapsed"/>
+                           TextAlignment="Center" Visibility="Collapsed"/>
                 <TextBlock x:Name="ErrorText" Foreground="#FFFF6B6B"
                            TextWrapping="Wrap" FontSize="15" HorizontalAlignment="Center"
-                           Visibility="Collapsed"/>
+                           TextAlignment="Center" Visibility="Collapsed"/>
             </StackPanel>
         </ScrollViewer>
 

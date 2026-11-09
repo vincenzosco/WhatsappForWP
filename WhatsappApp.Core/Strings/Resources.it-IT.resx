@@ -428,13 +428,10 @@
     <value>Cosa ha fatto l'app e dove ha provato a connettersi. Tieni premuto sul testo per selezionarlo e copiarlo, selezionalo tutto, o condividilo con un'altra app. Le stesse righe sono in diag.log nella cartella dell'app.</value>
   </data>
   <data name="PairPage_Title.Text" xml:space="preserve">
-    <value>Collega questo telefono</value>
+    <value>Collega questo</value>
   </data>
   <data name="PairPage_Instructions.Text" xml:space="preserve">
-    <value>Apri WhatsApp sull'altro telefono, vai in Impostazioni, Dispositivi collegati, Collega un dispositivo, e inquadra questo codice. Il codice cambia da solo ogni pochi secondi: tieni la fotocamera puntata.</value>
-  </data>
-  <data name="PairPage_Waiting.Text" xml:space="preserve">
-    <value>In attesa della scansione...</value>
+    <value>Apri WhatsApp sull'altro telefono, vai in Impostazioni, Dispositivi collegati, Collega un dispositivo e inquadra il codice quando appare. Tieni aperta questa schermata: il codice cambia ogni pochi secondi.</value>
   </data>
   <data name="PairPage_ExpiredSession.Text" xml:space="preserve">
     <value>Il codice e' scaduto. Chiedine uno nuovo e inquadra quello.</value>
@@ -654,6 +651,15 @@
   </data>
   <data name="ChatPage_EmojiTooltip" xml:space="preserve">
     <value>Emoji</value>
+  </data>
+  <data name="PairPage_Connecting" xml:space="preserve">
+    <value>Connessione a WhatsApp...</value>
+  </data>
+  <data name="PairPage_Scanning" xml:space="preserve">
+    <value>Inquadra questo codice con l’altro telefono.</value>
+  </data>
+  <data name="PairPage_Brand.Text" xml:space="preserve">
+    <value>WHATSAPP</value>
   </data>
 </root>
 

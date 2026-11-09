@@ -28,6 +28,15 @@ namespace WhatsappApp.Protocol.Transport
                 + "Origin: " + origin + "\r\n\r\n";
         }
 
+        public static int PortFor(Uri uri)
+        {
+            if (uri == null || !string.Equals(uri.Scheme, "wss", StringComparison.OrdinalIgnoreCase)
+                || string.IsNullOrEmpty(uri.Host))
+                throw new ProtocolException("a secure WebSocket URI is required");
+
+            return uri.IsDefaultPort || uri.Port < 1 ? 443 : uri.Port;
+        }
+
         public static byte[] BuildRequestBytes(Uri uri, string origin, string key)
         {
             return ToAsciiBytes(BuildRequest(uri, origin, key));
