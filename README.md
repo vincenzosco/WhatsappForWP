@@ -1,4 +1,4 @@
-**English** | [Italiano](README.it.md)
+**English** | [Italiano](README.it.md) | [Português (Brasil)](README.pt.md)
 
 <p align="center">
   <img src="WhatsappApp/Assets/WhatsAppLogo.png" width="128" alt="WhatsApp for Windows Phone 8.1 app icon">
@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="#build-it"><img src="https://img.shields.io/badge/platform-Windows%20Phone%208.1-2ea44f" alt="Windows Phone 8.1"></a>
-  <a href="README.it.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano-blue" alt="English and Italian"></a>
+  <a href="README.pt.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano%20%7C%20Portugu%C3%AAs%20%28Brasil%29-blue" alt="English, Italian and Brazilian Portuguese"></a>
 </p>
 
 Windows Phone 8.1 lost its official WhatsApp client years ago. This one is open source, lives in a
