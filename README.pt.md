@@ -205,7 +205,7 @@ Execute estes na raiz do repositório antes de um pull request. Os guardas são 
 node tools/check-csharp5.js         C# 6/7 syntax and WinRT members WP8.1 does not have
 node tools/check-icons.js           inline vector icons, element form, same icon same geometry
 node tools/check-resw.js --strict   x:Uid, Loc.Get, both .resw files, no unused key
-node tools/check-docs.js            README pair, same headings, disclosure last, no emoji
+node tools/check-docs.js            grupo de READMEs, mesmos títulos, disclosure no fim, sem emoji
 node tools/check-memory.js          decode width, cache caps, per-chat ceiling
 node tools/check-tile.js            tile payload, asset sizes, and a tile the platform refuses
 node tools/check-waopus.js          the Opus DLL: ARMNT, no KERNEL32, API-set imports only, its exports
@@ -256,17 +256,26 @@ node tools/test-protocol.js
 
 ## Contribuindo
 
-Issues e pull requests são bem-vindos. Leia `.agents/skills/maintain-the-app/SKILL.md` antes de mexer no código: C# 5 apenas, ícones vetoriais embutidos, sem strings visíveis ao usuário codificadas, e documentos sempre em pares. O índice das habilidades do projeto está em `.agents/skills/README.md`.
+Issues e pull requests são bem-vindos. Leia `.agents/skills/maintain-the-app/SKILL.md` antes de mexer no código: C# 5 apenas, ícones vetoriais embutidos, sem strings visíveis ao usuário codificadas e documentação sempre sincronizada. O índice das habilidades do projeto está em `.agents/skills/README.md`.
+
+Você também pode entrar no [nosso servidor do Discord](https://discord.gg/B8jncjBX6G) e contribuir
+por lá. O servidor funciona somente em inglês. Se quiser ajudar, abra um ticket em
+`#become-contributor` e inclua:
+
+- Com o que você pode ajudar (programação em C#, arte, localização como português brasileiro ou italiano etc.)
+- Por que quer contribuir
+- Sua experiência
+- Qualquer outra informação útil
 
 1. Faça um fork e crie uma branch: `fix/...`, `feat/...`, `docs/...`.
 2. Faça a mudança e rode o gate acima. Ele precisa estar verde.
 3. Compile o app no Windows e diga no pull request que ele reporta `0 Error(s)`. Não existe host de testes C# para o app, então a build é o gate dele.
 4. Escreva o assunto do commit como `tipo: curta ordem imperativa` em inglês e diga por que a mudança é necessária, não apenas o que ela faz. O histórico é o changelog.
-5. Texto visível ao usuário vai em **ambos** `.resw` e também em `README.md` e `README.it.md` na mesma mudança.
+5. Texto visível ao usuário vai em **ambos** `.resw`, e os três arquivos README mudam na mesma mudança.
 
 Um bom relatório de bug tem as linhas `DIAG` da janela de saída, a build que você executou e o que o telefone fez.
 
-Os documentos que explicam o projeto existem em duas línguas e são mantidos em sincronia. Adicionar, mover ou renomear uma seção significa fazer isso em ambos os READMEs na mesma mudança, e a seção `## Disclosure` fica por último em ambos. `node tools/check-docs.js` recusa um par cujos títulos difiram, um documento sem disclosure e qualquer emoji além do sinal de aviso.
+Os documentos que explicam o projeto existem em três línguas e são mantidos em sincronia. Adicionar, mover ou renomear uma seção significa fazer isso nos três READMEs na mesma mudança, e a seção `## Disclosure` fica por último em todos. `node tools/check-docs.js` recusa um grupo cujos títulos difiram, um documento sem disclosure e qualquer emoji além do sinal de aviso.
 
 ## Aviso
 
