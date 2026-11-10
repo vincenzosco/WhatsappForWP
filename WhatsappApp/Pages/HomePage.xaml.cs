@@ -27,6 +27,9 @@ namespace WhatsappApp.Pages
         private const string NavigationParameterKey = "WhatsappApp.NavigationParameter";
         private const int LongPressMilliseconds = 650;
 
+        private ApplicationBar _chatsApplicationBar;
+        private ApplicationBar _statusApplicationBar;
+        private ApplicationBar _callsApplicationBar;
         private bool _movingTabs;
         private bool _ready;
         private int _section;
@@ -44,6 +47,9 @@ namespace WhatsappApp.Pages
         public HomePage()
         {
             InitializeComponent();
+            _chatsApplicationBar = Resources["ChatsApplicationBar"] as ApplicationBar;
+            _statusApplicationBar = Resources["StatusApplicationBar"] as ApplicationBar;
+            _callsApplicationBar = Resources["CallsApplicationBar"] as ApplicationBar;
 
             ChatListView.ItemsSource = DataService.Instance.Contacts;
 
@@ -132,8 +138,8 @@ namespace WhatsappApp.Pages
             }
 
             if (_homeSearching && index != 0) CloseSearch();
-            ApplicationBar = index == 0 ? ChatsApplicationBar
-                : (index == 1 ? StatusApplicationBar : CallsApplicationBar);
+            ApplicationBar = index == 0 ? _chatsApplicationBar
+                : (index == 1 ? _statusApplicationBar : _callsApplicationBar);
             UpdateChatsMenuItems();
 
             if (index == 1) StatusView.Activate(); else StatusView.Deactivate();
@@ -505,7 +511,7 @@ namespace WhatsappApp.Pages
             SearchBox.Text = "";
             SearchPrompt.Visibility = Visibility.Visible;
             SearchPanel.Visibility = Visibility.Collapsed;
-            if (_ready && _section == 0) ApplicationBar = ChatsApplicationBar;
+            if (_ready && _section == 0) ApplicationBar = _chatsApplicationBar;
         }
 
         private void NewChatApplicationBarButton_Click(object sender, EventArgs e)
@@ -594,9 +600,16 @@ namespace WhatsappApp.Pages
         private void UpdateChatsMenuItems()
         {
             bool hasChats = DataService.Instance.Contacts.Count > 0;
-            ReadAllAppBarMenuItem.IsEnabled = hasChats;
-            PinChatsAppBarMenuItem.IsEnabled = hasChats;
-            UnpinAllAppBarMenuItem.IsEnabled = hasChats;
+            SetChatMenuItemEnabled(0, hasChats);
+            SetChatMenuItemEnabled(1, hasChats);
+            SetChatMenuItemEnabled(2, hasChats);
+        }
+
+        private void SetChatMenuItemEnabled(int index, bool enabled)
+        {
+            if (_chatsApplicationBar == null || _chatsApplicationBar.MenuItems.Count <= index) return;
+            ApplicationBarMenuItem item = _chatsApplicationBar.MenuItems[index] as ApplicationBarMenuItem;
+            if (item != null) item.IsEnabled = enabled;
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)

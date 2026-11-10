@@ -11,12 +11,12 @@ const project = fs.readFileSync(path.join(ROOT, 'WhatsappApp/WhatsApp.csproj'), 
 
 test('home uses native app bars for each section and keeps only working commands', () => {
   assert.ok(xaml.includes('xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone"'));
-  assert.match(xaml, /<shell:ApplicationBar x:Name="ChatsApplicationBar" x:Key="ChatsApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Key="ChatsApplicationBar"/);
   assert.match(xaml, /x:Uid="Home_SearchAppBarButton"/);
   assert.match(xaml, /x:Uid="Home_MarkStatusesAppBarMenuItem"/);
   assert.match(xaml, /x:Uid="Home_NewCallAppBarButton"/);
-  assert.match(xaml, /<shell:ApplicationBar x:Name="StatusApplicationBar" x:Key="StatusApplicationBar"/);
-  assert.match(xaml, /<shell:ApplicationBar x:Name="CallsApplicationBar" x:Key="CallsApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Key="StatusApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Key="CallsApplicationBar"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/search\.png"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/add\.png"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/refresh\.png"/);
@@ -45,7 +45,7 @@ test('home uses native app bars for each section and keeps only working commands
     const handlerBody = new RegExp(`(?:private|public)\\s+(?:async\\s+)?void\\s+${handler}\\s*\\(object sender, ${argsType} e\\)`);
     assert.match(code, handlerBody, `${handler} uses ${argsType}, as required by its XAML event`);
   }
-  assert.match(code, /ApplicationBar = index == 0 \? ChatsApplicationBar[\s\S]*?index == 1 \? StatusApplicationBar[\s\S]*?: CallsApplicationBar/);
+  assert.match(code, /ApplicationBar = index == 0 \? _chatsApplicationBar[\s\S]*?index == 1 \? _statusApplicationBar[\s\S]*?: _callsApplicationBar/);
   assert.match(code, /private void SearchApplicationBarButton_Click/);
   assert.match(code, /private void NewChatApplicationBarButton_Click/);
   assert.match(code, /private void NewCallButton_Click/);
@@ -53,6 +53,23 @@ test('home uses native app bars for each section and keeps only working commands
   assert.ok(project.includes('Assets\\Reference\\search.png'));
   assert.ok(project.includes('Assets\\Reference\\add.png'));
   assert.ok(project.includes('Assets\\Reference\\refresh.png'));
+});
+
+test('home resolves native application bars and menu items from the resource dictionary', () => {
+  for (const key of ['ChatsApplicationBar', 'StatusApplicationBar', 'CallsApplicationBar']) {
+    const bar = new RegExp(`<shell:ApplicationBar\\b(?=[^>]*x:Key="${key}")[^>]*>`).exec(xaml);
+    assert.ok(bar, `${key} is declared as a resource`);
+    assert.match(bar[0], /IsVisible="True"/, `${key} is visible when assigned to the page`);
+    assert.doesNotMatch(bar[0], /x:Name=/, `${key} is resolved by resource key, not FindName`);
+  }
+  assert.doesNotMatch(xaml, /<shell:ApplicationBarMenuItem[^>]*x:Name=/,
+    'menu items are resolved through their ApplicationBar collection');
+  assert.match(code, /_chatsApplicationBar = Resources\["ChatsApplicationBar"\] as ApplicationBar/);
+  assert.match(code, /_statusApplicationBar = Resources\["StatusApplicationBar"\] as ApplicationBar/);
+  assert.match(code, /_callsApplicationBar = Resources\["CallsApplicationBar"\] as ApplicationBar/);
+  assert.match(code, /ApplicationBar = index == 0 \? _chatsApplicationBar[\s\S]*?index == 1 \? _statusApplicationBar[\s\S]*?: _callsApplicationBar/);
+  assert.match(code, /private void UpdateChatsMenuItems\(\)[\s\S]*?SetChatMenuItemEnabled\(0, hasChats\)[\s\S]*?SetChatMenuItemEnabled\(1, hasChats\)[\s\S]*?SetChatMenuItemEnabled\(2, hasChats\)/);
+  assert.match(code, /private void SetChatMenuItemEnabled\(int index, bool enabled\)[\s\S]*?_chatsApplicationBar\.MenuItems\.Count <= index\) return[\s\S]*?item\.IsEnabled = enabled/);
 });
 
 test('a new pairing clears account-scoped memory before the next login', () => {

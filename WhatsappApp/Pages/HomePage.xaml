@@ -14,27 +14,27 @@
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
         <SolidColorBrush x:Key="HomeAccentBrush" Color="#FF00A8C7"/>
-        <shell:ApplicationBar x:Name="ChatsApplicationBar" x:Key="ChatsApplicationBar" IsMenuEnabled="True">
+        <shell:ApplicationBar x:Key="ChatsApplicationBar" IsVisible="True" IsMenuEnabled="True">
             <shell:ApplicationBarIconButton x:Name="SearchAppBarButton" x:Uid="Home_SearchAppBarButton" IconUri="/Assets/Reference/search.png" Text="Search" Click="SearchApplicationBarButton_Click"/>
             <shell:ApplicationBarIconButton x:Name="NewChatAppBarButton" x:Uid="Home_NewChatAppBarButton" IconUri="/Assets/Reference/add.png" Text="New chat" Click="NewChatApplicationBarButton_Click"/>
             <shell:ApplicationBar.MenuItems>
-                <shell:ApplicationBarMenuItem x:Name="ReadAllAppBarMenuItem" x:Uid="Home_ReadAllAppBarMenuItem" Text="Read all chats" Click="ReadAllAppBarMenuItem_Click"/>
-                <shell:ApplicationBarMenuItem x:Name="PinChatsAppBarMenuItem" x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsAppBarMenuItem_Click"/>
-                <shell:ApplicationBarMenuItem x:Name="UnpinAllAppBarMenuItem" x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_ReadAllAppBarMenuItem" Text="Read all chats" Click="ReadAllAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllAppBarMenuItem_Click"/>
 
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
-        <shell:ApplicationBar x:Name="StatusApplicationBar" x:Key="StatusApplicationBar" IsMenuEnabled="True">
+        <shell:ApplicationBar x:Key="StatusApplicationBar" IsVisible="True" IsMenuEnabled="True">
             <shell:ApplicationBarIconButton x:Name="RefreshStatusAppBarButton" x:Uid="Home_RefreshStatusAppBarButton" IconUri="/Assets/Reference/refresh.png" Text="Refresh" Click="RefreshStatusApplicationBarButton_Click"/>
             <shell:ApplicationBar.MenuItems>
-                <shell:ApplicationBarMenuItem x:Name="MarkStatusesAppBarMenuItem" x:Uid="Home_MarkStatusesAppBarMenuItem" Text="Mark all as viewed" Click="MarkAllStatusesAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_MarkStatusesAppBarMenuItem" Text="Mark all as viewed" Click="MarkAllStatusesAppBarMenuItem_Click"/>
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
-        <shell:ApplicationBar x:Name="CallsApplicationBar" x:Key="CallsApplicationBar" IsMenuEnabled="True">
+        <shell:ApplicationBar x:Key="CallsApplicationBar" IsVisible="True" IsMenuEnabled="True">
             <shell:ApplicationBarIconButton x:Name="NewCallAppBarButton" x:Uid="Home_NewCallAppBarButton" IconUri="/Assets/Reference/ThemeDark/phone-solid.png" Text="Start a voice call" Click="NewCallButton_Click"/>
             <shell:ApplicationBar.MenuItems>
-                <shell:ApplicationBarMenuItem x:Name="RefreshCallsAppBarMenuItem" x:Uid="Home_RefreshCallsAppBarMenuItem" Text="Refresh" Click="RefreshCallsAppBarMenuItem_Click"/>
-                <shell:ApplicationBarMenuItem x:Name="MarkCallsAppBarMenuItem" x:Uid="Home_MarkCallsAppBarMenuItem" Text="Mark all as seen" Click="MarkCallsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_RefreshCallsAppBarMenuItem" Text="Refresh" Click="RefreshCallsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_MarkCallsAppBarMenuItem" Text="Mark all as seen" Click="MarkCallsAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_SettingsAppBarMenuItem" Text="Settings" Click="SettingsAppBarMenuItem_Click"/>
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
