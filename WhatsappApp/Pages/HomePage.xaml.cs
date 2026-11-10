@@ -513,10 +513,41 @@ namespace WhatsappApp.Pages
             NewChatButton_Click(sender, new RoutedEventArgs());
         }
 
-        private void SettingsApplicationBarMenuItem_Click(object sender, EventArgs e)
+        private void PinChatsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            Guarded.RunGuardedAsync("HomePage/pin chats", ShowPinPickerAsync());
+        }
+
+        private void UnpinAllAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            UnpinAllMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void RefreshCallsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            CallsView.Refresh();
+        }
+
+        private void ReadAllAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            ReadAllMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void MarkAllStatusesAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            MarkAllStatusesMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void MarkCallsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            MarkCallsSeenMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void SettingsAppBarMenuItem_Click(object sender, EventArgs e)
         {
             SettingsButton_Click(sender, new RoutedEventArgs());
         }
+
 
         private void NewCallButton_Click(object sender, EventArgs e)
         {
@@ -558,16 +589,6 @@ namespace WhatsappApp.Pages
         private void RefreshStatusApplicationBarButton_Click(object sender, EventArgs e)
         {
             DataService.Instance.ScanStatuses();
-        }
-
-        private void RefreshCallsApplicationBarMenuItem_Click(object sender, EventArgs e)
-        {
-            CallsView.Refresh();
-        }
-
-        private void PinChatsMenuItem_Click(object sender, EventArgs e)
-        {
-            Guarded.RunGuardedAsync("HomePage/pin chats", ShowPinPickerAsync());
         }
 
         private void UpdateChatsMenuItems()

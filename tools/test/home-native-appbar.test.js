@@ -20,14 +20,36 @@ test('home uses native app bars for each section and keeps only working commands
   assert.match(xaml, /IconUri="\/Assets\/Reference\/search\.png"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/add\.png"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/refresh\.png"/);
-  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="ReadAllMenuItem_Click"/);
-  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="MarkAllStatusesMenuItem_Click"/);
+  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="ReadAllAppBarMenuItem_Click"/);
+  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="PinChatsAppBarMenuItem_Click"/);
+  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="UnpinAllAppBarMenuItem_Click"/);
+  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="MarkAllStatusesAppBarMenuItem_Click"/);
+  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="MarkCallsAppBarMenuItem_Click"/);
+  assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="SettingsAppBarMenuItem_Click"/);
   assert.match(xaml, /ApplicationBarIconButton[^>]*Click="NewCallButton_Click"/);
+  const appBarHandlers = [...xaml.matchAll(/<shell:ApplicationBar(?:IconButton|MenuItem)\b([^>]*)Click="([A-Za-z_][A-Za-z0-9_]*)"/g)]
+    .map((match) => match[2]);
+  for (const handler of appBarHandlers) {
+    assert.match(code, new RegExp(`private (?:async )?void ${handler}\\(object sender, EventArgs e\\)`),
+      `${handler} uses the native ApplicationBar EventArgs signature`);
+  }
+  for (const [handler, argsType] of [
+    ['ReadAllAppBarMenuItem_Click', 'EventArgs'],
+    ['PinChatsAppBarMenuItem_Click', 'EventArgs'],
+    ['UnpinAllAppBarMenuItem_Click', 'EventArgs'],
+    ['MarkAllStatusesAppBarMenuItem_Click', 'EventArgs'],
+    ['MarkCallsAppBarMenuItem_Click', 'EventArgs'],
+    ['SettingsAppBarMenuItem_Click', 'EventArgs'],
+    ['RefreshCallsAppBarMenuItem_Click', 'EventArgs']
+  ]) {
+    const handlerBody = new RegExp(`(?:private|public)\\s+(?:async\\s+)?void\\s+${handler}\\s*\\(object sender, ${argsType} e\\)`);
+    assert.match(code, handlerBody, `${handler} uses ${argsType}, as required by its XAML event`);
+  }
   assert.match(code, /ApplicationBar = index == 0 \? ChatsApplicationBar[\s\S]*?index == 1 \? StatusApplicationBar[\s\S]*?: CallsApplicationBar/);
   assert.match(code, /private void SearchApplicationBarButton_Click/);
   assert.match(code, /private void NewChatApplicationBarButton_Click/);
   assert.match(code, /private void NewCallButton_Click/);
-  assert.match(code, /private void PinChatsMenuItem_Click/);
+  assert.match(code, /private void PinChatsAppBarMenuItem_Click/);
   assert.ok(project.includes('Assets\\Reference\\search.png'));
   assert.ok(project.includes('Assets\\Reference\\add.png'));
   assert.ok(project.includes('Assets\\Reference\\refresh.png'));
