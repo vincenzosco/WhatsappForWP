@@ -53,43 +53,40 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="0,0,0,24">
-                <Button x:Name="CallButton" Click="CallButton_Click"
-                        Background="Transparent" Foreground="#FF00A8C7" BorderThickness="0"
-                        MinWidth="0" MinHeight="0" Height="48" Padding="20,0"
-                        FontSize="17" Margin="24,12,24,0"
-                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
+                <TextBlock x:Name="ProfileHeading" Foreground="White" FontSize="22"
+                           FontWeight="SemiBold" Margin="24,8,24,0"/>
 
-                <Grid Margin="24,20,24,4">
+                <Grid Margin="24,12,24,4">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
 
                     <Border x:Name="BigAvatar" Grid.Column="0"
-                            Width="128" Height="128" CornerRadius="64"
+                            Width="160" Height="160"
                             VerticalAlignment="Bottom" Margin="0,0,24,0"
                             MouseLeftButtonUp="BigAvatar_Tapped">
                         <Grid>
-                            <Ellipse x:Name="BigAvatarCircle" Width="128" Height="128"
-                                     Fill="#FF00695C"/>
-                            <Border x:Name="BigAvatarPicture" Width="128" Height="128"
-                                    CornerRadius="64" Visibility="Collapsed">
-                                <Border.Background>
+                            <Rectangle x:Name="BigAvatarCircle" Width="160" Height="160"
+                                       Fill="#FF00695C"/>
+                            <Rectangle x:Name="BigAvatarPicture" Width="160" Height="160"
+                                       Visibility="Collapsed">
+                                <Rectangle.Fill>
                                     <ImageBrush x:Name="BigAvatarImageBrush" Stretch="UniformToFill"/>
-                                </Border.Background>
-                            </Border>
+                                </Rectangle.Fill>
+                            </Rectangle>
                             <TextBlock x:Name="BigAvatarInitials"
                                        Foreground="White" FontSize="44" FontWeight="SemiBold"
                                        VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Grid>
                     </Border>
-
-                    <TextBlock x:Name="NameText" Grid.Column="1"
-                               FontSize="36" FontFamily="Segoe WP Semilight"
-                               Foreground="White"
-                               VerticalAlignment="Bottom" Margin="0,0,0,2"
-                               TextTrimming="WordEllipsis"/>
                 </Grid>
+
+                <Button x:Name="CallButton" Click="CallButton_Click"
+                        Background="Transparent" Foreground="{StaticResource WhatsAppAccentBrush}" BorderThickness="0"
+                        MinWidth="0" MinHeight="0" Height="48" Padding="20,0"
+                        FontSize="17" Margin="24,12,24,0"
+                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"/>
 
                 <TextBlock x:Name="NumberLabel" FontSize="14"
                            Foreground="#FF9C9C9C" Margin="24,24,24,0"

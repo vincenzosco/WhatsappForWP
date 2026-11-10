@@ -35,7 +35,8 @@ namespace WhatsappApp.Pages
 
             AutomationProperties.SetName(BackButton, Loc.Get("ContactInfoPage_BackTooltip", "Back"));
             AutomationProperties.SetName(BigAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
-            TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info").ToUpper();
+            TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info").ToUpperInvariant();
+            ProfileHeading.Text = Loc.Get("ContactInfoPage_ProfileHeading", "Profile").ToUpperInvariant();
             CallButton.Content = Loc.Get("Call_Start", "Call");
             NumberLabel.Text = Loc.Get("ContactInfoPage_Number", "Phone number");
             AboutLabel.Text = Loc.Get("ContactInfoPage_About", "About");
@@ -67,7 +68,7 @@ namespace WhatsappApp.Pages
             if (_contact == null) return;
 
             DataContext = _contact;
-            NameText.Text = _contact.Name;
+            TitleText.Text = _contact.Name.ToUpperInvariant();
             ApplyAvatar();
 
             CallButton.Visibility = IsGroup(_contact.Id) ? Visibility.Collapsed : Visibility.Visible;
@@ -120,11 +121,7 @@ namespace WhatsappApp.Pages
             }
             else
             {
-                BigAvatarPicture.Background = new ImageBrush
-                {
-                    ImageSource = avatar,
-                    Stretch = Stretch.UniformToFill
-                };
+                BigAvatarImageBrush.ImageSource = avatar;
                 BigAvatarPicture.Visibility = Visibility.Visible;
                 BigAvatarInitials.Visibility = Visibility.Collapsed;
             }
@@ -214,7 +211,7 @@ namespace WhatsappApp.Pages
         {
             if (info != null)
             {
-                if (!string.IsNullOrEmpty(info.Name)) NameText.Text = info.Name;
+                if (!string.IsNullOrEmpty(info.Name)) TitleText.Text = info.Name.ToUpperInvariant();
 
                 if (!string.IsNullOrEmpty(info.Number))
                 {
