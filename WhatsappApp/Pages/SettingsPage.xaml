@@ -112,7 +112,7 @@
             </Button>
 
             <TextBlock x:Name="TitleText" Grid.Column="1"
-                       Foreground="White" FontSize="15" FontWeight="SemiBold"
+                       Foreground="White" FontSize="23" FontFamily="Segoe WP Semilight"
                        VerticalAlignment="Bottom" Margin="8,0,0,10"
                        TextTrimming="WordEllipsis"/>
         </Grid>
@@ -120,7 +120,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="24,4,24,24">
                 <TextBlock x:Name="ThemeLabel" Foreground="White"
-                           FontSize="42" FontFamily="Segoe WP Semilight"/>
+                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
                 <TextBlock x:Name="ThemeHint" Foreground="#FFB0B0B0"
                            FontSize="13" TextWrapping="Wrap" Margin="0,2,0,6"/>
 
@@ -153,7 +153,7 @@
                 </ListBox>
 
                 <TextBlock x:Name="AlertsLabel" Foreground="White"
-                           FontSize="42" FontFamily="Segoe WP Semilight" Margin="0,18,0,0"/>
+                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold" Margin="0,18,0,0"/>
                 <TextBlock x:Name="AlertsHint" Foreground="#FFB0B0B0"
                            FontSize="13" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
@@ -206,7 +206,7 @@
                 </Grid>
 
                 <TextBlock x:Name="BackgroundLabel" Foreground="White"
-                           FontSize="42" FontFamily="Segoe WP Semilight"/>
+                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -227,7 +227,7 @@
                            Visibility="Collapsed"/>
 
                 <TextBlock x:Name="AccountLabel" Foreground="White"
-                           FontSize="42" FontFamily="Segoe WP Semilight"/>
+                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
                 <TextBlock x:Name="AccountHint" Foreground="#FFB0B0B0"
                            FontSize="13" TextWrapping="Wrap" Margin="0,2,0,8"/>
                 <Grid>
