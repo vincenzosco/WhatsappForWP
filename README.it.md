@@ -1,4 +1,4 @@
-[English](README.md) | **Italiano**
+[English](README.md) | **Italiano** | [Português (Brasil)](README.pt.md)
 
 <p align="center">
   <img src="WhatsappApp/Assets/WhatsAppLogo.png" width="128" alt="Icona dell'app WhatsApp per Windows Phone 8.1">
@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="#compilarlo"><img src="https://img.shields.io/badge/platform-Windows%20Phone%208.1-2ea44f" alt="Windows Phone 8.1"></a>
-  <a href="README.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano-blue" alt="Inglese e italiano"></a>
+  <a href="README.pt.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano%20%7C%20Portugu%C3%AAs%20%28Brasil%29-blue" alt="Inglese, italiano e portoghese brasiliano"></a>
 </p>
 
 Windows Phone 8.1 ha perso il suo client WhatsApp ufficiale anni fa. Questo è open source, vive in
@@ -319,7 +319,7 @@ ognuna intercetta un guasto che la build non può vedere.
 node tools/check-csharp5.js         sintassi C# 6/7 e membri WinRT che WP8.1 non ha
 node tools/check-icons.js           icone vettoriali inline, forma a elementi, stessa icona stessa geometria
 node tools/check-resw.js --strict   x:Uid, Loc.Get, entrambi i .resw, nessuna chiave inutilizzata
-node tools/check-docs.js            coppia di README, stesse intestazioni, disclosure in fondo, niente emoji
+node tools/check-docs.js            gruppo di README, stesse intestazioni, disclosure in fondo, niente emoji
 node tools/check-memory.js          larghezza di decodifica, tetti delle cache, tetto per chat
 node tools/check-tile.js            payload della tile, misure degli asset, e una tile che il sistema rifiuta
 node tools/check-waopus.js          la DLL di Opus: ARMNT, senza KERNEL32, soli import api-ms-*, le sue funzioni
@@ -386,7 +386,15 @@ puro con un runner minimo, perché il toolchain WP8.1 non può ospitare un frame
 
 Issue e pull request sono benvenute. Leggi `.agents/skills/maintain-the-app/SKILL.md` prima di
 toccare il codice: solo C# 5, icone vettoriali inline, nessuna stringa visibile scritta a mano, e
-documenti sempre in coppia. L'indice delle skill del progetto è in `.agents/skills/README.md`.
+documenti sempre allineati. L'indice delle skill del progetto è in `.agents/skills/README.md`.
+
+Puoi anche unirti al [nostro server Discord](https://discord.gg/B8jncjBX6G) e contribuire lì. Il
+server è solo in inglese. Se vuoi dare una mano, apri un ticket in `#become-contributor` e indica:
+
+- In cosa puoi contribuire (codice C#, grafica, localizzazione come portoghese brasiliano o italiano, ecc.)
+- Perché vuoi contribuire
+- La tua esperienza
+- Qualsiasi altra informazione utile
 
 1. Fork e ramo: `fix/...`, `feat/...`, `docs/...`.
 2. Fai la modifica, poi esegui il cancello qui sopra. Deve essere verde.
@@ -394,15 +402,15 @@ documenti sempre in coppia. L'indice delle skill del progetto è in `.agents/ski
    test C# per l'app, quindi la build è il suo cancello.
 4. Scrivi l'oggetto del commit come `type: imperativo breve` in inglese e di' perché la modifica
    serve, non solo cosa fa. La history è il changelog.
-5. Il testo visibile va in **entrambi** i `.resw`, e `README.md` e `README.it.md` cambiano nello
-   stesso commit.
+5. Il testo visibile va in **entrambi** i `.resw`, e tutti e tre i README cambiano nello stesso
+   commit.
 
 Un bug report utile ha le righe `DIAG` della finestra Output, la build che hai eseguito, e cosa ha
 fatto il telefono.
 
-I documenti che spiegano il progetto esistono in due lingue e vengono tenuti allineati. Aggiungere,
-spostare o rinominare una sezione significa farlo in entrambi i README nello stesso commit, e la
-sezione `## Disclosure` resta in fondo a entrambi. `node tools/check-docs.js` rifiuta una coppia con
+I documenti che spiegano il progetto esistono in tre lingue e vengono tenuti allineati. Aggiungere,
+spostare o rinominare una sezione significa farlo in tutti e tre i README nello stesso commit, e la
+sezione `## Disclosure` resta in fondo a tutti e tre. `node tools/check-docs.js` rifiuta un gruppo con
 intestazioni diverse, un documento senza la disclosure, e qualsiasi emoji tranne il segno di
 pericolo.
 

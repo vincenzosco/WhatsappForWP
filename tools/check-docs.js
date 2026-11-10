@@ -4,20 +4,20 @@
  *
  * Guard for the project documentation.
  *
- * The docs are written in two languages, and a doc that exists only in one of
+ * The docs are written in multiple languages, and a doc that exists only in one of
  * them is worse than no doc: the reader who needs it is the one who does not
  * get it. Three rules, all easy to break when a section is added in a hurry:
  *
- * 1. Every pair listed in PAIRS exists, and the two files have the **same
- * headings in the same order at the same depth**. A section added to one
- * language and not the other shows up here as a different heading count.
+ * 1. Every document group listed in GROUPS exists, and the files have the
+ * **same headings in the same order at the same depth**. A section added to
+ * one language and not the others shows up here as a different heading count.
  * The heading *text* is translated and therefore not compared.
  *
  * 2. The `## Disclosure` section is present and is the **last** section of the
- * pairs marked `disclosure: true` - the ones that present the project: what
+ * groups marked `disclosure: true` - the ones that present the project: what
  * it is, that maintainers are wanted, that an AI agent wrote it, and who
- * answers for the WhatsApp account. It lives there and not in every README,
- * so there is one copy to keep honest instead of four.
+ * answers for the WhatsApp account. It lives at the end of each project README,
+ * so every language version carries the same disclosure.
  *
  * 3. No emoji anywhere in the Markdown. The only exception is the warning sign
  * (U+26A0, with or without the variation selector), for a real hazard: the
@@ -36,16 +36,14 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..');
 
-// Ogni coppia e' il contratto: o esistono entrambe, o il guard fallisce.
-// `disclosure` dice quali README presentano il progetto e devono quindi chiudersi
-// con la sezione omonima.
-const PAIRS = [
-  { english: 'README.md', italian: 'README.it.md', disclosure: true },
+// Each group lists the README files that must stay in sync.
+const GROUPS = [
+  { files: ['README.md', 'README.it.md', 'README.pt.md'], disclosure: true },
 ];
 
 const DISCLOSURE = 'Disclosure';
 const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}\u{200D}]/gu;
-// L'unica eccezione ammessa: il segno di pericolo, per un rischio reale.
+// The only exception is the warning sign, for an actual hazard.
 const WARNING_SIGN = /\u26A0\uFE0F?/g;
 // `skills` holds third-party skill instructions, not the project's docs: they
 // follow their own rules, so the emoji rule does not apply to them.
@@ -62,7 +60,7 @@ function walk(dir, out) {
   }
 }
 
-/** Gli heading di un documento, ignorando quelli dentro un blocco di codice. */
+/** Return document headings, ignoring headings inside code blocks. */
 function headings(text) {
   const out = [];
   let fenced = false;
@@ -85,54 +83,59 @@ function codePoint(char) {
 const rel = (file) => path.relative(ROOT, file);
 const problems = [];
 
-// ─── 1. Le coppie di documenti ───────────────────────────────────────────────
+// ─── 1. Documentation groups ────────────────────────────────────────────────
 
-for (const { english, italian, disclosure } of PAIRS) {
-  const files = [english, italian].map((name) => path.resolve(ROOT, name));
+for (const { files: names, disclosure } of GROUPS) {
+  const files = names.map((name) => path.resolve(ROOT, name));
   const missing = files.filter((file) => !fs.existsSync(file));
   if (missing.length) {
-    problems.push(`  ${missing.map(rel).join(', ')}: manca - le due lingue si scrivono insieme`);
+    problems.push(`  ${missing.map(rel).join(', ')}: missing - all language versions are maintained together`);
     continue;
   }
 
   const shapes = files.map((file) => headings(fs.readFileSync(file, 'utf8')));
 
-  if (shapes[0].length !== shapes[1].length) {
-    problems.push(`  ${english} / ${italian}: ${shapes[0].length} vs ${shapes[1].length} heading`);
-  } else {
-    for (let i = 0; i < shapes[0].length; i++) {
-      if (shapes[0][i].level !== shapes[1][i].level) {
-        problems.push(`  ${english} / ${italian}: heading #${i + 1} e' di livello `
-          + `${shapes[0][i].level} in inglese ("${shapes[0][i].text}") e ${shapes[1][i].level} `
-          + `in italiano ("${shapes[1][i].text}")`);
+  for (let i = 1; i < shapes.length; i++) {
+    const name = names[i];
+    if (shapes[0].length !== shapes[i].length) {
+      problems.push(`  ${names[0]} / ${name}: ${shapes[0].length} vs ${shapes[i].length} heading`);
+      continue;
+    }
+
+    for (let j = 0; j < shapes[0].length; j++) {
+      if (shapes[0][j].level !== shapes[i][j].level) {
+        problems.push(`  ${names[0]} / ${name}: heading #${j + 1} has level `
+          + `${shapes[0][j].level} in ${names[0]} ("${shapes[0][j].text}") and `
+          + `${shapes[i][j].level} in ${name} ("${shapes[i][j].text}")`);
         break;
       }
     }
   }
 
-  // La disclosure chiude il documento che presenta il progetto: e' la sua
-  // ultima sezione, in entrambe le lingue.
+  // Disclosure closes every README that presents the project.
   if (disclosure) {
     shapes.forEach((shape, i) => {
       const last = shape[shape.length - 1];
       if (!last || last.level !== 2 || last.text !== DISCLOSURE) {
-        problems.push(`  ${rel(files[i])}: l'ultima sezione deve essere "## ${DISCLOSURE}"`
-          + (last ? ` (trovata "${'#'.repeat(last.level)} ${last.text}")` : ' (nessun heading)'));
+        problems.push(`  ${rel(files[i])}: the last section must be "## ${DISCLOSURE}"`
+          + (last ? ` (found "${'#'.repeat(last.level)} ${last.text}")` : ' (no heading)'));
       }
     });
   }
 
-  // Ogni versione rimanda all'altra, altrimenti chi non conosce la lingua non
-  // ha modo di arrivarci.
-  files.forEach((file, i) => {
-    const other = path.basename(files[1 - i]);
-    if (!fs.readFileSync(file, 'utf8').includes(`](${other})`)) {
-      problems.push(`  ${rel(file)}: manca il rimando a ${other} (es. \`[Italiano](${other})\`)`);
-    }
+  // Every README links to every other language version.
+  files.forEach((file) => {
+    const text = fs.readFileSync(file, 'utf8');
+    files.filter((other) => other !== file).forEach((other) => {
+      const basename = path.basename(other);
+      if (!text.includes(`](${basename})`)) {
+        problems.push(`  ${rel(file)}: missing link to ${basename}`);
+      }
+    });
   });
 }
 
-// ─── 2. Niente emoji, in nessun file Markdown ────────────────────────────────
+// ─── 2. No emoji in Markdown ────────────────────────────────────────────────
 
 const markdown = [];
 walk(ROOT, markdown);
@@ -143,17 +146,17 @@ for (const file of markdown) {
     const found = line.match(EMOJI);
     if (!found) return;
     problems.push(`  ${rel(file)}:${index + 1}: emoji ${found.map(codePoint).join(', ')}`
-      + ' - e\' ammesso solo il segno di pericolo U+26A0');
+      + ' - only the warning sign U+26A0 is allowed');
   });
 }
 
-// ─── Esito ───────────────────────────────────────────────────────────────────
+// ─── Result ─────────────────────────────────────────────────────────────────
 
 if (problems.length) {
   console.log(problems.join('\n'));
   console.log(`\n${problems.length} doc problem(s).`);
   process.exit(1);
 }
-const withDisclosure = PAIRS.filter((pair) => pair.disclosure).length;
-console.log(`OK: ${PAIRS.length} doc pair(s) in step (${withDisclosure} closed by "${DISCLOSURE}"), `
+const withDisclosure = GROUPS.filter((group) => group.disclosure).length;
+console.log(`OK: ${GROUPS.length} doc group(s) in sync (${withDisclosure} closed by "${DISCLOSURE}"), `
   + `no emoji in ${markdown.length} .md file(s).`);

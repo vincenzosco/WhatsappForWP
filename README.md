@@ -1,4 +1,4 @@
-**English** | [Italiano](README.it.md)
+**English** | [Italiano](README.it.md) | [Português (Brasil)](README.pt.md)
 
 <p align="center">
   <img src="WhatsappApp/Assets/WhatsAppLogo.png" width="128" alt="WhatsApp for Windows Phone 8.1 app icon">
@@ -26,7 +26,7 @@
 
 <p align="center">
   <a href="#build-it"><img src="https://img.shields.io/badge/platform-Windows%20Phone%208.1-2ea44f" alt="Windows Phone 8.1"></a>
-  <a href="README.it.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano-blue" alt="English and Italian"></a>
+  <a href="README.pt.md"><img src="https://img.shields.io/badge/languages-English%20%7C%20Italiano%20%7C%20Portugu%C3%AAs%20%28Brasil%29-blue" alt="English, Italian and Brazilian Portuguese"></a>
 </p>
 
 Windows Phone 8.1 lost its official WhatsApp client years ago. This one is open source, lives in a
@@ -312,7 +312,7 @@ catches a failure the build cannot see.
 node tools/check-csharp5.js         C# 6/7 syntax and WinRT members WP8.1 does not have
 node tools/check-icons.js           inline vector icons, element form, same icon same geometry
 node tools/check-resw.js --strict   x:Uid, Loc.Get, both .resw files, no unused key
-node tools/check-docs.js            README pair, same headings, disclosure last, no emoji
+node tools/check-docs.js            README files, same headings, disclosure last, no emoji
 node tools/check-memory.js          decode width, cache caps, per-chat ceiling
 node tools/check-tile.js            tile payload, asset sizes, and a tile the platform refuses
 node tools/check-waopus.js          the Opus DLL: ARMNT, no KERNEL32, API-set imports only, its exports
@@ -379,8 +379,16 @@ framework.
 ## Contributing
 
 Issues and pull requests are welcome. Read `.agents/skills/maintain-the-app/SKILL.md` before
-touching code: C# 5 only, inline vector icons, no hardcoded user-visible strings, docs always in
-pairs. The index of the project skills is in `.agents/skills/README.md`.
+touching code: C# 5 only, inline vector icons, no hardcoded user-visible strings, and documentation
+always kept in sync. The index of the project skills is in `.agents/skills/README.md`.
+
+You can also join [our Discord server](https://discord.gg/B8jncjBX6G) and contribute there. The
+server is English-only. If you'd like to help, please open a ticket in `#become-contributor` with:
+
+- What you can help with (C# coding, art, localization such as Brazilian Portuguese or Italian, etc.)
+- Why you want to contribute
+- Your experience
+- Any other useful information
 
 1. Fork and branch: `fix/...`, `feat/...`, `docs/...`.
 2. Make the change, then run the gate above. It must be green.
@@ -388,15 +396,15 @@ pairs. The index of the project skills is in `.agents/skills/README.md`.
    C# test host for the app, so the build is its gate.
 4. Write the commit subject as `type: short imperative` in English and say why the change is
    needed, not only what it does. The history is the changelog.
-5. User-visible text goes into **both** `.resw` files, and `README.md` and `README.it.md` change in
-   the same commit.
+5. User-visible text goes into **both** `.resw` files, and all three README files change in the same
+   commit.
 
 A useful bug report has the `DIAG` lines from the Output window, the build you ran, and what the
 phone did.
 
-The documents that explain the project exist in two languages and are kept in step. Adding,
-moving or renaming a section means doing it in both READMEs in the same commit, and the
-`## Disclosure` section stays last in both. `node tools/check-docs.js` refuses a pair whose
+The documents that explain the project exist in three languages and are kept in step. Adding,
+moving or renaming a section means doing it in all three READMEs in the same commit, and the
+`## Disclosure` section stays last in all three. `node tools/check-docs.js` refuses a group whose
 headings differ, a document without the disclosure, and any emoji other than the warning sign.
 
 ## Disclaimer
