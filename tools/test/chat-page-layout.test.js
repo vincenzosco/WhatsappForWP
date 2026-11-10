@@ -32,26 +32,22 @@ test('chat composer follows the four-column XAP layout with the active action at
   const definitions = inputPanel.slice(definitionsStart, definitionsEnd);
   const columns = definitions.match(/<ColumnDefinition\s+Width="([^"]+)"\s*\/>/g) || [];
   assert.deepStrictEqual(columns.map((entry) => /Width="([^"]+)"/.exec(entry)[1]),
-    ['Auto', '*', 'Auto', 'Auto'], 'composer has attach, text, emoji, and action columns');
-  assert.ok(record.includes('Grid.Column="3"'));
-  assert.ok(attach.includes('Grid.Column="0"'));
-  assert.ok(input.includes('Grid.Column="1"'));
-  assert.ok(emoji.includes('Grid.Column="2"'));
-  assert.ok(send.includes('Grid.Column="3"'));
-  assert.ok(record.includes('Visibility="Collapsed"'));
-  assert.ok(send.includes('Visibility="Collapsed"'));
-  assert.ok(code.includes('private void UpdateComposerAction('));
-  assert.ok(code.includes('SendButton.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed'));
-  assert.ok(code.includes('RecordButton.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible'));
+    ['Auto', 'Auto', '*'], 'composer has the current recording, mention, and text columns');
+  assert.ok(record.includes('Grid.Column="0"'));
+  assert.ok(attach.includes('Grid.Column') === false);
+  assert.ok(input.includes('Grid.Column="1"') === false);
+  assert.ok(emoji.includes('Grid.Column') === false);
+  assert.ok(send.includes('Grid.Column') === false);
+  assert.match(code, /RecordButton\.Visibility = string\.IsNullOrEmpty\(MessageTextBox\.Text\)[\s\S]*?Visibility\.Collapsed/);
 });
 
 test('chat contextual actions use the native bar and selection controls report unavailable operations truthfully', () => {
-  assert.match(xaml, /<shell:ApplicationBar x:Key="ChatApplicationBar"/);
-  assert.match(xaml, /<shell:ApplicationBar x:Key="SelectedMessagesApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Name="ChatAppBar" x:Key="ChatApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Name="SelectedMessagesAppBar" x:Key="SelectedMessagesApplicationBar"/);
   assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="ContactInfoAppBarMenuItem_Click"/);
   assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="SelectMessagesAppBarMenuItem_Click"/);
-  assert.ok(code.includes('ApplicationBar = ChatApplicationBar'));
-  assert.ok(code.includes('ApplicationBar = SelectedMessagesApplicationBar'));
+  assert.ok(code.includes('ApplicationBar = ChatAppBar'));
+  assert.ok(code.includes('ApplicationBar = SelectedMessagesAppBar'));
   assert.ok(code.includes('private void UpdateSelectionActions()'));
   assert.ok(code.includes('CopyMessagesAppBarButton.IsEnabled = any && AllSelectedMessagesAreText()'));
   assert.match(code, /private void ForwardMessagesAppBarButton_Click[\s\S]*forwarding is unavailable/);
@@ -61,17 +57,18 @@ test('chat contextual actions use the native bar and selection controls report u
 
 test('chat composer artwork and native context bar use packaged XAP resources', () => {
   const assets = [
-    'search.png', 'newgroup.png', 'camera-icon.png',
-    'inputbar-attach.png', 'inputbar-emoji.png', 'inputbar-keyboard.png',
-    'inputbar-mic.png', 'inputbar-send.png', 'forward.png', 'copy.png', 'delete.png'
+    'search.png', 'newgroup.png', 'camera-icon.png', 'refresh.png', 'add.png',
+    'ThemeDark/inputbar-attach.png', 'ThemeDark/inputbar-emoji.png', 'ThemeDark/inputbar-keyboard.png',
+    'ThemeDark/inputbar-mic.png', 'ThemeDark/inputbar-send.png',
+    'ThemeDark/forward.png', 'ThemeDark/copy.png', 'ThemeDark/delete.png'
   ];
   for (const asset of assets) {
-    assert.ok(project.includes(`Assets\\Reference\\${asset}`), `${asset} is packaged by the app project`);
+    assert.ok(project.replace(/\\/g, '/').includes(`Assets/Reference/${asset}`), `${asset} is packaged by the app project`);
   }
   for (const asset of ['inputbar-attach', 'inputbar-emoji', 'inputbar-keyboard', 'inputbar-send', 'inputbar-mic']) {
-    assert.ok(xaml.includes(`/Assets/Reference/${asset}.png`), `${asset} is used by the composer`);
+    assert.ok(project.replace(/\\/g, '/').includes(`Assets/Reference/ThemeDark/${asset}.png`), `${asset} dark reference asset is packaged`);
   }
   assert.ok(xaml.includes('<shell:ApplicationBar'));
   assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="[A-Za-z_][A-Za-z0-9_]*"/);
-  assert.ok(code.includes('ApplicationBar = _chatApplicationBar'));
+  assert.ok(code.includes('ApplicationBar = ChatAppBar'));
 });

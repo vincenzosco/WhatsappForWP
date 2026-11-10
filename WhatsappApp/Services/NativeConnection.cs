@@ -850,7 +850,6 @@ namespace WhatsappApp.Services
         {
             if (_resetForNewAccount)
             {
-                _resetForNewAccount = false;
                 _seen.Clear();
                 _chats.Reset();
                 _appStateKeys.Clear();
@@ -868,6 +867,7 @@ namespace WhatsappApp.Services
                 lock (_senderKeysSent) _senderKeysSent.Clear();
                 lock (_groupsAsked) _groupsAsked.Clear();
                 _identityMissingSaid = false;
+                _resetForNewAccount = false;
             }
 
             Credentials account;

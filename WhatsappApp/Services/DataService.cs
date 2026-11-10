@@ -121,6 +121,7 @@ namespace WhatsappApp.Services
         private bool _isServerRunning;
         private string _activeChatId;
         private bool _listening;
+        private bool _resettingAccount;
 
         // Whether a write of the chat list is already waiting for the quiet to pass: a
         // burst of messages is one write, not one per row. Set and cleared with Interlocked
@@ -1049,6 +1050,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task SaveSnapshotAsync()
         {
+            if (_resettingAccount) return;
+
             // Both taken in one go, without an await in the middle: the rows and the
             // messages written here have to be one instant of the list, not the list as it
             // was before the first write and as it is after the last.
@@ -3081,6 +3084,7 @@ namespace WhatsappApp.Services
         /// <summary>Clears the in-memory state before this process starts showing a different account.</summary>
         public async Task ResetForNewAccountAsync()
         {
+            _resettingAccount = true;
             List<ChatMessage> oldMessages = new List<ChatMessage>();
             foreach (ObservableCollection<ChatMessage> messages in _chatMessages.Values)
             {
@@ -3119,6 +3123,7 @@ namespace WhatsappApp.Services
             if (_callLog != null) _callLog.Reset();
             _call.Clear();
             NativeConnection.Instance.ResetForNewAccount();
+            _resettingAccount = false;
 
             RaiseStatusesChanged();
             PublishBadge();

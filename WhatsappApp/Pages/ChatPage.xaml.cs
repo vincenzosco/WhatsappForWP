@@ -184,14 +184,9 @@ namespace WhatsappApp.Pages
         {
             this.InitializeComponent();
             SystemTray.IsVisible = true;
-            ApplicationBar = ChatApplicationBar;
+            ApplicationBar = ChatAppBar;
 
             AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
-            AutomationProperties.SetName(ContactInfoAppBarMenuItem, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
-            AutomationProperties.SetName(SelectMessagesAppBarMenuItem, Loc.Get("ChatPage_SelectMessagesAppBarMenuItem.Text", "Select messages"));
-            AutomationProperties.SetName(ForwardMessagesAppBarButton, Loc.Get("ChatPage_ForwardMessagesAppBarButton.Text", "Forward"));
-            AutomationProperties.SetName(CopyMessagesAppBarButton, Loc.Get("ChatPage_CopyMessagesAppBarButton.Text", "Copy"));
-            AutomationProperties.SetName(DeleteMessagesAppBarButton, Loc.Get("ChatPage_DeleteMessagesAppBarButton.Text", "Delete"));
             AutomationProperties.SetName(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
             AutomationProperties.SetName(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
             AutomationProperties.SetName(SmileyButton, Loc.Get("ChatPage_EmojiTooltip", "Emoji"));
@@ -256,7 +251,7 @@ namespace WhatsappApp.Pages
                 DataContext = contact;
                 _messageSelectionMode = false;
                 _selectedMessages.Clear();
-                ApplicationBar = ChatApplicationBar;
+                ApplicationBar = ChatAppBar;
 
                 ContactNameText.Text = contact.Name;
 
@@ -2475,7 +2470,7 @@ namespace WhatsappApp.Pages
         {
             _messageSelectionMode = true;
             _selectedMessages.Clear();
-            ApplicationBar = SelectedMessagesApplicationBar;
+            ApplicationBar = SelectedMessagesAppBar;
             UpdateSelectionActions();
         }
 
@@ -2501,7 +2496,7 @@ namespace WhatsappApp.Pages
             if (_selectedMessages.Count == 0)
             {
                 _messageSelectionMode = false;
-                ApplicationBar = ChatApplicationBar;
+                ApplicationBar = ChatAppBar;
                 return;
             }
             UpdateSelectionActions();
@@ -2516,7 +2511,7 @@ namespace WhatsappApp.Pages
             if (_selectedMessages.Count == 0)
             {
                 _messageSelectionMode = false;
-                ApplicationBar = ChatApplicationBar;
+                ApplicationBar = ChatAppBar;
                 return;
             }
             UpdateSelectionActions();

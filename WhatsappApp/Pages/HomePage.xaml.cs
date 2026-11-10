@@ -480,6 +480,11 @@ namespace WhatsappApp.Pages
             RefreshBadges();
         }
 
+        private void SearchButton_Click(object sender, RoutedEventArgs e)
+        {
+            SearchApplicationBarButton_Click(sender, e);
+        }
+
         private void SearchApplicationBarButton_Click(object sender, EventArgs e)
         {
             _homeSearching = true;

@@ -133,9 +133,6 @@
   <data name="ChatPage_DeleteEveryoneFailed" xml:space="preserve">
     <value>WhatsApp non ha preso indietro il messaggio. Il messaggio è ancora qui; riprova quando il telefono è connesso.</value>
   </data>
-  <data name="Common_Refresh" xml:space="preserve">
-    <value>aggiorna</value>
-  </data>
   <data name="Home_SearchAppBarButton.Text" xml:space="preserve">
     <value>Cerca</value>
   </data>
@@ -416,6 +413,9 @@
     <value>Mostra la foto del profilo</value>
   </data>
   <data name="ChatPage_ContactInfoTooltip" xml:space="preserve">
+    <value>Info contatto</value>
+  </data>
+  <data name="ChatPage_ContactInfoMenu.Text" xml:space="preserve">
     <value>Info contatto</value>
   </data>
   <data name="ChatPage_JumpToRecentTooltip" xml:space="preserve">

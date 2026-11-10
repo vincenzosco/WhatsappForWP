@@ -62,8 +62,8 @@ test('home overflow and row action menus open as a dismissible Metro menu above 
   assert.match(xaml, /<Border x:Name="ModalCard"/);
   assert.match(code, /private void ModalDismissButton_Click\(/);
   assert.match(code, /SetAutomationName\(ModalDismissButton, Loc\.Get\("ChatsPage_CloseMenu", "Close menu"\)\)/);
-  assert.match(code, /SetAutomationName\(StatusMoreButton, MoreLabel\.Text\)/);
-  assert.match(code, /SetAutomationName\(CallsMoreButton, MoreLabel\.Text\)/);
+  assert.match(code, /private void StatusMoreButton_Click/);
+  assert.match(code, /private void CallsMoreButton_Click/);
   assert.match(code, /ModalOverlay\.Background\s*=\s*new SolidColorBrush\(Color\.FromArgb\(217, 0, 0, 0\)\)/);
   assert.match(code, /ModalCard\.BorderThickness\s*=\s*new Thickness\(1\)/);
 });

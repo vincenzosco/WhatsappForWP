@@ -11,12 +11,12 @@ const project = fs.readFileSync(path.join(ROOT, 'WhatsappApp/WhatsApp.csproj'), 
 
 test('home uses native app bars for each section and keeps only working commands', () => {
   assert.ok(xaml.includes('xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone"'));
-  assert.match(xaml, /<shell:ApplicationBar x:Key="ChatsApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Name="ChatsApplicationBar" x:Key="ChatsApplicationBar"/);
   assert.match(xaml, /x:Uid="Home_SearchAppBarButton"/);
   assert.match(xaml, /x:Uid="Home_MarkStatusesAppBarMenuItem"/);
   assert.match(xaml, /x:Uid="Home_NewCallAppBarButton"/);
-  assert.match(xaml, /<shell:ApplicationBar x:Key="StatusApplicationBar"/);
-  assert.match(xaml, /<shell:ApplicationBar x:Key="CallsApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Name="StatusApplicationBar" x:Key="StatusApplicationBar"/);
+  assert.match(xaml, /<shell:ApplicationBar x:Name="CallsApplicationBar" x:Key="CallsApplicationBar"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/search\.png"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/add\.png"/);
   assert.match(xaml, /IconUri="\/Assets\/Reference\/refresh\.png"/);
