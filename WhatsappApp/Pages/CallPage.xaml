@@ -260,40 +260,8 @@
                 <Button x:Name="MuteCallButton" Grid.Row="0" Grid.Column="2"
                         Style="{StaticResource CallTileStyle}" Click="MuteCallButton_Click">
                     <StackPanel>
-                        <Path Style="{StaticResource CallGlyphStyle}">
-                            <!-- IconMicrophone -->
-                            <Path.Data>
-                                <PathGeometry>
-                                    <PathGeometry.Figures>
-                                        <PathFigure StartPoint="10,7" IsClosed="True">
-                                            <PathFigure.Segments>
-                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Clockwise" Point="14,7"/>
-                                                <LineSegment Point="14,12"/>
-                                                <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Clockwise" Point="10,12"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                        <PathFigure StartPoint="7,11">
-                                            <PathFigure.Segments>
-                                                <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Counterclockwise" Point="17,11"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                        <PathFigure StartPoint="12,16">
-                                            <PathFigure.Segments>
-                                                <LineSegment Point="12,19"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                        <PathFigure StartPoint="9,19">
-                                            <PathFigure.Segments>
-                                                <LineSegment Point="15,19"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                    </PathGeometry.Figures>
-                                </PathGeometry>
-                            </Path.Data>
-                        </Path>
+                        <Image Source="/Assets/Reference/ThemeDark/mute-call.png"
+                               Width="42" Height="42" Stretch="Uniform"/>
                         <TextBlock x:Name="MuteLabel" FontSize="14" Margin="0,4,0,0"
                                    HorizontalAlignment="Center" TextAlignment="Center"
                                    TextWrapping="Wrap" MaxWidth="94"/>
@@ -303,36 +271,8 @@
                 <Button x:Name="SpeakerCallButton" Grid.Row="0" Grid.Column="0"
                         Style="{StaticResource CallTileStyle}" Click="SpeakerCallButton_Click">
                     <StackPanel>
-                        <Path Style="{StaticResource CallGlyphStyle}">
-                            <!-- IconSpeaker -->
-                            <Path.Data>
-                                <PathGeometry>
-                                    <PathGeometry.Figures>
-                                        <PathFigure StartPoint="3,9" IsClosed="True">
-                                            <PathFigure.Segments>
-                                                <LineSegment Point="7,9"/>
-                                                <LineSegment Point="12,4"/>
-                                                <LineSegment Point="12,20"/>
-                                                <LineSegment Point="7,15"/>
-                                                <LineSegment Point="3,15"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                        <PathFigure StartPoint="15,9">
-                                            <PathFigure.Segments>
-                                                <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Clockwise" Point="15,15"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                        <PathFigure StartPoint="18,6">
-                                            <PathFigure.Segments>
-                                                <ArcSegment Size="6,6" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Clockwise" Point="18,18"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                    </PathGeometry.Figures>
-                                </PathGeometry>
-                            </Path.Data>
-                        </Path>
+                        <Image Source="/Assets/Reference/ThemeDark/speaker.png"
+                               Width="42" Height="42" Stretch="Uniform"/>
                         <TextBlock x:Name="SpeakerLabel" FontSize="14" Margin="0,4,0,0"
                                    HorizontalAlignment="Center" TextAlignment="Center"
                                    TextWrapping="Wrap" MaxWidth="94"/>
@@ -343,25 +283,8 @@
                 <Button x:Name="MessageCallButton" Grid.Row="2" Grid.Column="4"
                         Style="{StaticResource CallTileStyle}" Click="MessageCallButton_Click">
                     <StackPanel>
-                        <Path Style="{StaticResource CallGlyphStyle}">
-                            <!-- IconChat -->
-                            <Path.Data>
-                                <PathGeometry>
-                                    <PathGeometry.Figures>
-                                        <PathFigure StartPoint="4,5" IsClosed="True">
-                                            <PathFigure.Segments>
-                                                <LineSegment Point="20,5"/>
-                                                <LineSegment Point="20,17"/>
-                                                <LineSegment Point="10,17"/>
-                                                <LineSegment Point="6,21"/>
-                                                <LineSegment Point="6,17"/>
-                                                <LineSegment Point="4,17"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                    </PathGeometry.Figures>
-                                </PathGeometry>
-                            </Path.Data>
-                        </Path>
+                        <Image Source="/Assets/Reference/ThemeDark/message.png"
+                               Width="42" Height="42" Stretch="Uniform"/>
                         <TextBlock x:Name="MessageLabel" FontSize="14" Margin="0,4,0,0"
                                    HorizontalAlignment="Center" TextAlignment="Center"
                                    TextWrapping="Wrap" MaxWidth="94"/>

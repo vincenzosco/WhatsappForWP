@@ -162,6 +162,9 @@
     <Content Include="Assets\Reference\ThemeDark\inputbar-mic.png" />
     <Content Include="Assets\Reference\ThemeDark\inputbar-send.png" />
     <Content Include="Assets\Reference\ThemeDark\phone-solid.png" />
+    <Content Include="Assets\Reference\ThemeDark\message.png" />
+    <Content Include="Assets\Reference\ThemeDark\mute-call.png" />
+    <Content Include="Assets\Reference\ThemeDark\speaker.png" />
     <Content Include="Assets\Reference\ThemeDark\status.png" />
     <Content Include="Assets\Reference\ThemeDark\video-solid.png" />
     <Content Include="Assets\Reference\ThemeLight\inputbar-attach.png" />
