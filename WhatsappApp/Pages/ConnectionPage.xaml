@@ -52,23 +52,23 @@
         </Grid>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Margin="16,16,16,16">
-                <TextBlock x:Name="LinkedLabel" Foreground="#FFB0B0B0"
-                           FontSize="14" FontWeight="SemiBold"/>
+            <StackPanel Margin="24,16,24,16">
+                <TextBlock x:Name="LinkedLabel" Foreground="White"
+                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
 
-                <Border x:Name="NumberPanel" Background="#FF151515"
+                <Border x:Name="NumberPanel"
                         Margin="0,6,0,0" Visibility="Collapsed">
                     <TextBlock x:Name="AccountNumberText" Foreground="White"
-                               FontSize="24" FontWeight="SemiBold"
-                               TextAlignment="Center" TextWrapping="Wrap" Margin="12"/>
+                               FontSize="30" FontFamily="Segoe WP Semilight"
+                               TextWrapping="Wrap" Margin="0"/>
                 </Border>
 
                 <TextBlock x:Name="AccountHintText" Foreground="#FFB0B0B0"
                            FontSize="13" TextWrapping="Wrap"
                            Visibility="Collapsed" Margin="0,6,0,0"/>
 
-                <TextBlock x:Name="StatusLabel" Foreground="#FFB0B0B0"
-                           FontSize="14" FontWeight="SemiBold" Margin="0,20,0,0"/>
+                <TextBlock x:Name="StatusLabel" Foreground="White"
+                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold" Margin="0,20,0,0"/>
 
                 <TextBlock x:Name="StatusText" Foreground="White"
                            FontSize="18" FontFamily="Segoe WP Semilight" TextWrapping="Wrap" Margin="0,6,0,0"/>
