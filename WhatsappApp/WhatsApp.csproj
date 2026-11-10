@@ -172,6 +172,12 @@
     <Content Include="Assets\Reference\ThemeLight\inputbar-keyboard.png" />
     <Content Include="Assets\Reference\ThemeLight\inputbar-mic.png" />
     <Content Include="Assets\Reference\ThemeLight\inputbar-send.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\attach-audio.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\attach-camera.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\attach-contact.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\attach-location.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\attach-picture.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\attach-video.png" />
     <Content Include="Assets\Reference\ThemeNeutral\inputbar-mic-red.png" />
     <Content Include="Assets\Reference\add.png" />
     <Content Include="Assets\Reference\archive.png" />
