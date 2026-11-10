@@ -138,6 +138,7 @@ namespace WhatsappApp.Services
 
         private readonly object _callCreatorGate = new object();
         private readonly Dictionary<string, string> _callCreators = new Dictionary<string, string>();
+        private bool _resetForNewAccount;
         private const int MaxRememberedCallCreators = 16;
 
         /// <summary>
@@ -805,6 +806,12 @@ namespace WhatsappApp.Services
             Start();
         }
 
+        /// <summary>Clears process-held protocol data before logging into another account.</summary>
+        public void ResetForNewAccount()
+        {
+            _resetForNewAccount = true;
+        }
+
         /// <summary>
         /// Ends the connection on purpose. A background task is one check and not a
         /// session: without this the login loop would sit in its wait and keep the
@@ -841,6 +848,28 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task RunAsync(int generation)
         {
+            if (_resetForNewAccount)
+            {
+                _seen.Clear();
+                _chats.Reset();
+                _appStateKeys.Clear();
+                _held.Clear();
+                _calls = new List<CallLogEntryModel>();
+                _statuses = new List<StatusPost>();
+                _refusalIsAnswer.Clear();
+                _privacyTokens.Clear();
+                _awaitingAck.Clear();
+                _ackOrder.Clear();
+                _offeredCalls.Clear();
+                _announcedCalls.Clear();
+                lock (_callCreatorGate) _callCreators.Clear();
+                lock (_lastDevices) _lastDevices.Clear();
+                lock (_senderKeysSent) _senderKeysSent.Clear();
+                lock (_groupsAsked) _groupsAsked.Clear();
+                _identityMissingSaid = false;
+                _resetForNewAccount = false;
+            }
+
             Credentials account;
             try
             {

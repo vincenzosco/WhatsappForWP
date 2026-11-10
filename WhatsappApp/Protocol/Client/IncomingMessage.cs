@@ -947,5 +947,11 @@ namespace WhatsappApp.Protocol.Client
 
             _ids.Remove(id);
         }
+
+        /// <summary>Forgets every message id when this store starts serving another account.</summary>
+        public void Clear()
+        {
+            _ids.Clear();
+        }
     }
 }

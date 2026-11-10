@@ -133,14 +133,50 @@
   <data name="ChatPage_DeleteEveryoneFailed" xml:space="preserve">
     <value>WhatsApp did not take the message back. The message is still here; try again when the phone is connected.</value>
   </data>
-  <data name="Common_Refresh" xml:space="preserve">
-    <value>refresh</value>
+  <data name="Home_SearchAppBarButton.Text" xml:space="preserve">
+    <value>Search</value>
   </data>
-  <data name="ChatsPage_NewChatTooltip" xml:space="preserve">
+  <data name="Home_NewChatAppBarButton.Text" xml:space="preserve">
     <value>New chat</value>
   </data>
-  <data name="ChatsPage_SettingsTooltip" xml:space="preserve">
+  <data name="Home_ReadAllAppBarMenuItem.Text" xml:space="preserve">
+    <value>Read all chats</value>
+  </data>
+  <data name="Home_PinChatsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Pin chats</value>
+  </data>
+  <data name="Home_UnpinAllAppBarMenuItem.Text" xml:space="preserve">
+    <value>Unpin all</value>
+  </data>
+  <data name="Home_SettingsAppBarMenuItem.Text" xml:space="preserve">
     <value>Settings</value>
+  </data>
+  <data name="Home_RefreshStatusAppBarButton.Text" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Home_MarkStatusesAppBarMenuItem.Text" xml:space="preserve">
+    <value>Mark all as viewed</value>
+  </data>
+  <data name="Home_NewCallAppBarButton.Text" xml:space="preserve">
+    <value>Start a voice call</value>
+  </data>
+  <data name="Home_RefreshCallsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Refresh</value>
+  </data>
+  <data name="Home_MarkCallsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Mark all as seen</value>
+  </data>
+  <data name="ChatPage_SelectMessagesAppBarMenuItem.Text" xml:space="preserve">
+    <value>Select messages</value>
+  </data>
+  <data name="ChatPage_ForwardMessagesAppBarButton.Text" xml:space="preserve">
+    <value>Forward</value>
+  </data>
+  <data name="ChatPage_CopyMessagesAppBarButton.Text" xml:space="preserve">
+    <value>Copy</value>
+  </data>
+  <data name="ChatPage_DeleteMessagesAppBarButton.Text" xml:space="preserve">
+    <value>Delete</value>
   </data>
   <data name="NewChat_Title" xml:space="preserve">
     <value>New chat</value>
@@ -268,10 +304,10 @@
   <data name="ChatsPage_MoreTooltip" xml:space="preserve">
     <value>More</value>
   </data>
-  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
-    <value>Search</value>
+  <data name="ChatsPage_CloseMenu" xml:space="preserve">
+    <value>Close menu</value>
   </data>
-  <data name="ChatsPage_SearchTooltip" xml:space="preserve">
+  <data name="ChatsPage_Search.PlaceholderText" xml:space="preserve">
     <value>Search</value>
   </data>
   <data name="ChatsPage_SearchClose" xml:space="preserve">
@@ -334,6 +370,9 @@
   <data name="ContactInfoPage_Title" xml:space="preserve">
     <value>Contact info</value>
   </data>
+  <data name="ContactInfoPage_ProfileHeading" xml:space="preserve">
+    <value>Profile</value>
+  </data>
   <data name="ContactInfoPage_BackTooltip" xml:space="preserve">
     <value>Back</value>
   </data>
@@ -377,6 +416,9 @@
     <value>Show the profile photo</value>
   </data>
   <data name="ChatPage_ContactInfoTooltip" xml:space="preserve">
+    <value>Contact info</value>
+  </data>
+  <data name="ChatPage_ContactInfoMenu.Text" xml:space="preserve">
     <value>Contact info</value>
   </data>
   <data name="ChatPage_JumpToRecentTooltip" xml:space="preserve">
@@ -657,6 +699,9 @@
   </data>
   <data name="PairPage_Scanning" xml:space="preserve">
     <value>Scan this code with your other phone.</value>
+  </data>
+  <data name="PairPage_NavigationFailed" xml:space="preserve">
+    <value>The account is linked, but the chats page could not be opened. Close and reopen the app.</value>
   </data>
   <data name="PairPage_Brand.Text" xml:space="preserve">
     <value>WHATSAPP</value>

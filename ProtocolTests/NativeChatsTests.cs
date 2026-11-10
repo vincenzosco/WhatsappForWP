@@ -16,6 +16,29 @@ namespace ProtocolTests
     public static class NativeChatsTests
     {
         [Test]
+        public static void HistoryRowsUseTheLatestMessageWhenTheChunkHasNoConversationTimestamp()
+        {
+            const string groupJid = "120363999999999999@g.us";
+            const long latest = 1794234900L;
+            byte[] key = new ProtoWriter().Text(1, groupJid).Text(3, "3EB0ORDER0001").ToArray();
+            byte[] web = new ProtoWriter()
+                .Bytes(1, key)
+                .Bytes(2, new ProtoWriter().Text(WhatsappApp.Protocol.WaProto.Message.ConversationField, "activity").ToArray())
+                .Varint(3, latest)
+                .ToArray();
+            byte[] conversation = new ProtoWriter()
+                .Text(1, groupJid)
+                .Bytes(2, new ProtoWriter().Bytes(1, web).ToArray())
+                .ToArray();
+
+            var chats = new NativeChats();
+            chats.ApplyHistory(Sync(conversation));
+
+            Assert.AreEqual(latest, chats.Rows[0].ConversationTimestamp,
+                "a message timestamp dates a chunk which omitted both activity fields");
+        }
+
+        [Test]
         public static void AHistorySyncBecomesRowsInItsOwnOrder()
         {
             var chats = new NativeChats();
@@ -69,6 +92,30 @@ namespace ProtocolTests
 
             Assert.AreEqual(0, chats.ApplyHistory(again).Count,
                 "a re-delivered chunk adds no message, so it hands none over");
+        }
+
+        [Test]
+        public static void AGroupWithNoConversationTimestampUsesItsLatestMessageTimestamp()
+        {
+            const string groupJid = "120363999999999999@g.us";
+            const long sentAt = 1794234900L;
+            byte[] key = new ProtoWriter().Text(1, groupJid).Text(3, "3EB0ORDER0001").ToArray();
+            byte[] web = new ProtoWriter()
+                .Bytes(1, key)
+                .Bytes(2, new ProtoWriter().Text(WhatsappApp.Protocol.WaProto.Message.ConversationField, "latest").ToArray())
+                .Varint(3, sentAt)
+                .ToArray();
+            byte[] conversation = new ProtoWriter()
+                .Text(1, groupJid)
+                .Bytes(2, new ProtoWriter().Bytes(1, web).ToArray())
+                .ToArray();
+
+            var chats = new NativeChats();
+            chats.ApplyHistory(Sync(conversation));
+
+            Assert.AreEqual(sentAt, chats.Rows[0].ConversationTimestamp,
+                "the list timestamp can be absent while its newest message still dates the row");
+            Assert.AreEqual(sentAt, chats.Rows[0].Messages[0].Timestamp);
         }
 
         [Test]

@@ -61,6 +61,14 @@ namespace WhatsappApp.Protocol.Client
             get { return _rows; }
         }
 
+        /// <summary>Forgets all rows and message ids before another account is linked.</summary>
+        public void Reset()
+        {
+            _rows.Clear();
+            _seen.Clear();
+            IsSyncComplete = false;
+        }
+
         /// <summary>
         /// Whether the server has said the history is all here.
         ///

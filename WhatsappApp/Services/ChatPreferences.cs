@@ -106,6 +106,13 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>Forgets per-chat decisions when this app starts serving another account.</summary>
+        public static void Clear()
+        {
+            Known.Clear();
+            Save();
+        }
+
         public static bool IsPinned(string chatId)
         {
             var entry = Find(chatId);

@@ -307,6 +307,21 @@ namespace WhatsappApp.Services
             RenderTile();
         }
 
+        /// <summary>Clears tile and unread state when this app starts serving another account.</summary>
+        public static void ResetForNewAccount()
+        {
+            _senderName = null;
+            _senderImage = null;
+            _senderBody = null;
+            _waiting = new List<TileEntry>();
+            _unread = 0;
+            _unseenStatuses = 0;
+            _tileDrawn = false;
+            RememberUnread(0);
+            RememberStatuses(0);
+            RenderTile();
+        }
+
         /// <summary>Clears all in-memory conversation turns after every chat was read.</summary>
         public static void ForgetAll()
         {
