@@ -834,45 +834,8 @@
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="RecordButton_Click">
-                    <Grid Width="40" Height="40">
-                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
-                    <Path Stroke="White" StrokeThickness="2"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="24" Height="24">
-                        <!-- IconMicrophone -->
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathGeometry.Figures>
-                                    <PathFigure StartPoint="10,7" IsClosed="True">
-                                        <PathFigure.Segments>
-                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                        SweepDirection="Clockwise" Point="14,7"/>
-                                            <LineSegment Point="14,12"/>
-                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                        SweepDirection="Clockwise" Point="10,12"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="7,11">
-                                        <PathFigure.Segments>
-                                            <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
-                                                        SweepDirection="Counterclockwise" Point="17,11"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="12,16">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="12,19"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="9,19">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="15,19"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                </PathGeometry.Figures>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                    </Grid>
+                    <Image Source="/Assets/Reference/ThemeDark/inputbar-mic.png"
+                           Width="36" Height="36" Stretch="Uniform"/>
                 </Button>
                 <Button x:Name="StopRecordButton" Grid.Column="0"
                         Background="Transparent"
@@ -976,40 +939,8 @@
                         Margin="0,4,8,4"
                         BorderThickness="0" Padding="0"
                         Click="SendButton_Click">
-                    <Grid Width="44" Height="44">
-                    <Ellipse Width="44" Height="44" Stroke="White" StrokeThickness="1.5"/>
-                    <Path Stroke="White" StrokeThickness="2" Width="24" Height="24"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <!-- IconSend -->
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathGeometry.Figures>
-                                    <PathFigure StartPoint="3,5" IsClosed="True">
-                                        <PathFigure.Segments>
-                                            <PolyLineSegment Points="21,5 21,19 3,19"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="7,9">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="17,9"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="7,12">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="17,12"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                    <PathFigure StartPoint="7,15">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="12,15"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                </PathGeometry.Figures>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                    </Grid>
+                    <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
+                           Width="36" Height="36" Stretch="Uniform"/>
                 </Button>
                 <Button x:Name="AttachButton" 
                         Background="Transparent"
@@ -1017,32 +948,8 @@
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="AttachButton_Click">
-                    <Grid Width="40" Height="40">
-                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
-                    <Path Stroke="White" StrokeThickness="2"
-                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                          Width="24" Height="24"
-                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <!-- IconAttach -->
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathGeometry.Figures>
-                                    <PathFigure StartPoint="9,18">
-                                        <PathFigure.Segments>
-                                            <LineSegment Point="9,7.5"/>
-                                            <ArcSegment Size="3,3" RotationAngle="0" IsLargeArc="True"
-                                                        SweepDirection="Clockwise" Point="15,7.5"/>
-                                            <LineSegment Point="15,15"/>
-                                            <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="True"
-                                                        SweepDirection="Clockwise" Point="11,15"/>
-                                            <LineSegment Point="11,9.5"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                </PathGeometry.Figures>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
-                    </Grid>
+                    <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
+                           Width="36" Height="36" Stretch="Uniform"/>
                 </Button>
                 <!-- The call button lives in the ring bar, where the official
                      client puts it: it calls the person of this conversation and
@@ -1053,27 +960,8 @@
                         Width="48" Height="48" Margin="0,0,12,0" Padding="0"
                         VerticalAlignment="Center"
                         Click="CallHeaderButton_Click">
-                    <Path Fill="White" Width="24" Height="24"
-                          HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <!-- IconCall -->
-                        <Path.Data>
-                            <PathGeometry>
-                                <PathGeometry.Figures>
-                                    <PathFigure StartPoint="19.5,20" IsClosed="True">
-                                        <PathFigure.Segments>
-                                            <BezierSegment Point1="11.7,20" Point2="4,12.3" Point3="4,4.5"/>
-                                            <LineSegment Point="7.5,4.5"/>
-                                            <LineSegment Point="9,9"/>
-                                            <LineSegment Point="7,11"/>
-                                            <BezierSegment Point1="8.5,13.5" Point2="10.5,15.5" Point3="13,17"/>
-                                            <LineSegment Point="15,15"/>
-                                            <LineSegment Point="19.5,16.5"/>
-                                        </PathFigure.Segments>
-                                    </PathFigure>
-                                </PathGeometry.Figures>
-                            </PathGeometry>
-                        </Path.Data>
-                    </Path>
+                    <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
+                           Width="24" Height="24" Stretch="Uniform"/>
                 </Button>
                 <Button x:Name="SmileyButton"
                         Background="Transparent"
