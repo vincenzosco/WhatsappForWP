@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 
 namespace WhatsappApp.Converters
 {
@@ -29,21 +30,28 @@ namespace WhatsappApp.Converters
     }
 
     /// <summary>
-    /// Converts message status to a readable string with check marks
+    /// Converts an outgoing message status to the matching reference icon.
     /// </summary>
-    public class MessageStatusToStringConverter : IValueConverter
+    public class MessageStatusToIconConverter : IValueConverter
     {
+        private static readonly BitmapImage Sending = Icon("ThemeDark/inline-100-clock.png");
+        private static readonly BitmapImage Sent = Icon("ThemeDark/inline-100-check.png");
+        private static readonly BitmapImage Delivered = Icon("ThemeDark/inline-100-double-check.png");
+        private static readonly BitmapImage Read = Icon("ThemeNeutral/inline-blue-checks.png");
+        private static readonly BitmapImage Failed = Icon("ThemeDark/inline-100-error.png");
+
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            var status = (Models.MessageStatus)value;
-            switch (status)
+            if (!(value is Models.MessageStatus)) return null;
+
+            switch ((Models.MessageStatus)value)
             {
-                case Models.MessageStatus.Sending: return "\u25CB";
-                case Models.MessageStatus.Sent: return "\u2713";
-                case Models.MessageStatus.Delivered: return "\u2713\u2713";
-                case Models.MessageStatus.Read: return "\u2713\u2713";
-                case Models.MessageStatus.Failed: return "\u2717";
-                default: return "";
+                case Models.MessageStatus.Sending: return Sending;
+                case Models.MessageStatus.Sent: return Sent;
+                case Models.MessageStatus.Delivered: return Delivered;
+                case Models.MessageStatus.Read: return Read;
+                case Models.MessageStatus.Failed: return Failed;
+                default: return null;
             }
         }
 
@@ -51,35 +59,10 @@ namespace WhatsappApp.Converters
         {
             return DependencyProperty.UnsetValue;
         }
-    }
 
-    /// <summary>
-    /// Converts message status to color brush for read receipts
-    /// </summary>
-    /// <remarks>
-    /// Sent and delivered ticks use the bubble's text colour, while read ticks use dark blue.
-    /// This remains legible when the phone accent changes from dark to light.
-    /// </remarks>
-    public class MessageStatusToColorConverter : IValueConverter
-    {
-        /// <summary>The two ticks of a message that was read.</summary>
-        public static readonly Color Read = Color.FromArgb(255, 11, 61, 145);
-
-        public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+        private static BitmapImage Icon(string name)
         {
-            var status = (Models.MessageStatus)value;
-            if (status == Models.MessageStatus.Read) return new SolidColorBrush(Read);
-
-            Color text = Services.Accent.IsLight(Services.Accent.Color)
-                ? Color.FromArgb(255, 51, 51, 51)
-                : Color.FromArgb(255, 255, 255, 255);
-
-            return new SolidColorBrush(text);
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
-        {
-            return DependencyProperty.UnsetValue;
+            return new BitmapImage(new Uri("/Assets/Reference/" + name, UriKind.Relative));
         }
     }
 

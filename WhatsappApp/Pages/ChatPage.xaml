@@ -19,8 +19,7 @@
 
     <phone:PhoneApplicationPage.Resources>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
-        <conv:MessageStatusToStringConverter x:Key="MsgStatusToString"/>
-        <conv:MessageStatusToColorConverter x:Key="MsgStatusToColor"/>
+        <conv:MessageStatusToIconConverter x:Key="MsgStatusToIcon"/>
         <conv:MessageTypeToImageVisibilityConverter x:Key="MsgTypeToImageVis"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <pages:LocalizedMessageTextConverter x:Key="LocalizedMessageText"/>
@@ -567,13 +566,10 @@
                                             Opacity="0.8">
                                     <TextBlock Text="{Binding FormattedTime}"
                                                Foreground="{StaticResource ChatBubbleMetaBrush}" FontSize="13"/>
-                                    <!-- One tick sent, two delivered, two blue read: the glyph
-                                         comes from the status converter and the colour from
-                                         `MsgStatusToColor`, which is why this used to stay
-                                         white for "read" too (2026-11-01). -->
-                                    <TextBlock Text="{Binding Status, Converter={StaticResource MsgStatusToString}}"
-                                               Foreground="{Binding Status, Converter={StaticResource MsgStatusToColor}}"
-                                               FontSize="12" Margin="4,0,0,0"/>
+                                    <!-- The icon is the one the reference uses for each delivery state. -->
+                                    <Image Source="{Binding Status, Converter={StaticResource MsgStatusToIcon}}"
+                                           Width="25" Height="18" Stretch="Uniform"
+                                           Margin="4,0,0,0"/>
                                 </StackPanel>
                                 <!-- The send failed and the bubble says it: the way out is
                                      here and not in the keyboard. It sends the same text or

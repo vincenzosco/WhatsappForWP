@@ -161,6 +161,10 @@
     <Content Include="Assets\Reference\ThemeDark\inputbar-keyboard.png" />
     <Content Include="Assets\Reference\ThemeDark\inputbar-mic.png" />
     <Content Include="Assets\Reference\ThemeDark\inputbar-send.png" />
+    <Content Include="Assets\Reference\ThemeDark\inline-100-clock.png" />
+    <Content Include="Assets\Reference\ThemeDark\inline-100-check.png" />
+    <Content Include="Assets\Reference\ThemeDark\inline-100-double-check.png" />
+    <Content Include="Assets\Reference\ThemeDark\inline-100-error.png" />
     <Content Include="Assets\Reference\ThemeDark\phone-solid.png" />
     <Content Include="Assets\Reference\ThemeDark\message.png" />
     <Content Include="Assets\Reference\ThemeDark\mute-call.png" />
@@ -179,6 +183,7 @@
     <Content Include="Assets\Reference\ThemeNeutral\attach-picture.png" />
     <Content Include="Assets\Reference\ThemeNeutral\attach-video.png" />
     <Content Include="Assets\Reference\ThemeNeutral\inputbar-mic-red.png" />
+    <Content Include="Assets\Reference\ThemeNeutral\inline-blue-checks.png" />
     <Content Include="Assets\Reference\add.png" />
     <Content Include="Assets\Reference\archive.png" />
     <Content Include="Assets\Reference\camera-icon.png" />
