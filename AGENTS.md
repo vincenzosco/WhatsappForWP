@@ -15,6 +15,10 @@
 - **No AI attribution of any kind.** No `Generated with ...` line, no
   `Co-Authored-By: ...` trailer, no emoji footer. If a tool offers to add one,
   the answer is no.
+- **Who authors what.** A commit the owner makes carries the owner's identity
+  (`vincenzosco <131459463+vincenzosco@users.noreply.github.com>`); a commit made in
+  this cloud workspace stays under the workspace identity
+  (`SouSand <sousand@proton.me>`). Never commit as the owner from here.
 - **No conventional-commit prefixes invented after the fact.** The history mixes
   them; a commit either follows its neighbour's style or has no prefix at all.
 - One commit per change that stands on its own. A build bump is its own commit,
