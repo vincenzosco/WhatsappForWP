@@ -83,7 +83,23 @@ test('the attach media panel is the reference bottom sheet above the action bar'
   // top edge, the shared 64 px button styles and the overflow at the right edge.
   assert.match(chat, /<Grid Grid\.Row="4" Background="#FF171717" MinHeight="64">/);
   assert.match(chat, /<Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"\/>/);
-  assert.match(chat, /x:Name="SendButton" Style="\{StaticResource ChatBarButtonStyle\}"/);
-  assert.match(chat, /x:Name="MoreButton" Style="\{StaticResource ChatBarOverflowStyle\}"/);
+  assert.match(chat, /x:Name="SendButton" Style="\{StaticResource AppBarButtonStyle\}"/);
+  assert.match(chat, /x:Name="MoreButton" Style="\{StaticResource OverflowButtonStyle\}"/);
   assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
+});
+
+test('the ring bar is defined once, for the home page and the chat alike', () => {
+  const application = fs.readFileSync(path.join(root, 'WhatsappApp/App.xaml'), 'utf8');
+
+  assert.match(application, /<Style x:Key="AppBarButtonStyle" TargetType="Button">/);
+  assert.match(application, /<Style x:Key="OverflowButtonStyle" TargetType="Button">/);
+  assert.match(application, /<Grid x:Name="Tile" Width="46" Height="46">/,
+    'the shared ring is the 46 px circle both bars drew');
+
+  assert.doesNotMatch(home, /x:Key="AppBarButtonStyle"/, 'the home page does not carry its own copy');
+  assert.doesNotMatch(chat, /x:Key="(?:AppBar|Overflow|ChatBar)\w*Style"/, 'nor does the chat');
+
+  assert.match(home, /x:Name="MoreButton" Style="\{StaticResource OverflowButtonStyle\}"/);
+  assert.match(chat, /x:Name="SendButton" Style="\{StaticResource AppBarButtonStyle\}"/);
+  assert.match(chat, /x:Name="MoreButton" Style="\{StaticResource OverflowButtonStyle\}"/);
 });

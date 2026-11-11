@@ -71,99 +71,7 @@
              target, the outlined circle inside it, and the press that dims the tile.
              A button carries no CornerRadius on this projection, so the template is
              what draws the circle. -->
-        <Style x:Key="ChatBarButtonStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="Width" Value="64"/>
-            <Setter Property="Height" Value="64"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal"/>
-                                    <VisualState x:Name="MouseOver"/>
-                                    <VisualState x:Name="Pressed">
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="Tile"
-                                                             Storyboard.TargetProperty="Opacity"
-                                                             To="0.55" Duration="0:0:0"/>
-                                        </Storyboard>
-                                    </VisualState>
-                                    <VisualState x:Name="Disabled">
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="Tile"
-                                                             Storyboard.TargetProperty="Opacity"
-                                                             To="0.4" Duration="0:0:0"/>
-                                        </Storyboard>
-                                    </VisualState>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-
-                            <Grid x:Name="Tile" Width="46" Height="46">
-                                <Ellipse Fill="{TemplateBinding Background}"
-                                         Stroke="White" StrokeThickness="1.5"/>
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                            </Grid>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="ChatBarOverflowStyle" TargetType="Button">
-            <Setter Property="Background" Value="Transparent"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="0"/>
-            <Setter Property="MinWidth" Value="0"/>
-            <Setter Property="MinHeight" Value="0"/>
-            <Setter Property="Width" Value="64"/>
-            <Setter Property="Height" Value="64"/>
-            <Setter Property="HorizontalContentAlignment" Value="Center"/>
-            <Setter Property="VerticalContentAlignment" Value="Center"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Grid>
-                            <VisualStateManager.VisualStateGroups>
-                                <VisualStateGroup x:Name="CommonStates">
-                                    <VisualState x:Name="Normal"/>
-                                    <VisualState x:Name="MouseOver"/>
-                                    <VisualState x:Name="Pressed">
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="Tile"
-                                                             Storyboard.TargetProperty="Opacity"
-                                                             To="0.55" Duration="0:0:0"/>
-                                        </Storyboard>
-                                    </VisualState>
-                                    <VisualState x:Name="Disabled">
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetName="Tile"
-                                                             Storyboard.TargetProperty="Opacity"
-                                                             To="0.4" Duration="0:0:0"/>
-                                        </Storyboard>
-                                    </VisualState>
-                                </VisualStateGroup>
-                            </VisualStateManager.VisualStateGroups>
-
-                            <Grid x:Name="Tile">
-                                <ContentPresenter HorizontalAlignment="Center"
-                                                  VerticalAlignment="Center"/>
-                            </Grid>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </phone:PhoneApplicationPage.Resources>
+                    </phone:PhoneApplicationPage.Resources>
 
     <Grid>
         <Grid.RowDefinitions>
@@ -1025,17 +933,17 @@
         <Grid Grid.Row="4" Background="#FF171717" MinHeight="64">
             <Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"/>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button x:Name="SendButton" Style="{StaticResource ChatBarButtonStyle}"
+                <Button x:Name="SendButton" Style="{StaticResource AppBarButtonStyle}"
                         Click="SendButton_Click">
                     <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
                            Width="22" Height="22" Stretch="Uniform"/>
                 </Button>
-                <Button x:Name="AttachButton" Style="{StaticResource ChatBarButtonStyle}"
+                <Button x:Name="AttachButton" Style="{StaticResource AppBarButtonStyle}"
                         Click="AttachButton_Click">
                     <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
                            Width="22" Height="25" Stretch="Uniform"/>
                 </Button>
-                <Button x:Name="CallHeaderButton" Style="{StaticResource ChatBarButtonStyle}"
+                <Button x:Name="CallHeaderButton" Style="{StaticResource AppBarButtonStyle}"
                         Click="CallHeaderButton_Click">
                     <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
                            Width="24" Height="22" Stretch="Uniform"/>
@@ -1043,7 +951,7 @@
                 <!-- The call button lives in the ring bar, where the official client
                      puts it: it calls the person of this conversation and hides for a
                      group, because this client calls one at a time. -->
-                <Button x:Name="SmileyButton" Style="{StaticResource ChatBarButtonStyle}"
+                <Button x:Name="SmileyButton" Style="{StaticResource AppBarButtonStyle}"
                         Click="SmileyButton_Click">
                     <Grid Width="22" Height="22">
                         <Ellipse Width="3" Height="3" Fill="White"
@@ -1070,7 +978,7 @@
                     </Grid>
                 </Button>
             </StackPanel>
-            <Button x:Name="MoreButton" Style="{StaticResource ChatBarOverflowStyle}"
+            <Button x:Name="MoreButton" Style="{StaticResource OverflowButtonStyle}"
                     HorizontalAlignment="Right" VerticalAlignment="Center"
                     Click="MoreButton_Click">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
