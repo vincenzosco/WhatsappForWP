@@ -19,6 +19,10 @@ const icons = [
 
 function buttonMarkup(name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const appBarButton = XAML.match(new RegExp(
+    `<shell:ApplicationBarIconButton\\b(?=[^>]*x:Name="${escaped}")[^>]*/>`
+  ));
+  if (appBarButton) return appBarButton[0];
   const start = XAML.search(new RegExp(`<Button\\b(?=[^>]*x:Name="${escaped}")[^>]*>`));
   assert.notEqual(start, -1, `button ${name} exists`);
   const end = XAML.indexOf('</Button>', start);
@@ -35,7 +39,9 @@ test('supported chat actions render the original XAP icon artwork', () => {
     const markup = buttonMarkup(button);
     const uri = `/Assets/Reference/ThemeDark/${file}`;
     const assetPath = path.join(ASSET_DIR, file);
-    assert.ok(markup.includes(`<Image Source="${uri}"`), `${button} renders ${file}`);
+    const usesNativeIcon = markup.startsWith('<shell:ApplicationBarIconButton');
+    assert.ok(markup.includes(usesNativeIcon ? `IconUri="${uri}"` : `<Image Source="${uri}"`),
+      `${button} renders ${file}`);
     assert.ok(fs.existsSync(assetPath), `${assetPath} exists`);
     const actual = crypto.createHash('sha256').update(fs.readFileSync(assetPath)).digest('hex');
     assert.equal(actual, digest, `${file} remains byte-identical to the extracted XAP asset`);
@@ -47,7 +53,7 @@ test('supported chat actions render the original XAP icon artwork', () => {
 test('the unsupported emoji panel is not implied by changing the existing button', () => {
   const smiley = buttonMarkup('SmileyButton');
   assert.match(smiley, /Click="SmileyButton_Click"/);
-  assert.match(smiley, /<Path\b/);
+  assert.match(smiley, /IconUri="\/Assets\/Reference\/ThemeDark\/inputbar-emoji\.png"/);
   assert.match(CODE, /private void SmileyButton_Click[\s\S]*MessageTextBox\.Focus\(\)/);
   assert.match(XAML, /<InputScopeName NameValue="Chat"\s*\/>/);
 });

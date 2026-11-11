@@ -178,6 +178,18 @@
   <data name="ChatPage_DeleteMessagesAppBarButton.Text" xml:space="preserve">
     <value>Delete</value>
   </data>
+  <data name="ChatPage_SendAppBarButton.Text" xml:space="preserve">
+    <value>Send</value>
+  </data>
+  <data name="ChatPage_AttachAppBarButton.Text" xml:space="preserve">
+    <value>Attach</value>
+  </data>
+  <data name="ChatPage_CallAppBarButton.Text" xml:space="preserve">
+    <value>Call</value>
+  </data>
+  <data name="ChatPage_EmojiAppBarButton.Text" xml:space="preserve">
+    <value>Emoji</value>
+  </data>
   <data name="NewChat_Title" xml:space="preserve">
     <value>New chat</value>
   </data>
@@ -261,12 +273,6 @@
   </data>
   <data name="ChatPage_BackTooltip" xml:space="preserve">
     <value>Back</value>
-  </data>
-  <data name="ChatPage_AttachTooltip" xml:space="preserve">
-    <value>Attach a photo or a video</value>
-  </data>
-  <data name="ChatPage_SendTooltip" xml:space="preserve">
-    <value>Send</value>
   </data>
   <data name="ChatPage_ClearImageTooltip" xml:space="preserve">
     <value>Remove the image</value>
@@ -685,9 +691,6 @@
   <data name="Settings_Off" xml:space="preserve">
     <value>Off</value>
   </data>
-  <data name="ChatPage_EmojiTooltip" xml:space="preserve">
-    <value>Emoji</value>
-  </data>
   <data name="PairPage_Connecting" xml:space="preserve">
     <value>Connecting to WhatsApp...</value>
   </data>
@@ -722,4 +725,3 @@
     <value>calls</value>
   </data>
 </root>
-

@@ -65,7 +65,7 @@ test('the conversation fills the row under the title bar', () => {
   assert.doesNotMatch(chat, /MessagesListView" Grid\.Row="1"[\s\S]{0,120}Grid\.RowSpan="2"/);
 });
 
-test('the attach media panel is the reference bottom sheet above the action bar', () => {
+test('the attach media panel stays above the native chat app bar', () => {
   assert.match(chat, /<Grid x:Name="AttachmentPickerOverlay" Grid\.Row="1" Grid\.RowSpan="3"/);
   assert.match(chat, /<Border Background="#FF1F1F1F"[\s\S]*?VerticalAlignment="Bottom"/);
   assert.match(chat, /x:Name="AttachmentPickerTitle"[\s\S]*?FontSize="15" FontWeight="Bold"/);
@@ -79,12 +79,10 @@ test('the attach media panel is the reference bottom sheet above the action bar'
   }
   assert.match(chat, /attach-picture\.png/, "Albums keeps the picture mark");
   assert.match(chat, /attach-camera\.png/, "Photo is the camera, not a second picture mark");
-  // The chat's ring bar is the home page's bar: the #171717 strip, its one-pixel
-  // top edge, the shared 64 px button styles and the overflow at the right edge.
-  assert.match(chat, /<Grid Grid\.Row="4" Background="#FF171717" MinHeight="64">/);
-  assert.match(chat, /<Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"\/>/);
-  assert.match(chat, /x:Name="SendButton" Style="\{StaticResource AppBarButtonStyle\}"/);
-  assert.match(chat, /x:Name="MoreButton" Style="\{StaticResource OverflowButtonStyle\}"/);
+  assert.match(chat, /<shell:ApplicationBar x:Name="ChatAppBar"[^>]*>[\s\S]*?<shell:ApplicationBarIconButton x:Name="SendButton"/);
+  assert.doesNotMatch(chat, /<Grid Grid\.Row="4" Background="#FF171717" MinHeight="64">/);
+  assert.match(chat, /<shell:ApplicationBarIconButton x:Name="CallHeaderButton"[^>]*IsEnabled="False"/);
+  assert.match(chatCode, /CallHeaderButton\.IsEnabled = !GroupDirectory\.IsGroup\(contact\.Id\);/);
   assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
 });
 
@@ -107,7 +105,7 @@ test('the composer sits on the 64 px line of the bar, flush to the right edge', 
   assert.ok(tail, 'the tail hangs at the right edge, under the field');
 });
 
-test('the ring bar is defined once, for the home page and the chat alike', () => {
+test('the home ring bar remains shared while chat uses the native app bar', () => {
   const application = fs.readFileSync(path.join(root, 'WhatsappApp/App.xaml'), 'utf8');
 
   assert.match(application, /<Style x:Key="AppBarButtonStyle" TargetType="Button">/);
@@ -119,6 +117,6 @@ test('the ring bar is defined once, for the home page and the chat alike', () =>
   assert.doesNotMatch(chat, /x:Key="(?:AppBar|Overflow|ChatBar)\w*Style"/, 'nor does the chat');
 
   assert.match(home, /x:Name="MoreButton" Style="\{StaticResource OverflowButtonStyle\}"/);
-  assert.match(chat, /x:Name="SendButton" Style="\{StaticResource AppBarButtonStyle\}"/);
-  assert.match(chat, /x:Name="MoreButton" Style="\{StaticResource OverflowButtonStyle\}"/);
+  assert.match(chat, /<shell:ApplicationBar x:Name="ChatAppBar"[^>]*>[\s\S]*?<shell:ApplicationBarIconButton x:Name="SendButton"/);
+  assert.doesNotMatch(chat, /x:Name="(?:SendButton|MoreButton)" Style="\{StaticResource (?:AppBar|Overflow)ButtonStyle\}"/);
 });

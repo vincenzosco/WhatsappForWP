@@ -34,6 +34,10 @@
              ellipses, so nothing has to be decoded to show it, and it is stopped
              (not just hidden) the moment the bubble goes away. -->
         <shell:ApplicationBar x:Name="ChatAppBar" x:Key="ChatApplicationBar" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="SendButton" x:Uid="ChatPage_SendAppBarButton" IconUri="/Assets/Reference/ThemeDark/inputbar-send.png" Text="Send" Click="SendButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="AttachButton" x:Uid="ChatPage_AttachAppBarButton" IconUri="/Assets/Reference/ThemeDark/inputbar-attach.png" Text="Attach" Click="AttachButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="CallHeaderButton" x:Uid="ChatPage_CallAppBarButton" IconUri="/Assets/Reference/ThemeDark/phone-solid.png" Text="Call" IsEnabled="False" Click="CallHeaderButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="SmileyButton" x:Uid="ChatPage_EmojiAppBarButton" IconUri="/Assets/Reference/ThemeDark/inputbar-emoji.png" Text="Emoji" Click="SmileyButton_Click"/>
             <shell:ApplicationBar.MenuItems>
                 <shell:ApplicationBarMenuItem x:Name="ContactInfoAppBarMenuItem" x:Uid="ChatPage_ContactInfoMenu" Text="Contact info" Click="ContactInfoAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Name="SelectMessagesAppBarMenuItem" x:Uid="ChatPage_SelectMessagesAppBarMenuItem" Text="Select messages" Click="SelectMessagesAppBarMenuItem_Click"/>
@@ -67,10 +71,6 @@
                 <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0"/>
             </DoubleAnimationUsingKeyFrames>
         </Storyboard>
-        <!-- The bar the home page draws, for this page's four rings: a 64 px touch
-             target, the outlined circle inside it, and the press that dims the tile.
-             A button carries no CornerRadius on this projection, so the template is
-             what draws the circle. -->
                     </phone:PhoneApplicationPage.Resources>
 
     <Grid>
@@ -80,7 +80,6 @@
             <!-- The typing bubble. It is a row of its own, outside the list: a
                  bubble inside the list would be a message the conversation has
                  to scroll past, and it comes and goes on its own. -->
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
@@ -930,69 +929,6 @@
 
             </Grid>
 
-        </Grid>
-
-        <!-- The bar of the home page, for this page's four rings: the same #171717
-             strip with its one-pixel top edge, the same 64 px touch target, the 46 px
-             outlined circle drawn by the template, and the overflow dots at the right
-             edge. The circles ride centred as one group, as the reference draws them. -->
-        <Grid Grid.Row="4" Background="#FF171717" MinHeight="64">
-            <Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"/>
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button x:Name="SendButton" Style="{StaticResource AppBarButtonStyle}"
-                        Click="SendButton_Click">
-                    <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
-                           Width="22" Height="22" Stretch="Uniform"/>
-                </Button>
-                <Button x:Name="AttachButton" Style="{StaticResource AppBarButtonStyle}"
-                        Click="AttachButton_Click">
-                    <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
-                           Width="22" Height="25" Stretch="Uniform"/>
-                </Button>
-                <Button x:Name="CallHeaderButton" Style="{StaticResource AppBarButtonStyle}"
-                        Click="CallHeaderButton_Click">
-                    <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
-                           Width="24" Height="22" Stretch="Uniform"/>
-                </Button>
-                <!-- The call button lives in the ring bar, where the official client
-                     puts it: it calls the person of this conversation and hides for a
-                     group, because this client calls one at a time. -->
-                <Button x:Name="SmileyButton" Style="{StaticResource AppBarButtonStyle}"
-                        Click="SmileyButton_Click">
-                    <Grid Width="22" Height="22">
-                        <Ellipse Width="3" Height="3" Fill="White"
-                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
-                        <Ellipse Width="3" Height="3" Fill="White"
-                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,4,0"/>
-                        <Path Stroke="White" StrokeThickness="2"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <!-- IconSmiley -->
-                            <Path.Data>
-                                <PathGeometry>
-                                    <PathGeometry.Figures>
-                                        <PathFigure StartPoint="4,9">
-                                            <PathFigure.Segments>
-                                                <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Clockwise" Point="18,9"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                    </PathGeometry.Figures>
-                                </PathGeometry>
-                            </Path.Data>
-                        </Path>
-                    </Grid>
-                </Button>
-            </StackPanel>
-            <Button x:Name="MoreButton" Style="{StaticResource OverflowButtonStyle}"
-                    HorizontalAlignment="Right" VerticalAlignment="Center"
-                    Click="MoreButton_Click">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                    <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                    <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                </StackPanel>
-            </Button>
         </Grid>
 
         <!-- The voice-note player. One for the whole page, not one per bubble:

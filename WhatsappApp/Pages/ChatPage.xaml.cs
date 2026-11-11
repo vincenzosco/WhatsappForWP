@@ -186,10 +186,6 @@ namespace WhatsappApp.Pages
             SystemTray.IsVisible = true;
             ApplicationBar = ChatAppBar;
 
-            AutomationProperties.SetName(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
-            AutomationProperties.SetName(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
-            AutomationProperties.SetName(SmileyButton, Loc.Get("ChatPage_EmojiTooltip", "Emoji"));
-            AutomationProperties.SetName(MoreButton, Loc.Get("ChatsPage_MoreTooltip", "More"));
             AutomationProperties.SetName(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
             AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
             AutomationProperties.SetName(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
@@ -258,9 +254,7 @@ namespace WhatsappApp.Pages
 // A group is not called from here: `CallSignaling` builds an offer to a single
 // address, and a button that offered a group call the app cannot make would be a
 // promise it breaks.
-                CallHeaderButton.Visibility = GroupDirectory.IsGroup(contact.Id)
-                    ? Visibility.Collapsed
-                    : Visibility.Visible;
+                CallHeaderButton.IsEnabled = !GroupDirectory.IsGroup(contact.Id);
 
                 // No presence: WhatsApp does not expose it through the server we
                 // use, and saying "online" or "last seen at HH:mm" was a lie. What
@@ -430,7 +424,7 @@ namespace WhatsappApp.Pages
         /// offer goes out and the call page comes to the front. A call placed from a
         /// conversation with no call screen over it is a press that seems to do nothing.
         /// </summary>
-        private void CallHeaderButton_Click(object sender, RoutedEventArgs e)
+        private void CallHeaderButton_Click(object sender, EventArgs e)
         {
             if (_contact == null || string.IsNullOrEmpty(_contact.Id)) return;
 
@@ -2480,7 +2474,7 @@ namespace WhatsappApp.Pages
 
         /// <summary>The smiley opens the keyboard: its Chat scope is what puts the
         /// emoji key beside the space bar.</summary>
-        private void SmileyButton_Click(object sender, RoutedEventArgs e)
+        private void SmileyButton_Click(object sender, EventArgs e)
         {
             MessageTextBox.Focus();
         }
@@ -2559,20 +2553,7 @@ namespace WhatsappApp.Pages
             return true;
         }
 
-        /// <summary>The overflow of the ring bar: the chat's own page actions.</summary>
-        private void MoreButton_Click(object sender, RoutedEventArgs e)
-        {
-            var actions = new List<PopupAction>();
-
-            PopupAction info = new PopupAction();
-            info.Text = Loc.Get("ChatPage_ContactInfoTooltip", "Contact info");
-            info.Invoke = OpenContactInfo;
-            actions.Add(info);
-
-            ShowActionPopup(MoreButton, actions);
-        }
-
-        private void SendButton_Click(object sender, RoutedEventArgs e)
+        private void SendButton_Click(object sender, EventArgs e)
         {
             SendMessage();
         }
@@ -2803,7 +2784,7 @@ namespace WhatsappApp.Pages
             RecordTimerText.Text = FormatClock((DateTime.Now - _recording.StartedAt).TotalSeconds);
         }
 
-        private void AttachButton_Click(object sender, RoutedEventArgs e)
+        private void AttachButton_Click(object sender, EventArgs e)
         {
             AttachmentPickerOverlay.Visibility = Visibility.Visible;
         }
