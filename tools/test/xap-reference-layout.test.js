@@ -92,7 +92,8 @@ test('the composer sits on the 64 px line of the bar, flush to the right edge', 
   // The reference: the microphone has no circle and the same 64 px square as a
   // circle of the bar, the field fills the rest of the line to the screen edge, and
   // the tail hangs under that corner.
-  assert.match(chat, /<!-- Input row[\s\S]{0,400}?<Grid Grid\.Row="1" Height="64">/);
+  assert.match(chat, /<!-- Input row[\s\S]{0,400}?<Grid Grid\.Row="1" MinHeight="64">/,
+    'the composer line is 64 px at rest and may grow with the text');
 
   const record = named(chat, 'RecordButton');
   assert.match(record, /Width="64" Height="64"/);
