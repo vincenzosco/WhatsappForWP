@@ -78,3 +78,10 @@ WhatsappApp/BundleArtifacts/
 
 # Il file di risorse che il compilatore XAML scrive nella radice a ogni build.
 /WhatsApp.g.resources
+
+# Image editor (Krita) specific files
+*.kra
+.jpg~
+.png~
+WhatsappApp/SplashScreenImage.jpg~
+WhatsappApp/SplashScreenImage.scale-240.jpg~
