@@ -69,7 +69,9 @@ namespace WhatsappApp.Services
         {
             if (bytes == null || messageId == null) return null;
 
-            string type = string.IsNullOrEmpty(mediaType) ? "image" : mediaType.ToLower();
+            // Invariant: a Turkish locale lowercases "IMAGE" to "ımage" and the type
+            // stops matching "image", which makes the store write a photo to disk.
+            string type = string.IsNullOrEmpty(mediaType) ? "image" : mediaType.ToLowerInvariant();
 
             var result = new IncomingMediaResult
             {
@@ -203,9 +205,9 @@ namespace WhatsappApp.Services
         {
             string name = fileName ?? "";
             int dot = name.LastIndexOf('.');
-            if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot).ToLower();
+            if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot).ToLowerInvariant();
 
-            string mime = (mimeType ?? "").ToLower();
+            string mime = (mimeType ?? "").ToLowerInvariant();
             // A video first, and by its own name: `video/mp4` matched no rule at all - the
             // `audio/mp4`/`mp4a` line below asks for that exact word - so a nameless video was
             // saved as `.bin`, a file the gallery and the player refuse.

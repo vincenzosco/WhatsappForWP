@@ -867,8 +867,12 @@ namespace WhatsappApp.Pages
                 Point origin = row.TransformToVisual(root).Transform(new Point(0, 0));
                 return new Rect(origin.X, origin.Y, row.ActualWidth, row.ActualHeight);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // A row that cannot be placed is not a reason to lose the menu, but the
+                // run that cannot place one has to say so: the People hub then opens on
+                // a rectangle nobody measured.
+                Diag.Failed("HomePage/BoundsOf", ex);
                 return new Rect(0, 0, 0, 0);
             }
         }
