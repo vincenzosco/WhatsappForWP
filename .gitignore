@@ -81,7 +81,5 @@ WhatsappApp/BundleArtifacts/
 
 # Image editor (Krita) specific files
 *.kra
-.jpg~
-.png~
-WhatsappApp/SplashScreenImage.jpg~
-WhatsappApp/SplashScreenImage.scale-240.jpg~
+*.jpg~
+*.png~
