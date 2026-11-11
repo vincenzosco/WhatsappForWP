@@ -50,10 +50,10 @@
         </ScrollViewer>
 
         <ProgressBar x:Name="BusyBar" Grid.Row="2" IsIndeterminate="True"
-                     Foreground="#FF00AFA9" Margin="16,0,16,0"/>
+                     Foreground="{StaticResource WhatsAppAccentBrush}" Margin="16,0,16,0"/>
 
         <Button x:Name="RetryButton" Grid.Row="3" Content=""
-                Background="#FF00AFA9" Foreground="White" Margin="16,12,16,20"
+                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White" Margin="16,12,16,20"
                 HorizontalAlignment="Stretch" Visibility="Collapsed"
                 Click="RetryButton_Click"/>
     </Grid>

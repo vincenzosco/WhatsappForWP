@@ -706,5 +706,11 @@
   <data name="PairPage_Brand.Text" xml:space="preserve">
     <value>WHATSAPP</value>
   </data>
+  <data name="Call_Header" xml:space="preserve">
+    <value>WhatsApp call</value>
+  </data>
+  <data name="ChatPage_TapForContactInfo" xml:space="preserve">
+    <value>Tap for contact info</value>
+  </data>
 </root>
 

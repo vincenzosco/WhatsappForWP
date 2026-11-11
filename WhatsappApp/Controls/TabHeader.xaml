@@ -3,17 +3,13 @@
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <UserControl.Resources>
-        <SolidColorBrush x:Key="TabAccentBrush" Color="#FF00A8C7"/>
-    </UserControl.Resources>
-
     <!-- The brand row: the reference client shows the app name and the unread
          messages badge above the pivot's own section headers. -->
-    <StackPanel Background="#FF080B0C" Orientation="Horizontal" Margin="24,4,12,0">
+    <StackPanel Background="Black" Orientation="Horizontal" Margin="24,4,12,0">
         <TextBlock x:Name="WhatsappTitleLabel" Text="WhatsApp"
                    FontSize="15" FontWeight="Bold" Foreground="White"
                    VerticalAlignment="Center"/>
-        <Border x:Name="WhatsappTitleBadge" Background="{StaticResource TabAccentBrush}"
+        <Border x:Name="WhatsappTitleBadge" Background="{StaticResource WhatsAppAccentBrush}"
                 Width="22" Height="22" CornerRadius="11" Margin="8,0,0,0"
                 Visibility="Collapsed">
             <TextBlock x:Name="WhatsappTitleBadgeText" Foreground="White" FontSize="14"

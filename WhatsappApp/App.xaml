@@ -10,42 +10,34 @@
 
     <Application.Resources>
         <ResourceDictionary>
-            <!-- The historical phone palette uses black surfaces, quiet teal accents, and light text. -->
-            <Color x:Key="PhoneAccentColor">#FF00A8C7</Color>
-            <SolidColorBrush x:Key="PhoneAccentBrush" Color="#FF00A8C7"/>
-            <SolidColorBrush x:Key="PhoneBackgroundBrush" Color="#FF000000"/>
-            <SolidColorBrush x:Key="PhoneForegroundBrush" Color="#FFF2F5F5"/>
+            <!-- Keep the WP8 dark-phone chrome; Accent.Apply reads the platform accent. -->
 
             <SolidColorBrush x:Key="WhatsAppDarkTealBrush" Color="#FF075E54"/>
             <SolidColorBrush x:Key="WhatsAppTealBrush" Color="#FF087A77"/>
-            <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF00A8C7"/>
+            <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF25D366"/>
             <SolidColorBrush x:Key="WhatsAppLightGreenBrush" Color="#FF123B39"/>
             <SolidColorBrush x:Key="WhatsAppChatBgBrush" Color="#FF000000"/>
             <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#D9000000"/>
             <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF21B8B5"/>
 
-            <!-- The chat palette, all derived from one accent: the received
-                 bubble is the accent itself, the sent one its darker shade, the
-                 name and time lines a lighter translucent accent. The reference
-                 shows two accents - teal and cobalt - and the phone's accent
-                 picks between them (Accent.Apply repaints these at start-up). -->
-            <SolidColorBrush x:Key="ChatIncomingBrush" Color="#FF00ABA9"/>
-            <SolidColorBrush x:Key="ChatOutgoingBrush" Color="#FF00747A"/>
-            <SolidColorBrush x:Key="ChatBubbleMetaBrush" Color="#BEBAE7E7"/>
+            <!-- Incoming content uses the phone accent; sent content is its dark XAP shade. -->
+            <SolidColorBrush x:Key="ChatIncomingBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="ChatOutgoingBrush" Color="#FF108942"/>
+            <SolidColorBrush x:Key="ChatBubbleMetaBrush" Color="#99FFFFFF"/>
 
-            <Color x:Key="WhatsAppHeaderColor">#FF101719</Color>
-            <Color x:Key="WhatsAppAppBarColor">#FF101719</Color>
-            <Color x:Key="WhatsAppSentBubbleColor">#FF075E54</Color>
+            <Color x:Key="WhatsAppHeaderColor">#FF000000</Color>
+            <Color x:Key="WhatsAppAppBarColor">#FF1B1B1B</Color>
+            <Color x:Key="WhatsAppSentBubbleColor">#FF108942</Color>
             <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="{StaticResource WhatsAppHeaderColor}"/>
-            <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF00A8C7"/>
-            <SolidColorBrush x:Key="WhatsAppAccentDarkBrush" Color="#FF007D7A"/>
-            <SolidColorBrush x:Key="WhatsAppAccentTextBrush" Color="#FFF2F5F5"/>
+            <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="WhatsAppAccentDarkBrush" Color="#FF108942"/>
+            <SolidColorBrush x:Key="WhatsAppAccentTextBrush" Color="#FFFFFFFF"/>
             <SolidColorBrush x:Key="WhatsAppAppBarBrush" Color="{StaticResource WhatsAppAppBarColor}"/>
             <SolidColorBrush x:Key="WhatsAppSentBubbleBrush" Color="{StaticResource WhatsAppSentBubbleColor}"/>
-            <SolidColorBrush x:Key="WhatsAppReceivedBubbleBrush" Color="#FF00A8C7"/>
-            <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#FFF2F5F5"/>
-            <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#FF9AA6A6"/>
-            <SolidColorBrush x:Key="WhatsAppSeparatorBrush" Color="#FF293234"/>
+            <SolidColorBrush x:Key="WhatsAppReceivedBubbleBrush" Color="#FF25D366"/>
+            <SolidColorBrush x:Key="WhatsAppTextPrimaryBrush" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="WhatsAppTextSecondaryBrush" Color="#FF939393"/>
+            <SolidColorBrush x:Key="WhatsAppSeparatorBrush" Color="#FF262626"/>
 
             <!-- Silverlight phone controls supply the original Segoe WP typography and compact chrome. -->
         </ResourceDictionary>

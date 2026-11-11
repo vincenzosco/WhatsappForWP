@@ -197,7 +197,7 @@ namespace WhatsappApp.Pages
             SystemTray.IsVisible = true;
             SystemTray.BackgroundColor = Color.FromArgb(255, 8, 11, 12);
             SystemTray.ForegroundColor = Colors.White;
-            ApplyTheme();
+            HomeWallpaper.Visibility = Visibility.Collapsed;
             Show(0, true);
             ActivateChats();
             EvaluateChats();
@@ -692,13 +692,6 @@ namespace WhatsappApp.Pages
             if (contact == null) return;
             NavigateToPage("ChatPage", contact);
             ChatListView.SelectedItem = null;
-        }
-
-        private void ApplyTheme()
-        {
-            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
-            HomeWallpaper.Source = image;
-            HomeWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
         }
 
         private void SettingsButton_Click(object sender, RoutedEventArgs e)

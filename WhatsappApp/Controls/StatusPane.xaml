@@ -8,7 +8,6 @@
     <UserControl.Resources>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
-        <SolidColorBrush x:Key="StatusAccentBrush" Color="#FF00A8C7"/>
     </UserControl.Resources>
 
     <Grid Background="Black">
@@ -24,7 +23,7 @@
                         </Grid.ColumnDefinitions>
                         <Grid Grid.Column="0" Width="68" Height="68" VerticalAlignment="Top">
                             <Ellipse Width="78" Height="78" StrokeThickness="2"
-                                     Stroke="{StaticResource StatusAccentBrush}"
+                                     Stroke="{StaticResource WhatsAppAccentBrush}"
                                      Visibility="{Binding IsStatusViewed, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
                             <Ellipse Width="68" Height="68" Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
                             <Ellipse Width="68" Height="68"
