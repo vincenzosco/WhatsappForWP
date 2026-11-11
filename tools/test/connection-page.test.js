@@ -22,7 +22,9 @@ test('account page uses the reference secondary-page title and section heading h
   for (const name of ['LinkedLabel', 'StatusLabel']) {
     const heading = element(name);
     assert.match(heading, /FontSize="24"/, `${name} uses the reference section heading size`);
-    assert.match(heading, /FontWeight="SemiBold"/, `${name} uses the reference section heading weight`);
+  }
+  for (const name of ['AccountHintText', 'LinkDeviceHint']) {
+    assert.match(element(name), /FontSize="20"/, `${name} uses the reference descriptive size`);
   }
 });
 

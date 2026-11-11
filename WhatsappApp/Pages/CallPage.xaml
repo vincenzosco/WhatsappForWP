@@ -121,6 +121,17 @@
                     </LinearGradientBrush>
                 </Rectangle.Fill>
             </Rectangle>
+            <!-- The reference top line: the WhatsApp call mark and its name. -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Top"
+                        HorizontalAlignment="Left" Margin="24,14,24,0">
+                <Image x:Name="CallHeaderIcon"
+                       Source="/Assets/Reference/ThemeDark/phone-solid.png"
+                       Width="20" Height="20" Stretch="Uniform"/>
+                <TextBlock x:Name="CallHeaderText" Text=""
+                           Foreground="White" FontSize="15" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+            </StackPanel>
+
         </Grid>
 
         <!-- State and duration on one line, the name under them, the kind below. -->
@@ -131,7 +142,7 @@
                 <TextBlock x:Name="StateText"
                            Foreground="#FFB0B0B0" FontSize="20" FontFamily="Segoe WP Semilight"/>
                 <TextBlock x:Name="DurationText"
-                           Foreground="#FFB0B0B0" FontSize="20" FontFamily="Segoe WP Semilight"
+                           Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="24" FontFamily="Segoe WP Semilight"
                            Margin="12,0,0,0" Visibility="Collapsed"/>
             </StackPanel>
 
@@ -178,7 +189,7 @@
 
                 <Button x:Name="AcceptCallButton" Grid.Row="0" Grid.Column="0"
                         Style="{StaticResource CallTileStyle}"
-                        Background="#FF00AFA9" Click="AcceptCallButton_Click">
+                        Background="{StaticResource WhatsAppAccentBrush}" Click="AcceptCallButton_Click">
                     <StackPanel>
                         <Path Style="{StaticResource CallGlyphStyle}">
                             <!-- IconCall -->
@@ -294,7 +305,7 @@
                 <!-- Hang up is the left action in the lower row; message stays on the right. -->
                 <Button x:Name="EndCallButton" Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3"
                         Style="{StaticResource CallTileStyle}"
-                        Background="#FFE0413A" Click="EndCallButton_Click">
+                        Background="{StaticResource WhatsAppAccentBrush}" Click="EndCallButton_Click">
                     <StackPanel>
                         <Path Style="{StaticResource CallGlyphStyle}"
                               RenderTransformOrigin="0.5,0.5">

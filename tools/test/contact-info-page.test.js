@@ -18,8 +18,22 @@ function namedElement(name) {
 }
 
 test('contact info presents the contact name as its page title without duplicating it beside the photo', () => {
-  assert.match(code, /TitleText\.Text = _contact\.Name\.ToUpperInvariant\(\)/);
+  assert.match(code, /TitleText\.Text = _contact\.Name;/);
+  assert.match(code, /CategoryText\.Text = \(IsGroup\(_contact\.Id\)[\s\S]*?ContactInfoPage_GroupTitle/);
   assert.doesNotMatch(xaml, /x:Name="NameText"/);
+});
+
+test('contact info typography follows the reference sections', () => {
+  const title = namedElement('TitleText');
+  assert.match(title, /FontSize="54"/);
+  assert.match(title, /FontFamily="Segoe WP Semilight"/);
+  assert.match(namedElement('CategoryText'), /FontSize="15"/);
+  for (const name of ['NumberLabel', 'AboutLabel', 'GroupDescriptionLabel']) {
+    assert.match(namedElement(name), /FontSize="24"/, `${name} uses the reference label size`);
+  }
+  for (const name of ['NumberText', 'AboutText', 'GroupDescriptionText']) {
+    assert.match(namedElement(name), /FontSize="20"/, `${name} uses the reference value size`);
+  }
 });
 
 test('contact profile photo follows the reference 160-pixel square layout', () => {

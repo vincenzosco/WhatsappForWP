@@ -11,40 +11,14 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Background="#FF000000">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Button x:Name="BackButton" Grid.Column="0"
-                    Background="Transparent" Foreground="White"
-                    MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,6,0,0" Padding="0"
-                    Click="BackButton_Click" BorderThickness="0">
-                <Path Stroke="#FFFFFFFF" StrokeThickness="2.4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24">
-                    <!-- IconBack -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="15.5,4">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="7.5,12 15.5,20"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
-
-            <TextBlock x:Name="PageTitleText" Grid.Column="1"
+        <!-- The 54 px title of every secondary page, at the reference margin, and
+             no chevron: the way back is the hardware key, as on Settings. -->
+        <StackPanel Grid.Row="0" Background="Transparent">
+            <TextBlock x:Name="PageTitleText"
                        Foreground="White" FontSize="54" FontFamily="Segoe WP Semilight"
-                       VerticalAlignment="Bottom" Margin="8,-10,0,-6"
+                       Margin="24,-8,24,0"
                        TextTrimming="WordEllipsis"/>
-        </Grid>
+        </StackPanel>
 
         <Grid Grid.Row="1" Margin="16">
             <Grid.RowDefinitions>
@@ -56,7 +30,7 @@
             </Grid.RowDefinitions>
 
             <TextBlock x:Name="HintText" Grid.Row="0" Foreground="#FFB0B0B0"
-                       FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                       FontSize="20" TextWrapping="Wrap" Margin="0,0,0,8"/>
 
             <TextBox x:Name="DiagnosticsText" Grid.Row="1"
                      IsReadOnly="True" AcceptsReturn="True"
@@ -66,21 +40,21 @@
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
                 <Button x:Name="ClearButton" Content=""
-                        Background="#FF242424" Foreground="#FF00AFA9" FontSize="16"
+                        Background="#FF242424" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="16"
                         MinWidth="0" MinHeight="0" Height="44" Width="96" BorderThickness="0"
                         Click="ClearButton_Click"/>
                 <Button x:Name="SelectAllButton" Content=""
-                        Background="#FF242424" Foreground="#FF00AFA9" FontSize="16"
+                        Background="#FF242424" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="16"
                         MinWidth="0" MinHeight="0" Height="44" Width="96" BorderThickness="0"
                         Margin="8,0,0,0" Click="SelectAllButton_Click"/>
                 <Button x:Name="ShareButton" Content=""
-                        Background="#FF242424" Foreground="#FF00AFA9" FontSize="16"
+                        Background="#FF242424" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="16"
                         MinWidth="0" MinHeight="0" Height="44" Width="96" BorderThickness="0"
                         Margin="8,0,0,0" Click="ShareButton_Click"/>
             </StackPanel>
 
             <TextBlock x:Name="ActionStatusText" Grid.Row="4"
-                       Foreground="#FFB0B0B0" FontSize="12" TextWrapping="Wrap"
+                       Foreground="#FFB0B0B0" FontSize="20" TextWrapping="Wrap"
                        Margin="0,8,0,0"/>
         </Grid>
     </Grid>

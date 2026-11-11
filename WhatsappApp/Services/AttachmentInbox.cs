@@ -161,8 +161,9 @@ namespace WhatsappApp.Services
 
                 return (uint)Math.Round(music.Duration.TotalSeconds);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                Diag.Failed("AttachmentInbox/seconds", ex);
                 return 0;
             }
         }
@@ -252,7 +253,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private static string MimeFor(string extension)
         {
-            string value = (extension ?? "").ToLower();
+            string value = (extension ?? "").ToLowerInvariant();
             // A photo from the camera roll is a JPEG, and it was the one extension the list
             // did not name: every photo left as `application/octet-stream`, in a message that
             // said it was an image. The receiving clients take the type from this field, so
@@ -298,9 +299,11 @@ namespace WhatsappApp.Services
         {
             string name = fileName ?? "";
             int dot = name.LastIndexOf('.');
-            if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot).ToLower();
+            if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot).ToLowerInvariant();
 
-            string mime = (mimeType ?? "").ToLower();
+            // Invariant, not the phone's culture: in a Turkish locale the dotless i turns
+            // "IMAGE/JPEG" into "ımage/jpeg" and every prefix below stops matching.
+            string mime = (mimeType ?? "").ToLowerInvariant();
             if (mime.StartsWith("video/")) return ".mp4";
             if (mime == "image/png") return ".png";
             if (mime == "image/gif") return ".gif";
@@ -327,12 +330,12 @@ namespace WhatsappApp.Services
         /// </summary>
         public static string KindName(string mimeType, string fileName)
         {
-            string mime = (mimeType ?? "").ToLower();
+            string mime = (mimeType ?? "").ToLowerInvariant();
             if (mime.StartsWith("video/")) return "video";
             if (mime.StartsWith("image/")) return "image";
             if (mime.StartsWith("audio/")) return "audio";
 
-            string name = (fileName ?? "").ToLower();
+            string name = (fileName ?? "").ToLowerInvariant();
             if (name.EndsWith(".mp4") || name.EndsWith(".mov") || name.EndsWith(".3gp")
                 || name.EndsWith(".avi") || name.EndsWith(".mkv") || name.EndsWith(".webm"))
             {

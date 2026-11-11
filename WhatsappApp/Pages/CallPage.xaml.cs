@@ -57,6 +57,7 @@ namespace WhatsappApp.Pages
         public CallPage()
         {
             this.InitializeComponent();
+            CallHeaderText.Text = Loc.Get("Call_Header", "WhatsApp call").ToUpperInvariant();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

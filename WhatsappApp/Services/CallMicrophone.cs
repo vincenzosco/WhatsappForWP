@@ -409,21 +409,28 @@ namespace WhatsappApp.Services
 
                     int wanted = (int)Math.Min((ulong)MaxRead, size - (ulong)read);
 
+                    // The reader is closed on every path of this turn, including a
+                    // LoadAsync that throws: a pump that fails once per attempt used to
+                    // leave one reader behind per attempt, for the length of the call.
                     var reader = new DataReader(stream.GetInputStreamAt((ulong)read));
 
-                    await reader.LoadAsync((uint)wanted);
+                    int got;
+                    byte[] bytes;
 
-                    int got = (int)reader.UnconsumedBufferLength;
+                    try
+                    {
+                        await reader.LoadAsync((uint)wanted);
 
-                    if (got <= 0)
+                        got = (int)reader.UnconsumedBufferLength;
+                        if (got <= 0) continue;
+
+                        bytes = new byte[got];
+                        reader.ReadBytes(bytes);
+                    }
+                    finally
                     {
                         reader.Dispose();
-                        continue;
                     }
-
-                    var bytes = new byte[got];
-                    reader.ReadBytes(bytes);
-                    reader.Dispose();
 
                     lock (_gate)
                     {

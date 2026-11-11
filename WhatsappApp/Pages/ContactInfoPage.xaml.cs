@@ -33,10 +33,9 @@ namespace WhatsappApp.Pages
         {
             InitializeComponent();
 
-            AutomationProperties.SetName(BackButton, Loc.Get("ContactInfoPage_BackTooltip", "Back"));
             AutomationProperties.SetName(BigAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             TitleText.Text = Loc.Get("ContactInfoPage_Title", "Contact info").ToUpperInvariant();
-            ProfileHeading.Text = Loc.Get("ContactInfoPage_ProfileHeading", "Profile").ToUpperInvariant();
+            ProfileHeading.Text = Loc.Get("ContactInfoPage_ProfileHeading", "Profile");
             CallButton.Content = Loc.Get("Call_Start", "Call");
             NumberLabel.Text = Loc.Get("ContactInfoPage_Number", "Phone number");
             AboutLabel.Text = Loc.Get("ContactInfoPage_About", "About");
@@ -68,7 +67,10 @@ namespace WhatsappApp.Pages
             if (_contact == null) return;
 
             DataContext = _contact;
-            TitleText.Text = _contact.Name.ToUpperInvariant();
+            CategoryText.Text = (IsGroup(_contact.Id)
+                ? Loc.Get("ContactInfoPage_GroupTitle", "Group info")
+                : Loc.Get("ContactInfoPage_Title", "Contact info")).ToUpperInvariant();
+            TitleText.Text = _contact.Name;
             ApplyAvatar();
 
             CallButton.Visibility = IsGroup(_contact.Id) ? Visibility.Collapsed : Visibility.Visible;
@@ -211,7 +213,7 @@ namespace WhatsappApp.Pages
         {
             if (info != null)
             {
-                if (!string.IsNullOrEmpty(info.Name)) TitleText.Text = info.Name.ToUpperInvariant();
+                if (!string.IsNullOrEmpty(info.Name)) TitleText.Text = info.Name;
 
                 if (!string.IsNullOrEmpty(info.Number))
                 {
@@ -292,8 +294,8 @@ namespace WhatsappApp.Pages
                 for (int i = 0; i < group.Members.Count; i++) _members.Add(group.Members[i]);
             }
 
-            MembersLabel.Text = string.Format(
-                Loc.Get("ContactInfoPage_MembersCount", "Members ({0})"), _members.Count);
+            MembersLabel.Text = Loc.Get("ContactInfoPage_Participants", "Participants");
+            MembersCountText.Text = _members.Count.ToString();
         }
 
         private const int ViewerDecodePixels = 720;
@@ -329,10 +331,5 @@ namespace WhatsappApp.Pages
             ImageViewerImage.Source = null;
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (NavigationService != null && NavigationService.CanGoBack)
-                NavigationService.GoBack();
-        }
     }
 }

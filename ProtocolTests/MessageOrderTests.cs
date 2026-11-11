@@ -59,6 +59,32 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ReadingAConversationBackKeepsTheOrderOfEqualTimes()
+        {
+            // The history sync writes whole seconds: these three could be a sticker and two
+            // texts sent together, and the order they arrived in is the only order they have.
+            var times = new List<DateTime> { Ten.AddMinutes(2), Ten, Ten, Ten.AddMinutes(1) };
+
+            int[] order = MessageOrder.StableOrder(times);
+
+            Assert.AreEqual(4, order.Length, "every row is placed once");
+            Assert.AreEqual(1, order[0], "the oldest first");
+            Assert.AreEqual(2, order[1], "and the second of the tie after it, not before it");
+            Assert.AreEqual(3, order[2]);
+            Assert.AreEqual(0, order[3]);
+        }
+
+        [Test]
+        public static void TheOrderOfASortedConversationIsTheOrderItAlreadyHas()
+        {
+            var times = new List<DateTime> { Ten, Ten.AddSeconds(1), Ten.AddSeconds(2) };
+            int[] order = MessageOrder.StableOrder(times);
+
+            for (int i = 0; i < order.Length; i++) Assert.AreEqual(i, order[i]);
+            Assert.AreEqual(0, MessageOrder.StableOrder(null).Length, "no rows, no order");
+        }
+
+        [Test]
         public static void AnEmptyConversationTakesTheFirstMessage()
         {
             Assert.AreEqual(0, MessageOrder.InsertIndex(new List<DateTime>(), Ten));

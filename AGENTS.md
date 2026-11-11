@@ -15,6 +15,10 @@
 - **No AI attribution of any kind.** No `Generated with ...` line, no
   `Co-Authored-By: ...` trailer, no emoji footer. If a tool offers to add one,
   the answer is no.
+- **Who authors what.** The work in this repository is the owner's, so a commit made
+  here is authored as `vincenzosco <131459463+vincenzosco@users.noreply.github.com>`.
+  A change that comes from somebody else keeps that person's authorship
+  (`git commit --author="Name <mail>"`), and its message says whose it is.
 - **No conventional-commit prefixes invented after the fact.** The history mixes
   them; a commit either follows its neighbour's style or has no prefix at all.
 - One commit per change that stands on its own. A build bump is its own commit,

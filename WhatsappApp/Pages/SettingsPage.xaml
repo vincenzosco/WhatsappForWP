@@ -82,47 +82,20 @@
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
         <Rectangle Grid.RowSpan="2" Fill="#E6000000"/>
 
-        <Grid Grid.Row="0" Background="Transparent">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Button x:Name="BackButton" Grid.Column="0"
-                    Background="Transparent" Foreground="White"
-                    MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,6,0,0" Padding="0"
-                    Click="BackButton_Click" BorderThickness="0">
-                <Path Stroke="#FFFFFFFF" StrokeThickness="2.4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24">
-                    <!-- IconBack -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="15.5,4">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="7.5,12 15.5,20"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
-
-            <TextBlock x:Name="TitleText" Grid.Column="1"
-                       Foreground="White" FontSize="23" FontFamily="Segoe WP Semilight"
-                       VerticalAlignment="Bottom" Margin="8,0,0,10"
-                       TextTrimming="WordEllipsis"/>
-        </Grid>
+        <StackPanel Grid.Row="0" Background="Transparent">
+            <TextBlock x:Name="BrandText" Text="" Foreground="White"
+                       FontSize="15" FontWeight="SemiBold" Margin="24,14,24,2"/>
+            <TextBlock x:Name="TitleText" Text="" Foreground="White"
+                       FontSize="54" FontFamily="Segoe WP Semilight"
+                       Margin="24,-8,24,0" TextTrimming="WordEllipsis"/>
+        </StackPanel>
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="24,4,24,24">
                 <TextBlock x:Name="ThemeLabel" Foreground="White"
-                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
+                           FontSize="15" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
                 <TextBlock x:Name="ThemeHint" Foreground="#FFB0B0B0"
-                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,6"/>
+                           FontSize="20" TextWrapping="Wrap" Margin="0,2,0,6"/>
 
                 <ListBox x:Name="ThemeGrid" Background="Transparent" BorderThickness="0"
                          SelectionChanged="ThemeGrid_ItemClick">
@@ -153,12 +126,12 @@
                 </ListBox>
 
                 <TextBlock x:Name="AlertsLabel" Foreground="White"
-                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold" Margin="0,18,0,0"/>
+                           FontSize="15" FontWeight="SemiBold" FontFamily="Segoe WP Semibold" Margin="0,18,0,0"/>
                 <TextBlock x:Name="AlertsHint" Foreground="#FFB0B0B0"
-                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,8"/>
+                           FontSize="20" TextWrapping="Wrap" Margin="0,2,0,8"/>
 
                 <TextBlock x:Name="MessagesLabel" Foreground="White"
-                           FontSize="17" FontWeight="SemiBold" Margin="0,10,0,0"/>
+                           FontSize="24" Margin="0,10,0,0"/>
                 <Grid Margin="0,2,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -168,13 +141,13 @@
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
                     <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="MessagesToggle" Grid.Column="1"
-                                          Foreground="#FF00AFA9" VerticalAlignment="Center"
+                                          Foreground="{StaticResource WhatsAppAccentBrush}" VerticalAlignment="Center"
                                           Checked="MessagesToggle_Toggled"
                                           Unchecked="MessagesToggle_Toggled"/>
                 </Grid>
 
                 <TextBlock x:Name="StatusesLabel" Foreground="White"
-                           FontSize="17" FontWeight="SemiBold" Margin="0,16,0,0"/>
+                           FontSize="24" Margin="0,16,0,0"/>
                 <Grid Margin="0,2,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -184,13 +157,13 @@
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
                     <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="StatusesToggle" Grid.Column="1"
-                                          Foreground="#FF00AFA9" VerticalAlignment="Center"
+                                          Foreground="{StaticResource WhatsAppAccentBrush}" VerticalAlignment="Center"
                                           Checked="StatusesToggle_Toggled"
                                           Unchecked="StatusesToggle_Toggled"/>
                 </Grid>
 
                 <TextBlock x:Name="CallsLabel" Foreground="White"
-                           FontSize="17" FontWeight="SemiBold" Margin="0,16,0,0"/>
+                           FontSize="24" Margin="0,16,0,0"/>
                 <Grid Margin="0,2,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -200,13 +173,13 @@
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
                     <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="CallsToggle" Grid.Column="1"
-                                          Foreground="#FF00AFA9" VerticalAlignment="Center"
+                                          Foreground="{StaticResource WhatsAppAccentBrush}" VerticalAlignment="Center"
                                           Checked="CallsToggle_Toggled"
                                           Unchecked="CallsToggle_Toggled"/>
                 </Grid>
 
                 <TextBlock x:Name="BackgroundLabel" Foreground="White"
-                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
+                           FontSize="15" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
                 <Grid Margin="0,6,0,0">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -216,20 +189,20 @@
                                FontSize="28" FontFamily="Segoe WP Semilight"
                                VerticalAlignment="Center"/>
                     <CheckBox Style="{StaticResource SettingsToggleStyle}" x:Name="BackgroundToggle" Grid.Column="1"
-                                          Foreground="#FF00AFA9" VerticalAlignment="Center"
+                                          Foreground="{StaticResource WhatsAppAccentBrush}" VerticalAlignment="Center"
                                           Checked="BackgroundToggle_Toggled"
                                           Unchecked="BackgroundToggle_Toggled"/>
                 </Grid>
                 <TextBlock x:Name="BackgroundHint" Foreground="#FFB0B0B0"
-                           FontSize="13" TextWrapping="Wrap" Margin="0,4,0,4"/>
+                           FontSize="20" TextWrapping="Wrap" Margin="0,4,0,4"/>
                 <TextBlock x:Name="BackgroundState" Foreground="#FFFF6B6B"
-                           FontSize="13" TextWrapping="Wrap" Margin="0,0,0,12"
+                           FontSize="20" TextWrapping="Wrap" Margin="0,0,0,12"
                            Visibility="Collapsed"/>
 
                 <TextBlock x:Name="AccountLabel" Foreground="White"
-                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
+                           FontSize="15" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
                 <TextBlock x:Name="AccountHint" Foreground="#FFB0B0B0"
-                           FontSize="13" TextWrapping="Wrap" Margin="0,2,0,8"/>
+                           FontSize="20" TextWrapping="Wrap" Margin="0,2,0,8"/>
                 <Grid>
                     <Rectangle Height="1" Fill="#40FFFFFF" VerticalAlignment="Top"/>
                     <Button x:Name="AccountButton" Content=""

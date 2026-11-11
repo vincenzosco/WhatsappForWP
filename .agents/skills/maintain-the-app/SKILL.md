@@ -240,7 +240,7 @@ waiting) and the message is marked read when the reader reaches it.
    per-file invariants in comments.
 4. Make the change.
 5. Run the fast gate: `node tools/test-protocol.js && node tools/check-csharp5.js &&
-   node tools/check-icons.js &&
+   node tools/check-icons.js && node tools/check-xaml.js &&
    node tools/check-resw.js --strict && node tools/check-docs.js &&
    node tools/check-tile.js &&
    node tools/check-memory.js && node tools/check-actions.js &&

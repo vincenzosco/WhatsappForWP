@@ -51,3 +51,9 @@ test('the ended call keeps a single full-width close action and existing call op
   }
   assert.match(code, /Call_NoAudio/);
 });
+
+test('the call screen carries the reference WhatsApp call header', () => {
+  assert.match(xaml, /<Image x:Name="CallHeaderIcon"[\s\S]*?phone-solid\.png/);
+  assert.match(xaml, /<TextBlock x:Name="CallHeaderText"[\s\S]*?FontSize="15"/);
+  assert.match(code, /CallHeaderText\.Text = Loc\.Get\("Call_Header"/);
+});

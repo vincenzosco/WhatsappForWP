@@ -72,7 +72,7 @@ namespace WhatsappApp.Pages
             DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
             EndCallButton.Content = Loc.Get("Call_End", "End");
 
-            Header.SetUnread(DataService.Instance.UnreadChats());
+            //Header.SetUnread(DataService.Instance.UnreadChats());
             _ready = true;
         }
 
@@ -186,7 +186,7 @@ namespace WhatsappApp.Pages
 
         private void RefreshBadges()
         {
-            Header.SetUnread(DataService.Instance.UnreadChats());
+            //Header.SetUnread(DataService.Instance.UnreadChats());
             UpdateChatsMenuItems();
         }
 
@@ -197,7 +197,7 @@ namespace WhatsappApp.Pages
             SystemTray.IsVisible = true;
             SystemTray.BackgroundColor = Color.FromArgb(255, 8, 11, 12);
             SystemTray.ForegroundColor = Colors.White;
-            ApplyTheme();
+            HomeWallpaper.Visibility = Visibility.Collapsed;
             Show(0, true);
             ActivateChats();
             EvaluateChats();
@@ -694,13 +694,6 @@ namespace WhatsappApp.Pages
             ChatListView.SelectedItem = null;
         }
 
-        private void ApplyTheme()
-        {
-            ImageSource image = ThemeService.ImageFor(ThemeService.Current);
-            HomeWallpaper.Source = image;
-            HomeWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
-        }
-
         private void SettingsButton_Click(object sender, RoutedEventArgs e)
         {
             NavigateToPage("SettingsPage", null);
@@ -874,8 +867,12 @@ namespace WhatsappApp.Pages
                 Point origin = row.TransformToVisual(root).Transform(new Point(0, 0));
                 return new Rect(origin.X, origin.Y, row.ActualWidth, row.ActualHeight);
             }
-            catch (Exception)
+            catch (Exception ex)
             {
+                // A row that cannot be placed is not a reason to lose the menu, but the
+                // run that cannot place one has to say so: the People hub then opens on
+                // a rectangle nobody measured.
+                Diag.Failed("HomePage/BoundsOf", ex);
                 return new Rect(0, 0, 0, 0);
             }
         }

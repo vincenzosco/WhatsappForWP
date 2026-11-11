@@ -106,10 +106,11 @@ test('un pairing che tiene le sessioni vecchie non legge piu niente', () => {
 
 test('una pulizia dopo il salvataggio e una pulizia che non serve', () => {
   const broken = files();
-  const wipe = '                await FileSessionStorage.DeleteAllAsync();\r\n';
-  broken.pairing = broken.pairing
-    .replace(wipe, '')
-    .replace('_store.Save(paired);', '_store.Save(paired);\r\n' + wipe);
+  const wipe = 'await FileSessionStorage.DeleteAllAsync();';
+  const at = broken.pairing.indexOf(wipe);
+  assert.ok(at >= 0, 'the pairing wipe is in the file');
+  broken.pairing = broken.pairing.slice(0, at) + broken.pairing.slice(at + wipe.length);
+  broken.pairing = broken.pairing.replace('_store.Save(paired);', '_store.Save(paired);\n' + wipe);
   assert.match(clientStateProblems(broken).join('\n'), /DeleteAllAsync/);
 });
 

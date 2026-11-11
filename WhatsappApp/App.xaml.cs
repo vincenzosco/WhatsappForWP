@@ -430,7 +430,6 @@ namespace WhatsappApp
 
             SetBrushColor(app, "WhatsAppHeaderBrush", "WhatsAppHeaderColor");
             SetBrushColor(app, "WhatsAppAppBarBrush", "WhatsAppAppBarColor");
-            SetBrushColor(app, "WhatsAppSentBubbleBrush", "WhatsAppSentBubbleColor");
         }
 
         private static void SetBrushColor(Application app, string brushKey, string colorKey)
