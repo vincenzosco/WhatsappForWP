@@ -79,6 +79,11 @@ test('the attach media panel is the reference bottom sheet above the action bar'
   }
   assert.match(chat, /attach-picture\.png/, "Albums keeps the picture mark");
   assert.match(chat, /attach-camera\.png/, "Photo is the camera, not a second picture mark");
-  assert.match(chat, /<Grid Grid\.Row="4" Background="#FF1F1F1F" MinHeight="64">/);
+  // The chat's ring bar is the home page's bar: the #171717 strip, its one-pixel
+  // top edge, the shared 64 px button styles and the overflow at the right edge.
+  assert.match(chat, /<Grid Grid\.Row="4" Background="#FF171717" MinHeight="64">/);
+  assert.match(chat, /<Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"\/>/);
+  assert.match(chat, /x:Name="SendButton" Style="\{StaticResource ChatBarButtonStyle\}"/);
+  assert.match(chat, /x:Name="MoreButton" Style="\{StaticResource ChatBarOverflowStyle\}"/);
   assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
 });

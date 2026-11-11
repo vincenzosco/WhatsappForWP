@@ -67,6 +67,102 @@
                 <EasingDoubleKeyFrame KeyTime="0:0:0.6" Value="0"/>
             </DoubleAnimationUsingKeyFrames>
         </Storyboard>
+        <!-- The bar the home page draws, for this page's four rings: a 64 px touch
+             target, the outlined circle inside it, and the press that dims the tile.
+             A button carries no CornerRadius on this projection, so the template is
+             what draws the circle. -->
+        <Style x:Key="ChatBarButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="MouseOver"/>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.55" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.4" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid x:Name="Tile" Width="46" Height="46">
+                                <Ellipse Fill="{TemplateBinding Background}"
+                                         Stroke="White" StrokeThickness="1.5"/>
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ChatBarOverflowStyle" TargetType="Button">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Width" Value="64"/>
+            <Setter Property="Height" Value="64"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Grid>
+                            <VisualStateManager.VisualStateGroups>
+                                <VisualStateGroup x:Name="CommonStates">
+                                    <VisualState x:Name="Normal"/>
+                                    <VisualState x:Name="MouseOver"/>
+                                    <VisualState x:Name="Pressed">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.55" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                    <VisualState x:Name="Disabled">
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetName="Tile"
+                                                             Storyboard.TargetProperty="Opacity"
+                                                             To="0.4" Duration="0:0:0"/>
+                                        </Storyboard>
+                                    </VisualState>
+                                </VisualStateGroup>
+                            </VisualStateManager.VisualStateGroups>
+
+                            <Grid x:Name="Tile">
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
     </phone:PhoneApplicationPage.Resources>
 
     <Grid>
@@ -922,106 +1018,68 @@
 
         </Grid>
 
-        <!-- The ring bar of the reference: the circles sit centred and the
-             overflow dots hang at the right edge. -->
-        <Grid Grid.Row="4" Background="#FF1F1F1F" MinHeight="64">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                    <!-- Every ring is the same outlined circle the reference draws:
-                         the glyph sits inside a 44 px circle, and the circles are
-                         spaced as one group in the middle of the bar. -->
-                    <Button x:Name="SendButton"
-                        Background="Transparent"
-                        Foreground="White"
-                        MinWidth="0" MinHeight="0"
-                        Width="52" Height="52"
-                        Margin="0,2,4,2"
-                        BorderThickness="0" Padding="0"
+        <!-- The bar of the home page, for this page's four rings: the same #171717
+             strip with its one-pixel top edge, the same 64 px touch target, the 46 px
+             outlined circle drawn by the template, and the overflow dots at the right
+             edge. The circles ride centred as one group, as the reference draws them. -->
+        <Grid Grid.Row="4" Background="#FF171717" MinHeight="64">
+            <Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"/>
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                <Button x:Name="SendButton" Style="{StaticResource ChatBarButtonStyle}"
                         Click="SendButton_Click">
-                        <Grid Width="44" Height="44">
-                            <Ellipse Stroke="White" StrokeThickness="1.5"/>
-                            <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
-                               Width="22" Height="22" Stretch="Uniform"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Button>
-                    <Button x:Name="AttachButton"
-                        Background="Transparent"
-                        MinWidth="0" MinHeight="0"
-                        Width="52" Height="52" BorderThickness="0" Padding="0"
-                        Margin="0,2,4,2"
-                        Click="AttachButton_Click">
-                        <Grid Width="44" Height="44">
-                            <Ellipse Stroke="White" StrokeThickness="1.5"/>
-                            <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
-                               Width="22" Height="25" Stretch="Uniform"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Grid>
-                    </Button>
-                    <Button x:Name="CallHeaderButton"
-                        Background="Transparent" BorderThickness="0"
-                        MinWidth="0" MinHeight="0"
-                        Width="52" Height="52" Margin="0,2,4,2" Padding="0"
-                        VerticalAlignment="Center"
-                        Click="CallHeaderButton_Click">
-                        <Grid Width="44" Height="44">
-                            <Ellipse Stroke="White" StrokeThickness="1.5"/>
-                            <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
-                               Width="24" Height="22" Stretch="Uniform"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               RenderTransformOrigin="0.4,0.320"/>
-                        </Grid>
-                    </Button>
-                    <!-- The call button lives in the ring bar, where the official
-                     client puts it: it calls the person of this conversation and
-                     hides for a group, because this client calls one at a time. -->
-                    <Button x:Name="SmileyButton"
-                        Background="Transparent"
-                        MinWidth="0" MinHeight="0"
-                        Width="52" Height="52" BorderThickness="0" Padding="0"
-                        Margin="0,2,0,2"
-                        Click="SmileyButton_Click">
-                        <Grid Width="44" Height="44">
-                            <Ellipse Width="44" Height="44" Stroke="White" StrokeThickness="1.5"/>
-                            <Grid Width="22" Height="22">
-                                <Ellipse Width="3" Height="3" Fill="White"
-                                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
-                                <Ellipse Width="3" Height="3" Fill="White"
-                                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,4,0"/>
-                                <Path Stroke="White" StrokeThickness="2"
-                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                                      HorizontalAlignment="Center" VerticalAlignment="Center">
-                                    <!-- IconSmiley -->
-                                    <Path.Data>
-                                        <PathGeometry>
-                                            <PathGeometry.Figures>
-                                                <PathFigure StartPoint="4,9">
-                                                    <PathFigure.Segments>
-                                                        <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="False"
-                                                                    SweepDirection="Clockwise" Point="18,9"/>
-                                                    </PathFigure.Segments>
-                                                </PathFigure>
-                                            </PathGeometry.Figures>
-                                        </PathGeometry>
-                                    </Path.Data>
-                                </Path>
-                            </Grid>
-                        </Grid>
-                    </Button>
-                </StackPanel>
-                <Button x:Name="MoreButton"
-                        HorizontalAlignment="Right" VerticalAlignment="Center"
-                        Background="Transparent"
-                        MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
-                        Click="MoreButton_Click">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                        <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
-                    </StackPanel>
+                    <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
+                           Width="22" Height="22" Stretch="Uniform"/>
                 </Button>
-            </Grid>
+                <Button x:Name="AttachButton" Style="{StaticResource ChatBarButtonStyle}"
+                        Click="AttachButton_Click">
+                    <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
+                           Width="22" Height="25" Stretch="Uniform"/>
+                </Button>
+                <Button x:Name="CallHeaderButton" Style="{StaticResource ChatBarButtonStyle}"
+                        Click="CallHeaderButton_Click">
+                    <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
+                           Width="24" Height="22" Stretch="Uniform"/>
+                </Button>
+                <!-- The call button lives in the ring bar, where the official client
+                     puts it: it calls the person of this conversation and hides for a
+                     group, because this client calls one at a time. -->
+                <Button x:Name="SmileyButton" Style="{StaticResource ChatBarButtonStyle}"
+                        Click="SmileyButton_Click">
+                    <Grid Width="22" Height="22">
+                        <Ellipse Width="3" Height="3" Fill="White"
+                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
+                        <Ellipse Width="3" Height="3" Fill="White"
+                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,4,0"/>
+                        <Path Stroke="White" StrokeThickness="2"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <!-- IconSmiley -->
+                            <Path.Data>
+                                <PathGeometry>
+                                    <PathGeometry.Figures>
+                                        <PathFigure StartPoint="4,9">
+                                            <PathFigure.Segments>
+                                                <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="False"
+                                                            SweepDirection="Clockwise" Point="18,9"/>
+                                            </PathFigure.Segments>
+                                        </PathFigure>
+                                    </PathGeometry.Figures>
+                                </PathGeometry>
+                            </Path.Data>
+                        </Path>
+                    </Grid>
+                </Button>
+            </StackPanel>
+            <Button x:Name="MoreButton" Style="{StaticResource ChatBarOverflowStyle}"
+                    HorizontalAlignment="Right" VerticalAlignment="Center"
+                    Click="MoreButton_Click">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                    <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                    <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
+                </StackPanel>
+            </Button>
+        </Grid>
 
         <!-- The voice-note player. One for the whole page, not one per bubble:
              a MediaElement per row of a virtualizing list is a decoder per row.
