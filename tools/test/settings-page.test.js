@@ -17,13 +17,25 @@ function element(name) {
 
 test('settings typography follows the reference title and section hierarchy', () => {
   const title = element('TitleText');
-  assert.match(title, /FontSize="23"/);
+  assert.match(title, /FontSize="54"/);
   assert.match(title, /FontFamily="Segoe WP Semilight"/);
+  assert.match(element('BrandText'), /FontSize="15"/);
   for (const name of ['ThemeLabel', 'AlertsLabel', 'BackgroundLabel', 'AccountLabel']) {
     const heading = element(name);
-    assert.match(heading, /FontSize="24"/, `${name} uses the reference section-title size`);
-    assert.match(heading, /FontWeight="SemiBold"/, `${name} uses the reference section-title weight`);
+    assert.match(heading, /FontSize="15"/, `${name} uses the reference section header size`);
+    assert.match(heading, /FontWeight="SemiBold"/, `${name} uses the reference section header weight`);
   }
+  for (const name of ['MessagesLabel', 'StatusesLabel', 'CallsLabel']) {
+    assert.match(element(name), /FontSize="24"/, `${name} uses the reference row label size`);
+  }
+  for (const name of ['ThemeHint', 'AlertsHint', 'BackgroundHint', 'AccountHint']) {
+    assert.match(element(name), /FontSize="20"/, `${name} uses the reference descriptive size`);
+  }
+});
+
+test('settings relies on the hardware back key, like the reference page', () => {
+  assert.doesNotMatch(xaml, /x:Name="BackButton"/);
+  assert.doesNotMatch(code, /BackButton_Click/);
 });
 
 test('settings retains the existing theme, alert, background and account controls', () => {

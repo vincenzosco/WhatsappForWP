@@ -373,9 +373,6 @@
   <data name="ContactInfoPage_ProfileHeading" xml:space="preserve">
     <value>Profilo</value>
   </data>
-  <data name="ContactInfoPage_BackTooltip" xml:space="preserve">
-    <value>Indietro</value>
-  </data>
   <data name="ContactInfoPage_Number" xml:space="preserve">
     <value>Numero di telefono</value>
   </data>
@@ -399,9 +396,6 @@
   </data>
   <data name="ContactInfoPage_GroupDescription" xml:space="preserve">
     <value>Descrizione del gruppo</value>
-  </data>
-  <data name="ContactInfoPage_MembersCount" xml:space="preserve">
-    <value>Membri ({0})</value>
   </data>
   <data name="ContactInfoPage_Admin" xml:space="preserve">
     <value>Amministratore</value>
@@ -711,6 +705,12 @@
   </data>
   <data name="ChatPage_TapForContactInfo" xml:space="preserve">
     <value>Tocca per le info del contatto</value>
+  </data>
+  <data name="ContactInfoPage_GroupTitle" xml:space="preserve">
+    <value>Info gruppo</value>
+  </data>
+  <data name="ContactInfoPage_Participants" xml:space="preserve">
+    <value>Partecipanti</value>
   </data>
 </root>
 
