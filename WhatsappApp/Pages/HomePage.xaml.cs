@@ -72,7 +72,7 @@ namespace WhatsappApp.Pages
             DeclineCallButton.Content = Loc.Get("Call_Decline", "Decline");
             EndCallButton.Content = Loc.Get("Call_End", "End");
 
-            Header.SetUnread(DataService.Instance.UnreadChats());
+            //Header.SetUnread(DataService.Instance.UnreadChats());
             _ready = true;
         }
 
@@ -186,7 +186,7 @@ namespace WhatsappApp.Pages
 
         private void RefreshBadges()
         {
-            Header.SetUnread(DataService.Instance.UnreadChats());
+            //Header.SetUnread(DataService.Instance.UnreadChats());
             UpdateChatsMenuItems();
         }
 
