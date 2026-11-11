@@ -44,5 +44,42 @@ namespace WhatsappApp.Services
 
             return index;
         }
+
+        /// <summary>
+        /// The order the rows should be in, as indices into `times`, and stable where two
+        /// times are the same.
+        ///
+        /// This is the other half of the rule above: `InsertIndex` keeps a tie in arrival
+        /// order as rows arrive, and this keeps it when a conversation is read back and
+        /// put in order. It used to be `List&lt;T&gt;.Sort`, which does not promise that -
+        /// and the history sync writes whole seconds, so ties are the normal case, not the
+        /// exception. A conversation being read back is nearly in order already, so the
+        /// insertion sort is close to linear on the path that matters.
+        /// </summary>
+        public static int[] StableOrder(IList<DateTime> times)
+        {
+            if (times == null) return new int[0];
+
+            var order = new int[times.Count];
+            for (int i = 0; i < order.Length; i++) order[i] = i;
+
+            for (int i = 1; i < order.Length; i++)
+            {
+                int moving = order[i];
+                int at = i - 1;
+
+                // Strictly greater: a row of the same time stays behind the one that
+                // arrived before it.
+                while (at >= 0 && times[order[at]] > times[moving])
+                {
+                    order[at + 1] = order[at];
+                    at--;
+                }
+
+                order[at + 1] = moving;
+            }
+
+            return order;
+        }
     }
 }

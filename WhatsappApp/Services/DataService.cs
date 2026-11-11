@@ -3205,16 +3205,23 @@ namespace WhatsappApp.Services
             ObservableCollection<ChatMessage> messages;
             if (!_chatMessages.TryGetValue(chatId, out messages) || messages.Count < 2) return;
 
-            var ordered = new List<ChatMessage>(messages);
-            ordered.Sort(delegate (ChatMessage left, ChatMessage right)
+            // The order comes from MessageOrder, which keeps two messages of the same
+            // second in the order they arrived. List<T>.Sort promises nothing about elements
+            // that compare equal, and the history is written in whole seconds: reading a
+            // conversation back shuffled its ties. A null is not a timestamp either, and the
+            // old comparison died on one.
+            var times = new List<DateTime>(messages.Count);
+            for (int i = 0; i < messages.Count; i++)
             {
-                return left.Timestamp.CompareTo(right.Timestamp);
-            });
+                times.Add(messages[i] == null ? DateTime.MinValue : messages[i].Timestamp);
+            }
+
+            int[] order = MessageOrder.StableOrder(times);
 
             bool moved = false;
-            for (int i = 0; i < ordered.Count; i++)
+            for (int i = 0; i < order.Length; i++)
             {
-                if (ReferenceEquals(ordered[i], messages[i])) continue;
+                if (order[i] == i) continue;
 
                 moved = true;
                 break;
@@ -3222,6 +3229,8 @@ namespace WhatsappApp.Services
 
             if (!moved) return;
 
+            var ordered = new List<ChatMessage>(messages.Count);
+            for (int i = 0; i < order.Length; i++) ordered.Add(messages[order[i]]);
             for (int i = 0; i < ordered.Count; i++) messages[i] = ordered[i];
 
             Diag.Ok("cache: " + chatId + " read back in time order, " + messages.Count + " message(s)");
@@ -3242,13 +3251,15 @@ namespace WhatsappApp.Services
                 _chatMessages[chatId] = new ObservableCollection<ChatMessage>();
             }
             ObservableCollection<ChatMessage> conversation = _chatMessages[chatId];
+            // The time is settled before the index is chosen, not after it: the index is
+            // the timestamp's opinion, so correcting the time afterwards left the row where
+            // the wrong time had put it - a message stamped 2099 landed below everything and
+            // stayed there wearing today's clock. A message this phone is adding has just
+            // happened, so a time that cannot be true means now.
+            if (!ActivityTime.IsSane(message.Timestamp, DateTime.Now)) message.Timestamp = DateTime.Now;
+
             conversation.Insert(InOrderIndex(conversation, message), message);
             TrimToCeiling(conversation);
-
-            // A message this phone is adding has just happened: when its own time is not
-            // one that can be true (a corrupt `t`, a clock that jumped), it happened now, and
-            // saying so keeps both the bubble and the row out of the future.
-            if (!ActivityTime.IsSane(message.Timestamp, DateTime.Now)) message.Timestamp = DateTime.Now;
 
             // Update the contact's last message
             var contact = FindContact(chatId);
