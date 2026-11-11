@@ -13,7 +13,6 @@
         <conv:UnreadCountToVisibilityConverter x:Key="UnreadToVisibility"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
-        <SolidColorBrush x:Key="HomeAccentBrush" Color="#FF00A8C7"/>
         <shell:ApplicationBar x:Key="ChatsApplicationBar" IsVisible="True" IsMenuEnabled="True">
             <shell:ApplicationBarIconButton x:Name="SearchAppBarButton" x:Uid="Home_SearchAppBarButton" IconUri="/Assets/Reference/search.png" Text="Search" Click="SearchApplicationBarButton_Click"/>
             <shell:ApplicationBarIconButton x:Name="NewChatAppBarButton" x:Uid="Home_NewChatAppBarButton" IconUri="/Assets/Reference/add.png" Text="New chat" Click="NewChatApplicationBarButton_Click"/>
@@ -209,11 +208,11 @@
                           SelectionChanged="Sections_SelectionChanged">
                 <phone:PivotItem Header=" ">
                     <Grid Background="Transparent">
-                        <phone:LongListSelector x:Name="ChatListView" Background="Transparent"
+                        <phone:LongListSelector x:Name="ChatListView" Background="Transparent" Margin="24,0,0,0"
                                                 SelectionChanged="ChatListView_SelectionChanged">
                             <phone:LongListSelector.ItemTemplate>
                                 <DataTemplate>
-                                    <Grid Height="70" Background="Transparent"
+                                    <Grid Height="68" Margin="0,24,24,0" Background="Transparent"
                                           ManipulationStarted="ChatRow_Holding"
                                           ManipulationCompleted="ChatRow_ManipulationCompleted">
                                         <Grid.ColumnDefinitions>
@@ -221,30 +220,34 @@
                                             <ColumnDefinition Width="*"/>
                                             <ColumnDefinition Width="Auto"/>
                                         </Grid.ColumnDefinitions>
-                                        <Border Grid.Column="0" Width="62" Height="62" Margin="3,0,3,0"
-                                                Background="{Binding Initials, Converter={StaticResource InitialToColor}}">
-                                            <Grid>
-                                                <Image Source="{Binding Avatar}" Stretch="UniformToFill"
-                                                       Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}"/>
-                                                <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="22"
-                                                           FontWeight="SemiBold" VerticalAlignment="Center"
-                                                           HorizontalAlignment="Center"
-                                                           Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-                                            </Grid>
-                                        </Border>
+                                        <Grid x:Name="ChatAvatar" Grid.Column="0" Width="68" Height="68"
+                                              Margin="0" VerticalAlignment="Top">
+                                            <Ellipse Width="68" Height="68"
+                                                     Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                                            <Ellipse Width="68" Height="68"
+                                                     Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                                <Ellipse.Fill>
+                                                    <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                                                </Ellipse.Fill>
+                                            </Ellipse>
+                                            <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="22"
+                                                       FontWeight="SemiBold" VerticalAlignment="Center"
+                                                       HorizontalAlignment="Center"
+                                                       Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+                                        </Grid>
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="4,0,0,0">
-                                            <TextBlock Text="{Binding Name}" Foreground="White" FontSize="24"
+                                            <TextBlock Text="{Binding Name}" Foreground="White" FontSize="32"
                                                        FontFamily="Segoe WP Semilight" TextTrimming="WordEllipsis"/>
-                                            <TextBlock Text="{Binding LastMessage}" Foreground="#FF939393" FontSize="15"
-                                                       TextTrimming="WordEllipsis" MaxHeight="22"/>
+                                            <TextBlock Text="{Binding LastMessage}" Foreground="#FF939393" FontSize="20"
+                                                       TextTrimming="WordEllipsis" MaxHeight="28"/>
                                         </StackPanel>
                                         <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="8,0,14,0">
                                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                                 <Grid Width="8" Height="11" Margin="0,0,4,0"
                                                       Visibility="{Binding IsPinned, Converter={StaticResource BoolToVisibility}}">
-                                                    <Ellipse Width="6" Height="4" Fill="#FF00A8C7"
+                                                    <Ellipse Width="6" Height="4" Fill="{StaticResource WhatsAppAccentBrush}"
                                                              HorizontalAlignment="Center" VerticalAlignment="Top"/>
-                                                    <Rectangle Width="2" Height="6" Fill="#FF00A8C7"
+                                                    <Rectangle Width="2" Height="6" Fill="{StaticResource WhatsAppAccentBrush}"
                                                                HorizontalAlignment="Center" VerticalAlignment="Bottom"/>
                                                 </Grid>
                                                 <Grid Width="10" Height="10" Margin="0,0,4,0"
@@ -254,14 +257,14 @@
                                                         <Rectangle.RenderTransform><RotateTransform Angle="45"/></Rectangle.RenderTransform>
                                                     </Rectangle>
                                                 </Grid>
-                                                <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF92999A" FontSize="12"
+                                                <TextBlock Text="{Binding LastMessageTime}" Foreground="#FF939393" FontSize="18.667"
                                                            HorizontalAlignment="Right"/>
                                             </StackPanel>
-                                            <TextBlock Text="{Binding UnreadCount}" Foreground="#FF00A8C7" FontSize="14"
+                                            <TextBlock Text="{Binding UnreadCount}" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="14"
                                                        HorizontalAlignment="Right"
                                                        Visibility="{Binding UnreadCount, Converter={StaticResource UnreadToVisibility}}"/>
                                         </StackPanel>
-                                        <Rectangle Grid.Column="1" Grid.ColumnSpan="2" Height="1" Fill="#FF252B2C"
+                                        <Rectangle Grid.Column="1" Grid.ColumnSpan="2" Height="1" Fill="#FF1F1F1F"
                                                    VerticalAlignment="Bottom"/>
                                     </Grid>
                                 </DataTemplate>
@@ -313,7 +316,7 @@
                                TextWrapping="Wrap" MaxHeight="32"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="AcceptCallButton" Click="AcceptCall_Click" Background="#FF00AFA8"
+                    <Button x:Name="AcceptCallButton" Click="AcceptCall_Click" Background="{StaticResource WhatsAppAccentBrush}"
                             Foreground="White" BorderThickness="0" MinWidth="0" MinHeight="0"
                             Height="38" Padding="12,0" FontSize="14" Margin="3,0"/>
                     <Button x:Name="DeclineCallButton" Click="DeclineCall_Click" Background="#FF9B3035"
@@ -451,7 +454,7 @@
             <Button x:Name="ModalDismissButton" Grid.RowSpan="3" Background="Transparent"
                     BorderThickness="0" MinWidth="0" MinHeight="0" Padding="0"
                     Click="ModalDismissButton_Click" Visibility="Collapsed"/>
-            <Border x:Name="ModalCard" Background="#FF171717" BorderBrush="#FF00A8C7"
+            <Border x:Name="ModalCard" Background="#FF171717" BorderBrush="{StaticResource WhatsAppAccentBrush}"
                     BorderThickness="1" Margin="8,18" MaxHeight="560" VerticalAlignment="Center">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -459,7 +462,7 @@
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
-                    <TextBlock x:Name="ModalTitle" Foreground="#FF00A8C7" FontSize="24"
+                    <TextBlock x:Name="ModalTitle" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="24"
                                FontFamily="Segoe WP Semilight" TextWrapping="Wrap" Margin="18,16,18,10"/>
                     <ScrollViewer Grid.Row="1" MaxHeight="390" Margin="18,0">
                         <StackPanel x:Name="ModalContent"/>
@@ -469,7 +472,7 @@
                                 Background="Transparent" Foreground="#FFB5C0C1" BorderThickness="0"
                                 Click="ModalSecondaryButton_Click"/>
                         <Button x:Name="ModalPrimaryButton" MinWidth="0" MinHeight="0" Padding="14,7"
-                                Background="#FF00AFA8" Foreground="White" BorderThickness="0" Margin="8,0,0,0"
+                                Background="{StaticResource WhatsAppAccentBrush}" Foreground="White" BorderThickness="0" Margin="8,0,0,0"
                                 Click="ModalPrimaryButton_Click"/>
                     </StackPanel>
                 </Grid>

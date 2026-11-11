@@ -78,12 +78,11 @@
                  to scroll past, and it comes and goes on its own. -->
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- Header: back + picture + name/status. The picture is a thing of its
-             own apart from the name row: tapping it opens it full screen,
-             tapping the name opens the contact info. -->
-        <Grid Grid.Row="0" Background="Black" Height="84">
+        <!-- The XAP title row carries the contact picture, name and truthful subtitle. -->
+        <Grid Grid.Row="0" Background="Black" Height="60">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="Auto"/>
@@ -115,16 +114,29 @@
                 </Path>
             </Button>
 
+            <Grid x:Name="ContactAvatar" Grid.Column="1" Width="54" Height="54"
+                  Margin="0,0,12,0" VerticalAlignment="Center"
+                  Background="Transparent" Tap="ContactAvatar_Tapped">
+                <Ellipse Width="48" Height="48" Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                <Ellipse Width="48" Height="48"
+                         Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                    <Ellipse.Fill>
+                        <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
+                    </Ellipse.Fill>
+                </Ellipse>
+                <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="18"
+                           FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"
+                           Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
+            </Grid>
+
             <Grid x:Name="ContactHeader" Grid.Column="2"
-                  Background="Transparent"
-                  Margin="8,0,0,4"
-                  Tap="ContactHeader_Tapped">
+                  Background="Transparent" Margin="0" Tap="ContactHeader_Tapped">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
-                               Foreground="White" FontSize="54" FontFamily="Segoe WP Semilight"
+                               Foreground="White" FontSize="23" FontFamily="Segoe WP Semilight"
                                TextTrimming="WordEllipsis"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
-                               Foreground="#B0FFFFFF" FontSize="15" Margin="0,-4,0,0"/>
+                               Foreground="#B0FFFFFF" FontSize="20" Margin="0,-4,0,0"/>
                 </StackPanel>
             </Grid>
 
@@ -818,12 +830,12 @@
             </Grid>
 
             <!-- Input row -->
-                <Grid Grid.Row="1">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="*"/>
-                    </Grid.ColumnDefinitions>
+            <Grid Grid.Row="1">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
                 <Button x:Name="RecordButton" Grid.Column="0"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
@@ -831,7 +843,7 @@
                         Margin="0,4,0,4"
                         Click="RecordButton_Click">
                     <Image Source="/Assets/Reference/ThemeDark/inputbar-mic.png"
-                           Width="36" Height="36" Stretch="Uniform"/>
+                           Width="24" Height="24" Stretch="Uniform" RenderTransformOrigin="0.156,0.038"/>
                 </Button>
                 <Button x:Name="StopRecordButton" Grid.Column="0"
                         Background="Transparent"
@@ -864,16 +876,16 @@
                         Click="MentionButton_Click"/>
 
                 <Grid Grid.Column="2">
-                <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFCCCCCC" CornerRadius="0">
-                    <Grid>
-                    <TextBlock x:Name="MessagePlaceholderText"
+                    <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFCCCCCC" CornerRadius="0">
+                        <Grid>
+                            <TextBlock x:Name="MessagePlaceholderText"
                                Text=""
                                IsHitTestVisible="False"
                                VerticalAlignment="Center"
                                Margin="12,0,4,0"
                                Foreground="#FF777777"
                                FontSize="20"/>
-                    <TextBox x:Name="MessageTextBox"
+                            <TextBox x:Name="MessageTextBox"
                              Text=""
                          VerticalAlignment="Center"
                          MinHeight="40"
@@ -886,48 +898,50 @@
                          AcceptsReturn="False"
                          TextChanged="MessageTextBox_TextChanged"
                          Foreground="#FF333333">
-                    <!-- The scope is what puts the emoji key on the keyboard: Windows
+                                <!-- The scope is what puts the emoji key on the keyboard: Windows
                          Phone 8.1 shows the smiley next to the space bar only for `Chat`,
                          and with it the keyboard turns a typed `:)` into the emoji it has.
                          Without the scope the composer was a plain text box, so the one
                          keyboard everybody types on offered neither. -->
-                    <TextBox.InputScope>
-                        <InputScope>
-                            <InputScope.Names>
-                                <InputScopeName NameValue="Chat"/>
-                            </InputScope.Names>
-                        </InputScope>
-                    </TextBox.InputScope>
-                    </TextBox>
-                    </Grid>
-                </Border>
-                <!-- The little tail the reference composer hangs under the right
+                                <TextBox.InputScope>
+                                    <InputScope>
+                                        <InputScope.Names>
+                                            <InputScopeName NameValue="Chat"/>
+                                        </InputScope.Names>
+                                    </InputScope>
+                                </TextBox.InputScope>
+                            </TextBox>
+                        </Grid>
+                    </Border>
+                    <!-- The little tail the reference composer hangs under the right
                      end of the speech-shaped input box. -->
-                <Path Fill="#FFCCCCCC" Width="10" Height="8"
+                    <Path Fill="#FFCCCCCC" Width="10" Height="8"
                       HorizontalAlignment="Right" VerticalAlignment="Bottom"
                       Margin="0,0,2,0" IsHitTestVisible="False">
-                    <!-- IconBubbleTail -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="0,0" IsClosed="True">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="10,0 4,8"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
+                        <!-- IconBubbleTail -->
+                        <Path.Data>
+                            <PathGeometry>
+                                <PathGeometry.Figures>
+                                    <PathFigure StartPoint="0,0" IsClosed="True">
+                                        <PathFigure.Segments>
+                                            <PolyLineSegment Points="10,0 4,8"/>
+                                        </PathFigure.Segments>
+                                    </PathFigure>
+                                </PathGeometry.Figures>
+                            </PathGeometry>
+                        </Path.Data>
+                    </Path>
                 </Grid>
 
-                </Grid>
+            </Grid>
 
-                <!-- The ring bar of the reference: the circles sit centred and the
-                     overflow dots hang at the right edge. -->
-                <Grid Grid.Row="2" Background="#FF222222" MinHeight="64">
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <Button x:Name="SendButton" 
+        </Grid>
+
+        <!-- The ring bar of the reference: the circles sit centred and the
+             overflow dots hang at the right edge. -->
+        <Grid Grid.Row="4" Background="#FF222222" MinHeight="64">
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Button x:Name="SendButton"
                         Background="Transparent"
                         Foreground="White"
                         MinWidth="0" MinHeight="0"
@@ -935,64 +949,64 @@
                         Margin="0,4,8,4"
                         BorderThickness="0" Padding="0"
                         Click="SendButton_Click">
-                    <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
-                           Width="36" Height="36" Stretch="Uniform"/>
-                </Button>
-                <Button x:Name="AttachButton" 
+                        <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
+                           Width="26" Height="26" Stretch="Uniform"/>
+                    </Button>
+                    <Button x:Name="AttachButton"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="AttachButton_Click">
-                    <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
-                           Width="36" Height="36" Stretch="Uniform"/>
-                </Button>
-                <!-- The call button lives in the ring bar, where the official
-                     client puts it: it calls the person of this conversation and
-                     hides for a group, because this client calls one at a time. -->
-                <Button x:Name="CallHeaderButton" 
+                        <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
+                           Width="26" Height="29" Stretch="Uniform"/>
+                    </Button>
+                    <Button x:Name="CallHeaderButton"
                         Background="Transparent" BorderThickness="0"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48" Margin="0,0,12,0" Padding="0"
                         VerticalAlignment="Center"
                         Click="CallHeaderButton_Click">
-                    <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
-                           Width="24" Height="24" Stretch="Uniform"/>
-                </Button>
-                <Button x:Name="SmileyButton"
+                        <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
+                           Width="30" Height="28" Stretch="Uniform" RenderTransformOrigin="0.4,0.320"/>
+                    </Button>
+                    <!-- The call button lives in the ring bar, where the official
+                     client puts it: it calls the person of this conversation and
+                     hides for a group, because this client calls one at a time. -->
+                    <Button x:Name="SmileyButton"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
                         Width="48" Height="48" BorderThickness="0" Padding="0"
                         Margin="0,4,0,4"
                         Click="SmileyButton_Click">
-                    <Grid Width="40" Height="40">
-                    <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
-                    <Grid Width="22" Height="22">
-                        <Ellipse Width="3" Height="3" Fill="White"
-                                 HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
-                        <Ellipse Width="3" Height="3" Fill="White"
-                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,4,0"/>
-                        <Path Stroke="White" StrokeThickness="2"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round"
-                              HorizontalAlignment="Center" VerticalAlignment="Center">
-                            <!-- IconSmiley -->
-                            <Path.Data>
-                                <PathGeometry>
-                                    <PathGeometry.Figures>
-                                        <PathFigure StartPoint="4,9">
-                                            <PathFigure.Segments>
-                                                <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="False"
-                                                            SweepDirection="Clockwise" Point="18,9"/>
-                                            </PathFigure.Segments>
-                                        </PathFigure>
-                                    </PathGeometry.Figures>
-                                </PathGeometry>
-                            </Path.Data>
-                        </Path>
-                    </Grid>
-                    </Grid>
-                </Button>
-                    </StackPanel>
+                        <Grid Width="40" Height="40">
+                            <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
+                            <Grid Width="22" Height="22">
+                                <Ellipse Width="3" Height="3" Fill="White"
+                                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
+                                <Ellipse Width="3" Height="3" Fill="White"
+                                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,5,4,0"/>
+                                <Path Stroke="White" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                                      HorizontalAlignment="Center" VerticalAlignment="Center">
+                                    <!-- IconSmiley -->
+                                    <Path.Data>
+                                        <PathGeometry>
+                                            <PathGeometry.Figures>
+                                                <PathFigure StartPoint="4,9">
+                                                    <PathFigure.Segments>
+                                                        <ArcSegment Size="7,7" RotationAngle="0" IsLargeArc="False"
+                                                                    SweepDirection="Clockwise" Point="18,9"/>
+                                                    </PathFigure.Segments>
+                                                </PathFigure>
+                                            </PathGeometry.Figures>
+                                        </PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                            </Grid>
+                        </Grid>
+                    </Button>
+                </StackPanel>
                 <Button x:Name="MoreButton"
                         HorizontalAlignment="Right" VerticalAlignment="Center"
                         Background="Transparent"
@@ -1006,8 +1020,7 @@
                         <Ellipse Width="4" Height="4" Fill="White" Margin="2,0"/>
                     </StackPanel>
                 </Button>
-                </Grid>
-        </Grid>
+            </Grid>
 
         <!-- The voice-note player. One for the whole page, not one per bubble:
              a MediaElement per row of a virtualizing list is a decoder per row.
@@ -1149,7 +1162,7 @@
 
         <!-- Each entry opens the phone's continuation-based file picker with a
              matching filter; the selection still reaches AttachmentInbox. -->
-        <Grid x:Name="AttachmentPickerOverlay" Grid.RowSpan="4"
+        <Grid x:Name="AttachmentPickerOverlay" Grid.Row="1" Grid.RowSpan="3"
               Background="#B0000000"
               Visibility="Collapsed">
             <Button x:Name="AttachmentPickerDismissButton"
@@ -1157,18 +1170,16 @@
                     BorderThickness="0"
                     MinWidth="0" MinHeight="0"
                     Click="AttachmentPickerDismissButton_Click"/>
-            <Border Width="400"
-                    MaxWidth="460"
-                    Padding="12"
-                    Background="#FF242424"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center">
+            <Border Background="#FF1F1F1F"
+                    Padding="10,10,10,12"
+                    HorizontalAlignment="Stretch"
+                    VerticalAlignment="Bottom">
                 <StackPanel>
                     <TextBlock x:Name="AttachmentPickerTitle"
                                Text=""
                                Foreground="White"
-                               FontSize="22"
-                               Margin="8,0,8,12"
+                               FontSize="15" FontWeight="Bold"
+                               Margin="10,2,10,10"
                                TextWrapping="Wrap"/>
                     <Grid HorizontalAlignment="Center">
                         <Grid.ColumnDefinitions>
@@ -1181,21 +1192,21 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Button x:Name="AttachmentAlbumsButton" Grid.Row="0" Grid.Column="0"
-                                Width="112" Height="112" MinWidth="0" MinHeight="0"
-                                Margin="4" Padding="8" BorderThickness="0"
+                                Width="140" Height="140" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentAlbumsButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-picture.png"
                                        Width="54" Height="54" Stretch="Uniform"/>
                                 <TextBlock x:Name="AttachmentAlbumsLabel" Text=""
-                                           FontSize="13" TextWrapping="Wrap"
+                                           FontSize="19" TextWrapping="Wrap"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="AttachmentPhotoButton" Grid.Row="0" Grid.Column="1"
-                                Width="112" Height="112" MinWidth="0" MinHeight="0"
-                                Margin="4" Padding="8" BorderThickness="0"
+                                Width="140" Height="140" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentPhotoButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -1208,8 +1219,8 @@
                             </StackPanel>
                         </Button>
                         <Button x:Name="AttachmentVideoButton" Grid.Row="0" Grid.Column="2"
-                                Width="112" Height="112" MinWidth="0" MinHeight="0"
-                                Margin="4" Padding="8" BorderThickness="0"
+                                Width="140" Height="140" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentVideoButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -1222,8 +1233,8 @@
                             </StackPanel>
                         </Button>
                         <Button x:Name="AttachmentAudioButton" Grid.Row="1" Grid.Column="0"
-                                Width="112" Height="112" MinWidth="0" MinHeight="0"
-                                Margin="4" Padding="8" BorderThickness="0"
+                                Width="140" Height="140" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentAudioButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -1236,29 +1247,29 @@
                             </StackPanel>
                         </Button>
                         <Button x:Name="AttachmentLocationButton" Grid.Row="1" Grid.Column="1"
-                                Width="112" Height="112" MinWidth="0" MinHeight="0"
-                                Margin="4" Padding="8" BorderThickness="0"
+                                Width="140" Height="140" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentLocationButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-location.png"
                                        Width="54" Height="54" Stretch="Uniform"/>
                                 <TextBlock x:Name="AttachmentLocationLabel" Text=""
-                                           FontSize="17" TextWrapping="Wrap"
+                                           FontSize="19" TextWrapping="Wrap"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Margin="0,6,0,0"/>
                             </StackPanel>
                         </Button>
                         <Button x:Name="AttachmentContactButton" Grid.Row="1" Grid.Column="2"
-                                Width="112" Height="112" MinWidth="0" MinHeight="0"
-                                Margin="4" Padding="8" BorderThickness="0"
+                                Width="140" Height="140" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentContactButton_Click">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-contact.png"
                                        Width="54" Height="54" Stretch="Uniform"/>
                                 <TextBlock x:Name="AttachmentContactLabel" Text=""
-                                           FontSize="17" TextWrapping="Wrap"
+                                           FontSize="19" TextWrapping="Wrap"
                                            HorizontalAlignment="Center" VerticalAlignment="Center"
                                            Margin="0,6,0,0"/>
                             </StackPanel>

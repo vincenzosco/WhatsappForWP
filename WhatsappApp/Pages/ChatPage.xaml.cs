@@ -195,6 +195,7 @@ namespace WhatsappApp.Pages
             AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
             AutomationProperties.SetName(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
             AutomationProperties.SetName(RecentMessagesButton, Loc.Get("ChatPage_JumpToRecentTooltip", "Jump to the newest messages"));
+            AutomationProperties.SetName(ContactAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             AutomationProperties.SetName(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
             MessagePlaceholderText.Text = Loc.Get("ChatPage_Input.PlaceholderText", "Type a message");
             RecordingLabelText.Text = Loc.Get("ChatPage_RecordingLabel.Text", "Recording");
@@ -253,7 +254,7 @@ namespace WhatsappApp.Pages
                 _selectedMessages.Clear();
                 ApplicationBar = ChatAppBar;
 
-                ContactNameText.Text = contact.Name;
+                ContactNameText.Text = contact.Name.ToUpperInvariant();
 
 // A group is not called from here: `CallSignaling` builds an offer to a single
 // address, and a button that offered a group call the app cannot make would be a
@@ -268,8 +269,12 @@ namespace WhatsappApp.Pages
                 // when the name is not already the number.
                 string number = DisplayNumber(contact.Id);
                 bool hasNumber = !string.IsNullOrEmpty(number) && number != contact.Name;
-                OnlineStatusText.Text = hasNumber ? number : "";
-                OnlineStatusText.Visibility = hasNumber ? Visibility.Visible : Visibility.Collapsed;
+                // With no presence to tell, the line under the name is the reference's
+                // own affordance: the header opens the contact info.
+                OnlineStatusText.Text = hasNumber
+                    ? number
+                    : Loc.Get("ChatPage_TapForContactInfo", "Tap for contact info");
+                OnlineStatusText.Visibility = Visibility.Visible;
 
                 // Load messages: first the ones on the phone, so the conversation
                 // shows right away, then the real history. The list is bound after
@@ -1019,12 +1024,32 @@ namespace WhatsappApp.Pages
             e.Handled = true;
         }
 
-        /// <summary>The name opens the info: the picture stays for the picture.</summary>
+        /// <summary>The title opens contact details; the picture opens at full size.</summary>
         private void ContactHeader_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
         {
             if (_contact == null) return;
             e.Handled = true;
             OpenContactInfo();
+        }
+
+        private async void ContactAvatar_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
+        {
+            if (_contact == null) return;
+            e.Handled = true;
+
+            try
+            {
+                if (_contact.Avatar == null) await _contact.LoadAvatarAsync();
+                if (_contact.Avatar != null)
+                {
+                    ImageViewerImage.Source = _contact.Avatar;
+                    ImageViewer.Visibility = Visibility.Visible;
+                }
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/ContactAvatar_Tapped", ex);
+            }
         }
 
         /// <summary>The contact or group page, from the header and from the overflow menu.</summary>

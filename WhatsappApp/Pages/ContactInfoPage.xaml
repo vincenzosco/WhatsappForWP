@@ -147,7 +147,7 @@
                                                Foreground="White" FontSize="20"
                                                FontFamily="Segoe WP Semilight" TextTrimming="WordEllipsis"/>
                                     <TextBlock Grid.Column="1" Text="{Binding Role}"
-                                               Foreground="#FF00A8C7" FontSize="13"
+                                               Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="13"
                                                Margin="8,0,0,0"/>
                                 </Grid>
                             </DataTemplate>

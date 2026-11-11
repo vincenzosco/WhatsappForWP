@@ -121,6 +121,17 @@
                     </LinearGradientBrush>
                 </Rectangle.Fill>
             </Rectangle>
+            <!-- The reference top line: the WhatsApp call mark and its name. -->
+            <StackPanel Orientation="Horizontal" VerticalAlignment="Top"
+                        HorizontalAlignment="Left" Margin="24,14,24,0">
+                <Image x:Name="CallHeaderIcon"
+                       Source="/Assets/Reference/ThemeDark/phone-solid.png"
+                       Width="20" Height="20" Stretch="Uniform"/>
+                <TextBlock x:Name="CallHeaderText" Text=""
+                           Foreground="White" FontSize="15" FontWeight="SemiBold"
+                           VerticalAlignment="Center" Margin="8,0,0,0"/>
+            </StackPanel>
+
         </Grid>
 
         <!-- State and duration on one line, the name under them, the kind below. -->
@@ -178,7 +189,7 @@
 
                 <Button x:Name="AcceptCallButton" Grid.Row="0" Grid.Column="0"
                         Style="{StaticResource CallTileStyle}"
-                        Background="#FF00AFA9" Click="AcceptCallButton_Click">
+                        Background="{StaticResource WhatsAppAccentBrush}" Click="AcceptCallButton_Click">
                     <StackPanel>
                         <Path Style="{StaticResource CallGlyphStyle}">
                             <!-- IconCall -->

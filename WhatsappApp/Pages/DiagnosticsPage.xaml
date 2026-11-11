@@ -66,15 +66,15 @@
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,8,0,0">
                 <Button x:Name="ClearButton" Content=""
-                        Background="#FF242424" Foreground="#FF00AFA9" FontSize="16"
+                        Background="#FF242424" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="16"
                         MinWidth="0" MinHeight="0" Height="44" Width="96" BorderThickness="0"
                         Click="ClearButton_Click"/>
                 <Button x:Name="SelectAllButton" Content=""
-                        Background="#FF242424" Foreground="#FF00AFA9" FontSize="16"
+                        Background="#FF242424" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="16"
                         MinWidth="0" MinHeight="0" Height="44" Width="96" BorderThickness="0"
                         Margin="8,0,0,0" Click="SelectAllButton_Click"/>
                 <Button x:Name="ShareButton" Content=""
-                        Background="#FF242424" Foreground="#FF00AFA9" FontSize="16"
+                        Background="#FF242424" Foreground="{StaticResource WhatsAppAccentBrush}" FontSize="16"
                         MinWidth="0" MinHeight="0" Height="44" Width="96" BorderThickness="0"
                         Margin="8,0,0,0" Click="ShareButton_Click"/>
             </StackPanel>
