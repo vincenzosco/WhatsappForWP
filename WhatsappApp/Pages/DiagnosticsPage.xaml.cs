@@ -18,7 +18,6 @@ namespace WhatsappApp.Pages
         public DiagnosticsPage()
         {
             InitializeComponent();
-            AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
             PageTitleText.Text = Loc.Get("DiagnosticsPage_Title.Text", "Diagnostics");
             HintText.Text = Loc.Get("DiagnosticsPage_Hint.Text",
                 "What the app did, and where it tried to connect. Long press the text to select and copy it, select it all, or share it with another app. The same lines are in diag.log in the app's folder.");
@@ -78,11 +77,6 @@ namespace WhatsappApp.Pages
             }
 
             return line.ToString();
-        }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (NavigationService.CanGoBack) NavigationService.GoBack();
         }
 
         private void ClearButton_Click(object sender, RoutedEventArgs e)

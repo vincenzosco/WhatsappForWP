@@ -712,5 +712,14 @@
   <data name="ContactInfoPage_Participants" xml:space="preserve">
     <value>Participants</value>
   </data>
+  <data name="Nav_ChatsHeader.Text" xml:space="preserve">
+    <value>chats</value>
+  </data>
+  <data name="Nav_StatusesHeader.Header" xml:space="preserve">
+    <value>statuses</value>
+  </data>
+  <data name="Nav_CallsHeader.Header" xml:space="preserve">
+    <value>calls</value>
+  </data>
 </root>
 

@@ -57,9 +57,9 @@
         <StackPanel x:Name="EmptyState" VerticalAlignment="Center" HorizontalAlignment="Center" MaxWidth="300">
             <Ellipse Width="40" Height="40" Stroke="#FF566061" StrokeThickness="2"
                      HorizontalAlignment="Center"/>
-            <TextBlock x:Name="EmptyTitle" Foreground="#FFB0B0B0" FontSize="17"
+            <TextBlock x:Name="EmptyTitle" Foreground="#FFB0B0B0" FontSize="18"
                        HorizontalAlignment="Center" Margin="0,8,0,0"/>
-            <TextBlock x:Name="EmptyHint" Foreground="#FF787878" FontSize="13"
+            <TextBlock x:Name="EmptyHint" Foreground="#FF787878" FontSize="14"
                        TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" Margin="0,3,0,0"/>
         </StackPanel>
     </Grid>

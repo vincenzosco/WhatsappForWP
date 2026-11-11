@@ -186,7 +186,6 @@ namespace WhatsappApp.Pages
             SystemTray.IsVisible = true;
             ApplicationBar = ChatAppBar;
 
-            AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
             AutomationProperties.SetName(AttachButton, Loc.Get("ChatPage_AttachTooltip", "Attach an image"));
             AutomationProperties.SetName(SendButton, Loc.Get("ChatPage_SendTooltip", "Send"));
             AutomationProperties.SetName(SmileyButton, Loc.Get("ChatPage_EmojiTooltip", "Emoji"));
@@ -2618,14 +2617,6 @@ namespace WhatsappApp.Pages
 
             Diag.Ok("send: the keyboard's return arrived");
             SendMessage();
-        }
-
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (NavigationService.CanGoBack)
-            {
-                NavigationService.GoBack();
-            }
         }
 
         /// <summary>

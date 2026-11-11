@@ -206,7 +206,7 @@
                           SelectionChanged="Sections_SelectionChanged" Title="WHATSAPP">
                 <phone:PivotItem>
                     <phone:PivotItem.Header>
-                        <TextBlock Text="chats"/>
+                        <TextBlock x:Uid="Nav_ChatsHeader" Text="chats"/>
                     </phone:PivotItem.Header>
                     <Grid Background="Transparent" Margin="12,0,12,0">
                         <phone:LongListSelector x:Name="ChatListView" Background="Transparent" Margin="0,0,0,0"
@@ -294,10 +294,10 @@
                         </StackPanel>
                     </Grid>
                 </phone:PivotItem>
-                <phone:PivotItem Header="statuses">
+                <phone:PivotItem x:Uid="Nav_StatusesHeader" Header="statuses">
                     <controls:StatusPane Margin="12,0,12,0" x:Name="StatusView"/>
                 </phone:PivotItem>
-                <phone:PivotItem Header="calls">
+                <phone:PivotItem x:Uid="Nav_CallsHeader" Header="calls">
                     <controls:CallsPane Margin="12,0,12,0" x:Name="CallsView"/>
                 </phone:PivotItem>
             </phone:Pivot>

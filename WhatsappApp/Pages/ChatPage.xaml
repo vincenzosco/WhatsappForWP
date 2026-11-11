@@ -81,40 +81,17 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- The XAP title row carries the contact picture, name and truthful subtitle. -->
+        <!-- The XAP title row carries the contact picture, name and truthful subtitle.
+             The reference put name and subtitle on one line, "NAME, last seen ...",
+             and left the way back to the hardware key: no chevron owns 48 px of a
+             480 px header. -->
         <Grid Grid.Row="0" Background="Black" Height="60">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
 
-            <Button x:Name="BackButton" Grid.Column="0"
-                    Background="Transparent"
-                    MinWidth="0" MinHeight="0"
-                    Width="48" Height="48" Margin="0,4,0,0" Padding="0"
-                    Click="BackButton_Click"
-                    BorderThickness="0">
-                <Path Stroke="White" StrokeThickness="2.4"
-                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                      Width="24" Height="24">
-                    <!-- IconBack -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="15.5,4">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="7.5,12 15.5,20"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-            </Button>
-
-            <Grid x:Name="ContactAvatar" Grid.Column="1" Width="54" Height="54"
+            <Grid x:Name="ContactAvatar" Grid.Column="0" Width="54" Height="54"
                   Margin="0,0,12,0" VerticalAlignment="Center"
                   Background="Transparent" Tap="ContactAvatar_Tapped">
                 <Ellipse Width="48" Height="48" Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
@@ -129,14 +106,22 @@
                            Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
             </Grid>
 
-            <Grid x:Name="ContactHeader" Grid.Column="2"
-                  Background="Transparent" Margin="0" Tap="ContactHeader_Tapped">
-                <StackPanel VerticalAlignment="Center">
+            <!-- One line, as in the reference: the name in caps, a comma, the
+                 italic subtitle. Both parts trim, so a long name shortens to an
+                 ellipsis instead of pushing the subtitle off the header. -->
+            <Grid x:Name="ContactHeader" Grid.Column="1"
+                  Background="Transparent" Margin="0,0,8,0" Tap="ContactHeader_Tapped">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
                                Foreground="White" FontSize="23" FontFamily="Segoe WP Semibold"
-                               TextTrimming="WordEllipsis"/>
+                               TextWrapping="NoWrap" TextTrimming="WordEllipsis" MaxWidth="230"/>
+                    <TextBlock Text="," Foreground="#B0FFFFFF"
+                               FontSize="20" FontStyle="Italic"
+                               VerticalAlignment="Center" Margin="2,0,0,0"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
-                               Foreground="#B0FFFFFF" FontSize="20" FontStyle="Italic" Margin="0,-4,0,0"/>
+                               Foreground="#B0FFFFFF" FontSize="20" FontStyle="Italic"
+                               TextWrapping="NoWrap" TextTrimming="WordEllipsis" MaxWidth="200"
+                               Margin="4,0,0,0"/>
                 </StackPanel>
             </Grid>
 
@@ -939,36 +924,52 @@
 
         <!-- The ring bar of the reference: the circles sit centred and the
              overflow dots hang at the right edge. -->
-        <Grid Grid.Row="4" Background="#FF222222" MinHeight="64">
+        <Grid Grid.Row="4" Background="#FF1F1F1F" MinHeight="64">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- Every ring is the same outlined circle the reference draws:
+                         the glyph sits inside a 44 px circle, and the circles are
+                         spaced as one group in the middle of the bar. -->
                     <Button x:Name="SendButton"
                         Background="Transparent"
                         Foreground="White"
                         MinWidth="0" MinHeight="0"
-                        Width="48" Height="48"
-                        Margin="0,4,8,4"
+                        Width="52" Height="52"
+                        Margin="0,2,4,2"
                         BorderThickness="0" Padding="0"
                         Click="SendButton_Click">
-                        <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
-                           Width="26" Height="26" Stretch="Uniform"/>
+                        <Grid Width="44" Height="44">
+                            <Ellipse Stroke="White" StrokeThickness="1.5"/>
+                            <Image Source="/Assets/Reference/ThemeDark/inputbar-send.png"
+                               Width="22" Height="22" Stretch="Uniform"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
                     </Button>
                     <Button x:Name="AttachButton"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
+                        Width="52" Height="52" BorderThickness="0" Padding="0"
+                        Margin="0,2,4,2"
                         Click="AttachButton_Click">
-                        <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
-                           Width="26" Height="29" Stretch="Uniform"/>
+                        <Grid Width="44" Height="44">
+                            <Ellipse Stroke="White" StrokeThickness="1.5"/>
+                            <Image Source="/Assets/Reference/ThemeDark/inputbar-attach.png"
+                               Width="22" Height="25" Stretch="Uniform"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Grid>
                     </Button>
                     <Button x:Name="CallHeaderButton"
                         Background="Transparent" BorderThickness="0"
                         MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" Margin="0,0,12,0" Padding="0"
+                        Width="52" Height="52" Margin="0,2,4,2" Padding="0"
                         VerticalAlignment="Center"
                         Click="CallHeaderButton_Click">
-                        <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
-                           Width="30" Height="28" Stretch="Uniform" RenderTransformOrigin="0.4,0.320"/>
+                        <Grid Width="44" Height="44">
+                            <Ellipse Stroke="White" StrokeThickness="1.5"/>
+                            <Image Source="/Assets/Reference/ThemeDark/phone-solid.png"
+                               Width="24" Height="22" Stretch="Uniform"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               RenderTransformOrigin="0.4,0.320"/>
+                        </Grid>
                     </Button>
                     <!-- The call button lives in the ring bar, where the official
                      client puts it: it calls the person of this conversation and
@@ -976,11 +977,11 @@
                     <Button x:Name="SmileyButton"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
+                        Width="52" Height="52" BorderThickness="0" Padding="0"
+                        Margin="0,2,0,2"
                         Click="SmileyButton_Click">
-                        <Grid Width="40" Height="40">
-                            <Ellipse Width="40" Height="40" Stroke="White" StrokeThickness="1.5"/>
+                        <Grid Width="44" Height="44">
+                            <Ellipse Width="44" Height="44" Stroke="White" StrokeThickness="1.5"/>
                             <Grid Width="22" Height="22">
                                 <Ellipse Width="3" Height="3" Fill="White"
                                          HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4,5,0,0"/>
