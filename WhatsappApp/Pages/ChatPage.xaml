@@ -133,10 +133,10 @@
                   Background="Transparent" Margin="0" Tap="ContactHeader_Tapped">
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
-                               Foreground="White" FontSize="23" FontFamily="Segoe WP Semilight"
+                               Foreground="White" FontSize="23" FontFamily="Segoe WP Semibold"
                                TextTrimming="WordEllipsis"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
-                               Foreground="#B0FFFFFF" FontSize="20" Margin="0,-4,0,0"/>
+                               Foreground="#B0FFFFFF" FontSize="20" FontStyle="Italic" Margin="0,-4,0,0"/>
                 </StackPanel>
             </Grid>
 
@@ -1181,101 +1181,107 @@
                                FontSize="15" FontWeight="Bold"
                                Margin="10,2,10,10"
                                TextWrapping="Wrap"/>
-                    <Grid HorizontalAlignment="Center">
+                    <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto"/>
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
                         <Button x:Name="AttachmentAlbumsButton" Grid.Row="0" Grid.Column="0"
-                                Width="140" Height="140" MinWidth="0" MinHeight="0"
-                                Margin="3" Padding="8" BorderThickness="0"
+                                Height="150" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0" HorizontalAlignment="Stretch"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentAlbumsButton_Click">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid>
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-picture.png"
-                                       Width="54" Height="54" Stretch="Uniform"/>
+                                       Width="54" Height="54" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,0,0,10"/>
                                 <TextBlock x:Name="AttachmentAlbumsLabel" Text=""
                                            FontSize="19" TextWrapping="Wrap"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                            </StackPanel>
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                            </Grid>
                         </Button>
                         <Button x:Name="AttachmentPhotoButton" Grid.Row="0" Grid.Column="1"
-                                Width="140" Height="140" MinWidth="0" MinHeight="0"
-                                Margin="3" Padding="8" BorderThickness="0"
+                                Height="150" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0" HorizontalAlignment="Stretch"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentPhotoButton_Click">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Image Source="/Assets/Reference/ThemeNeutral/attach-picture.png"
-                                       Width="54" Height="54" Stretch="Uniform"/>
+                            <Grid>
+                                <Image Source="/Assets/Reference/ThemeNeutral/attach-camera.png"
+                                       Width="54" Height="54" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,0,0,10"/>
                                 <TextBlock x:Name="AttachmentPhotoLabel" Text=""
                                            FontSize="19" TextWrapping="Wrap"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Margin="0,6,0,0"/>
-                            </StackPanel>
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                            </Grid>
                         </Button>
                         <Button x:Name="AttachmentVideoButton" Grid.Row="0" Grid.Column="2"
-                                Width="140" Height="140" MinWidth="0" MinHeight="0"
-                                Margin="3" Padding="8" BorderThickness="0"
+                                Height="150" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0" HorizontalAlignment="Stretch"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentVideoButton_Click">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid>
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-video.png"
-                                       Width="54" Height="54" Stretch="Uniform"/>
+                                       Width="54" Height="54" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,0,0,10"/>
                                 <TextBlock x:Name="AttachmentVideoLabel" Text=""
                                            FontSize="19" TextWrapping="Wrap"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Margin="0,6,0,0"/>
-                            </StackPanel>
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                            </Grid>
                         </Button>
                         <Button x:Name="AttachmentAudioButton" Grid.Row="1" Grid.Column="0"
-                                Width="140" Height="140" MinWidth="0" MinHeight="0"
-                                Margin="3" Padding="8" BorderThickness="0"
+                                Height="150" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0" HorizontalAlignment="Stretch"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentAudioButton_Click">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid>
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-audio.png"
-                                       Width="54" Height="54" Stretch="Uniform"/>
+                                       Width="54" Height="54" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,0,0,10"/>
                                 <TextBlock x:Name="AttachmentAudioLabel" Text=""
                                            FontSize="19" TextWrapping="Wrap"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Margin="0,6,0,0"/>
-                            </StackPanel>
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                            </Grid>
                         </Button>
                         <Button x:Name="AttachmentLocationButton" Grid.Row="1" Grid.Column="1"
-                                Width="140" Height="140" MinWidth="0" MinHeight="0"
-                                Margin="3" Padding="8" BorderThickness="0"
+                                Height="150" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0" HorizontalAlignment="Stretch"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentLocationButton_Click">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid>
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-location.png"
-                                       Width="54" Height="54" Stretch="Uniform"/>
+                                       Width="54" Height="54" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,0,0,10"/>
                                 <TextBlock x:Name="AttachmentLocationLabel" Text=""
                                            FontSize="19" TextWrapping="Wrap"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Margin="0,6,0,0"/>
-                            </StackPanel>
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                            </Grid>
                         </Button>
                         <Button x:Name="AttachmentContactButton" Grid.Row="1" Grid.Column="2"
-                                Width="140" Height="140" MinWidth="0" MinHeight="0"
-                                Margin="3" Padding="8" BorderThickness="0"
+                                Height="150" MinWidth="0" MinHeight="0"
+                                Margin="3" Padding="8" BorderThickness="0" HorizontalAlignment="Stretch"
                                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
                                 Click="AttachmentContactButton_Click">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <Grid>
                                 <Image Source="/Assets/Reference/ThemeNeutral/attach-contact.png"
-                                       Width="54" Height="54" Stretch="Uniform"/>
+                                       Width="54" Height="54" Stretch="Uniform"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Margin="0,0,0,10"/>
                                 <TextBlock x:Name="AttachmentContactLabel" Text=""
                                            FontSize="19" TextWrapping="Wrap"
-                                           HorizontalAlignment="Center" VerticalAlignment="Center"
-                                           Margin="0,6,0,0"/>
-                            </StackPanel>
+                                           HorizontalAlignment="Left" VerticalAlignment="Bottom"/>
+                            </Grid>
                         </Button>
-                    </Grid>
-                </StackPanel>
+                    </Grid>                </StackPanel>
             </Border>
         </Grid>
     </Grid>

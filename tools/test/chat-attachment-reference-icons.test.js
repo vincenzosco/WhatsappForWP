@@ -12,7 +12,7 @@ const PROJECT = fs.readFileSync(path.join(ROOT, 'WhatsappApp/WhatsApp.csproj'), 
 const ASSET_DIR = path.join(ROOT, 'WhatsappApp/Assets/Reference/ThemeNeutral');
 const buttons = [
   ['AttachmentAlbumsButton', 'attach-picture.png', '9134439ff3601eb4b92617c0ff96ddf29831ae285171a2fc71fe920fccc3f77c'],
-  ['AttachmentPhotoButton', 'attach-picture.png', '9134439ff3601eb4b92617c0ff96ddf29831ae285171a2fc71fe920fccc3f77c'],
+  ['AttachmentPhotoButton', 'attach-camera.png', 'fd360d2c671e7a75f388df0cbcbb65bdc9e3e1d811503217b84d0538aca36e20'],
   ['AttachmentVideoButton', 'attach-video.png', '8cc950b626f646ff3bbeb8219e1ed33b3da39479b8dc95ef390b6a2e7d825bf7'],
   ['AttachmentAudioButton', 'attach-audio.png', 'fb2daa66cdfcb2a2558e5b60241f6e49bfbcec6774fd0c0376c9ebadab5f5ea9'],
   ['AttachmentLocationButton', 'attach-location.png', 'f6bfa7817f45692237d0e77b37c14dcb1cbcf6715743a84c2b9758e377d361b5'],

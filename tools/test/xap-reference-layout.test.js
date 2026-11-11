@@ -62,7 +62,16 @@ test('the attach media panel is the reference bottom sheet above the action bar'
   assert.match(chat, /<Grid x:Name="AttachmentPickerOverlay" Grid\.Row="1" Grid\.RowSpan="3"/);
   assert.match(chat, /<Border Background="#FF1F1F1F"[\s\S]*?VerticalAlignment="Bottom"/);
   assert.match(chat, /x:Name="AttachmentPickerTitle"[\s\S]*?FontSize="15" FontWeight="Bold"/);
-  assert.equal((chat.match(/Width="140" Height="140"/g) || []).length, 6);
+  const tiles = chat.match(/<Button x:Name="Attachment\w+Button"[\s\S]*?<\/Button>/g) || [];
+  assert.equal(tiles.length, 6);
+  for (const tile of tiles) {
+    assert.match(tile, /Height="150"/, "the reference tiles are square and 150 px high");
+    assert.match(tile, /HorizontalAlignment="Stretch"/, "the three columns fill the sheet");
+    assert.match(tile, /Background="\{StaticResource WhatsAppAccentBrush\}"/);
+    assert.match(tile, /HorizontalAlignment="Left" VerticalAlignment="Bottom"/, "the label sits at the bottom-left");
+  }
+  assert.match(chat, /attach-picture\.png/, "Albums keeps the picture mark");
+  assert.match(chat, /attach-camera\.png/, "Photo is the camera, not a second picture mark");
   assert.match(chat, /<Grid Grid\.Row="4" Background="#FF222222" MinHeight="64">/);
   assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
 });
