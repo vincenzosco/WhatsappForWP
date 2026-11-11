@@ -85,8 +85,11 @@ test('a new pairing clears account-scoped memory before the next login', () => {
   assert.match(prefs, /public static void Clear\(\)[\s\S]*?Known\.Clear\(\)/);
   assert.match(native, /_seen\.Clear\(\)[\s\S]*?_chats\.Reset\(\)[\s\S]*?_appStateKeys\.Clear\(\)/);
   assert.match(chats, /public void Reset\(\)[\s\S]*?_rows\.Clear\(\)[\s\S]*?_seen\.Clear\(\)/);
-  const paired = pair.slice(pair.indexOf('Credentials paired ='), pair.indexOf('Deployment.Current.Dispatcher.BeginInvoke(NavigateHomeAfterPairing)'));
-  assert.ok(paired.indexOf('ResetForNewAccountAsync') < paired.indexOf('NativeConnection.Instance.RestartAsync()'));
+  const paired = pair.slice(pair.indexOf('Credentials paired ='), pair.indexOf('Guarded.RunGuardedAsync("PairPage/login"'));
+  assert.ok(paired.indexOf('ResetForNewAccountAsync') < paired.indexOf('_store.Save(paired)'),
+    'the account-scoped memory is cleared before the new account is written');
+  assert.ok(pair.indexOf('_store.Save(paired)') < pair.indexOf('Guarded.RunGuardedAsync("PairPage/login"'),
+    'and the login that reads it starts after the account is stored');
 });
 
 test('chat sync order remains based on valid recent activity, not type or arrival order', () => {

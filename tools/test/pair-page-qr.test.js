@@ -37,11 +37,15 @@ test('a successful pairing saves the account then navigates from QR to chats', (
   const run = bodyAt(code, 'private async Task RunAsync()');
   const paired = run.indexOf('if (paired == null)');
   const save = run.indexOf('_store.Save(paired);');
-  const restart = run.indexOf('NativeConnection.Instance.RestartAsync()');
+  const restart = run.indexOf('Guarded.RunGuardedAsync("PairPage/login"');
   const dispatch = run.indexOf('Dispatcher.BeginInvoke(NavigateHomeAfterPairing)');
   const navigation = bodyAt(code, 'private void NavigateHomeAfterPairing()');
-  assert.ok(paired >= 0 && save > paired && restart > save && dispatch > restart,
-    'success must save the paired account, restart its login, and dispatch navigation to HomePage');
+  assert.ok(paired >= 0 && save > paired && dispatch > save && restart > dispatch,
+    'success must save the account, move to HomePage, and only then start the login in the background');
+  assert.match(run, /ShowLinked\(\)/);
+  const linked = bodyAt(code, 'private void ShowLinked()');
+  assert.match(linked, /QrFrame\.Visibility = Visibility\.Collapsed/,
+    'the accepted code must come off the screen before the page leaves');
   assert.match(run, /pair: server accepted the scan/);
   assert.match(navigation, /PhoneApplicationFrame frame = Application\.Current == null[\s\S]*?Application\.Current\.RootVisual as PhoneApplicationFrame/);
   assert.match(navigation, /frame\.Navigate\(destination\)/);

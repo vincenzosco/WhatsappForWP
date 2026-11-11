@@ -155,16 +155,18 @@ namespace WhatsappApp.Pages
 
             try
             {
+                Uri destination = new Uri("/Pages/HomePage.xaml?paired=1", UriKind.Relative);
+
                 PhoneApplicationFrame frame = Application.Current == null
                     ? null : Application.Current.RootVisual as PhoneApplicationFrame;
-                if (frame == null)
-                {
-                    throw new InvalidOperationException("The Silverlight root frame is unavailable after pairing.");
-                }
 
-                Uri destination = new Uri("/Pages/HomePage.xaml?paired=1", UriKind.Relative);
+                // The root frame is the way in from a page that is still in the tree; the
+                // page's own navigation service is the second way, for a shell that hands
+                // out a different root visual.
                 Diag.Ok("pair: requesting HomePage navigation on the UI dispatcher");
-                bool accepted = frame.Navigate(destination);
+                bool accepted = frame != null
+                    ? frame.Navigate(destination)
+                    : NavigationService != null && NavigationService.Navigate(destination);
                 Diag.Ok("pair: HomePage navigation accepted: " + accepted);
                 if (!accepted)
                 {
@@ -180,6 +182,30 @@ namespace WhatsappApp.Pages
                 ErrorText.Visibility = Visibility.Visible;
                 RetryButton.Visibility = Visibility.Collapsed;
             }
+        }
+
+        /// <summary>
+        /// The account is linked, so the code comes off the screen at once: a page that is
+        /// about to leave must not keep showing a code the server has already accepted.
+        /// </summary>
+        private void ShowLinked()
+        {
+            StopRotation();
+            ReleaseScreenOn();
+
+            QrImage.Source = null;
+            QrImage.Visibility = Visibility.Collapsed;
+            QrFrame.Visibility = Visibility.Collapsed;
+            ExpiredText.Visibility = Visibility.Collapsed;
+            WaitingText.Visibility = Visibility.Collapsed;
+            RetryButton.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>The login that follows a link, kept as a method so `Guarded` can hold
+        /// its fault: nobody on this page waits for it any more.</summary>
+        private Task RestartLoginAsync()
+        {
+            return NativeConnection.Instance.RestartAsync();
         }
 
         private void RetryButton_Click(object sender, RoutedEventArgs e)
@@ -289,25 +315,21 @@ namespace WhatsappApp.Pages
                 // no longer this phone's problem.
                 SessionState.Expired = false;
 
-                // And the login that makes the link real. The server drops the pairing
-                // connection after `pair-device-sign` (the reference calls it
-                // `expectDisconnect`), and a device that stops here is a device WhatsApp's
-                // own side reports as failed to link - which is what the phone showed on
-                // 2026-10-10 (see NativeConnection).
+                // The screen moves now, and the login follows it.
                 //
-                // `Start` is not enough: when this phone was already linked the loop is
-                // still running with the credentials it read at its own start, and the
-                // new account would never be logged in. A restart closes that loop and
-                // opens the stored account it has just saved.
-                await NativeConnection.Instance.RestartAsync();
-
+                // `RestartAsync` opens the new account, and the server answers `success`
+                // over the network. Waiting for that before navigating left the code on
+                // this page for as long as the login took, and any failure in the wait
+                // went to the error line below: the account saved and the link real, the
+                // phone still on the QR. The restart keeps its own fault here, and the
+                // home page is the screen that reports a login that did not complete.
                 Diag.Ok("whatsapp: linked as " + paired.Jid);
                 Diag.Ok("pair: server accepted the scan");
 
-                // Pairing completes on the async continuation, which can resume away
-                // from the Silverlight UI thread. Schedule the root-frame navigation
-                // on the dispatcher so it is not lost while this page is still live.
+                ShowLinked();
                 Deployment.Current.Dispatcher.BeginInvoke(NavigateHomeAfterPairing);
+
+                Guarded.RunGuardedAsync("PairPage/login", RestartLoginAsync);
             }
             catch (Exception error)
             {
