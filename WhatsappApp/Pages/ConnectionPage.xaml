@@ -54,7 +54,7 @@
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="24,16,24,16">
                 <TextBlock x:Name="LinkedLabel" Foreground="White"
-                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold"/>
+                           FontSize="24"/>
 
                 <Border x:Name="NumberPanel"
                         Margin="0,6,0,0" Visibility="Collapsed">
@@ -64,14 +64,14 @@
                 </Border>
 
                 <TextBlock x:Name="AccountHintText" Foreground="#FFB0B0B0"
-                           FontSize="13" TextWrapping="Wrap"
+                           FontSize="20" TextWrapping="Wrap"
                            Visibility="Collapsed" Margin="0,6,0,0"/>
 
                 <TextBlock x:Name="StatusLabel" Foreground="White"
-                           FontSize="24" FontWeight="SemiBold" FontFamily="Segoe WP Semibold" Margin="0,20,0,0"/>
+                           FontSize="24" Margin="0,20,0,0"/>
 
                 <TextBlock x:Name="StatusText" Foreground="White"
-                           FontSize="18" FontFamily="Segoe WP Semilight" TextWrapping="Wrap" Margin="0,6,0,0"/>
+                           FontSize="24" TextWrapping="Wrap" Margin="0,6,0,0"/>
 
                 <Button x:Name="LinkDeviceButton" Content=""
                         Background="{StaticResource WhatsAppAccentBrush}" Foreground="White"
@@ -81,7 +81,7 @@
                         Click="LinkDeviceButton_Click"/>
 
                 <TextBlock x:Name="LinkDeviceHint" Foreground="#FFB0B0B0"
-                           FontSize="13" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                           FontSize="20" TextWrapping="Wrap" Margin="0,8,0,0"/>
             </StackPanel>
         </ScrollViewer>
     </Grid>
