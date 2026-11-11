@@ -227,6 +227,46 @@ function xamlProblems(text, file) {
   return problems;
 }
 
+/** Every `x:Key` of a document, in the order it appears. */
+function keysOf(text) {
+  const found = [];
+  const token = /x:Key="([^"]+)"/g;
+  let match;
+  while ((match = token.exec(text)) !== null) found.push(match[1]);
+  return found;
+}
+
+/**
+ * The resource keys the pages must not hide: a page's own dictionary wins over
+ * the application's, so the same `x:Key` in a page replaces the shared entry in
+ * silence - the page draws its copy and nobody sees the difference until the
+ * shared one is changed and this screen ignores it.
+ */
+function resourceKeyProblems(applicationText, documents) {
+  const problems = [];
+  const application = keysOf(applicationText);
+  const known = new Set();
+
+  for (const key of application) {
+    if (known.has(key)) {
+      problems.push(`App.xaml: x:Key="${key}" is declared twice in the application dictionary`);
+    }
+    known.add(key);
+  }
+
+  for (const document of documents) {
+    for (const key of keysOf(document.text)) {
+      if (known.has(key)) {
+        problems.push(`${document.file}: x:Key="${key}" shadows the key of the same name in `
+          + 'App.xaml: a page resource wins over the application one, so the shared copy '
+          + 'is never used');
+      }
+    }
+  }
+
+  return problems;
+}
+
 function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
@@ -242,20 +282,27 @@ function walk(dir, out) {
 function main() {
   const problems = [];
   const files = walk(APP, []);
+  const application = path.resolve(path.join(APP, 'App.xaml'));
+  const applicationText = fs.existsSync(application) ? fs.readFileSync(application, 'utf8') : '';
+  const documents = [];
 
   for (const file of files) {
     const rel = path.relative(ROOT, file).replace(/\\/g, '/');
-    problems.push(...xamlProblems(fs.readFileSync(file, 'utf8'), rel));
+    const xaml = fs.readFileSync(file, 'utf8');
+    problems.push(...xamlProblems(xaml, rel));
+    if (path.resolve(file) !== application) documents.push({ file: rel, text: xaml });
   }
+
+  problems.push(...resourceKeyProblems(applicationText, documents));
 
   if (problems.length) {
     console.log(problems.join('\n'));
     console.log(`\n${problems.length} XAML problem(s).`);
     process.exit(1);
   }
-  console.log(`OK: ${files.length} XAML file(s) are well formed.`);
+  console.log(`OK: ${files.length} XAML file(s) are well formed, and no page hides a key of App.xaml.`);
 }
 
 if (require.main === module) main();
 
-module.exports = { xamlProblems };
+module.exports = { xamlProblems, resourceKeyProblems };

@@ -37,7 +37,7 @@ node tools/check-history-sync.js  # the sync's messages reach the app marked as 
 node tools/check-notification-ack.js  # a notification that carries an id is acknowledged before it is read
 node tools/check-client-state.js  # the login is completed with the active iq, and the notification channel is read instead of dropped
 node tools/check-diagnostics.js   # the run is on disk, the crash report reads the marker, and the history wait is not shorter than the read
-node tools/check-xaml.js        # every XAML opens and closes in order, attributes are quoted, no bare &
+node tools/check-xaml.js        # every XAML opens and closes in order, attributes are quoted, no bare &, no page hides a key of App.xaml
 node tools/check-xaml-names.js  # a x:Name is used once in one namescope
 node tools/check-attachment-file.js  # each attachment copies to its own name, and the player reloads the bubble it was asked for
 node tools/check-lid-names.js  # a LID is never printed as a phone number, the rule is asked before digits, and no device JID is composed by hand

@@ -5,7 +5,9 @@
 
 const test = require('node:test');
 const assert = require('node:assert');
-const { xamlProblems } = require('../check-xaml.js');
+const fs = require('fs');
+const path = require('path');
+const { xamlProblems, resourceKeyProblems } = require('../check-xaml.js');
 
 const problems = (xaml) => xamlProblems(xaml, 'prova.xaml').join('\n');
 
@@ -68,6 +70,38 @@ test('una & nuda nel testo o in un valore e un problema', () => {
 
 test('un < dentro un valore e un problema', () => {
   assert.match(problems('<Page Width="a < b"/>\n</Page>'), /carries a </);
+});
+
+test('una pagina che ridichiara una chiave di App.xaml la nasconde', () => {
+  const application = '<ResourceDictionary><Style x:Key="Bar"/></ResourceDictionary>';
+  const page = '<Page><Page.Resources><Style x:Key="Bar"/></Page.Resources></Page>';
+
+  const found = resourceKeyProblems(application, [{ file: 'Pagina.xaml', text: page }]).join('\n');
+  assert.match(found, /Pagina\.xaml: x:Key="Bar" shadows the key of the same name in App\.xaml/);
+});
+
+test('chiavi diverse fra applicazione e pagina non sono un problema', () => {
+  const application = '<ResourceDictionary><Style x:Key="Bar"/></ResourceDictionary>';
+  const page = '<Page><Page.Resources><Style x:Key="Row"/></Page.Resources></Page>';
+
+  assert.deepStrictEqual(resourceKeyProblems(application, [{ file: 'Pagina.xaml', text: page }]), []);
+});
+
+test('la stessa chiave due volte nel dizionario dell applicazione e un problema', () => {
+  const application = '<ResourceDictionary><Style x:Key="Bar"/><Style x:Key="Bar"/></ResourceDictionary>';
+
+  assert.match(resourceKeyProblems(application, []).join('\n'), /declared twice/);
+});
+
+test('i due stili della barra vivono solo in App.xaml, non nelle pagine', () => {
+  const root = path.join(__dirname, '..', '..');
+  const application = fs.readFileSync(path.join(root, 'WhatsappApp/App.xaml'), 'utf8');
+  const documents = ['HomePage', 'ChatPage'].map((name) => ({
+    file: 'WhatsappApp/Pages/' + name + '.xaml',
+    text: fs.readFileSync(path.join(root, 'WhatsappApp/Pages', name + '.xaml'), 'utf8')
+  }));
+
+  assert.deepStrictEqual(resourceKeyProblems(application, documents), []);
 });
 
 test('l ordine dei tag conta, non solo il numero', () => {
