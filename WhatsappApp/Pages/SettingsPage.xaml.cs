@@ -24,13 +24,14 @@ namespace WhatsappApp.Pages
         public SettingsPage()
         {
             InitializeComponent();
-            AutomationProperties.SetName(BackButton, Loc.Get("ChatPage_BackTooltip", "Back"));
 
-            TitleText.Text = Loc.Get("Settings_Title.Text", "Settings").ToUpper(CultureInfo.CurrentCulture);
-            ThemeLabel.Text = Loc.Get("Settings_ThemeLabel.Text", "Theme").ToLower(CultureInfo.CurrentCulture);
+            string pageTitle = Loc.Get("Settings_Title.Text", "Settings");
+            BrandText.Text = pageTitle.ToUpper(CultureInfo.CurrentCulture);
+            TitleText.Text = pageTitle.ToLower(CultureInfo.CurrentCulture);
+            ThemeLabel.Text = Loc.Get("Settings_ThemeLabel.Text", "Theme").ToUpper(CultureInfo.CurrentCulture);
             ThemeHint.Text = Loc.Get("Settings_ThemeHint.Text",
                 "The background of chats and of the list. The choice applies to the whole app.");
-            AlertsLabel.Text = Loc.Get("Settings_AlertsLabel.Text", "Notifications").ToLower(CultureInfo.CurrentCulture);
+            AlertsLabel.Text = Loc.Get("Settings_AlertsLabel.Text", "Notifications").ToUpper(CultureInfo.CurrentCulture);
             AlertsHint.Text = Loc.Get("Settings_AlertsHint.Text",
                 "Which alerts show up in the notification area. The tile and the number on the icon do not change.");
             MessagesLabel.Text = Loc.Get("Settings_AlertsMessages.Text", "Messages")
@@ -39,12 +40,12 @@ namespace WhatsappApp.Pages
                 .ToUpper(CultureInfo.CurrentCulture);
             CallsLabel.Text = Loc.Get("Settings_AlertsCalls.Text", "Missed calls")
                 .ToUpper(CultureInfo.CurrentCulture);
-            BackgroundLabel.Text = Loc.Get("Settings_BackgroundLabel.Text", "Background check").ToLower(CultureInfo.CurrentCulture);
+            BackgroundLabel.Text = Loc.Get("Settings_BackgroundLabel.Text", "Background check").ToUpper(CultureInfo.CurrentCulture);
             BackgroundHint.Text = Loc.Get("Settings_BackgroundHint.Text",
                 "If Windows allows it, the app wakes about every 30 minutes to check messages and update the tile and lock screen. Windows chooses the exact time and may delay or skip a check.");
             BackgroundState.Text = Loc.Get("Settings_BackgroundState.Text",
                 "The phone does not allow apps to work in the background: the check will not wake until you turn it back on in the phone's settings.");
-            AccountLabel.Text = Loc.Get("Settings_AccountLabel.Text", "Account").ToLower(CultureInfo.CurrentCulture);
+            AccountLabel.Text = Loc.Get("Settings_AccountLabel.Text", "Account").ToUpper(CultureInfo.CurrentCulture);
             AccountHint.Text = Loc.Get("Settings_AccountHint.Text",
                 "The linked number, the state of the connection and linking another phone.");
             AccountButton.Content = Loc.Get("Settings_AccountButton.Content", "Account and connection");
@@ -171,13 +172,6 @@ namespace WhatsappApp.Pages
             NavigationService.Navigate(new Uri("/Pages/ConnectionPage.xaml", UriKind.Relative));
         }
 
-        private void BackButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (NavigationService.CanGoBack)
-                NavigationService.GoBack();
-            else
-                NavigationService.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
-        }
     }
 
     public sealed class ThemePlainSampleConverter : IValueConverter
