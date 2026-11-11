@@ -22,7 +22,11 @@ test('chat composer follows the four-column XAP layout with the active action at
   const input = namedElement(xaml, 'MessageTextBox');
   const send = namedElement(xaml, 'SendButton');
   const emoji = namedElement(xaml, 'SmileyButton');
-  const inputRowStart = xaml.indexOf('<Grid Grid.Row="1">', xaml.indexOf('<!-- Input row -->'));
+  // The row carries the bar's 64 px height now, so the marker finds it and the
+  // declared height is part of the contract pinned by xap-reference-layout.
+  const inputRow = /<!-- Input row[\s\S]{0,400}?<Grid Grid\.Row="1" Height="64">/.exec(xaml);
+  assert.ok(inputRow, 'the composer row is the 64 px line under the conversation');
+  const inputRowStart = inputRow.index + inputRow[0].indexOf('<Grid');
   const inputPanelEnd = xaml.indexOf('<!-- The voice-note player', inputRowStart);
   const inputPanel = xaml.slice(inputRowStart, inputPanelEnd);
   const definitionsStart = inputPanel.indexOf('<Grid.ColumnDefinitions>');

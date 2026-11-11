@@ -88,6 +88,24 @@ test('the attach media panel is the reference bottom sheet above the action bar'
   assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
 });
 
+test('the composer sits on the 64 px line of the bar, flush to the right edge', () => {
+  // The reference: the microphone has no circle and the same 64 px square as a
+  // circle of the bar, the field fills the rest of the line to the screen edge, and
+  // the tail hangs under that corner.
+  assert.match(chat, /<!-- Input row[\s\S]{0,400}?<Grid Grid\.Row="1" Height="64">/);
+
+  const record = named(chat, 'RecordButton');
+  assert.match(record, /Width="64" Height="64"/);
+  assert.match(record, /Margin="0"/);
+  assert.match(chat, /x:Name="RecordButton"[\s\S]{0,400}?inputbar-mic\.png"[^>]*Width="26" Height="26"/);
+
+  const bubble = named(chat, 'InputBubble');
+  assert.match(bubble, /Margin="0,8,0,8"/, 'the field is inset 8 px above and below, and flush on both sides');
+
+  const tail = /<Path Fill="#FFCCCCCC" Width="10" Height="8"[\s\S]{0,200}?Margin="0,0,0,0"/.exec(chat);
+  assert.ok(tail, 'the tail hangs at the right edge, under the field');
+});
+
 test('the ring bar is defined once, for the home page and the chat alike', () => {
   const application = fs.readFileSync(path.join(root, 'WhatsappApp/App.xaml'), 'utf8');
 

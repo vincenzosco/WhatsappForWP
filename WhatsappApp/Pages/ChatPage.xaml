@@ -818,27 +818,33 @@
                            Foreground="#FFE0E8E8" FontSize="13"/>
             </Grid>
 
-            <!-- Input row -->
-            <Grid Grid.Row="1">
+            <!-- Input row: the 64 px line of the bar below, so the microphone's centre
+                 sits on the same line as the centres of the circles, and the field fills
+                 the width to the right edge with its tail hanging under that corner. -->
+            <Grid Grid.Row="1" Height="64">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
+                <!-- The microphone owns the same 64 px square as a circle of the bar:
+                     its centre then lines up with theirs, and the glyph is the
+                     reference's 26 px microphone with no circle around it. -->
                 <Button x:Name="RecordButton" Grid.Column="0"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
+                        Width="64" Height="64" BorderThickness="0" Padding="0"
+                        Margin="0"
                         Click="RecordButton_Click">
                     <Image Source="/Assets/Reference/ThemeDark/inputbar-mic.png"
-                           Width="24" Height="24" Stretch="Uniform" RenderTransformOrigin="0.156,0.038"/>
+                           Width="26" Height="26" Stretch="Uniform"
+                           RenderTransformOrigin="0.156,0.038"/>
                 </Button>
                 <Button x:Name="StopRecordButton" Grid.Column="0"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
-                        Width="48" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4"
+                        Width="64" Height="64" BorderThickness="0" Padding="0"
+                        Margin="0"
                         Visibility="Collapsed"
                         Click="StopRecordButton_Click">
                     <Path Fill="#FFE53935" Width="20" Height="20">
@@ -859,13 +865,13 @@
                 <Button x:Name="MentionButton" Grid.Column="1"
                         Background="Transparent"
                         MinWidth="0" MinHeight="0"
-                        Width="40" Height="48" BorderThickness="0" Padding="0"
-                        Margin="0,4,0,4" Visibility="Collapsed"
+                        Width="40" Height="64" BorderThickness="0" Padding="0"
+                        Margin="0" Visibility="Collapsed"
                         Content="@" FontSize="20" Foreground="White"
                         Click="MentionButton_Click"/>
 
                 <Grid Grid.Column="2">
-                    <Border x:Name="InputBubble" Margin="0,0,4,0" Background="#FFCCCCCC" CornerRadius="0">
+                    <Border x:Name="InputBubble" Margin="0,8,0,8" Background="#FFCCCCCC" CornerRadius="0">
                         <Grid>
                             <TextBlock x:Name="MessagePlaceholderText"
                                Text=""
@@ -906,7 +912,7 @@
                      end of the speech-shaped input box. -->
                     <Path Fill="#FFCCCCCC" Width="10" Height="8"
                       HorizontalAlignment="Right" VerticalAlignment="Bottom"
-                      Margin="0,0,2,0" IsHitTestVisible="False">
+                      Margin="0,0,0,0" IsHitTestVisible="False">
                         <!-- IconBubbleTail -->
                         <Path.Data>
                             <PathGeometry>
