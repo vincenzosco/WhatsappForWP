@@ -7,6 +7,7 @@
     xmlns:controls="clr-namespace:WhatsappApp.Controls"
     xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone"
     Background="Black" Orientation="Portrait"
+    shell:SystemTray.IsVisible="True"
 >
 
     <phone:PhoneApplicationPage.Resources>
@@ -20,7 +21,6 @@
                 <shell:ApplicationBarMenuItem x:Uid="Home_ReadAllAppBarMenuItem" Text="Read all chats" Click="ReadAllAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllAppBarMenuItem_Click"/>
-
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
         <shell:ApplicationBar x:Key="StatusApplicationBar" IsVisible="True" IsMenuEnabled="True">
@@ -162,8 +162,6 @@
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Visibility="Collapsed"/>
         <Rectangle Grid.RowSpan="3" Fill="#D9000000"/>
 
-        <controls:TabHeader x:Name="Header" Grid.Row="0"/>
-
         <Grid Grid.Row="1">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
@@ -205,10 +203,13 @@
             </Border>
 
             <phone:Pivot x:Name="Sections" Grid.Row="2" Background="Transparent"
-                          SelectionChanged="Sections_SelectionChanged">
-                <phone:PivotItem Header=" ">
-                    <Grid Background="Transparent">
-                        <phone:LongListSelector x:Name="ChatListView" Background="Transparent" Margin="24,0,0,0"
+                          SelectionChanged="Sections_SelectionChanged" Title="WHATSAPP">
+                <phone:PivotItem>
+                    <phone:PivotItem.Header>
+                        <TextBlock Text="chats"/>
+                    </phone:PivotItem.Header>
+                    <Grid Background="Transparent" Margin="12,0,12,0">
+                        <phone:LongListSelector x:Name="ChatListView" Background="Transparent" Margin="0,0,0,0"
                                                 SelectionChanged="ChatListView_SelectionChanged">
                             <phone:LongListSelector.ItemTemplate>
                                 <DataTemplate>
@@ -293,11 +294,11 @@
                         </StackPanel>
                     </Grid>
                 </phone:PivotItem>
-                <phone:PivotItem Header=" ">
-                    <controls:StatusPane x:Name="StatusView"/>
+                <phone:PivotItem Header="statuses">
+                    <controls:StatusPane Margin="12,0,12,0" x:Name="StatusView"/>
                 </phone:PivotItem>
-                <phone:PivotItem Header=" ">
-                    <controls:CallsPane x:Name="CallsView"/>
+                <phone:PivotItem Header="calls">
+                    <controls:CallsPane Margin="12,0,12,0" x:Name="CallsView"/>
                 </phone:PivotItem>
             </phone:Pivot>
         </Grid>
