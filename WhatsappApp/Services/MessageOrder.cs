@@ -4,38 +4,37 @@ using System.Collections.Generic;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Where a message goes in a conversation, as a rule of its own.
+    /// Decides where a message goes inside a conversation.
     ///
-    /// A conversation is filled by four different
-    /// arrivals - a message written here, one that arrives live, the history sync, and the
-    /// echo of something another device of this account sent - and only the history was
-    /// inserted by time. The other three appended, so a message older than the last one on
-    /// screen sat at the bottom: the conversation opened with yesterday's
-    /// rows under today's, and the history arriving afterwards was sorted by a scan that
-    /// assumes the list is already in order.
+    /// A conversation on screen is a list of messages in time order. A new message can
+    /// arrive three ways - it is typed here, it arrives live, or it comes from the history
+    /// download - and it must land in the right place in that list, not simply at the end.
+    /// Otherwise a message from yesterday would appear under today's messages.
     ///
-    /// It is here, with no WinRT type in it, because it is the one part of that worth a
-    /// test: `ProtocolTests/MessageOrderTests.cs` compiles this file by name.
+    /// This file has no phone-specific types on purpose, so a plain C# test can compile it:
+    /// see `ProtocolTests/MessageOrderTests.cs`.
     /// </summary>
     public static class MessageOrder
     {
         /// <summary>
-        /// The index `moment` belongs at: after every message stamped at or before it, wherever
-        /// that one is.
+        /// The position `moment` should have in a list of message times.
         ///
-        /// Two properties, and both are the point:
+        /// The answer is "after the last message that is not newer than this one". Two
+        /// details matter:
         ///
-        /// - **at or before**, so two messages of the same second keep the order they arrived
-        /// in - the sync writes whole seconds, and a `<` would put each of them ahead of the
-        /// one before it;
-        /// - **wherever that one is**, so the answer does not depend on the list already being
-        /// sorted. The phone that opened on yesterday under today was already mixed, and an
-        /// insertion that stopped at the first newer row would keep it mixed for ever.
+        /// - `&lt;=` and not `&lt;`: when two messages have the same time (the history
+        ///   download only stores whole seconds, so this happens often), the newer arrival
+        ///   still goes after the older one, keeping the order they were received in;
+        /// - the whole list is scanned: the answer must not depend on the list already being
+        ///   sorted, because a list read back from the phone may be mixed up.
         /// </summary>
         public static int InsertIndex(IList<DateTime> times, DateTime moment)
         {
+            // No list at all: the message is the first one.
             if (times == null) return 0;
 
+            // Start at the top; every time we find a message that is not newer, remember
+            // "just after it". The last hit wins, which is what "after the last one" means.
             int index = 0;
             for (int i = 0; i < times.Count; i++)
             {
@@ -46,36 +45,40 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The order the rows should be in, as indices into `times`, and stable where two
-        /// times are the same.
+        /// The order rows should have, expressed as positions in `times`.
         ///
-        /// This is the other half of the rule above: `InsertIndex` keeps a tie in arrival
-        /// order as rows arrive, and this keeps it when a conversation is read back and
-        /// put in order. It used to be `List&lt;T&gt;.Sort`, which does not promise that -
-        /// and the history sync writes whole seconds, so ties are the normal case, not the
-        /// exception. A conversation being read back is nearly in order already, so the
-        /// insertion sort is close to linear on the path that matters.
+        /// For example, if the times are 10:02, 10:00, 10:00, the answer is 1, 2, 0: the row
+        /// at position 1 comes first, then the row at position 2, then the row at position 0.
+        /// Two rows with the same time keep the order they already have (a "stable" sort).
+        ///
+        /// This is an insertion sort: it walks the list once and slides each row left until it
+        /// meets a row that is not newer. On a list that is already nearly in order - the usual
+        /// case when a conversation is read back from the phone - it is almost free.
         /// </summary>
         public static int[] StableOrder(IList<DateTime> times)
         {
             if (times == null) return new int[0];
 
+            // `order` starts as "no change": position i holds the row i.
             var order = new int[times.Count];
             for (int i = 0; i < order.Length; i++) order[i] = i;
 
+            // Position 0 cannot move left, so the loop starts at 1.
             for (int i = 1; i < order.Length; i++)
             {
                 int moving = order[i];
                 int at = i - 1;
 
-                // Strictly greater: a row of the same time stays behind the one that
-                // arrived before it.
+                // Slide the rows that are strictly newer one place to the right, opening the
+                // hole where `moving` belongs. "Strictly" `>` and not `>=` is what keeps two
+                // rows of the same time in their original order.
                 while (at >= 0 && times[order[at]] > times[moving])
                 {
                     order[at + 1] = order[at];
                     at--;
                 }
 
+                // `at` is now the row just before the hole, so the hole is `at + 1`.
                 order[at + 1] = moving;
             }
 

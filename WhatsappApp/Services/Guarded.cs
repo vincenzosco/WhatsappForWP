@@ -4,25 +4,21 @@ using System.Threading.Tasks;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// Awaits a task nobody can wait for, and keeps the fault.
+    /// Runs async work that nobody waits for, and writes its failure to the log.
     ///
-    /// `StartRecordingAsync()` was called without await inside a
-    /// `#pragma warning disable 4014`, and an exception thrown at that call site
-    /// went into a Task nobody observed. The tap did nothing, no sentence
-    /// appeared, and no DIAG line appeared either: a failure that was invisible
-    /// in a log where everything else is visible. Every other fire-and-forget
-    /// call in the app had the same hole.
+    /// Calling an async method without `await` starts a task and drops it. If that task fails,
+    /// the exception sits inside a task that nobody reads, so the app shows nothing, logs
+    /// nothing, and the tap that started it looks like it did not work. These methods are the
+    /// answer: the work still runs in the background, but every failure is observed and
+    /// written to the log (`Diag`).
     ///
-    /// The rule that keeps it closed is machine-checked
-    /// (tools/check-fire-and-forget.js): a call fired without await either goes
-    /// through here, or the method it names answers for its own fault with a
-    /// catch.
+    /// The rule is checked by `tools/check-fire-and-forget.js`.
     /// </summary>
     public static class Guarded
     {
         /// <summary>
-        /// Starts work that has no awaiting caller and logs its fault. The delegate
-        /// keeps synchronous failures inside the same observation boundary.
+        /// Starts work that has no awaiting caller. The delegate is called inside the try, so
+        /// even a throw before the first await is caught and logged.
         /// </summary>
         public static async void RunGuarded(string where, Func<Task> work)
         {
@@ -38,8 +34,10 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// Runs the work and logs its fault. It never throws: the caller had no
-        /// way to observe it, which is the whole point.
+        /// Awaits an already-started task and logs its failure instead of throwing.
+        ///
+        /// It never throws: the caller had no way to observe the failure, which is exactly the
+        /// case this method exists for.
         /// </summary>
         public static async Task RunGuardedAsync(string where, Task work)
         {
@@ -56,14 +54,11 @@ namespace WhatsappApp.Services
         /// <summary>
         /// The same, for work that has not been started yet.
         ///
-        /// The Task overload observes the task it is given, not the call that
-        /// produced it: passing `FooAsync()` has already run FooAsync, and a
-        /// method that is not async - one that returns a Task without the async
-        /// modifier, or a factory like SerialQueue.RunAsync - can throw while
-        /// that argument is evaluated, before RunGuardedAsync is entered. This
-        /// overload takes the call as a delegate, so even that throw is caught.
-        /// An async method already captures its own faults in the returned Task,
-        /// so the English way (pass the task) is right for it.
+        /// The overload above receives a task, and building that argument already runs the
+        /// method: a method that can throw before its first await (a factory such as
+        /// `SerialQueue.RunAsync`, or an async method written without the `async` keyword)
+        /// would throw outside the try. This overload takes the call as a delegate and starts
+        /// it inside `StartGuarded`, so that throw is caught too.
         /// </summary>
         public static Task RunGuardedAsync(string where, Func<Task> work)
         {
@@ -75,6 +70,7 @@ namespace WhatsappApp.Services
             Task task;
             try
             {
+                // The call may throw right here, before any task exists.
                 task = work();
             }
             catch (Exception ex)

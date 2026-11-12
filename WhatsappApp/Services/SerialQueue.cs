@@ -4,36 +4,40 @@ using System.Threading.Tasks;
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// One thing at a time, in the order they arrive.
+    /// Runs async jobs one at a time, in the order they were handed in.
     ///
-    /// Half of this app's work is asynchronous, and much of it is
-    /// started without anyone awaiting it - a media write, a cache save, a handler
-    /// that was fired and not awaited. Two of those touching one resource
-    /// interleave: two writes of the same file land out of order (that bug was
-    /// fixed once in `ChatPreferences`), and two `StoreAsync` on one `DataWriter`
-    /// put one payload's bytes in front of the other's.
+    /// Many jobs in this app are asynchronous: saving a file, writing a cache, uploading
+    /// something. Two of them touching the same file at once would interleave and corrupt it.
+    /// This class keeps them in a single line: the next job starts only after the previous one
+    /// has finished.
     ///
-    /// Work enters here and runs to completion, in line: the queue is a chain of
-    /// Tasks, not a thread, so it costs nothing when empty. A piece that fails
-    /// does not stop the queue: the caller sees the failure, and the next piece
-    /// starts anyway.
+    /// It is not a thread: it is a chain of tasks. When nothing is queued it costs nothing, and
+    /// a job that fails does not block the ones behind it - the failure is given back to the
+    /// caller who queued it, and the line moves on.
     /// </summary>
     public sealed class SerialQueue
     {
+        // `_gate` guards `_tail` so two threads cannot append to the chain at the same time.
         private readonly object _gate = new object();
+
+        // `_tail` is the task that represents "everything queued so far". A new job is chained
+        // after it. It starts out already finished, so the first job runs immediately.
         private Task _tail = Done();
 
         private static Task Done()
         {
+            // A task that is already complete: `SetResult` finishes it. It is the empty
+            // starting point of the chain.
             var source = new TaskCompletionSource<bool>();
             source.SetResult(true);
             return source.Task;
         }
 
         /// <summary>
-        /// Queues the work and returns its outcome. The first piece runs
-        /// immediately if the queue is empty (ExecuteSynchronously), as a direct
-        /// call would.
+        /// Adds a job and returns a task that completes when that job completes.
+        ///
+        /// The caller can await the returned task to know the result, or ignore it. Either way
+        /// the queue keeps its order.
         /// </summary>
         public Task<T> RunAsync<T>(Func<Task<T>> work)
         {
@@ -42,13 +46,20 @@ namespace WhatsappApp.Services
             Task<T> next;
             lock (_gate)
             {
+                // Chain the job after `_tail`. `ContinueWith` means "when the previous task
+                // has finished, run this delegate". `ExecuteSynchronously` lets it run on the
+                // same thread when the previous task was already done, which is what makes an
+                // empty queue feel like a direct call. `Unwrap` turns Task&lt;Task&lt;T&gt;&gt;
+                // (the delegate returns a task) into a flat Task&lt;T&gt;.
                 next = _tail
                     .ContinueWith(delegate { return work(); },
                         TaskContinuationOptions.ExecuteSynchronously)
                     .Unwrap();
 
-                // The queue continues even if this piece fails: the exception
-                // stays in the returned Task, and is observed there.
+                // The chain continues even when this job fails: the exception stays inside
+                // `next`, where the caller can see it, and `_tail` only waits for the job to
+                // finish. Reading `.Exception` here is also what marks the failure as seen, so
+                // it is not reported as an unobserved task exception.
                 _tail = next.ContinueWith(
                     delegate(Task<T> finished) { AggregateException ignored = finished.Exception; },
                     TaskContinuationOptions.ExecuteSynchronously);
@@ -56,11 +67,13 @@ namespace WhatsappApp.Services
             return next;
         }
 
-        /// <summary>The same queue, for work that returns nothing.</summary>
+        /// <summary>The same queue, for jobs that return nothing.</summary>
         public Task RunAsync(Func<Task> work)
         {
             if (work == null) throw new ArgumentNullException("work");
 
+            // Wrap the void job into one that returns `true`, so there is only one queue
+            // implementation to understand and to fix.
             return RunAsync<bool>(async delegate
             {
                 await work();

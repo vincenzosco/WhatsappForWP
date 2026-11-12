@@ -1,79 +1,84 @@
 namespace WhatsappApp.Services
 {
     /// <summary>
-    /// The name a status row shows.
+    /// Picks the name to show on a status row.
     ///
-    /// A status arrives from an **author** the phone may know
-    /// only as an address - the `participant` of a `status@broadcast` message is often a
-    /// `@lid`, and a LID is fourteen digits that look like a phone number this phone has
-    /// never seen. `DataService.DisplayNameForJid` resolves what it can and falls back to
-    /// the address, which is right for a chat (a number is a name you can call) and wrong
-    /// for a status list: WhatsApp sends the poster's own name in the same stanza
-    /// (`notify`), so the list showed `+150375613116620` where the official app shows
-    /// "Rosalba" - the report.
+    /// Names are confusing here because WhatsApp identifies people by two different strings:
     ///
-    /// The rule is one sentence: what the phone resolved, unless that is the address
-    /// itself and the post carries a name of its own.
+    /// - a phone-number address such as `393401234567@s.whatsapp.net`, which a person can read;
+    /// - a `@lid`, a privacy address that is a long run of digits and belongs to nobody.
     ///
-    /// No WinRT types here: the desktop runner compiles this file by name
-    /// (`ProtocolTests/StatusNameTests.cs`), because it is the part of the row that is a
-    /// decision.
+    /// The chat list can live with an address (a number is still something you can call), but
+    /// a status row that shows fourteen digits looks broken. The post therefore carries its
+    /// author's own name (`notify`), and this class decides when to prefer it.
+    ///
+    /// The rule: show what the phone knows, unless what it knows is only the address and the
+    /// post brought a name of its own.
+    ///
+    /// A plain C# test compiles this file by name (`ProtocolTests/StatusNameTests.cs`).
     /// </summary>
     public static class StatusName
     {
         /// <summary>
-        /// The name to show. `resolved` is what the phone knows (a saved contact, a pair
-        /// learned from the sync, or the address as a last resort); `notified` is the
-        /// `notify` of the post, which is the poster's own word for themselves.
+        /// The name to display. `resolved` is what the phone knows (a saved contact, a name
+        /// learned from the sync, or the address itself); `notified` is the name the author
+        /// sent with the post.
         ///
-        /// Never throws and never returns null: an empty answer is an empty row, which the
-        /// caller's voice writes as its own.
+        /// It never throws and never returns null: an empty string means "no name", and the
+        /// caller decides what to write instead.
         /// </summary>
         public static string Choose(string resolved, string notified)
         {
             string known = Clean(resolved);
             string said = Clean(notified);
 
+            // One of the two is missing: the other one is the answer.
             if (known.Length == 0) return said;
             if (said.Length == 0) return known;
 
+            // Both exist: prefer what the phone knows, unless it is only an address.
             return LooksLikeAddress(known) ? said : known;
         }
 
         /// <summary>
-        /// Whether a name is really the address: a number with a `+`, a bare run of digits,
-        /// or the author's own user part. `+150375613116620` and `150375613116620` are both
-        /// the LID read out loud, and neither is a name.
+        /// True when `name` is really an address: a number with a `+`, a bare run of digits, or
+        /// the long identifier of a `@lid`. Neither is a name a person would recognise.
         /// </summary>
         public static bool LooksLikeAddress(string name)
         {
             string text = Clean(name);
             if (text.Length == 0) return false;
 
+            // A leading plus is how a phone number is written: always an address.
             if (text[0] == '+') return true;
 
             int digits = 0;
             bool allDigits = true;
+
+            // Walk the characters and check that nothing but digits and separators appears.
             for (int i = 0; i < text.Length; i++)
             {
                 char c = text[i];
+
                 if (c >= '0' && c <= '9') { digits++; continue; }
 
-                // The separators a phone number is written with, and nothing else: a name
-                // with a space in it ("Rosalba 2") is a name.
+                // The punctuation people type inside phone numbers. A space alone is not
+                // enough to make a name an address: "Rosalba 2" still has letters.
                 if (c == ' ' || c == '-' || c == '(' || c == ')' || c == '.') continue;
 
+                // Anything else means this is a word, so it is a name.
                 allDigits = false;
                 break;
             }
 
             if (!allDigits) return false;
 
-            // A LID is fourteen digits and a number is at least seven: below that the run is
-            // a word ("007") and a word is a name.
+            // Seven digits is the shortest real phone number; "007" is a number in a film, not
+            // somebody's number. A LID is much longer and also passes this test.
             return digits >= 7;
         }
 
+        /// <summary>A null becomes an empty string, and stray spaces are removed at both ends.</summary>
         private static string Clean(string text)
         {
             if (text == null) return string.Empty;
