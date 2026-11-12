@@ -9,30 +9,29 @@ using WhatsappApp.Protocol.WABinary;
 namespace WhatsappApp.Protocol.Client
 {
     /// <summary>
-    /// One pairing attempt: connect, hand the server a fresh identity, show the codes it
-    /// issues, and turn the reply into an account.
+    /// One attempt at linking this phone to an account, from the first byte to the account itself.
     ///
-    /// It is two steps rather than one because the page has to show something in
-    /// between. <see cref="StartAsync"/> ends with the codes on screen;
-    /// <see cref="WaitForPairAsync"/> ends with an account or with nothing. A single
-    /// method that returned only the account would leave the screen blank for the half
-    /// minute a person needs to reach for their phone.
+    /// The job is split in two methods because something has to appear on screen in between:
     ///
-    /// The codes the server issues are a **list**, and they expire: the reference shows
-    /// one at a time, twenty seconds each and sixty when the server sent six, then gives
-    /// up. The page owns that rotation - the codes it already holds need no I/O - and
-    /// this class owns everything up to the first code and everything after the last.
+    /// - `StartAsync` connects, introduces this phone, and returns the strings that become the
+    ///   QR codes;
+    /// - `WaitForPairAsync` waits for the other phone to scan one of them and returns the
+    ///   account, or null when the codes ran out.
     ///
-    /// Nothing here trusts the reply. The account signature is checked against the
-    /// identity key the pairing started with, and the whole reply is authenticated with
-    /// the ADV secret, which only this client has; a reply that fails either check is an
-    /// exception, not a session.
+    /// Two safety ideas run through the whole file:
+    ///
+    /// - the reply from the server is checked before it is trusted (an HMAC with a secret only
+    ///   this phone has, and the account's own signature over this phone's key);
+    /// - an unread task is never left behind, because a failure nobody reads becomes a crash
+    ///   report about something that was actually an ordinary timeout.
     /// </summary>
     public sealed class PairingSession
     {
         /// <summary>The server that owns accounts and pairings.</summary>
         public const string ServerJid = "s.whatsapp.net";
 
+        // The connection, the identity this attempt uses, where to write log lines, and the
+        // source of random bytes.
         private readonly WhatsAppSocket _socket;
         private readonly Credentials _credentials;
         private readonly ILog _log;
@@ -47,6 +46,8 @@ namespace WhatsappApp.Protocol.Client
 
         public PairingSession(ITransport transport, Credentials credentials, ILog log, IRandomSource random)
         {
+            // Both are required: without an identity there is nothing to pair, and without
+            // randomness the keys would not be safe.
             if (credentials == null) throw new ProtocolException("a pairing session needs credentials to pair");
             if (random == null) throw new ProtocolException("a pairing session needs a source of randomness");
 
@@ -63,28 +64,32 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// Runs the handshake and waits for the server to ask for a pairing, then returns
-        /// the QR strings to show - one per code the server issued, in the order the
-        /// reference shows them.
+        /// Connects, performs the handshake, and waits for the server to ask for a pairing.
+        /// Returns one string per QR code, in the order the reference client shows them.
         ///
-        /// The request is acknowledged before the codes are handed out: the server waits
-        /// for that acknowledgement, and a client that showed a code without sending it
-        /// would be showing a code the server had already stopped waiting for.
+        /// The request is acknowledged before the codes are handed back: the server waits for
+        /// that acknowledgement, so a code shown without it would be a code the server had
+        /// already stopped waiting for.
         /// </summary>
         public async Task<IList<string>> StartAsync()
         {
             _log.Info("pair: starting secure WebSocket and Noise handshake");
+
+            // The handshake sets up encryption and proves the server's identity.
             await _socket.HandshakeAsync(WhatsAppSocket.DefaultUrl, _credentials);
             _log.Info("pair: Noise handshake completed; waiting for pair-device");
+
+            // From here the connection may stay quiet for minutes while the user fetches the
+            // other phone, so something has to keep it alive.
             StartKeepAlive();
 
+            // Read nodes until the pairing request arrives.
             while (true)
             {
                 BinaryNode node = await ReadAsync();
 
-                // The server's own liveness probe arrives here too, and it has to be
-                // answered before anything else: an unanswered probe is the server
-                // hanging up, and the codes on screen become codes nobody can use.
+                // The server's own liveness probe arrives here too, and it has to be answered
+                // before anything else: an unanswered probe is the server hanging up.
                 if (SessionKeepAlive.IsPing(node))
                 {
                     await AnswerPingAsync(node);
@@ -94,12 +99,13 @@ namespace WhatsappApp.Protocol.Client
                 BinaryNode pairDevice = node.Child("pair-device");
                 if (pairDevice == null)
                 {
-                    // Anything else on the way in is reported and stepped over: the
-                    // pairing request is what this method is waiting for.
+                    // Anything else on the way in is reported and stepped over: the pairing
+                    // request is what this method is waiting for.
                     _log.Info("whatsapp: <" + node.Tag + "> arrived before the pairing request");
                     continue;
                 }
 
+                // Tell the server we received the request, then turn its refs into QR strings.
                 await AcknowledgeAsync(node);
                 IList<string> codes = CodesFor(pairDevice, _credentials);
 
@@ -109,16 +115,14 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// Waits for the server to accept the pairing and returns the account.
+        /// Waits for the server to accept a scan and returns the account.
         ///
-        /// Returns null when the time runs out, and the session is over when it does:
-        /// the codes have expired by then, and the server drops a connection whose codes
-        /// nobody scanned. The caller shows the expiry message and starts a new session,
-        /// which is a new identity and a new set of codes - there is no way to revive
-        /// these.
+        /// Returns null when the time runs out, and the session is over when it does: the codes
+        /// have expired by then, so the caller must start again with a new identity.
         /// </summary>
         public async Task<Credentials> WaitForPairAsync(TimeSpan timeout)
         {
+            // A deadline instead of a timer: each loop asks how much time is left.
             DateTime deadline = DateTime.UtcNow.Add(timeout);
 
             while (true)
@@ -133,15 +137,15 @@ namespace WhatsappApp.Protocol.Client
 
                 Task<BinaryNode> next = _socket.ReadNodeAsync();
 
-                // A read that never answers is what a pairing that is never scanned looks
-                // like, so the wait is bounded here rather than only at the transport.
+                // A read that never answers is what a pairing nobody scanned looks like, so the
+                // wait is bounded here too: wait for the read and for the remaining time, and
+                // whichever finishes first decides.
                 if (await Task.WhenAny(next, Task.Delay(remaining)) != next)
                 {
                     _log.Info("whatsapp: the pairing timed out");
 
-                    // The read that lost the race is still pending, and `Close` faults it:
-                    // with nobody left to observe that fault it surfaces as an unobserved
-                    // task exception - a crash-report line for what is an ordinary timeout.
+                    // The read that lost the race is still pending, and `Close` will fault it.
+                    // Its failure is taken here so it is not reported as an unhandled exception.
                     Observe(next);
 
                     Close();
@@ -155,10 +159,8 @@ namespace WhatsappApp.Protocol.Client
                 }
                 catch (Exception error)
                 {
-                    // A transport that runs out of patience, or a server that drops a
-                    // connection whose codes nobody scanned, both look like this - and
-                    // both mean the same thing here: no pairing happened, and a new
-                    // session with new codes is what the caller needs.
+                    // A transport that gives up and a server that drops the connection both look
+                    // like this, and both mean the same here: no pairing happened.
                     _log.Info("whatsapp: the connection ended before the pairing: " + error.Message);
                     Close();
                     return null;
@@ -177,6 +179,7 @@ namespace WhatsappApp.Protocol.Client
             }
         }
 
+        /// <summary>Ends the connection on purpose. The keep-alive reads `_closed` and stops.</summary>
         public void Close()
         {
             _closed = true;
@@ -185,8 +188,7 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>
         /// One node, and the clock the keep-alive reads. Every read goes through here, so
-        /// "nothing has arrived for a ping interval" is a fact this class knows rather than
-        /// something each loop would have to remember to record.
+        /// "nothing has arrived for a while" is a fact this class records itself.
         /// </summary>
         private async Task<BinaryNode> ReadAsync()
         {
@@ -196,10 +198,10 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The answer to the server's probe, whichever of the two shapes it takes (see
-        /// `SessionKeepAlive.PingAnswer`). This is a frame and never an exception: a probe
-        /// that cannot be answered is a connection that is ending, and the reader says so a
-        /// line later - throwing here aborted a pairing that was working.
+        /// The answer to the server's probe, in whichever of the two shapes it takes (see
+        /// `SessionKeepAlive.PingAnswer`). This is a frame and never an exception: a probe that
+        /// cannot be answered means the connection is ending, and throwing here would abort a
+        /// pairing that was working.
         /// </summary>
         private Task AnswerPingAsync(BinaryNode ping)
         {
@@ -214,20 +216,11 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The ping that keeps a quiet connection a connection.
+        /// Sends a ping after a quiet period, so the server keeps the connection open.
         ///
-        /// It lives here and not only in the session that follows: pairing is the long
-        /// silence - a person has to fetch their phone, open WhatsApp and find the scanner,
-        /// which is minutes - and the reference (`whatsmeow/keepalive.go`) pings every 20 to
-        /// 30 seconds through exactly that. Without it the server probes and then closes: the
-        /// device run of 2026-10-10 was dropped about thirty seconds in, with the codes on
-        /// screen (`<iq type="get" t="." xmlns="urn:xmpp:ping">`, four bytes, `0x80072EFE`).
-        ///
-        /// It only **sends**, never reads: the two loops above are the only reader this socket
-        /// may have, and a second one would take the frames out of order. It answers for its
-        /// own fault as well, because a keep-alive that cannot go out is a connection that is
-        /// ending - the reader is the one that has to say so, and a fault nobody observes is
-        /// a crash report for an ordinary end.
+        /// It only sends, never reads: the two loops above are the only reader this socket may
+        /// have, and a second reader would take frames out of order. Its own failures are
+        /// caught here, because the reader is the one that reports the connection ending.
         /// </summary>
         private async Task KeepAliveAsync()
         {
@@ -250,10 +243,9 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// Takes the fault of a task nobody is going to await. Used for the read a timeout
-        /// abandons: the read is not cancelled - the socket is closed under it - and a
-        /// fault with no observer is reported as an unhandled failure instead of being the
-        /// timeout it already was.
+        /// Takes the fault of a task nobody is going to await. Without this, a read abandoned by
+        /// a timeout would fault with no observer and be reported as an unhandled failure,
+        /// instead of being the ordinary timeout it already was.
         /// </summary>
         private static void Observe(Task task)
         {
@@ -274,13 +266,12 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The codes, one string per `&lt;ref&gt;` the server sent. A node with no ref in
-        /// it is refused rather than shown as an empty QR: there is nothing to scan, and
-        /// the page cannot tell that apart from a code that is simply wrong.
+        /// The codes, one string per `&lt;ref&gt;` the server sent. A node with no ref is
+        /// refused rather than shown as an empty QR: there is nothing to scan, and the page
+        /// could not tell that apart from a code that is simply wrong.
         ///
-        /// A function of a node rather than of a connection, so the shape the server
-        /// sends is pinned by a test instead of by a live run that has already scrolled
-        /// away.
+        /// It is a function of a node rather than of a connection, so a test can pin the shape
+        /// the server sends.
         /// </summary>
         public static IList<string> CodesFor(BinaryNode pairDevice, Credentials credentials)
         {
@@ -299,6 +290,7 @@ namespace WhatsappApp.Protocol.Client
                     byte[] content = child.Bytes();
                     if (content == null || content.Length == 0) continue;
 
+                    // A ref plus this phone's keys become the text the QR encodes.
                     codes.Add(PairingQr.ForRefs(content, credentials));
                 }
             }
@@ -308,12 +300,12 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The account: check the reply, sign this device's half, tell the server, and
-        /// hand back the credentials with the account in them.
+        /// The account: check the reply, sign this device's half, tell the server, and hand back
+        /// the credentials with the account in them.
         ///
-        /// The order matters. The HMAC proves the reply was built for this device's ADV
-        /// secret; the account signature proves the details - including our identity key
-        /// - were signed by the account; only then is there anything worth signing back.
+        /// The order matters. The HMAC proves the reply was built for this phone's secret; the
+        /// account signature proves the details - including this phone's identity key - were
+        /// signed by the account. Only then is there anything worth signing back.
         /// </summary>
         private async Task<Credentials> AcceptAsync(BinaryNode request, BinaryNode pairSuccess)
         {
@@ -328,6 +320,8 @@ namespace WhatsappApp.Protocol.Client
 
             bool hosted = container.AccountType == AdvDeviceIdentity.Hosted;
 
+            // Compare the HMAC the server sent with the one this phone can compute. The
+            // comparison takes constant time, so an attacker cannot learn the secret by timing.
             byte[] expected = AdvSignatures.DetailsHmac(_credentials.AdvSecret, container.Details, hosted);
             if (container.Hmac == null || !Hmac.FixedTimeEquals(expected, container.Hmac))
             {
@@ -340,15 +334,13 @@ namespace WhatsappApp.Protocol.Client
                 throw new ProtocolException("the account's signature does not cover this device's identity key");
             }
 
+            // The account has signed this phone; now this phone signs its own details.
             identity.DeviceSignature = AdvSignatures.SignDevice(
                 identity, _credentials.IdentityPrivateKey, _credentials.IdentityPublicKey, hosted);
 
-            // Kept, because this is the only moment the server hands it over: every message
-            // that opens a session carries it (`OutgoingMessage.DeviceIdentity`), and a
-            // device that lost it cannot be trusted by a recipient it has never written to.
-            // The certificate form keeps the account's signature key - the server's own
-            // `pair-device-sign` leaves it out because the server already has it, a message
-            // to a peer does not have that luxury.
+            // Kept, because this is the only moment the server hands it over: every message that
+            // opens a session carries it, and a phone that lost it cannot be trusted by a
+            // recipient it has never written to.
             _credentials.DeviceIdentity = identity.Encode();
 
             BinaryNode device = pairSuccess.Child("device");
@@ -376,9 +368,8 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
-        /// The reply that ends the pairing: this device's signature over its own details,
-        /// with the account's signature key left out - the server put it there, it does
-        /// not need it back.
+        /// The reply that ends the pairing: this phone's signature over its own details, with the
+        /// account's signature key left out, because the server already has it.
         /// </summary>
         private Task SendDeviceSignatureAsync(string requestId, AdvSignedDeviceIdentity identity)
         {

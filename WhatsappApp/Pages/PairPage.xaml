@@ -5,7 +5,19 @@
     xmlns:phone="clr-namespace:Microsoft.Phone.Controls;assembly=Microsoft.Phone"
     Background="#FF000000" Orientation="Portrait">
 
+    <!--
+        A page is built from a tree of elements. `phone:PhoneApplicationPage` is the root of a
+        Windows Phone page; `x:Class` points at the code-behind file PairPage.xaml.cs, which is
+        the C# half of this same class.
+
+        The properties on the root, Orientation="Portrait" for example, are values for the whole
+        page. You can change them here in markup or in C# (`this.Orientation = ...`).
+    -->
     <Grid>
+        <!--
+            A Grid places children in rows and columns that you declare first. `Auto` means
+            "as tall as the content"; `*` means "take all the space that is left".
+        -->
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
@@ -13,30 +25,59 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
+        <!--
+            The wallpaper and the dark veil over it. `Grid.RowSpan="4"` says "cover all four
+            rows", so they sit behind everything else. The Rectangle is the veil: a black
+            rectangle at about eighty percent opacity (#CC000000).
+
+            `Stretch="UniformToFill"` scales the image to fill the area without distorting it,
+            cropping whatever does not fit.
+        -->
         <Image x:Name="PageWallpaper" Grid.RowSpan="4"
                Stretch="UniformToFill"
                HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
         <Rectangle Grid.RowSpan="4" Fill="#CC000000"/>
 
+        <!-- Row 0: the brand line and the big title. -->
         <Grid Grid.Row="0" Background="Transparent" Margin="0,0,0,8">
             <StackPanel Margin="24,14,24,0" VerticalAlignment="Bottom">
+                <!--
+                    `x:Uid` connects this element to a string in the resource files, so the
+                    text can be translated. The `Text` here is only the fallback used when the
+                    code-behind has not set it yet.
+                -->
                 <TextBlock x:Uid="PairPage_Brand" Text="WHATSAPP" Foreground="White" FontSize="15"
                            FontWeight="SemiBold" Margin="0,0,0,2"/>
+
+                <!-- `x:Name` gives this element a field in the code-behind: `TitleText`. -->
                 <TextBlock x:Name="TitleText" VerticalAlignment="Bottom"
                            FontSize="54" FontFamily="Segoe WP Semilight" Foreground="White"
                            Margin="0,-8,0,0" TextWrapping="Wrap"/>
             </StackPanel>
         </Grid>
 
+        <!--
+            Row 1 takes the remaining height. A ScrollViewer lets the content scroll when it is
+            taller than the screen, which matters on a small phone or with a large text size.
+        -->
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Margin="24,8,24,12">
                 <TextBlock x:Name="InstructionsText" Foreground="#FFE0E0E0"
                            TextWrapping="Wrap" FontSize="20"/>
+
+                <!--
+                    The white card around the QR. It starts collapsed: the code-behind makes it
+                    visible only when it has a real code to draw, so an empty white box is never
+                    shown. `Padding` is the quiet zone a scanner needs around the code.
+                -->
                 <Border x:Name="QrFrame" HorizontalAlignment="Center" Background="White"
                         Padding="12" Margin="0,20,0,16" MinWidth="120" MinHeight="120"
                         Visibility="Collapsed">
+                    <!-- Stretch="None" keeps the bitmap at exactly the pixel size the C# drew. -->
                     <Image x:Name="QrImage" Stretch="None"/>
                 </Border>
+
+                <!-- One of these three paragraphs is visible at a time; the C# switches them. -->
                 <TextBlock x:Name="WaitingText" Foreground="#FFB0B0B0"
                            TextWrapping="Wrap" FontSize="20" HorizontalAlignment="Center"
                            TextAlignment="Center" Margin="0,4,0,8"/>
@@ -49,9 +90,18 @@
             </StackPanel>
         </ScrollViewer>
 
+        <!--
+            Row 2: a progress bar with no known end (`IsIndeterminate`), shown while the app is
+            talking to the server. `{StaticResource WhatsAppAccentBrush}` takes a value from the
+            application dictionary in App.xaml by its x:Key.
+        -->
         <ProgressBar x:Name="BusyBar" Grid.Row="2" IsIndeterminate="True"
                      Foreground="{StaticResource WhatsAppAccentBrush}" Margin="16,0,16,0"/>
 
+        <!--
+            Row 3: the retry button, hidden until an attempt fails. `Click` names the method in
+            the code-behind that runs when the button is tapped.
+        -->
         <Button x:Name="RetryButton" Grid.Row="3" Content=""
                 Background="{StaticResource WhatsAppAccentBrush}" Foreground="White" Margin="16,12,16,20"
                 HorizontalAlignment="Stretch" Visibility="Collapsed"
