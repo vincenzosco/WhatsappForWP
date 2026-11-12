@@ -4,7 +4,22 @@
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
     xmlns:shell="clr-namespace:Microsoft.Phone.Shell;assembly=Microsoft.Phone">
 
+    <!--
+        This file is the application's own resource dictionary: values that every page can
+        use. Think of x:Key as the name of a value. A page refers to one with
+        {StaticResource NameItWasGivenKeyedWith}.
+
+        x:Class="WhatsappApp.App" tells the compiler that the code-behind for this file is
+        App.xaml.cs, so the two halves are one class: the markup here and the C# there.
+
+        The shell namespace is the Windows Phone shell library, used just below.
+    -->
     <Application.ApplicationLifetimeObjects>
+        <!--
+            PhoneApplicationService is the object the phone uses to tell the app about
+            launch, activation, deactivation and closing. App.xaml.cs subscribes to those
+            events in its constructor.
+        -->
         <shell:PhoneApplicationService />
     </Application.ApplicationLifetimeObjects>
 
@@ -12,6 +27,12 @@
         <ResourceDictionary>
             <!-- Keep the WP8 dark-phone chrome; Accent.Apply reads the platform accent. -->
 
+            <!--
+                Colours first, as SolidColorBrush objects, because most controls ask for a
+                brush and not for a colour. A colour that must be changed at runtime is
+                declared separately as a Color, and the brush points at it with
+                {StaticResource ...} (see WhatsAppHeaderColor below).
+            -->
             <SolidColorBrush x:Key="WhatsAppDarkTealBrush" Color="#FF075E54"/>
             <SolidColorBrush x:Key="WhatsAppTealBrush" Color="#FF087A77"/>
             <SolidColorBrush x:Key="WhatsAppGreenBrush" Color="#FF25D366"/>
@@ -20,14 +41,26 @@
             <SolidColorBrush x:Key="WhatsAppHomeVeilBrush" Color="#D9000000"/>
             <SolidColorBrush x:Key="WhatsAppBlueBrush" Color="#FF21B8B5"/>
 
+            <!--
+                Bubble colours. A colour in XAML is written #AARRGGBB: the first two digits
+                are opacity, so #99FFFFFF is white at about sixty percent, used for the small
+                grey text inside a bubble.
+            -->
             <!-- Incoming content uses the phone accent; sent content is its dark XAP shade. -->
             <SolidColorBrush x:Key="ChatIncomingBrush" Color="#FF25D366"/>
             <SolidColorBrush x:Key="ChatOutgoingBrush" Color="#FF108942"/>
             <SolidColorBrush x:Key="ChatBubbleMetaBrush" Color="#99FFFFFF"/>
 
+            <!--
+                These three are plain Color values, not brushes. The C# in App.xaml.cs reads
+                them and copies them into the brushes that follow, which is how the header
+                and the app bar can be repainted while the app is running.
+            -->
             <Color x:Key="WhatsAppHeaderColor">#FF000000</Color>
             <Color x:Key="WhatsAppAppBarColor">#FF1B1B1B</Color>
             <Color x:Key="WhatsAppSentBubbleColor">#FF108942</Color>
+
+            <!-- A brush whose Color comes from another resource, instead of a literal. -->
             <SolidColorBrush x:Key="WhatsAppHeaderBrush" Color="{StaticResource WhatsAppHeaderColor}"/>
             <SolidColorBrush x:Key="WhatsAppAccentBrush" Color="#FF25D366"/>
             <SolidColorBrush x:Key="WhatsAppAccentDarkBrush" Color="#FF108942"/>
@@ -41,15 +74,25 @@
 
             <!-- Silverlight phone controls supply the original Segoe WP typography and compact chrome. -->
 
-            <!-- The ring bar of the reference client, defined once: the home page's
-                 sections and the chat both draw it. A button has no CornerRadius on
-                 this projection, so the template draws the circle, and the held tile
-                 dims because a control that gives no sign of the press is tapped
-                 twice. Two copies of these styles had drifted apart. -->
+            <!--
+                A Style with an x:Key is a named set of property values that other elements
+                apply with Style="{StaticResource AppBarButtonStyle}". A Style with a
+                TargetType="Button" may only be used on buttons.
+
+                These two draw the round bar buttons of the reference client. A button has no
+                CornerRadius on this projection, so the template draws the circle itself with
+                an Ellipse. The pressed and disabled states dim the circle, because a control
+                that gives no sign of the press gets tapped twice.
+
+                Both styles live here and only here: every page that draws the bar uses the
+                same copy, so the home sections and the chat cannot drift apart.
+            -->
             <Style x:Key="AppBarButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Foreground" Value="White"/>
                 <Setter Property="BorderThickness" Value="0"/>
+
+                <!-- No padding and no minimum size: the template below decides the size. -->
                 <Setter Property="Padding" Value="0"/>
                 <Setter Property="MinWidth" Value="0"/>
                 <Setter Property="MinHeight" Value="0"/>
@@ -57,14 +100,26 @@
                 <Setter Property="Height" Value="64"/>
                 <Setter Property="HorizontalContentAlignment" Value="Center"/>
                 <Setter Property="VerticalContentAlignment" Value="Center"/>
+
+                <!--
+                    Template replaces the button's default look with our own tree. Everything
+                    inside it is what the user actually sees and taps.
+                -->
                 <Setter Property="Template">
                     <Setter.Value>
                         <ControlTemplate TargetType="Button">
                             <Grid>
+                                <!--
+                                    A control changes appearance through visual states: the
+                                    template names a state (Normal, Pressed, Disabled) and the
+                                    framework switches to it, running the Storyboard it contains.
+                                -->
                                 <VisualStateManager.VisualStateGroups>
                                     <VisualStateGroup x:Name="CommonStates">
                                         <VisualState x:Name="Normal"/>
                                         <VisualState x:Name="MouseOver"/>
+
+                                        <!-- Pressed: dim the circle while the finger is down. -->
                                         <VisualState x:Name="Pressed">
                                             <Storyboard>
                                                 <DoubleAnimation Storyboard.TargetName="Tile"
@@ -72,6 +127,8 @@
                                                                  To="0.55" Duration="0:0:0"/>
                                             </Storyboard>
                                         </VisualState>
+
+                                        <!-- Disabled: dim it more, and leave it that way. -->
                                         <VisualState x:Name="Disabled">
                                             <Storyboard>
                                                 <DoubleAnimation Storyboard.TargetName="Tile"
@@ -82,9 +139,21 @@
                                     </VisualStateGroup>
                                 </VisualStateManager.VisualStateGroups>
 
+                                <!--
+                                    x:Name="Tile" gives this Grid a name the animations above
+                                    can target. 46 by 46 is the visible circle inside the
+                                    64 pixel tap area.
+                                -->
                                 <Grid x:Name="Tile" Width="46" Height="46">
+                                    <!--
+                                        Ellipse draws the circle. TemplateBinding means "use
+                                        the button's Background and Foreground values", so a
+                                        style consumer can still recolour it.
+                                    -->
                                     <Ellipse Fill="{TemplateBinding Background}"
                                              Stroke="White" StrokeThickness="1.5"/>
+
+                                    <!-- The button's content (the icon) is drawn on top, centred. -->
                                     <ContentPresenter HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
                                 </Grid>
@@ -93,6 +162,11 @@
                     </Setter.Value>
                 </Setter>
             </Style>
+
+            <!--
+                The overflow button: same tap area and same press feedback, but no circle drawn
+                behind the icon, because three dots need none.
+            -->
             <Style x:Key="OverflowButtonStyle" TargetType="Button">
                 <Setter Property="Background" Value="Transparent"/>
                 <Setter Property="Foreground" Value="White"/>
@@ -129,6 +203,7 @@
                                     </VisualStateGroup>
                                 </VisualStateManager.VisualStateGroups>
 
+                                <!-- No Ellipse here: the icon sits straight in the tap area. -->
                                 <Grid x:Name="Tile">
                                     <ContentPresenter HorizontalAlignment="Center"
                                                       VerticalAlignment="Center"/>
