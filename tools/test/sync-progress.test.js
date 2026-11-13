@@ -32,7 +32,6 @@ test('the connection reports history sync progress as it lands', () => {
 test('the data layer keeps the three sync numbers and raises a change', () => {
   assert.match(data, /public int SyncPercent/, 'the percentage is exposed');
   assert.match(data, /public int SyncedMessages/, 'the messages counted so far are exposed');
-  assert.match(data, /public int SyncTotal/, 'the completion total is exposed');
   assert.match(data, /public bool SyncInProgress/, 'the bar knows whether sync is running');
   assert.match(data, /public event EventHandler SyncProgressChanged/);
 });
@@ -45,6 +44,5 @@ test('the chats tab draws a native sync bar above the first chat', () => {
   const bar = homeCode.slice(homeCode.indexOf('private void UpdateSyncBar()'));
   const head = bar.slice(0, 700);
   assert.match(head, /SyncedMessages/, 'the label counts the messages');
-  assert.match(head, /SyncTotal/, 'the label carries the completion total');
   assert.match(head, /SyncPercent/, 'the label carries the percentage');
 });

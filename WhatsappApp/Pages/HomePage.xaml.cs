@@ -453,9 +453,8 @@ namespace WhatsappApp.Pages
 
             SyncProgressBar.Value = DataService.Instance.SyncPercent;
             SyncProgressText.Text = string.Format(
-                Loc.Get("HomePage_SyncProgress", "Syncing messages: {0} of {1}, {2}%"),
-                DataService.Instance.SyncedMessages, DataService.Instance.SyncTotal,
-                DataService.Instance.SyncPercent);
+                Loc.Get("HomePage_SyncProgress", "Syncing messages: {0} ({1}%)"),
+                DataService.Instance.SyncedMessages, DataService.Instance.SyncPercent);
         }
         private void OnStatusesChanged(object sender, EventArgs e) { RefreshBadges(); }
         private void OnCallsScanCompleted(object sender, EventArgs e) { RefreshBadges(); }

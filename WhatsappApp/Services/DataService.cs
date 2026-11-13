@@ -112,13 +112,12 @@ namespace WhatsappApp.Services
         // itself: once the cached snapshot has registered its rows it is never empty again.
         private bool _batchOpen;
 
-        // History sync progress, for the bar between the pivot and the first chat. The
-        // percentage is the server's own (`HistorySync.Progress`); the count is the messages
-        // this sync put in the chats, and the total is the monotonic estimate the percentage
-        // implies - the protocol names no total to count against.
+        // History sync progress, for the bar between the pivot and the first chat. Both
+        // numbers are real: the percentage is the server's own (`HistorySync.Progress`) and
+        // the count is the messages this sync has put in the chats. The protocol names no
+        // total to count against, so none is invented here.
         private int _syncPercent;
         private int _syncedMessages;
-        private int _syncTotal;
         private bool _syncInProgress;
 
         // Index by id: without this every incoming message scanned the whole
@@ -1015,7 +1014,6 @@ namespace WhatsappApp.Services
             _syncInProgress = false;
             _syncPercent = 100;
             _syncedMessages = 0;
-            _syncTotal = 0;
             RaiseSyncProgressChanged();
 
             // The sync may have taught a pair that makes a cached row obsolete: the row was
@@ -1439,9 +1437,6 @@ namespace WhatsappApp.Services
         /// <summary>How many messages this sync has put in the chats so far.</summary>
         public int SyncedMessages { get { return _syncedMessages; } }
 
-        /// <summary>The completion total the percentage implies: about how many messages the sync carries.</summary>
-        public int SyncTotal { get { return _syncTotal; } }
-
         /// <summary>Whether the sync bar should be showing.</summary>
         public bool SyncInProgress { get { return _syncInProgress; } }
 
@@ -1455,19 +1450,14 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
-        /// The server said how far the history sync is. The counts are already in the chats
-        /// (they arrive before this does), so the total is kept monotonic: a percentage that
-        /// moves backwards on a re-delivered chunk must not shrink the number the bar shows.
+        /// The server said how far the history sync is. The messages are already in the chats
+        /// (they arrive before this does); the percentage is the one number the protocol gives
+        /// for completion, so the bar and the label are drawn from it and the real count.
         /// </summary>
         private void OnNativeSyncProgress(object sender, int percent)
         {
             _syncPercent = percent;
             _syncInProgress = true;
-            if (percent > 0)
-            {
-                int total = _syncedMessages * 100 / percent;
-                if (total > _syncTotal) _syncTotal = total;
-            }
             RaiseSyncProgressChanged();
         }
 

@@ -224,7 +224,7 @@
     <value>Rimuovi allegato</value>
   </data>
   <data name="HomePage_SyncProgress" xml:space="preserve">
-    <value>Sincronizzazione messaggi: {0} di {1}, {2}%</value>
+    <value>Sincronizzazione messaggi: {0} ({1}%)</value>
   </data>
   <data name="ChatPage_RecordingLabel.Text" xml:space="preserve">
     <value>Registrazione</value>
