@@ -214,17 +214,14 @@
   <data name="ChatPage_Input.PlaceholderText" xml:space="preserve">
     <value>Type a message</value>
   </data>
-  <data name="ChatPage_ImageSelected.Text" xml:space="preserve">
-    <value>Image selected</value>
+  <data name="ChatPage_AttachmentsSelected" xml:space="preserve">
+    <value>{0} selected</value>
   </data>
-  <data name="ChatPage_VideoSelected" xml:space="preserve">
-    <value>Video selected</value>
+  <data name="ChatPage_AttachmentOne" xml:space="preserve">
+    <value>1 selected</value>
   </data>
-  <data name="ChatPage_DocumentSelected" xml:space="preserve">
-    <value>Document selected</value>
-  </data>
-  <data name="ChatPage_AudioSelected" xml:space="preserve">
-    <value>Voice note selected</value>
+  <data name="ChatPage_RemoveAttachment" xml:space="preserve">
+    <value>Remove attachment</value>
   </data>
   <data name="ChatPage_RecordingLabel.Text" xml:space="preserve">
     <value>Recording</value>

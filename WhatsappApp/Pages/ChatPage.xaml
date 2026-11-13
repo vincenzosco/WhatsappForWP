@@ -684,83 +684,18 @@
             <Grid x:Name="ImagePreviewBar" Grid.Row="0" Height="64"
                   Background="#FF292929" Visibility="Collapsed">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
-                <Image x:Name="SelectedImagePreview" Grid.Column="0"
-                       Width="48" Height="48" Margin="8,8,0,8"
-                       Stretch="UniformToFill"/>
-                <!-- A video is not decoded: the box says what is being sent
-                     without drawing anything. -->
-                <Path x:Name="SelectedVideoPreview" Grid.Column="0"
-                      Width="30" Height="30" Margin="17,17,0,17"
-                      Fill="White"
-                      Visibility="Collapsed">
-                    <!-- IconPlay -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="6,3" IsClosed="True">
-                                    <PathFigure.Segments>
-                                        <PolyLineSegment Points="22,12 6,21"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-                <!-- A voice note: the microphone glyph, where an image shows
-                     its thumbnail. Nothing is decoded for it. -->
-                <Path x:Name="SelectedAudioPreview" Grid.Column="0"
-                      Width="30" Height="30" Margin="17,17,0,17"
-                      Fill="White"
-                      Visibility="Collapsed">
-                    <!-- IconMicrophone -->
-                    <Path.Data>
-                        <PathGeometry>
-                            <PathGeometry.Figures>
-                                <PathFigure StartPoint="10,7" IsClosed="True">
-                                    <PathFigure.Segments>
-                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                    SweepDirection="Clockwise" Point="14,7"/>
-                                        <LineSegment Point="14,12"/>
-                                        <ArcSegment Size="2,2" RotationAngle="0" IsLargeArc="False"
-                                                    SweepDirection="Clockwise" Point="10,12"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                                <PathFigure StartPoint="7,11">
-                                    <PathFigure.Segments>
-                                        <ArcSegment Size="5,5" RotationAngle="0" IsLargeArc="False"
-                                                    SweepDirection="Counterclockwise" Point="17,11"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                                <PathFigure StartPoint="12,16">
-                                    <PathFigure.Segments>
-                                        <LineSegment Point="12,19"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                                <PathFigure StartPoint="9,19">
-                                    <PathFigure.Segments>
-                                        <LineSegment Point="15,19"/>
-                                    </PathFigure.Segments>
-                                </PathFigure>
-                            </PathGeometry.Figures>
-                        </PathGeometry>
-                    </Path.Data>
-                </Path>
-                <!-- A document: the badge and the name, drawn where an image
-                     shows its thumbnail. -->
-                <Border x:Name="SelectedDocumentPreview" Grid.Column="0"
-                        Width="40" Height="40" Margin="12,12,0,12" CornerRadius="0"
-                        Background="#FF37474F"
-                        Visibility="Collapsed">
-                    <TextBlock x:Name="SelectedDocumentPreviewText"
-                               Text=""
-                               Foreground="White" FontSize="9" FontWeight="SemiBold"
-                               HorizontalAlignment="Center" VerticalAlignment="Center"
-                               TextTrimming="WordEllipsis"/>
-                </Border>
+                <!-- One tile per waiting attachment: a thumbnail for a photo, a type
+                     badge for anything else, and a remove for each. Several picked
+                     files are several tiles, so "3 photos and a video" is legible
+                     before any of it is sent. -->
+                <ScrollViewer Grid.Column="0" HorizontalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="PendingItems" Orientation="Horizontal" Margin="8,8,0,8"/>
+                </ScrollViewer>
                 <TextBlock x:Name="PreviewLabel" Grid.Column="1"
                            Text=""
                            VerticalAlignment="Center"

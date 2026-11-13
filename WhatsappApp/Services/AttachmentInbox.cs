@@ -238,6 +238,35 @@ namespace WhatsappApp.Services
             return first;
         }
 
+        /// <summary>
+        /// Every file waiting, in the order it arrived: what the composer draws before
+        /// anything is sent. A copy, because a reader that held the live list would race
+        /// the send loop that takes from it.
+        /// </summary>
+        public static IList<PendingAttachment> Snapshot()
+        {
+            return new List<PendingAttachment>(Pending);
+        }
+
+        /// <summary>
+        /// Takes one named file out of the queue: the composer's per-item remove. False
+        /// when it was not there - a second tap on the same remove is the row already
+        /// gone, not an error.
+        /// </summary>
+        public static bool Remove(string localFileName)
+        {
+            for (int i = 0; i < Pending.Count; i++)
+            {
+                if (string.Equals(Pending[i].LocalFileName, localFileName, StringComparison.Ordinal))
+                {
+                    Pending.RemoveAt(i);
+                    SyncHead();
+                    return true;
+                }
+            }
+            return false;
+        }
+
         /// <summary>Takes every attachment: whoever shows them does so once.</summary>
         public static void Clear()
         {

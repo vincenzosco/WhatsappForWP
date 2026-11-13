@@ -2872,90 +2872,192 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// Shows the pending attachment, if there is one. Called both when
-        /// navigating here and on arrival: after the picker the page is still the
-        /// one in front and OnNavigatedTo is not called again.
+        /// Shows the waiting attachments: the held one (the composer's selection) is the
+        /// first tile and the rest of the queue follows it. Called both when navigating
+        /// here and on arrival: after the picker the page is still the one in front and
+        /// OnNavigatedTo is not called again.
         /// </summary>
         private void ShowPendingAttachment()
         {
-            // A file is already waiting: another one picked in the same go stays in the
-            // inbox and goes out with it, so the bar does not change under the person.
-            if (!string.IsNullOrEmpty(_selectedLocalFileName)) return;
-            if (!AttachmentInbox.HasAttachment) return;
-
-            AttachmentInbox.PendingAttachment picked = AttachmentInbox.TakeNext();
-            if (picked == null) return;
-
-            string note = picked.Note;
-            _selectedLocalFileName = picked.LocalFileName;
-            _selectedMediaFileName = picked.FileName;
-            _selectedMediaMimeType = picked.MimeType;
-            _selectedIsVoiceNote = picked.IsVoiceNote;
-            _selectedSeconds = picked.Seconds;
-
-            if (!string.IsNullOrEmpty(note) && string.IsNullOrEmpty(MessageTextBox.Text))
+            // The head of the queue becomes the held one only when nothing is held yet: a
+            // second pick while one is shown stacks the rest behind it rather than swapping
+            // the bar under the person.
+            if (string.IsNullOrEmpty(_selectedLocalFileName) && AttachmentInbox.HasAttachment)
             {
-                MessageTextBox.Text = note;
+                AttachmentInbox.PendingAttachment picked = AttachmentInbox.TakeNext();
+                if (picked != null)
+                {
+                    SelectAttachment(picked);
+                    if (!string.IsNullOrEmpty(picked.Note) && string.IsNullOrEmpty(MessageTextBox.Text))
+                    {
+                        MessageTextBox.Text = picked.Note;
+                    }
+                }
             }
 
-            string kind = AttachmentInbox.KindName(_selectedMediaMimeType, _selectedMediaFileName);
-            bool video = kind == "video";
-            bool document = kind == "document";
-            bool audio = kind == "audio";
+            RefreshAttachmentStrip();
+        }
 
-            PreviewLabel.Text = video
-                ? Loc.Get("ChatPage_VideoSelected", "Video selected")
-                : (document
-                    ? Loc.Get("ChatPage_DocumentSelected", "Document selected")
-                    : (audio
-                        ? Loc.Get("ChatPage_AudioSelected", "Voice note selected")
-                        : Loc.Get("ChatPage_ImageSelected.Text", "Image selected")));
-
-            SelectedVideoPreview.Visibility = video ? Visibility.Visible : Visibility.Collapsed;
-            SelectedAudioPreview.Visibility = audio ? Visibility.Visible : Visibility.Collapsed;
-            SelectedImagePreview.Visibility = (!video && !document && !audio)
-                ? Visibility.Visible : Visibility.Collapsed;
-            SelectedDocumentPreview.Visibility = document ? Visibility.Visible : Visibility.Collapsed;
-            SelectedDocumentPreviewText.Text = document ? _selectedMediaFileName : "";
-
-            ImagePreviewBar.Visibility = Visibility.Visible;
-            if (!video && !document && !audio)
+        /// <summary>
+        /// Redraws the strip from the held attachment and the queue behind it, and says how
+        /// many are waiting. Several picked files are several tiles: "3 photos and a video"
+        /// has to be legible before any of it is sent.
+        /// </summary>
+        private void RefreshAttachmentStrip()
+        {
+            var items = new List<AttachmentInbox.PendingAttachment>();
+            if (!string.IsNullOrEmpty(_selectedLocalFileName))
             {
+                items.Add(new AttachmentInbox.PendingAttachment
+                {
+                    LocalFileName = _selectedLocalFileName,
+                    FileName = _selectedMediaFileName,
+                    MimeType = _selectedMediaMimeType,
+                    IsVoiceNote = _selectedIsVoiceNote,
+                    Seconds = _selectedSeconds
+                });
+            }
+            items.AddRange(AttachmentInbox.Snapshot());
+
+            PendingItems.Children.Clear();
+            if (items.Count == 0)
+            {
+                ImagePreviewBar.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            for (int i = 0; i < items.Count; i++) PendingItems.Children.Add(BuildAttachmentTile(items[i]));
+
+            PreviewLabel.Text = items.Count > 1
+                ? string.Format(Loc.Get("ChatPage_AttachmentsSelected", "{0} selected"), items.Count)
+                : Loc.Get("ChatPage_AttachmentOne", "1 selected");
+            ImagePreviewBar.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>How wide a tile thumbnail is decoded: the tile is 48 px, so 96 covers it at 2x.</summary>
+        private const int TileDecodePixels = 96;
+
+        /// <summary>
+        /// One tile: a thumbnail for a photo, a type badge for anything else, and a remove
+        /// that takes just this one out of the batch.
+        /// </summary>
+        private System.Windows.UIElement BuildAttachmentTile(AttachmentInbox.PendingAttachment item)
+        {
+            string kind = AttachmentInbox.KindName(item.MimeType, item.FileName);
+            bool image = kind == "image";
+
+            var tile = new Grid { Width = 56, Height = 56, Margin = new Thickness(0, 0, 6, 0) };
+
+            var box = new Border
+            {
+                Width = 48,
+                Height = 48,
+                Background = new SolidColorBrush(Color.FromArgb(0xFF, 0x37, 0x47, 0x4F))
+            };
+
+            if (image)
+            {
+                var picture = new Image { Stretch = Stretch.UniformToFill };
+                box.Child = picture;
 #pragma warning disable 4014
-                ShowLocalPreviewAsync(_selectedLocalFileName);
+                LoadTileThumbnail(picture, item.LocalFileName);
 #pragma warning restore 4014
             }
             else
             {
-                // A video is not decoded here, a document has nothing to draw,
-                // and a voice note is not a picture: the bar says what is being
-                // sent.
-                SelectedImagePreview.Source = null;
+                // A video, a voice note and a document are not decoded here: the badge says
+                // what is going out. The photo is the one kind with a face.
+                box.Child = new TextBlock
+                {
+                    Text = BadgeFor(item.FileName, item.MimeType),
+                    Foreground = new SolidColorBrush(Colors.White),
+                    FontSize = 9,
+                    FontWeight = FontWeights.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.WordEllipsis
+                };
             }
+            tile.Children.Add(box);
+
+            var remove = new Button
+            {
+                Width = 18,
+                Height = 18,
+                Background = new SolidColorBrush(Colors.Transparent),
+                BorderThickness = new Thickness(0),
+                Padding = new Thickness(0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Tag = item.LocalFileName
+            };
+            AutomationProperties.SetName(remove, Loc.Get("ChatPage_RemoveAttachment", "Remove attachment"));
+            remove.Click += RemoveAttachmentButton_Click;
+            remove.Content = new TextBlock
+            {
+                Text = "\u00D7",
+                Foreground = new SolidColorBrush(Colors.White),
+                FontSize = 14,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            tile.Children.Add(remove);
+
+            return tile;
         }
 
-        /// <summary>
-        /// The preview of the image to send: the page is 480 px wide, so 720 covers
-        /// it even at 1.5x without decoding the whole file.
-        /// </summary>
-        private const int PreviewDecodePixels = 720;
+        /// <summary>The badge a non-photo tile shows: the file's extension, or its kind word.</summary>
+        private static string BadgeFor(string fileName, string mimeType)
+        {
+            string name = fileName ?? "";
+            int dot = name.LastIndexOf('.');
+            if (dot >= 0 && dot < name.Length - 1) return name.Substring(dot + 1).ToUpperInvariant();
 
-        /// <summary>Local preview: the sender sees their own image.</summary>
-        private async System.Threading.Tasks.Task ShowLocalPreviewAsync(string localFileName)
+            string kind = AttachmentInbox.KindName(mimeType, fileName);
+            return kind == "video" ? "VID" : (kind == "audio" ? "AUD" : (kind == "document" ? "DOC" : "FILE"));
+        }
+
+        /// <summary>A tile's thumbnail: the photo the sender is about to send.</summary>
+        private async System.Threading.Tasks.Task LoadTileThumbnail(Image picture, string localFileName)
         {
             try
             {
-                SelectedImagePreview.Source = await ImageHelper.FromFileAsync(
-                    localFileName, PreviewDecodePixels);
+                picture.Source = await ImageHelper.FromFileAsync(localFileName, TileDecodePixels);
             }
             catch (Exception ex)
             {
-                Diag.Failed("ChatPage.ShowLocalPreviewAsync", ex);
+                Diag.Failed("ChatPage.LoadTileThumbnail", ex);
             }
         }
 
+        /// <summary>Removes one attachment: the held one, or any one waiting behind it.</summary>
+        private void RemoveAttachmentButton_Click(object sender, RoutedEventArgs e)
+        {
+            var button = sender as Button;
+            string name = button == null ? null : button.Tag as string;
+            if (string.IsNullOrEmpty(name)) return;
+
+            if (name == _selectedLocalFileName)
+            {
+                // The held one goes; the next waiting file takes its place as the head.
+                ClearSelectedImage();
+                if (string.IsNullOrEmpty(_selectedLocalFileName) && AttachmentInbox.HasAttachment)
+                {
+                    AttachmentInbox.PendingAttachment next = AttachmentInbox.TakeNext();
+                    if (next != null) SelectAttachment(next);
+                }
+            }
+            else
+            {
+                AttachmentInbox.Remove(name);
+            }
+
+            RefreshAttachmentStrip();
+        }
+
         /// <summary>
-        /// Clears the selected image
+        /// Clears the whole batch: what the composer shows and everything still waiting.
         /// </summary>
         private void ClearImageButton_Click(object sender, RoutedEventArgs e)
         {
@@ -2972,13 +3074,8 @@ namespace WhatsappApp.Pages
             _selectedMediaMimeType = null;
             _selectedIsVoiceNote = false;
             _selectedSeconds = 0;
-            SelectedImagePreview.Source = null;
-            SelectedAudioPreview.Visibility = Visibility.Collapsed;
-            SelectedDocumentPreview.Visibility = Visibility.Collapsed;
-            SelectedDocumentPreviewText.Text = "";
-            // The video preview too: the bar is collapsed here, so the card was hidden by its
-            // parent - and would have come back with the next bar that is shown without a pick.
-            SelectedVideoPreview.Visibility = Visibility.Collapsed;
+            PendingItems.Children.Clear();
+            PreviewLabel.Text = "";
             ImagePreviewBar.Visibility = Visibility.Collapsed;
         }
     }

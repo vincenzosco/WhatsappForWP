@@ -702,8 +702,8 @@ namespace WhatsappApp
                 {
                     if (data.Contains(StandardDataFormats.StorageItems))
                     {
-                        // Files: the first one is taken, because this app shares one
-                        // attachment at a time.
+                        // Files: every one is taken, exactly as the picker does. A share of
+                        // 3 photos and a video is four items in the inbox, not the first.
                         IReadOnlyList<IStorageItem> items = await data.GetStorageItemsAsync();
                         for (int i = 0; i < items.Count; i++)
                         {
@@ -711,7 +711,6 @@ namespace WhatsappApp
                             if (file == null) continue;
 
                             await AttachmentInbox.PutAsync(file, null);
-                            break;
                         }
                     }
                     else if (data.Contains(StandardDataFormats.Bitmap))
