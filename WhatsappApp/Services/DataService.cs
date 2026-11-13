@@ -112,6 +112,15 @@ namespace WhatsappApp.Services
         // itself: once the cached snapshot has registered its rows it is never empty again.
         private bool _batchOpen;
 
+        // History sync progress, for the bar between the pivot and the first chat. The
+        // percentage is the server's own (`HistorySync.Progress`); the count is the messages
+        // this sync put in the chats, and the total is the monotonic estimate the percentage
+        // implies - the protocol names no total to count against.
+        private int _syncPercent;
+        private int _syncedMessages;
+        private int _syncTotal;
+        private bool _syncInProgress;
+
         // Index by id: without this every incoming message scanned the whole
         // contact list (FirstOrDefault) to find the chat.
         private readonly Dictionary<string, Contact> _contactIndex =
@@ -178,6 +187,7 @@ namespace WhatsappApp.Services
             NativeConnection.Instance.ChatArrived += OnNativeChat;
             NativeConnection.Instance.ChatMerged += OnChatMerged;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
+            NativeConnection.Instance.SyncProgress += OnNativeSyncProgress;
             NativeConnection.Instance.MessageStatusChanged += OnNativeStatus;
             NativeConnection.Instance.MessageRevoked += OnMessageRevoked;
             NativeConnection.Instance.MediaArrived += OnNativeMedia;
@@ -1000,6 +1010,14 @@ namespace WhatsappApp.Services
         {
             HistoryComplete = true;
 
+            // The bar is over: the sync is all here. The counts are cleared so the next sync
+            // counts its own messages rather than adding to this one's.
+            _syncInProgress = false;
+            _syncPercent = 100;
+            _syncedMessages = 0;
+            _syncTotal = 0;
+            RaiseSyncProgressChanged();
+
             // The sync may have taught a pair that makes a cached row obsolete: the row was
             // keyed on a LID and its number is now known. The rows of this sync are already
             // canonical (`NativeChats`), so this is the copy read from disk that is folded.
@@ -1414,6 +1432,44 @@ namespace WhatsappApp.Services
         /// binds at once. It is one login's worth: a fresh connection brings a new sync.
         /// </summary>
         public bool HistoryComplete { get; private set; }
+
+        /// <summary>How far along the history sync is, 0-100: the server's own number.</summary>
+        public int SyncPercent { get { return _syncPercent; } }
+
+        /// <summary>How many messages this sync has put in the chats so far.</summary>
+        public int SyncedMessages { get { return _syncedMessages; } }
+
+        /// <summary>The completion total the percentage implies: about how many messages the sync carries.</summary>
+        public int SyncTotal { get { return _syncTotal; } }
+
+        /// <summary>Whether the sync bar should be showing.</summary>
+        public bool SyncInProgress { get { return _syncInProgress; } }
+
+        /// <summary>One of the sync numbers moved: the bar redraws.</summary>
+        public event EventHandler SyncProgressChanged;
+
+        private void RaiseSyncProgressChanged()
+        {
+            var handler = SyncProgressChanged;
+            if (handler != null) handler(this, EventArgs.Empty);
+        }
+
+        /// <summary>
+        /// The server said how far the history sync is. The counts are already in the chats
+        /// (they arrive before this does), so the total is kept monotonic: a percentage that
+        /// moves backwards on a re-delivered chunk must not shrink the number the bar shows.
+        /// </summary>
+        private void OnNativeSyncProgress(object sender, int percent)
+        {
+            _syncPercent = percent;
+            _syncInProgress = true;
+            if (percent > 0)
+            {
+                int total = _syncedMessages * 100 / percent;
+                if (total > _syncTotal) _syncTotal = total;
+            }
+            RaiseSyncProgressChanged();
+        }
 
         /// <summary>
         /// The call log, as the history brought it.
@@ -3168,6 +3224,15 @@ namespace WhatsappApp.Services
 
             list.Insert(InOrderIndex(list, message), message);
             TrimToCeiling(list);
+
+            // A history row leaves the preview and the place current too: the sync path used
+            // to add the message to its conversation and return, so a chat that received its
+            // history showed an old preview in the old place until the next live message. The
+            // message is counted here as well - it is the "x" the sync bar shows.
+            _syncedMessages++;
+            RefreshPreview(message.ChatId);
+            Contact row = FindContact(message.ChatId);
+            if (row != null) PlaceContact(row);
         }
 
         /// <summary>

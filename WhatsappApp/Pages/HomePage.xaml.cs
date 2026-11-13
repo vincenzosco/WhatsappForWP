@@ -406,6 +406,9 @@ namespace WhatsappApp.Pages
 
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
             DataService.Instance.ChatListCompleted += OnChatListCompleted;
+            DataService.Instance.SyncProgressChanged -= OnSyncProgressChanged;
+            DataService.Instance.SyncProgressChanged += OnSyncProgressChanged;
+            UpdateSyncBar();
             StartListRefresh();
 
             NativeConnection.Instance.ConnectionStatusChanged -= OnClientStatusChanged;
@@ -423,9 +426,37 @@ namespace WhatsappApp.Pages
             AttachmentInbox.Ready -= OnAttachmentReady;
             NativeConnection.Instance.ConnectionStatusChanged -= OnClientStatusChanged;
             DataService.Instance.ChatListCompleted -= OnChatListCompleted;
+            DataService.Instance.SyncProgressChanged -= OnSyncProgressChanged;
         }
 
         private void OnBadgeChanged(object sender, ChatMessage message) { RefreshBadges(); }
+
+        /// <summary>
+        /// The history sync is moving. The count is kept on the socket thread, so the bar is
+        /// drawn on the dispatcher the page lives on.
+        /// </summary>
+        private void OnSyncProgressChanged(object sender, EventArgs e)
+        {
+            Dispatcher.BeginInvoke(new Action(UpdateSyncBar));
+        }
+
+        /// <summary>
+        /// The sync bar, from the three real numbers: how many messages the sync has put in the
+        /// chats, about how many it carries in all, and how far along it is. It sits between the
+        /// pivot's titles and the first chat, and hides the moment the history is all here.
+        /// </summary>
+        private void UpdateSyncBar()
+        {
+            bool running = DataService.Instance.SyncInProgress;
+            SyncProgressPanel.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
+            if (!running) return;
+
+            SyncProgressBar.Value = DataService.Instance.SyncPercent;
+            SyncProgressText.Text = string.Format(
+                Loc.Get("HomePage_SyncProgress", "Syncing messages: {0} of {1}, {2}%"),
+                DataService.Instance.SyncedMessages, DataService.Instance.SyncTotal,
+                DataService.Instance.SyncPercent);
+        }
         private void OnStatusesChanged(object sender, EventArgs e) { RefreshBadges(); }
         private void OnCallsScanCompleted(object sender, EventArgs e) { RefreshBadges(); }
         private void OnClientStatusChanged(object sender, string status) { ShowConnectionBar(); }

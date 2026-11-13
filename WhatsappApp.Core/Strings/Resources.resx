@@ -223,6 +223,9 @@
   <data name="ChatPage_RemoveAttachment" xml:space="preserve">
     <value>Remove attachment</value>
   </data>
+  <data name="HomePage_SyncProgress" xml:space="preserve">
+    <value>Syncing messages: {0} of {1}, {2}%</value>
+  </data>
   <data name="ChatPage_RecordingLabel.Text" xml:space="preserve">
     <value>Recording</value>
   </data>

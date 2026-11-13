@@ -681,6 +681,9 @@ namespace WhatsappApp.Services
         /// <summary>The server said the history is all here (`NativeChats.IsSyncComplete`).</summary>
         public event EventHandler<HistorySync> HistoryFinished;
 
+        /// <summary>How far along the history sync is, as the server reports it (0-100).</summary>
+        public event EventHandler<int> SyncProgress;
+
         /// <summary>The status line changed, for the screens that show it.</summary>
         public event EventHandler<string> ConnectionStatusChanged;
 
@@ -3311,6 +3314,8 @@ namespace WhatsappApp.Services
             }
 
             Diag.Ok("native: " + fromTheSync.Count + " message(s) of the sync are in the chats");
+
+            if (SyncProgress != null) SyncProgress(this, sync.Progress);
 
             if (_chats.IsSyncComplete && HistoryFinished != null) HistoryFinished(this, sync);
 

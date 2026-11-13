@@ -110,7 +110,26 @@
                         <TextBlock x:Uid="Nav_ChatsHeader" Text="chats"/>
                     </phone:PivotItem.Header>
                     <Grid Background="Transparent" Margin="12,0,12,0">
-                        <phone:LongListSelector x:Name="ChatListView" Background="Transparent" Margin="0,0,0,0"
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <!-- The history sync, as it runs: the bar is between the pivot's titles
+                             and the first chat, in the app's own bar colours, so a list that is
+                             still arriving says so instead of looking half empty. -->
+                        <Grid x:Name="SyncProgressPanel" Grid.Row="0" Visibility="Collapsed" Margin="0,2,0,10">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+                            <TextBlock x:Name="SyncProgressText" Grid.Row="0" Text=""
+                                       Foreground="#FFE8FFFF" FontSize="13" Margin="2,0,2,5"/>
+                            <ProgressBar x:Name="SyncProgressBar" Grid.Row="1" Height="4"
+                                         Minimum="0" Maximum="100" Value="0"
+                                         Foreground="{StaticResource WhatsAppAccentBrush}"
+                                         Background="#FF2A3233"/>
+                        </Grid>
+                        <phone:LongListSelector x:Name="ChatListView" Grid.Row="1" Background="Transparent" Margin="0,0,0,0"
                                                 SelectionChanged="ChatListView_SelectionChanged">
                             <phone:LongListSelector.ItemTemplate>
                                 <DataTemplate>
