@@ -751,8 +751,6 @@ namespace WhatsappApp.Pages
         {
             await DataService.Instance.LoadCachedMessagesAsync(chatId);
 
-            if (historyRequested) await WaitForHistoryAsync(chatId);
-
             // The reader may have left while the burst was coming, and the list
             // must be bound even then: leaving it unbound is an empty conversation
             // the next time this instance is shown. Only the scroll is skipped when
@@ -782,11 +780,14 @@ namespace WhatsappApp.Pages
                 _view.WatchNearTop(ShowOlderPage);
             }
 
-            // The burst closed and the conversation is still empty: this account has
-            // nothing older in that chat.
-            if (historyRequested && _messages.Count == 0)
+            // The history burst, now that the conversation is already on screen. It fills
+            // the list as it lands (`OnMessagesChanged`); the wait is only to say, in the log,
+            // that this account has nothing older in this chat. Waiting for it *before*
+            // binding left the whole conversation empty whenever the burst never closed.
+            if (historyRequested)
             {
-                Diag.Ok("history arrived empty for " + chatId);
+                await WaitForHistoryAsync(chatId);
+                if (_messages.Count == 0) Diag.Ok("history arrived empty for " + chatId);
             }
         }
 
