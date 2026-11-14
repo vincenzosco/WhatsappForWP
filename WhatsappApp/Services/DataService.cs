@@ -3093,7 +3093,12 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(chatId)) return;
 
-            if (GetMessages(chatId).Count > 0) return;
+            var existing = GetMessages(chatId);
+            if (existing.Count > 0)
+            {
+                Diag.Ok("cache: " + chatId + " already shows " + existing.Count + " row(s)");
+                return;
+            }
 
             var cached = await MessageCache.LoadAsync(chatId);
             for (int i = 0; i < cached.Count; i++)
@@ -3104,7 +3109,11 @@ namespace WhatsappApp.Services
                 AddHistoryMessage(message);
             }
 
-            Diag.Ok("cache restored " + cached.Count + " message(s)");
+            // The count is the answer to "why is this chat empty": zero here means the file
+            // was not found or would not read, and the name in the line is the key it looked
+            // under. A chat that opens blank is this line saying 0.
+            Diag.Ok("cache restored " + cached.Count + " message(s) for " + chatId
+                + " (" + GetMessages(chatId).Count + " in the rows now)");
 
             // The copy on the phone may have been written by a build that appended every
             // arrival, so it is put in order once, here, and not left for the next message to
