@@ -271,6 +271,11 @@ namespace WhatsappApp.Pages
                     : Loc.Get("ChatPage_TapForContactInfo", "Tap for contact info");
                 OnlineStatusText.Visibility = Visibility.Visible;
 
+                // The comma between the name and the line under it only has a place when
+                // that line says something: "MAMMA," with nothing after is a stranded mark.
+                HeaderComma.Visibility = string.IsNullOrEmpty(OnlineStatusText.Text)
+                    ? Visibility.Collapsed : Visibility.Visible;
+
                 // Load messages: first the ones on the phone, so the conversation
                 // shows right away, then the real history. The list is bound after
                 // that copy is in, and not here: inserting into a collection already

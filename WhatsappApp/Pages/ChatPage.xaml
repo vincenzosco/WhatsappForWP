@@ -118,7 +118,7 @@
                     <TextBlock x:Name="ContactNameText" Text=""
                                Foreground="White" FontSize="23" FontFamily="Segoe WP Semibold"
                                TextWrapping="NoWrap" TextTrimming="WordEllipsis" MaxWidth="230"/>
-                    <TextBlock Text="," Foreground="#B0FFFFFF"
+                    <TextBlock x:Name="HeaderComma" Text="," Foreground="#B0FFFFFF"
                                FontSize="20" FontStyle="Italic"
                                VerticalAlignment="Center" Margin="2,0,0,0"/>
                     <TextBlock x:Name="OnlineStatusText" Text=""
