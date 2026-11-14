@@ -11,6 +11,13 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
+        <!-- The chosen background, under the same veil the settings page uses, so a
+             diagnostic list and the settings it came from look like one app. -->
+        <Image x:Name="PageWallpaper" Grid.RowSpan="2"
+               Stretch="UniformToFill"
+               HorizontalAlignment="Stretch" VerticalAlignment="Stretch"/>
+        <Rectangle Grid.RowSpan="2" Fill="#E6000000"/>
+
         <!-- The 54 px title of every secondary page, at the reference margin, and
              no chevron: the way back is the hardware key, as on Settings. -->
         <StackPanel Grid.Row="0" Background="Transparent">

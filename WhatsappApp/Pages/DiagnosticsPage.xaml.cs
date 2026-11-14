@@ -32,9 +32,18 @@ namespace WhatsappApp.Pages
                 frame.Navigate(new Uri("/Pages/DiagnosticsPage.xaml", UriKind.Relative));
         }
 
+        /// <summary>The chosen background, under the same veil the settings page uses.</summary>
+        private void ApplyTheme()
+        {
+            System.Windows.Media.ImageSource image = ThemeService.ImageFor(ThemeService.Current);
+            PageWallpaper.Source = image;
+            PageWallpaper.Visibility = image == null ? Visibility.Collapsed : Visibility.Visible;
+        }
+
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {
             base.OnNavigatedTo(e);
+            ApplyTheme();
             Refresh();
         }
 
