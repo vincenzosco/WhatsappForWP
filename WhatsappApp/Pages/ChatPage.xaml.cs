@@ -249,7 +249,9 @@ namespace WhatsappApp.Pages
                 _selectedMessages.Clear();
                 ApplicationBar = ChatAppBar;
 
-                ContactNameText.Text = contact.Name.ToUpperInvariant();
+                ContactNameText.Text = (string.IsNullOrEmpty(contact.Name)
+                    ? DataService.DisplayNameForJid(contact.Id)
+                    : contact.Name).ToUpperInvariant();
 
 // A group is not called from here: `CallSignaling` builds an offer to a single
 // address, and a button that offered a group call the app cannot make would be a

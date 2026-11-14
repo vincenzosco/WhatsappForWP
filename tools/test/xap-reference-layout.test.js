@@ -50,7 +50,8 @@ test('chat title is the XAP 60-pixel header with a 54-pixel avatar and 23-pixel 
   assert.match(chat, /x:Name="ContactAvatar"[^>]*Width="54" Height="54"/);
   assert.match(chat, /TextBlock x:Name="ContactNameText"[^>]*FontSize="23"/);
   assert.match(chat, /TextBlock x:Name="OnlineStatusText"[^>]*FontSize="20"/);
-  assert.match(chatCode, /ContactNameText\.Text = contact\.Name\.ToUpperInvariant\(\)/);
+  assert.match(chatCode, /ContactNameText\.Text = \(string\.IsNullOrEmpty\(contact\.Name\)[\s\S]*?\.ToUpperInvariant\(\)/,
+    'the name is drawn uppercased, and a contact with no name still gets a title');
 });
 
 test('the chat list starts at the reference leading margin', () => {
