@@ -125,8 +125,22 @@ namespace WhatsappApp.Services
 
             if (target != null)
             {
-                try { _list.ScrollTo(target); }
-                catch (Exception ex) { Diag.Failed("ConversationView/scrollTo", ex); }
+                // The newest row belongs at the bottom, against the composer. `ScrollTo`
+                // aligns its item to the top of the viewport, which left a message just sent
+                // sitting in empty space instead of above the text box - the list read as not
+                // having updated and the rows looked stuck at the top. Scrolling the bar to its
+                // end is what a conversation does; a jump to an older row still uses `ScrollTo`.
+                bool newest = _items != null && _items.Count > 0 && target == _items[_items.Count - 1];
+                ScrollBar bar = ScrollBar();
+                if (newest && bar != null && bar.Maximum > bar.Minimum)
+                {
+                    bar.Value = bar.Maximum;
+                }
+                else
+                {
+                    try { _list.ScrollTo(target); }
+                    catch (Exception ex) { Diag.Failed("ConversationView/scrollTo", ex); }
+                }
             }
 
             AttachScrollBar();
