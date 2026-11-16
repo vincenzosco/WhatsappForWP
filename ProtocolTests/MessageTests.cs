@@ -435,6 +435,36 @@ namespace ProtocolTests
         }
 
         /// <summary>
+        /// A group nested deep enough to be nobody's message: the walk answers it, and the
+        /// process is still there to hear the answer.
+        ///
+        /// `FieldEnd` and `GroupEnd` stepped through a nested group by calling each other,
+        /// one pair of frames per level, so a plaintext of a hundred thousand group opens
+        /// ended the run with a `StackOverflowException` - the one failure no caller catches.
+        /// The plaintext is a peer's to choose: it is what their client encrypts, and a
+        /// stanza that crashes the reader is never acknowledged, so the server hands it back
+        /// at every login and the app cannot stay up. `SkipGroup` has always counted the
+        /// depth in a loop, and the walk now counts it the same way.
+        /// </summary>
+        [Test]
+        public static void ADeeplyNestedGroupIsWalkedWithoutWalkingTheStackOff()
+        {
+            const int depth = 200000;
+
+            var nested = new byte[depth * 2];
+            for (int i = 0; i < depth; i++)
+            {
+                nested[i] = 0x0b;          // field 1, wire type 3: the group opens
+                nested[depth + i] = 0x0c;  // field 1, wire type 4: the group closes
+            }
+
+            Assert.AreEqual(nested.Length, ProtoReader.Measure(nested),
+                "every group closes, so the whole buffer is one protobuf");
+            Assert.AreEqual(nested.Length, ProtoReader.EndOfPadded(nested, 12),
+                "and the padding search walks it just as deep");
+        }
+
+        /// <summary>
         /// A damaged plaintext still fails, and names itself: the exception is the one worth
         /// seeing, and a reader that swallowed it would put an empty message in the chat.
         /// </summary>

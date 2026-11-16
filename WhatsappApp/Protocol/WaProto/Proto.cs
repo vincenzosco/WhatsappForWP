@@ -366,9 +366,16 @@ namespace WhatsappApp.Protocol.WaProto
         /// The index just past the end-group that closes the group whose fields begin at
         /// `index`, or -1 when the group never closes - the same walk `SkipGroup` makes, with
         /// the same depth count, because groups nest.
+        ///
+        /// The depth is counted in the loop and not by calling `FieldEnd` for the nested
+        /// group: one frame pair per level is a stack that runs out, and the plaintext this
+        /// walk answers about is a peer's to choose. Two hundred thousand nested groups are
+        /// bytes like any others to a loop.
         /// </summary>
         private static int GroupEnd(byte[] bytes, int index, int limit)
         {
+            int depth = 1;
+
             while (index < limit)
             {
                 ulong tag;
@@ -376,7 +383,28 @@ namespace WhatsappApp.Protocol.WaProto
                 if (afterTag < 0) return -1;
 
                 int wireType = (int)(tag & 7);
-                if (wireType == 4) return afterTag;
+
+                // An end-group closes the innermost group; the outermost one closes the
+                // field itself. Its tag is never numbered-checked, exactly as before.
+                if (wireType == 4)
+                {
+                    depth--;
+                    if (depth == 0) return afterTag;
+                    index = afterTag;
+                    continue;
+                }
+
+                // A nested group opens a level and carries no bytes of its own; its tag is
+                // checked exactly as `FieldEnd` checks one.
+                if (wireType == 3)
+                {
+                    ulong number = tag >> 3;
+                    if (number == 0 || number > 536870911UL) return -1;
+
+                    depth++;
+                    index = afterTag;
+                    continue;
+                }
 
                 int after = FieldEnd(bytes, index, limit);
                 if (after < 0) return -1;
