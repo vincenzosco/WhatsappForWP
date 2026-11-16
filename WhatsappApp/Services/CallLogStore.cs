@@ -28,6 +28,9 @@ namespace WhatsappApp.Services
     {
         private const string FileName = "call-log.json";
 
+        /// <summary>The name the file is built under before it replaces `call-log.json`.</summary>
+        private const string TempName = "call-log.json.new";
+
         private readonly SerialQueue _writes = new SerialQueue();
         private CallLogTables _tables = new CallLogTables();
 
@@ -276,10 +279,21 @@ namespace WhatsappApp.Services
                     text = System.Text.Encoding.UTF8.GetString(stream.ToArray(), 0, (int)stream.Length);
                 }
 
-                StorageFile target = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileName, CreationCollisionOption.ReplaceExisting);
+                StorageFolder folder = ApplicationData.Current.LocalFolder;
 
-                await FileIO.WriteTextAsync(target, text);
+                // Beside the file and moved over it, like every durable cache here: a
+                // process frozen in the middle of a write into the real file leaves a
+                // `call-log.json` that does not parse, and the log is lost with it. A move
+                // is one step, so the file is either the old one or the new one.
+                StorageFile temp = await folder.CreateFileAsync(
+                    TempName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(temp, text);
+
+                // The first call this phone logged has no file to replace.
+                var current = (StorageFile)await folder.TryGetItemAsync(FileName);
+
+                if (current == null) await temp.RenameAsync(FileName);
+                else await temp.MoveAndReplaceAsync(current);
             }
             catch (Exception ex)
             {
