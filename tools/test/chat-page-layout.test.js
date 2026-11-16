@@ -50,10 +50,10 @@ test('chat contextual actions use the native bar and selection controls report u
   assert.match(xaml, /<shell:ApplicationBar x:Name="SelectedMessagesAppBar" x:Key="SelectedMessagesApplicationBar"/);
   assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="ContactInfoAppBarMenuItem_Click"/);
   assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="SelectMessagesAppBarMenuItem_Click"/);
-  assert.ok(code.includes('ApplicationBar = ChatAppBar'));
-  assert.ok(code.includes('ApplicationBar = SelectedMessagesAppBar'));
+  assert.ok(code.includes('ApplicationBar = _chatAppBar'));
+  assert.ok(code.includes('ApplicationBar = _selectedMessagesAppBar'));
   assert.ok(code.includes('private void UpdateSelectionActions()'));
-  assert.ok(code.includes('CopyMessagesAppBarButton.IsEnabled = any && AllSelectedMessagesAreText()'));
+  assert.ok(code.includes('_copyButton.IsEnabled = any && AllSelectedMessagesAreText()'));
   assert.match(code, /private void ForwardMessagesAppBarButton_Click[\s\S]*forwarding is unavailable/);
   assert.match(code, /private void CopyMessagesAppBarButton_Click[\s\S]*copying is unavailable/);
   assert.match(code, /private void DeleteMessagesAppBarButton_Click[\s\S]*not available/);
@@ -74,5 +74,5 @@ test('chat composer artwork and native context bar use packaged XAP resources', 
   }
   assert.ok(xaml.includes('<shell:ApplicationBar'));
   assert.match(xaml, /ApplicationBarMenuItem[^>]*Click="[A-Za-z_][A-Za-z0-9_]*"/);
-  assert.ok(code.includes('ApplicationBar = ChatAppBar'));
+  assert.ok(code.includes('ApplicationBar = _chatAppBar'));
 });

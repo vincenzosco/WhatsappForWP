@@ -83,7 +83,7 @@ test('the attach media panel stays above the native chat app bar', () => {
   assert.match(chat, /<shell:ApplicationBar x:Name="ChatAppBar"[^>]*>[\s\S]*?<shell:ApplicationBarIconButton x:Name="SendButton"/);
   assert.doesNotMatch(chat, /<Grid Grid\.Row="4" Background="#FF171717" MinHeight="64">/);
   assert.match(chat, /<shell:ApplicationBarIconButton x:Name="CallHeaderButton"[^>]*IsEnabled="False"/);
-  assert.match(chatCode, /CallHeaderButton\.IsEnabled = !GroupDirectory\.IsGroup\(contact\.Id\);/);
+  assert.match(chatCode, /_callHeaderButton\.IsEnabled = !GroupDirectory\.IsGroup\(contact\.Id\);/);
   assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
 });
 

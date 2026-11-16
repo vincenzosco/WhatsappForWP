@@ -172,6 +172,18 @@ namespace WhatsappApp.Pages
 
         private Popup _actionPopup;
 
+        // The bars live in Resources, where the x:Name fields the generator writes are
+        // left null because FindName never looks inside a ResourceDictionary. The page
+        // takes the bars by key (the way HomePage takes its own) and reaches the bar's
+        // buttons through its Buttons list, so no null field can hide the bar or stop
+        // OnNavigatedTo halfway.
+        private readonly Microsoft.Phone.Shell.ApplicationBar _chatAppBar;
+        private readonly Microsoft.Phone.Shell.ApplicationBar _selectedMessagesAppBar;
+        private readonly Microsoft.Phone.Shell.ApplicationBarIconButton _callHeaderButton;
+        private readonly Microsoft.Phone.Shell.ApplicationBarIconButton _forwardButton;
+        private readonly Microsoft.Phone.Shell.ApplicationBarIconButton _copyButton;
+        private readonly Microsoft.Phone.Shell.ApplicationBarIconButton _deleteButton;
+
         private sealed class PopupAction
         {
             public string Text;
@@ -184,7 +196,13 @@ namespace WhatsappApp.Pages
         {
             this.InitializeComponent();
             SystemTray.IsVisible = true;
-            ApplicationBar = ChatAppBar;
+            _chatAppBar = (Microsoft.Phone.Shell.ApplicationBar)Resources["ChatApplicationBar"];
+            _selectedMessagesAppBar = (Microsoft.Phone.Shell.ApplicationBar)Resources["SelectedMessagesApplicationBar"];
+            _callHeaderButton = (Microsoft.Phone.Shell.ApplicationBarIconButton)_chatAppBar.Buttons[2];
+            _forwardButton = (Microsoft.Phone.Shell.ApplicationBarIconButton)_selectedMessagesAppBar.Buttons[0];
+            _copyButton = (Microsoft.Phone.Shell.ApplicationBarIconButton)_selectedMessagesAppBar.Buttons[1];
+            _deleteButton = (Microsoft.Phone.Shell.ApplicationBarIconButton)_selectedMessagesAppBar.Buttons[2];
+            ApplicationBar = _chatAppBar;
 
             AutomationProperties.SetName(ClearImageButton, Loc.Get("ChatPage_ClearImageTooltip", "Remove the image"));
             AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
@@ -247,7 +265,7 @@ namespace WhatsappApp.Pages
                 DataContext = contact;
                 _messageSelectionMode = false;
                 _selectedMessages.Clear();
-                ApplicationBar = ChatAppBar;
+                ApplicationBar = _chatAppBar;
 
                 ContactNameText.Text = (string.IsNullOrEmpty(contact.Name)
                     ? DataService.DisplayNameForJid(contact.Id)
@@ -256,7 +274,7 @@ namespace WhatsappApp.Pages
 // A group is not called from here: `CallSignaling` builds an offer to a single
 // address, and a button that offered a group call the app cannot make would be a
 // promise it breaks.
-                CallHeaderButton.IsEnabled = !GroupDirectory.IsGroup(contact.Id);
+                _callHeaderButton.IsEnabled = !GroupDirectory.IsGroup(contact.Id);
 
                 // No presence: WhatsApp does not expose it through the server we
                 // use, and saying "online" or "last seen at HH:mm" was a lie. What
@@ -2496,7 +2514,7 @@ namespace WhatsappApp.Pages
         {
             _messageSelectionMode = true;
             _selectedMessages.Clear();
-            ApplicationBar = SelectedMessagesAppBar;
+            ApplicationBar = _selectedMessagesAppBar;
             UpdateSelectionActions();
         }
 
@@ -2522,7 +2540,7 @@ namespace WhatsappApp.Pages
             if (_selectedMessages.Count == 0)
             {
                 _messageSelectionMode = false;
-                ApplicationBar = ChatAppBar;
+                ApplicationBar = _chatAppBar;
                 return;
             }
             UpdateSelectionActions();
@@ -2537,7 +2555,7 @@ namespace WhatsappApp.Pages
             if (_selectedMessages.Count == 0)
             {
                 _messageSelectionMode = false;
-                ApplicationBar = ChatAppBar;
+                ApplicationBar = _chatAppBar;
                 return;
             }
             UpdateSelectionActions();
@@ -2546,9 +2564,9 @@ namespace WhatsappApp.Pages
         private void UpdateSelectionActions()
         {
             bool any = _selectedMessages.Count > 0;
-            ForwardMessagesAppBarButton.IsEnabled = any && _selectedMessages.Count <= 10;
-            CopyMessagesAppBarButton.IsEnabled = any && AllSelectedMessagesAreText();
-            DeleteMessagesAppBarButton.IsEnabled = any;
+            _forwardButton.IsEnabled = any && _selectedMessages.Count <= 10;
+            _copyButton.IsEnabled = any && AllSelectedMessagesAreText();
+            _deleteButton.IsEnabled = any;
         }
 
         private bool AllSelectedMessagesAreText()
