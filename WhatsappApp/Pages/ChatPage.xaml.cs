@@ -402,6 +402,12 @@ namespace WhatsappApp.Pages
             base.OnNavigatedFrom(e);
 
             AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+
+            // A `Popup` lives in the root layer, not in this page: leaving with the
+            // message menu or a prompt open floats it over the next screen, with its
+            // buttons still wired to the chat that is gone.
+            if (_actionPopup != null) _actionPopup.IsOpen = false;
+
             _left = true;
 
             DataService.Instance.MessageArrived -= OnMessageArrived;
