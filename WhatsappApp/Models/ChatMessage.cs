@@ -103,6 +103,9 @@ namespace WhatsappApp.Models
                 OnPropertyChanged();
                 OnPropertyChanged("ShowsText");
                 OnPropertyChanged("ShownText");
+                OnPropertyChanged("DocumentTitle");
+                OnPropertyChanged("DocumentBadge");
+                OnPropertyChanged("CanRetry");
             }
         }
 
@@ -229,6 +232,7 @@ namespace WhatsappApp.Models
                 OnPropertyChanged("IsVideo");
                 OnPropertyChanged("IsAudio");
                 OnPropertyChanged("ShowsText");
+                OnPropertyChanged("CanRetry");
             }
         }
 
@@ -236,7 +240,13 @@ namespace WhatsappApp.Models
         public bool IsIncoming
         {
             get { return _isIncoming; }
-            set { _isIncoming = value; OnPropertyChanged(); }
+            set
+            {
+                _isIncoming = value;
+                OnPropertyChanged();
+                OnPropertyChanged("IsOutgoing");
+                OnPropertyChanged("CanRetry");
+            }
         }
 
         [DataMember]
@@ -277,6 +287,10 @@ namespace WhatsappApp.Models
                 OnPropertyChanged();
                 OnPropertyChanged("DocumentTitle");
                 OnPropertyChanged("DocumentBadge");
+                // The name feeds DocumentTitle, and ShowsText hides the text while it
+                // is the name repeated under the card: the caption of a downloaded
+                // document appears when this name arrives.
+                OnPropertyChanged("ShowsText");
             }
         }
 
@@ -308,6 +322,7 @@ namespace WhatsappApp.Models
                 OnPropertyChanged("DocumentTitle");
                 OnPropertyChanged("DocumentBadge");
                 OnPropertyChanged("AudioErrorText");
+                OnPropertyChanged("CanRetry");
             }
         }
 
@@ -354,6 +369,7 @@ namespace WhatsappApp.Models
                 OnPropertyChanged();
                 OnPropertyChanged("IsVideo");
                 OnPropertyChanged("ShowsText");
+                OnPropertyChanged("CanRetry");
             }
         }
 
