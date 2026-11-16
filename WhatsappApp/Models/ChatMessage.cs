@@ -460,11 +460,6 @@ namespace WhatsappApp.Models
         }
 
         /// <summary>
-        /// History: an old message, which the sync brings when the app opens the
-        /// account. It is a normal message and must be drawn as such, but it did not
-        /// arrive now: it does not count as unread and raises no notification.
-        /// </summary>
-        /// <summary>
         /// How many bytes the frame that carried this message had on the wire. It is
         /// deliberately not a DataMember: it is not part of the protocol and never
         /// travels between the two ends. The reader sets it as the frame arrives, and
@@ -474,6 +469,11 @@ namespace WhatsappApp.Models
         /// </summary>
         public int WireBytes { get; set; }
 
+        /// <summary>
+        /// History: an old message, which the sync brings when the app opens the
+        /// account. It is a normal message and must be drawn as such, but it did not
+        /// arrive now: it does not count as unread and raises no notification.
+        /// </summary>
         [DataMember]
         public bool IsHistory
         {
