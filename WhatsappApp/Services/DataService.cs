@@ -1412,13 +1412,22 @@ namespace WhatsappApp.Services
                 merged.Add(gone[i]);
             }
 
-            merged.Sort(delegate(ChatMessage left, ChatMessage right)
+            // `StableOrder` and not `List<T>.Sort`: the timestamps are whole seconds and
+            // a sort promises nothing about rows that compare equal, so two rows of one
+            // second could come out of the merge the other way round - the order they
+            // arrived in, lost (see OrderConversation below).
+            var times = new List<DateTime>(merged.Count);
+            for (int i = 0; i < merged.Count; i++)
             {
-                return left.Timestamp.CompareTo(right.Timestamp);
-            });
+                times.Add(merged[i] == null ? DateTime.MinValue : merged[i].Timestamp);
+            }
+
+            int[] order = MessageOrder.StableOrder(times);
+            var ordered = new List<ChatMessage>(merged.Count);
+            for (int i = 0; i < order.Length; i++) ordered.Add(merged[order[i]]);
 
             keep.Clear();
-            for (int i = 0; i < merged.Count; i++) keep.Add(merged[i]);
+            for (int i = 0; i < ordered.Count; i++) keep.Add(ordered[i]);
 
             TrimToCeiling(keep);
         }

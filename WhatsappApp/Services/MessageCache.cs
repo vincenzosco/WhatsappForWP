@@ -321,11 +321,21 @@ namespace WhatsappApp.Services
 
             // In the order they happened, whatever the order they came in: a backlog is
             // not promised to be sorted, and a file whose rows straddle the saved ones
-            // would be a conversation read out of order on the next start.
-            merged.Sort(delegate (ChatMessage left, ChatMessage right)
+            // would be a conversation read out of order on the next start. `StableOrder`
+            // and not `List<T>.Sort`: the timestamps are whole seconds and a sort
+            // promises nothing about rows that compare equal, so a tie could be written
+            // to the phone the other way round - and the read-back keeps whatever order
+            // the file carries (see OrderConversation).
+            var times = new List<DateTime>(merged.Count);
+            for (int i = 0; i < merged.Count; i++)
             {
-                return left.Timestamp.CompareTo(right.Timestamp);
-            });
+                times.Add(merged[i] == null ? DateTime.MinValue : merged[i].Timestamp);
+            }
+
+            int[] order = MessageOrder.StableOrder(times);
+            var ordered = new List<ChatMessage>(merged.Count);
+            for (int i = 0; i < order.Length; i++) ordered.Add(merged[order[i]]);
+            merged = ordered;
 
             // The last `Keep` rows, slimmed, so the file stays the same size whatever this
             // adds. Written directly and not through `SaveAsync`: that would queue behind the
