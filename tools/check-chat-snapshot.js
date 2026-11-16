@@ -2,37 +2,43 @@
 /**
  * tools/check-chat-snapshot.js
  *
- * Guard for the order the snapshot is written in: **the chat list first, the
- * conversations after it**.
+ * Guard for what the phone keeps of the chat list and the conversations, and in
+ * which order it is written: **the chat list first, the conversations after it**,
+ * and **a conversation that changed while the write was walking the tails is not
+ * written back from the copy taken before it**.
  *
- * Perche' esiste: la sera del 23 ottobre 2026 l'app e' stata chiusa e riaperta e
- * la lista era vuota, finche' non e' arrivato un messaggio - e allora in lista
- * c'era solo quella chat. Lo store del telefono dice perche': `chats.json` non
- * c'era affatto, mentre c'erano 57 `messages_*.json`. `SaveSnapshotAsync`
- * scriveva i tail di ogni conversazione (un file, letto e riscritto, uno alla
- * volta) e solo alla fine l'elenco: su un telefono con 169 righe quel giro non
- * arriva in fondo prima che l'app venga chiusa, e la chiusura e' il caso
- * normale, non l'eccezione. Una riga che c'e' sul disco e una tail in meno e'
- * una lista che si apre vuota la volta dopo; il contrario e' solo una
- * conversazione che si apre con un messaggio in meno.
+ * Why it exists: the app was closed and reopened on an empty list, which stayed
+ * empty until a message arrived - and then the list held only that one chat. The
+ * phone's store said why: `chats.json` was not there at all, while there were 57
+ * `messages_*.json`. `SaveSnapshotAsync` wrote every conversation's tail (one
+ * file, read and rewritten, one at a time) and the list only at the end: on a
+ * phone with 169 rows that round does not reach the end before the app is closed,
+ * and closing is the normal case, not the exception. A row that is on disk and a
+ * tail missing is a list that opens empty the next time; the other way round is
+ * only a conversation that opens one message short.
  *
- * Regola: dentro `DataService.SaveSnapshotAsync` la chiamata a
- * `ChatCache.SaveAsync` viene prima del ciclo che chiama
- * `MessageCache.AppendAsync`.
+ * Rules:
  *
- * Il 24 ottobre 2026 la stessa lista era corta per due altri motivi, e le regole
- * sono qui perche' il difetto e' lo stesso: **la lista sul telefono e' l'unica che
- * il prossimo avvio disegna**, e WhatsApp la nomina di nuovo solo a un link.
- *
- * - Il run delle 08:25 e' stato fermato dal debugger con una riga appena arrivata:
- * nessuna sospensione, nessun salvataggio, e la lista era quella del giorno
- * prima. Ogni scrittore era una *fine* (fine sync, sospensione, fine del
- * controllo in background) e un run non finisce sempre cosi'. Quindi il
- * percorso dei messaggi deve chiedere la scrittura (`ScheduleListSave`).
- * - `chats.json` aveva 2 righe contro 56 `messages_*.json`: 54 conversazioni
- * erano sul telefono e non in lista, e nessun server le avrebbe piu' nominate.
- * Quindi l'avvio deve chiedere le righe anche alle code
- * (`RestoreRowsFromTheirTailsAsync`).
+ * 1. Inside `DataService.SaveSnapshotAsync` the call to `ChatCache.SaveAsync`
+ *    comes before the loop that calls `MessageCache.AppendAsync`.
+ * 2. The live message path asks for the write (`ScheduleListSave`), because a run
+ *    does not always end with a suspension - it was stopped from the debugger with
+ *    a row that had just arrived, and the list was the day before's. Every writer
+ *    was an *ending* (end of sync, suspension, end of a background check).
+ * 3. The start asks the tails for the rows `chats.json` does not name
+ *    (`RestoreRowsFromTheirTailsAsync`): that file held 2 rows against 56
+ *    `messages_*.json`, so 54 conversations were on the phone and not on the list,
+ *    and no server names the list again except at a link.
+ * 4. The tail loop checks every tail against the conversation it belongs to
+ *    before writing it. The rows were copied when the snapshot began and the loop
+ *    writes one file at a time - minutes on the phone - so a chat deleted (or a
+ *    message removed) while it runs would be written back by the copy taken
+ *    before the deletion, and the deleted conversation returns at the next
+ *    open-and-close. `MessageCache.AppendAsync` merges by id, so a re-written
+ *    file resurrects rows the reader had just deleted.
+ * 5. `MessageCache` runs its deletes through the same write queue as its writes.
+ *    A delete that runs beside a write still in flight is undone by that write:
+ *    the queue makes "load, merge, write" one step and must own the delete too.
  *
  * Usage:
  * node tools/check-chat-snapshot.js
@@ -45,8 +51,9 @@ const { stripComments } = require('./csharp');
 
 const ROOT = path.resolve(__dirname, '..');
 const SERVICE = path.join(ROOT, 'WhatsappApp', 'Services', 'DataService.cs');
+const CACHE = path.join(ROOT, 'WhatsappApp', 'Services', 'MessageCache.cs');
 
-/** Il corpo di un metodo, dalla sua dichiarazione alla graffa a otto spazi che lo chiude. */
+/** The body of a method, from its declaration to the closing brace at eight spaces. */
 function methodBody(source, name) {
   const at = source.search(new RegExp('(?:private|public|internal)[^;{]*\\b' + name + '\\s*\\('));
   if (at < 0) return '';
@@ -57,8 +64,13 @@ function methodBody(source, name) {
   return end < 0 ? rest : rest.slice(0, end);
 }
 
-/** I problemi del salvataggio: vuoto quando la lista e' scritta per prima. */
-function problemsFor(service) {
+/**
+ * The problems of the snapshot and of the tail cache: empty when the list is
+ * written first, a stale tail is skipped and the deletes go through the queue.
+ * `cache` is the source of `MessageCache.cs`; when it is missing the rules that
+ * read it are not run (fixtures that carry one file only).
+ */
+function problemsFor(service, cache) {
   const problems = [];
   const where = 'WhatsappApp/Services/DataService.cs';
   const source = stripComments(service);
@@ -114,11 +126,61 @@ function problemsFor(service) {
       + 'the phone and not on the list, with no way back on screen');
   }
 
+  // A tail written back from a copy taken before the deletion it is racing. The
+  // rows are snapshotted when SaveSnapshotAsync begins and the loop writes one
+  // file at a time, so a chat deleted (or a message removed) mid-loop must be
+  // skipped - AppendAsync merges by id and would put the deleted rows back.
+  const appendAt = body.indexOf('MessageCache.AppendAsync');
+  const loopAt = appendAt < 0 ? -1 : body.lastIndexOf('for (int i = 0; i < tails.Count', appendAt);
+  if (appendAt >= 0 && loopAt >= 0) {
+    const region = body.slice(loopAt, appendAt);
+    const checksLive = /_chatMessages/.test(region) && /\bcontinue\s*;/.test(region);
+    const checksReset = /_resettingAccount/.test(region);
+
+    if (!checksLive) {
+      problems.push(where + ': the tail loop writes every tail of the snapshot without asking '
+        + 'whether the conversation still holds those rows (_chatMessages, skipped with continue). '
+        + 'The rows were copied when the snapshot began and the loop writes one file at a time - '
+        + 'minutes on the phone - so a chat deleted, or a message removed, while it runs is '
+        + 'written back by the copy taken before the deletion: MessageCache.AppendAsync merges by '
+        + 'id and the deleted conversation returns at the next open-and-close');
+    }
+
+    if (!checksReset) {
+      problems.push(where + ': the tail loop does not stop when the account is being replaced '
+        + '(_resettingAccount). The pairing wipes the tails of the previous identity '
+        + '(MessageCache.DeleteAllAsync) while a snapshot may still be writing them, and a tail '
+        + 'written after the wipe is the old account\'s conversation on the new account\'s phone');
+    }
+  }
+
+  if (typeof cache === 'string') {
+    const cacheSource = stripComments(cache);
+
+    for (const name of ['DeleteAsync', 'DeleteAllAsync']) {
+      const del = methodBody(cacheSource, name);
+      if (!del) {
+        problems.push('WhatsappApp/Services/MessageCache.cs: no ' + name
+          + ' - a deleted conversation loses its copy on the phone there');
+        continue;
+      }
+
+      if (!/Writes\.RunAsync/.test(del)) {
+        problems.push('WhatsappApp/Services/MessageCache.cs: ' + name + ' does not run through the '
+          + 'write queue (Writes.RunAsync). Every write of a tail is queued as one '
+          + 'load-merge-write step; a delete that runs beside a step still in flight is undone by '
+          + 'it, and the conversation the reader just deleted is back on the phone');
+      }
+    }
+  }
+
   return problems;
 }
 
 function main() {
-  const problems = problemsFor(fs.readFileSync(SERVICE, 'utf8'));
+  const problems = problemsFor(
+    fs.readFileSync(SERVICE, 'utf8'),
+    fs.readFileSync(CACHE, 'utf8'));
 
   if (problems.length) {
     console.log(problems.join('\n'));

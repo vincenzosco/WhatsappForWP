@@ -1090,17 +1090,38 @@ namespace WhatsappApp.Services
 
             Diag.Ok("cache: the list written, " + rows.Count + " row(s)");
 
+            int written = 0;
             for (int i = 0; i < tails.Count; i++)
             {
+                // The rows were copied when this method began, and the loop writes one
+                // file at a time - minutes on the phone with a long tail list. A
+                // conversation that changed under it is not this tail any more: a chat
+                // the reader deleted (or a message he removed) would be written back by
+                // the copy taken before the deletion, because `AppendAsync` merges by id
+                // and would return rows the reader had just thrown away. What is written
+                // is what the conversation holds now, or nothing - the next snapshot
+                // covers the rows that changed meanwhile.
+                //
+                // And the account being replaced ends the walk: the pairing wipes the
+                // tails of the previous identity (MessageCache.DeleteAllAsync) while a
+                // snapshot may still be writing them, and a tail written after the wipe is
+                // the old account's conversation on the new account's phone.
+                if (_resettingAccount) break;
+
+                ObservableCollection<ChatMessage> live;
+                if (!_chatMessages.TryGetValue(tails[i].Key, out live)) continue;
+                if (live.Count != tails[i].Value.Length) continue;
+
                 // Merged with the file and not written over it: this process may hold
                 // only the messages that arrived while it was up, and the tail that was
                 // already on the phone is still the conversation.
                 await MessageCache.AppendAsync(tails[i].Key, tails[i].Value);
+                written++;
             }
 
             // Named, because it is the second half of the snapshot and a close can land in
             // the middle of it: a run whose log stops at the line above lost only the tails.
-            Diag.Ok("cache: " + tails.Count + " conversation(s) written");
+            Diag.Ok("cache: " + written + " conversation(s) written of " + tails.Count + " held");
         }
 
         /// <summary>

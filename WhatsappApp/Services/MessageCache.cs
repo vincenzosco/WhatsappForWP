@@ -259,11 +259,21 @@ namespace WhatsappApp.Services
         /// open-and-close, because DataService reads the cache when the in-memory
         /// list is empty. Never an exception: a file that is not there is not a
         /// failure.
+        ///
+        /// Through the write queue, like every write of a tail: `AppendCoreAsync`
+        /// is a load, a merge and a write, and a delete that ran beside one still
+        /// in flight was undone by its write - the conversation the reader had
+        /// just deleted came back on the phone.
         /// </summary>
         public static async Task DeleteAsync(string chatId)
         {
             if (string.IsNullOrEmpty(chatId)) return;
 
+            await Writes.RunAsync(delegate { return DeleteCoreAsync(chatId); });
+        }
+
+        private static async Task DeleteCoreAsync(string chatId)
+        {
             try
             {
                 // A chat that was never saved has no file to drop: the state of every chat
@@ -344,8 +354,17 @@ namespace WhatsappApp.Services
         /// Drops every conversation on the phone. A link is a new identity, and the
         /// messages of the previous one are not this account's messages: the sync the
         /// link brings writes its own copy (see DataService, the end of the history).
+        ///
+        /// Through the write queue for the same reason as `DeleteAsync`: a tail
+        /// still being written when the wipe runs would put the old identity's
+        /// conversation back onto the phone the wipe just cleared.
         /// </summary>
         public static async Task DeleteAllAsync()
+        {
+            await Writes.RunAsync(delegate { return DeleteAllCoreAsync(); });
+        }
+
+        private static async Task DeleteAllCoreAsync()
         {
             try
             {
