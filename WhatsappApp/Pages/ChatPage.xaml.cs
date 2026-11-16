@@ -450,7 +450,6 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// <summary>
         /// Calls the person in this chat from the app bar, as the official client does: the
         /// offer goes out and the call page comes to the front. A call placed from a
         /// conversation with no call screen over it is a press that seems to do nothing.
