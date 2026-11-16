@@ -484,7 +484,9 @@ namespace WhatsappApp.Pages
                 Deployment.Current.Dispatcher.BeginInvoke(NavigateHomeAfterPairing);
 
                 Diag.Ok("pair: the login restart began");
+#pragma warning disable 4014
                 Guarded.RunGuardedAsync("PairPage/login", RestartLoginAsync);
+#pragma warning restore 4014
             }
             catch (Exception error)
             {
