@@ -153,10 +153,12 @@ namespace WhatsappApp.Pages
         /// <summary>
         /// Links a different account. The code is drawn by PairPage, which owns the
         /// rotation and the end of an attempt; this page only hands over the screen.
+        /// The route carries `relink=1`: it is what tells PairPage that this arrival
+        /// asked to link again, while a return through the journal did not.
         /// </summary>
         private void LinkDeviceButton_Click(object sender, RoutedEventArgs e)
         {
-            NavigationService.Navigate(new Uri("/Pages/PairPage.xaml", UriKind.Relative));
+            NavigationService.Navigate(new Uri("/Pages/PairPage.xaml?relink=1", UriKind.Relative));
         }
 
         private void BackButton_Click(object sender, RoutedEventArgs e)

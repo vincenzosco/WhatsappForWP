@@ -81,6 +81,16 @@ namespace WhatsappApp.Pages
         private IList<string> _codes;
         private int _shown;
 
+        /// <summary>
+        /// The handoff watch: the frame has accepted the move to the chats, and these say
+        /// whether it landed. The watch outlives the page - the landing comes after the
+        /// page has left - so the frame and the navigation service are held here.
+        /// </summary>
+        private DispatcherTimer _landingWatch;
+        private NavigationService _landingNav;
+        private PhoneApplicationFrame _landingFrame;
+        private int _landingTicksLeft;
+
         /// <summary>One attempt at a time: the retry button and a rotation that ran out can otherwise overlap.</summary>
         private bool _pairing;
 
@@ -123,9 +133,46 @@ namespace WhatsappApp.Pages
 
             _left = false;
             ApplyTheme();
+
+            // The page is reachable with an account already linked - a return through the
+            // journal, above all - and a code drawn there would offer to wipe the account
+            // that is already here. The attempt starts only for an arrival that asks to pair.
+            if (!WantsPairing(e))
+            {
+                Diag.Ok("pair: the account is already linked, no code is drawn");
+                NavigateHomeAfterPairing();
+                return;
+            }
+
 #pragma warning disable 4014
             Guarded.RunGuardedAsync("PairPage/pairing", RunAsync());
 #pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// Whether this arrival asks for a pairing at all.
+        ///
+        /// Two arrivals do: the start that routed here because no account is stored (or
+        /// the last one was refused), and the account screen's "Link a device", which marks
+        /// its route `relink=1`. Everything else reaches this page by accident - a return
+        /// through the journal after a link is the common one. A Back or Forward arrival is
+        /// never a request either, so a return to a marked route does not link a second time.
+        /// </summary>
+        private bool WantsPairing(NavigationEventArgs e)
+        {
+            bool linked = _store.HasSession && !SessionState.Expired;
+            if (!linked) return true;
+
+            if (e.NavigationMode == NavigationMode.Back || e.NavigationMode == NavigationMode.Forward)
+                return false;
+
+            string marker = null;
+            if (NavigationContext != null && NavigationContext.QueryString != null
+                && NavigationContext.QueryString.ContainsKey("relink"))
+            {
+                marker = NavigationContext.QueryString["relink"];
+            }
+            return string.Equals(marker, "1", StringComparison.Ordinal);
         }
 
         /// <summary>
@@ -170,17 +217,123 @@ namespace WhatsappApp.Pages
                 Diag.Ok("pair: HomePage navigation accepted: " + accepted);
                 if (!accepted)
                 {
-                    ErrorText.Text = Loc.Get("PairPage_NavigationFailed", "The account is linked, but the chats page could not be opened. Close and reopen the app.");
-                    ErrorText.Visibility = Visibility.Visible;
-                    RetryButton.Visibility = Visibility.Collapsed;
+                    ShowNavigationFailure();
+                    return;
                 }
+
+                // `Navigate` answers for the request, not for the landing: a route the
+                // frame accepts can still die while its page is built, and a handoff
+                // believed on its "true" alone leaves this page on screen with nothing
+                // said. The watch follows the frame until the chats are in front.
+                WatchForHomeLanding(frame);
             }
             catch (Exception error)
             {
                 Diag.Failed("PairPage/navigation", error);
-                ErrorText.Text = Loc.Get("PairPage_NavigationFailed", "The account is linked, but the chats page could not be opened. Close and reopen the app.");
-                ErrorText.Visibility = Visibility.Visible;
-                RetryButton.Visibility = Visibility.Collapsed;
+                ShowNavigationFailure();
+            }
+        }
+
+        private void ShowNavigationFailure()
+        {
+            ErrorText.Text = Loc.Get("PairPage_NavigationFailed", "The account is linked, but the chats page could not be opened. Close and reopen the app.");
+            ErrorText.Visibility = Visibility.Visible;
+            RetryButton.Visibility = Visibility.Collapsed;
+        }
+
+        /// <summary>
+        /// Follows the handoff to its end and stops itself either way. The watch runs on
+        /// the dispatcher the page was built on, which is where the frame answers.
+        /// </summary>
+        private void WatchForHomeLanding(PhoneApplicationFrame frame)
+        {
+            StopLandingWatch();
+            _landingFrame = frame;
+            _landingNav = NavigationService;
+            _landingTicksLeft = 20;
+            _landingWatch = new DispatcherTimer();
+            _landingWatch.Interval = TimeSpan.FromMilliseconds(500);
+            _landingWatch.Tick += LandingWatch_Tick;
+            _landingWatch.Start();
+        }
+
+        private void LandingWatch_Tick(object sender, EventArgs e)
+        {
+            if (HomeHasLanded())
+            {
+                StopLandingWatch();
+                Diag.Ok("pair: the frame landed on HomePage");
+                ForgetPairPageInJournal();
+                return;
+            }
+
+            if (--_landingTicksLeft > 0) return;
+
+            StopLandingWatch();
+            Diag.Failed("PairPage/navigation", new InvalidOperationException(
+                "The frame accepted the HomePage route but never landed on it."));
+            ShowNavigationFailure();
+        }
+
+        /// <summary>
+        /// Whether the chats are the page in front. The root frame is the direct answer;
+        /// the navigation service's current route is the one for a shell whose root visual
+        /// is not the frame the page navigated with.
+        /// </summary>
+        private bool HomeHasLanded()
+        {
+            PhoneApplicationFrame frame = _landingFrame;
+            if (frame != null) return frame.Content is HomePage;
+
+            NavigationService nav = _landingNav;
+            return nav != null && nav.CurrentSource != null
+                && nav.CurrentSource.OriginalString.StartsWith("/Pages/HomePage.xaml", StringComparison.Ordinal);
+        }
+
+        private void StopLandingWatch()
+        {
+            if (_landingWatch == null) return;
+
+            _landingWatch.Stop();
+            _landingWatch.Tick -= LandingWatch_Tick;
+            _landingWatch = null;
+        }
+
+        /// <summary>
+        /// The handoff pushes this page into the journal behind the chats, and a Back from
+        /// there walks straight onto the QR again - over the account that was just linked.
+        /// The entry the handoff pushed is the top one once the chats have landed, and it
+        /// is removed only when it really names this page: an entry naming another route
+        /// is left alone.
+        /// </summary>
+        private void ForgetPairPageInJournal()
+        {
+            NavigationService nav = _landingNav;
+            if (nav == null) return;
+
+            try
+            {
+                JournalEntry top = null;
+                foreach (JournalEntry entry in nav.BackStack)
+                {
+                    top = entry;
+                    break;
+                }
+
+                if (top == null || top.Source == null
+                    || !top.Source.OriginalString.StartsWith("/Pages/PairPage.xaml", StringComparison.Ordinal))
+                {
+                    Diag.Ok("pair: the journal holds no pairing page to forget");
+                    return;
+                }
+
+                JournalEntry removed = nav.RemoveBackEntry();
+                Diag.Ok("pair: the pairing page is out of the journal ("
+                    + (removed == null || removed.Source == null ? "unknown" : removed.Source.OriginalString) + ")");
+            }
+            catch (Exception error)
+            {
+                Diag.Failed("PairPage/journal", error);
             }
         }
 
@@ -310,6 +463,7 @@ namespace WhatsappApp.Pages
                 // stored is a session the next start does not have, and the QR would come
                 // back for a phone that is already linked.
                 _store.Save(paired);
+                Diag.Ok("pair: the account is saved");
 
                 // The account is new and the store has it: whatever was refused before is
                 // no longer this phone's problem.
@@ -329,6 +483,7 @@ namespace WhatsappApp.Pages
                 ShowLinked();
                 Deployment.Current.Dispatcher.BeginInvoke(NavigateHomeAfterPairing);
 
+                Diag.Ok("pair: the login restart began");
                 Guarded.RunGuardedAsync("PairPage/login", RestartLoginAsync);
             }
             catch (Exception error)
