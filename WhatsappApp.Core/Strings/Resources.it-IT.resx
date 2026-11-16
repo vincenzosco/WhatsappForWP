@@ -670,9 +670,6 @@
   <data name="Notification_IncomingCall" xml:space="preserve">
     <value>Chiamata in arrivo</value>
   </data>
-  <data name="ChatPage_AttachMediaTitle" xml:space="preserve">
-    <value>Allega media</value>
-  </data>
   <data name="ChatMessage_Albums" xml:space="preserve">
     <value>Album</value>
   </data>

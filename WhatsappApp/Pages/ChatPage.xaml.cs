@@ -212,8 +212,6 @@ namespace WhatsappApp.Pages
             AutomationProperties.SetName(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
             MessagePlaceholderText.Text = Loc.Get("ChatPage_Input.PlaceholderText", "Type a message");
             RecordingLabelText.Text = Loc.Get("ChatPage_RecordingLabel.Text", "Recording");
-            AttachmentPickerTitle.Text = Loc.Get("ChatPage_AttachMediaTitle", "Allega media")
-                .ToUpper(CultureInfo.CurrentCulture);
             AttachmentAlbumsLabel.Text = Loc.Get("ChatMessage_Albums", "Album");
             AttachmentPhotoLabel.Text = Loc.Get("ChatMessage_Photo", "Photo");
             AttachmentVideoLabel.Text = Loc.Get("ChatMessage_Video", "Video");
@@ -2817,7 +2815,32 @@ namespace WhatsappApp.Pages
 
         private void AttachButton_Click(object sender, EventArgs e)
         {
+            SizeAttachmentTiles();
             AttachmentPickerOverlay.Visibility = Visibility.Visible;
+        }
+
+        /// <summary>
+        /// Squares the picker tiles to the screen the way the XAP panel does:
+        /// (min(w, h) - 48 * zoom - 2 * gap) / 3 with a 12 px gap. The tiles carry
+        /// no fixed size in the markup because the answer depends on the scale
+        /// factor of the screen the phone happens to have.
+        /// </summary>
+        private void SizeAttachmentTiles()
+        {
+            double zoom = Application.Current.Host.Content.ScaleFactor / 100.0;
+            double side = (Math.Min(ActualWidth, ActualHeight) - 48 * zoom - 24) / 3;
+            if (side <= 0) return;
+
+            Button[] tiles =
+            {
+                AttachmentPhotoButton, AttachmentAlbumsButton, AttachmentVideoButton,
+                AttachmentContactButton, AttachmentAudioButton, AttachmentLocationButton
+            };
+            for (int i = 0; i < tiles.Length; i++)
+            {
+                tiles[i].Width = side;
+                tiles[i].Height = side;
+            }
         }
 
         private void AttachmentPickerDismissButton_Click(object sender, RoutedEventArgs e)

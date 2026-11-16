@@ -69,22 +69,42 @@ test('the conversation fills the row under the title bar', () => {
 test('the attach media panel stays above the native chat app bar', () => {
   assert.match(chat, /<Grid x:Name="AttachmentPickerOverlay" Grid\.Row="1" Grid\.RowSpan="3"/);
   assert.match(chat, /<Border Background="#FF1F1F1F"[\s\S]*?VerticalAlignment="Bottom"/);
-  assert.match(chat, /x:Name="AttachmentPickerTitle"[\s\S]*?FontSize="15" FontWeight="Bold"/);
-  const tiles = chat.match(/<Button x:Name="Attachment\w+Button"[\s\S]*?<\/Button>/g) || [];
+  assert.doesNotMatch(chat, /AttachmentPickerTitle/,
+    'the XAP attach panel has no title over its tiles');
+  // Portrait order of the XAP WrapPanel: camera, album, then the remaining
+  // actions in their reference order with the document tile skipped (this app
+  // sends no documents).
+  const order = [
+    'AttachmentPhotoButton', 'AttachmentAlbumsButton', 'AttachmentVideoButton',
+    'AttachmentContactButton', 'AttachmentAudioButton', 'AttachmentLocationButton'
+  ];
+  let last = -1;
+  for (const name of order) {
+    const at = chat.indexOf(`x:Name="${name}"`);
+    assert.ok(at > last, `${name} sits in the reference tile order`);
+    last = at;
+  }
+  const tiles = chat.match(/<Button x:Name="Attachment(?:Albums|Photo|Video|Audio|Location|Contact)Button"[\s\S]*?<\/Button>/g) || [];
   assert.equal(tiles.length, 6);
   for (const tile of tiles) {
-    assert.match(tile, /Height="150"/, "the reference tiles are square and 150 px high");
-    assert.match(tile, /HorizontalAlignment="Stretch"/, "the three columns fill the sheet");
+    assert.doesNotMatch(tile, /Height="150"/,
+      'tile size is computed from the screen scale, not pinned');
+    assert.match(tile, /<RowDefinition Height="0\.225\*"\/>[\s\S]*?<RowDefinition Height="0\.525\*"\/>[\s\S]*?<RowDefinition Height="0\.25\*"\/>/,
+      'the reference tile rows (0.225/0.525/0.25)');
+    assert.match(tile, /Width="54" Height="54"/, 'the 54 px mark of the reference tile');
     assert.match(tile, /Background="\{StaticResource WhatsAppAccentBrush\}"/);
-    assert.match(tile, /HorizontalAlignment="Left" VerticalAlignment="Bottom"/, "the label sits at the bottom-left");
+    assert.match(tile, /Margin="12,0,0,12"/,
+      'the label sits at the bottom-left, 12 px in');
   }
   assert.match(chat, /attach-picture\.png/, "Albums keeps the picture mark");
   assert.match(chat, /attach-camera\.png/, "Photo is the camera, not a second picture mark");
+  // The reference sizes a tile as (min(w,h) - 48 * zoom - 2 * gap) / 3.
+  assert.match(chatCode, /48\s*\*[\s\S]{0,40}?\/\s*3/,
+    'the tile size follows the XAP AttachPanel.ButtonSize formula');
   assert.match(chat, /<shell:ApplicationBar x:Name="ChatAppBar"[^>]*>[\s\S]*?<shell:ApplicationBarIconButton x:Name="SendButton"/);
   assert.doesNotMatch(chat, /<Grid Grid\.Row="4" Background="#FF171717" MinHeight="64">/);
   assert.match(chat, /<shell:ApplicationBarIconButton x:Name="CallHeaderButton"[^>]*IsEnabled="False"/);
   assert.match(chatCode, /_callHeaderButton\.IsEnabled = !GroupDirectory\.IsGroup\(contact\.Id\);/);
-  assert.match(chatCode, /AttachmentPickerTitle\.Text = Loc\.Get\("ChatPage_AttachMediaTitle"[\s\S]*?ToUpper/);
 });
 
 test('the composer sits on the 64 px line of the bar, flush to the right edge', () => {
