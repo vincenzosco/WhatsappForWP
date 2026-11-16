@@ -328,6 +328,9 @@
   <data name="ChatsPage_ReadAll" xml:space="preserve">
     <value>Segna tutte le chat come lette</value>
   </data>
+  <data name="ChatsPage_Settings" xml:space="preserve">
+    <value>Impostazioni</value>
+  </data>
   <data name="ChatsPage_PinTitle" xml:space="preserve">
     <value>Chat fissate</value>
   </data>

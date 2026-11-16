@@ -141,17 +141,17 @@
 
                                 <!--
                                     x:Name="Tile" gives this Grid a name the animations above
-                                    can target. 46 by 46 is the visible circle inside the
+                                    can target. 40 by 40 is the visible circle inside the
                                     64 pixel tap area.
                                 -->
-                                <Grid x:Name="Tile" Width="46" Height="46">
+                                <Grid x:Name="Tile" Width="40" Height="40">
                                     <!--
                                         Ellipse draws the circle. TemplateBinding means "use
                                         the button's Background and Foreground values", so a
                                         style consumer can still recolour it.
                                     -->
                                     <Ellipse Fill="{TemplateBinding Background}"
-                                             Stroke="White" StrokeThickness="1.5"/>
+                                             Stroke="White" StrokeThickness="3"/>
 
                                     <!-- The button's content (the icon) is drawn on top, centred. -->
                                     <ContentPresenter HorizontalAlignment="Center"

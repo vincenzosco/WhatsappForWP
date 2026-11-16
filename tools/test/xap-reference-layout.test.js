@@ -131,8 +131,8 @@ test('the home ring bar remains shared while chat uses the native app bar', () =
 
   assert.match(application, /<Style x:Key="AppBarButtonStyle" TargetType="Button">/);
   assert.match(application, /<Style x:Key="OverflowButtonStyle" TargetType="Button">/);
-  assert.match(application, /<Grid x:Name="Tile" Width="46" Height="46">/,
-    'the shared ring is the 46 px circle both bars drew');
+  assert.match(application, /<Grid x:Name="Tile" Width="40" Height="40">/,
+    'the shared ring is the 40 px circle the original design draws');
 
   assert.doesNotMatch(home, /x:Key="AppBarButtonStyle"/, 'the home page does not carry its own copy');
   assert.doesNotMatch(chat, /x:Key="(?:AppBar|Overflow|ChatBar)\w*Style"/, 'nor does the chat');
