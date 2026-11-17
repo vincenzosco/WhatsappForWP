@@ -102,43 +102,64 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        sync.SyncType = (int)reader.ReadVarint();
+                        if (field.WireType == 0) sync.SyncType = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 2:
-                        sync.Conversations.Add(HistoryConversation.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) sync.Conversations.Add(HistoryConversation.Decode(sub));
+                            break;
+                        }
 
                     case 3:
-                        sync.StatusMessages.Add(HistoryMessage.FromWebMessage(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) sync.StatusMessages.Add(HistoryMessage.FromWebMessage(sub));
+                            break;
+                        }
 
                     case 5:
-                        reader.ReadVarint();
+                        reader.SkipField(field.WireType);
                         break;
 
                     case 6:
-                        sync.Progress = (int)reader.ReadVarint();
+                        if (field.WireType == 0) sync.Progress = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 7:
-                        sync.PushNames.Add(HistoryPushName.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) sync.PushNames.Add(HistoryPushName.Decode(sub));
+                            break;
+                        }
 
                     case 13:
-                        sync.CallLogRecords.Add(CallLogRecord.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) sync.CallLogRecords.Add(CallLogRecord.Decode(sub));
+                            break;
+                        }
 
                     case 15:
-                        sync.LidMappings.Add(LidMapping.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) sync.LidMappings.Add(LidMapping.Decode(sub));
+                            break;
+                        }
 
                     case 20:
-                        sync.InlineContacts.Add(InlineContact.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) sync.InlineContacts.Add(InlineContact.Decode(sub));
+                            break;
+                        }
 
                     case 21:
-                        sync.InlineContactsProvided = reader.ReadVarint() != 0;
+                        if (field.WireType == 0) sync.InlineContactsProvided = reader.ReadVarint() != 0;
+                        else reader.SkipField(field.WireType);
                         break;
 
                     default:
@@ -193,31 +214,38 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        conversation.Jid = Utf8(reader.ReadBytes());
+                        conversation.Jid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 2:
-                        conversation.Messages.Add(HistoryMessage.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) conversation.Messages.Add(HistoryMessage.Decode(sub));
+                            break;
+                        }
 
                     case 5:
-                        conversation.LastMessageTimestamp = (long)reader.ReadVarint();
+                        if (field.WireType == 0) conversation.LastMessageTimestamp = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 6:
-                        conversation.UnreadCount = (int)reader.ReadVarint();
+                        if (field.WireType == 0) conversation.UnreadCount = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 12:
-                        conversation.ConversationTimestamp = (long)reader.ReadVarint();
+                        if (field.WireType == 0) conversation.ConversationTimestamp = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 13:
-                        conversation.Name = Utf8(reader.ReadBytes());
+                        conversation.Name = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 16:
-                        conversation.Archived = reader.ReadVarint() != 0;
+                        if (field.WireType == 0) conversation.Archived = reader.ReadVarint() != 0;
+                        else reader.SkipField(field.WireType);
                         break;
 
                     // The name the chat shows: `displayName` is the one the server sends for
@@ -225,17 +253,17 @@ namespace WhatsappApp.Protocol.WaProto
                     // with a subject ever carries.
                     case 38:
                         {
-                            string display = Utf8(reader.ReadBytes());
+                            string display = Utf8(reader.ReadBytes(field.WireType));
                             if (conversation.Name == null) conversation.Name = display;
                             break;
                         }
 
                     case 39:
-                        conversation.PnJid = Utf8(reader.ReadBytes());
+                        conversation.PnJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 42:
-                        conversation.LidJid = Utf8(reader.ReadBytes());
+                        conversation.LidJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     default:
@@ -249,6 +277,8 @@ namespace WhatsappApp.Protocol.WaProto
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }
@@ -297,7 +327,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 1) ReadWebMessage(message, reader.ReadBytes());
+                if (field.Number == 1 && field.WireType == 2) ReadWebMessage(message, reader.ReadBytes(field.WireType));
                 else reader.SkipField(field.WireType);
             }
 
@@ -334,27 +364,34 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        ReadKey(target, reader.ReadBytes());
-                        break;
+                        {
+                            byte[] key = reader.ReadBytes(field.WireType);
+                            if (key != null) ReadKey(target, key);
+                            break;
+                        }
 
                     case 2:
                         {
-                            byte[] encoded = reader.ReadBytes();
-                            target.Encoded = encoded;
-                            target.Text = Message.Decode(encoded).Body();
+                            byte[] encoded = reader.ReadBytes(field.WireType);
+                            if (encoded != null)
+                            {
+                                target.Encoded = encoded;
+                                target.Text = Message.Decode(encoded).Body();
+                            }
                             break;
                         }
 
                     case 3:
-                        target.Timestamp = (long)reader.ReadVarint();
+                        if (field.WireType == 0) target.Timestamp = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 5:
-                        target.Sender = Utf8(reader.ReadBytes());
+                        target.Sender = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 19:
-                        target.SenderName = Utf8(reader.ReadBytes());
+                        target.SenderName = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     default:
@@ -381,20 +418,21 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        target.Jid = Utf8(reader.ReadBytes());
+                        target.Jid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 2:
-                        target.IsFromMe = reader.ReadVarint() != 0;
+                        if (field.WireType == 0) target.IsFromMe = reader.ReadVarint() != 0;
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 3:
-                        target.Id = Utf8(reader.ReadBytes());
+                        target.Id = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 4:
                         {
-                            string participant = Utf8(reader.ReadBytes());
+                            string participant = Utf8(reader.ReadBytes(field.WireType));
                             if (target.Sender == null) target.Sender = participant;
                             break;
                         }
@@ -408,6 +446,8 @@ namespace WhatsappApp.Protocol.WaProto
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }
@@ -436,11 +476,11 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        mapping.PhoneNumber = Utf8(reader.ReadBytes());
+                        mapping.PhoneNumber = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 2:
-                        mapping.Lid = Utf8(reader.ReadBytes());
+                        mapping.Lid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     default:
@@ -454,6 +494,8 @@ namespace WhatsappApp.Protocol.WaProto
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }
@@ -486,23 +528,23 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        contact.PnJid = Utf8(reader.ReadBytes());
+                        contact.PnJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 2:
-                        contact.LidJid = Utf8(reader.ReadBytes());
+                        contact.LidJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 3:
-                        contact.FullName = Utf8(reader.ReadBytes());
+                        contact.FullName = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 4:
-                        contact.FirstName = Utf8(reader.ReadBytes());
+                        contact.FirstName = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 5:
-                        contact.Username = Utf8(reader.ReadBytes());
+                        contact.Username = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     default:
@@ -516,6 +558,8 @@ namespace WhatsappApp.Protocol.WaProto
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }
@@ -539,15 +583,15 @@ namespace WhatsappApp.Protocol.WaProto
                 {
                     case 1:
                         {
-                            byte[] jid = reader.ReadBytes();
-                            pushName.Jid = System.Text.Encoding.UTF8.GetString(jid, 0, jid.Length);
+                            byte[] jid = reader.ReadBytes(field.WireType);
+                            if (jid != null) pushName.Jid = System.Text.Encoding.UTF8.GetString(jid, 0, jid.Length);
                             break;
                         }
 
                     case 2:
                         {
-                            byte[] name = reader.ReadBytes();
-                            pushName.Name = System.Text.Encoding.UTF8.GetString(name, 0, name.Length);
+                            byte[] name = reader.ReadBytes(field.WireType);
+                            if (name != null) pushName.Name = System.Text.Encoding.UTF8.GetString(name, 0, name.Length);
                             break;
                         }
 
@@ -609,40 +653,46 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        record.Result = (int)reader.ReadVarint();
+                        if (field.WireType == 0) record.Result = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 4:
-                        record.Duration = (long)reader.ReadVarint();
+                        if (field.WireType == 0) record.Duration = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 5:
-                        record.StartTime = (long)reader.ReadVarint();
+                        if (field.WireType == 0) record.StartTime = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 6:
-                        record.IsIncoming = reader.ReadVarint() != 0;
+                        if (field.WireType == 0) record.IsIncoming = reader.ReadVarint() != 0;
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 7:
-                        record.IsVideo = reader.ReadVarint() != 0;
+                        if (field.WireType == 0) record.IsVideo = reader.ReadVarint() != 0;
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 11:
-                        record.CallId = Utf8(reader.ReadBytes());
+                        record.CallId = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 12:
-                        record.CallCreatorJid = Utf8(reader.ReadBytes());
+                        record.CallCreatorJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 13:
-                        record.Group = Utf8(reader.ReadBytes());
+                        record.Group = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 14:
                         {
-                            string who = ParticipantJid(reader.ReadBytes());
+                            byte[] participant = reader.ReadBytes(field.WireType);
+                            string who = participant == null ? null : ParticipantJid(participant);
                             if (!string.IsNullOrEmpty(who)) record.Participants.Add(who);
                             break;
                         }
@@ -665,7 +715,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 1 && field.WireType == 2) return Utf8(reader.ReadBytes());
+                if (field.Number == 1 && field.WireType == 2) return Utf8(reader.ReadBytes(field.WireType));
                 reader.SkipField(field.WireType);
             }
 
@@ -674,6 +724,8 @@ namespace WhatsappApp.Protocol.WaProto
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }
@@ -710,39 +762,42 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        notification.FileSha256 = reader.ReadBytes();
+                        notification.FileSha256 = reader.ReadBytes(field.WireType);
                         break;
 
                     case 2:
-                        notification.FileLength = (long)reader.ReadVarint();
+                        if (field.WireType == 0) notification.FileLength = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 3:
-                        notification.MediaKey = reader.ReadBytes();
+                        notification.MediaKey = reader.ReadBytes(field.WireType);
                         break;
 
                     case 4:
-                        notification.FileEncSha256 = reader.ReadBytes();
+                        notification.FileEncSha256 = reader.ReadBytes(field.WireType);
                         break;
 
                     case 5:
-                        notification.DirectPath = Utf8(reader.ReadBytes());
+                        notification.DirectPath = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 6:
-                        notification.SyncType = (int)reader.ReadVarint();
+                        if (field.WireType == 0) notification.SyncType = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 7:
-                        notification.ChunkOrder = (int)reader.ReadVarint();
+                        if (field.WireType == 0) notification.ChunkOrder = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 8:
-                        notification.OriginalMessageId = Utf8(reader.ReadBytes());
+                        notification.OriginalMessageId = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 11:
-                        notification.InlinePayload = reader.ReadBytes();
+                        notification.InlinePayload = reader.ReadBytes(field.WireType);
                         break;
 
                     default:
@@ -779,7 +834,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == ProtocolField) return Decode(reader.ReadBytes());
+                if (field.Number == ProtocolField && field.WireType == 2) return Decode(reader.ReadBytes(field.WireType));
 
                 reader.SkipField(field.WireType);
             }
@@ -789,6 +844,8 @@ namespace WhatsappApp.Protocol.WaProto
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }

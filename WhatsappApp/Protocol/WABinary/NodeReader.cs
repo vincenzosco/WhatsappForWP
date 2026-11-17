@@ -223,15 +223,13 @@ namespace WhatsappApp.Protocol.WABinary
                 string server = "interop";
 
                 // The server is optional in this one form: a frame that ends here is
-                // legal, so the position is put back and "interop" kept.
-                int beforeServer = _index;
-                try
+                // legal, so "interop" is kept. Only a clean end is that case - a server
+                // field that starts and then breaks is a broken frame, and the old
+                // catch-and-rewind put the rejected bytes back to be re-parsed as node
+                // structure (a length byte of 248 read as a list marker).
+                if (_index < _buffer.Length)
                 {
                     server = ReadString(ReadByte());
-                }
-                catch (ProtocolException)
-                {
-                    _index = beforeServer;
                 }
 
                 return integrator.ToString() + "-" + JidUtils.Encode(user, server, device);
@@ -350,7 +348,10 @@ namespace WhatsappApp.Protocol.WABinary
 
             private void CheckAvailable(int length)
             {
-                if (_index + length > _buffer.Length)
+                // Compared without adding: `_index + length` is int arithmetic, and a
+                // 32-bit length of 0x7FFFFFFF wrapped the sum past the check and reached
+                // an allocation of two gigabytes from a frame that merely announced it.
+                if (length < 0 || length > _buffer.Length - _index)
                 {
                     throw new ProtocolException("end of stream: " + length + " byte(s) requested at "
                         + _index + " of " + _buffer.Length);

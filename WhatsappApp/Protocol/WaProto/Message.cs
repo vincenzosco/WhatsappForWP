@@ -281,7 +281,7 @@ namespace WhatsappApp.Protocol.WaProto
             while (reader.HasMore)
             {
                 ProtoField field = reader.ReadField();
-                if (field.Number == ContextInfoField && field.WireType == 2) context = reader.ReadBytes();
+                if (field.Number == ContextInfoField && field.WireType == 2) context = reader.ReadBytes(field.WireType);
                 else reader.SkipField(field.WireType);
             }
 
@@ -293,7 +293,7 @@ namespace WhatsappApp.Protocol.WaProto
                 ProtoField field = reader.ReadField();
                 if (field.Number == MentionedJidField && field.WireType == 2)
                 {
-                    byte[] jid = reader.ReadBytes();
+                    byte[] jid = reader.ReadBytes(field.WireType);
                     jids.Add(System.Text.Encoding.UTF8.GetString(jid, 0, jid.Length));
                 }
                 else reader.SkipField(field.WireType);
@@ -331,45 +331,45 @@ namespace WhatsappApp.Protocol.WaProto
                 {
                     case ConversationField:
                         {
-                            byte[] words = reader.ReadBytes();
+                            byte[] words = ReadBytesLaidOutAsBytes(reader, field);
                             message.Conversation = System.Text.Encoding.UTF8.GetString(words, 0, words.Length);
                             break;
                         }
 
                     case SenderKeyDistributionField:
-                        message.SenderKeyDistributionMessage = reader.ReadBytes();
+                        message.SenderKeyDistributionMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case ExtendedTextField:
-                        message.ExtendedTextMessage = reader.ReadBytes();
+                        message.ExtendedTextMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case ImageField:
-                        message.ImageMessage = reader.ReadBytes();
+                        message.ImageMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case DocumentField:
-                        message.DocumentMessage = reader.ReadBytes();
+                        message.DocumentMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case AudioField:
-                        message.AudioMessage = reader.ReadBytes();
+                        message.AudioMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case VideoField:
-                        message.VideoMessage = reader.ReadBytes();
+                        message.VideoMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case ProtocolField:
-                        message.ProtocolMessage = reader.ReadBytes();
+                        message.ProtocolMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case CallField:
-                        message.Call = reader.ReadBytes();
+                        message.Call = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case DeviceSentField:
-                        message.DeviceSentMessage = reader.ReadBytes();
+                        message.DeviceSentMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     default:
@@ -379,6 +379,28 @@ namespace WhatsappApp.Protocol.WaProto
             }
 
             return message;
+        }
+
+        /// <summary>
+        /// The field's bytes, read with the layout its number gives it. A tag that names a
+        /// field of this message and lays it out otherwise is refused: by the read first,
+        /// which is where the padded copies of the echo and of the re-link are pinned to
+        /// trip (`a protobuf field announces 9 bytes with 7 left` names the padding), and
+        /// then explicitly, because a read that lands on the wrong layout is never a value
+        /// this message accepts - the misparse a conformant parser would not make must not
+        /// become a silently wrong field either.
+        /// </summary>
+        private static byte[] ReadBytesLaidOutAsBytes(ProtoReader reader, ProtoField field)
+        {
+            byte[] value = reader.ReadBytes();
+
+            if (field.WireType != 2)
+            {
+                throw new ProtocolException("a protobuf field is laid out as wire type "
+                    + field.WireType + " and is read as the bytes of field " + field.Number);
+            }
+
+            return value;
         }
 
         /// <summary>
@@ -469,7 +491,7 @@ namespace WhatsappApp.Protocol.WaProto
             while (reader.HasMore)
             {
                 ProtoField field = reader.ReadField();
-                if (field.WireType == 2) fields[field.Number] = reader.ReadBytes();
+                if (field.WireType == 2) fields[field.Number] = reader.ReadBytes(field.WireType);
                 else reader.SkipField(field.WireType);
             }
 

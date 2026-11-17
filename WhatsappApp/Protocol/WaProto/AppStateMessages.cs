@@ -54,15 +54,16 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        protocol.Key = reader.ReadBytes();
+                        protocol.Key = reader.ReadBytes(field.WireType);
                         break;
 
                     case 2:
-                        protocol.Type = (int)reader.ReadVarint();
+                        if (field.WireType == 0) protocol.Type = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 7:
-                        protocol.KeyShare = reader.ReadBytes();
+                        protocol.KeyShare = reader.ReadBytes(field.WireType);
                         break;
 
                     default:
@@ -123,17 +124,28 @@ namespace WhatsappApp.Protocol.WaProto
 
             if (protocol.Type != Revoke || protocol.Key == null) return null;
 
-            var reader = new ProtoReader(protocol.Key);
-            while (reader.HasMore)
+            // The second walk over the key bytes answers the same way as the first:
+            // the contract is the id or null, and a truncated field is one of the
+            // things that ends a walk - it was the one case that threw out of callers
+            // that had no reason to expect it.
+            try
             {
-                ProtoField field = reader.ReadField();
-                if (field.Number == 3)
+                var reader = new ProtoReader(protocol.Key);
+                while (reader.HasMore)
                 {
-                    byte[] id = reader.ReadBytes();
-                    return id == null ? null : Encoding.UTF8.GetString(id, 0, id.Length);
-                }
+                    ProtoField field = reader.ReadField();
+                    if (field.Number == 3)
+                    {
+                        byte[] id = reader.ReadBytes(field.WireType);
+                        return id == null ? null : Encoding.UTF8.GetString(id, 0, id.Length);
+                    }
 
-                reader.SkipField(field.WireType);
+                    reader.SkipField(field.WireType);
+                }
+            }
+            catch (ProtocolException)
+            {
+                return null;
             }
 
             return null;
@@ -178,7 +190,7 @@ namespace WhatsappApp.Protocol.WaProto
                     continue;
                 }
 
-                AppStateKey key = ReadKey(reader.ReadBytes());
+                AppStateKey key = ReadKey(reader.ReadBytes(field.WireType));
                 if (key != null) keys.Add(key);
             }
 
@@ -199,11 +211,11 @@ namespace WhatsappApp.Protocol.WaProto
 
                 if (field.Number == 1 && field.WireType == 2)
                 {
-                    id = ReadKeyId(reader.ReadBytes());
+                    id = ReadKeyId(reader.ReadBytes(field.WireType));
                 }
                 else if (field.Number == 2 && field.WireType == 2)
                 {
-                    data = ReadKeyData(reader.ReadBytes());
+                    data = ReadKeyData(reader.ReadBytes(field.WireType));
                 }
                 else
                 {
@@ -229,7 +241,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 1 && field.WireType == 2) return Convert.ToBase64String(reader.ReadBytes());
+                if (field.Number == 1 && field.WireType == 2) return Convert.ToBase64String(reader.ReadBytes(field.WireType));
 
                 reader.SkipField(field.WireType);
             }
@@ -246,7 +258,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 1 && field.WireType == 2) return reader.ReadBytes();
+                if (field.Number == 1 && field.WireType == 2) return reader.ReadBytes(field.WireType);
 
                 reader.SkipField(field.WireType);
             }
@@ -283,20 +295,29 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        snapshot.Version = ReadVersion(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) snapshot.Version = ReadVersion(sub);
+                            break;
+                        }
 
                     case 2:
-                        snapshot.Records.Add(SyncdRecord.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) snapshot.Records.Add(SyncdRecord.Decode(sub));
+                            break;
+                        }
 
                     case 3:
-                        snapshot.Mac = reader.ReadBytes();
+                        snapshot.Mac = reader.ReadBytes(field.WireType);
                         break;
 
                     case 4:
-                        snapshot.KeyId = ReadKeyId(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) snapshot.KeyId = ReadKeyId(sub);
+                            break;
+                        }
 
                     default:
                         reader.SkipField(field.WireType);
@@ -337,7 +358,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 1 && field.WireType == 2) return reader.ReadBytes();
+                if (field.Number == 1 && field.WireType == 2) return reader.ReadBytes(field.WireType);
 
                 reader.SkipField(field.WireType);
             }
@@ -376,16 +397,25 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        record.Index = ReadBlob(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) record.Index = ReadBlob(sub);
+                            break;
+                        }
 
                     case 2:
-                        record.Value = ReadBlob(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) record.Value = ReadBlob(sub);
+                            break;
+                        }
 
                     case 3:
-                        record.KeyId = SyncdSnapshot.ReadKeyId(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) record.KeyId = SyncdSnapshot.ReadKeyId(sub);
+                            break;
+                        }
 
                     default:
                         reader.SkipField(field.WireType);
@@ -407,7 +437,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 1 && field.WireType == 2) return reader.ReadBytes();
+                if (field.Number == 1 && field.WireType == 2) return reader.ReadBytes(field.WireType);
 
                 reader.SkipField(field.WireType);
             }
@@ -443,12 +473,16 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        mutation.Operation = (int)reader.ReadVarint();
+                        if (field.WireType == 0) mutation.Operation = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 2:
-                        mutation.Record = SyncdRecord.Decode(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) mutation.Record = SyncdRecord.Decode(sub);
+                            break;
+                        }
 
                     default:
                         reader.SkipField(field.WireType);
@@ -494,27 +528,37 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        patch.Version = SyncdSnapshot.ReadVersion(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) patch.Version = SyncdSnapshot.ReadVersion(sub);
+                            break;
+                        }
 
                     case 2:
-                        patch.Mutations.Add(SyncdMutation.Decode(reader.ReadBytes()));
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) patch.Mutations.Add(SyncdMutation.Decode(sub));
+                            break;
+                        }
 
                     case 4:
-                        patch.SnapshotMac = reader.ReadBytes();
+                        patch.SnapshotMac = reader.ReadBytes(field.WireType);
                         break;
 
                     case 5:
-                        patch.PatchMac = reader.ReadBytes();
+                        patch.PatchMac = reader.ReadBytes(field.WireType);
                         break;
 
                     case 6:
-                        patch.KeyId = SyncdSnapshot.ReadKeyId(reader.ReadBytes());
-                        break;
+                        {
+                            byte[] sub = reader.ReadBytes(field.WireType);
+                            if (sub != null) patch.KeyId = SyncdSnapshot.ReadKeyId(sub);
+                            break;
+                        }
 
                     case 7:
-                        patch.ExitCode = (int)reader.ReadVarint();
+                        if (field.WireType == 0) patch.ExitCode = (int)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
                         break;
 
                     // 3 is `externalMutations`, a download of its own: a patch that carries
@@ -556,11 +600,11 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        action.Index = Utf8(reader.ReadBytes());
+                        action.Index = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 2:
-                        action.Value = reader.ReadBytes();
+                        action.Value = reader.ReadBytes(field.WireType);
                         break;
 
                     default:
@@ -620,7 +664,7 @@ namespace WhatsappApp.Protocol.WaProto
             {
                 ProtoField field = reader.ReadField();
 
-                if (field.Number == 3 && field.WireType == 2) return Decode(reader.ReadBytes());
+                if (field.Number == 3 && field.WireType == 2) return Decode(reader.ReadBytes(field.WireType));
 
                 reader.SkipField(field.WireType);
             }
@@ -640,23 +684,24 @@ namespace WhatsappApp.Protocol.WaProto
                 switch (field.Number)
                 {
                     case 1:
-                        action.FullName = Utf8(reader.ReadBytes());
+                        action.FullName = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 2:
-                        action.FirstName = Utf8(reader.ReadBytes());
+                        action.FirstName = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 3:
-                        action.LidJid = Utf8(reader.ReadBytes());
+                        action.LidJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     case 4:
-                        action.SaveOnPrimaryAddressbook = reader.ReadVarint() != 0;
+                        if (field.WireType == 0) action.SaveOnPrimaryAddressbook = reader.ReadVarint() != 0;
+                        else reader.SkipField(field.WireType);
                         break;
 
                     case 5:
-                        action.PnJid = Utf8(reader.ReadBytes());
+                        action.PnJid = Utf8(reader.ReadBytes(field.WireType));
                         break;
 
                     default:

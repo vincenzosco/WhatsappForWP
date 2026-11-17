@@ -159,6 +159,25 @@ namespace WhatsappApp.Protocol.WaProto
             return value;
         }
 
+        /// <summary>
+        /// The field's bytes when it is laid out as one, and nothing when it is laid
+        /// out some other way. A tag names its field and its layout apart: a field
+        /// read with the layout of another one is not a value but a misparse - a
+        /// varint read as a length eats the bytes that follow it and the rest of the
+        /// message is then read out of step. The mismatched field is stepped over and
+        /// the value is simply absent.
+        /// </summary>
+        public byte[] ReadBytes(int wireType)
+        {
+            if (wireType != 2)
+            {
+                SkipField(wireType);
+                return null;
+            }
+
+            return ReadBytes();
+        }
+
         public ulong ReadVarint()
         {
             ulong value = 0;

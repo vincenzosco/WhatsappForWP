@@ -116,18 +116,18 @@ namespace WhatsappApp.Protocol.WaProto
 
                 switch (field.Number)
                 {
-                    case 1: info.Url = Text(reader); break;
-                    case 2: info.MimeType = Text(reader); break;
-                    case 3: info.Caption = Text(reader); break;
-                    case 4: info.FileSha256 = reader.ReadBytes(); break;
-                    case 5: info.FileLength = (long)reader.ReadVarint(); break;
-                    case 6: info.Height = (int)reader.ReadVarint(); break;
-                    case 7: info.Width = (int)reader.ReadVarint(); break;
-                    case 8: info.MediaKey = reader.ReadBytes(); break;
-                    case 9: info.FileEncSha256 = reader.ReadBytes(); break;
-                    case 11: info.DirectPath = Text(reader); break;
-                    case 12: info.MediaKeyTimestamp = (long)reader.ReadVarint(); break;
-                    case 13: info.Thumbnail = reader.ReadBytes(); break;
+                    case 1: info.Url = Text(reader, field.WireType); break;
+                    case 2: info.MimeType = Text(reader, field.WireType); break;
+                    case 3: info.Caption = Text(reader, field.WireType); break;
+                    case 4: info.FileSha256 = reader.ReadBytes(field.WireType); break;
+                    case 5: if (field.WireType == 0) info.FileLength = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 6: if (field.WireType == 0) info.Height = (int)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 7: if (field.WireType == 0) info.Width = (int)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 8: info.MediaKey = reader.ReadBytes(field.WireType); break;
+                    case 9: info.FileEncSha256 = reader.ReadBytes(field.WireType); break;
+                    case 11: info.DirectPath = Text(reader, field.WireType); break;
+                    case 12: if (field.WireType == 0) info.MediaKeyTimestamp = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 13: info.Thumbnail = reader.ReadBytes(field.WireType); break;
                     default: reader.SkipField(field.WireType); break;
                 }
             }
@@ -144,17 +144,17 @@ namespace WhatsappApp.Protocol.WaProto
 
                 switch (field.Number)
                 {
-                    case 1: info.Url = Text(reader); break;
-                    case 2: info.MimeType = Text(reader); break;
-                    case 3: info.Title = Text(reader); break;
-                    case 4: info.FileSha256 = reader.ReadBytes(); break;
-                    case 5: info.FileLength = (long)reader.ReadVarint(); break;
-                    case 7: info.MediaKey = reader.ReadBytes(); break;
-                    case 8: info.FileName = Text(reader); break;
-                    case 9: info.FileEncSha256 = reader.ReadBytes(); break;
-                    case 10: info.DirectPath = Text(reader); break;
-                    case 11: info.MediaKeyTimestamp = (long)reader.ReadVarint(); break;
-                    case 20: info.Caption = Text(reader); break;
+                    case 1: info.Url = Text(reader, field.WireType); break;
+                    case 2: info.MimeType = Text(reader, field.WireType); break;
+                    case 3: info.Title = Text(reader, field.WireType); break;
+                    case 4: info.FileSha256 = reader.ReadBytes(field.WireType); break;
+                    case 5: if (field.WireType == 0) info.FileLength = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 7: info.MediaKey = reader.ReadBytes(field.WireType); break;
+                    case 8: info.FileName = Text(reader, field.WireType); break;
+                    case 9: info.FileEncSha256 = reader.ReadBytes(field.WireType); break;
+                    case 10: info.DirectPath = Text(reader, field.WireType); break;
+                    case 11: if (field.WireType == 0) info.MediaKeyTimestamp = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 20: info.Caption = Text(reader, field.WireType); break;
                     default: reader.SkipField(field.WireType); break;
                 }
             }
@@ -171,16 +171,16 @@ namespace WhatsappApp.Protocol.WaProto
 
                 switch (field.Number)
                 {
-                    case 1: info.Url = Text(reader); break;
-                    case 2: info.MimeType = Text(reader); break;
-                    case 3: info.FileSha256 = reader.ReadBytes(); break;
-                    case 4: info.FileLength = (long)reader.ReadVarint(); break;
-                    case 5: info.Seconds = (uint)reader.ReadVarint(); break;
-                    case 6: info.IsVoiceNote = reader.ReadVarint() != 0; break;
-                    case 7: info.MediaKey = reader.ReadBytes(); break;
-                    case 8: info.FileEncSha256 = reader.ReadBytes(); break;
-                    case 9: info.DirectPath = Text(reader); break;
-                    case 10: info.MediaKeyTimestamp = (long)reader.ReadVarint(); break;
+                    case 1: info.Url = Text(reader, field.WireType); break;
+                    case 2: info.MimeType = Text(reader, field.WireType); break;
+                    case 3: info.FileSha256 = reader.ReadBytes(field.WireType); break;
+                    case 4: if (field.WireType == 0) info.FileLength = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 5: if (field.WireType == 0) info.Seconds = (uint)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 6: if (field.WireType == 0) info.IsVoiceNote = reader.ReadVarint() != 0; else reader.SkipField(field.WireType); break;
+                    case 7: info.MediaKey = reader.ReadBytes(field.WireType); break;
+                    case 8: info.FileEncSha256 = reader.ReadBytes(field.WireType); break;
+                    case 9: info.DirectPath = Text(reader, field.WireType); break;
+                    case 10: if (field.WireType == 0) info.MediaKeyTimestamp = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
                     default: reader.SkipField(field.WireType); break;
                 }
             }
@@ -197,31 +197,33 @@ namespace WhatsappApp.Protocol.WaProto
 
                 switch (field.Number)
                 {
-                    case 1: info.Url = Text(reader); break;
-                    case 2: info.MimeType = Text(reader); break;
-                    case 3: info.FileSha256 = reader.ReadBytes(); break;
-                    case 4: info.FileLength = (long)reader.ReadVarint(); break;
-                    case 5: info.Seconds = (uint)reader.ReadVarint(); break;
-                    case 6: info.MediaKey = reader.ReadBytes(); break;
-                    case 7: info.Caption = Text(reader); break;
-                    case 9: info.Height = (int)reader.ReadVarint(); break;
-                    case 10: info.Width = (int)reader.ReadVarint(); break;
-                    case 11: info.FileEncSha256 = reader.ReadBytes(); break;
-                    case 13: info.DirectPath = Text(reader); break;
-                    case 14: info.MediaKeyTimestamp = (long)reader.ReadVarint(); break;
-                    case 15: info.Thumbnail = reader.ReadBytes(); break;
+                    case 1: info.Url = Text(reader, field.WireType); break;
+                    case 2: info.MimeType = Text(reader, field.WireType); break;
+                    case 3: info.FileSha256 = reader.ReadBytes(field.WireType); break;
+                    case 4: if (field.WireType == 0) info.FileLength = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 5: if (field.WireType == 0) info.Seconds = (uint)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 6: info.MediaKey = reader.ReadBytes(field.WireType); break;
+                    case 7: info.Caption = Text(reader, field.WireType); break;
+                    case 9: if (field.WireType == 0) info.Height = (int)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 10: if (field.WireType == 0) info.Width = (int)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 11: info.FileEncSha256 = reader.ReadBytes(field.WireType); break;
+                    case 13: info.DirectPath = Text(reader, field.WireType); break;
+                    case 14: if (field.WireType == 0) info.MediaKeyTimestamp = (long)reader.ReadVarint(); else reader.SkipField(field.WireType); break;
+                    case 15: info.Thumbnail = reader.ReadBytes(field.WireType); break;
                     default: reader.SkipField(field.WireType); break;
                 }
             }
         }
 
-        private static string Text(ProtoReader reader)
+        private static string Text(ProtoReader reader, int wireType)
         {
-            return Utf8(reader.ReadBytes());
+            return Utf8(reader.ReadBytes(wireType));
         }
 
         private static string Utf8(byte[] bytes)
         {
+            // Nothing for a field that is not laid out as bytes: it is simply absent.
+            if (bytes == null) return null;
             return System.Text.Encoding.UTF8.GetString(bytes, 0, bytes.Length);
         }
     }
