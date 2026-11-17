@@ -150,21 +150,47 @@ namespace WhatsappApp.Protocol.WABinary
 
         private static void WriteJid(DecodedJid jid, List<byte> buffer)
         {
-            // A device makes it an "AD JID": domain, device, then the user. Without
-            // one it is a pair of strings, and an empty user is `LIST_EMPTY` rather
-            // than an empty string - two different bytes.
-            if (jid.HasDevice)
+            // The user with its agent segment back on: the split takes it off to name
+            // the domain, and a writer that dropped it renamed the jid on the way
+            // through (`user_5:3@server` came back as `user:3@server`).
+            string user = string.IsNullOrEmpty(jid.Agent) ? jid.User : jid.User + "_" + jid.Agent;
+
+            // The compact forms carry a one-byte device and a domain byte that names
+            // the server; what they cannot carry - a wider device, a server outside
+            // that table, an agent - goes out in the wide form, whose parts are
+            // strings and short ints and come back as the same jid. The round trip is
+            // on the wire: the ack echo re-encodes what it decoded.
+            bool compact = string.IsNullOrEmpty(jid.Agent) && jid.Device <= 255
+                && JidUtils.ServerForDomain(jid.DomainType) == jid.Server;
+
+            // A device makes it an "AD JID": domain, device, then the user.
+            if (compact && jid.HasDevice)
             {
                 PushByte(Tags.AdJid, buffer);
                 PushByte(jid.DomainType, buffer);
                 PushByte(jid.Device, buffer);
-                WriteString(jid.User, buffer);
+                WriteString(user, buffer);
                 return;
             }
 
-            PushByte(Tags.JidPair, buffer);
-            if (!string.IsNullOrEmpty(jid.User)) WriteString(jid.User, buffer);
-            else PushByte(Tags.ListEmpty, buffer);
+            // Without a device it is a pair of strings whatever the server, and an
+            // empty user is `LIST_EMPTY` rather than an empty string - two different
+            // bytes.
+            if (!jid.HasDevice)
+            {
+                PushByte(Tags.JidPair, buffer);
+                if (!string.IsNullOrEmpty(user)) WriteString(user, buffer);
+                else PushByte(Tags.ListEmpty, buffer);
+                WriteString(jid.Server, buffer);
+                return;
+            }
+
+            // The wide form: `FbJid` is the one whose reader takes a two-byte device
+            // and the server as a string, so every jid the compact forms cannot carry
+            // is written as one.
+            PushByte(Tags.FbJid, buffer);
+            WriteString(user, buffer);
+            PushInt(jid.Device, 2, buffer);
             WriteString(jid.Server, buffer);
         }
 

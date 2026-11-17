@@ -18,6 +18,13 @@ namespace WhatsappApp.Protocol.WABinary
         public bool HasDevice;
 
         public int Device;
+
+        /// <summary>
+        /// The agent segment of the user (`user_agent`), kept because the split takes
+        /// it off to name the domain and a join that dropped it renamed the jid on the
+        /// way through.
+        /// </summary>
+        public string Agent;
     }
 
     /// <summary>
@@ -62,6 +69,7 @@ namespace WhatsappApp.Protocol.WABinary
             string agent = agentPair[1];
             string deviceText = devicePair[1];
 
+            decoded.Agent = agent ?? string.Empty;
             decoded.HasDevice = !string.IsNullOrEmpty(deviceText);
             decoded.Device = decoded.HasDevice ? ParseInt(deviceText) : 0;
 
