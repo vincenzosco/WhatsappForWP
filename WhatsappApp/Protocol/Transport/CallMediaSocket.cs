@@ -382,7 +382,13 @@ namespace WhatsappApp.Protocol.Transport
             probe.Answer = new TaskCompletionSource<int>();
             probe.StartedMs = NowMilliseconds();
 
-            string key = host + ":" + port;
+            // Each probe owns its entry: the key is the transaction id the answer is
+            // matched by, not the relay's address, so a second probe of the same relay
+            // cannot overwrite the first one's registration and one probe's cleanup cannot
+            // remove another's. Every started probe then completes - answered, timed out,
+            // or completed when the socket closes.
+            string target = host + ":" + port;
+            string key = Convert.ToBase64String(transactionId);
             lock (_probes) { _probes[key] = probe; }
 
             try
@@ -395,7 +401,7 @@ namespace WhatsappApp.Protocol.Transport
             }
             catch (Exception ex)
             {
-                Diag.Failed("call media: the relay probe to " + key, ex);
+                Diag.Failed("call media: the relay probe to " + target, ex);
                 return -1;
             }
             finally
@@ -513,8 +519,6 @@ namespace WhatsappApp.Protocol.Transport
                 lock (_gate)
                 {
                     transport = _transport;
-                    _remoteAddress = args.RemoteAddress;
-                    _remotePort = args.RemotePort;
                 }
 
                 // Nothing is attached before a call exists: the port is held from the moment the
@@ -533,10 +537,26 @@ namespace WhatsappApp.Protocol.Transport
                     return;
                 }
 
+                StunEndpoint peer;
                 IList<byte[]> outbound;
                 lock (_path)
                 {
                     outbound = transport.Receive(datagram, from);
+                    peer = transport.Peer;
+                }
+
+                // Only the peer the signalling nominated may move where the sends go. The
+                // port is advertised in every offer, so one datagram from anywhere used to
+                // re-point the audio and the handshake retransmissions at its own source
+                // before the transport's verdict; a datagram the transport refused as
+                // not-from-the-peer changes nothing.
+                if (peer != null && SameEndpoint(peer, from))
+                {
+                    lock (_gate)
+                    {
+                        _remoteAddress = args.RemoteAddress;
+                        _remotePort = args.RemotePort;
+                    }
                 }
 
                 for (int i = 0; i < outbound.Count; i++)
@@ -552,6 +572,27 @@ namespace WhatsappApp.Protocol.Transport
                 // handler on this platform takes the process with it.
                 Diag.Failed("call media: a datagram", ex);
             }
+        }
+
+        /// <summary>
+        /// Whether two endpoints are the same address and port - the same comparison the
+        /// transport makes before it accepts a datagram as the peer's, nothing looser.
+        /// </summary>
+        private static bool SameEndpoint(StunEndpoint left, StunEndpoint right)
+        {
+            if (left == null || right == null) return false;
+            if (left.Port != right.Port) return false;
+
+            byte[] a = left.Address;
+            byte[] b = right.Address;
+            if (a == null || b == null || a.Length != b.Length) return false;
+
+            for (int i = 0; i < a.Length; i++)
+            {
+                if (a[i] != b[i]) return false;
+            }
+
+            return true;
         }
 
         /// <summary>The clock, on the thread pool: ask the transport what is due and send it.</summary>
