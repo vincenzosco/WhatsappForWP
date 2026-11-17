@@ -884,8 +884,14 @@ namespace WhatsappApp.Pages
                 {
                     var gone = e.OldItems[i] as ChatMessage;
                     if (gone == null) continue;
-                    if (_shown.Remove(gone) && e.OldStartingIndex >= 0 && e.OldStartingIndex < _shownFrom)
-                        _shownFrom--;
+
+                    // A row the page does not show was in front of it - a revoke that
+                    // landed on another device, the front trim at the ceiling - and the
+                    // window start steps down with the row. The decrement is not gated
+                    // on the removal: that short-circuited exactly for these rows and
+                    // the next page up spliced a row the page already held.
+                    bool wasShown = _shown.Remove(gone);
+                    if (!wasShown && _shownFrom > 0) _shownFrom--;
                 }
 
                 return;

@@ -37,3 +37,20 @@ test('an insertion before the first visible row only moves the window start', ()
   assert.ok(moved > above && moved < addBranch.indexOf('_shown.Insert('),
     'the window moves before any splice is attempted');
 });
+
+test('a removal in front of the page steps the window start down', () => {
+  // A row the page does not show was in front of it - a revoke that landed on
+  // another device, the front trim at the ceiling - and the window start must
+  // step down with it. Gating the decrement on `_shown.Remove` short-circuited
+  // exactly for those rows: the start stayed one too low and the next page up
+  // spliced a row the page already held.
+  const removeBranch = changed.slice(
+    changed.indexOf('NotifyCollectionChangedAction.Remove'),
+    changed.indexOf('NotifyCollectionChangedAction.Add) return'));
+  assert.match(removeBranch, /bool wasShown = _shown\.Remove\(gone\)/,
+    'whether the page showed the row is asked first');
+  assert.match(removeBranch, /!wasShown[\s\S]{0,40}_shownFrom--/,
+    'a row the page did not show steps the window start down');
+  assert.doesNotMatch(removeBranch, /_shown\.Remove\(gone\) &&/,
+    'the decrement is not gated on the removal succeeding');
+});
