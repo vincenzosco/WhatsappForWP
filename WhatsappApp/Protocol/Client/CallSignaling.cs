@@ -1308,7 +1308,10 @@ namespace WhatsappApp.Protocol.Client
             var attrs = new List<KeyValuePair<string, string>>();
             if (!string.IsNullOrEmpty(reason)) attrs.Add(Key("reason", reason));
             if (durationSeconds >= 0) attrs.Add(Key("duration", Number(durationSeconds)));
-            if (videoState != 0) attrs.Add(Key("videostate", Number(videoState)));
+            // The -1 the plain overloads forward is "no fact to report", and the reader's
+            // own guard (`videostate >= 0`) says exactly that: the sentinel stays off the
+            // wire, and every real state - 0 included - goes out.
+            if (videoState >= 0) attrs.Add(Key("videostate", Number(videoState)));
 
             return Wrap(callId, to, Verb("terminate", callId, attrs, null));
         }
@@ -1324,7 +1327,9 @@ namespace WhatsappApp.Protocol.Client
             var attrs = new List<KeyValuePair<string, string>>();
             if (!string.IsNullOrEmpty(reason)) attrs.Add(Key("reason", reason));
             if (durationSeconds >= 0) attrs.Add(Key("duration", Number(durationSeconds)));
-            if (videoState != 0) attrs.Add(Key("videostate", Number(videoState)));
+            // The same sentinel guard as the writer above: a plain terminate carries no
+            // videostate attribute at all.
+            if (videoState >= 0) attrs.Add(Key("videostate", Number(videoState)));
 
             return Wrap(callId, to, Verb("terminate", callId, callCreator, attrs, null));
         }
