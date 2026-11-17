@@ -672,7 +672,14 @@ namespace WhatsappApp.Services
             var row = new CallLogEntry();
             row.ChatId = _call.PeerJid;
             row.Name = DisplayNameForJid(_call.PeerJid);
-            row.Timestamp = _call.StartedAt;
+
+            // Local, like every row this model holds: the wire's seconds come in
+            // through ToLocalTime and the lists compare raw ticks. StartedAt is UTC
+            // on purpose - the session measures its own age in UTC - so the row
+            // takes it converted, or the call lands an hour away from every synced
+            // row and InsertCall, MissedCalls and the toast watermark sort and count
+            // it wrong.
+            row.Timestamp = _call.StartedAt.ToLocalTime();
             row.CallId = _call.CallId;
             row.Reason = ReasonOf(_call);
             row.DurationSeconds = _call.ConnectedSeconds;
