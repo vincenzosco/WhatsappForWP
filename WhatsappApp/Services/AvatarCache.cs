@@ -53,6 +53,7 @@ namespace WhatsappApp.Services
     public static class AvatarCache
     {
         private const string FileName = "avatar-cache.json";
+        private const string TempName = "avatar-cache.json.new";
 
         /// <summary>
         /// How many chats are kept.
@@ -332,9 +333,20 @@ namespace WhatsappApp.Services
         {
             try
             {
-                StorageFile storage = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(storage, json);
+                StorageFolder folder = ApplicationData.Current.LocalFolder;
+
+                // Beside the file and moved over it, like every durable cache here: a
+                // write frozen in the middle leaves the old file, not an unparsable
+                // one. A move is one step, so the file is either the old or the new.
+                StorageFile temp = await folder.CreateFileAsync(
+                    TempName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(temp, json);
+
+                // The first avatar this phone cached has no file to replace.
+                var current = (StorageFile)await folder.TryGetItemAsync(FileName);
+
+                if (current == null) await temp.RenameAsync(FileName);
+                else await temp.MoveAndReplaceAsync(current);
                 return true;
             }
             catch (Exception ex)

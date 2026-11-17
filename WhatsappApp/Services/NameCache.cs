@@ -51,6 +51,7 @@ namespace WhatsappApp.Services
     public static class NameCache
     {
         private const string FileName = "name-cache.json";
+        private const string TempName = "name-cache.json.new";
 
         /// <summary>
         /// The book every caller shares: the connection, the chat list and the pages. One
@@ -226,9 +227,22 @@ namespace WhatsappApp.Services
 
             try
             {
-                StorageFile file = await ApplicationData.Current.LocalFolder.CreateFileAsync(
-                    FileName, CreationCollisionOption.ReplaceExisting);
-                await FileIO.WriteTextAsync(file, json);
+                StorageFolder folder = ApplicationData.Current.LocalFolder;
+
+                // Beside the file and moved over it, like every durable cache here: a
+                // write frozen in the middle leaves the old `name-cache.json`, not an
+                // unparsable one - the book and the LID pairs with it are too much to
+                // lose to a suspend. A move is one step, so the file is either the old
+                // one or the new one.
+                StorageFile temp = await folder.CreateFileAsync(
+                    TempName, CreationCollisionOption.ReplaceExisting);
+                await FileIO.WriteTextAsync(temp, json);
+
+                // The first run on this phone has no file to replace.
+                var current = (StorageFile)await folder.TryGetItemAsync(FileName);
+
+                if (current == null) await temp.RenameAsync(FileName);
+                else await temp.MoveAndReplaceAsync(current);
             }
             catch (Exception ex)
             {
