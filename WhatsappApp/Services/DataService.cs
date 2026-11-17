@@ -2730,9 +2730,31 @@ namespace WhatsappApp.Services
             // The chat was named in a spelling this list has no row for, or the bubble is in
             // one it did not name: the id is unique in the account, which is the rule the
             // server's own ack already relies on below.
-            if (!SetMessageStatusEverywhere(messageId, status))
+            if (SetMessageStatusEverywhere(messageId, status)) return;
+
+            // And what memory does not hold is still on the phone: the receipts of the
+            // offline queue land at the start of a session, before one conversation has
+            // been read off the phone, and a lookup in memory alone dropped every one of
+            // them - the ticks said "sent" for ever. The named tail is the conversation
+            // that answers then, and it is one file, not the whole cache.
+            string stored = string.IsNullOrEmpty(canonical) ? chatId : canonical;
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/receipt stored status",
+                SetStoredMessageStatusAsync(stored, chatId, messageId, status));
+#pragma warning restore 4014
+        }
+
+        /// <summary>
+        /// The receipt answered from the copy on the phone. The "no bubble" line is
+        /// written here and not at the call site: this is where the answer is known,
+        /// and it means the phone has none, not merely that the app had none loaded.
+        /// </summary>
+        private static async Task SetStoredMessageStatusAsync(string storedChatId, string spokenChatId, string messageId, MessageStatus status)
+        {
+            bool found = await MessageCache.UpdateStatusAsync(storedChatId, messageId, status);
+            if (!found)
             {
-                Diag.Ok("receipt: no bubble for " + messageId + " in " + chatId
+                Diag.Ok("receipt: no bubble for " + messageId + " in " + spokenChatId
                     + ", so the status " + status + " was not written");
             }
         }

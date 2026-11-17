@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Windows.Storage;
 using WhatsappApp.Models;
+using WhatsappApp.Protocol.Client;
 
 namespace WhatsappApp.Services
 {
@@ -342,6 +343,47 @@ namespace WhatsappApp.Services
             // very turn it is running in and wait for itself.
             string json = JsonOf(merged);
             if (json != null) await WriteJsonAsync(chatId, json);
+        }
+
+        /// <summary>
+        /// The delivery state of one stored row, written through the same queue as
+        /// every other change to a tail.
+        ///
+        /// The receipts of the offline queue arrive at the start of a session, before
+        /// one conversation has been read off the phone: a lookup in memory misses
+        /// every one of them, and the ticks that say delivered and read never reach
+        /// the row. The answer is the copy on the phone, which is where a conversation
+        /// lives until its chat is opened.
+        /// </summary>
+        public static async Task<bool> UpdateStatusAsync(string chatId, string messageId, MessageStatus status)
+        {
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return false;
+
+            return await Writes.RunAsync<bool>(delegate { return UpdateStatusCoreAsync(chatId, messageId, status); });
+        }
+
+        private static async Task<bool> UpdateStatusCoreAsync(string chatId, string messageId, MessageStatus status)
+        {
+            List<ChatMessage> rows = await LoadAsync(chatId);
+
+            for (int i = 0; i < rows.Count; i++)
+            {
+                ChatMessage row = rows[i];
+                if (row == null || row.Id != messageId) continue;
+
+                // The same ladder the in-memory rows are written by: an answer that
+                // arrives out of order must not take the row backwards.
+                if (StatusLadder.IsForward((int)row.Status, (int)status))
+                {
+                    row.Status = status;
+                    string json = JsonOf(rows);
+                    if (json != null) await WriteJsonAsync(chatId, json);
+                }
+
+                return true;
+            }
+
+            return false;
         }
 
         /// <summary>Whether this conversation already holds a message with this id.</summary>
