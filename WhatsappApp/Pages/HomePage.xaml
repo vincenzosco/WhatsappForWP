@@ -1,4 +1,4 @@
-﻿<phone:PhoneApplicationPage
+<phone:PhoneApplicationPage
     x:Class="WhatsappApp.Pages.HomePage"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
@@ -14,6 +14,29 @@
         <conv:UnreadCountToVisibilityConverter x:Key="UnreadToVisibility"/>
         <conv:InitialToColorConverter x:Key="InitialToColor"/>
         <conv:BoolToVisibilityConverter x:Key="BoolToVisibility"/>
+        <shell:ApplicationBar x:Key="ChatsApplicationBar" IsVisible="True" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="SearchAppBarButton" x:Uid="Home_SearchAppBarButton" IconUri="/Assets/Reference/search.png" Text="Search" Click="SearchApplicationBarButton_Click"/>
+            <shell:ApplicationBarIconButton x:Name="NewChatAppBarButton" x:Uid="Home_NewChatAppBarButton" IconUri="/Assets/Reference/add.png" Text="New chat" Click="NewChatApplicationBarButton_Click"/>
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Uid="Home_ReadAllAppBarMenuItem" Text="Read all chats" Click="ReadAllAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllAppBarMenuItem_Click"/>
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
+        <shell:ApplicationBar x:Key="StatusApplicationBar" IsVisible="True" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="RefreshStatusAppBarButton" x:Uid="Home_RefreshStatusAppBarButton" IconUri="/Assets/Reference/refresh.png" Text="Refresh" Click="RefreshStatusApplicationBarButton_Click"/>
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Uid="Home_MarkStatusesAppBarMenuItem" Text="Mark all as viewed" Click="MarkAllStatusesAppBarMenuItem_Click"/>
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
+        <shell:ApplicationBar x:Key="CallsApplicationBar" IsVisible="True" IsMenuEnabled="True">
+            <shell:ApplicationBarIconButton x:Name="NewCallAppBarButton" x:Uid="Home_NewCallAppBarButton" IconUri="/Assets/Reference/ThemeDark/phone-solid.png" Text="Start a voice call" Click="NewCallButton_Click"/>
+            <shell:ApplicationBar.MenuItems>
+                <shell:ApplicationBarMenuItem x:Uid="Home_RefreshCallsAppBarMenuItem" Text="Refresh" Click="RefreshCallsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_MarkCallsAppBarMenuItem" Text="Mark all as seen" Click="MarkCallsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_SettingsAppBarMenuItem" Text="Settings" Click="SettingsAppBarMenuItem_Click"/>
+            </shell:ApplicationBar.MenuItems>
+        </shell:ApplicationBar>
                                 <Style x:Key="AppBarLabelStyle" TargetType="TextBlock">
             <!-- Hidden: the reference circles carry no label under the glyph.
                  The text is still set, because it is the name a long press
@@ -227,32 +250,45 @@
             </Grid>
         </Border>
 
-        <Grid x:Name="HomeBarRow" Grid.Row="2" Background="#FF171717" MinHeight="64">
+        <Grid Grid.Row="2" Background="#FF171717" MinHeight="64" Visibility="Collapsed">
             <Rectangle Height="1" VerticalAlignment="Top" Fill="#FF303030"/>
             <Grid x:Name="ChatsBar">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button x:Name="SearchButton" Style="{StaticResource AppBarButtonStyle}" Click="SearchButton_Click" Margin="3,0">
+                    <Button x:Name="SearchButton" Style="{StaticResource AppBarButtonStyle}" Click="SearchButton_Click">
                         <StackPanel VerticalAlignment="Center">
-                            <!-- IconSearch -->
-                            <Image Source="/Assets/Reference/search.png" Width="24" Height="24" Stretch="Uniform"/>
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center">
+                                <Ellipse Width="16" Height="16" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Left" VerticalAlignment="Top" Margin="1,1,0,0"/>
+                                <Rectangle Width="10" Height="2" Fill="White" HorizontalAlignment="Right"
+                                           VerticalAlignment="Bottom" Margin="0,0,0,2">
+                                    <Rectangle.RenderTransform><RotateTransform Angle="45"/></Rectangle.RenderTransform>
+                                </Rectangle>
+                            </Grid>
                             <TextBlock x:Name="SearchLabel" Style="{StaticResource AppBarLabelStyle}"/>
                         </StackPanel>
                     </Button>
-                    <Button x:Name="NewChatButton" Style="{StaticResource AppBarButtonStyle}" Click="NewChatButton_Click" Margin="3,0">
+                    <Button x:Name="NewChatButton" Style="{StaticResource AppBarButtonStyle}" Click="NewChatButton_Click">
                         <StackPanel VerticalAlignment="Center">
                             <!-- IconNewChat -->
-                            <Image Source="/Assets/Reference/add.png" Width="24" Height="24" Stretch="Uniform"/>
+                            <Grid Width="24" Height="24" HorizontalAlignment="Center">
+                                <Rectangle Width="18" Height="2" Fill="White"/>
+                                <Rectangle Width="2" Height="18" Fill="White"/>
+                            </Grid>
                             <TextBlock x:Name="NewChatLabel" Style="{StaticResource AppBarLabelStyle}"/>
                         </StackPanel>
                     </Button>
-                    <!-- The third circle of the original design is "new group". This
-                         client cannot create groups - the protocol has no such call -
-                         so the circle completes the design and stays disabled. -->
-                    <Button x:Name="NewGroupButton" Style="{StaticResource AppBarButtonStyle}" IsEnabled="False" Margin="3,0">
+                    <Button x:Name="SettingsButton" Style="{StaticResource AppBarButtonStyle}" Click="SettingsButton_Click">
                         <StackPanel VerticalAlignment="Center">
-                            <!-- IconNewGroup -->
-                            <Image Source="/Assets/Reference/newgroup.png" Width="24" Height="24" Stretch="Uniform"/>
-                            <TextBlock x:Name="NewGroupLabel" Style="{StaticResource AppBarLabelStyle}"/>
+                            <!-- IconSettings -->
+                            <Grid Width="22" Height="22" HorizontalAlignment="Center">
+                                <Ellipse Width="16" Height="16" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Ellipse Width="5" Height="5" Fill="White"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Width="2" Height="22" Fill="White"/>
+                                <Rectangle Width="22" Height="2" Fill="White"/>
+                            </Grid>
+                            <TextBlock x:Name="SettingsLabel" Style="{StaticResource AppBarLabelStyle}"/>
                         </StackPanel>
                     </Button>
                 </StackPanel>
@@ -271,10 +307,22 @@
             </Grid>
             <Grid x:Name="StatusBar" Visibility="Collapsed">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button x:Name="RefreshStatusButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshStatusButton_Click" Margin="3,0">
+                    <Button x:Name="RefreshStatusButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshStatusButton_Click">
                         <StackPanel VerticalAlignment="Center">
-                            <!-- IconRefreshStatus -->
-                            <Image Source="/Assets/Reference/refresh.png" Width="24" Height="24" Stretch="Uniform"/>
+                            <Grid Width="22" Height="22" HorizontalAlignment="Center">
+                                <Ellipse Width="17" Height="17" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Width="8" Height="4" Fill="#FF101516" HorizontalAlignment="Center"
+                                           VerticalAlignment="Top"/>
+                                <Path Stroke="White" StrokeThickness="2">
+                                    <!-- IconRefreshStatus -->
+                                    <Path.Data>
+                                        <PathGeometry><PathGeometry.Figures><PathFigure StartPoint="16,2" IsClosed="True">
+                                            <PathFigure.Segments><LineSegment Point="20,2"/><LineSegment Point="19,6"/></PathFigure.Segments>
+                                        </PathFigure></PathGeometry.Figures></PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                            </Grid>
                             <TextBlock x:Name="RefreshStatusLabel" Style="{StaticResource AppBarLabelStyle}"/>
                         </StackPanel>
                     </Button>
@@ -291,17 +339,22 @@
             </Grid>
             <Grid x:Name="CallsBar" Visibility="Collapsed">
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button x:Name="NewCallButton" Style="{StaticResource AppBarButtonStyle}" Click="NewCallButton_Click" Margin="3,0">
+                    <Button x:Name="RefreshCallsButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshCallsButton_Click">
                         <StackPanel VerticalAlignment="Center">
-                            <!-- IconNewCall -->
-                            <Image Source="/Assets/Reference/ThemeDark/phone-solid.png" Width="24" Height="24" Stretch="Uniform"/>
-                            <TextBlock x:Name="NewCallLabel" Style="{StaticResource AppBarLabelStyle}"/>
-                        </StackPanel>
-                    </Button>
-                    <Button x:Name="RefreshCallsButton" Style="{StaticResource AppBarButtonStyle}" Click="RefreshCallsButton_Click" Margin="3,0">
-                        <StackPanel VerticalAlignment="Center">
-                            <!-- IconRefreshCalls -->
-                            <Image Source="/Assets/Reference/refresh.png" Width="24" Height="24" Stretch="Uniform"/>
+                            <Grid Width="22" Height="22" HorizontalAlignment="Center">
+                                <Ellipse Width="17" Height="17" Stroke="White" StrokeThickness="2"
+                                         HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Rectangle Width="8" Height="4" Fill="#FF101516" HorizontalAlignment="Center"
+                                           VerticalAlignment="Top"/>
+                                <Path Stroke="White" StrokeThickness="2">
+                                    <!-- IconRefreshCalls -->
+                                    <Path.Data>
+                                        <PathGeometry><PathGeometry.Figures><PathFigure StartPoint="16,2" IsClosed="True">
+                                            <PathFigure.Segments><LineSegment Point="20,2"/><LineSegment Point="19,6"/></PathFigure.Segments>
+                                        </PathFigure></PathGeometry.Figures></PathGeometry>
+                                    </Path.Data>
+                                </Path>
+                            </Grid>
                             <TextBlock x:Name="RefreshCallsLabel" Style="{StaticResource AppBarLabelStyle}"/>
                         </StackPanel>
                     </Button>

@@ -27,6 +27,9 @@ namespace WhatsappApp.Pages
         private const string NavigationParameterKey = "WhatsappApp.NavigationParameter";
         private const int LongPressMilliseconds = 650;
 
+        private ApplicationBar _chatsApplicationBar;
+        private ApplicationBar _statusApplicationBar;
+        private ApplicationBar _callsApplicationBar;
         private bool _movingTabs;
         private bool _ready;
         private int _section;
@@ -44,6 +47,9 @@ namespace WhatsappApp.Pages
         public HomePage()
         {
             InitializeComponent();
+            _chatsApplicationBar = Resources["ChatsApplicationBar"] as ApplicationBar;
+            _statusApplicationBar = Resources["StatusApplicationBar"] as ApplicationBar;
+            _callsApplicationBar = Resources["CallsApplicationBar"] as ApplicationBar;
 
             ChatListView.ItemsSource = DataService.Instance.Contacts;
 
@@ -132,10 +138,9 @@ namespace WhatsappApp.Pages
             }
 
             if (_homeSearching && index != 0) CloseSearch();
-            ChatsBar.Visibility = index == 0 ? Visibility.Visible : Visibility.Collapsed;
-            StatusBar.Visibility = index == 1 ? Visibility.Visible : Visibility.Collapsed;
-            CallsBar.Visibility = index == 2 ? Visibility.Visible : Visibility.Collapsed;
-            HomeBarRow.Visibility = _homeSearching ? Visibility.Collapsed : Visibility.Visible;
+            ApplicationBar = index == 0 ? _chatsApplicationBar
+                : (index == 1 ? _statusApplicationBar : _callsApplicationBar);
+            UpdateChatsMenuItems();
 
             if (index == 1) StatusView.Activate(); else StatusView.Deactivate();
             if (index == 2) CallsView.Activate(); else CallsView.Deactivate();
@@ -182,6 +187,7 @@ namespace WhatsappApp.Pages
         private void RefreshBadges()
         {
             //Header.SetUnread(DataService.Instance.UnreadChats());
+            UpdateChatsMenuItems();
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
@@ -512,15 +518,15 @@ namespace WhatsappApp.Pages
 
         private void SearchButton_Click(object sender, RoutedEventArgs e)
         {
-            OpenSearch();
+            SearchApplicationBarButton_Click(sender, e);
         }
 
-        private void OpenSearch()
+        private void SearchApplicationBarButton_Click(object sender, EventArgs e)
         {
             _homeSearching = true;
             SearchPanel.Visibility = Visibility.Visible;
             SearchPrompt.Visibility = string.IsNullOrEmpty(SearchBox.Text) ? Visibility.Visible : Visibility.Collapsed;
-            HomeBarRow.Visibility = Visibility.Collapsed;
+            ApplicationBar = null;
             SearchBox.Focus();
         }
 
@@ -535,10 +541,51 @@ namespace WhatsappApp.Pages
             SearchBox.Text = "";
             SearchPrompt.Visibility = Visibility.Visible;
             SearchPanel.Visibility = Visibility.Collapsed;
-            HomeBarRow.Visibility = Visibility.Visible;
+            if (_ready && _section == 0) ApplicationBar = _chatsApplicationBar;
         }
 
-        private void NewCallButton_Click(object sender, RoutedEventArgs e)
+        private void NewChatApplicationBarButton_Click(object sender, EventArgs e)
+        {
+            NewChatButton_Click(sender, new RoutedEventArgs());
+        }
+
+        private void PinChatsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            Guarded.RunGuardedAsync("HomePage/pin chats", ShowPinPickerAsync());
+        }
+
+        private void UnpinAllAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            UnpinAllMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void RefreshCallsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            CallsView.Refresh();
+        }
+
+        private void ReadAllAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            ReadAllMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void MarkAllStatusesAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            MarkAllStatusesMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void MarkCallsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            MarkCallsSeenMenuItem_Click(sender, new RoutedEventArgs());
+        }
+
+        private void SettingsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            SettingsButton_Click(sender, new RoutedEventArgs());
+        }
+
+
+        private void NewCallButton_Click(object sender, EventArgs e)
         {
             var picker = new PhoneNumberChooserTask();
             EventHandler<PhoneNumberResult> handler = null;
@@ -573,6 +620,26 @@ namespace WhatsappApp.Pages
             await DataService.Instance.StartCallAsync(jid, false);
             CallSession call = DataService.Instance.Call;
             if (call != null && call.Occupied) NavigateToPage("CallPage", null);
+        }
+
+        private void RefreshStatusApplicationBarButton_Click(object sender, EventArgs e)
+        {
+            DataService.Instance.ScanStatuses();
+        }
+
+        private void UpdateChatsMenuItems()
+        {
+            bool hasChats = DataService.Instance.Contacts.Count > 0;
+            SetChatMenuItemEnabled(0, hasChats);
+            SetChatMenuItemEnabled(1, hasChats);
+            SetChatMenuItemEnabled(2, hasChats);
+        }
+
+        private void SetChatMenuItemEnabled(int index, bool enabled)
+        {
+            if (_chatsApplicationBar == null || _chatsApplicationBar.MenuItems.Count <= index) return;
+            ApplicationBarMenuItem item = _chatsApplicationBar.MenuItems[index] as ApplicationBarMenuItem;
+            if (item != null) item.IsEnabled = enabled;
         }
 
         private void SearchBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -678,7 +745,6 @@ namespace WhatsappApp.Pages
             AddModalOptionHandler(Loc.Get("ChatsPage_PinChat", "Pin a chat"), PinChatMenuItem_Click);
             AddModalOptionHandler(Loc.Get("ChatsPage_UnpinAll", "Unpin all"), UnpinAllMenuItem_Click);
             AddModalOptionHandler(Loc.Get("ChatsPage_ReadAll", "Read all chats"), ReadAllMenuItem_Click);
-            AddModalOptionHandler(Loc.Get("ChatsPage_Settings", "Settings"), SettingsButton_Click);
         }
 
         private async void PinChatMenuItem_Click(object sender, RoutedEventArgs e)
