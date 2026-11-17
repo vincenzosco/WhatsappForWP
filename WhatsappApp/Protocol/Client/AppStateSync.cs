@@ -258,8 +258,9 @@ namespace WhatsappApp.Protocol.Client
         /// One collection, verified and read.
         ///
         /// Throws a <see cref="ProtocolException"/> for anything that does not verify - a
-        /// record whose MAC does not hold, a key this device was never given, a snapshot whose
-        /// LT-Hash is not what the MAC covers. Nothing is half-applied: a collection either
+        /// record whose MAC does not hold, a patch that carries no MAC at all, a key this
+        /// device was never given, a snapshot whose LT-Hash is not what the MAC covers.
+        /// Nothing is half-applied: a collection either
         /// reads whole or it does not read, which is the only honest answer for a set of names
         /// that could otherwise be a mix of this account's and a tampered one's.
         /// </summary>
@@ -317,26 +318,34 @@ namespace WhatsappApp.Protocol.Client
 
                 MutationKeys patchKeys = MutationKeys.Derive(KeyFor(keys, patch.KeyId, collection.Name));
 
-                if (patch.PatchMac != null)
+                // A patch arrives with both of its MACs or it does not arrive: the reference
+                // refuses a patch whose patchMac is absent, because "MAC omitted" is a splice
+                // opportunity, not a protocol option - genuine records under a set and a
+                // version nobody signed. The refusal is before anything is applied, so the
+                // LT-Hash and the names stay where the last verified patch left them.
+                if (patch.PatchMac == null || patch.SnapshotMac == null)
                 {
-                    var valueMacs = new List<byte[]>();
-                    for (int m = 0; m < patch.Mutations.Count; m++)
-                    {
-                        SyncdRecord record = patch.Mutations[m].Record;
-                        if (record == null || record.Value == null || record.Value.Length < 32)
-                        {
-                            throw new ProtocolException("a " + collection.Name + " patch carries a record with no MAC");
-                        }
+                    throw new ProtocolException("the " + collection.Name + " patch at version "
+                        + patch.Version + " carries no MAC");
+                }
 
-                        valueMacs.Add(Slice(record.Value, record.Value.Length - 32, 32));
+                var valueMacs = new List<byte[]>();
+                for (int m = 0; m < patch.Mutations.Count; m++)
+                {
+                    SyncdRecord record = patch.Mutations[m].Record;
+                    if (record == null || record.Value == null || record.Value.Length < 32)
+                    {
+                        throw new ProtocolException("a " + collection.Name + " patch carries a record with no MAC");
                     }
 
-                    byte[] expectedPatchMac = PatchMac(patchKeys, patch.SnapshotMac, valueMacs, patch.Version, collection.Name);
-                    if (!Hmac.FixedTimeEquals(expectedPatchMac, patch.PatchMac))
-                    {
-                        throw new ProtocolException("the MAC of the " + collection.Name + " patch at version "
-                            + patch.Version + " does not verify");
-                    }
+                    valueMacs.Add(Slice(record.Value, record.Value.Length - 32, 32));
+                }
+
+                byte[] expectedPatchMac = PatchMac(patchKeys, patch.SnapshotMac, valueMacs, patch.Version, collection.Name);
+                if (!Hmac.FixedTimeEquals(expectedPatchMac, patch.PatchMac))
+                {
+                    throw new ProtocolException("the MAC of the " + collection.Name + " patch at version "
+                        + patch.Version + " does not verify");
                 }
 
                 for (int m = 0; m < patch.Mutations.Count; m++)
@@ -350,7 +359,7 @@ namespace WhatsappApp.Protocol.Client
                 // A patch's MAC covers the LT-Hash it produced: the same check a snapshot
                 // gets, one version at a time.
                 byte[] computed = SnapshotMac(patchKeys, sum, patch.Version, collection.Name);
-                if (patch.SnapshotMac != null && !Hmac.FixedTimeEquals(computed, patch.SnapshotMac))
+                if (!Hmac.FixedTimeEquals(computed, patch.SnapshotMac))
                 {
                     throw new ProtocolException("the LT-Hash of the " + collection.Name + " at version "
                         + patch.Version + " is not what the patch's snapshot MAC covers");
