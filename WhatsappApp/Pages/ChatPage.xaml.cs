@@ -208,7 +208,6 @@ namespace WhatsappApp.Pages
             AutomationProperties.SetName(RecordButton, Loc.Get("ChatPage_RecordTooltip", "Record a voice note"));
             AutomationProperties.SetName(StopRecordButton, Loc.Get("ChatPage_StopRecordTooltip", "Stop the recording"));
             AutomationProperties.SetName(RecentMessagesButton, Loc.Get("ChatPage_JumpToRecentTooltip", "Jump to the newest messages"));
-            AutomationProperties.SetName(ContactAvatar, Loc.Get("ChatPage_ProfilePhotoTooltip", "Show the profile photo"));
             AutomationProperties.SetName(ContactHeader, Loc.Get("ChatPage_ContactInfoTooltip", "Contact info"));
             MessagePlaceholderText.Text = Loc.Get("ChatPage_Input.PlaceholderText", "Type a message");
             RecordingLabelText.Text = Loc.Get("ChatPage_RecordingLabel.Text", "Recording");
@@ -1052,26 +1051,6 @@ namespace WhatsappApp.Pages
             if (_contact == null) return;
             e.Handled = true;
             OpenContactInfo();
-        }
-
-        private async void ContactAvatar_Tapped(object sender, System.Windows.Input.GestureEventArgs e)
-        {
-            if (_contact == null) return;
-            e.Handled = true;
-
-            try
-            {
-                if (_contact.Avatar == null) await _contact.LoadAvatarAsync();
-                if (_contact.Avatar != null)
-                {
-                    ImageViewerImage.Source = _contact.Avatar;
-                    ImageViewer.Visibility = Visibility.Visible;
-                }
-            }
-            catch (Exception ex)
-            {
-                Diag.Failed("ChatPage/ContactAvatar_Tapped", ex);
-            }
         }
 
         /// <summary>The contact or group page, from the header and from the overflow menu.</summary>

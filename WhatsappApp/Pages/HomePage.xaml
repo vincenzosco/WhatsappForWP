@@ -143,14 +143,16 @@
                                         </Grid.ColumnDefinitions>
                                         <Grid x:Name="ChatAvatar" Grid.Column="0" Width="68" Height="68"
                                               Margin="0" VerticalAlignment="Top">
-                                            <Ellipse Width="68" Height="68"
-                                                     Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                                            <Ellipse Width="68" Height="68"
-                                                     Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
-                                                <Ellipse.Fill>
+                                            <!-- The reference draws the profile photo as a rounded square,
+                                                 not a circle. -->
+                                            <Border Width="68" Height="68" CornerRadius="5"
+                                                    Background="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
+                                            <Border Width="68" Height="68" CornerRadius="5"
+                                                    Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
+                                                <Border.Background>
                                                     <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
-                                                </Ellipse.Fill>
-                                            </Ellipse>
+                                                </Border.Background>
+                                            </Border>
                                             <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="22"
                                                        FontWeight="SemiBold" VerticalAlignment="Center"
                                                        HorizontalAlignment="Center"

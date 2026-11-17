@@ -84,36 +84,16 @@
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <!-- The XAP title row carries the contact picture, name and truthful subtitle.
-             The reference put name and subtitle on one line, "NAME, last seen ...",
-             and left the way back to the hardware key: no chevron owns 48 px of a
-             480 px header. -->
+        <!-- The title row carries the name and the truthful subtitle, and the
+             profile photo stays in the home list alone. The reference put name and
+             subtitle on one line, "NAME, last seen ...", and left the way back to
+             the hardware key: no chevron owns 48 px of a 480 px header. -->
         <Grid Grid.Row="0" Background="Black" Height="60">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="Auto"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <Grid x:Name="ContactAvatar" Grid.Column="0" Width="54" Height="54"
-                  Margin="0,0,12,0" VerticalAlignment="Center"
-                  Background="Transparent" Tap="ContactAvatar_Tapped">
-                <Ellipse Width="48" Height="48" Fill="{Binding Initials, Converter={StaticResource InitialToColor}}"/>
-                <Ellipse Width="48" Height="48"
-                         Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}}">
-                    <Ellipse.Fill>
-                        <ImageBrush ImageSource="{Binding Avatar}" Stretch="UniformToFill"/>
-                    </Ellipse.Fill>
-                </Ellipse>
-                <TextBlock Text="{Binding Initials}" Foreground="White" FontSize="18"
-                           FontWeight="SemiBold" VerticalAlignment="Center" HorizontalAlignment="Center"
-                           Visibility="{Binding HasAvatar, Converter={StaticResource BoolToVisibility}, ConverterParameter=Invert}"/>
-            </Grid>
-
             <!-- One line, as in the reference: the name in caps, a comma, the
                  italic subtitle. Both parts trim, so a long name shortens to an
                  ellipsis instead of pushing the subtitle off the header. -->
-            <Grid x:Name="ContactHeader" Grid.Column="1"
-                  Background="Transparent" Margin="0,0,8,0" Tap="ContactHeader_Tapped">
+            <Grid x:Name="ContactHeader"
+                  Background="Transparent" Margin="12,0,8,0" Tap="ContactHeader_Tapped">
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                     <TextBlock x:Name="ContactNameText" Text=""
                                Foreground="White" FontSize="23" FontFamily="Segoe WP Semibold"
