@@ -1433,10 +1433,25 @@ namespace WhatsappApp.Services
             var ordered = new List<ChatMessage>(merged.Count);
             for (int i = 0; i < order.Length; i++) ordered.Add(merged[order[i]]);
 
-            keep.Clear();
-            for (int i = 0; i < ordered.Count; i++) keep.Add(ordered[i]);
+            // Two rows, one person: the rows are rewritten into the surviving
+            // collection in one go. The survivor is the one the open chat holds when
+            // one of the two is on screen - the page watches that instance, and a merge
+            // that rebuilt the other one left it attached to a collection that receives
+            // nothing more (the open chat is not touched, the same rule the trim keeps).
+            ObservableCollection<ChatMessage> survivor = keep;
+            if (!string.IsNullOrEmpty(_activeChatId) && ChatIdFor(_activeChatId) == ChatIdFor(from))
+            {
+                survivor = gone;
+            }
 
-            TrimToCeiling(keep);
+            survivor.Clear();
+            for (int i = 0; i < ordered.Count; i++) survivor.Add(ordered[i]);
+
+            // `keep` already sits under the merged address; the other collection takes
+            // its place when it is the one that survives.
+            if (!ReferenceEquals(survivor, keep)) _chatMessages[to] = survivor;
+
+            TrimToCeiling(survivor);
         }
 
         /// <summary>

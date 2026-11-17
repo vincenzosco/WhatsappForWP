@@ -26,7 +26,7 @@ test('una pagina che non segue il burst non arriva ai messaggi nuovi', () => {
 test('un burst senza la chat in primo piano non deve muovere un altra lista', () => {
   const broken = files();
   broken.page = broken.page
-    .replace(/if \(DataService\.Instance\.ActiveChatId != _contact\.Id\) return;\r?\n/,
+    .replace(/if \(DataService\.Instance\.ActiveChatId != DataService\.Instance\.ChatIdFor\(_contact\.Id\)\) return;\r?\n/,
       '');
   assert.match(chatScrollProblems(broken).join('\n'), /ActiveChatId/);
 });

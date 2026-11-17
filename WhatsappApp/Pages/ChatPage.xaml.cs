@@ -516,11 +516,28 @@ namespace WhatsappApp.Pages
             return _view.AtBottom();
         }
 
+        /// <summary>
+        /// Whether this id names the conversation this page holds. The comparison is
+        /// canonical on both sides: a message is keyed as `ChatIdFor` spells it and a
+        /// row can be opened under the other spelling (`@lid`, a device suffix), so the
+        /// raw comparison never matched and the scroll, the read mark and the history
+        /// end were dropped in silence while the chat was on screen.
+        /// </summary>
+        private bool IsThisChat(string chatId)
+        {
+            if (_contact == null) return false;
+            if (chatId == _contact.Id) return true;
+
+            string mine = DataService.Instance.ChatIdFor(_contact.Id);
+            string theirs = DataService.Instance.ChatIdFor(chatId);
+            return !string.IsNullOrEmpty(mine) && !string.IsNullOrEmpty(theirs) && mine == theirs;
+        }
+
         private void OnMessageArrived(object sender, ChatMessage message)
         {
             // DataService has already inserted the message into the same collection:
             // here we only scroll, otherwise the bubble would show up twice.
-            if (message.ChatId != _contact.Id) return;
+            if (message == null || !IsThisChat(message.ChatId)) return;
 
             // History is not news. It is the burst this page is waiting for, and
             // it enters the collection without the page touching the view: the
@@ -566,7 +583,7 @@ namespace WhatsappApp.Pages
         private void OnTypingChanged(object sender, ChatMessage message)
         {
             if (message == null || _contact == null) return;
-            if (message.ChatId != _contact.Id) return;
+            if (!IsThisChat(message.ChatId)) return;
 
             bool typing = message.State == "composing";
             // The same state arrives again and again while the words keep coming:
@@ -629,8 +646,8 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void OnHistoryCompleted(object sender, string chatId)
         {
-            if (_contact == null || chatId != _contact.Id) return;
-            if (DataService.Instance.ActiveChatId != _contact.Id) return;
+            if (!IsThisChat(chatId)) return;
+            if (DataService.Instance.ActiveChatId != DataService.Instance.ChatIdFor(_contact.Id)) return;
 
             Diag.Ok("burst closed, moved to the newest for " + chatId);
             _view.ScrollToBottom();
@@ -949,7 +966,10 @@ namespace WhatsappApp.Pages
             var completion = new System.Threading.Tasks.TaskCompletionSource<bool>();
             EventHandler<string> onDone = (sender, id) =>
             {
-                if (id == chatId) completion.TrySetResult(true);
+                // Folded before compared: the burst closes under the canonical id and
+                // the page can ask under the other spelling of the same chat.
+                if (DataService.Instance.ChatIdFor(id) == DataService.Instance.ChatIdFor(chatId))
+                    completion.TrySetResult(true);
             };
 
             DataService.Instance.HistoryCompleted += onDone;
