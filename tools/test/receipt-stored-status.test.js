@@ -35,3 +35,26 @@ test('the receipt lookup asks the stored tail before giving up', () => {
   assert.ok(fallthrough >= 0 && logged > fallthrough,
     'the "no bubble" line is written only after the stored tail was consulted');
 });
+
+test('a status change on a row in memory also reaches the stored row', () => {
+  // The snapshot the memory-hit path arms merges by id and keeps the stored
+  // row (AppendCoreAsync), so a status that went only through memory came back
+  // as the old one at the next start: every second tick was a ghost until a
+  // rewrite of the tail happened to come along. The tail is updated with the
+  // row, not merely saved about.
+  const method = data.slice(data.indexOf('public void SetMessageStatus'));
+  const hit = method.indexOf('messages[i].Status = status');
+  assert.ok(hit >= 0, 'SetMessageStatus has a memory-hit branch');
+  const hitEnd = method.indexOf('return;', hit);
+  assert.ok(hitEnd > hit, 'the memory-hit branch returns');
+  assert.match(method.slice(hit, hitEnd), /MessageCache\.UpdateStatusAsync/,
+    'the memory-hit branch writes the status to the stored tail too');
+
+  const everywhere = data.slice(data.indexOf('private bool SetMessageStatusEverywhere'));
+  const eHit = everywhere.indexOf('message.Status = status');
+  assert.ok(eHit >= 0, 'SetMessageStatusEverywhere has a memory-hit branch');
+  const eHitEnd = everywhere.indexOf('return true;', eHit);
+  assert.ok(eHitEnd > eHit, 'the memory-hit branch returns');
+  assert.match(everywhere.slice(eHit, eHitEnd), /MessageCache\.UpdateStatusAsync/,
+    'the id-only lookup writes the status to the stored tail too');
+});

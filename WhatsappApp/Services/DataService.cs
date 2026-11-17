@@ -2723,6 +2723,19 @@ namespace WhatsappApp.Services
                     if (!IsForward(messages[i].Status, status)) return;
                     messages[i].Status = status;
                     _saveSoon.Arm();
+
+                    // And the row on the phone with it. The snapshot this arms merges by
+                    // id and keeps the stored row (see AppendCoreAsync), so a status that
+                    // went only through memory came back as the old one at the next
+                    // start: every second tick was a ghost until a rewrite of the tail
+                    // happened to come along. The write is direct and not through
+                    // `SetStoredMessageStatusAsync`: the bubble is here, so the "no
+                    // bubble" line that path owns has nothing to say.
+                    string hitChat = string.IsNullOrEmpty(canonical) ? chatId : canonical;
+#pragma warning disable 4014
+                    Guarded.RunGuardedAsync("DataService/receipt stored status",
+                        MessageCache.UpdateStatusAsync(hitChat, messageId, status));
+#pragma warning restore 4014
                     return;
                 }
             }
@@ -2800,6 +2813,14 @@ namespace WhatsappApp.Services
                     if (!IsForward(message.Status, status)) return true;
                     message.Status = status;
                     _saveSoon.Arm();
+
+                    // The stored row too, under the key this list keeps the conversation
+                    // in: the tail is one file per chat and this is the chat that holds
+                    // the message (see the memory-hit branch of SetMessageStatus).
+#pragma warning disable 4014
+                    Guarded.RunGuardedAsync("DataService/receipt stored status",
+                        MessageCache.UpdateStatusAsync(chat.Key, messageId, status));
+#pragma warning restore 4014
                     return true;
                 }
             }
