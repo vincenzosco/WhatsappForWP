@@ -11,9 +11,13 @@ const CODE = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Pages/ChatPage.xaml.cs
 const PROJECT = fs.readFileSync(path.join(ROOT, 'WhatsappApp/WhatsApp.csproj'), 'utf8');
 const ASSET_DIR = path.join(ROOT, 'WhatsappApp/Assets/Reference/ThemeDark');
 const icons = [
-  ['AttachButton', 'inputbar-attach.png', '620f57e056fa069c24939c576efd8e608293602ab33ee5bca4a94b57ed9263e3'],
-  ['RecordButton', 'inputbar-mic.png', '474aeae3d63e202c26246454a99e38a109d7c4dfc18eb1447223ee4493cfb9d0'],
-  ['SendButton', 'inputbar-send.png', 'cf071fcaf9678f18eec00154815c7816fdac85dc75b9e56482413133182f00db'],
+  // The three composer-scale glyphs were cut for an input bar of their own and
+  // reached past the app-bar ring; they are trimmed inside their canvases so the
+  // drawn pixels sit in the circle (tools/test/chat-bar-icons-fit.test.js holds
+  // the rule). The handset already fitted and stays the extracted XAP asset.
+  ['AttachButton', 'inputbar-attach.png', '277fa45824d37f1e152117d47b52ae3154d30e9713bfd1e3a7813bfada75cbc9'],
+  ['RecordButton', 'inputbar-mic.png', 'f187b8b94c95e80c54c7478e975ed0dd19efdb7e85fdfe80221beafce4288ffa'],
+  ['SendButton', 'inputbar-send.png', '8f314665536ced01d692f28e0aaa07e7ae97424f218b3e1e56e21ddaea719b11'],
   ['CallHeaderButton', 'phone-solid.png', 'c8507249ee6aecc1926dda0a6c9bed0a51dd5443e5df2220a85cad328b8dc9c6']
 ];
 
@@ -44,7 +48,7 @@ test('supported chat actions render the original XAP icon artwork', () => {
       `${button} renders ${file}`);
     assert.ok(fs.existsSync(assetPath), `${assetPath} exists`);
     const actual = crypto.createHash('sha256').update(fs.readFileSync(assetPath)).digest('hex');
-    assert.equal(actual, digest, `${file} remains byte-identical to the extracted XAP asset`);
+    assert.equal(actual, digest, `${file} matches the pinned artwork`);
     assert.ok(projectContainsAsset(file), `${file} is packaged by the app project`);
     assert.doesNotMatch(markup, /<Path\b/, `${button} no longer draws substitute artwork`);
   }
