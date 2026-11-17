@@ -2722,6 +2722,7 @@ namespace WhatsappApp.Services
                     if (messages[i] == null || messages[i].Id != messageId) continue;
                     if (!IsForward(messages[i].Status, status)) return;
                     messages[i].Status = status;
+                    _saveSoon.Arm();
                     return;
                 }
             }
@@ -2776,6 +2777,7 @@ namespace WhatsappApp.Services
                     if (message == null || message.Id != messageId) continue;
                     if (!IsForward(message.Status, status)) return true;
                     message.Status = status;
+                    _saveSoon.Arm();
                     return true;
                 }
             }
@@ -3354,6 +3356,11 @@ namespace WhatsappApp.Services
 
             conversation.Insert(InOrderIndex(conversation, message), message);
             TrimToCeiling(conversation);
+
+            // The snapshot is armed on arrival and must be armed here too: a row
+            // only in memory is on screen while the app runs and gone at the next
+            // start, which is how sent messages disappeared from their chats.
+            _saveSoon.Arm();
 
             // Update the contact's last message
             var contact = FindContact(chatId);
