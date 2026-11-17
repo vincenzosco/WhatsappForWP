@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol.Crypto;
 using WhatsappApp.Protocol.Noise;
@@ -43,6 +44,14 @@ namespace WhatsappApp.Protocol.Client
 
         private readonly FrameAccumulator _accumulator = new FrameAccumulator();
         private readonly Queue<byte[]> _frames = new Queue<byte[]>();
+
+        /// <summary>
+        /// One node framed and written at a time. The Noise write counter and the one-time
+        /// intro are state the frame builder mutates, and senders are concurrent: the
+        /// pairing keep-alive beside the read loop's acks, the background agent's app-state
+        /// query beside a backlog ack.
+        /// </summary>
+        private readonly SemaphoreSlim _sendGate = new SemaphoreSlim(1, 1);
 
         private NoiseHandshake _noise;
 
@@ -211,15 +220,29 @@ namespace WhatsappApp.Protocol.Client
         {
             if (node == null) throw new ProtocolException("nothing to send");
 
-            byte[] encoded = NodeWriter.Encode(node);
-            byte[] frame = _channelEncrypted ? _noise.EncodeFrame(encoded) : encoded;
+            // Framing and the write are one turn of a lock: two senders that frame at the
+            // same time can seal two frames under one Noise counter (a nonce reuse the
+            // server answers by dropping the connection) or interleave the intro with a
+            // frame, and frames may then leave in an order their counters disagree with.
+            // The transport's own semaphore orders only the raw socket write, after the
+            // frame is already built, which is too late.
+            await _sendGate.WaitAsync();
+            try
+            {
+                byte[] encoded = NodeWriter.Encode(node);
+                byte[] frame = _channelEncrypted ? _noise.EncodeFrame(encoded) : encoded;
 
-            // What went out, by tag and attributes, with the size of the frame. The read side has
-            // always said what arrived; without the same line here a call the other phone never
-            // answers cannot be told apart from a call that was never written to the socket.
-            _log.Info("whatsapp: wrote <" + node.ToString() + "> (" + frame.Length + " bytes)");
+                // What went out, by tag and attributes, with the size of the frame. The read side has
+                // always said what arrived; without the same line here a call the other phone never
+                // answers cannot be told apart from a call that was never written to the socket.
+                _log.Info("whatsapp: wrote <" + node.ToString() + "> (" + frame.Length + " bytes)");
 
-            await _transport.SendAsync(frame);
+                await _transport.SendAsync(frame);
+            }
+            finally
+            {
+                _sendGate.Release();
+            }
         }
 
         public void Close()
