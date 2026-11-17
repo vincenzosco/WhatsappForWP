@@ -3610,6 +3610,20 @@ namespace WhatsappApp.Services
             foreach (var pair in _chatMessages)
             {
                 if (pair.Key == _activeChatId) continue;
+
+                // The rows reach the phone before the collection lets them go: the
+                // trim runs while a save is still inside its quiet window, and rows
+                // only memory holds are the loss the tail caches exist to prevent.
+                // The merge keeps what the file already has and adds what it has not.
+                if (pair.Value.Count > 0)
+                {
+                    var rows = new List<ChatMessage>(pair.Value);
+#pragma warning disable 4014
+                    Guarded.RunGuardedAsync("DataService/trim memory",
+                        MessageCache.AppendAsync(pair.Key, rows));
+#pragma warning restore 4014
+                }
+
                 pair.Value.Clear();
                 emptied.Add(pair.Key);
             }
