@@ -894,9 +894,11 @@ namespace WhatsappApp.Pages
             if (e.Action != System.Collections.Specialized.NotifyCollectionChangedAction.Add) return;
             if (e.NewItems == null || e.NewItems.Count == 0) return;
 
-            // Inserted above the shown page: the page has one more row in front of it, and
-            // the index it starts at moves with it. Nothing is added to the list.
-            if (e.NewStartingIndex >= 0 && e.NewStartingIndex + e.NewItems.Count <= _shownFrom)
+            // Every new row lands before the first visible one - entirely above the
+            // page, or a batch straddling its start - so the window start takes them
+            // all and nothing is drawn: the anchor is the same row as before, one
+            // place further down the conversation.
+            if (e.NewStartingIndex >= 0 && e.NewStartingIndex < _shownFrom)
             {
                 _shownFrom += e.NewItems.Count;
                 return;
@@ -908,7 +910,14 @@ namespace WhatsappApp.Pages
                 if (arrived == null) continue;
                 if (_shown.Contains(arrived)) continue;
 
-                _shown.Add(arrived);
+                // Where the service inserted it in the conversation, not at the tail:
+                // a row can arrive with an older timestamp than the newest bubble (an
+                // echo from another device, a re-delivery, a history row), and drawing
+                // it last made it the newest message of the chat.
+                int at = e.NewStartingIndex >= 0 ? e.NewStartingIndex + i - _shownFrom : _shown.Count;
+                if (at < 0) at = 0;
+                if (at > _shown.Count) at = _shown.Count;
+                _shown.Insert(at, arrived);
             }
         }
 
