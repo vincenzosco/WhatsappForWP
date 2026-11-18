@@ -78,7 +78,11 @@ namespace WhatsappApp.Protocol.Crypto
             Check(packet, length);
 
             int header = HeaderLength(packet, length);
-            uint index = IndexOf(packet[2], packet[3]);
+            ulong index;
+            uint epoch;
+            if (!TryEstimate(packet[2], packet[3], out index, out epoch))
+                throw new ProtocolException("the packet index is before the first epoch");
+            CommitIndex(packet[2], packet[3], epoch);
 
             var protectedBytes = new byte[length + TagLength];
             Buffer.BlockCopy(packet, 0, protectedBytes, 0, length);
@@ -89,7 +93,7 @@ namespace WhatsappApp.Protocol.Crypto
                 protectedBytes[i] = (byte)(packet[i] ^ keystream[i - header]);
             }
 
-            byte[] tag = Hmac.ComputeSha1(_authKey, Slice(protectedBytes, 0, length));
+            byte[] tag = Hmac.ComputeSha1(_authKey, AuthenticatedBytes(protectedBytes, length, epoch));
             Buffer.BlockCopy(tag, 0, protectedBytes, length, TagLength);
 
             return protectedBytes;
@@ -111,22 +115,27 @@ namespace WhatsappApp.Protocol.Crypto
             int plainLength = length - TagLength;
             if (plainLength < 12) return null;
 
-            byte[] tag = Hmac.ComputeSha1(_authKey, Slice(packet, 0, plainLength));
+            ulong index;
+            uint epoch;
+            if (!TryEstimate(packet[2], packet[3], out index, out epoch)) return null;
+
+            byte[] tag = Hmac.ComputeSha1(_authKey, AuthenticatedBytes(packet, plainLength, epoch));
             var expected = new byte[TagLength];
             Buffer.BlockCopy(tag, 0, expected, 0, TagLength);
 
             var carried = new byte[TagLength];
             Buffer.BlockCopy(packet, plainLength, carried, 0, TagLength);
 
+            // The state moves only after the tag: a packet nobody vouches for must not be
+            // able to walk the rollover counter away from the packets that follow it.
             if (!Hmac.FixedTimeEquals(expected, carried)) return null;
+            CommitIndex(packet[2], packet[3], epoch);
 
             int header;
-            uint index;
 
             try
             {
                 header = HeaderLength(packet, plainLength);
-                index = IndexOf(packet[2], packet[3]);
             }
             catch (ProtocolException)
             {
@@ -150,7 +159,7 @@ namespace WhatsappApp.Protocol.Crypto
         /// combined into the counter block the specification gives (section 4.1.1), then
         /// encrypted block by block.
         /// </summary>
-        private byte[] Keystream(uint index, int length)
+        private byte[] Keystream(ulong index, int length)
         {
             if (length == 0) return new byte[0];
 
@@ -191,29 +200,76 @@ namespace WhatsappApp.Protocol.Crypto
         }
 
         /// <summary>
-        /// The 48-bit packet index: the rollover counter above the sequence number. A
-        /// sequence that jumps back by more than half the space is a wrap, and a wrap that is
-        /// not counted puts the two ends on different keystreams.
+        /// The 48-bit packet index of a packet from its sequence number, and the epoch it
+        /// belongs to, as the specification estimates it (RFC 3711, section 3.3.1). The two
+        /// branches are the two half-spaces of the 16-bit sequence: a packet more than half a
+        /// space behind the highest seen is delayed across the wrap and belongs to the epoch
+        /// before it, and one far below a highest-seen in the upper half is already in the
+        /// next. Estimating only the wrap read a duplicated or reordered packet as a wrap and
+        /// moved every later receive one epoch away for the rest of the call.
+        ///
+        /// The estimate is pure; the state moves in `CommitIndex`, and only for a packet that
+        /// proved real (its tag verified) or that this side built itself.
         /// </summary>
-        private uint IndexOf(byte high, byte low)
+        private bool TryEstimate(byte high, byte low, out ulong index, out uint epoch)
+        {
+            int sequence = (high << 8) | low;
+            long estimate = _rollover;
+
+            if (_highestSequence >= 0)
+            {
+                if (_highestSequence < 32768)
+                {
+                    if (sequence - _highestSequence > 32768) estimate = _rollover - 1L;
+                }
+                else
+                {
+                    if (_highestSequence - 32768 > sequence) estimate = _rollover + 1L;
+                }
+            }
+
+            if (estimate < 0)
+            {
+                index = 0;
+                epoch = 0;
+                return false;
+            }
+
+            epoch = (uint)estimate;
+            index = ((ulong)epoch << 16) | (uint)sequence;
+            return true;
+        }
+
+        /// <summary>
+        /// The state that goes with a packet: the highest sequence seen and the rollover
+        /// counter with it. It only ever moves forward - a packet delayed across the wrap is
+        /// read at the epoch it belongs to and leaves the newest one in place.
+        /// </summary>
+        private void CommitIndex(byte high, byte low, uint epoch)
         {
             int sequence = (high << 8) | low;
 
-            if (_highestSequence < 0)
+            if (epoch > _rollover || (epoch == _rollover && sequence > _highestSequence))
             {
+                _rollover = epoch;
                 _highestSequence = sequence;
             }
-            else if (sequence < _highestSequence && _highestSequence - sequence > 32768)
-            {
-                _rollover++;
-                _highestSequence = sequence;
-            }
-            else if (sequence > _highestSequence)
-            {
-                _highestSequence = sequence;
-            }
+        }
 
-            return (_rollover << 16) | (uint)sequence;
+        /// <summary>
+        /// What the tag covers: the packet as it goes on the wire with the rollover counter
+        /// of its epoch appended, four bytes big-endian (RFC 3711, section 4.2). Without the
+        /// counter the tags this side makes are not the tags a standard peer checks.
+        /// </summary>
+        private static byte[] AuthenticatedBytes(byte[] bytes, int length, uint epoch)
+        {
+            var covered = new byte[length + 4];
+            Buffer.BlockCopy(bytes, 0, covered, 0, length);
+            covered[length] = (byte)(epoch >> 24);
+            covered[length + 1] = (byte)(epoch >> 16);
+            covered[length + 2] = (byte)(epoch >> 8);
+            covered[length + 3] = (byte)epoch;
+            return covered;
         }
 
         /// <summary>How many bytes of the packet are header: fixed part, CSRC list, extension.</summary>
