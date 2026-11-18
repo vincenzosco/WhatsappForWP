@@ -414,8 +414,18 @@ namespace WhatsappApp.Protocol.Media
             if (_state == CallTransportState.Ready)
             {
                 // A second handshake on a live path is renegotiation, and this project does not
-                // do it. Dropping the record leaves the call up, which is the safe direction.
-                Dropped++;
+                // do it. The one datagram a done path must still answer is the client repeating
+                // its Finished because our final flight was lost (RFC 6347 4.2.4.1): the
+                // handshake answers exactly that and declines everything else.
+                byte[] flight = _handshake.Receive(datagram);
+                if (flight != null && flight.Length > 0)
+                {
+                    outbound.Add(flight);
+                }
+                else
+                {
+                    Dropped++;
+                }
                 return outbound;
             }
 

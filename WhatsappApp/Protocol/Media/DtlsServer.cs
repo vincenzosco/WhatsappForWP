@@ -107,6 +107,9 @@ namespace WhatsappApp.Protocol.Media
         private bool _clientFinishedVerified;
 
         private int _stage;
+
+        /// <summary>The last flight that left, kept for the client's repeated Finished.</summary>
+        private byte[] _finalFlight;
         private string _failure;
 
         /// <summary>
@@ -187,7 +190,13 @@ namespace WhatsappApp.Protocol.Media
         public byte[] Receive(byte[] datagram)
         {
             if (datagram == null) throw new ProtocolException("a datagram is needed");
-            if (_stage == StageFailed || _stage == StageDone) return null;
+            if (_stage == StageFailed) return null;
+            if (_stage == StageDone)
+            {
+                // RFC 6347 4.2.4.1: the server keeps its final flight until the client proves
+                // it got one - the client repeats its Finished until something of ours lands.
+                return RepeatFinalFlight(datagram);
+            }
 
             var outbound = new List<byte>();
             int at = 0;
@@ -252,6 +261,46 @@ namespace WhatsappApp.Protocol.Media
             if (_stage != StageAwaitingFinished) return null;
 
             return _flight;
+        }
+
+        /// <summary>
+        /// The final flight again, for the client's repeated Finished. The bytes are the same
+        /// ones that were sent, record numbering included: a rebuilt flight would hash over a
+        /// transcript that has moved on and could not verify at the client.
+        /// </summary>
+        private byte[] RepeatFinalFlight(byte[] datagram)
+        {
+            int at = 0;
+
+            while (at + Dtls.RecordHeaderLength <= datagram.Length)
+            {
+                int declared = (datagram[at + 11] << 8) | datagram[at + 12];
+                int recordLength = Dtls.RecordHeaderLength + declared;
+                if (at + recordLength > datagram.Length) break;
+
+                var record = new byte[recordLength];
+                Buffer.BlockCopy(datagram, at, record, 0, recordLength);
+                at += recordLength;
+
+                int epoch = (record[3] << 8) | record[4];
+                DtlsRecordView view = DtlsRecord.Open(epoch == 0 ? null : _inKeys,
+                    record, recordLength);
+                if (view == null || view.Type != Dtls.TypeHandshake) continue;
+
+                DtlsHandshakeMessage message;
+                try
+                {
+                    message = DtlsHandshakeMessage.Parse(view.Fragment, 0, view.Fragment.Length);
+                }
+                catch (ProtocolException)
+                {
+                    continue;
+                }
+
+                if (message.Type == Dtls.HandshakeFinished) return _finalFlight;
+            }
+
+            return null;
         }
 
         private byte[] Read(byte[] fragment)
@@ -532,9 +581,10 @@ namespace WhatsappApp.Protocol.Media
             SrtpServerKey = serverKey;
             SrtpServerSalt = serverSalt;
 
+            _finalFlight = outbound.ToArray();
             _stage = StageDone;
 
-            return outbound.ToArray();
+            return _finalFlight;
         }
 
         /// <summary>Frames one handshake message, hashes it, and seals it at the current epoch.</summary>
