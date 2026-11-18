@@ -387,11 +387,14 @@ namespace WhatsappApp.Protocol.Signal
         /// run asked for the same three messages on every connection.
         ///
         /// The condition is the one `SeedFor` throws on, asked before it: the iteration is
-        /// behind the chain and its key was not kept for a skipped message.
+        /// behind the chain and its key was not kept for a skipped message. A message under
+        /// another key is never a duplicate of this record: the group may have rotated the
+        /// sender key, and the key-id refusal in `Decrypt` is what leaves it for redelivery.
         /// </summary>
         public bool AlreadyRead(SenderKeyMessage message)
         {
             if (message == null || !HasKey) return false;
+            if (message.KeyId != KeyId) return false;
             if (message.Iteration >= Iteration) return false;
 
             for (int i = 0; i < _skipped.Count; i++)
