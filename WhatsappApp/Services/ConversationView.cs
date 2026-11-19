@@ -27,6 +27,7 @@ namespace WhatsappApp.Services
         private bool _watchingScrollBar;
         private bool _waitingForLayout;
         private bool _nearTopSaid;
+        private bool _followBottom;
 
         public ConversationView(LongListSelector list, Dispatcher dispatcher)
         {
@@ -87,6 +88,7 @@ namespace WhatsappApp.Services
             _watchingScrollBar = false;
             _scrollQueued = false;
             _pendingScroll = null;
+            _followBottom = false;
             _onPosition = null;
             _onNearTop = null;
             _lastAtBottom = null;
@@ -135,9 +137,19 @@ namespace WhatsappApp.Services
                 if (newest && bar != null && bar.Maximum > bar.Minimum)
                 {
                     bar.Value = bar.Maximum;
+
+                    // The bar's end is the end of the layout that has run: a row that arrived
+                    // a moment ago has not grown the extent yet, and assigning the old maximum
+                    // to a value that is already there moves nothing - the message stayed below
+                    // the fold and the list looked stuck. The follow is armed and re-applied by
+                    // the layouts to come (`OnListLayoutUpdated`).
+                    _followBottom = true;
+                    WaitForLayout();
                 }
                 else
                 {
+                    // An older row is not a follow of the newest one.
+                    _followBottom = false;
                     try { _list.ScrollTo(target); }
                     catch (Exception ex) { Diag.Failed("ConversationView/scrollTo", ex); }
                 }
@@ -171,6 +183,20 @@ namespace WhatsappApp.Services
 
             StopWaitingForLayout();
             AttachScrollBar();
+
+            if (_followBottom)
+            {
+                ScrollBar follow = ScrollBar();
+                if (follow != null && follow.Maximum > follow.Minimum)
+                {
+                    follow.Value = follow.Maximum;
+                }
+
+                // A virtualized list realizes its items one frame at a time: the extent can
+                // grow across several passes, and the end the reader is taken to is the end
+                // after them. The follow stays armed until the reader leaves the newest row.
+                WaitForLayout();
+            }
 
             if (_scrollQueued)
             {
@@ -220,6 +246,14 @@ namespace WhatsappApp.Services
 
         private void OnScrollBarValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
+            // The follow is for messages arriving at the bottom: somebody who scrolls
+            // away is reading something older and stays exactly where they are.
+            if (_followBottom)
+            {
+                ScrollBar bar = ScrollBar();
+                if (bar != null && bar.Maximum - bar.Value > BottomFollowMargin) _followBottom = false;
+            }
+
             ReportNearTop();
             ReportPosition();
         }
