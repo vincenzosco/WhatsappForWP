@@ -358,6 +358,40 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
+        /// The peer stanza: a message that is not a chat message but a request to this
+        /// account's own devices (`MessageProtocol`), sent the way the reference sends one
+        /// (`@whiskeysockets/baileys`, `Socket/messages-send.ts`, `sendPeerDataOperationMessage`):
+        /// to this account's own JID, with `category="peer"` and `push_priority="high_force"`
+        /// on the stanza and a `meta appdata="default"` node inside it. Those three marks are
+        /// what say "not words for somebody, a request for this account"; without them the
+        /// server treats the stanza as a chat message.
+        ///
+        /// Every device of ours gets the `deviceSentMessage` copy the direct stanza already
+        /// builds for our own (`IsOurs`), which is the form the primary reads requests out of.
+        /// </summary>
+        public static BinaryNode PeerNode(string to, string id, Message message,
+            IList<KeyValuePair<string, SessionRecord>> devices, uint timestamp, IRandomSource random,
+            IList<string> ownJids, byte[] deviceIdentity)
+        {
+            BinaryNode stanza = Node(to, id, message, TextType, null, devices, timestamp, random,
+                null, ownJids, deviceIdentity);
+
+            stanza.Attrs.Add("category", "peer");
+            stanza.Attrs.Add("push_priority", "high_force");
+
+            var meta = new BinaryNode("meta");
+            meta.Attrs.Add("appdata", "default");
+
+            // The content the direct stanza built is the `participants` list (and the
+            // identity and token nodes beside it); the meta node joins them.
+            var content = (List<BinaryNode>)stanza.Content;
+            content.Add(meta);
+            stanza.Content = content;
+
+            return stanza;
+        }
+
+        /// <summary>
         /// The `device-identity` child of a message that opens a session, or null when this
         /// account has no signed identity to show.
         ///

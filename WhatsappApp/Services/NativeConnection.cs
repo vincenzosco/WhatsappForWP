@@ -1228,6 +1228,12 @@ namespace WhatsappApp.Services
                 {
                     Diag.Ok("native: the backlog ended with no chat and no history: this device has "
                         + "to be linked again to receive the history (WhatsApp sends it once, at the pairing)");
+
+                    // It does not have to be linked again: this account can ask its own
+                    // devices for the whole history whenever it wants
+                    // (`FULL_HISTORY_SYNC_ON_DEMAND`), and a login that brought nothing is
+                    // the moment to. The answer is the same history sync a pairing gets.
+                    await RequestFullHistoryAsync("the backlog had no history");
                 }
 
                 // The status day is the other half of what a link is supposed to bring, and the
@@ -3003,6 +3009,100 @@ namespace WhatsappApp.Services
             catch (Exception again)
             {
                 Diag.Failed("NativeConnection/retry receipt", again);
+            }
+        }
+
+        /// <summary>
+        /// A request to this account's own devices - the way a companion gets history after
+        /// the pairing (`MessageProtocol`). It travels as a message to this account's own
+        /// JID carrying the peer marks the reference gives one
+        /// (`@whiskeysockets/baileys`, `Socket/messages-send.ts`, `sendPeerDataOperationMessage`),
+        /// and the primary reads it out of its `deviceSentMessage` copy like anything else
+        /// this phone writes.
+        /// </summary>
+        public async Task<string> SendPeerDataOperationAsync(byte[] protocolMessage)
+        {
+            if (protocolMessage == null || protocolMessage.Length == 0)
+            {
+                throw new ProtocolException("a peer request needs its bytes");
+            }
+
+            NativeSession session = OpenSession();
+            Message message = Message.Carrying(protocolMessage);
+
+            SendBudget budget = SendClock();
+            string mine = _account == null ? null : _account.Jid;
+            if (string.IsNullOrEmpty(mine))
+            {
+                throw new ProtocolException("a peer request needs this account's own JID");
+            }
+
+            // The device list of this account, asked the way a send asks it: our own
+            // devices are the audience (`DirectSend.Targets` drops this phone's own), and
+            // the sessions of the ones we have never written to are opened from their
+            // bundles like any other send's.
+            DirectTarget target = await DevicesAsync(session, mine, budget);
+            string id = OutgoingMessage.Id(_random);
+            uint timestamp = NowSeconds();
+
+            SessionStore store = await SessionsAsync();
+            try
+            {
+                await WriteAsync(session, id, OutgoingMessage.PeerNode(target.To, id, message,
+                    target.Devices, timestamp, _random, OurJids(), OurIdentity()));
+            }
+            finally
+            {
+                KeepSessions(target.Devices, store);
+            }
+
+            Diag.Ok("native: peer request " + id + " left for " + target.To
+                + " over " + target.Devices.Count + " device(s) " + SealedFor(target.Devices));
+            return id;
+        }
+
+        /// <summary>
+        /// The whole history, asked for again (`FULL_HISTORY_SYNC_ON_DEMAND`). The pairing
+        /// is no longer the one moment the history can arrive: a login that brought none is
+        /// the moment to ask, and a request that does not go through is named in the log and
+        /// leaves the pairing route unchanged.
+        /// </summary>
+        public async Task RequestFullHistoryAsync(string reason)
+        {
+            try
+            {
+                string requestId = OutgoingMessage.Id(_random);
+                await SendPeerDataOperationAsync(MessageProtocol.FullHistorySyncOnDemandRequest(requestId));
+                Diag.Ok("native: the whole history asked for (" + reason + "), request " + requestId);
+            }
+            catch (Exception asked)
+            {
+                Diag.Failed("NativeConnection/full history request", asked);
+            }
+        }
+
+        /// <summary>
+        /// One chat's history (`HISTORY_SYNC_ON_DEMAND`), the way a companion asks for what
+        /// the sync did not bring (`Socket/messages-send.ts`, `fetchMessageHistory`): the
+        /// answer arrives as the `ON_DEMAND` chunk of the history sync, which the reader
+        /// already accepts. The chat is named by its wire address for the same reason a
+        /// message is (`DirectSend.WireAddress`): the history of an account that moved to
+        /// LIDs is filed under the LID.
+        /// </summary>
+        public async Task RequestChatHistoryAsync(string chatJid, int count)
+        {
+            if (string.IsNullOrEmpty(chatJid)) return;
+            if (count <= 0) count = 100;
+
+            try
+            {
+                string address = DirectSend.WireAddress(chatJid, NameCache.Book.LidFor(chatJid));
+                await SendPeerDataOperationAsync(MessageProtocol.HistorySyncOnDemandRequest(address, null, false, count, 0));
+                Diag.Ok("native: the history of " + address + " asked for, " + count + " message(s)");
+            }
+            catch (Exception asked)
+            {
+                Diag.Failed("NativeConnection/chat history request", asked);
             }
         }
 

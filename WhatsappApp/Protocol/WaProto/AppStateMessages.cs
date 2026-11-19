@@ -32,6 +32,19 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>`REVOKE`: the sender takes a message back for everybody.</summary>
         public const int Revoke = 0;
 
+        /// <summary>
+        /// `PEER_DATA_OPERATION_REQUEST_MESSAGE`: a request to this account's own devices,
+        /// which is what asks for history after the pairing (`Message.ProtocolMessage`,
+        /// field 16 in the reference's `WAProto`).
+        /// </summary>
+        public const int PeerDataOperationRequest = 16;
+
+        /// <summary>`PeerDataOperationRequestType.HISTORY_SYNC_ON_DEMAND`: one chat's history.</summary>
+        public const int HistorySyncOnDemandType = 3;
+
+        /// <summary>`PeerDataOperationRequestType.FULL_HISTORY_SYNC_ON_DEMAND`: the whole history again.</summary>
+        public const int FullHistorySyncOnDemandType = 6;
+
         public int Type;
 
         /// <summary>The encoded `MessageKey`: which message a revoke (or an edit) names.</summary>
@@ -98,6 +111,87 @@ namespace WhatsappApp.Protocol.WaProto
             return new ProtoWriter()
                 .Bytes(1, key)
                 .Varint(2, Revoke)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// The `ProtocolMessage` that asks this account's own devices for one chat's
+        /// history: `PEER_DATA_OPERATION_REQUEST_MESSAGE` (type 16) carrying
+        /// `HistorySyncOnDemandRequest` (field 4) of type `HISTORY_SYNC_ON_DEMAND` (3).
+        /// The answer is the `ON_DEMAND` history chunk the reader already accepts.
+        ///
+        /// The field numbers are the reference's (`@whiskeysockets/baileys`, `WAProto`,
+        /// `Message.PeerDataOperationRequestMessage.HistorySyncOnDemandRequest`): the
+        /// chat is 1, the oldest message this phone has is 2 to 3, the number of messages
+        /// asked for is 4 and its moment is 5. The oldest is how the answer goes back
+        /// further than what is on screen; a request with none of it asks for the newest
+        /// messages of the chat.
+        /// </summary>
+        public static byte[] HistorySyncOnDemandRequest(string chatJid, string oldestMsgId,
+            bool oldestMsgFromMe, int count, long oldestTimestampMs)
+        {
+            if (string.IsNullOrEmpty(chatJid))
+            {
+                throw new ProtocolException("a history request needs the chat it is for");
+            }
+            if (count <= 0)
+            {
+                throw new ProtocolException("a history request needs a number of messages to ask for");
+            }
+
+            var request = new ProtoWriter();
+            request.Text(1, chatJid);
+            if (!string.IsNullOrEmpty(oldestMsgId))
+            {
+                request.Text(2, oldestMsgId);
+                if (oldestMsgFromMe) request.Varint(3, 1);
+            }
+            request.Varint(4, (ulong)count);
+            if (oldestTimestampMs > 0) request.Varint(5, (ulong)oldestTimestampMs);
+
+            byte[] pdo = new ProtoWriter()
+                .Varint(1, HistorySyncOnDemandType)
+                .Bytes(4, request.ToArray())
+                .ToArray();
+
+            return new ProtoWriter()
+                .Varint(2, PeerDataOperationRequest)
+                .Bytes(16, pdo)
+                .ToArray();
+        }
+
+        /// <summary>
+        /// The `ProtocolMessage` that asks for the whole history again: the same request a
+        /// pairing makes, made after it - `FULL_HISTORY_SYNC_ON_DEMAND` (type 6) carrying
+        /// `FullHistorySyncOnDemandRequest` (field 6): its `requestMetadata` field 1 and
+        /// this client's `HistorySyncConfig` field 2 (`DeviceProps.HistorySyncConfig`, the
+        /// very one the pairing sent). It is the answer to a login that brought no history,
+        /// whose other answer used to be re-linking the account.
+        /// </summary>
+        public static byte[] FullHistorySyncOnDemandRequest(string requestId)
+        {
+            if (string.IsNullOrEmpty(requestId))
+            {
+                throw new ProtocolException("a full history request needs its id");
+            }
+
+            byte[] metadata = new ProtoWriter()
+                .Text(1, requestId)
+                .ToArray();
+
+            byte[] full = new ProtoWriter()
+                .Bytes(1, metadata)
+                .Bytes(2, DeviceProps.HistorySyncConfig())
+                .ToArray();
+
+            byte[] pdo = new ProtoWriter()
+                .Varint(1, FullHistorySyncOnDemandType)
+                .Bytes(6, full)
+                .ToArray();
+
+            return new ProtoWriter()
+                .Varint(2, PeerDataOperationRequest)
+                .Bytes(16, pdo)
                 .ToArray();
         }
 

@@ -43,7 +43,28 @@ namespace WhatsappApp.Protocol.WaProto
                 .Varint(3, versionTertiary)
                 .ToArray();
 
-            byte[] historySyncConfig = new ProtoWriter()
+            // `requireFullSync` is 1: the whole history and not only the recent days.
+            // The reference companion sends `true` (`syncFullHistory`,
+            // `Utils/validate-connection.ts` in `@whiskeysockets/baileys`) and gets the
+            // INITIAL_BOOTSTRAP and the FULL chunks; a 0 here is the server writing
+            // "sync type 5 and type 0" and nothing more.
+            return new ProtoWriter()
+                .Text(OsField, OsName)
+                .Bytes(VersionField, version)
+                .Varint(PlatformTypeField, PlatformTypeUwp)
+                .Varint(RequireFullSyncField, 1)
+                .Bytes(HistorySyncConfigField, HistorySyncConfig())
+                .ToArray();
+        }
+
+        /// <summary>
+        /// The `HistorySyncConfig` on its own: the pairing sends it inside `DeviceProps`,
+        /// and a `FULL_HISTORY_SYNC_ON_DEMAND` request sends the same one
+        /// (`MessageProtocol.FullHistorySyncOnDemandRequest`).
+        /// </summary>
+        public static byte[] HistorySyncConfig()
+        {
+            return new ProtoWriter()
                 .Varint(3, HistoryStorageQuotaMb)          // storageQuotaMb
                 .Varint(4, 1)                              // inlineInitialPayloadInE2EeMsg
                 .Varint(6, 1)                              // supportCallLogHistory
@@ -58,14 +79,6 @@ namespace WhatsappApp.Protocol.WaProto
                 .Varint(19, HistoryThumbnailSyncDays)      // thumbnailSyncDaysLimit
                 .Varint(21, 1)                             // supportManusHistory
                 .Varint(22, 1)                             // supportHatchHistory
-                .ToArray();
-
-            return new ProtoWriter()
-                .Text(OsField, OsName)
-                .Bytes(VersionField, version)
-                .Varint(PlatformTypeField, PlatformTypeUwp)
-                .Varint(RequireFullSyncField, 0)
-                .Bytes(HistorySyncConfigField, historySyncConfig)
                 .ToArray();
         }
 

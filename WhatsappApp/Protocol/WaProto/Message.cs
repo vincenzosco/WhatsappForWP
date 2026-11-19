@@ -170,6 +170,22 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>
+        /// A message that carries only a `ProtocolMessage` of another kind: the peer-data
+        /// request that asks this account's own devices for history (`MessageProtocol`).
+        /// </summary>
+        public static Message Carrying(byte[] protocolMessage)
+        {
+            if (protocolMessage == null || protocolMessage.Length == 0)
+            {
+                throw new ProtocolException("a protocol message needs its bytes");
+            }
+
+            var message = new Message();
+            message.ProtocolMessage = protocolMessage;
+            return message;
+        }
+
+        /// <summary>
         /// The device-sent wrapper: `destinationJid` field 1 and the wrapped message
         /// field 2, which is the form our own other devices read the words out of.
         /// </summary>

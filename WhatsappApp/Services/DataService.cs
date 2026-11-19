@@ -2095,6 +2095,22 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
         }
 
+        /// <summary>
+        /// One chat's history, asked for from this account's own devices when the sync did
+        /// not bring it (`MessageProtocol.HistorySyncOnDemandRequest`). The answer lands the
+        /// way every history chunk lands.
+        /// </summary>
+        public async Task RequestChatHistoryAsync(string chatId)
+        {
+            string canonical = ChatIdFor(chatId);
+            if (string.IsNullOrEmpty(canonical)) return;
+
+            await NativeConnection.Instance.RequestChatHistoryAsync(canonical, ChatHistoryOnDemandCount);
+        }
+
+        /// <summary>How much of a chat an on-demand request asks for: more than one screen of history.</summary>
+        private const int ChatHistoryOnDemandCount = 100;
+
         private ChatMessage FindStatus(string id)
         {
             for (int i = 0; i < _statuses.Count; i++)

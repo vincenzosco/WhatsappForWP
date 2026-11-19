@@ -973,16 +973,24 @@ namespace WhatsappApp.Pages
             };
 
             DataService.Instance.HistoryCompleted += onDone;
+            bool came;
             try
             {
                 await System.Threading.Tasks.Task.WhenAny(
                     completion.Task,
                     System.Threading.Tasks.Task.Delay(HistoryWaitMaxMilliseconds));
+                came = completion.Task.IsCompleted;
             }
             finally
             {
                 DataService.Instance.HistoryCompleted -= onDone;
             }
+
+            // The burst that never came: the page used to end its wait in silence and the
+            // chat stayed empty. This account can ask its own devices for exactly this
+            // chat's history (`HISTORY_SYNC_ON_DEMAND`), and the answer lands as the
+            // on-demand chunk the reader already accepts.
+            if (!came) await DataService.Instance.RequestChatHistoryAsync(chatId);
         }
 
         private void RequestMedia(ChatMessage message)
