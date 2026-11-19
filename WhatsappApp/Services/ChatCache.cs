@@ -93,8 +93,20 @@ namespace WhatsappApp.Services
         /// <summary>
         /// Drops the copy. A link replaces the identity the rows belong to, so the
         /// list of the previous one is not this account's list.
+        ///
+        /// Through the write queue, like every write of the list: `WriteJsonAsync` writes
+        /// beside the file and moves over it, and a delete that ran beside one still in
+        /// flight was undone by its write - the rows the reader had just dropped came back
+        /// on the phone. A delete chained in the queue runs after every write already in
+        /// it, and no write can run beside it (`MessageCache.DeleteAsync` spells the same
+        /// reason for its tails).
         /// </summary>
         public static async Task DeleteAsync()
+        {
+            await Writes.RunAsync(delegate { return DeleteCoreAsync(); });
+        }
+
+        private static async Task DeleteCoreAsync()
         {
             try
             {
