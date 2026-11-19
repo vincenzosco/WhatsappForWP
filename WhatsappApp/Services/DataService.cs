@@ -251,6 +251,12 @@ namespace WhatsappApp.Services
 
             if (added == 0) return;
 
+            // The file was read against its own moment, and the pane pruned when the tab
+            // opened - before this restore could land. The day speaks again here, on the
+            // rows just brought, so a row admitted at read time cannot outlive its day on
+            // a tab that stays open.
+            PruneExpiredStatuses();
+
             RaiseStatusesChanged();
             Diag.Ok("status: " + added + " status(es) of the last day are back on screen");
         }

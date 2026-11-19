@@ -150,10 +150,12 @@ namespace WhatsappApp.Services
                     StatusCacheRow entry = cache.Statuses[i];
                     if (entry == null || string.IsNullOrEmpty(entry.Id)) continue;
                     if (string.IsNullOrEmpty(entry.Author)) continue;
-                    // The day has passed: the update is not on anybody's phone any more,
-                    // and a row whose date is not a date (a cache written by an older
-                    // build) is not something to guess about.
-                    if (entry.PostedAt < cutoff) continue;
+                    // The day has passed: the update is not on anybody's phone any more.
+                    // A row with no date is not an old row: it is a row an older build
+                    // wrote without one, and the restore gives it the date it comes back
+                    // with (`LoadCachedStatusesAsync`). Dropping it here is what left the
+                    // status tab empty at every start.
+                    if (entry.PostedAt != default(DateTime) && entry.PostedAt < cutoff) continue;
                     if (!seen.Add(entry.Id)) continue;
 
                     rows.Add(ToMessage(entry));
@@ -188,7 +190,9 @@ namespace WhatsappApp.Services
                     ChatMessage row = statuses[i];
                     if (row == null || string.IsNullOrEmpty(row.Id)) continue;
                     if (string.IsNullOrEmpty(row.ChatId)) continue;
-                    if (row.Timestamp < cutoff) continue;
+                    // The same choice as the load: a row with no date is not an old row,
+                    // and dropping it here would leave no path that ever persisted it.
+                    if (row.Timestamp != default(DateTime) && row.Timestamp < cutoff) continue;
 
                     fresh.Add(ToRow(row));
                 }
