@@ -238,6 +238,13 @@ namespace WhatsappApp.Services
                 string known = row.SenderName;
                 row.SenderName = StatusName.Choose(DisplayNameForJid(row.ChatId), known);
 
+                // A live arrival without a wire date is stamped with its arrival second
+                // (`Moment`); a cached row kept no arrival, and a row with no date sorts
+                // below every other one and left at the first prune - the cache restore
+                // dropped exactly the feed it exists to show. The date the row never had
+                // is the moment it comes back, the choice `Moment(0)` makes for the wire.
+                if (row.Timestamp == default(DateTime)) row.Timestamp = DateTime.Now;
+
                 InsertStatusInOrder(row);
                 added++;
             }
@@ -1994,9 +2001,21 @@ namespace WhatsappApp.Services
             {
                 ChatMessage row = _statuses[i];
 
-                // A row with no time is not a row with an old time: an empty one has
-                // nothing to draw and nothing to open.
-                if (row == null || row.Timestamp < cutoff)
+                // An empty one has nothing to draw and nothing to open.
+                if (row == null)
+                {
+                    _statuses.RemoveAt(i);
+                    removed++;
+                    continue;
+                }
+
+                // A row with no time is not a row with an old time: it is a status the
+                // wire did not date, and the tab's first prune used to drop it before the
+                // screen drew it. The cache restore gives such rows their date now; this
+                // keeps the older copies too.
+                if (row.Timestamp == default(DateTime)) continue;
+
+                if (row.Timestamp < cutoff)
                 {
                     _statuses.RemoveAt(i);
                     removed++;
