@@ -1071,6 +1071,35 @@ namespace WhatsappApp.Services
         /// one place that decides what it holds: the rows in the order the list shows them,
         /// and the tail of every conversation that has one.
         /// </summary>
+        /// <summary>
+        /// The chat list repaired, in one tap. `chats.json` is a photograph of the last
+        /// session and not the truth (`ChatCache`), and a screen that shows chats that
+        /// are not the chats wants the truth: the photograph is dropped, the rows come
+        /// back from their tails, and the login runs again - WhatsApp names the list
+        /// after every login, and that is the one download this protocol has. What the
+        /// server sends lands the way it always does, through `ApplyChat`, and rewrites
+        /// the file on the save that owns it.
+        /// </summary>
+        public async Task ResyncChatsAsync()
+        {
+            Diag.Ok("chats: resync asked");
+
+            await ChatCache.DeleteAsync();
+
+            // The rows the messages on disk name: a conversation with a tail must have
+            // a row while the login is starting, or it is a conversation with no way
+            // back on screen.
+            await RestoreRowsFromTheirTailsAsync();
+
+            // The list as it stands, written through the one writer.
+            await SaveSnapshotAsync();
+
+            // And the download: a login sync names the list again from the server.
+            await NativeConnection.Instance.RestartAsync();
+
+            Diag.Ok("chats: resync done");
+        }
+
         public async Task SaveSnapshotAsync()
         {
             if (_resettingAccount) return;

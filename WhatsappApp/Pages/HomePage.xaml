@@ -21,6 +21,7 @@
                 <shell:ApplicationBarMenuItem x:Uid="Home_ReadAllAppBarMenuItem" Text="Read all chats" Click="ReadAllAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_ResyncChatsAppBarMenuItem" Text="Resync chats" Click="ResyncChatsAppBarMenuItem_Click"/>
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
         <shell:ApplicationBar x:Key="StatusApplicationBar" IsVisible="True" IsMenuEnabled="True">

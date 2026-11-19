@@ -148,6 +148,9 @@
   <data name="Home_UnpinAllAppBarMenuItem.Text" xml:space="preserve">
     <value>Unpin all</value>
   </data>
+  <data name="Home_ResyncChatsAppBarMenuItem.Text" xml:space="preserve">
+    <value>Resync chats</value>
+  </data>
   <data name="Home_SettingsAppBarMenuItem.Text" xml:space="preserve">
     <value>Settings</value>
   </data>

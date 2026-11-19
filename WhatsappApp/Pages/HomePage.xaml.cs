@@ -569,6 +569,16 @@ namespace WhatsappApp.Pages
             ReadAllMenuItem_Click(sender, new RoutedEventArgs());
         }
 
+        /// <summary>
+        /// The list repaired, in one tap. A chat list that stopped looking like the
+        /// chats is rebuilt from the phone's own truth and named again by the server
+        /// (see `DataService.ResyncChatsAsync`).
+        /// </summary>
+        private void ResyncChatsAppBarMenuItem_Click(object sender, EventArgs e)
+        {
+            Guarded.RunGuardedAsync("HomePage/resync chats", DataService.Instance.ResyncChatsAsync());
+        }
+
         private void MarkAllStatusesAppBarMenuItem_Click(object sender, EventArgs e)
         {
             MarkAllStatusesMenuItem_Click(sender, new RoutedEventArgs());

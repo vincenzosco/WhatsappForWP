@@ -102,6 +102,11 @@ namespace WhatsappApp.Services
                 // A file that is not there is not a failure: the first link deletes
                 // a copy that was never written.
                 if (item != null) await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
+
+                // And a temp a killed write left beside it: a repair that dropped the
+                // file and left a stale `chats.json.new` behind would race the next move.
+                IStorageItem temp = await ApplicationData.Current.LocalFolder.TryGetItemAsync(TempName);
+                if (temp != null) await temp.DeleteAsync(StorageDeleteOption.PermanentDelete);
             }
             catch (Exception ex)
             {
