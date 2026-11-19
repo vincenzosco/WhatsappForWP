@@ -135,8 +135,7 @@
                             <phone:LongListSelector.ItemTemplate>
                                 <DataTemplate>
                                     <Grid Height="68" Margin="0,24,24,0" Background="Transparent"
-                                          ManipulationStarted="ChatRow_Holding"
-                                          ManipulationCompleted="ChatRow_ManipulationCompleted">
+                                          Hold="ChatRow_Holding">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="68"/>
                                             <ColumnDefinition Width="*"/>

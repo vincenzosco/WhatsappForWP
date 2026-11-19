@@ -25,7 +25,6 @@ namespace WhatsappApp.Pages
     public sealed partial class HomePage : PhoneApplicationPage
     {
         private const string NavigationParameterKey = "WhatsappApp.NavigationParameter";
-        private const int LongPressMilliseconds = 650;
 
         private ApplicationBar _chatsApplicationBar;
         private ApplicationBar _statusApplicationBar;
@@ -38,9 +37,6 @@ namespace WhatsappApp.Pages
         private bool _searching;
         private DispatcherTimer _callTicker;
         private DispatcherTimer _listRefresh;
-        private DispatcherTimer _holdTimer;
-        private FrameworkElement _heldRow;
-        private Contact _heldContact;
         private Action _modalPrimaryAction;
         private Action _modalSecondaryAction;
 
@@ -832,37 +828,21 @@ namespace WhatsappApp.Pages
             return null;
         }
 
-        private void ChatRow_Holding(object sender, ManipulationStartedEventArgs e)
+        /// <summary>
+        /// The row menu, at the platform's own hold. The event is the one ChatPage takes
+        /// its bubbles from: the platform decides what a hold is, not a timer of ours
+        /// standing in for it (the timer fired on slow scrolls and never agreed with the
+        /// hold the rest of the phone recognizes).
+        /// </summary>
+        private void ChatRow_Holding(object sender, System.Windows.Input.GestureEventArgs e)
         {
             FrameworkElement row = sender as FrameworkElement;
             if (row == null) return;
             Contact contact = row.DataContext as Contact;
             if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
 
-            _heldRow = row;
-            _heldContact = contact;
-            if (_holdTimer == null)
-            {
-                _holdTimer = new DispatcherTimer();
-                _holdTimer.Interval = TimeSpan.FromMilliseconds(LongPressMilliseconds);
-                _holdTimer.Tick += OnLongPressTick;
-            }
-            _holdTimer.Stop();
-            _holdTimer.Start();
-        }
-
-        private void ChatRow_ManipulationCompleted(object sender, ManipulationCompletedEventArgs e)
-        {
-            if (_holdTimer != null) _holdTimer.Stop();
-        }
-
-        private void OnLongPressTick(object sender, EventArgs e)
-        {
-            _holdTimer.Stop();
-            if (_heldRow == null || _heldContact == null) return;
-            ShowChatMenu(_heldRow, _heldContact);
-            _heldRow = null;
-            _heldContact = null;
+            e.Handled = true;
+            ShowChatMenu(row, contact);
         }
 
         private void ShowChatMenu(FrameworkElement row, Contact contact)
