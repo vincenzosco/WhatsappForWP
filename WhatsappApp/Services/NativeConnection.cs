@@ -1233,7 +1233,15 @@ namespace WhatsappApp.Services
                     // devices for the whole history whenever it wants
                     // (`FULL_HISTORY_SYNC_ON_DEMAND`), and a login that brought nothing is
                     // the moment to. The answer is the same history sync a pairing gets.
-                    await RequestFullHistoryAsync("the backlog had no history");
+                    //
+                    // Off the read loop: the send's own questions (`RequestAsync`) are
+                    // answered by this very loop, and awaiting one here would be the loop
+                    // waiting for itself - the trap `NameTheGroups` documents and escapes
+                    // the same way.
+                    Guarded.RunGuarded("NativeConnection/full history", delegate
+                    {
+                        return RequestFullHistoryAsync("the backlog had no history");
+                    });
                 }
 
                 // The status day is the other half of what a link is supposed to bring, and the
@@ -3031,7 +3039,13 @@ namespace WhatsappApp.Services
             Message message = Message.Carrying(protocolMessage);
 
             SendBudget budget = SendClock();
-            string mine = _account == null ? null : _account.Jid;
+
+            // The account and not this phone's device: the reference addresses the request
+            // to `jidNormalizedUser(creds.me.id)` (`Socket/messages-send.ts`,
+            // `sendPeerDataOperationMessage`), and the device form would ask the device list
+            // about one device and write that device into the stanza's `to` and into the
+            // `deviceSentMessage` copy it carries.
+            string mine = _account == null ? null : DeviceDirectory.UserJid(_account.Jid);
             if (string.IsNullOrEmpty(mine))
             {
                 throw new ProtocolException("a peer request needs this account's own JID");

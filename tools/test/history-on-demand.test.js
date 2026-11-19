@@ -60,14 +60,33 @@ test('the request travels as a peer message to this accounts own devices', () =>
 
 test('a login that gets no history asks for it', () => {
   // The line that used to end at "this device has to be linked again" now
-  // asks instead: that is the whole point of the on-demand request.
+  // asks instead - and off the read loop: the send's own questions are answered
+  // by that same loop (`RequestAsync`), so awaiting one inline is the loop
+  // waiting for itself and the request never leaves (the trap `NameTheGroups`
+  // documents and escapes the same way).
   const conn = read('WhatsappApp/Services/NativeConnection.cs');
   const backlog = conn.slice(conn.indexOf('the backlog ended with no chat and no history'),
     conn.indexOf('the backlog ended with no chat and no history') + 1200);
   assert.match(backlog, /RequestFullHistoryAsync/,
     'the empty backlog is the moment to ask');
+  assert.doesNotMatch(backlog, /await RequestFullHistoryAsync/,
+    'and the loop must never wait for its own answer');
+  assert.match(backlog, /Guarded\.RunGuarded\(/,
+    'the ask runs off the read loop');
   assert.match(conn, /SendPeerDataOperationAsync/,
     'and the peer request has a sender of its own');
+});
+
+test('the ask goes to the account, not to this phones device', () => {
+  // The reference addresses the request to `jidNormalizedUser(creds.me.id)` -
+  // the account (`Socket/messages-send.ts`, `sendPeerDataOperationMessage`).
+  // The device form would ask the device list about one device and write that
+  // device into the stanza's `to` and its `deviceSentMessage`.
+  const conn = read('WhatsappApp/Services/NativeConnection.cs');
+  const send = conn.slice(conn.indexOf('SendPeerDataOperationAsync(byte[] protocolMessage)'),
+    conn.indexOf('SendPeerDataOperationAsync(byte[] protocolMessage)') + 1600);
+  assert.match(send, /DeviceDirectory\.UserJid\(_account\.Jid\)/,
+    'the account form is what the server keys on');
 });
 
 test('a chat whose history never comes asks for it', () => {
