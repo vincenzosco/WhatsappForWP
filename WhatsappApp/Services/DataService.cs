@@ -1098,6 +1098,11 @@ namespace WhatsappApp.Services
             // back on screen.
             await RestoreRowsFromTheirTailsAsync();
 
+            // And the rows nothing names leave first: a tail or a live conversation is
+            // what makes a row a chat, and writing the invented rows back would be the
+            // photograph again.
+            await DropRowsNothingNamesAsync();
+
             // The list as it stands, written through the one writer.
             await SaveSnapshotAsync();
 
@@ -1165,6 +1170,50 @@ namespace WhatsappApp.Services
             // Named, because it is the second half of the snapshot and a close can land in
             // the middle of it: a run whose log stops at the line above lost only the tails.
             Diag.Ok("cache: " + written + " conversation(s) written of " + tails.Count + " held");
+        }
+
+        /// <summary>
+        /// The rows nothing names. A row with no tail on the disk and no conversation in
+        /// memory is not a chat this phone has ever had a message of: it is a row the
+        /// list invented, and the repair's write would have kept it forever. The same
+        /// truth read the other way is `RestoreRowsFromTheirTailsAsync` (a tail names a
+        /// row), which is why the two run together in the repair.
+        /// </summary>
+        private async Task DropRowsNothingNamesAsync()
+        {
+            List<KeyValuePair<string, List<ChatMessage>>> all = await MessageCache.TailsAsync();
+
+            var named = new Dictionary<string, bool>(StringComparer.Ordinal);
+            for (int i = 0; i < all.Count; i++)
+            {
+                string key = ChatIdFor(all[i].Key);
+                if (!string.IsNullOrEmpty(key)) named[key] = true;
+            }
+
+            foreach (string key in _chatMessages.Keys)
+            {
+                string canonical = ChatIdFor(key);
+                if (!string.IsNullOrEmpty(canonical)) named[canonical] = true;
+            }
+
+            int dropped = 0;
+            for (int i = _contacts.Count - 1; i >= 0; i--)
+            {
+                Contact contact = _contacts[i];
+                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+
+                string canonical = ChatIdFor(contact.Id);
+                if (!string.IsNullOrEmpty(canonical) && named.ContainsKey(canonical)) continue;
+
+                _contacts.RemoveAt(i);
+                _contactIndex.Remove(contact.Id);
+                dropped++;
+            }
+
+            if (dropped > 0)
+            {
+                Diag.Ok("chats: " + dropped + " row(s) named by nothing left the list");
+            }
         }
 
         /// <summary>
