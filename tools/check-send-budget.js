@@ -2,29 +2,33 @@
 /**
  * tools/check-send-budget.js
  *
- * Guardiano delle domande che stanno davanti a un invio.
+ * Guardian of the questions in front of a send.
  *
- * Perche' esiste: il 4 novembre 2026 un messaggio impiegava circa un minuto a partire. Ogni
- * domanda davanti alla scrittura aspettava `NativeConnection.AnswerSeconds` (20 s) per conto
- * suo - la lista device, i bundle per device, i bundle per persona, il token di privacy due
- * volte - e nessuno limitava la somma: tre domande mute erano sessanta secondi di cerchio, e
- * il log del telefono ne portava la prova (`the per-device bundle query. the server did not
- * answer`, tre volte). Il messaggio non ha bisogno di quasi nessuna di quelle risposte per
- * esistere: quella che non puo' saltare e' la chiave di un device, ed e' l'unica che tiene il
- * limite ordinario.
+ * Why it exists: on 2026-11-04 a message took about a minute to leave. Every question in
+ * front of the write waited `NativeConnection.AnswerSeconds` (20 s) on its own - the device
+ * list, the bundles per device, the bundles per person, the privacy token twice - and nothing
+ * bounded their sum: three silent questions were sixty seconds of a ring, and the phone's log
+ * carried the proof (`the per-device bundle query. the server did not answer`, three times).
+ * The message needs almost none of those answers to exist: the one it cannot skip is a key
+ * for one device, and that is the only question that keeps the ordinary deadline.
  *
- * Regole:
- * 1. `SendBudget` vale tre secondi, e la sua aritmetica sta nel core, dove il runner la prova;
- * 2. `RequestAsync` accetta una scadenza propria, invece di usare sempre `AnswerSeconds`;
- * 3. la lista device si chiede dentro il budget e, se non risponde, si usa l'ultima che il
- * telefono ha (`LastDevices`): un invio non deve fallire per una domanda lenta;
- * 4. il token di privacy si salta quando il budget e' finito (il client ufficiale manda senza);
- * 5. ogni invio apre il budget (`SendClock()`), altrimenti il limite non c'e';
- * 6. i bundle tengono `AnswerSeconds` solo quando nessun device ha gia' una sessione: quella
- * e' la chiave senza cui il messaggio non puo' esistere.
+ * Rules:
+ * 1. `SendBudget` is three seconds, and its arithmetic lives in the core, where the runner
+ *    tests it;
+ * 2. `RequestAsync` takes a deadline of its own instead of always using `AnswerSeconds`;
+ * 3. the device list is asked within the budget and, when it does not answer, the last list
+ *    this phone has is used (`LastDevices`): a send must not fail over a slow question. A
+ *    chat with no remembered list has nothing to fall back on and its question gets the
+ *    question's own deadline (`AnswerSeconds`) - the first message to a chat failed outright
+ *    at the budget's end, and every message after it too;
+ * 4. the privacy token is skipped when the budget is spent (the official client sends without
+ *    one);
+ * 5. every send opens the budget (`SendClock()`), or the bound is not there;
+ * 6. bundles keep `AnswerSeconds` only when no device has a session yet: that is the key the
+ *    message cannot exist without.
  *
- * Perche' un guardiano e non un test: `NativeConnection` e' codice WinRT e il runner desktop
- * non lo compila.
+ * Why a guardian and not a test: `NativeConnection` is WinRT code and the desktop runner does
+ * not compile it.
  *
  * Usage:
  * node tools/check-send-budget.js
@@ -95,8 +99,11 @@ function serviceProblems(source) {
       'who is behind a chat is one of the questions that must not outlast the message');
   }
 
-  if (!/int secondsForList = SecondsIn\(budget\)/.test(code)) {
-    problems.push(WHERE_SERVICE + ': the device list has no deadline taken from the budget');
+  if (!/int secondsForList = LastDevices\(address\) == null \? AnswerSeconds : SecondsIn\(budget\)/.test(code)) {
+    problems.push(
+      WHERE_SERVICE +
+        ': the device list is asked with its own deadline when there is no remembered list',
+    );
   }
 
   if (!/devicesAnswer = LastDevices\(address\)/.test(code)) {

@@ -247,8 +247,12 @@ namespace WhatsappApp.Services
         private void OnScrollBarValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
         {
             // The follow is for messages arriving at the bottom: somebody who scrolls
-            // away is reading something older and stays exactly where they are.
-            if (_followBottom)
+            // away is reading something older and stays exactly where they are. While
+            // the layout is still settling, though, a value change is the page and not
+            // the reader: the extent grows under the bar as the new row is realized,
+            // and taking that for walking away disarmed the follow before its
+            // re-apply ever ran - the message just sent stayed below the fold.
+            if (_followBottom && !_waitingForLayout)
             {
                 ScrollBar bar = ScrollBar();
                 if (bar != null && bar.Maximum - bar.Value > BottomFollowMargin) _followBottom = false;

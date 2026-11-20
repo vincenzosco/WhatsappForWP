@@ -2688,8 +2688,12 @@ namespace WhatsappApp.Services
             // fails because the list was slow is worse than one written to the devices this
             // phone already knows (`RememberDevices`). A chat this phone has never written to
             // has no copy and the question is worth its whole deadline - but it is an answer
-            // the send will not get twice.
-            int secondsForList = SecondsIn(budget);
+            // the send will not get twice. Its whole deadline is the query's own
+            // (`AnswerSeconds`), not the few seconds left of the send budget: the first
+            // message to a chat that met the budget's end failed outright, there being no
+            // list to fall back on, and with it every message after it (nothing was
+            // remembered to fall back on). A chat with a copy still goes at once.
+            int secondsForList = LastDevices(address) == null ? AnswerSeconds : SecondsIn(budget);
             BinaryNode devicesAnswer = null;
             try
             {
