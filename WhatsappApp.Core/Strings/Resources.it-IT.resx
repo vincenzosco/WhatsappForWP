@@ -94,6 +94,9 @@
   <data name="Notification_MissedCall" xml:space="preserve">
     <value>Chiamata persa</value>
   </data>
+  <data name="Notification_NewMessage" xml:space="preserve">
+    <value>Nuovo messaggio</value>
+  </data>
   <data name="Notification_Status" xml:space="preserve">
     <value>Nuovo stato</value>
   </data>

@@ -165,7 +165,7 @@ namespace WhatsappApp.Services
         public static void ShowMessage(string title, string body)
         {
             if (!SettingsService.MessageAlertsEnabled) return;
-            if (_foreground) return;
+            if (Silenced()) return;
             Toast(title, body);
         }
 
@@ -179,6 +179,7 @@ namespace WhatsappApp.Services
         public static void ShowStatus(string name, DateTime postedAt)
         {
             if (!SettingsService.StatusAlertsEnabled) return;
+            if (Silenced()) return;
             if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;
             Toast(Loc.Get("Notification_Status", "New status"), name);
         }
@@ -187,6 +188,7 @@ namespace WhatsappApp.Services
         public static void ShowIncomingCall(string name)
         {
             if (!SettingsService.CallAlertsEnabled) return;
+            if (Silenced()) return;
             Toast(Loc.Get("Notification_IncomingCall", "Incoming call"), name);
         }
 
@@ -194,6 +196,7 @@ namespace WhatsappApp.Services
         public static void ShowMissedCall(string name, DateTime arrivedAt)
         {
             if (!SettingsService.CallAlertsEnabled) return;
+            if (Silenced()) return;
             if (!IsToastNews(KeyMissedCallSeenAt, arrivedAt)) return;
             Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);
         }
@@ -255,9 +258,30 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>The one rule every alert follows: the phone says nothing while the app is
+        /// on screen, because what the reader is looking at already has the news. A call is its
+        /// own alert then - the call screen is showing it. What matters is the other case: when
+        /// the app is closed this is what lets the background wake speak.</summary>
+        private static bool Silenced()
+        {
+            if (!_foreground) return false;
+            Diag.Ok("toast: held back, the app is open");
+            return true;
+        }
+
         private static void Toast(string title, string body)
         {
-            if (!SettingsService.NotificationsEnabled) return;
+            if (!SettingsService.NotificationsEnabled)
+            {
+                Diag.Ok("toast: suppressed, the phone's notifications are off");
+                return;
+            }
+
+            // A voice note or a photo without a caption arrives with no words at all, and a
+            // toast whose body is empty is refused by the shell: nothing ever reaches the
+            // screen. There is always something to read - the name of what happened.
+            if (string.IsNullOrEmpty(title)) title = Loc.Get("Notification_NewMessage", "New message");
+            if (string.IsNullOrEmpty(body)) body = Loc.Get("Notification_NewMessage", "New message");
 
             try
             {
@@ -265,6 +289,7 @@ namespace WhatsappApp.Services
                 toast.Title = Cut(title, 60);
                 toast.Content = Cut(body, 200);
                 toast.Show();
+                Diag.Ok("toast: shown: " + Cut(title, 40));
             }
             catch (Exception ex)
             {

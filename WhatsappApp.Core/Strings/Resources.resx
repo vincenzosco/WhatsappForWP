@@ -94,6 +94,9 @@
   <data name="Notification_MissedCall" xml:space="preserve">
     <value>Missed call</value>
   </data>
+  <data name="Notification_NewMessage" xml:space="preserve">
+    <value>New message</value>
+  </data>
   <data name="Notification_Status" xml:space="preserve">
     <value>New status</value>
   </data>
