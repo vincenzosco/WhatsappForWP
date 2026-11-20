@@ -277,6 +277,25 @@
   .fine { margin-top: 28px; font-size: .82rem; max-width: 76ch; }
   .fine a { color: var(--wa-muted); text-decoration: underline; text-underline-offset: 3px; }
 
+  /* ---------- motion ---------- */
+  /* The page settles into place like print: a small lift and a fade, never a
+     slide across the screen. Opacity and transform only - animating anything
+     that changes the layout shakes the text while it moves. */
+  .reveal { opacity: 0; transform: translateY(10px); transition: opacity .5s ease, transform .5s ease; }
+  .reveal.is-visible { opacity: 1; transform: none; }
+
+  #read-progress {
+    position: fixed; top: 0; left: 0; height: 2px; width: 100%;
+    background: var(--wa-accent-text); transform: scaleX(0); transform-origin: left;
+    z-index: 40;
+  }
+
+  .track .fill { transform: scaleX(0); transform-origin: left; transition: transform .9s ease .12s; }
+  .track .fill.drawn { transform: scaleX(1); }
+
+  details[open] .answer { animation: answer-in .3s ease; }
+  @keyframes answer-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
   @media (max-width: 640px) {
     .hero { padding: 54px 0 44px; }
     .row { grid-template-columns: 1fr; gap: 10px; }
@@ -290,10 +309,15 @@
 
   @media (prefers-reduced-motion: reduce) {
     * { transition: none !important; animation: none !important; }
+    /* Stillness is not invisibility: everything is where it would land. */
+    .reveal { opacity: 1 !important; transform: none !important; }
+    .track .fill { transform: scaleX(1) !important; }
   }
 </style>
 </head>
 <body>
+
+<div id="read-progress" aria-hidden="true"></div>
 
 <header>
   <div class="wrap bar">
@@ -701,6 +725,68 @@
     try { return localStorage.getItem('wa-locale') || 'en'; } catch (e) { return 'en'; }
   })());
   renderLanguages();
+
+  // The page settling in: what the eye can see is shown, once, and then left
+  // alone. Under reduced motion the CSS has already put everything in place.
+  function initMotion() {
+    var targets = [];
+    var take = function (nodes) {
+      for (var i = 0; i < nodes.length; i++) targets.push(nodes[i]);
+    };
+    take(document.querySelectorAll('.hero > *, section > .wrap > *'));
+    take(document.querySelectorAll('.steps .step, .plain .row2, details'));
+    take(document.querySelectorAll('#language-table .row, #wanted-chips .chip'));
+
+    for (var t = 0; t < targets.length; t++) {
+      var node = targets[t];
+      if ((' ' + node.className + ' ').indexOf(' reveal ') >= 0) continue;
+      node.className += ' reveal';
+      // The stagger follows the order inside each block, so rows and steps come
+      // in one after the other instead of all at once.
+      var siblings = node.parentNode ? node.parentNode.children : [node];
+      var index = 0;
+      for (var s = 0; s < siblings.length; s++) if (siblings[s] === node) { index = s; break; }
+      node.style.transitionDelay = Math.min(index, 5) * 70 + 'ms';
+    }
+
+    var show = function (node) {
+      node.className += ' is-visible';
+      var fills = node.querySelectorAll ? node.querySelectorAll('.track .fill') : [];
+      for (var f = 0; f < fills.length; f++) fills[f].className += ' drawn';
+    };
+
+    if (!('IntersectionObserver' in window)) {
+      for (var n = 0; n < targets.length; n++) show(targets[n]);
+    } else {
+      var seen = new IntersectionObserver(function (entries) {
+        for (var e = 0; e < entries.length; e++) {
+          if (!entries[e].isIntersecting) continue;
+          show(entries[e].target);
+          seen.unobserve(entries[e].target);
+        }
+      }, { threshold: 0.12, rootMargin: '0px 0px -4% 0px' });
+      for (var o = 0; o < targets.length; o++) seen.observe(targets[o]);
+    }
+
+    // The reading line at the top: how far into the letter the reader is.
+    var line = document.getElementById('read-progress');
+    var waiting = false;
+    function paint() {
+      var doc = document.documentElement;
+      var max = doc.scrollHeight - doc.clientHeight;
+      var done = max > 0 ? (doc.scrollTop || document.body.scrollTop) / max : 0;
+      line.style.transform = 'scaleX(' + Math.min(Math.max(done, 0), 1) + ')';
+      waiting = false;
+    }
+    window.addEventListener('scroll', function () {
+      if (waiting) return;
+      waiting = true;
+      window.requestAnimationFrame(paint);
+    }, { passive: true });
+    paint();
+  }
+
+  initMotion();
 </script>
 </body>
 </html>
