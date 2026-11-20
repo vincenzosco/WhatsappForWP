@@ -441,7 +441,9 @@ namespace ProtocolTests
 
             Assert.AreEqual("Windows Phone", os);
             Assert.AreEqual(DeviceProps.PlatformTypeUwp, platformType);
-            Assert.AreEqual(0, requireFullSync);
+            // `requireFullSync` is 1: the companion asks for the whole history and not
+            // only the recent days, exactly as the reference companion sends it.
+            Assert.AreEqual(1, requireFullSync);
             Assert.IsTrue(sawHistorySyncConfig, "a companion that wants its history must say how it wants it");
             Assert.AreEqual((int)DeviceProps.HistoryStorageQuotaMb, storageQuotaMb);
         }
