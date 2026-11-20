@@ -61,6 +61,25 @@ namespace WhatsappApp.Protocol.WaProto
         public const int DeviceSentField = 31;
 
         /// <summary>
+        /// The `FutureProofMessage` wrappers. Each of these fields is a wrapper that carries
+        /// `message = 1` around the real content - a photo that expires, one seen once, a
+        /// document with a caption, an edited row, a status of a group - and it is the wrapper
+        /// that travels in the `Message`. The reference client looks inside every one of them
+        /// before it reads anything (`normalizeMessageContent`, `src/Utils/messages.ts`); a
+        /// decoder that reads only the flat fields finds no media behind them, which was a
+        /// status carrying a photo showing a screen with nothing on it.
+        /// </summary>
+        public const int ViewOnceField = 37;
+        public const int EphemeralField = 40;
+        public const int DocumentWithCaptionField = 53;
+        public const int ViewOnceV2Field = 55;
+        public const int EditedField = 58;
+        public const int ViewOnceV2ExtensionField = 59;
+        public const int AssociatedChildField = 91;
+        public const int GroupStatusField = 96;
+        public const int GroupStatusV2Field = 103;
+
+        /// <summary>
         /// The longest padding a phone appends to a message's plaintext before encrypting it.
         ///
         /// Not the cipher's block padding - that one is the cipher's own business - but the
@@ -388,6 +407,26 @@ namespace WhatsappApp.Protocol.WaProto
                         message.DeviceSentMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
+                    case ViewOnceField:
+                    case EphemeralField:
+                    case DocumentWithCaptionField:
+                    case ViewOnceV2Field:
+                    case EditedField:
+                    case ViewOnceV2ExtensionField:
+                    case AssociatedChildField:
+                    case GroupStatusField:
+                    case GroupStatusV2Field:
+                        {
+                            // The wrapper carries `message = 1` and the content is inside it,
+                            // possibly wrapped again. What the message *is* is the content, so
+                            // that is what is returned - the same replacement the reference
+                            // makes before it reads a single field. A wrapper with no message
+                            // in it is no content and the read goes on.
+                            Message inner = Unwrap(ReadBytesLaidOutAsBytes(reader, field));
+                            if (inner != null) return inner;
+                            break;
+                        }
+
                     default:
                         reader.SkipField(field.WireType);
                         break;
@@ -395,6 +434,19 @@ namespace WhatsappApp.Protocol.WaProto
             }
 
             return message;
+        }
+
+        /// <summary>
+        /// The message inside a `FutureProofMessage` wrapper, and null when the wrapper carries
+        /// none. The inner one is decoded in full, so a wrapper around a wrapper around the
+        /// content still ends in the content.
+        /// </summary>
+        private static Message Unwrap(byte[] wrapper)
+        {
+            Dictionary<int, byte[]> fields = Fields(wrapper);
+            if (!fields.ContainsKey(1)) return null;
+
+            return Decode(fields[1]);
         }
 
         /// <summary>
