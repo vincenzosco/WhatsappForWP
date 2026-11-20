@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Translate WhatsApp for WP</title>
+<meta name="description" content="Translate WhatsApp for Windows Phone 8.1 into your language. No programming needed: one text file, one GitHub page.">
+<link rel="icon" type="image/png" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600&family=Poppins:wght@500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --wa-bg: #020617;
+    --wa-card: #0E1223;
+    --wa-card-strong: #1A1E2F;
+    --wa-fg: #F8FAFC;
+    --wa-muted: #94A3B8;
+    --wa-border: #334155;
+    --wa-primary: #0F172A;
+    --wa-accent: #A16207;
+    --wa-accent-text: #FBBF24;
+    --wa-ring: #FBBF24;
+    --wa-radius: 10px;
+    --wa-speed: 160ms;
+    --wa-font-head: 'Poppins', system-ui, sans-serif;
+    --wa-font-body: 'Open Sans', system-ui, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html { background: var(--wa-bg); }
+
+  body {
+    margin: 0;
+    background: var(--wa-bg);
+    color: var(--wa-fg);
+    font-family: var(--wa-font-body);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1, h2, h3 { font-family: var(--wa-font-head); line-height: 1.15; margin: 0 0 .5em; }
+  h1 { font-size: clamp(2.1rem, 5vw, 3.4rem); font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 600; }
+  h3 { font-size: 1.15rem; font-weight: 600; margin-bottom: .35em; }
+  p { margin: 0 0 1em; }
+  a { color: var(--wa-accent-text); text-decoration: none; transition: color var(--wa-speed) ease; }
+  a:hover { color: var(--wa-fg); }
+
+  :focus-visible {
+    outline: 2px solid var(--wa-ring);
+    outline-offset: 3px;
+    border-radius: 4px;
+  }
+
+  .wrap { max-width: 1060px; margin: 0 auto; padding: 0 20px; }
+
+  /* ---------- header ---------- */
+  header {
+    position: sticky; top: 0; z-index: 10;
+    background: rgba(2, 6, 23, 0.92);
+    border-bottom: 1px solid var(--wa-border);
+    backdrop-filter: blur(6px);
+  }
+  .bar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 12px 0;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; color: var(--wa-fg); font-family: var(--wa-font-head); font-weight: 600; }
+  .brand img { width: 32px; height: 32px; border-radius: 8px; }
+  .brand:hover { color: var(--wa-accent-text); }
+  .spacer { flex: 1; }
+  .lang-switch { display: flex; gap: 4px; border: 1px solid var(--wa-border); border-radius: 999px; padding: 3px; }
+  .lang-switch button {
+    font-family: var(--wa-font-head); font-size: .82rem; font-weight: 600;
+    background: transparent; color: var(--wa-muted);
+    border: 0; border-radius: 999px; padding: 5px 13px; cursor: pointer;
+    transition: background var(--wa-speed) ease, color var(--wa-speed) ease;
+  }
+  .lang-switch button[aria-pressed="true"] { background: var(--wa-fg); color: var(--wa-primary); }
+  .lang-switch button:hover { color: var(--wa-fg); }
+  .lang-switch button[aria-pressed="true"]:hover { color: var(--wa-primary); }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 9px;
+    font-family: var(--wa-font-head); font-weight: 600; font-size: .95rem;
+    padding: 13px 22px; border-radius: var(--wa-radius); cursor: pointer;
+    border: 1px solid transparent;
+    transition: background var(--wa-speed) ease, color var(--wa-speed) ease, border-color var(--wa-speed) ease;
+  }
+  .btn svg { width: 18px; height: 18px; }
+  .btn-solid { background: var(--wa-accent); color: #FFFFFF; }
+  .btn-solid:hover { background: #875205; color: #FFFFFF; }
+  .btn-ghost { background: transparent; color: var(--wa-fg); border-color: var(--wa-border); }
+  .btn-ghost:hover { border-color: var(--wa-fg); color: var(--wa-fg); }
+  .btn-small { padding: 9px 16px; font-size: .85rem; }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 84px 0 56px; }
+  .eyebrow {
+    display: inline-flex; align-items: center; gap: 8px;
+    border: 1px solid var(--wa-border); border-radius: 999px;
+    color: var(--wa-muted); font-size: .82rem; letter-spacing: .02em;
+    padding: 6px 15px; margin-bottom: 22px;
+  }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--wa-accent-text); }
+  .hero h1 em { font-style: normal; color: var(--wa-accent-text); }
+  .hero .lead { color: var(--wa-muted); font-size: 1.18rem; max-width: 46em; }
+  .cta-row { display: flex; flex-wrap: wrap; gap: 13px; margin: 30px 0 14px; }
+  .trust { color: var(--wa-muted); font-size: .95rem; }
+
+  .frog { position: relative; margin-top: 52px; border: 1px solid var(--wa-border); border-radius: calc(var(--wa-radius) + 6px); background: var(--wa-card); padding: 26px; }
+  .frog-lines {
+    display: grid; grid-template-columns: minmax(0, 2fr) 32px minmax(0, 2fr);
+    row-gap: 9px; column-gap: 10px;
+    font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    font-size: .95rem; line-height: 1.7; color: var(--wa-muted);
+  }
+  .frog-lines .k { color: var(--wa-fg); }
+  .frog-lines .arrow { color: var(--wa-accent-text); text-align: center; }
+  .frog-lines .v { color: var(--wa-accent-text); }
+  .frog-lines > span { overflow-wrap: anywhere; }
+  .chips {
+    display: flex; flex-wrap: wrap; gap: 9px; margin-top: 22px;
+  }
+  .chip {
+    border: 1px solid var(--wa-border); border-radius: 999px;
+    background: var(--wa-card-strong); color: var(--wa-muted);
+    padding: 5px 13px; font-size: .83rem;
+  }
+  .chip b { color: var(--wa-fg); font-weight: 600; }
+
+  /* ---------- sections ---------- */
+  section { padding: 56px 0; border-top: 1px solid var(--wa-border); }
+  .section-head { max-width: 44em; margin-bottom: 34px; }
+  .section-head p { color: var(--wa-muted); margin: 0; }
+
+  .grid { display: grid; gap: 18px; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+  .card {
+    background: var(--wa-card); border: 1px solid var(--wa-border);
+    border-radius: var(--wa-radius); padding: 24px;
+    transition: border-color var(--wa-speed) ease;
+  }
+  .card:hover { border-color: var(--wa-muted); }
+  .card .icon {
+    width: 40px; height: 40px; border-radius: 9px;
+    background: var(--wa-card-strong); border: 1px solid var(--wa-border);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 15px; color: var(--wa-accent-text);
+  }
+  .card .icon svg { width: 20px; height: 20px; }
+  .card p { color: var(--wa-muted); font-size: .96rem; margin: 0; }
+
+  .step-num {
+    font-family: var(--wa-font-head); font-weight: 700; font-size: .85rem;
+    color: var(--wa-accent-text); letter-spacing: .08em;
+    display: block; margin-bottom: 10px;
+  }
+
+  /* ---------- languages ---------- */
+  .table { border: 1px solid var(--wa-border); border-radius: var(--wa-radius); overflow: hidden; background: var(--wa-card); }
+  .row {
+    display: grid; grid-template-columns: minmax(150px, 1.1fr) 2fr minmax(130px, .8fr);
+    gap: 18px; align-items: center; padding: 17px 22px;
+  }
+  .row + .row { border-top: 1px solid var(--wa-border); }
+  .row .name { font-family: var(--wa-font-head); font-weight: 600; }
+  .row .name small { display: block; font-family: var(--wa-font-body); font-weight: 400; color: var(--wa-muted); font-size: .82rem; }
+  .track { height: 9px; border-radius: 999px; background: var(--wa-card-strong); border: 1px solid var(--wa-border); overflow: hidden; }
+  .fill { height: 100%; background: var(--wa-accent-text); border-radius: 999px; }
+  .row .count { text-align: right; color: var(--wa-muted); font-size: .92rem; }
+  .row .count b { color: var(--wa-fg); font-family: var(--wa-font-head); }
+  .empty-note { padding: 20px 22px; color: var(--wa-muted); }
+  .wanted { margin-top: 24px; }
+  .wanted h3 { margin-bottom: .5em; }
+
+  /* ---------- faq ---------- */
+  details {
+    border: 1px solid var(--wa-border); border-radius: var(--wa-radius);
+    background: var(--wa-card); padding: 4px 22px; margin-bottom: 12px;
+    transition: border-color var(--wa-speed) ease;
+  }
+  details:hover { border-color: var(--wa-muted); }
+  summary {
+    cursor: pointer; padding: 15px 0;
+    font-family: var(--wa-font-head); font-weight: 600; font-size: 1.03rem;
+    list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary .plus {
+    flex: none; width: 26px; height: 26px; border-radius: 50%;
+    border: 1px solid var(--wa-border); position: relative;
+    transition: transform var(--wa-speed) ease;
+  }
+  summary .plus::before, summary .plus::after {
+    content: ''; position: absolute; background: var(--wa-accent-text);
+    left: 50%; top: 50%; transform: translate(-50%, -50%);
+  }
+  summary .plus::before { width: 11px; height: 1.5px; }
+  summary .plus::after { width: 1.5px; height: 11px; }
+  details[open] summary .plus { transform: rotate(45deg); }
+  details .answer { color: var(--wa-muted); padding-bottom: 17px; }
+
+  /* ---------- final cta ---------- */
+  .final {
+    background: var(--wa-primary); border: 1px solid var(--wa-border);
+    border-radius: calc(var(--wa-radius) + 6px); padding: 52px 34px; text-align: center;
+  }
+  .final h2 { margin-bottom: .35em; }
+  .final p { color: var(--wa-muted); max-width: 34em; margin: 0 auto 26px; }
+  .final .cta-row { justify-content: center; margin-bottom: 0; }
+
+  /* ---------- footer ---------- */
+  footer { border-top: 1px solid var(--wa-border); padding: 40px 0 56px; color: var(--wa-muted); font-size: .92rem; }
+  .foot { display: flex; flex-wrap: wrap; gap: 26px; justify-content: space-between; align-items: flex-start; }
+  .foot-links { display: flex; flex-wrap: wrap; gap: 20px; }
+  .foot a { color: var(--wa-muted); }
+  .foot a:hover { color: var(--wa-accent-text); }
+  .fine { margin-top: 26px; font-size: .82rem; }
+  .fine a { color: var(--wa-muted); text-decoration: underline; text-underline-offset: 3px; }
+
+  @media (max-width: 640px) {
+    .hero { padding: 52px 0 42px; }
+    .row { grid-template-columns: 1fr; gap: 10px; }
+    .row .count { text-align: left; }
+    .bar .btn-small { display: none; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap bar">
+    <a class="brand" href="#">
+      <img src="assets/logo.png" alt="">
+      <span data-i18n="brand">WhatsApp for WP</span>
+    </a>
+    <div class="spacer"></div>
+    <div class="lang-switch" role="group" aria-label="Page language">
+      <button id="lang-en" type="button" aria-pressed="true" onclick="setLocale('en')">EN</button>
+      <button id="lang-it" type="button" aria-pressed="false" onclick="setLocale('it')">IT</button>
+    </div>
+    <a class="btn btn-ghost btn-small" href="https://github.com/vincenzosco/WhatsappForWP">
+      <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.9-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.28 1.06 2.83.8.09-.63.35-1.06.63-1.3-2.22-.25-4.56-1.11-4.56-4.94 0-1.1.39-1.99 1.03-2.7-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.03A9.56 9.56 0 0 1 12 6.8c.85 0 1.71.11 2.51.34 1.91-1.3 2.75-1.03 2.75-1.03.55 1.37.2 2.39.1 2.64.64.71 1.03 1.6 1.03 2.7 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"/></svg>
+      <span data-i18n="nav.repo">Repository</span>
+    </a>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <span class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Community translations · 222 strings · Windows Phone 8.1</span></span>
+    <h1 data-i18n="hero.title" data-i18n-html>Translate the app into <em>your language</em>.</h1>
+    <p class="lead" data-i18n="hero.lead">The app speaks English and Italian today. Bringing it to your language takes no programming at all: it is one text file with the English words to write over, and one page on GitHub to send it back.</p>
+    <div class="cta-row">
+      <a class="btn btn-solid" href="https://github.com/vincenzosco/WhatsappForWP/blob/master/traduzioni/MODELLO.txt">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg>
+        <span data-i18n="hero.cta1">Open the template</span>
+      </a>
+      <a class="btn btn-ghost" href="#how"><span data-i18n="hero.cta2">Read the five steps</span></a>
+    </div>
+    <p class="trust" data-i18n="hero.trust">Translating ten lines counts exactly like two hundred. A mistake cannot break the app.</p>
+
+    <div class="frog" role="img" aria-label="A translation file line: Nav_Chats = Chats becomes Nav_Chats = Chat">
+      <div class="frog-lines"><span><span class="k">Nav_Chats</span> = Chats</span><span class="arrow">→</span><span class="v">Chat</span><span><span class="k">TileUnreadMany</span> = <span class="k">{0}</span> unread messages</span><span class="arrow">→</span><span><span class="k">{0}</span> <span class="v">messaggi non letti</span></span><span><span class="k">Quit_Cancel</span> = Cancel</span><span class="arrow">→</span><span class="v">Annulla</span></div>
+      <div class="chips" aria-hidden="true">
+        <span class="chip"><b>fr</b> · Français</span>
+        <span class="chip"><b>es</b> · Español</span>
+        <span class="chip"><b>pt</b> · Português</span>
+        <span class="chip"><b>de</b> · Deutsch</span>
+        <span class="chip"><b>ru</b> · Русский</span>
+        <span class="chip"><b>tr</b> · Türkçe</span>
+      </div>
+    </div>
+  </div>
+
+  <section>
+    <div class="wrap">
+      <div class="grid grid-4">
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg></div>
+          <h3 data-i18n="v1.title">No code, ever</h3>
+          <p data-i18n="v1.body">Every string is one line that reads Key = words. You replace the words; the key you leave alone.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
+          <h3 data-i18n="v2.title">A piece at a time</h3>
+          <p data-i18n="v2.body">The whole file is 222 short words and phrases - buttons, menus, notifications. Send whatever you manage.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15.3 15.3 0 0 1 4 9 15.3 15.3 0 0 1-4 9 15.3 15.3 0 0 1-4-9 15.3 15.3 0 0 1 4-9Z"/></svg></div>
+          <h3 data-i18n="v3.title">The phone follows itself</h3>
+          <p data-i18n="v3.body">Once a language is in, the app switches to it when the phone is set to that language. There is no setting to hunt for.</p>
+        </div>
+        <div class="card">
+          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
+          <h3 data-i18n="v4.title">Mistakes are caught</h3>
+          <p data-i18n="v4.body">The tool refuses a broken line or a lost {0} and says exactly which line to fix. Nothing wrong can reach the phone.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 data-i18n="how.title">Five steps, one browser</h2>
+        <p data-i18n="how.sub">No software to install and no account to make beyond GitHub itself.</p>
+      </div>
+      <div class="grid grid-2">
+        <div class="card">
+          <span class="step-num" data-i18n="s1.num">STEP 1</span>
+          <h3 data-i18n="s1.title">Copy the template</h3>
+          <p data-i18n="s1.body">Open MODELLO.txt on GitHub, press Raw, select everything and copy. That is your file to fill in.</p>
+        </div>
+        <div class="card">
+          <span class="step-num" data-i18n="s2.num">STEP 2</span>
+          <h3 data-i18n="s2.title">Type your language over the English</h3>
+          <p data-i18n="s2.body">A notes app is fine. Keep the part before the equal sign untouched and write the translation after it.</p>
+        </div>
+        <div class="card">
+          <span class="step-num" data-i18n="s3.num">STEP 3</span>
+          <h3 data-i18n="s3.title">Name the file after your language</h3>
+          <p data-i18n="s3.body">fr.txt, es.txt, pt.txt... Not sure which letters? Say the language name when you send it and we pick the code.</p>
+        </div>
+        <div class="card">
+          <span class="step-num" data-i18n="s4.num">STEP 4</span>
+          <h3 data-i18n="s4.title">Send it on GitHub</h3>
+          <p data-i18n="s4.body">Add file → Propose changes → Create pull request. Or open an issue and paste your lines in it - both reach us.</p>
+        </div>
+        <div class="card">
+          <span class="step-num" data-i18n="s5.num">STEP 5</span>
+          <h3 data-i18n="s5.title">A maintainer runs one command</h3>
+          <p data-i18n="s5.body">Your file turns into the app's resource for that language, and the table on this page grows a row.</p>
+        </div>
+        <div class="card">
+          <span class="step-num" data-i18n="s6.num">IF YOU PREFER</span>
+          <h3 data-i18n="s6.title">Paste it into an issue</h3>
+          <p data-i18n="s6.body">The repository has an issue form called "Translation". Fill it, paste your lines, send. Files never involved.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="languages">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 data-i18n="lang.title">Where every language stands</h2>
+        <p data-i18n="lang.sub">Straight from the app's own catalog of strings - this table cannot lie about progress.</p>
+      </div>
+      <div class="table" id="language-table">
+        <div class="empty-note" data-i18n="lang.empty">Loading the catalog of languages...</div>
+      </div>
+      <div class="wanted">
+        <h3 data-i18n="wanted.title">Not here yet?</h3>
+        <p data-i18n="wanted.body">These languages are waiting for somebody like you:</p>
+        <div class="chips" id="wanted-chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap">
+      <div class="section-head">
+        <h2 data-i18n="faq.title">Things people ask</h2>
+      </div>
+      <details>
+        <summary><span data-i18n="q1">What is {0} doing in some lines?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a1">It is a slot the app fills in later: {0} unread messages becomes 5 unread messages. Keep every {0} and {1} exactly where the original has them - the words around them are yours.</div>
+      </details>
+      <details>
+        <summary><span data-i18n="q2">And if I make a mistake?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a2">Nothing bad can happen. The tool refuses a file whose lines are broken or whose slots went missing, and it names the exact line to fix. The worst case is a friendly comment on your pull request.</div>
+      </details>
+      <details>
+        <summary><span data-i18n="q3">Do the ALL-CAPS words get translated too?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a3">Yes - they are menu and button labels. If your language writes things naturally in lower case, write it that way.</div>
+      </details>
+      <details>
+        <summary><span data-i18n="q4">How do I see the app in my language later?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a4">The app follows the phone. Set the phone to your language and the app is in it - no option to turn on, nothing to download separately.</div>
+      </details>
+      <details>
+        <summary><span data-i18n="q5">Can I help with something that is not translating?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a5">Yes. The README lists what the project needs: maintainers, reviews, documentation - and the app is unofficial, so a careful reader is worth gold.</div>
+      </details>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="final">
+        <h2 data-i18n="final.title">Your language can be the next one.</h2>
+        <p data-i18n="final.body">Copy the template, type for as long as you like, and send it the way you prefer. Somebody is always on the other side.</p>
+        <div class="cta-row">
+          <a class="btn btn-solid" href="https://github.com/vincenzosco/WhatsappForWP/issues/new/choose">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1 3.6-11.3 8.38 8.38 0 0 1 8.5.5 8.5 8.5 0 0 1 4 7Z"/></svg>
+            <span data-i18n="final.cta1">Send a translation</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/vincenzosco/WhatsappForWP/blob/master/traduzioni/MODELLO.txt"><span data-i18n="final.cta2">Open the template</span></a>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot">
+      <div>
+        <div class="brand" style="margin-bottom:8px">
+          <img src="assets/logo.png" alt="">
+          <span data-i18n="brand">WhatsApp for WP</span>
+        </div>
+        <div data-i18n="foot.tag">A WhatsApp client for Windows Phone 8.1, written from the protocol up.</div>
+      </div>
+      <nav class="foot-links" aria-label="Footer">
+        <a href="https://github.com/vincenzosco/WhatsappForWP" data-i18n="nav.repo">Repository</a>
+        <a href="https://github.com/vincenzosco/WhatsappForWP/blob/master/traduzioni/README.md" data-i18n="foot.guide">Translation guide</a>
+        <a href="https://github.com/vincenzosco/WhatsappForWP/issues" data-i18n="foot.issues">Issues</a>
+        <a href="https://github.com/vincenzosco/WhatsappForWP#disclaimer" data-i18n="foot.disclaimer">Disclaimer</a>
+      </nav>
+    </div>
+    <p class="fine" data-i18n="foot.fine">Unofficial client. Linking it to WhatsApp is against WhatsApp's Terms of Service and can get an account banned - use a test or secondary number. This page is part of the repository too.</p>
+  </div>
+</footer>
+
+<script src="status.js"></script>
+<script>
+  var IT = {
+    'brand': 'WhatsApp per WP',
+    'nav.repo': 'Repository',
+    'hero.eyebrow': 'Traduzioni della community · 222 stringhe · Windows Phone 8.1',
+    'hero.title': 'Traduci l\'app nella <em>tua lingua</em>.',
+    'hero.lead': 'L\'app oggi parla inglese e italiano. Portarla sulla tua lingua non richiede alcuna programmazione: è un file di testo con le parole inglesi da riscrivere, e una pagina su GitHub per inviarlo.',
+    'hero.cta1': 'Apri il modello',
+    'hero.cta2': 'Leggi i cinque passi',
+    'hero.trust': 'Tradurre dieci righe conta esattamente come tradurne duecento. Un errore non può rompere l\'app.',
+    'v1.title': 'Mai codice',
+    'v1.body': 'Ogni stringa è una riga che legge Key = parole. Sostituisci le parole; la chiave la lasci com\'è.',
+    'v2.title': 'Un pezzo alla volta',
+    'v2.body': 'Il file intero sono 222 parole e frasi brevi: pulsanti, menu, notifiche. Invia quello che riesci.',
+    'v3.title': 'Il telefono segue sé stesso',
+    'v3.body': 'Quando una lingua entra, l\'app la usa appena il telefono è impostato su quella lingua. Non c\'è nessuna opzione da cercare.',
+    'v4.title': 'Gli errori si intercettano',
+    'v4.body': 'Lo strumento rifiuta una riga rotta o un {0} perduto e dice esattamente quale riga correggere. Niente di sbagliato può arrivare sul telefono.',
+    'how.title': 'Cinque passi, un browser',
+    'how.sub': 'Nessun software da installare e nessun account oltre a GitHub.',
+    's1.num': 'PASSO 1',
+    's1.title': 'Copia il modello',
+    's1.body': 'Apri MODELLO.txt su GitHub, premi Raw, seleziona tutto e copia. Quello è il tuo file da riempire.',
+    's2.num': 'PASSO 2',
+    's2.title': 'Scrivi la tua lingua sopra l\'inglese',
+    's2.body': 'Va bene una app di note. Lascia intatta la parte prima del segno di uguale e scrivi la traduzione dopo.',
+    's3.num': 'PASSO 3',
+    's3.title': 'Dai al file il nome della tua lingua',
+    's3.body': 'fr.txt, es.txt, pt.txt... Non sai quali lettere? Scrivi il nome della lingua quando invii e scegliamo noi il codice.',
+    's4.num': 'PASSO 4',
+    's4.title': 'Invialo su GitHub',
+    's4.body': 'Add file → Propose changes → Create pull request. Oppure apri una issue e incolla le tue righe: entrambi arrivano.',
+    's5.num': 'PASSO 5',
+    's5.title': 'Un maintainer esegue un comando',
+    's5.body': 'Il tuo file diventa la risorsa dell\'app per quella lingua, e la tabella di questa pagina aggiunge una riga.',
+    's6.num': 'SE PREFERISCI',
+    's6.title': 'Incollalo in una issue',
+    's6.body': 'Il repository ha un modulo issue chiamato "Translation". Compilalo, incolla le tue righe, invia. I file non c\'entrano.',
+    'lang.title': 'Dove sta ogni lingua',
+    'lang.sub': 'Diretto dal catalogo di stringhe dell\'app: questa tabella non può mentire sui progressi.',
+    'lang.empty': 'Caricamento del catalogo delle lingue...',
+    'wanted.title': 'Manca la tua?',
+    'wanted.body': 'Queste lingue aspettano qualcuno come te:',
+    'faq.title': 'Le cose che chiedono tutti',
+    'q1': 'Cosa fa {0} in alcune righe?',
+    'a1': 'È uno spazio che l\'app riempie dopo: {0} unread messages diventa 5 messaggi non letti. Tieni ogni {0} e {1} esattamente come sono nell\'originale - le parole intorno sono tue.',
+    'q2': 'E se sbaglio qualcosa?',
+    'a2': 'Non succede niente di male. Lo strumento rifiuta un file con righe rotte o con gli spazi persi, e nomina la riga esatta da correggere. Nel caso peggiore c\'è un commento gentile sulla pull request.',
+    'q3': 'Anche le parole in MAIUSCOLO si traducono?',
+    'a3': 'Sì: sono etichette di menu e pulsanti. Se la tua lingua scrive in minuscolo in modo naturale, scrivila così.',
+    'q4': 'Come vedrò l\'app nella mia lingua poi?',
+    'a4': 'L\'app segue il telefono. Imposta il telefono sulla tua lingua e l\'app è in quella lingua - nessuna opzione da attivare, nulla da scaricare.',
+    'q5': 'Posso aiutare in altro modo?',
+    'a5': 'Sì. Il README elenca di cosa ha bisogno il progetto: maintainer, revisioni, documentazione - e l\'app non è ufficiale, quindi un lettore attento vale oro.',
+    'final.title': 'La prossima lingua può essere la tua.',
+    'final.body': 'Copia il modello, scrivi quanto ti pare, invia come preferisci. Dall\'altra parte c\'è sempre qualcuno.',
+    'final.cta1': 'Invia una traduzione',
+    'final.cta2': 'Apri il modello',
+    'foot.tag': 'Un client WhatsApp per Windows Phone 8.1, scritto dal protocollo in su.',
+    'foot.guide': 'Guida alla traduzione',
+    'foot.issues': 'Issue',
+    'foot.disclaimer': 'Disclaimer',
+    'foot.fine': 'Client non ufficiale. Collegarlo a WhatsApp è contro i Termini di Servizio di WhatsApp e può far bandire un account: usa un numero di prova o secondario. Anche questa pagina fa parte del repository.'
+  };
+
+  var WANTED = [
+    { code: 'es', label: 'Español' },
+    { code: 'fr', label: 'Français' },
+    { code: 'de', label: 'Deutsch' },
+    { code: 'pt', label: 'Português' },
+    { code: 'ru', label: 'Русский' },
+    { code: 'nl', label: 'Nederlands' },
+    { code: 'pl', label: 'Polski' },
+    { code: 'tr', label: 'Türkçe' }
+  ];
+
+  var originals = {};
+
+  function setLocale(locale) {
+    if (locale !== 'en' && locale !== 'it') locale = 'en';
+    document.documentElement.lang = locale;
+    var nodes = document.querySelectorAll('[data-i18n]');
+    for (var i = 0; i < nodes.length; i++) {
+      var key = nodes[i].getAttribute('data-i18n');
+      // A key marked html carries intentional markup - the gold word inside
+      // the title - and plain textContent would flatten it on the first switch.
+      var isHtml = nodes[i].hasAttribute('data-i18n-html');
+      if (!(key in originals)) originals[key] = isHtml ? nodes[i].innerHTML : nodes[i].textContent;
+      var chosen = (locale === 'it' && IT[key]) ? IT[key] : originals[key];
+      if (isHtml) nodes[i].innerHTML = chosen; else nodes[i].textContent = chosen;
+    }
+    document.title = locale === 'it' ? 'Traduci WhatsApp per WP' : 'Translate WhatsApp for WP';
+    document.getElementById('lang-en').setAttribute('aria-pressed', String(locale === 'en'));
+    document.getElementById('lang-it').setAttribute('aria-pressed', String(locale === 'it'));
+    try { localStorage.setItem('wa-locale', locale); } catch (e) { }
+  }
+
+  function renderLanguages() {
+    var table = document.getElementById('language-table');
+    var status = window.SITE_STATUS;
+    if (!status || !status.languages) return;
+
+    table.innerHTML = '';
+    for (var i = 0; i < status.languages.length; i++) {
+      var language = status.languages[i];
+      var row = document.createElement('div');
+      row.className = 'row';
+
+      var name = document.createElement('div');
+      name.className = 'name';
+      name.appendChild(document.createTextNode(language.label));
+      var small = document.createElement('small');
+      small.textContent = language.culture;
+      name.appendChild(small);
+
+      var track = document.createElement('div');
+      track.className = 'track';
+      var fill = document.createElement('div');
+      fill.className = 'fill';
+      fill.style.width = Math.max(language.coverage, 2) + '%';
+      track.appendChild(fill);
+      track.setAttribute('role', 'img');
+      track.setAttribute('aria-label', language.label + ' ' + language.translated + '/' + language.total);
+
+      var count = document.createElement('div');
+      count.className = 'count';
+      count.innerHTML = '<b>' + language.coverage + '%</b> · ' + language.translated + '/' + language.total;
+
+      row.appendChild(name);
+      row.appendChild(track);
+      row.appendChild(count);
+      table.appendChild(row);
+    }
+
+    var done = {};
+    for (var j = 0; j < status.languages.length; j++) done[status.languages[j].culture.split('-')[0]] = true;
+
+    var chips = document.getElementById('wanted-chips');
+    chips.innerHTML = '';
+    for (var w = 0; w < WANTED.length; w++) {
+      if (done[WANTED[w].code]) continue;
+      var chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.innerHTML = '<b>' + WANTED[w].code + '</b> · ' + WANTED[w].label;
+      chips.appendChild(chip);
+    }
+    if (chips.children.length === 0) {
+      var all = document.createElement('span');
+      all.className = 'chip';
+      all.textContent = document.documentElement.lang === 'it' ? 'Tutte le lingue in lista sono arrivate!' : 'Every language on the list has arrived!';
+      chips.appendChild(all);
+    }
+  }
+
+  setLocale((function () {
+    try { return localStorage.getItem('wa-locale') || 'en'; } catch (e) { return 'en'; }
+  })());
+  renderLanguages();
+</script>
+</body>
+</html>
