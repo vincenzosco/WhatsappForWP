@@ -865,7 +865,7 @@ namespace WhatsappApp.Pages
             AddModalOption(tiled
                 ? Loc.Get("ChatsPage_RemoveTile", "Remove from Start")
                 : Loc.Get("ChatsPage_AddTile", "Add to Start"),
-                async delegate { await TogglePinnedTileAsync(id, contact.Name, contact.LastMessage); });
+                async delegate { await TogglePinnedTileAsync(id, contact.Name, contact.LastIncomingMessage); });
 
             if (PeopleHub.CanShow(id))
             {

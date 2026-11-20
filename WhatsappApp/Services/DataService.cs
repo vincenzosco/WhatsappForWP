@@ -1483,6 +1483,8 @@ namespace WhatsappApp.Services
                     if (gone.LastMessageAt > keep.LastMessageAt)
                     {
                         keep.LastMessage = gone.LastMessage;
+                        if (gone.LastIncomingMessage != null)
+                            keep.LastIncomingMessage = gone.LastIncomingMessage;
                         keep.LastMessageTime = gone.LastMessageTime;
                         keep.LastMessageAt = gone.LastMessageAt;
                     }
@@ -2298,6 +2300,7 @@ namespace WhatsappApp.Services
                     Id = message.ChatId,
                     Name = name,
                     LastMessage = message.Text,
+                    LastIncomingMessage = message.IsIncoming ? message.Text : null,
                     LastMessageTime = message.FormattedTime,
                     LastMessageAt = message.Timestamp,
                     Initials = InitialsFor(name),
@@ -2334,6 +2337,8 @@ namespace WhatsappApp.Services
 
                 // Update the contact preview and move to top
                 contact.LastMessage = message.Text;
+                if (message.IsIncoming)
+                    contact.LastIncomingMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
                 contact.LastMessageAt = message.Timestamp;
                 if (message.IsIncoming)
@@ -2561,6 +2566,8 @@ namespace WhatsappApp.Services
                 if (!string.IsNullOrEmpty(message.Text))
                 {
                     contact.LastMessage = message.Text;
+                    if (message.IsIncoming)
+                        contact.LastIncomingMessage = message.Text;
                     contact.LastMessageTime = message.FormattedTime;
                 }
             }
@@ -2570,6 +2577,8 @@ namespace WhatsappApp.Services
                 // It cannot say when, but it can say what: the row shows the words and
                 // no date, which is honest, instead of a date that is not one.
                 contact.LastMessage = message.Text;
+                if (message.IsIncoming)
+                    contact.LastIncomingMessage = message.Text;
             }
 
             // The profile picture. When the row carries it, the bytes are also kept
@@ -3069,6 +3078,7 @@ namespace WhatsappApp.Services
             if (!_chatMessages.TryGetValue(chatId, out messages) || messages.Count == 0)
             {
                 contact.LastMessage = "";
+                contact.LastIncomingMessage = "";
                 contact.LastMessageTime = "";
                 contact.LastMessageAt = DateTime.MinValue;
                 return;
@@ -3078,6 +3088,18 @@ namespace WhatsappApp.Services
             contact.LastMessage = last.Text;
             contact.LastMessageTime = last.FormattedTime;
             contact.LastMessageAt = last.Timestamp;
+
+            // The tile's line is the last one from their side, which can sit a few
+            // rows back after the reader wrote last.
+            contact.LastIncomingMessage = null;
+            for (int i = messages.Count - 1; i >= 0; i--)
+            {
+                if (messages[i].IsIncoming)
+                {
+                    contact.LastIncomingMessage = messages[i].Text;
+                    break;
+                }
+            }
         }
 
         /// <summary>
@@ -3308,13 +3330,13 @@ namespace WhatsappApp.Services
 // that already has it answers from its dictionary without touching the network; the
 // request budget lives inside `AskForPicture`.
             PinnedTile.AskForPicture(contact.Id, contact.Name, contact.UnreadCount,
-                contact.LastMessage, countKnown);
+                contact.LastIncomingMessage, countKnown);
 
             string avatar = contact.AvatarData;
             if (string.IsNullOrEmpty(avatar)) avatar = AvatarCache.Get(contact.Id);
 
             PinnedTile.Update(contact.Id, contact.Name, contact.UnreadCount, avatar,
-                contact.LastMessage, countKnown);
+                contact.LastIncomingMessage, countKnown);
         }
 
         private void RebuildContactIndex()
@@ -3590,6 +3612,8 @@ namespace WhatsappApp.Services
             if (contact != null)
             {
                 contact.LastMessage = message.Text;
+                if (message.IsIncoming)
+                    contact.LastIncomingMessage = message.Text;
                 contact.LastMessageTime = message.FormattedTime;
                 contact.LastMessageAt = message.Timestamp;
                 if (message.IsIncoming)

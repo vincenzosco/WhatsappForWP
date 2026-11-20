@@ -61,6 +61,15 @@ namespace WhatsappApp.Models
         /// </summary>
         public DateTime LastMessageAt { get; set; }
 
+        /// <summary>
+        /// The last line that came from the other side of this chat. A pinned person's
+        /// tile shows this one and not `LastMessage`: what the reader wrote themselves is
+        /// no news to them, and a person's tile carrying the reader's own words was the
+        /// complaint. The list preview keeps `LastMessage`, the last line of the
+        /// conversation whatever side wrote it.
+        /// </summary>
+        public string LastIncomingMessage { get; set; }
+
         public string Initials
         {
             get { return _initials; }
