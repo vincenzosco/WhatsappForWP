@@ -162,6 +162,66 @@
     display: block; margin-bottom: 10px;
   }
 
+  /* ---------- letter: the note from the person who writes the code ---------- */
+  .letter {
+    border: 1px solid var(--wa-border); border-left: 4px solid var(--wa-accent-text);
+    border-radius: calc(var(--wa-radius) + 2px); background: var(--wa-card);
+    padding: 38px 38px 30px; max-width: 780px;
+  }
+  .letter .kicker {
+    font-family: var(--wa-font-head); font-size: .82rem; font-weight: 600;
+    letter-spacing: .08em; color: var(--wa-accent-text); text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .letter p { max-width: 62ch; }
+  .letter p.first::first-letter {
+    font-family: var(--wa-font-head); font-weight: 700; font-size: 2.1em;
+    line-height: 1; float: left; padding: 4px 10px 0 0; color: var(--wa-accent-text);
+  }
+  .truths { list-style: none; margin: 22px 0; padding: 0; }
+  .truths li {
+    position: relative; padding: 11px 0 11px 30px;
+    border-top: 1px dashed var(--wa-border); color: var(--wa-muted);
+  }
+  .truths li:last-child { border-bottom: 1px dashed var(--wa-border); }
+  .truths li::before {
+    content: '—'; position: absolute; left: 4px; top: 11px;
+    color: var(--wa-accent-text); font-weight: 700;
+  }
+  .truths b { color: var(--wa-fg); font-family: var(--wa-font-head); font-weight: 600; }
+  .sig {
+    margin-top: 26px; color: var(--wa-fg); font-family: var(--wa-font-head);
+    font-weight: 600; display: flex; align-items: center; gap: 12px;
+  }
+  .sig img { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--wa-border); }
+  .sig small { display: block; color: var(--wa-muted); font-family: var(--wa-font-body); font-weight: 400; }
+  .ps { margin: 18px 0 0; color: var(--wa-muted); font-size: .95rem; }
+
+  /* ---------- aside note (the tilted post-it) ---------- */
+  .note {
+    background: var(--wa-card-strong); border: 1px solid var(--wa-border);
+    border-radius: var(--wa-radius); padding: 18px 22px;
+    color: var(--wa-muted); font-size: .97rem;
+    transform: rotate(-0.6deg); max-width: 560px;
+  }
+  .note b { color: var(--wa-fg); }
+
+  /* ---------- steps ---------- */
+  .steps { display: grid; gap: 26px; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); }
+  .step { position: relative; padding-left: 64px; }
+  .step .big {
+    position: absolute; left: 0; top: -6px;
+    font-family: var(--wa-font-head); font-weight: 700; font-size: 2.3rem;
+    color: transparent; -webkit-text-stroke: 1.5px var(--wa-accent-text);
+  }
+  .step p { color: var(--wa-muted); margin: 0; }
+  .step p em { color: var(--wa-fg); font-style: italic; }
+
+  /* ---------- honesty list ---------- */
+  .plain { display: grid; gap: 18px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .plain .card h3 { color: var(--wa-accent-text); }
+  .plain .card p { color: var(--wa-muted); margin: 0; }
+
   /* ---------- languages ---------- */
   .table { border: 1px solid var(--wa-border); border-radius: var(--wa-radius); overflow: hidden; background: var(--wa-card); }
   .row {
@@ -229,6 +289,8 @@
     .row { grid-template-columns: 1fr; gap: 10px; }
     .row .count { text-align: left; }
     .bar .btn-small { display: none; }
+    .letter { padding: 26px 22px 22px; }
+    .note { transform: none; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -258,9 +320,10 @@
 
 <main>
   <div class="wrap hero">
-    <span class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Community translations · 222 strings · Windows Phone 8.1</span></span>
-    <h1 data-i18n="hero.title" data-i18n-html>Translate the app into <em>your language</em>.</h1>
-    <p class="lead" data-i18n="hero.lead">The app speaks English and Italian today. Bringing it to your language takes no programming at all: it is one text file with the English words to write over, and one page on GitHub to send it back.</p>
+
+    <div class="eyebrow"><span class="dot" aria-hidden="true"></span><span data-i18n="hero.eyebrow">Community translations · 222 strings · Windows Phone 8.1</span></div>
+    <h1 data-i18n="hero.title" data-i18n-html>Only <em>your language</em> is missing.</h1>
+    <p class="lead" data-i18n="hero.lead">This is a WhatsApp client for Windows Phone 8.1 - the phone from 2014 that most people left in a drawer. I write it in my spare time, from the protocol up. It speaks English and Italian today, and between it and your language there are 222 little phrases. None of them need code.</p>
     <div class="cta-row">
       <a class="btn btn-solid" href="https://github.com/vincenzosco/WhatsappForWP/blob/master/traduzioni/MODELLO.txt">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg>
@@ -268,7 +331,6 @@
       </a>
       <a class="btn btn-ghost" href="#how"><span data-i18n="hero.cta2">Read the five steps</span></a>
     </div>
-    <p class="trust" data-i18n="hero.trust">Translating ten lines counts exactly like two hundred. A mistake cannot break the app.</p>
 
     <div class="frog" role="img" aria-label="A translation file line: Nav_Chats = Chats becomes Nav_Chats = Chat">
       <div class="frog-lines"><span><span class="k">Nav_Chats</span> = Chats</span><span class="arrow">→</span><span class="v">Chat</span><span><span class="k">TileUnreadMany</span> = <span class="k">{0}</span> unread messages</span><span class="arrow">→</span><span><span class="k">{0}</span> <span class="v">messaggi non letti</span></span><span><span class="k">Quit_Cancel</span> = Cancel</span><span class="arrow">→</span><span class="v">Annulla</span></div>
@@ -285,27 +347,21 @@
 
   <section>
     <div class="wrap">
-      <div class="grid grid-4">
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M8 13h8"/><path d="M8 17h6"/></svg></div>
-          <h3 data-i18n="v1.title">No code, ever</h3>
-          <p data-i18n="v1.body">Every string is one line that reads Key = words. You replace the words; the key you leave alone.</p>
+      <div class="letter">
+        <div class="kicker" data-i18n="letter.kicker">A note from the person who writes the code</div>
+        <p class="first" data-i18n="letter.p1">I built this app because I wanted WhatsApp on an old Lumia, and the official client is gone. It is a strange kind of project: the protocol is not documented, every version of the app teaches you something, and the reward is seeing a message arrive on a phone nobody supports anymore.</p>
+        <p data-i18n="letter.p2">The one thing I cannot do alone is language. I read English and Italian; everything else would be me guessing with a dictionary, and a menu translated by a machine feels like a menu written by a machine. So the translations are the first part of this project I want to hand over to other people. Here is what I can promise about it:</p>
+        <ul class="truths">
+          <li data-i18n="t1"><b>No code, ever.</b> Every string is one line that reads Key = words. You replace the words; the key you leave alone. If you can write in a text file, you can do this.</li>
+          <li data-i18n="t2"><b>A piece at a time is fine.</b> The whole file is 222 short words and phrases - buttons, menus, notifications. Ten lines today and two hundred next month count the same to me.</li>
+          <li data-i18n="t3"><b>The phone follows itself.</b> When a language lands, the app switches to it as soon as the phone is set to that language. There is no option to hunt for, nothing to download.</li>
+          <li data-i18n="t4"><b>Nothing broken can reach the phone.</b> The tool refuses a file with a broken line or a lost {0}, and it tells you exactly which line to look at. The worst outcome of a mistake is a comment from me on your pull request.</li>
+        </ul>
+        <div class="sig">
+          <img src="assets/logo.png" alt="">
+          <div data-i18n="letter.sign">Vincenzo<small>who writes the code, slowly and happily</small></div>
         </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg></div>
-          <h3 data-i18n="v2.title">A piece at a time</h3>
-          <p data-i18n="v2.body">The whole file is 222 short words and phrases - buttons, menus, notifications. Send whatever you manage.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18"/><path d="M12 3a15.3 15.3 0 0 1 4 9 15.3 15.3 0 0 1-4 9 15.3 15.3 0 0 1-4-9 15.3 15.3 0 0 1 4-9Z"/></svg></div>
-          <h3 data-i18n="v3.title">The phone follows itself</h3>
-          <p data-i18n="v3.body">Once a language is in, the app switches to it when the phone is set to that language. There is no setting to hunt for.</p>
-        </div>
-        <div class="card">
-          <div class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg></div>
-          <h3 data-i18n="v4.title">Mistakes are caught</h3>
-          <p data-i18n="v4.body">The tool refuses a broken line or a lost {0} and says exactly which line to fix. Nothing wrong can reach the phone.</p>
-        </div>
+        <p class="ps" data-i18n="letter.ps">P.S. If the template looks long, translate only the buttons you use every day - Send, Chats, Cancel. That is how every language starts. The rest can wait.</p>
       </div>
     </div>
   </section>
@@ -314,56 +370,81 @@
     <div class="wrap">
       <div class="section-head">
         <h2 data-i18n="how.title">Five steps, one browser</h2>
-        <p data-i18n="how.sub">No software to install and no account to make beyond GitHub itself.</p>
+        <p data-i18n="how.sub">It takes longer to read than to do. No software to install, no account beyond GitHub itself.</p>
       </div>
-      <div class="grid grid-2">
-        <div class="card">
-          <span class="step-num" data-i18n="s1.num">STEP 1</span>
+      <div class="steps">
+        <div class="step">
+          <span class="big" aria-hidden="true">1</span>
           <h3 data-i18n="s1.title">Copy the template</h3>
-          <p data-i18n="s1.body">Open MODELLO.txt on GitHub, press Raw, select everything and copy. That is your file to fill in.</p>
+          <p data-i18n="s1.body">Open MODELLO.txt on GitHub, press Raw, select everything and copy. That is your file to fill in - it is generated from the app's own strings, so it is exactly the right size.</p>
         </div>
-        <div class="card">
-          <span class="step-num" data-i18n="s2.num">STEP 2</span>
+        <div class="step">
+          <span class="big" aria-hidden="true">2</span>
           <h3 data-i18n="s2.title">Type your language over the English</h3>
-          <p data-i18n="s2.body">A notes app is fine. Keep the part before the equal sign untouched and write the translation after it.</p>
+          <p data-i18n="s2.body" data-i18n-html>A notes app is fine. Leave the part before the equal sign alone and write your words after it. <em>Key = words</em>, that is the whole syntax.</p>
         </div>
-        <div class="card">
-          <span class="step-num" data-i18n="s3.num">STEP 3</span>
+        <div class="step">
+          <span class="big" aria-hidden="true">3</span>
           <h3 data-i18n="s3.title">Name the file after your language</h3>
-          <p data-i18n="s3.body">fr.txt, es.txt, pt.txt... Not sure which letters? Say the language name when you send it and we pick the code.</p>
+          <p data-i18n="s3.body">fr.txt, es.txt, pt.txt... Not sure which letters? Say the language name when you send it and I pick the code.</p>
         </div>
-        <div class="card">
-          <span class="step-num" data-i18n="s4.num">STEP 4</span>
+        <div class="step">
+          <span class="big" aria-hidden="true">4</span>
           <h3 data-i18n="s4.title">Send it on GitHub</h3>
-          <p data-i18n="s4.body">Add file → Propose changes → Create pull request. Or open an issue and paste your lines in it - both reach us.</p>
+          <p data-i18n="s4.body">Add file → Propose changes → Create pull request. Three buttons. (Or open an issue and paste your lines in it - that reaches me just the same.)</p>
         </div>
-        <div class="card">
-          <span class="step-num" data-i18n="s5.num">STEP 5</span>
-          <h3 data-i18n="s5.title">A maintainer runs one command</h3>
-          <p data-i18n="s5.body">Your file turns into the app's resource for that language, and the table on this page grows a row.</p>
+        <div class="step">
+          <span class="big" aria-hidden="true">5</span>
+          <h3 data-i18n="s5.title">I run one command</h3>
+          <p data-i18n="s5.body">Your file becomes the app's real resource for that language, and the table on this page grows a row - automatically, straight from the strings.</p>
         </div>
-        <div class="card">
-          <span class="step-num" data-i18n="s6.num">IF YOU PREFER</span>
-          <h3 data-i18n="s6.title">Paste it into an issue</h3>
-          <p data-i18n="s6.body">The repository has an issue form called "Translation". Fill it, paste your lines, send. Files never involved.</p>
-        </div>
+      </div>
+      <div class="note" style="margin-top:32px">
+        <span data-i18n="s6"><b>If pull requests scare you:</b> the repository has an issue form called "Translation". Fill it, paste your lines, send. You never touch a file and it works just as well.</span>
       </div>
     </div>
   </section>
 
-  <section id="languages">
+  <section>
     <div class="wrap">
       <div class="section-head">
         <h2 data-i18n="lang.title">Where every language stands</h2>
-        <p data-i18n="lang.sub">Straight from the app's own catalog of strings - this table cannot lie about progress.</p>
+        <p data-i18n="lang.sub">This table is generated from the app's own catalog of strings. I can make it prettier; I cannot make it lie.</p>
       </div>
-      <div class="table" id="language-table">
-        <div class="empty-note" data-i18n="lang.empty">Loading the catalog of languages...</div>
+      <div class="table">
+        <div class="empty-note" id="language-table" data-i18n="lang.empty">Loading the catalog of languages...</div>
       </div>
       <div class="wanted">
         <h3 data-i18n="wanted.title">Not here yet?</h3>
-        <p data-i18n="wanted.body">These languages are waiting for somebody like you:</p>
+        <p data-i18n="wanted.body">These are the languages I get asked about most - one of them might be yours:</p>
         <div class="chips" id="wanted-chips"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head">
+        <h2 data-i18n="honest.title">What this project is not</h2>
+        <p data-i18n="honest.sub">Better said here than discovered later.</p>
+      </div>
+      <div class="plain">
+        <div class="card">
+          <h3 data-i18n="h1.title">It is not official</h3>
+          <p data-i18n="h1.body">WhatsApp did not make this and does not approve of it. Linking it is against their Terms of Service and can get an account banned - that is real, not a formality. Use a test or secondary number.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="h2.title">It is not for your new phone</h3>
+          <p data-i18n="h2.body">It runs on Windows Phone 8.1, the 2014 one. If you still carry a Lumia, or you like rescuing old hardware, you are exactly who this is for.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="h3.title">It is not on a schedule</h3>
+          <p data-i18n="h3.body">One person, spare evenings. Releases come when they are ready and bugs get fixed when they are found. The whole code is open, so you can always see where things stand.</p>
+        </div>
+        <div class="card">
+          <h3 data-i18n="h4.title">A translation can lag behind</h3>
+          <p data-i18n="h4.body">New strings land in English first, and the app falls back to English for those until your language catches up. Nothing breaks - it just speaks two languages for a while.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -383,15 +464,19 @@
       </details>
       <details>
         <summary><span data-i18n="q3">Do the ALL-CAPS words get translated too?</span><span class="plus" aria-hidden="true"></span></summary>
-        <div class="answer" data-i18n="a3">Yes - they are menu and button labels. If your language writes things naturally in lower case, write it that way.</div>
+        <div class="answer" data-i18n="a3">Yes - they are menu and button labels. If your language writes things naturally in lower case, write it that way. The capitals are the app's habit, not a rule of yours.</div>
       </details>
       <details>
         <summary><span data-i18n="q4">How do I see the app in my language later?</span><span class="plus" aria-hidden="true"></span></summary>
         <div class="answer" data-i18n="a4">The app follows the phone. Set the phone to your language and the app is in it - no option to turn on, nothing to download separately.</div>
       </details>
       <details>
-        <summary><span data-i18n="q5">Can I help with something that is not translating?</span><span class="plus" aria-hidden="true"></span></summary>
-        <div class="answer" data-i18n="a5">Yes. The README lists what the project needs: maintainers, reviews, documentation - and the app is unofficial, so a careful reader is worth gold.</div>
+        <summary><span data-i18n="q5">Is this against WhatsApp's rules?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a5">Yes, plainly. It is an unofficial client and using it can get the account banned. I will not pretend otherwise: put a number you can afford to lose on it.</div>
+      </details>
+      <details>
+        <summary><span data-i18n="q6">Can I help with something that is not translating?</span><span class="plus" aria-hidden="true"></span></summary>
+        <div class="answer" data-i18n="a6">Please. The README lists what the project needs: people who review, people who write things down, people who read old logs. A careful reader is worth gold around here.</div>
       </details>
     </div>
   </section>
@@ -399,8 +484,8 @@
   <section>
     <div class="wrap">
       <div class="final">
-        <h2 data-i18n="final.title">Your language can be the next one.</h2>
-        <p data-i18n="final.body">Copy the template, type for as long as you like, and send it the way you prefer. Somebody is always on the other side.</p>
+        <h2 data-i18n="final.title">You got this far - you are probably curious.</h2>
+        <p data-i18n="final.body">Copy the template, take your time, send it however is easiest for you. There is a person on the other side, and he will read every line.</p>
         <div class="cta-row">
           <a class="btn btn-solid" href="https://github.com/vincenzosco/WhatsappForWP/issues/new/choose">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7a8.5 8.5 0 0 1 3.6-11.3 8.38 8.38 0 0 1 8.5.5 8.5 8.5 0 0 1 4 7Z"/></svg>
@@ -430,7 +515,7 @@
         <a href="https://github.com/vincenzosco/WhatsappForWP#disclaimer" data-i18n="foot.disclaimer">Disclaimer</a>
       </nav>
     </div>
-    <p class="fine" data-i18n="foot.fine">Unofficial client. Linking it to WhatsApp is against WhatsApp's Terms of Service and can get an account banned - use a test or secondary number. This page is part of the repository too.</p>
+    <p class="fine" data-i18n="foot.fine">The plain part: this is an unofficial client, linking it to WhatsApp is against their Terms of Service and can get an account banned - use a test or secondary number. This page lives in the repository like everything else here, so it is as open as the code.</p>
   </div>
 </footer>
 
@@ -440,64 +525,69 @@
     'brand': 'WhatsApp per WP',
     'nav.repo': 'Repository',
     'hero.eyebrow': 'Traduzioni della community · 222 stringhe · Windows Phone 8.1',
-    'hero.title': 'Traduci l\'app nella <em>tua lingua</em>.',
-    'hero.lead': 'L\'app oggi parla inglese e italiano. Portarla sulla tua lingua non richiede alcuna programmazione: è un file di testo con le parole inglesi da riscrivere, e una pagina su GitHub per inviarlo.',
+    'hero.title': 'Manca solo <em>la tua lingua</em>.',
+    'hero.lead': 'Questo è un client WhatsApp per Windows Phone 8.1 - il telefono del 2014 che quasi tutti hanno lasciato nel cassetto. Lo scrivo nelle mie sere libere, dal protocollo in su. Oggi parla inglese e italiano, e fra lui e la tua lingua ci sono 222 piccole frasi. Nessuna richiede codice.',
     'hero.cta1': 'Apri il modello',
     'hero.cta2': 'Leggi i cinque passi',
-    'hero.trust': 'Tradurre dieci righe conta esattamente come tradurne duecento. Un errore non può rompere l\'app.',
-    'v1.title': 'Mai codice',
-    'v1.body': 'Ogni stringa è una riga che legge Key = parole. Sostituisci le parole; la chiave la lasci com\'è.',
-    'v2.title': 'Un pezzo alla volta',
-    'v2.body': 'Il file intero sono 222 parole e frasi brevi: pulsanti, menu, notifiche. Invia quello che riesci.',
-    'v3.title': 'Il telefono segue sé stesso',
-    'v3.body': 'Quando una lingua entra, l\'app la usa appena il telefono è impostato su quella lingua. Non c\'è nessuna opzione da cercare.',
-    'v4.title': 'Gli errori si intercettano',
-    'v4.body': 'Lo strumento rifiuta una riga rotta o un {0} perduto e dice esattamente quale riga correggere. Niente di sbagliato può arrivare sul telefono.',
+    'letter.kicker': 'Una nota di chi scrive il codice',
+    'letter.p1': 'Ho costruito questa app perché volevo WhatsApp su una vecchia Lumia, e il client ufficiale non c\'è più. È un progetto strano: il protocollo non è documentato, ogni versione dell\'app ti insegna qualcosa, e la ricompensa è vedere un messaggio arrivare su un telefono che nessuno supporta più.',
+    'letter.p2': 'L\'unica cosa che non posso fare da solo è la lingua. Leggo inglese e italiano; tutto il resto sarebbe una mia scommessa col dizionario, e un menu tradotto da una macchina sembra scritto da una macchina. Quindi le traduzioni sono la prima parte di questo progetto che voglio lasciare in mano ad altri. Ecco cosa posso promettere:',
+    't1': '<b>Mai codice.</b> Ogni stringa è una riga che legge Chiave = parole. Sostituisci le parole; la chiave la lasci com\'è. Se sai scrivere in un file di testo, sai farlo.',
+    't2': '<b>Un pezzo alla volta va benissimo.</b> Il file intero sono 222 parole e frasi brevi: pulsanti, menu, notifiche. Dieci righe oggi e duecento il mese prossimo contano uguale per me.',
+    't3': '<b>Il telefono fa da solo.</b> Quando una lingua entra, l\'app la usa appena il telefono è impostato su quella lingua. Nessuna opzione da cercare, niente da scaricare.',
+    't4': '<b>Niente di rotto può arrivare sul telefono.</b> Lo strumento rifiuta un file con una riga rotta o un {0} perduto, e dice esattamente quale riga guardare. Il peggio che può succedere è un mio commento sulla pull request.',
+    'letter.sign': 'Vincenzo<small>che scrive il codice, piano e volentieri</small>',
+    'letter.ps': 'P.S. Se il modello ti sembra lungo, traduci solo i pulsanti di tutti i giorni - Invia, Chat, Annulla. Cominciano così tutte le lingue. Il resto può aspettare.',
     'how.title': 'Cinque passi, un browser',
-    'how.sub': 'Nessun software da installare e nessun account oltre a GitHub.',
-    's1.num': 'PASSO 1',
+    'how.sub': 'Ci vuole più tempo a leggerli che a farli. Nessun software da installare, nessun account oltre a GitHub.',
     's1.title': 'Copia il modello',
-    's1.body': 'Apri MODELLO.txt su GitHub, premi Raw, seleziona tutto e copia. Quello è il tuo file da riempire.',
-    's2.num': 'PASSO 2',
+    's1.body': 'Apri MODELLO.txt su GitHub, premi Raw, seleziona tutto e copia. Quello è il tuo file da riempire - è generato dalle stringhe vere dell\'app, quindi ha già la misura giusta.',
     's2.title': 'Scrivi la tua lingua sopra l\'inglese',
-    's2.body': 'Va bene una app di note. Lascia intatta la parte prima del segno di uguale e scrivi la traduzione dopo.',
-    's3.num': 'PASSO 3',
+    's2.body': 'Va bene un\'app di note. Lascia intatta la parte prima del segno di uguale e scrivi le tue parole dopo. <em>Chiave = parole</em>, questa è tutta la sintassi.',
     's3.title': 'Dai al file il nome della tua lingua',
-    's3.body': 'fr.txt, es.txt, pt.txt... Non sai quali lettere? Scrivi il nome della lingua quando invii e scegliamo noi il codice.',
-    's4.num': 'PASSO 4',
+    's3.body': 'fr.txt, es.txt, pt.txt... Non sai quali lettere? Scrivi il nome della lingua quando invii e scelgo io il codice.',
     's4.title': 'Invialo su GitHub',
-    's4.body': 'Add file → Propose changes → Create pull request. Oppure apri una issue e incolla le tue righe: entrambi arrivano.',
-    's5.num': 'PASSO 5',
-    's5.title': 'Un maintainer esegue un comando',
-    's5.body': 'Il tuo file diventa la risorsa dell\'app per quella lingua, e la tabella di questa pagina aggiunge una riga.',
-    's6.num': 'SE PREFERISCI',
-    's6.title': 'Incollalo in una issue',
-    's6.body': 'Il repository ha un modulo issue chiamato "Translation". Compilalo, incolla le tue righe, invia. I file non c\'entrano.',
+    's4.body': 'Add file → Propose changes → Create pull request. Tre pulsanti. (Oppure apri una issue e incolla le tue righe: arrivano allo stesso modo.)',
+    's5.title': 'Io eseguo un comando',
+    's5.body': 'Il tuo file diventa la risorsa vera dell\'app per quella lingua, e la tabella di questa pagina aggiunge una riga - da sola, dritta dalle stringhe.',
+    's6': '<b>Se le pull request ti fanno paura:</b> nel repository c\'è un modulo issue chiamato "Translation". Compilalo, incolla le tue righe, invia. Non tocchi nessun file e funziona uguale.',
     'lang.title': 'Dove sta ogni lingua',
-    'lang.sub': 'Diretto dal catalogo di stringhe dell\'app: questa tabella non può mentire sui progressi.',
+    'lang.sub': 'Questa tabella è generata dal catalogo di stringhe dell\'app. La posso rendere più bella; non la posso far mentire.',
     'lang.empty': 'Caricamento del catalogo delle lingue...',
     'wanted.title': 'Manca la tua?',
-    'wanted.body': 'Queste lingue aspettano qualcuno come te:',
+    'wanted.body': 'Queste sono le lingue che mi chiedono più spesso - una può essere la tua:',
+    'honest.title': 'Quello che questo progetto non è',
+    'honest.sub': 'Meglio dirlo qui che scoprirlo dopo.',
+    'h1.title': 'Non è ufficiale',
+    'h1.body': 'WhatsApp non l\'ha fatto e non lo approva. Collegarlo è contro i loro Termini di Servizio e può far bandire un account: è vero, non è una formalità. Usa un numero di prova o secondario.',
+    'h2.title': 'Non è per il telefono nuovo',
+    'h2.body': 'Gira su Windows Phone 8.1, quello del 2014. Se giri ancora con una Lumia, o ti piace recuperare il ferro vecchio, esattamente questo fa per te.',
+    'h3.title': 'Non ha una scadenza',
+    'h3.body': 'Una persona, le sere libere. Le release arrivano quando sono pronte e i bug si aggiustano quando si trovano. Tutto il codice è aperto, quindi vedi sempre come stanno le cose.',
+    'h4.title': 'Una traduzione può restare indietro',
+    'h4.body': 'Le stringhe nuove arrivano prima in inglese, e l\'app per quelle torna all\'inglese finché la tua lingua non le raggiunge. Niente si rompe - per un po\' parla due lingue.',
     'faq.title': 'Le cose che chiedono tutti',
     'q1': 'Cosa fa {0} in alcune righe?',
     'a1': 'È uno spazio che l\'app riempie dopo: {0} unread messages diventa 5 messaggi non letti. Tieni ogni {0} e {1} esattamente come sono nell\'originale - le parole intorno sono tue.',
     'q2': 'E se sbaglio qualcosa?',
     'a2': 'Non succede niente di male. Lo strumento rifiuta un file con righe rotte o con gli spazi persi, e nomina la riga esatta da correggere. Nel caso peggiore c\'è un commento gentile sulla pull request.',
     'q3': 'Anche le parole in MAIUSCOLO si traducono?',
-    'a3': 'Sì: sono etichette di menu e pulsanti. Se la tua lingua scrive in minuscolo in modo naturale, scrivila così.',
+    'a3': 'Sì: sono etichette di menu e pulsanti. Se la tua lingua scrive in minuscolo in modo naturale, scrivila così. I maiuscoli sono un\'abitudine dell\'app, non una tua regola.',
     'q4': 'Come vedrò l\'app nella mia lingua poi?',
     'a4': 'L\'app segue il telefono. Imposta il telefono sulla tua lingua e l\'app è in quella lingua - nessuna opzione da attivare, nulla da scaricare.',
-    'q5': 'Posso aiutare in altro modo?',
-    'a5': 'Sì. Il README elenca di cosa ha bisogno il progetto: maintainer, revisioni, documentazione - e l\'app non è ufficiale, quindi un lettore attento vale oro.',
-    'final.title': 'La prossima lingua può essere la tua.',
-    'final.body': 'Copia il modello, scrivi quanto ti pare, invia come preferisci. Dall\'altra parte c\'è sempre qualcuno.',
+    'q5': 'È contro le regole di WhatsApp?',
+    'a5': 'Sì, chiaramente. È un client non ufficiale e usarlo può far bandire l\'account. Non ti farò credere il contrario: mettici un numero che puoi permetterti di perdere.',
+    'q6': 'Posso aiutare in altro modo?',
+    'a6': 'Prego. Il README elenca di cosa ha bisogno il progetto: gente che rivede, gente che scrive le cose, gente che legge i log vecchi. Un lettore attento qui vale oro.',
+    'final.title': 'Sei arrivato fin qui - probabilmente sei curioso.',
+    'final.body': 'Copia il modello, prenditi i tuoi tempi, invia come ti è più comodo. Dall\'altra parte c\'è una persona, e legge ogni riga.',
     'final.cta1': 'Invia una traduzione',
     'final.cta2': 'Apri il modello',
     'foot.tag': 'Un client WhatsApp per Windows Phone 8.1, scritto dal protocollo in su.',
     'foot.guide': 'Guida alla traduzione',
     'foot.issues': 'Issue',
     'foot.disclaimer': 'Disclaimer',
-    'foot.fine': 'Client non ufficiale. Collegarlo a WhatsApp è contro i Termini di Servizio di WhatsApp e può far bandire un account: usa un numero di prova o secondario. Anche questa pagina fa parte del repository.'
+    'foot.fine': 'La parte chiara: questo è un client non ufficiale, collegarlo a WhatsApp è contro i Termini di Servizio di WhatsApp e può far bandire un account - usa un numero di prova o secondario. Questa pagina sta nel repository come tutto il resto qui, ed è aperta quanto il codice.'
   };
 
   var WANTED = [
@@ -519,9 +609,14 @@
     var nodes = document.querySelectorAll('[data-i18n]');
     for (var i = 0; i < nodes.length; i++) {
       var key = nodes[i].getAttribute('data-i18n');
+      // The language table carries its loading text as a translatable label,
+      // but once the rows are in they are the content: a switch of language
+      // must not wipe the table back to "loading".
+      if (key === 'lang.empty' && nodes[i].children.length > 0) continue;
       // A key marked html carries intentional markup - the gold word inside
-      // the title - and plain textContent would flatten it on the first switch.
-      var isHtml = nodes[i].hasAttribute('data-i18n-html');
+      // the title, the bold lead of a truth - and plain textContent would
+      // flatten it on the first switch.
+      var isHtml = nodes[i].hasAttribute('data-i18n-html') || key.indexOf('letter.') === 0 || /^t[1-4]$/.test(key) || key === 's6';
       if (!(key in originals)) originals[key] = isHtml ? nodes[i].innerHTML : nodes[i].textContent;
       var chosen = (locale === 'it' && IT[key]) ? IT[key] : originals[key];
       if (isHtml) nodes[i].innerHTML = chosen; else nodes[i].textContent = chosen;
