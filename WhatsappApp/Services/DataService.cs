@@ -834,7 +834,7 @@ namespace WhatsappApp.Services
             if (string.IsNullOrEmpty(name)) name = incoming.PushName;
             if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(chatId);
 
-            NotificationService.ShowMessage(name, null);
+            NotificationService.ShowMessage(chatId, name, null);
             NotificationService.RememberSender(chatId, name, null, null);
         }
 
@@ -2369,7 +2369,7 @@ namespace WhatsappApp.Services
             if (message.IsIncoming && message.ChatId != _activeChatId && !contact.IsMuted)
                 // The toast and the tile draw text too, and the same rule: a heart of 15.0
                 // in the body was a box on the lock screen as well as in the bubble.
-                NotificationService.ShowMessage(contact.Name, message.ShownText);
+                NotificationService.ShowMessage(message.ChatId, contact.Name, message.ShownText);
 
             // And the tile shows who wrote and how many are waiting: their picture,
             // their name, and the count. Only for a person, not for a group, and only

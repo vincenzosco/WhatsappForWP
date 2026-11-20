@@ -180,18 +180,20 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>An alert for a message that arrived outside the open conversation.</summary>
-        public static void ShowMessage(string title, string body)
+        public static void ShowMessage(string chatId, string title, string body)
         {
             if (!SettingsService.MessageAlertsEnabled)
             {
                 Diag.Ok("toast: suppressed, message alerts are off");
                 return;
             }
-            if (Silenced()) return;
-            Toast(title, body);
+            // No gate for the app being open here: the chat on screen is already
+            // excluded where the message arrives, and a toast over the open app is
+            // the shell's own banner - tapped, it opens the chat it named.
+            Toast(title, body, PinnedTile.NavigationUri(chatId, title));
         }
 
-        /// <summary>Whether the app is visible; messages in front do not need a second alert.</summary>
+        /// <summary>Whether the app is visible; the call arriving now is its own alert.</summary>
         public static void SetForeground(bool foreground)
         {
             _foreground = foreground;
@@ -205,7 +207,6 @@ namespace WhatsappApp.Services
                 Diag.Ok("toast: suppressed, status alerts are off");
                 return;
             }
-            if (Silenced()) return;
             if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;
             Toast(Loc.Get("Notification_Status", "New status"), name);
         }
@@ -230,7 +231,6 @@ namespace WhatsappApp.Services
                 Diag.Ok("toast: suppressed, call alerts are off");
                 return;
             }
-            if (Silenced()) return;
             if (!IsToastNews(KeyMissedCallSeenAt, arrivedAt)) return;
             Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);
         }
@@ -292,10 +292,12 @@ namespace WhatsappApp.Services
             }
         }
 
-        /// <summary>The one rule every alert follows: the phone says nothing while the app is
-        /// on screen, because what the reader is looking at already has the news. A call is its
-        /// own alert then - the call screen is showing it. What matters is the other case: when
-        /// the app is closed this is what lets the background wake speak.</summary>
+        /// <summary>
+        /// Whether the phone is already showing the news of this call. A ringing call
+        /// arrives to cover the screen, so a toast under the call screen is noise. Every
+        /// other alert speaks wherever the reader is: what is on screen already is
+        /// decided where the alert is raised, one message at a time.
+        /// </summary>
         private static bool Silenced()
         {
             if (!_foreground) return false;
@@ -304,6 +306,12 @@ namespace WhatsappApp.Services
         }
 
         private static void Toast(string title, string body)
+        {
+            Toast(title, body, null);
+        }
+
+        /// <summary>Builds the one toast of every alert, with an optional tap-through route.</summary>
+        private static void Toast(string title, string body, Uri destination)
         {
             if (!SettingsService.NotificationsEnabled)
             {
@@ -322,6 +330,10 @@ namespace WhatsappApp.Services
                 var toast = new ShellToast();
                 toast.Title = Cut(title, 60);
                 toast.Content = Cut(body, 200);
+
+                // Tapped, the toast takes the phone where the words point: a message
+                // carries its chat's tile route and the mapper opens it.
+                if (destination != null) toast.NavigationUri = destination;
                 toast.Show();
                 Diag.Ok("toast: shown: " + Cut(title, 40));
             }

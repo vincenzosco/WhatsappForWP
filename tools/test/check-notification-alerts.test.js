@@ -27,7 +27,7 @@ test('un toast costruito fuori dal posto unico salta il permesso', () => {
     /private static void Toast\(string title, string body\)[\s\S]*?\n        \}/,
     'private static void Toast(string title, string body)\n        {\n        }');
   broken.notifications = broken.notifications.replace(
-    /\n            Toast\(title, body\);/,
+    /\n            Toast\(title, body, PinnedTile\.NavigationUri\(chatId, title\)\);/,
     '\n            var xml = ToastNotificationManager.GetTemplateContent(ToastTemplateType.ToastText02);'
     + '\n            ToastNotificationManager.CreateToastNotifier().Show(new ToastNotification(xml));');
   assert.match(alertProblems(broken).join('\n'), /build a toast|Toast\(\)/);

@@ -243,7 +243,8 @@ namespace WhatsappApp.Services
             return null;
         }
 
-        private static Uri NavigationUri(string chatId, string name)
+        /// <summary>The route a tap on the tile - or on a message's toast - follows to the chat.</summary>
+        public static Uri NavigationUri(string chatId, string name)
         {
             string arguments = ArgumentPrefix + chatId + ArgumentSeparator + name;
             return new Uri("/Pages/HomePage.xaml?tile=" + Uri.EscapeDataString(arguments), UriKind.Relative);

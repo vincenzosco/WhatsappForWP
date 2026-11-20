@@ -14,20 +14,23 @@ function slice(startMarker, size) {
   return service.slice(at, at + size);
 }
 
-test('an alert is held back while the app is on screen', () => {
-  // The phone speaks only to somebody who is not looking at it: what is on
-  // screen already has the news, and a toast over the open chat is noise.
-  // This is the rule for every kind of alert, calls included - the call
-  // screen is its own alert.
+test('an alert waits for the call screen and nothing else', () => {
+  // What the reader is looking at decides, and only one thing on the phone IS
+  // the news already: the call screen arriving for the call that is ringing.
+  // Every other alert must speak - the chat on screen and muted chats are
+  // excluded where the message arrives, not here.
+  const call = slice('public static void ShowIncomingCall(string name)', 420);
+  assert.match(call, /Silenced\(\)/,
+    'the call screen is its own alert');
+
   for (const method of [
-    'public static void ShowMessage(string title, string body)',
+    'public static void ShowMessage(string chatId, string title, string body)',
     'public static void ShowStatus(string name, DateTime postedAt)',
-    'public static void ShowIncomingCall(string name)',
     'public static void ShowMissedCall(string name, DateTime arrivedAt)'
   ]) {
     const body = slice(method, 420);
-    assert.match(body, /Silenced\(\)/,
-      method + ' asks the one rule before it speaks');
+    assert.doesNotMatch(body, /Silenced\(\)/,
+      method + ' speaks even while the app is open');
   }
 });
 
@@ -44,7 +47,7 @@ test('a toast always carries words for the shell', () => {
   // and a toast with an empty body is refused by the shell: every alert of a
   // closed app fell silent on those messages. There is always something to
   // read - the fallback name of "a message arrived".
-  const toast = slice('private static void Toast(string title, string body)', 1200);
+  const toast = slice('private static void Toast(string title, string body)', 1700);
   assert.match(toast, /Loc\.Get\("Notification_NewMessage", "New message"\)/,
     'the empty body falls back to words');
   assert.match(toast, /string\.IsNullOrEmpty\(body\)/, 'the body is checked');
@@ -52,7 +55,7 @@ test('a toast always carries words for the shell', () => {
 });
 
 test('every toast decision is in the log', () => {
-  const toast = slice('private static void Toast(string title, string body)', 1200);
+  const toast = slice('private static void Toast(string title, string body)', 1700);
   assert.match(toast, /Diag\.Ok\("toast: shown/,
     'a toast that went to the shell says so');
   assert.match(toast, /Diag\.Ok\("toast: suppressed/,
@@ -72,7 +75,7 @@ test('a switch that turns an alert off says so in the log', () => {
   // The settings that mute a kind of alert returned in silence: a device log
   // could not tell "the switch was off" from "the code never ran".
   for (const method of [
-    'public static void ShowMessage(string title, string body)',
+    'public static void ShowMessage(string chatId, string title, string body)',
     'public static void ShowStatus(string name, DateTime postedAt)',
     'public static void ShowIncomingCall(string name)',
     'public static void ShowMissedCall(string name, DateTime arrivedAt)'

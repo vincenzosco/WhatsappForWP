@@ -215,7 +215,19 @@ namespace WhatsappApp.Services
                 ApplicationData.Current.LocalSettings.Values[KeyEntryPoint] = EntryPoint;
                 ApplicationData.Current.LocalSettings.Values[KeyRegistrationUnavailable] = false;
 
-                Diag.Ok("background: the scheduled check runs about every " + IntervalMinutes + " minute(s)");
+                // Add returning is not the system promising anything: the battery saver
+                // and the phone's background settings can keep the task off. The state is
+                // read back so the log says what the phone will really do.
+                ScheduledAction scheduled = ScheduledActionService.Find(TaskName);
+                bool runs = scheduled != null && scheduled.IsScheduled;
+                if (runs)
+                {
+                    Diag.Ok("background: the scheduled check runs about every " + IntervalMinutes + " minute(s)");
+                }
+                else
+                {
+                    Diag.Ok("background: the registration was accepted but the system keeps the check disabled");
+                }
             }
             catch (InvalidOperationException ex)
             {
@@ -308,8 +320,20 @@ namespace WhatsappApp.Services
                     // that overruns often is disabled for good.
                     for (int pass = 0; pass < 3; pass++)
                     {
+                        // The run budget is a deadline, not a report: a save that starts
+                        // with the budget spent is the run the system kills before
+                        // NotifyComplete, and an agent killed like that is disabled for
+                        // good. What is left decides whether there is another pass.
+                        TimeSpan left = RunBudget - watch.Elapsed;
+                        if (left <= TimeSpan.Zero)
+                        {
+                            Diag.Ok("background: no budget left for the save");
+                            break;
+                        }
+
                         Task<bool> save = DataService.Instance.SaveSnapshotAsync();
-                        if (!save.Wait(SaveSlice))
+                        TimeSpan slice = left < SaveSlice ? left : SaveSlice;
+                        if (!save.Wait(slice))
                         {
                             Diag.Ok("background: the save outlasted its slice");
                             break;
