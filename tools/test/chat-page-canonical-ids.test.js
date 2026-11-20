@@ -28,6 +28,20 @@ test('the page recognises its chat by its canonical id', () => {
     'the active chat check is canonical too');
 });
 
+test('the bind asks whether it is the active chat by its canonical id', () => {
+  // `ActiveChatId` is stored folded but `BindAfterCacheAsync` is handed the row's
+  // spelling and compared the two raw: a chat opened under `@lid` read as "no
+  // longer in front". The bind then skipped the scroll to the newest message and
+  // the older-rows pager, so the conversation opened at its top and an arriving
+  // message never followed it (`AtBottom` is false up there).
+  const start = page.indexOf('private async System.Threading.Tasks.Task BindAfterCacheAsync');
+  const bind = page.slice(start, start + 1200);
+  assert.match(bind, /bool isActiveChat = .*ChatIdFor\(chatId\)/,
+    'the check folds the id it was handed');
+  assert.doesNotMatch(bind, /ActiveChatId == chatId/,
+    'and never compares it raw');
+});
+
 test('the wait for a history burst matches the canonical id', () => {
   const wait = page.slice(page.indexOf('private async System.Threading.Tasks.Task WaitForHistoryAsync'),
     page.indexOf('private async System.Threading.Tasks.Task WaitForHistoryAsync') + 1200);

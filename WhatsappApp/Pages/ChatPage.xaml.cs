@@ -798,7 +798,13 @@ namespace WhatsappApp.Pages
             // the next time this instance is shown. Only the scroll is skipped when
             // the page is no longer the one in front, because a list that is not in
             // the tree has no position to move to.
-            bool isActiveChat = DataService.Instance.ActiveChatId == chatId;
+            // The row opens this page under its own spelling while `ActiveChatId`
+            // is stored under the canonical one, so the two are folded before they
+            // are compared: the raw comparison read a chat opened under `@lid` as
+            // "the reader left" and skipped the scroll to the newest message and the
+            // older-rows pager in silence - a conversation that opened at its top and
+            // never followed an arriving message (`AtBottom` is false up there).
+            bool isActiveChat = DataService.Instance.ActiveChatId == DataService.Instance.ChatIdFor(chatId);
             if (!isActiveChat) Diag.Ok("conversation bind skipped for " + chatId);
 
             ShowNewestPage();
