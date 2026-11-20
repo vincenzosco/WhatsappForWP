@@ -66,7 +66,9 @@ function parseCatalog(xml) {
   const pattern = /<data\s+name="([^"]+)"[^>]*>\s*<value>([\s\S]*?)<\/value>/g;
   let match;
   while ((match = pattern.exec(xml)) !== null) {
-    entries.push({ key: match[1], value: unescapeXml(match[2].trim()) });
+    // The value as it is written: `xml:space="preserve"` is a promise, and a
+    // trim here broke the round trip for a string that keeps spaces.
+    entries.push({ key: match[1], value: unescapeXml(match[2]) });
   }
   return entries;
 }
@@ -85,6 +87,14 @@ function escapeXml(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
+}
+
+/** The rule this repo writes by: a temp file and a rename. A crash between the
+ * two leaves the old file on the phone, never half of the new one. */
+function writeAtomic(file, text) {
+  const temp = file + '.new';
+  fs.writeFileSync(temp, text);
+  fs.renameSync(temp, file);
 }
 
 /**
@@ -210,8 +220,13 @@ function generateResx(entries, header) {
  * Idempotent: a language is registered once, however often the build runs.
  */
 function applyRegistration(csproj, culture) {
+  // Any form of the registration counts - the opening tag with its children and
+  // a self-closing line are the same registration. Asking for the opening tag
+  // down to `">` saw a self-closing one as missing and wrote a second copy.
+  const present = new RegExp('<EmbeddedResource[^>]*Resources\\.' + culture + '\\.resx');
+  if (present.test(csproj)) return { text: csproj, changed: false };
+
   const include = '<EmbeddedResource Include="Strings\\Resources.' + culture + '.resx">';
-  if (csproj.indexOf(include) >= 0) return { text: csproj, changed: false };
 
   const block = '    ' + include + '\n'
     + '      <Culture>' + culture + '</Culture>\n'
@@ -251,7 +266,17 @@ function build(options) {
     };
   }
 
-  const catalog = parseCatalog(fs.readFileSync(path.join(stringsDir(root), NEUTRAL_FILE), 'utf8'));
+  const catalogPath = path.join(stringsDir(root), NEUTRAL_FILE);
+  if (!fs.existsSync(catalogPath)) {
+    return {
+      written: false,
+      errors: [{ line: 0, message: 'the app strings are missing: ' + catalogPath }],
+      translated: 0,
+      total: 0,
+      coverage: 0
+    };
+  }
+  const catalog = parseCatalog(fs.readFileSync(catalogPath, 'utf8'));
   const parsed = parseTranslationFile(options.text);
   const errors = parsed.errors.concat(checkEntries(parsed.entries, catalog));
   if (errors.length > 0) {
@@ -264,15 +289,21 @@ function build(options) {
     .filter((entry) => kept.has(entry.key))
     .map((entry) => ({ key: entry.key, value: kept.get(entry.key) }));
 
-  fs.writeFileSync(
-    path.join(stringsDir(root), 'Resources.' + culture + '.resx'),
-    generateResx(ordered, resxHeader(root)));
-
+  // Everything is answered before anything is written: a refused build leaves
+  // the repository exactly as it was.
   const registration = applyRegistration(fs.readFileSync(coreProject(root), 'utf8'), culture);
   if (registration.error) {
     return { written: false, errors: [{ line: 0, message: registration.error }], translated: 0, total: catalog.length, coverage: 0 };
   }
-  if (registration.changed) fs.writeFileSync(coreProject(root), registration.text);
+
+  writeAtomic(
+    path.join(stringsDir(root), 'Resources.' + culture + '.resx'),
+    generateResx(ordered, resxHeader(root)));
+  if (registration.changed) writeAtomic(coreProject(root), registration.text);
+
+  // The numbers the site shows are the catalog's own: a build that changed the
+  // languages refreshes them, so the table cannot go stale behind it.
+  writeStatus(root, languageStatus(root));
 
   return {
     written: true,
@@ -326,10 +357,26 @@ function writeStatus(root, status) {
     languages: status.languages
   };
   const out = path.join(site, 'status.json');
-  fs.writeFileSync(out, JSON.stringify(payload, null, 2) + '\n');
-  fs.writeFileSync(path.join(site, 'status.js'),
+  writeAtomic(out, JSON.stringify(payload, null, 2) + '\n');
+  writeAtomic(path.join(site, 'status.js'),
     'window.SITE_STATUS = ' + JSON.stringify(payload, null, 2) + ';\n');
   return out;
+}
+
+/**
+ * The template on disk against the catalog that would write it. The template is
+ * generated (`export`); a string that never reached it is drift, and the guard
+ * names it - the translators would otherwise fill in a file the build ignores.
+ */
+function modelloDrift(root) {
+  const catalogPath = path.join(stringsDir(root), NEUTRAL_FILE);
+  const out = path.join(root, 'traduzioni', 'MODELLO.txt');
+  if (!fs.existsSync(catalogPath) || !fs.existsSync(out)) return null;
+  const catalog = parseCatalog(fs.readFileSync(catalogPath, 'utf8'));
+  const wanted = templateFile(catalog).replace(/\r\n/g, '\n');
+  const have = fs.readFileSync(out, 'utf8').replace(/\r\n/g, '\n');
+  return have === wanted ? null
+    : 'traduzioni/MODELLO.txt is not the catalog this app holds - run: node tools/translation-kit.js export';
 }
 
 function readArguments(argv) {
@@ -351,9 +398,15 @@ function main(argv) {
 
   if (command === 'export') {
     const root = args.root;
-    const catalog = parseCatalog(fs.readFileSync(path.join(stringsDir(root), NEUTRAL_FILE), 'utf8'));
+    const strings = path.join(stringsDir(root), NEUTRAL_FILE);
+    if (!fs.existsSync(strings)) {
+      process.stderr.write('the app strings are missing: ' + strings + '\n');
+      return 1;
+    }
+    const catalog = parseCatalog(fs.readFileSync(strings, 'utf8'));
     const out = path.join(root, 'traduzioni', 'MODELLO.txt');
-    fs.writeFileSync(out, templateFile(catalog));
+    fs.mkdirSync(path.dirname(out), { recursive: true });
+    writeAtomic(out, templateFile(catalog));
     process.stdout.write('written ' + catalog.length + ' keys to ' + out + '\n');
     return 0;
   }
@@ -366,10 +419,16 @@ function main(argv) {
       return 2;
     }
 
+    const input = path.resolve(file);
+    if (!fs.existsSync(input)) {
+      process.stderr.write('the translation file is missing: ' + input + '\n');
+      return 1;
+    }
+
     const result = build({
       root: args.root,
       culture: culture,
-      text: fs.readFileSync(path.resolve(file), 'utf8')
+      text: fs.readFileSync(input, 'utf8')
     });
 
     for (const error of result.errors) process.stderr.write(error.message + '\n');
@@ -411,6 +470,7 @@ module.exports = {
   cultureIsSane: cultureIsSane,
   languageStatus: languageStatus,
   writeStatus: writeStatus,
+  modelloDrift: modelloDrift,
   build: build,
   main: main
 };

@@ -4,7 +4,7 @@ You do not need to write code, install anything, or even have a computer.
 If you can use GitHub in a browser, you can translate this app into your
 language.
 
-The app has **222 short strings** - buttons, menus, notifications. Today
+The app has **223 short strings** - buttons, menus, notifications. Today
 they exist in English and Italian. Your language can be next.
 
 ## What you will do

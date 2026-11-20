@@ -3,7 +3,7 @@
 Non devi scrivere codice, installare niente, nemmeno avere un computer. Se
 sai usare GitHub nel browser, puoi tradurre questa app nella tua lingua.
 
-L'app ha **222 stringhe brevi** - pulsanti, menu, notifiche. Oggi esistono
+L'app ha **223 stringhe brevi** - pulsanti, menu, notifiche. Oggi esistono
 in inglese e in italiano. La lingua successiva può essere la tua.
 
 ## Cosa devi fare

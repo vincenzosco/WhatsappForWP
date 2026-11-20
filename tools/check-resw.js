@@ -76,7 +76,7 @@ for (const lang of LANGS) {
 // the translation kit brings in: an unregistered .resx is a language the
 // phone can never see even though the file looks finished.
 for (const name of fs.readdirSync(STRINGS)) {
-  if (!/^Resources(\.[A-Za-z-]+)?\.resx$/.test(name)) continue;
+  if (!/^Resources(\.[A-Za-z0-9-]+)?\.resx$/.test(name)) continue;
   const include = 'Strings\\' + name;
   if (!coreProject.includes('<EmbeddedResource Include="' + include + '"')) {
     problems.push('WhatsappApp.Core/WhatsappApp.Core.csproj: "' + include +
@@ -84,8 +84,13 @@ for (const name of fs.readdirSync(STRINGS)) {
   }
 }
 
-const defaultLanguage = /<DefaultLanguage>([^<]+)<\/DefaultLanguage>/.exec(appProject);
-if (!defaultLanguage) {
+// The template the translators fill in is generated from the catalog: drift
+// between the two is somebody translating strings this build does not hold.
+const kit = require('./translation-kit.js');
+const drift = kit.modelloDrift(ROOT);
+if (drift) problems.push(drift);
+
+const defaultLanguage = /<DefaultLanguage>([^<]+)<\/DefaultLanguage>/.exec(appProject);if (!defaultLanguage) {
   problems.push('WhatsappApp/WhatsApp.csproj: no <DefaultLanguage>');
 } else if (LANGS.indexOf(defaultLanguage[1]) < 0) {
   problems.push('WhatsappApp/WhatsApp.csproj: <DefaultLanguage>' + defaultLanguage[1] +

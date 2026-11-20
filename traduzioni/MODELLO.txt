@@ -15,6 +15,7 @@ CallsPage_Scanning = Looking for calls...
 CallsPage_Answered = Answered call
 CallsPage_Missed = Missed call
 Notification_MissedCall = Missed call
+Notification_NewMessage = New message
 Notification_Status = New status
 CallsPage_Declined = Declined call
 CallsPage_Busy = Call, line busy
