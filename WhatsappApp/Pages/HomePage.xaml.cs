@@ -321,7 +321,9 @@ namespace WhatsappApp.Pages
 
             if (call.Expired(DateTime.UtcNow, DataService.CallSetupSeconds))
             {
+#pragma warning disable 4014
                 Guarded.RunGuardedAsync("HomePage/no answer", DataService.Instance.EndUnansweredCallAsync());
+#pragma warning restore 4014
                 return;
             }
             ShowCall();
@@ -341,12 +343,16 @@ namespace WhatsappApp.Pages
 
         private void AcceptCall_Click(object sender, RoutedEventArgs e)
         {
+#pragma warning disable 4014
             Guarded.RunGuardedAsync("HomePage/accept call", DataService.Instance.AcceptCallAsync());
+#pragma warning restore 4014
         }
 
         private void DeclineCall_Click(object sender, RoutedEventArgs e)
         {
+#pragma warning disable 4014
             Guarded.RunGuardedAsync("HomePage/decline call", DataService.Instance.DeclineCallAsync());
+#pragma warning restore 4014
         }
 
         private void EndCall_Click(object sender, RoutedEventArgs e)
@@ -356,7 +362,9 @@ namespace WhatsappApp.Pages
                 DataService.Instance.DismissCall();
                 return;
             }
+#pragma warning disable 4014
             Guarded.RunGuardedAsync("HomePage/end call", DataService.Instance.EndCallAsync());
+#pragma warning restore 4014
         }
 
         private const int ListRefreshSeconds = DataService.ListRefreshSeconds;
@@ -547,7 +555,9 @@ namespace WhatsappApp.Pages
 
         private void PinChatsAppBarMenuItem_Click(object sender, EventArgs e)
         {
+#pragma warning disable 4014
             Guarded.RunGuardedAsync("HomePage/pin chats", ShowPinPickerAsync());
+#pragma warning restore 4014
         }
 
         private void UnpinAllAppBarMenuItem_Click(object sender, EventArgs e)
@@ -572,7 +582,9 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void ResyncChatsAppBarMenuItem_Click(object sender, EventArgs e)
         {
+#pragma warning disable 4014
             Guarded.RunGuardedAsync("HomePage/resync chats", DataService.Instance.ResyncChatsAsync());
+#pragma warning restore 4014
         }
 
         private void MarkAllStatusesAppBarMenuItem_Click(object sender, EventArgs e)
@@ -608,7 +620,9 @@ namespace WhatsappApp.Pages
                 }
 
                 string jid = phone + "@s.whatsapp.net";
+#pragma warning disable 4014
                 Guarded.RunGuardedAsync("HomePage/start call", StartCallAndOpenAsync(jid));
+#pragma warning restore 4014
             };
             picker.Completed += handler;
             try
