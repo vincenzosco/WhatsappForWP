@@ -183,6 +183,10 @@ test('the status line-up counts what each language has', () => {
   const site = JSON.parse(fs.readFileSync(written, 'utf8'));
   assert.equal(site.neutral, 3);
   assert.equal(site.languages.length, status.languages.length);
+
+  // The page reads a plain script beside the json: no fetch, opens anywhere.
+  const script = fs.readFileSync(path.join(root, 'site', 'status.js'), 'utf8');
+  assert.match(script, /^window\.SITE_STATUS = \{/);
 });
 
 test('a translated line keeps its placeholders in order to pass', () => {

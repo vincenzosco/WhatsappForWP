@@ -315,16 +315,20 @@ function languageStatus(root) {
   return { neutral: catalog.length, languages: languages };
 }
 
-/** The file the site reads for its language table. */
+/** The files the site reads for its language table: json for tools, a plain
+ * script for the page, so a browser needs no fetch to see the numbers. */
 function writeStatus(root, status) {
   const site = path.join(root, 'site');
   if (!fs.existsSync(site)) fs.mkdirSync(site, { recursive: true });
 
-  const out = path.join(site, 'status.json');
-  fs.writeFileSync(out, JSON.stringify({
+  const payload = {
     neutral: status.neutral,
     languages: status.languages
-  }, null, 2) + '\n');
+  };
+  const out = path.join(site, 'status.json');
+  fs.writeFileSync(out, JSON.stringify(payload, null, 2) + '\n');
+  fs.writeFileSync(path.join(site, 'status.js'),
+    'window.SITE_STATUS = ' + JSON.stringify(payload, null, 2) + ';\n');
   return out;
 }
 
