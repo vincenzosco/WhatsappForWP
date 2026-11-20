@@ -668,6 +668,11 @@ namespace WhatsappApp.Services
         /// <summary>A chat row is new or has changed: the history brought it, or a message did.</summary>
         public event EventHandler<HistoryConversation> ChatArrived;
 
+        /// <summary>A message this build cannot draw - a sticker, a poll, a contact card -
+        /// arriving in a chat. The row takes the time and the place; the alert is this
+        /// event, so the news travels even when the bubble cannot.</summary>
+        public event EventHandler<IncomingMessage> AlertArrived;
+
         /// <summary>
         /// A chat that was keyed on a `@lid` is now keyed on its phone number. The pages that
         /// keep a row per JID (`DataService`, with its preferences and message collections)
@@ -3254,6 +3259,16 @@ namespace WhatsappApp.Services
 
             HistoryConversation row = _chats.Find(incoming.Chat);
             if (row != null) _chats.RefreshName(row);
+
+            // The row moved, but the news is still news: a sticker, a poll or a contact
+            // card this build cannot draw is an unread message to whoever is not looking.
+            // It counts and it alerts - what it does not do is add a bubble.
+            if (!incoming.IsOurEcho)
+            {
+                if (row != null) row.UnreadCount++;
+                if (AlertArrived != null) AlertArrived(this, incoming);
+            }
+
             if (row != null && ChatArrived != null) ChatArrived(this, row);
 
             Diag.Ok("native: " + incoming.Chat + " is in the list from a message this build does not draw");

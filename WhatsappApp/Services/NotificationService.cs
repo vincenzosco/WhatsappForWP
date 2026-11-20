@@ -18,21 +18,16 @@ namespace WhatsappApp.Services
     {
         private static readonly SerialQueue TileWrites = new SerialQueue();
 
-        /// <summary>The newest person and message used by the app tile.</summary>
-        private static string _senderName;
-        private static string _senderImage;
-        private static string _senderBody;
+        /// <summary>The conversations the app tile cycles through, newest first.</summary>
         private static IList<TileEntry> _waiting = new List<TileEntry>();
 
         private static bool _backgroundCheck;
-        private static bool _foreground;
+        private static volatile bool _foreground;
         private static int _unread;
         private static int _unseenStatuses;
         private static bool _tileDrawn;
 
-        private const string KeySender = "Tile.Sender";
-        private const string KeyBody = "Tile.Body";
-        private const string KeyImage = "Tile.Image";
+        private const string KeyWaiting = "Tile.Waiting";
         private const string KeyUnread = "Tile.Unread";
         private const string KeyStatuses = "Tile.Statuses";
         private const string KeyStatusSeenAt = "Notifications.StatusSeenAt";
@@ -59,13 +54,8 @@ namespace WhatsappApp.Services
         {
             try
             {
-                _senderName = name;
-                _senderBody = body;
-
                 TileCard card = await StoreTileImageAsync(chatId, avatarData);
                 string image = card == null ? null : card.Square;
-                _senderImage = image;
-                RememberLastMessage(name, body, image);
 
                 var entry = new TileEntry();
                 entry.ChatId = chatId;
@@ -73,6 +63,7 @@ namespace WhatsappApp.Services
                 entry.Body = body;
                 entry.Image = image;
                 _waiting = TileCycle.Remember(_waiting, entry);
+                RememberWaiting();
 
                 RenderTile();
             }
@@ -99,17 +90,35 @@ namespace WhatsappApp.Services
             return builder.ToString();
         }
 
-        private static void RememberLastMessage(string name, string body, string image)
+        /// <summary>The queue on the phone, one slot per conversation in the order the tile
+        /// turns through them. The waiting list is memory: without these slots every quiet
+        /// run and every start of the app redrew the tile from an empty queue and wiped the
+        /// face and the count the last run had left on it.</summary>
+        private static void RememberWaiting()
         {
             try
             {
-                ApplicationData.Current.LocalSettings.Values[KeySender] = name ?? "";
-                ApplicationData.Current.LocalSettings.Values[KeyBody] = body ?? "";
-                ApplicationData.Current.LocalSettings.Values[KeyImage] = image ?? "";
+                IList<TileEntry> waiting = _waiting ?? new List<TileEntry>();
+                for (int i = 0; i < TileCycle.MaxEntries; i++)
+                {
+                    if (i < waiting.Count && waiting[i] != null && !string.IsNullOrEmpty(waiting[i].ChatId))
+                    {
+                        var slot = new ApplicationDataCompositeValue();
+                        slot["chat"] = waiting[i].ChatId ?? "";
+                        slot["sender"] = waiting[i].Sender ?? "";
+                        slot["body"] = waiting[i].Body ?? "";
+                        slot["image"] = waiting[i].Image ?? "";
+                        ApplicationData.Current.LocalSettings.Values[KeyWaiting + i] = slot;
+                    }
+                    else
+                    {
+                        ApplicationData.Current.LocalSettings.Values.Remove(KeyWaiting + i);
+                    }
+                }
             }
             catch (Exception ex)
             {
-                Diag.Failed("NotificationService/RememberLastMessage", ex);
+                Diag.Failed("NotificationService/RememberWaiting", ex);
             }
         }
 
@@ -117,20 +126,29 @@ namespace WhatsappApp.Services
         {
             try
             {
+                // The waiting list is rebuilt oldest first: `TileCycle.Remember` puts what
+                // it is given in front, and slot 0 is the newest conversation.
+                var restored = new List<TileEntry>();
+                for (int i = 0; i < TileCycle.MaxEntries; i++)
+                {
+                    var slot = ApplicationData.Current.LocalSettings.Values[KeyWaiting + i]
+                        as ApplicationDataCompositeValue;
+                    if (slot == null) continue;
+
+                    var entry = new TileEntry();
+                    entry.ChatId = slot["chat"] as string;
+                    entry.Sender = slot["sender"] as string;
+                    entry.Body = slot["body"] as string;
+                    string image = slot["image"] as string;
+                    entry.Image = TileImage.IsCurrentCard(image) ? image : null;
+                    if (string.IsNullOrEmpty(entry.ChatId)) continue;
+                    restored.Add(entry);
+                }
+                for (int i = restored.Count - 1; i >= 0; i--)
+                {
+                    _waiting = TileCycle.Remember(_waiting, restored[i]);
+                }
                 object value;
-                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeySender, out value) && value != null)
-                {
-                    _senderName = value.ToString();
-                }
-                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyBody, out value) && value != null)
-                {
-                    _senderBody = value.ToString();
-                }
-                if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyImage, out value) && value != null)
-                {
-                    string image = value.ToString();
-                    _senderImage = TileImage.IsCurrentCard(image) ? image : null;
-                }
                 if (ApplicationData.Current.LocalSettings.Values.TryGetValue(KeyUnread, out value)
                     && value is int)
                 {
@@ -164,7 +182,11 @@ namespace WhatsappApp.Services
         /// <summary>An alert for a message that arrived outside the open conversation.</summary>
         public static void ShowMessage(string title, string body)
         {
-            if (!SettingsService.MessageAlertsEnabled) return;
+            if (!SettingsService.MessageAlertsEnabled)
+            {
+                Diag.Ok("toast: suppressed, message alerts are off");
+                return;
+            }
             if (Silenced()) return;
             Toast(title, body);
         }
@@ -178,7 +200,11 @@ namespace WhatsappApp.Services
         /// <summary>A status post that is newer than this phone's last announced update.</summary>
         public static void ShowStatus(string name, DateTime postedAt)
         {
-            if (!SettingsService.StatusAlertsEnabled) return;
+            if (!SettingsService.StatusAlertsEnabled)
+            {
+                Diag.Ok("toast: suppressed, status alerts are off");
+                return;
+            }
             if (Silenced()) return;
             if (!IsToastNews(KeyStatusSeenAt, postedAt)) return;
             Toast(Loc.Get("Notification_Status", "New status"), name);
@@ -187,7 +213,11 @@ namespace WhatsappApp.Services
         /// <summary>An incoming call alert.</summary>
         public static void ShowIncomingCall(string name)
         {
-            if (!SettingsService.CallAlertsEnabled) return;
+            if (!SettingsService.CallAlertsEnabled)
+            {
+                Diag.Ok("toast: suppressed, call alerts are off");
+                return;
+            }
             if (Silenced()) return;
             Toast(Loc.Get("Notification_IncomingCall", "Incoming call"), name);
         }
@@ -195,7 +225,11 @@ namespace WhatsappApp.Services
         /// <summary>A missed-call alert that is raised only once for each call-log watermark.</summary>
         public static void ShowMissedCall(string name, DateTime arrivedAt)
         {
-            if (!SettingsService.CallAlertsEnabled) return;
+            if (!SettingsService.CallAlertsEnabled)
+            {
+                Diag.Ok("toast: suppressed, call alerts are off");
+                return;
+            }
             if (Silenced()) return;
             if (!IsToastNews(KeyMissedCallSeenAt, arrivedAt)) return;
             Toast(Loc.Get("Notification_MissedCall", "Missed call"), name);
@@ -324,6 +358,7 @@ namespace WhatsappApp.Services
         public static void Forget(string chatId)
         {
             _waiting = TileCycle.Forget(_waiting, chatId);
+            RememberWaiting();
         }
 
         /// <summary>Recomposes the shell tile after its theme image changes.</summary>
@@ -335,10 +370,8 @@ namespace WhatsappApp.Services
         /// <summary>Clears tile and unread state when this app starts serving another account.</summary>
         public static void ResetForNewAccount()
         {
-            _senderName = null;
-            _senderImage = null;
-            _senderBody = null;
             _waiting = new List<TileEntry>();
+            RememberWaiting();
             _unread = 0;
             _unseenStatuses = 0;
             _tileDrawn = false;
@@ -351,6 +384,7 @@ namespace WhatsappApp.Services
         public static void ForgetAll()
         {
             _waiting = new List<TileEntry>();
+            RememberWaiting();
         }
 
         private static void RememberUnread(int count)

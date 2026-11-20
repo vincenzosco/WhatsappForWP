@@ -184,6 +184,7 @@ namespace WhatsappApp.Services
             // every message arrives twice.
             NativeConnection.Instance.MessageArrived += OnNativeMessage;
             NativeConnection.Instance.ChatArrived += OnNativeChat;
+            NativeConnection.Instance.AlertArrived += OnNativeAlert;
             NativeConnection.Instance.ChatMerged += OnChatMerged;
             NativeConnection.Instance.HistoryFinished += OnNativeHistoryFinished;
             NativeConnection.Instance.SyncProgress += OnNativeSyncProgress;
@@ -811,6 +812,32 @@ namespace WhatsappApp.Services
                 "DataService/save soon");
         }
 
+        /// <summary>A message this build cannot draw - a sticker, a poll, a contact card -
+        /// is still news to whoever is not looking. The row took the time and the place and
+        /// no bubble was added; this is the alert, and it follows the same rules as a
+        /// message's: silence in front of the reader, a toast on a phone that is closed.
+        /// </summary>
+        private void OnNativeAlert(object sender, WhatsappApp.Protocol.Client.IncomingMessage incoming)
+        {
+            if (incoming == null || string.IsNullOrEmpty(incoming.Chat)) return;
+
+            string chatId = ChatIdFor(incoming.Chat);
+            if (string.IsNullOrEmpty(chatId)) return;
+            if (chatId == _activeChatId) return;
+
+            Contact contact = FindContact(chatId);
+            if (contact != null && contact.IsMuted) return;
+            if (ChatPreferences.IsMuted(chatId)) return;
+
+            string name = contact == null ? null : contact.Name;
+            if (string.IsNullOrEmpty(name)) name = SavedNameFor(chatId);
+            if (string.IsNullOrEmpty(name)) name = incoming.PushName;
+            if (string.IsNullOrEmpty(name)) name = DisplayNameForJid(chatId);
+
+            NotificationService.ShowMessage(name, null);
+            NotificationService.RememberSender(chatId, name, null, null);
+        }
+
         /// <summary>
         /// One message off the native client, into the one path every message takes.
         /// The list, the unread counts, the previews, the preferences and the caches are one
@@ -1118,9 +1145,11 @@ namespace WhatsappApp.Services
             Diag.Ok("chats: resync done");
         }
 
-        public async Task SaveSnapshotAsync()
+        public async Task<bool> SaveSnapshotAsync()
         {
-            if (_resettingAccount) return;
+            // The account is being wiped: there is nothing to save and nothing a
+            // retry would find.
+            if (_resettingAccount) return true;
 
             // Both taken in one go, without an await in the middle: the rows and the
             // messages written here have to be one instant of the list, not the list as it
@@ -1130,7 +1159,7 @@ namespace WhatsappApp.Services
 
             // A list with no rows is not a snapshot of anything: the copy on the phone
             // stays, and the next start shows it instead of nothing.
-            if (rows.Count == 0) return;
+            if (rows.Count == 0) return true;
 
             // **The list first, the conversations after it**, and the order is the whole
             // point. Every tail is a read and a write of its own file, one at a time through
@@ -1145,6 +1174,7 @@ namespace WhatsappApp.Services
             Diag.Ok("cache: the list written, " + rows.Count + " row(s)");
 
             int written = 0;
+            int skipped = 0;
             for (int i = 0; i < tails.Count; i++)
             {
                 // The rows were copied when this method began, and the loop writes one
@@ -1164,7 +1194,11 @@ namespace WhatsappApp.Services
 
                 ObservableCollection<ChatMessage> live;
                 if (!_chatMessages.TryGetValue(tails[i].Key, out live)) continue;
-                if (live.Count != tails[i].Value.Length) continue;
+                if (live.Count != tails[i].Value.Length)
+                {
+                    skipped++;
+                    continue;
+                }
 
                 // Merged with the file and not written over it: this process may hold
                 // only the messages that arrived while it was up, and the tail that was
@@ -1176,6 +1210,11 @@ namespace WhatsappApp.Services
             // Named, because it is the second half of the snapshot and a close can land in
             // the middle of it: a run whose log stops at the line above lost only the tails.
             Diag.Ok("cache: " + written + " conversation(s) written of " + tails.Count + " held");
+
+            // False means a conversation moved while it was being written and the walk
+            // skipped it: the caller that must not lose it saves again. The background run
+            // is that caller - it has no "next snapshot", only this one.
+            return skipped == 0;
         }
 
         /// <summary>

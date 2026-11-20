@@ -86,7 +86,7 @@ test('un badge che non confronta le righe con la visita non scende neanche', () 
 test('un avviso che ignora il suo interruttore suona anche spento', () => {
   const broken = files();
   broken.notifications = broken.notifications.replace(
-    'if (!SettingsService.StatusAlertsEnabled) return;', '');
+    'if (!SettingsService.StatusAlertsEnabled)', 'if (!true)');
   assert.match(alertProblems(broken).join('\n'), /StatusAlertsEnabled/);
 });
 

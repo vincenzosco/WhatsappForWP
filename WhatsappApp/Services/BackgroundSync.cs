@@ -61,6 +61,11 @@ namespace WhatsappApp.Services
         /// </summary>
         private static readonly TimeSpan RunBudget = TimeSpan.FromSeconds(20);
 
+        /// <summary>What one pass of the end-of-run save may take. Three passes fit the
+        /// budget, and a save that outlasts its slice gives up rather than cost the run its
+        /// clean end.</summary>
+        private static readonly TimeSpan SaveSlice = TimeSpan.FromSeconds(8);
+
         /// <summary>How long a run waits for the login before it gives up.</summary>
         private static readonly TimeSpan ConnectLimit = TimeSpan.FromSeconds(8);
 
@@ -294,7 +299,24 @@ namespace WhatsappApp.Services
                 // returns, and a write still in flight would be a file half written.
                 try
                 {
-                    DataService.Instance.SaveSnapshotAsync().Wait();
+                    // The snapshot is saved until it covers every tail it holds: a
+                    // conversation that changed while it was written is skipped by the
+                    // save ("the next snapshot covers it") and this run has no next
+                    // snapshot - the message is acknowledged and the server never sends
+                    // it again. The passes are bounded, and so is each wait: a run the
+                    // phone kills for overrunning leaves no NotifyComplete, and an agent
+                    // that overruns often is disabled for good.
+                    for (int pass = 0; pass < 3; pass++)
+                    {
+                        Task<bool> save = DataService.Instance.SaveSnapshotAsync();
+                        if (!save.Wait(SaveSlice))
+                        {
+                            Diag.Ok("background: the save outlasted its slice");
+                            break;
+                        }
+                        if (save.Result) break;
+                        Diag.Ok("background: a chat changed under the save; saving again");
+                    }
                 }
                 catch (Exception ex)
                 {

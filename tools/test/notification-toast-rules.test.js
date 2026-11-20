@@ -67,3 +67,24 @@ test('the fallback words exist in both languages', () => {
   assert.match(en, /<data name="Notification_NewMessage"/);
   assert.match(it, /<data name="Notification_NewMessage"/);
 });
+
+test('a switch that turns an alert off says so in the log', () => {
+  // The settings that mute a kind of alert returned in silence: a device log
+  // could not tell "the switch was off" from "the code never ran".
+  for (const method of [
+    'public static void ShowMessage(string title, string body)',
+    'public static void ShowStatus(string name, DateTime postedAt)',
+    'public static void ShowIncomingCall(string name)',
+    'public static void ShowMissedCall(string name, DateTime arrivedAt)'
+  ]) {
+    const body = slice(method, 560);
+    assert.match(body, /Diag\.Ok\("toast: suppressed/,
+      method + ' names the switch that silenced it');
+  }
+});
+
+test('the one rule reads the app state as it now is', () => {
+  // The flag the rule reads is written from the screen thread and read from
+  // the network dispatch: a plain field can be seen stale for a moment.
+  assert.match(service, /private static volatile bool _foreground/);
+});
