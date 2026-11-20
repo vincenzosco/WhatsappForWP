@@ -155,7 +155,7 @@ function launchRouteProblems(files) {
     problems.push('WhatsappApp/Pages/HomePage.xaml.cs: no OpenPinnedChat() - a pinned chat tile has ' +
       'nothing that can open the chat it names');
   }
-  if (!/home\.OpenPinnedChat\s*\(\s*\)/.test(files.app)) {
+  if (!/home\.OpenPinnedChat\s*\(/.test(files.app)) {
     problems.push('WhatsappApp/App.xaml.cs: OnLaunched never calls home.OpenPinnedChat() - ' +
       'the resume case is the common one (the app is still alive behind the Start screen)');
   }

@@ -97,13 +97,13 @@ test('una chiamata persa che arriva senza rotta non e raggiungibile', () => {
 
 test('una tile di chat che nessuno apre resta una tile che non fa niente', () => {
   const broken = files();
-  broken.app = broken.app.replace('home.OpenPinnedChat();', ';');
+  broken.app = broken.app.replace('home.OpenPinnedChat(mode == NavigationMode.New);', ';');
   assert.match(launchRouteProblems(broken).join('\n'), /OpenPinnedChat/);
 });
 
 test('una home senza il metodo della chat pinnata non puo aprirla', () => {
   const broken = files();
-  broken.home = broken.home.replace('public void OpenPinnedChat()', 'private void NeverCalled()');
+  broken.home = broken.home.replace('public void OpenPinnedChat(bool freshArrival)', 'private void NeverCalled()');
   assert.match(launchRouteProblems(broken).join('\n'), /OpenPinnedChat/);
 });
 

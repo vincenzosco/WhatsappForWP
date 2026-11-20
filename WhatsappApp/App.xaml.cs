@@ -143,18 +143,19 @@ namespace WhatsappApp
             _initialNavigationPending = false;
             string route = e.Uri == null ? "unknown" : e.Uri.ToString();
             Diag.Ok("App/navigation landed on " + route);
-            OpenPendingChat();
+            OpenPendingChat(e.NavigationMode);
             DepositPickerContinuation();
         }
 
         /// <summary>
         /// If a pinned tile asked for a conversation, the home page opens it now that the
-        /// home page exists.
+        /// home page exists. The kind of navigation that just landed is passed on: only a
+        /// new arrival is the tap, and a way back must not reopen the chat.
         /// </summary>
-        private void OpenPendingChat()
+        private void OpenPendingChat(NavigationMode mode)
         {
             HomePage home = _rootFrame.Content as HomePage;
-            if (home != null) home.OpenPinnedChat();
+            if (home != null) home.OpenPinnedChat(mode == NavigationMode.New);
         }
 
         /// <summary>Captures failures from native Silverlight navigation before they reach the shell.</summary>
@@ -355,7 +356,10 @@ namespace WhatsappApp
         {
             EnterForegroundFromActivation();
             EnsureStartupPage();
-            OpenPendingChat();
+
+            // A tile tap that reactivates the app is a fresh arrival with no landing
+            // event to report it: the request is served here.
+            OpenPendingChat(NavigationMode.New);
             DepositPickerContinuation();
         }
 

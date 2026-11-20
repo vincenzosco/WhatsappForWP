@@ -209,7 +209,7 @@ namespace WhatsappApp.Pages
             DataService.Instance.CallChanged -= OnCallChanged;
             DataService.Instance.CallChanged += OnCallChanged;
             ShowCall();
-            OpenPinnedChat();
+            OpenPinnedChat(e.NavigationMode == NavigationMode.New);
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -930,10 +930,20 @@ namespace WhatsappApp.Pages
             return AvatarCache.Get(chatId);
         }
 
-        public void OpenPinnedChat()
+        public void OpenPinnedChat(bool freshArrival)
         {
             string chatId = SessionService.PendingChatId;
             if (string.IsNullOrEmpty(chatId)) return;
+
+            // The frame replays the tile's launch URI on the way back from the chat it
+            // opened, and the mapper arms the request again. A landing that is not new is
+            // that replay - the tap has been served - so the request is dropped instead of
+            // reopening the chat the back key just left.
+            if (!freshArrival)
+            {
+                SessionService.ClearPendingChat();
+                return;
+            }
 
             string name = SessionService.PendingChatName;
             SessionService.ClearPendingChat();
