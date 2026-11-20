@@ -72,6 +72,18 @@ for (const lang of LANGS) {
   }
 }
 
+// Every resource this folder holds has to be registered, whatever language
+// the translation kit brings in: an unregistered .resx is a language the
+// phone can never see even though the file looks finished.
+for (const name of fs.readdirSync(STRINGS)) {
+  if (!/^Resources(\.[A-Za-z-]+)?\.resx$/.test(name)) continue;
+  const include = 'Strings\\' + name;
+  if (!coreProject.includes('<EmbeddedResource Include="' + include + '"')) {
+    problems.push('WhatsappApp.Core/WhatsappApp.Core.csproj: "' + include +
+      '" is not registered as an EmbeddedResource');
+  }
+}
+
 const defaultLanguage = /<DefaultLanguage>([^<]+)<\/DefaultLanguage>/.exec(appProject);
 if (!defaultLanguage) {
   problems.push('WhatsappApp/WhatsApp.csproj: no <DefaultLanguage>');

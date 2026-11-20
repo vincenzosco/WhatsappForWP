@@ -414,6 +414,13 @@ sezione `## Disclosure` resta in fondo a tutti e tre. `node tools/check-docs.js`
 intestazioni diverse, un documento senza la disclosure, e qualsiasi emoji tranne il segno di
 pericolo.
 
+## Tradurre
+
+**Puoi tradurre questa app senza programmare nulla.** Il processo è un file di testo e una
+pagina GitHub: [`traduzioni/README.it.md`](traduzioni/README.it.md) è la guida in cinque
+passi, e [la pagina traduzioni](https://vincenzosco.github.io/WhatsappForWP/) mostra quanto
+è completo ogni lingua. Contano anche le traduzioni parziali.
+
 ## Disclaimer
 
 - È un progetto non ufficiale, non affiliato a WhatsApp o Meta.

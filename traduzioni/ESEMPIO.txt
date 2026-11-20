@@ -1,0 +1,11 @@
+# ESEMPIO di traduzione completata - questa lingua e l'italiano.
+# Il tuo file somiglia a questo: le chiavi a sinistra restano come sono,
+# le traduzioni vanno a destra. Le righe che salti non le copi nemmeno.
+
+Nav_Chats = Chat
+Nav_Status = Stato
+Nav_Calls = Chiamate
+Nav_Settings = impostazioni
+TileUnreadOne = 1 messaggio non letto
+TileUnreadMany = {0} messaggi non letti
+Quit_Cancel = annulla

@@ -407,6 +407,13 @@ moving or renaming a section means doing it in all three READMEs in the same com
 `## Disclosure` section stays last in all three. `node tools/check-docs.js` refuses a group whose
 headings differ, a document without the disclosure, and any emoji other than the warning sign.
 
+## Translating
+
+**You can translate this app without programming anything.** The whole process is one text
+file and a GitHub page: [`traduzioni/README.md`](traduzioni/README.md) is the five-step
+guide, and [the translation page](https://vincenzosco.github.io/WhatsappForWP/) shows how
+much of every language is done. Partial translations count.
+
 ## Disclaimer
 
 - This is an unofficial project, not affiliated with WhatsApp or Meta.

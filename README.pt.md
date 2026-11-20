@@ -277,6 +277,13 @@ Um bom relatório de bug tem as linhas `DIAG` da janela de saída, a build que v
 
 Os documentos que explicam o projeto existem em três línguas e são mantidos em sincronia. Adicionar, mover ou renomear uma seção significa fazer isso nos três READMEs na mesma mudança, e a seção `## Disclosure` fica por último em todos. `node tools/check-docs.js` recusa um grupo cujos títulos difiram, um documento sem disclosure e qualquer emoji além do sinal de aviso.
 
+## Tradução
+
+**Você pode traduzir este app sem programar nada.** O processo é um arquivo de texto e uma
+página do GitHub: [`traduzioni/README.md`](traduzioni/README.md) é o guia em cinco passos,
+e [a página de traduções](https://vincenzosco.github.io/WhatsappForWP/) mostra quanto de
+cada idioma está pronto. Traduções parciais também valem.
+
 ## Aviso
 
 - Este é um projeto não oficial, não afiliado ao WhatsApp ou à Meta.
