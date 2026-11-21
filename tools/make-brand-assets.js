@@ -2,24 +2,24 @@
 /**
  * tools/make-brand-assets.js
  *
- * Riscrive tile, icone, splash e sfondo di WhatsappApp/Assets/ partendo dagli
- * asset del pacchetto ufficiale WhatsApp per WP8.1, copiati in
+ * Rewrites the tiles, icons, splash and background of WhatsappApp/Assets/ from
+ * the official WhatsApp for WP8.1 package assets, copied under
  * tools/brand/official/ (Icon1.png, Images/Tile*.png, Images/Background.jpg,
  * Images/logo.png, SplashScreenImage.jpg).
  *
- * Perche' non si disegna piu' il marchio: il pacchetto ufficiale porta gia' il
- * disegno giusto per ogni misura, cioe' il glifo bianco su trasparente per le
- * tile (che il manifest mette sul verde #45D82C) e l'icona verde per la lista
- * app. Ricomporlo a mano dava una tile diversa da quella vera.
+ * The mark is not drawn here: the official package already carries the right
+ * drawing for every size, the white glyph on transparent for the tiles (which
+ * the manifest puts on the brand green #45D82C) and the green icon for the app
+ * list. Recomposing it by hand produced a tile that differed from the real one.
  *
- * Le uniche misure che il pacchetto non ha sono le due dell'icona della tile
- * (200 e 480), lo StoreLogo (120) e lo splash che il manifest chiede a 1152x1920:
- * quelle si ricavano da Icon1.png e dallo splash 480x800 con un filtro
- * triangolare, e lo splash ricavato e' committato in official/ perche' il
- * sorgente e' un JPEG e questo script legge solo PNG.
+ * The only sizes the package lacks are the two tile-icon ones (200 and 480),
+ * the StoreLogo (120) and the splash the manifest asks at 1152x1920: those are
+ * derived from Icon1.png and from the 480x800 splash with a triangular filter,
+ * and the derived splash is committed under official/ because its source is a
+ * JPEG and this script only reads PNG.
  *
- * I PNG generati sono committati, quindi lo script gira solo quando cambia la
- * grafica.
+ * The generated PNGs are committed, so the script only runs when the art
+ * changes.
  *
  * The Silverlight splash (`WhatsappApp/SplashScreenImage.jpg`, 480x800, plus the
  * `scale-240` variant at 1152x1920) is the same drawing derived from
@@ -75,12 +75,12 @@ function chunk(type, data) {
 }
 
 /**
- * Decodifica un PNG a 8 bit, non interlacciato (RGBA, RGB o scala di grigi) in
- * un'immagine RGBA. `{ width, height, data }` con data lungo width*height*4.
+ * Decodes an 8-bit, non-interlaced PNG (RGBA, RGB or greyscale) into an RGBA
+ * image. `{ width, height, data }` with data of length width*height*4.
  */
 function decodePNG(buf, name) {
   if (buf.readUInt32BE(0) !== 0x89504e47) {
-    throw new Error('non e un PNG: ' + (name || 'input'));
+    throw new Error('not a PNG: ' + (name || 'input'));
   }
   let off = 8;
   let width, height, bit, colorType, interlace;
@@ -102,10 +102,10 @@ function decodePNG(buf, name) {
     }
     off += 12 + len;
   }
-  if (bit !== 8) throw new Error('profondita non supportata: ' + bit);
-  if (interlace !== 0) throw new Error('PNG interlacciato non supportato');
+  if (bit !== 8) throw new Error('unsupported depth: ' + bit);
+  if (interlace !== 0) throw new Error('interlaced PNG is not supported');
   const channels = colorType === 6 ? 4 : colorType === 2 ? 3 : colorType === 0 ? 1 : -1;
-  if (channels < 0) throw new Error('tipo colore non supportato: ' + colorType);
+  if (channels < 0) throw new Error('unsupported color type: ' + colorType);
 
   const raw = zlib.inflateSync(Buffer.concat(idat));
   const stride = width * channels;
@@ -147,7 +147,7 @@ function decodePNG(buf, name) {
   return { width, height, data: out };
 }
 
-/** Codifica un'immagine RGBA come PNG a 8 bit (una riga, filtro 0). */
+/** Encodes an RGBA image as an 8-bit PNG (single row filter, filter 0). */
 function encodePNG(img) {
   const { width, height, data } = img;
   const stride = 1 + width * 4;
@@ -174,12 +174,12 @@ function blank(w, h) {
 }
 
 /**
- * L'icona rimpicciolita dentro una cornice quadrata trasparente: `fraction` e'
- * la parte del lato che l'icona occupa (0.78 = 11% di respiro per lato).
+ * The icon shrunk inside a transparent square frame: `fraction` is the share
+ * of the side the icon covers (0.78 = 11% of breathing room per side).
  *
- * Perche' non basta l'icona intera: il modello della tile disegna l'immagine a
- * piena superficie, quindi un marchio che riempie l'asset sembra zoommato e,
- * sulla tile larga, tagliato. Con la cornice il marchio resta grande ma intero.
+ * The bare icon is not enough: the tile model draws the image edge to edge, so
+ * a mark that fills the asset looks zoomed and, on the wide tile, cropped. The
+ * frame keeps the mark large but whole.
  */
 function inset(img, size, fraction) {
   const side = Math.max(1, Math.round(size * fraction));
@@ -192,16 +192,16 @@ function inset(img, size, fraction) {
   return canvas;
 }
 
-/** Il verde del marchio: il `BackgroundColor` della tile nel manifest. */
+/** The brand green: the tile's `BackgroundColor` in the manifest. */
 const BRAND_GREEN = [0x45, 0xd8, 0x2c];
 
 /**
- * L'icona in una cornice larga della misura della tile larga.
+ * The icon inside a wide frame the size of the wide tile.
  *
- * Perche' non la stessa immagine quadrata: il sistema la scala per riempire
- * 310x150 e ne taglia sopra e sotto, che e' il taglio che si vedeva. Qui il
- * marchio e' intero al centro, sul verde del marchio, e la cornice ha gia' la
- * proporzione della tile.
+ * Not the same square image: the system scales it to fill 310x150 and crops
+ * top and bottom, which is exactly the crop that showed. Here the mark is
+ * whole at the centre, on the brand green, and the frame already carries the
+ * tile's proportion.
  */
 function banner(img, width, height, fraction) {
   const canvas = blank(width, height);
@@ -227,9 +227,9 @@ function clamp255(v) {
 }
 
 /**
- * Ridimensiona con un kernel triangolare, su canali premoltiplicati per
- * l'alpha: in riduzione il triangolo si allarga e media l'area (bordi puliti),
- * in ingrandimento resta un bilineare. L'alpha viene poi de-premoltiplicato.
+ * Resamples with a triangular kernel, on alpha-premultiplied channels: in
+ * reduction the triangle widens and averages the area (clean edges), in
+ * enlargement it stays bilinear. The alpha is de-premultiplied afterwards.
  */
 function resample(src, dstW, dstH) {
   const { width: sw, height: sh, data } = src;
@@ -292,7 +292,7 @@ function resample(src, dstW, dstH) {
   return out;
 }
 
-// Anteprima -----------------------------------------------------------------
+// Preview -----------------------------------------------------------------
 
 function preview(img, label, cols) {
   const rows = Math.max(1, Math.round(cols * 0.55));
@@ -311,7 +311,7 @@ function preview(img, label, cols) {
           const o = (y * img.width + x) * 4;
           const a = img.data[o + 3] / 255;
           const lum = 0.299 * img.data[o] + 0.587 * img.data[o + 1] + 0.114 * img.data[o + 2];
-          sum += lum * a + 255 * (1 - a); // il trasparente si legge come bianco
+          sum += lum * a + 255 * (1 - a); // transparency reads as white
           n++;
         }
       }
@@ -337,23 +337,27 @@ function write(name, img) {
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  // Le tile e le icone che il pacchetto ufficiale ha gia' alle misure che
-  // WinRT chiede al 240%: 150->360, 71->170, 44->106, 310x150->744x360.
+  // The tiles and the icons the official package already has at the sizes
+  // WinRT asks at 240%: 150->360, 71->170, 44->106, 310x150->744x360.
   copy('Logo.scale-240.png', 'Tile150x150.png');
   copy('SmallLogo.scale-240.png', 'Tile44x44.png');
   copy('Square71x71Logo.scale-240.png', 'Tile71x71.png');
   copy('WideLogo.scale-240.png', 'Tile310x150.png');
   copy('SplashScreen.scale-240.png', 'SplashScreen-1152x1920.png');
   copy('ChatBackground.jpg', 'Background.jpg');
-  copy('WhatsAppLogo.png', 'logo.png');
 
-  // L'icona della tile (modello IconWithBadge) e lo StoreLogo: ricavati
-  // dall'icona verde dell'app, che il pacchetto ha a 419x418.
+  // The tile icon (IconWithBadge model), the StoreLogo and the app-list icon
+  // all come from the official green app icon, which the package has at
+  // 419x418.
   const icon = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'Icon1.png')), 'Icon1.png');
 
-  // La tile: il marchio dentro una cornice, cosi' non sembra zoommato. La
-  // cornice della tile larga ha la proporzione della tile, altrimenti il
-  // sistema la ritaglia.
+  // The app-list icon is the green square itself: the bubble glyph
+  // (official logo.png) has transparent corners and reads as a green blob
+  // at the list's 62x62, with no visible mark.
+  write('WhatsAppLogo.png', resample(icon, 160, 160));
+
+  // The tile: the mark inside a frame, so it does not look zoomed. The wide
+  // frame carries the wide tile's proportion, or the system crops it.
   write('TileIcon.png', inset(icon, 200, TileInset));
   write('TileIcon.scale-240.png', inset(icon, 480, TileInset));
   write('TileIconWide.png', banner(icon, 310, 150, WideInset));
