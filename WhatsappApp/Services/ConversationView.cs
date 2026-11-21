@@ -133,16 +133,16 @@ namespace WhatsappApp.Services
                 // having updated and the rows looked stuck at the top. Scrolling the bar to its
                 // end is what a conversation does; a jump to an older row still uses `ScrollTo`.
                 bool newest = _items != null && _items.Count > 0 && target == _items[_items.Count - 1];
-                ScrollBar bar = ScrollBar();
-                if (newest && bar != null && bar.Maximum > bar.Minimum)
+                if (newest)
                 {
-                    bar.Value = bar.Maximum;
-
-                    // The bar's end is the end of the layout that has run: a row that arrived
-                    // a moment ago has not grown the extent yet, and assigning the old maximum
-                    // to a value that is already there moves nothing - the message stayed below
-                    // the fold and the list looked stuck. The follow is armed and re-applied by
-                    // the layouts to come (`OnListLayoutUpdated`).
+                    // The bar can still report no extent: the rows are realized one frame at
+                    // a time and the first ones have not run their layout yet. The follow is
+                    // armed whatever the bar says and the layouts to come (`OnListLayoutUpdated`)
+                    // take the reader to the end as the extent appears - arming it only when
+                    // the bar already had one is what left the newest row top-aligned at the
+                    // open of a chat.
+                    ScrollBar bar = ScrollBar();
+                    if (bar != null && bar.Maximum > bar.Minimum) bar.Value = bar.Maximum;
                     _followBottom = true;
                     WaitForLayout();
                 }
@@ -219,7 +219,6 @@ namespace WhatsappApp.Services
                 return;
             }
 
-            StopWaitingForLayout();
             if (_scrollBar != bar)
             {
                 if (_watchingScrollBar && _scrollBar != null)
@@ -229,6 +228,10 @@ namespace WhatsappApp.Services
                 _scrollBar.ValueChanged += OnScrollBarValueChanged;
                 _watchingScrollBar = true;
             }
+
+            // The wait the follow armed is its own: a found scroll bar ends the wait
+            // for the bar, not the one that re-applies the bottom as the extent grows.
+            if (!_followBottom) StopWaitingForLayout();
 
             ReportNearTop();
             ReportPosition();

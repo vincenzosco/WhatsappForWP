@@ -23,3 +23,30 @@ test('the newest message is kept at the bottom, not scrolled to the top', () => 
   assert.match(body, /_list\.ScrollTo\(target\)/,
     'a jump to an older row still scrolls straight to it');
 });
+
+test('the follow is armed before the list has an extent to scroll', () => {
+  // The rows are realized one frame at a time: right after the chat opens the
+  // bar still reports no extent. Arming the bottom only when the bar already
+  // had one left the newest row top-aligned with nothing to re-apply the
+  // follow to. The newest row arms it whatever the bar says; the layouts to
+  // come take the reader to the end as the extent appears.
+  const flush = view.slice(view.indexOf('private void FlushScroll()'));
+  const body = flush.slice(0, flush.indexOf('private void WaitForScrollLayout()'));
+
+  assert.match(body, /if \(newest\)\s*\{[\s\S]*?_followBottom = true;/,
+    'the newest row arms the follow unconditionally');
+  assert.doesNotMatch(body, /if \(newest && bar/,
+    'the follow does not wait for the extent');
+});
+
+test('finding the scroll bar does not disarm the follow\'s layout wait', () => {
+  // FlushScroll arms a LayoutUpdated handler and then attaches the scroll bar.
+  // The attach stopped the wait on the way out - the handler was gone before it
+  // ever ran, and the follow had nothing left to re-apply it on a list that
+  // grows its extent over several passes.
+  const attach = view.slice(view.indexOf('private void AttachScrollBar()'));
+  const body = attach.slice(0, attach.indexOf('private ScrollBar ScrollBar()'));
+
+  assert.match(body, /if \(!_followBottom\) StopWaitingForLayout\(\);/,
+    'the wait stays armed while the follow is on');
+});
