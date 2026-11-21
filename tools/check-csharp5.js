@@ -40,7 +40,13 @@ const RULES = [
   { name: 'expression-bodied method', re: /^\s*(public|private|protected|internal)[^;{}]*\)\s*=>/ },
   { name: 'expression-bodied accessor', re: /^\s*(get|set)\s*=>/ },
   { name: 'auto-property initializer', re: /\{[^{}]*\bget;[^{}]*\bset;[^{}]*\}\s*=/ },
-  { name: 'inline out variable declaration', re: /\bout\s+(var|int|string|bool|long|byte|double|float)\s+\w+\s*[,)]/ },
+  {
+    name: 'inline out variable declaration',
+    re: /\bout\s+(var|int|string|bool|long|byte|double|float)\s+\w+\s*[,)]/,
+    // A parameter declaration in a member signature is C# 2 (`out string name` in
+    // `void Take(...)`); the inline form this rule is for appears in call arguments.
+    skip: /^\s*(public|private|protected|internal|static|virtual|override|sealed|async|void|Task|bool|int|string|double|float|long|byte|object|DateTime|TimeSpan|IList|List|Dictionary)[\w<>\[\],\s.]*\([^=;]*$/
+  },
   { name: 'pattern matching (is Type name)', re: /\bis\s+[A-Z]\w*\s+[a-z]\w*\s*[,)]/ },
   { name: 'nameof(...)', re: /\bnameof\s*\(/ },
   { name: 'discard assignment (_ = ...)', re: /^\s*_+\s*=[^=]/ },
@@ -79,14 +85,14 @@ const API_RULES = [
 ];
 
 /**
- * Le righe che contengono un await dentro il corpo di un catch.
+ * The lines with an await inside a catch body.
  *
- * Perche' esiste: C# 5 non lascia attendere dentro un catch, e il compilatore
- * risponde CS1985 ("Impossibile attendere nel corpo di una clausola catch").
- * Non e' una proprieta' della riga ma di dove la riga si trova, quindi le
- * regole per riga qui sopra non lo vedono: lo ha trovato la build Windows, non
- * questo guard. Un await su una lambda ("=>. await") appartiene alla lambda,
- * non al catch, e C# 5 lo accetta: si segnala solo un await nudo.
+ * Why it exists: C# 5 does not allow awaiting inside a catch, and the compiler
+ * answers CS1985 ("Cannot await in the body of a catch clause"). It is not a
+ * property of the line but of where the line sits, so the per-line rules above
+ * do not see it: the Windows build found it, not this guard. An await on a
+ * lambda ("=> await") belongs to the lambda, not to the catch, and C# 5
+ * accepts it: only a bare await is reported.
  */
 function awaitInCatchBlocks(code) {
   const hits = [];
@@ -144,7 +150,7 @@ for (const file of files) {
   const hasLinqUsing = LINQ_USING.test(source);
   for (let i = 0; i < lines.length; i++) {
     for (const rule of RULES.concat(API_RULES)) {
-      if (rule.re.test(lines[i])) {
+      if (rule.re.test(lines[i]) && !(rule.skip && rule.skip.test(lines[i]))) {
         violations++;
         console.log(rel + ':' + (i + 1) + ': ' + rule.name + '  ->  ' + lines[i].trim());
       }
