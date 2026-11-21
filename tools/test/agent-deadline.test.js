@@ -31,7 +31,7 @@ test('a registration is checked after it is made, not believed', () => {
   // disabled (battery saver, the phone settings): the run must read the state
   // back and say what it really is instead of announcing a cadence that never
   // comes.
-  const register = slice('var task = new PeriodicTask(TaskName);', 1300);
+  const register = slice('var task = new PeriodicTask(TaskName);', 1900);
   assert.match(register, /IsScheduled/, 'the state is read back after the add');
   assert.match(register, /Diag\.Ok\("background: /, 'and the truth goes to the log');
 });

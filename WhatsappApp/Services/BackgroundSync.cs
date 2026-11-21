@@ -28,6 +28,13 @@ namespace WhatsappApp.Services
         /// <summary>The name the registration is remembered by.</summary>
         public const string TaskName = "WhatsAppMessageCheck";
 
+        /// <summary>
+        /// The second lane's name. The scheduler allows one periodic and one resource
+        /// intensive task per app: the periodic check answers about every half hour, and
+        /// this one runs the same check while the phone is charging and has room.
+        /// </summary>
+        public const string IntensiveTaskName = "WhatsAppMessageCheckIntensive";
+
         /// <summary>The class the manifest declares; it must be the full name.</summary>
         public const string EntryPoint = "WhatsappApp.Tasks.BackgroundSyncTask";
 
@@ -165,7 +172,7 @@ namespace WhatsappApp.Services
             }
 
             if (IsRegistered() && RegisteredInterval() == IntervalMinutes
-                && RegisteredEntryPoint() == EntryPoint) return;
+                && RegisteredEntryPoint() == EntryPoint && IntensiveRegistered()) return;
 
             // Missing or stale registration: SetEnabledAsync owns removal, registration,
             // and reporting any refusal from the scheduler.
@@ -195,8 +202,12 @@ namespace WhatsappApp.Services
                     return Task.FromResult<object>(null);
                 }
 
+                // The intensive lane is asked for by name: a build that registered only the
+                // periodic check must not be answered with "already registered" and leave the
+                // second lane missing forever.
                 if (IsRegistered() && RegisteredInterval() == IntervalMinutes
-                    && RegisteredEntryPoint() == EntryPoint && IsPermitted())
+                    && RegisteredEntryPoint() == EntryPoint && IsPermitted()
+                    && ScheduledActionService.Find(IntensiveTaskName) != null)
                 {
                     return Task.FromResult<object>(null);
                 }
@@ -211,6 +222,12 @@ namespace WhatsappApp.Services
                 task.Description = "Check for new WhatsApp messages";
                 ScheduledActionService.Add(task);
 
+                // The same check on the scheduler's second lane: while the phone is charging
+                // and has room it runs without waiting the periodic interval.
+                var intensive = new ResourceIntensiveTask(IntensiveTaskName);
+                intensive.Description = "Check for new WhatsApp messages while the phone is charging";
+                ScheduledActionService.Add(intensive);
+
                 ApplicationData.Current.LocalSettings.Values[KeyInterval] = IntervalMinutes;
                 ApplicationData.Current.LocalSettings.Values[KeyEntryPoint] = EntryPoint;
                 ApplicationData.Current.LocalSettings.Values[KeyRegistrationUnavailable] = false;
@@ -220,9 +237,17 @@ namespace WhatsappApp.Services
                 // read back so the log says what the phone will really do.
                 ScheduledAction scheduled = ScheduledActionService.Find(TaskName);
                 bool runs = scheduled != null && scheduled.IsScheduled;
+
+                ScheduledAction intensiveScheduled = ScheduledActionService.Find(IntensiveTaskName);
+                bool intensiveRuns = intensiveScheduled != null && intensiveScheduled.IsScheduled;
+
                 if (runs)
                 {
-                    Diag.Ok("background: the scheduled check runs about every " + IntervalMinutes + " minute(s)");
+                    Diag.Ok("background: the scheduled check runs about every " + IntervalMinutes
+                        + " minute(s), and the charger lane "
+                        + (intensiveRuns
+                            ? "runs the same check while the phone is charging"
+                            : "is kept disabled"));
                 }
                 else
                 {
@@ -576,6 +601,23 @@ namespace WhatsappApp.Services
             }
         }
 
+        /// <summary>
+        /// Whether the second lane is on the phone. Not knowing counts as missing: the
+        /// answer only decides whether a registration is worth repeating.
+        /// </summary>
+        private static bool IntensiveRegistered()
+        {
+            try
+            {
+                return ScheduledActionService.Find(IntensiveTaskName) != null;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("BackgroundSync/IntensiveRegistered", ex);
+                return false;
+            }
+        }
+
         /// <summary>True when this app already has the task registered.</summary>
         public static bool IsRegistered()
         {
@@ -598,6 +640,11 @@ namespace WhatsappApp.Services
                 if (ScheduledActionService.Find(TaskName) != null)
                 {
                     ScheduledActionService.Remove(TaskName);
+                }
+
+                if (ScheduledActionService.Find(IntensiveTaskName) != null)
+                {
+                    ScheduledActionService.Remove(IntensiveTaskName);
                 }
 
                 // Nothing is registered now, so nothing remembers what it was made with either.
