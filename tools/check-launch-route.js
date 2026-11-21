@@ -2,35 +2,39 @@
 /**
  * tools/check-launch-route.js
  *
- * Guard per la strada che porta da un tocco sulla tile alla sezione che ha qualcosa
- * da mostrare.
+ * Guard for the road from a tap on a tile to the section that has something to
+ * show.
  *
- * Perche' esiste: su WP8.1 un tocco sulla tile dell'app - e sulla schermata di blocco,
- * che mostra la stessa tile - arriva come un avvio normale, con gli argomenti vuoti che
- * manda anche l'elenco delle app. Non c'e' niente nell'avvio che dica dove era il tocco:
- * l'unica cosa che l'app sa e' quello che il telefono stava mostrando, cioe' la rotta
- * che il livello delle notifiche ha scritto quando ha disegnato il badge. Ogni pezzo di
- * quella catena e' muto se manca:
+ * Why it exists: on WP8.1 a tap on the app's tile - and on the lock screen,
+ * which shows the same tile - arrives as a plain launch, with the empty
+ * arguments the app list sends too. Nothing in the launch says where the tap
+ * was: the only thing the app knows is what the phone was showing, the route
+ * the notification layer wrote when it drew the badge. Every piece of that
+ * chain is mute when it is missing:
  *
- * - senza `RefreshLaunchRoute` la rotta non viene mai scritta;
- * - senza `TakeRoute` in `App.MapInitialUri` la rotta resta sul telefono per sempre;
- * - senza `MarkOpened` la sezione non sa di essere stata guardata, e la stessa rotta
- * resta vera per sempre: e' il modo in cui una scorciatoia diventa un rapimento.
+ * - without `RefreshLaunchRoute` the route is never written;
+ * - without `TakeRoute` in `App.MapInitialUri` the route stays on the phone
+ *   forever;
+ * - without `MarkOpened` the section does not know it was looked at, and the
+ *   same route stays true forever: that is how a shortcut becomes a hijack.
  *
- * Regole:
- * 1. `App.MapInitialUri` prende la rotta una volta e la **nomina nel log**; `OnLaunching` avvia la navigazione Silverlight;
- * 2. un avvio atterra sulle chat: `HomePage.OnNavigatedTo` mostra l'indice 0, e nessuno
- * puo' portarlo su un'altra tab - `SessionService.PendingSection` non esiste piu'
- * (28 ottobre 2026: ogni avvio apriva la tab Stato, e la richiesta e' stata
- * "parte sulla tab stato e non su chat");
- * 3. `HomePage` segna aperta la sezione che mostra;
- * 4. `DataService` scrive la rotta quando pubblica il badge, e la riscrive quando
- * cambiano gli stati e quando finisce la scansione delle chiamate;
- * 5. `LaunchRoute.cs` non nomina `Windows.` - e' il file che il runner compila, ed e'
- * la regola che i test controllano (`ProtocolTests/LaunchRouteTests.cs`);
- * 6. un tocco sulla tile di una chat pinnata apre quella chat: `OpenPinnedChat` esiste
- * ed e' chiamata da `App`, che e' l'unica cosa che una tile puo' chiedere a un avvio
- * che trova la pagina gia' viva.
+ * Rules:
+ * 1. `App.MapInitialUri` takes the route once and **names it in the log**;
+ *    `OnLaunching` starts the Silverlight navigation;
+ * 2. a launch lands on the chats: `HomePage.OnNavigatedTo` shows index 0, and
+ *    nobody can move it to another tab - `SessionService.PendingSection` is
+ *    gone (28 October 2026: every launch opened the Status tab, and the ask
+ *    was "start on the status tab and not on chats");
+ * 3. `HomePage` marks the section it shows as opened;
+ * 4. `DataService` writes the route when it publishes the badge, and rewrites
+ *    it when the states change and when the call scan ends;
+ * 5. `LaunchRoute.cs` does not name `Windows.` - it is the file the runner
+ *    compiles, and it is the rule the tests check
+ *    (`ProtocolTests/LaunchRouteTests.cs`);
+ * 6. a tap on a pinned chat tile opens that chat **directly**: the mapper
+ *    routes the frame to the chat page, the chat serves the request once
+ *    (a fresh arrival opens it, a replay drops it), and the way back leads
+ *    to the chats with the tile route out of the journal.
  *
  * Usage:
  * node tools/check-launch-route.js
@@ -43,11 +47,12 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..');
 const APP = 'WhatsappApp/App.xaml.cs';
 const HOME = 'WhatsappApp/Pages/HomePage.xaml.cs';
+const CHAT = 'WhatsappApp/Pages/ChatPage.xaml.cs';
 const DATA = 'WhatsappApp/Services/DataService.cs';
 const ROUTE = 'WhatsappApp/Services/LaunchRoute.cs';
 const SESSION = 'WhatsappApp/Services/SessionService.cs';
 
-/** Il corpo di un metodo, dalla firma alla graffa che la chiude. */
+/** The body of a method, from its signature to the brace that closes it. */
 function methodBody(text, signature) {
   const start = text.indexOf(signature);
   if (start < 0) return null;
@@ -67,7 +72,7 @@ function methodBody(text, signature) {
 }
 
 /**
- * I problemi, dati i testi dei file. Puro: i test gli passano copie manomesse.
+ * The problems, given the file texts. Pure: the tests pass it tampered copies.
  */
 function launchRouteProblems(files) {
   const problems = [];
@@ -99,7 +104,7 @@ function launchRouteProblems(files) {
     }
   }
 
-  // 2. Un avvio e' la lista chat, e non esiste piu' una sezione in attesa che lo scavalchi.
+  // 2. A launch is the chat list, and there is no pending section left to overrule it.
   const navigatedTo = methodBody(files.home, 'protected override void OnNavigatedTo(') || '';
   if (!/Show\s*\(\s*0\s*,\s*true\s*\)/.test(navigatedTo)) {
     problems.push('WhatsappApp/Pages/HomePage.xaml.cs: OnNavigatedTo does not show the chats (Show(0, true)) - ' +
@@ -115,7 +120,7 @@ function launchRouteProblems(files) {
       'a section in waiting is a start that does not open on the chats');
   }
 
-  // 3. La rotta si scrive col badge, e si riscrive quando cambia qualcosa che non ha badge.
+  // 3. The route is written with the badge, and rewritten when something without a badge changes.
   const published = methodBody(files.data, 'private void PublishBadge(');
   if (!published) {
     problems.push('WhatsappApp/Services/DataService.cs: no PublishBadge() - ' +
@@ -139,7 +144,7 @@ function launchRouteProblems(files) {
       'a missed call arrives with the log and nothing else');
   }
 
-  // 4. La regola resta compilabile dal runner desktop.
+  // 4. The rule stays compilable by the desktop runner.
   if (!/LaunchRoute/.test(files.route)) {
     problems.push('WhatsappApp/Services/LaunchRoute.cs: gone - the rule has no home');
   } else {
@@ -150,14 +155,28 @@ function launchRouteProblems(files) {
     }
   }
 
-  // 5. Una tile che nomina una chat apre quella chat, anche sull'app gia' viva.
-  if (!/public void OpenPinnedChat\s*\(/.test(files.home)) {
-    problems.push('WhatsappApp/Pages/HomePage.xaml.cs: no OpenPinnedChat() - a pinned chat tile has ' +
-      'nothing that can open the chat it names');
+  // 5. A tile that names a chat opens that chat, straight and served once.
+  if (!/return new Uri\(ChatPageUri/.test(mapped)) {
+    problems.push('WhatsappApp/App.xaml.cs: MapInitialUri never routes a tile tap to the chat page - ' +
+      'the tap names the conversation and a stop at the chat list first flashes a page the user never asked for');
   }
-  if (!/home\.OpenPinnedChat\s*\(/.test(files.app)) {
-    problems.push('WhatsappApp/App.xaml.cs: OnLaunched never calls home.OpenPinnedChat() - ' +
-      'the resume case is the common one (the app is still alive behind the Start screen)');
+  const chatLanded = methodBody(files.chat, 'protected override void OnNavigatedTo(') || '';
+  if (!/SessionService\.PendingChatId/.test(chatLanded)
+      || !/NavigationMode\.New/.test(chatLanded)
+      || !/ClearPendingChat\(\)/.test(chatLanded)) {
+    problems.push('WhatsappApp/Pages/ChatPage.xaml.cs: OnNavigatedTo does not serve the tile\'s request ' +
+      'once (PendingChatId, only on a new arrival, cleared) - the frame replays the tile route on the way back ' +
+      'and the back key would reopen the chat it just left');
+  }
+  const chatBack = methodBody(files.chat, 'protected override void OnBackKeyPress(') || '';
+  if (!/RemoveBackEntry\(\)/.test(chatBack) || !/HomePage\.xaml/.test(chatBack)) {
+    problems.push('WhatsappApp/Pages/ChatPage.xaml.cs: OnBackKeyPress does not lead a tile-opened chat back ' +
+      'to the chats with RemoveBackEntry() - the tile route would sit in the journal and replay into a reopen');
+  }
+  const served = methodBody(files.app, 'private void OpenPendingChat(') || '';
+  if (!/NavigateToPage\("ChatPage"/.test(served)) {
+    problems.push('WhatsappApp/App.xaml.cs: OpenPendingChat does not open the chat directly - ' +
+      'the activation case has no landing event and this is what serves the tap');
   }
 
   return problems;
@@ -168,6 +187,7 @@ function main() {
   const problems = launchRouteProblems({
     app: read(APP),
     home: read(HOME),
+    chat: read(CHAT),
     data: read(DATA),
     route: read(ROUTE),
     session: read(SESSION)

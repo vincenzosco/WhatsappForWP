@@ -5,10 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..', '..');
-const home = fs.readFileSync(
-  path.join(ROOT, 'WhatsappApp', 'Pages', 'HomePage.xaml.cs'), 'utf8');
-const app = fs.readFileSync(
-  path.join(ROOT, 'WhatsappApp', 'App.xaml.cs'), 'utf8');
+const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 
 function slice(text, startMarker, size) {
   const at = text.indexOf(startMarker);
@@ -16,28 +13,46 @@ function slice(text, startMarker, size) {
   return text.slice(at, at + size);
 }
 
-test('the tile route is served once: only a fresh arrival opens the chat', () => {
+const app = read('WhatsappApp/App.xaml.cs');
+const chat = read('WhatsappApp/Pages/ChatPage.xaml.cs');
+
+test('a tile tap routes the frame straight to the chat, with no stop at home', () => {
+  // The tap names the conversation; showing the chat list first is a page the
+  // user never asked to see, and it flashes before the chat opens.
+  assert.match(app, /private const string ChatPageUri = "\/Pages\/ChatPage\.xaml";/);
+  const mapper = slice(app, 'private Uri MapInitialUri(', 2400);
+  assert.match(mapper, /return new Uri\(ChatPageUri/,
+    'the tile branch names the chat page');
+
+  // Without an account the chat in the tile means nothing: the launch still
+  // goes to the pair page.
+  assert.match(mapper, /StartTarget\.Pair/, 'the unpaired launch keeps the pair page');
+});
+
+test('the tile route is served once: a fresh arrival opens it, a replay drops it', () => {
   // The frame replays the tile's launch URI when the user comes back from the
   // chat, and the mapper arms the request again. A landing that is not new is
   // that replay, not a tap: the request must be dropped, or the back key
   // reopens the chat it just left.
-  const open = slice(home, 'public void OpenPinnedChat(', 900);
-  assert.match(open, /bool freshArrival|NavigationMode/, 'the arrival kind is an argument');
-  assert.match(open, /ClearPendingChat\(\)/, 'a replay drops the request');
-
-  const navigated = slice(home, 'protected override void OnNavigatedTo(', 1600);
-  assert.match(navigated, /NavigationMode\.New/,
+  const landed = slice(chat, 'protected override void OnNavigatedTo(', 1700);
+  assert.match(landed, /SessionService\.PendingChatId/, 'the chat takes the tile\'s request');
+  assert.match(landed, /NavigationMode\.New/,
     'the page tells a new arrival from a way back');
+  assert.match(landed, /ClearPendingChat\(\)/, 'a replay drops the request');
 });
 
-test('the app hands the arrival kind down from its navigated handler', () => {
-  const landed = slice(app, 'private void RootFrame_Navigated(', 700);
-  assert.match(landed, /NavigationMode/,
-    'the frame passes what kind of navigation just landed');
+test('the way back from a tile-opened chat leads to the chats, and cannot replay', () => {
+  const back = slice(chat, 'protected override void OnBackKeyPress(', 900);
+  assert.match(back, /e\.Cancel = true/, 'the back key is taken over');
+  assert.match(back, /HomePage\.xaml/, 'and goes to the chats');
+  assert.match(back, /RemoveBackEntry\(\)/,
+    'the tile route leaves the journal, or coming back to it reopens the chat');
+});
 
-  // A tile tap that reactivates the app is a fresh arrival with no landing
-  // event: the activation path opens the chat itself.
+test('the activation path still serves a tapped chat with no landing event', () => {
   const activated = slice(app, 'private void OnActivated(', 500);
-  assert.match(activated, /NavigationMode\.New|OpenPendingChat\(true\)|OpenPendingChat\(\)/,
-    'the activation path keeps opening the tapped chat');
+  assert.match(activated, /OpenPendingChat\(/, 'the tap is served on activation too');
+  const served = slice(app, 'private void OpenPendingChat(', 1200);
+  assert.match(served, /NavigateToPage\("ChatPage"/,
+    'and opens the chat directly, not through the home page');
 });

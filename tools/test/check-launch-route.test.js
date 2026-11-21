@@ -11,6 +11,7 @@ const read = (rel) => fs.readFileSync(path.join(ROOT, rel), 'utf8');
 const files = () => ({
   app: read('WhatsappApp/App.xaml.cs'),
   home: read('WhatsappApp/Pages/HomePage.xaml.cs'),
+  chat: read('WhatsappApp/Pages/ChatPage.xaml.cs'),
   data: read('WhatsappApp/Services/DataService.cs'),
   route: read('WhatsappApp/Services/LaunchRoute.cs'),
   session: read('WhatsappApp/Services/SessionService.cs')
@@ -95,16 +96,23 @@ test('una chiamata persa che arriva senza rotta non e raggiungibile', () => {
   assert.match(launchRouteProblems(broken).join('\n'), /RaiseCallsScanCompleted/);
 });
 
-test('una tile di chat che nessuno apre resta una tile che non fa niente', () => {
+test('a tile tap that the mapper does not route to the chat page stops opening it', () => {
   const broken = files();
-  broken.app = broken.app.replace('home.OpenPinnedChat(mode == NavigationMode.New);', ';');
-  assert.match(launchRouteProblems(broken).join('\n'), /OpenPinnedChat/);
+  broken.app = broken.app.replace('return new Uri(ChatPageUri, UriKind.Relative);',
+    'return new Uri(HomePageUri, UriKind.Relative);');
+  assert.match(launchRouteProblems(broken).join('\n'), /chat page/);
 });
 
-test('una home senza il metodo della chat pinnata non puo aprirla', () => {
+test('a chat page that keeps the tile request serves it again on the way back', () => {
   const broken = files();
-  broken.home = broken.home.replace('public void OpenPinnedChat(bool freshArrival)', 'private void NeverCalled()');
-  assert.match(launchRouteProblems(broken).join('\n'), /OpenPinnedChat/);
+  broken.chat = broken.chat.replace('SessionService.ClearPendingChat();', ';');
+  assert.match(launchRouteProblems(broken).join('\n'), /serve the tile/);
+});
+
+test('a back key that leaves the tile route in the journal reopens the chat', () => {
+  const broken = files();
+  broken.chat = broken.chat.replace('NavigationService.RemoveBackEntry();', ';');
+  assert.match(launchRouteProblems(broken).join('\n'), /RemoveBackEntry/);
 });
 
 test('una regola che nomina WinRT non e piu compilabile dal runner', () => {

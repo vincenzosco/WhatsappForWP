@@ -13,6 +13,7 @@ using Windows.ApplicationModel.DataTransfer.ShareTarget;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using WhatsappApp.Controls;
+using WhatsappApp.Models;
 using WhatsappApp.Pages;
 using WhatsappApp.Services;
 
@@ -37,6 +38,7 @@ namespace WhatsappApp
         // The two routes this class can choose between at startup.
         private const string HomePageUri = "/Pages/HomePage.xaml";
         private const string PairPageUri = "/Pages/PairPage.xaml";
+        private const string ChatPageUri = "/Pages/ChatPage.xaml";
 
         // The frame that shows pages. Created in InitializePhoneApplication.
         private PhoneApplicationFrame _rootFrame;
@@ -148,14 +150,29 @@ namespace WhatsappApp
         }
 
         /// <summary>
-        /// If a pinned tile asked for a conversation, the home page opens it now that the
-        /// home page exists. The kind of navigation that just landed is passed on: only a
+        /// If a pinned tile asked for a conversation, the chat opens now that a page
+        /// exists. The kind of navigation that just landed is passed on: only a
         /// new arrival is the tap, and a way back must not reopen the chat.
         /// </summary>
         private void OpenPendingChat(NavigationMode mode)
         {
-            HomePage home = _rootFrame.Content as HomePage;
-            if (home != null) home.OpenPinnedChat(mode == NavigationMode.New);
+            string chatId = SessionService.PendingChatId;
+            if (string.IsNullOrEmpty(chatId)) return;
+
+            // The frame replays the tile's launch URI on the way back from the chat it
+            // opened, and the mapper arms the request again. A landing that is not new is
+            // that replay - the tap has been served - so the request is dropped instead of
+            // reopening the chat the back key just left.
+            if (mode != NavigationMode.New)
+            {
+                SessionService.ClearPendingChat();
+                return;
+            }
+
+            SessionService.ClearPendingChat();
+            Contact contact = DataService.Instance.ContactFor(chatId, SessionService.PendingChatName);
+            if (contact == null) return;
+            HomePage.NavigateToPage("ChatPage", contact);
         }
 
         /// <summary>Captures failures from native Silverlight navigation before they reach the shell.</summary>
@@ -198,16 +215,23 @@ namespace WhatsappApp
             bool hasTileRoute = !string.IsNullOrEmpty(tileChat);
             if (hasTileRoute)
             {
-                // Hand the chat to the home page, which consumes it in OnNavigatedTo.
                 SessionService.PendingChatId = tileChat;
                 SessionService.PendingChatName = PinnedTile.NameFromArguments(tileArguments);
                 Diag.Ok("pinned tile: launching into " + tileChat);
 
-                // Not a launch: the app is already showing something, so only the home page
-                // matters here.
-                if (!_initialNavigationPending)
+                // A launch with no account on this phone still goes to the pair page:
+                // the chat the tile names means nothing without a session.
+                bool unpaired = _initialNavigationPending && StartDecision.Decide(
+                    NativeCredentialStorage.Session().HasSession, SessionState.Expired) == StartTarget.Pair;
+                if (unpaired)
                 {
-                    return new Uri(HomePageUri, UriKind.Relative);
+                    SessionService.ClearPendingChat();
+                }
+                else
+                {
+                    // Straight to the chat: the tap named it, and a stop at the chat list
+                    // first would flash a page the user never asked to see.
+                    return new Uri(ChatPageUri, UriKind.Relative);
                 }
             }
 

@@ -209,7 +209,6 @@ namespace WhatsappApp.Pages
             DataService.Instance.CallChanged -= OnCallChanged;
             DataService.Instance.CallChanged += OnCallChanged;
             ShowCall();
-            OpenPinnedChat(e.NavigationMode == NavigationMode.New);
         }
 
         protected override void OnNavigatedFrom(NavigationEventArgs e)
@@ -930,31 +929,6 @@ namespace WhatsappApp.Pages
             Contact row = DataService.Instance.FindContact(chatId);
             if (row != null && !string.IsNullOrEmpty(row.AvatarData)) return row.AvatarData;
             return AvatarCache.Get(chatId);
-        }
-
-        public void OpenPinnedChat(bool freshArrival)
-        {
-            string chatId = SessionService.PendingChatId;
-            if (string.IsNullOrEmpty(chatId)) return;
-
-            // The frame replays the tile's launch URI on the way back from the chat it
-            // opened, and the mapper arms the request again. A landing that is not new is
-            // that replay - the tap has been served - so the request is dropped instead of
-            // reopening the chat the back key just left.
-            if (!freshArrival)
-            {
-                SessionService.ClearPendingChat();
-                return;
-            }
-
-            string name = SessionService.PendingChatName;
-            SessionService.ClearPendingChat();
-            Contact contact = DataService.Instance.ContactFor(chatId, name);
-            if (contact == null) return;
-            if (!NavigateToPage("ChatPage", contact))
-            {
-                Diag.Ok("pinned tile: the chat " + chatId + " could not be opened");
-            }
         }
 
         private async Task ConfirmDeleteAsync(string chatId)

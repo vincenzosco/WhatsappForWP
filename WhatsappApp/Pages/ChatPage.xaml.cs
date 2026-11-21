@@ -246,6 +246,21 @@ namespace WhatsappApp.Pages
                 PhoneApplicationService.Current.State.Remove(navigationParameterKey);
                 contact = navigationParameter as Contact;
             }
+
+            // A tile names its chat without a page argument: the request rides in
+            // SessionService. It is served once - a fresh arrival is the tap, and the
+            // frame's replay of the tile route on the way back drops it.
+            _openedFromTile = false;
+            if (contact == null && !string.IsNullOrEmpty(SessionService.PendingChatId))
+            {
+                if (e.NavigationMode == NavigationMode.New)
+                {
+                    contact = DataService.Instance.ContactFor(
+                        SessionService.PendingChatId, SessionService.PendingChatName);
+                    _openedFromTile = contact != null;
+                }
+                SessionService.ClearPendingChat();
+            }
             if (contact == null) contact = DataService.Instance.SelectedContact;
 
             if (contact != null)
@@ -383,8 +398,30 @@ namespace WhatsappApp.Pages
             Background = ChatWallpaper;
         }
 
+        private bool _openedFromTile;
+
+        /// <summary>
+        /// A tile is a door straight into its chat: the way back leads to the chats,
+        /// not out of the app, and the tile's route leaves the journal so coming back
+        /// cannot replay it into a reopen.
+        /// </summary>
         protected override void OnBackKeyPress(CancelEventArgs e)
         {
+            if (_openedFromTile)
+            {
+                e.Cancel = true;
+                try
+                {
+                    NavigationService.Navigate(new Uri("/Pages/HomePage.xaml", UriKind.Relative));
+                    NavigationService.RemoveBackEntry();
+                }
+                catch (Exception ex)
+                {
+                    Diag.Failed("ChatPage/back-to-chats", ex);
+                }
+                return;
+            }
+
             if (AttachmentPickerOverlay.Visibility == Visibility.Visible)
             {
                 AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
