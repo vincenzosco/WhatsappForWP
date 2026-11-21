@@ -2,33 +2,27 @@
 /**
  * tools/make-brand-assets.js
  *
- * Rewrites the tiles, icons, splash and background of WhatsappApp/Assets/ from
- * the official WhatsApp for WP8.1 package assets, copied under
- * tools/brand/official/ (Icon1.png, Images/Tile*.png, Images/Background.jpg,
- * Images/logo.png, SplashScreenImage.jpg).
+ * Rewrites the tiles, icons and background of WhatsappApp/Assets/ from the logo
+ * the owner supplied (tools/brand/logo-source.png): the green bubble in its white
+ * sticker outline. Every surface the shell shows - the app-list icon, the tiles,
+ * the store logo, the lock badge - is drawn from that one file, so the mark is the
+ * same everywhere and no surface is a transparent placeholder.
  *
- * The mark is not drawn here: the official package already carries the right
- * drawing for every size, the white glyph on transparent for the tiles (which
- * the manifest puts on the brand green #45D82C) and the green icon for the app
- * list. Recomposing it by hand produced a tile that differed from the real one.
- *
- * The only sizes the package lacks are the two tile-icon ones (200 and 480),
- * the StoreLogo (120) and the splash the manifest asks at 1152x1920: those are
- * derived from Icon1.png and from the 480x800 splash with a triangular filter,
- * and the derived splash is committed under official/ because its source is a
- * JPEG and this script only reads PNG.
+ * The sizes are the WinRT 240% set the manifests ask for (150->360, 44->106,
+ * 71->170, 310x150->744x360) plus the app-list icon at 160 and the tile icons
+ * this app pins at 200 and 480. The splash and the chat background are the
+ * official package's own drawings, copied from tools/brand/official/.
  *
  * The generated PNGs are committed, so the script only runs when the art
  * changes.
  *
- * The Silverlight splash (`WhatsappApp/SplashScreenImage.jpg`, 480x800, plus the
- * `scale-240` variant at 1152x1920) is the same drawing derived from
- * `official/SplashScreen-1152x1920.png` as JPEG: the phone reads the splash only
- * at the XAP root and only under that name.
+ * The Silverlight splash at the XAP root (WhatsappApp/SplashScreenImage.jpg,
+ * 480x800) is a committed JPEG: the phone reads the splash only at the root and
+ * only under that name, and this script only writes PNG.
  *
  * Usage:
- * node tools/make-brand-assets.js # riscrive i file
- * node tools/make-brand-assets.js --preview # riscrive + anteprima ASCII
+ * node tools/make-brand-assets.js        # rewrites the files
+ * node tools/make-brand-assets.js --preview  # rewrites and previews them
  */
 'use strict';
 
@@ -41,10 +35,10 @@ const OUT_DIR = path.join(ROOT, 'WhatsappApp', 'Assets');
 const OFFICIAL = path.join(__dirname, 'brand', 'official');
 const PREVIEW = process.argv.includes('--preview');
 
-/** Quanto del lato della tile occupa il marchio: il resto e' respiro. */
+/** How much of the tile's side the mark takes; the rest is breathing room. */
 const TileInset = 0.78;
 
-/** Lo stesso, in altezza, per la tile larga. */
+/** The same, in height, for the wide tile. */
 const WideInset = 0.8;
 
 // PNG -----------------------------------------------------------------------
@@ -331,38 +325,62 @@ function copy(name, from) {
 
 function write(name, img) {
   fs.writeFileSync(path.join(OUT_DIR, name), encodePNG(img));
-  console.log(`${name.padEnd(32)} ${img.width}x${img.height} from official/Icon1.png`);
+  console.log(`${name.padEnd(32)} ${img.width}x${img.height} from brand/logo-source.png`);
+}
+
+// The lock screen badge: one colour is all a badge gets. The bubble's green is
+// painted white and everything else - the sticker's white edge, the field around
+// it - is left out, so the mark reads in whatever colour the lock screen paints
+// it. The edge keeps partial alpha, which is the antialiasing.
+function badge(src, size) {
+  const small = resample(src, size, size);
+  for (let i = 0; i < small.data.length; i += 4) {
+    const r = small.data[i];
+    const g = small.data[i + 1];
+    const b = small.data[i + 2];
+    const green = g - Math.max(r, b);
+    small.data[i] = 255;
+    small.data[i + 1] = 255;
+    small.data[i + 2] = 255;
+    small.data[i + 3] = green > 0 ? Math.min(255, green * 6) : 0;
+  }
+  return small;
 }
 
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
 
-  // The tiles and the icons the official package already has at the sizes
-  // WinRT asks at 240%: 150->360, 71->170, 44->106, 310x150->744x360.
-  copy('Logo.scale-240.png', 'Tile150x150.png');
-  copy('SmallLogo.scale-240.png', 'Tile44x44.png');
-  copy('Square71x71Logo.scale-240.png', 'Tile71x71.png');
-  copy('WideLogo.scale-240.png', 'Tile310x150.png');
+  // The splash and the chat background are the official package's own drawings.
   copy('SplashScreen.scale-240.png', 'SplashScreen-1152x1920.png');
   copy('ChatBackground.jpg', 'Background.jpg');
 
-  // The tile icon (IconWithBadge model), the StoreLogo and the app-list icon
-  // all come from the official green app icon, which the package has at
-  // 419x418.
-  const icon = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'Icon1.png')), 'Icon1.png');
+  const logo = decodePNG(
+    fs.readFileSync(path.join(__dirname, 'brand', 'logo-source.png')), 'logo-source.png');
 
-  // The app-list icon is the green square itself: the bubble glyph
-  // (official logo.png) has transparent corners and reads as a green blob
-  // at the list's 62x62, with no visible mark.
-  write('WhatsAppLogo.png', resample(icon, 160, 160));
+  // The app-list icon is the logo full bleed: the sticker's own white edge is the
+  // frame, so the mark still reads at the list's 62x62. A floating glyph with
+  // transparent corners became a green blob there, which is what hid the logo.
+  write('WhatsAppLogo.png', resample(logo, 160, 160));
 
-  // The tile: the mark inside a frame, so it does not look zoomed. The wide
+  // The tiles: the mark inside a frame, so it does not look zoomed. The wide
   // frame carries the wide tile's proportion, or the system crops it.
-  write('TileIcon.png', inset(icon, 200, TileInset));
-  write('TileIcon.scale-240.png', inset(icon, 480, TileInset));
-  write('TileIconWide.png', banner(icon, 310, 150, WideInset));
-  write('TileIconWide.scale-240.png', banner(icon, 744, 360, WideInset));
-  write('StoreLogo.scale-240.png', resample(icon, 120, 120));
+  write('TileIcon.png', inset(logo, 200, TileInset));
+  write('TileIcon.scale-240.png', inset(logo, 480, TileInset));
+  write('TileIconWide.png', banner(logo, 310, 150, WideInset));
+  write('TileIconWide.scale-240.png', banner(logo, 744, 360, WideInset));
+
+  // The visuals Package.appxmanifest names, at the sizes it asks for. These were
+  // transparent placeholders copied from the official package and drew as
+  // nothing on a coloured tile - the logo missing from the wide tile above all.
+  write('Logo.scale-240.png', inset(logo, 360, TileInset));
+  write('SmallLogo.scale-240.png', resample(logo, 106, 106));
+  write('Square71x71Logo.scale-240.png', resample(logo, 170, 170));
+  write('WideLogo.scale-240.png', banner(logo, 744, 360, WideInset));
+  write('StoreLogo.scale-240.png', resample(logo, 120, 120));
+
+  // The lock screen badge, the one surface that is monochrome.
+  write('LockScreenBadge.scale-100.png', badge(logo, 24));
+  write('LockScreenBadge.scale-240.png', badge(logo, 58));
 
   if (PREVIEW) {
     preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIcon.scale-240.png'))), 'TileIcon.scale-240.png', 40);

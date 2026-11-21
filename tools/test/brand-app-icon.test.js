@@ -1,7 +1,9 @@
-// The app-list icon must be the official green square (Icon1.png), not the
-// floating bubble glyph: the bubble's transparent corners turn the small
-// app-list tile into a green blob with no visible mark. This pins both the
-// generator's source and the generated PNG's opaque corner.
+// The identity assets must carry the logo the owner supplied
+// (tools/brand/logo-source.png) - the green bubble in its white sticker outline -
+// and not the transparent placeholders the official package keeps for tiles it
+// composes at runtime. Those drew as nothing on a coloured tile. This pins the
+// generator's source, the generated full-bleed squares' opaque corners, and the
+// family the manifests name being generated at all.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -59,10 +61,13 @@ function firstRows(file, rows) {
   return out;
 }
 
-test('the app-list icon keeps its corners opaque like the official icon', () => {
+test('the full-bleed squares keep their corners opaque like the logo they carry', () => {
   for (const file of [
     path.join(root, 'WhatsappApp', 'Assets', 'WhatsAppLogo.png'),
-    path.join(root, 'tools', 'brand', 'official', 'Icon1.png'),
+    path.join(root, 'WhatsappApp', 'Assets', 'SmallLogo.scale-240.png'),
+    path.join(root, 'WhatsappApp', 'Assets', 'Square71x71Logo.scale-240.png'),
+    path.join(root, 'WhatsappApp', 'Assets', 'StoreLogo.scale-240.png'),
+    path.join(root, 'tools', 'brand', 'logo-source.png'),
   ]) {
     const row = firstRows(file, 3)[0];
     const alpha = row[3];
@@ -70,11 +75,36 @@ test('the app-list icon keeps its corners opaque like the official icon', () => 
   }
 });
 
-test('the generator draws the app icon from Icon1.png, not from the bubble glyph', () => {
+test('the generator draws every identity surface from the owner\'s logo', () => {
   const src = fs.readFileSync(path.join(root, 'tools', 'make-brand-assets.js'), 'utf8');
+  assert.match(src, /logo-source\.png/, 'the owner\'s logo is the source');
   assert.ok(
     !/copy\(\s*'WhatsAppLogo\.png'\s*,\s*'logo\.png'\s*\)/.test(src),
     'the app icon must not be the floating bubble glyph (logo.png)'
   );
-  assert.match(src, /write\(\s*'WhatsAppLogo\.png'/);
+  for (const name of [
+    'WhatsAppLogo.png', 'TileIcon.png', 'Logo.scale-240.png',
+    'SmallLogo.scale-240.png', 'Square71x71Logo.scale-240.png', 'WideLogo.scale-240.png',
+    'StoreLogo.scale-240.png', 'LockScreenBadge.scale-240.png',
+  ]) {
+    assert.ok(src.includes("write('" + name + "'"), name + ' is generated, not copied');
+  }
+});
+
+test('every surface the manifests name exists and carries a mark', () => {
+  for (const name of [
+    'WhatsAppLogo.png', 'TileIcon.png', 'TileIconWide.png', 'Logo.scale-240.png',
+    'SmallLogo.scale-240.png', 'Square71x71Logo.scale-240.png', 'WideLogo.scale-240.png',
+    'StoreLogo.scale-240.png', 'LockScreenBadge.scale-100.png', 'LockScreenBadge.scale-240.png',
+  ]) {
+    const file = path.join(root, 'WhatsappApp', 'Assets', name);
+    const rows = firstRows(file, 4000);
+    let painted = 0;
+    for (const row of rows) {
+      for (let i = 3; i < row.length; i += 4) {
+        if (row[i] > 0) painted++;
+      }
+    }
+    assert.ok(painted > 0, name + ' is drawn as nothing (every pixel transparent)');
+  }
 });
