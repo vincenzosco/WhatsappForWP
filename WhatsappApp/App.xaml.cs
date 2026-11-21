@@ -241,6 +241,21 @@ namespace WhatsappApp
             if (_shareOperation != null || _forceHomeForContinuation)
             {
                 _forceHomeForContinuation = false;
+
+                // A picker left from a chat: the person comes back to that chat, not to
+                // the chat list. The request rides the one-shot handoff a tile tap uses,
+                // so the chat page serves it once like it serves a tap.
+                string pickerChat;
+                string pickerName;
+                SessionService.TakePickerReturn(out pickerChat, out pickerName);
+                if (!string.IsNullOrEmpty(pickerChat))
+                {
+                    SessionService.PendingChatId = pickerChat;
+                    SessionService.PendingChatName = pickerName;
+                    Diag.Ok("picker: the continuation returns to " + pickerChat);
+                    return new Uri(ChatPageUri, UriKind.Relative);
+                }
+
                 return new Uri(HomePageUri, UriKind.Relative);
             }
 
@@ -686,6 +701,11 @@ namespace WhatsappApp
             if (continuation == null) return;
 
             _pickerContinuation = null;
+
+            // The app came back to the chat it never left: the request to reopen it is
+            // served, and a later navigation must not honour it a second time.
+            if (_rootFrame != null && _rootFrame.Content is ChatPage) SessionService.ClearPickerReturn();
+
             if (continuation.Files == null || continuation.Files.Count == 0) return;
 
 #pragma warning disable 4014

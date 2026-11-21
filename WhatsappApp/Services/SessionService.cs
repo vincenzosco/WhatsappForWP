@@ -44,6 +44,45 @@ namespace WhatsappApp.Services
             PendingChatName = null;
         }
 
+        // One-shot: the chat a picker left from. A FileOpenPicker continuation can bring
+        // the app back from termination, where a static field comes back empty, so this
+        // rides in the same persisted store as the badge route.
+        private const string KeyPickerChat = "pickerChat";
+        private const string KeyPickerName = "pickerName";
+
+        /// <summary>Remembers the chat that opened the picker, for the way back.</summary>
+        public static void SetPickerReturn(string chatId, string name)
+        {
+            Settings.Values[KeyPickerChat] = string.IsNullOrEmpty(chatId) ? "" : chatId;
+            Settings.Values[KeyPickerName] = string.IsNullOrEmpty(name) ? "" : name;
+        }
+
+        /// <summary>Takes the remembered chat away: the request is served once.</summary>
+        public static void TakePickerReturn(out string chatId, out string name)
+        {
+            object stored;
+            chatId = null;
+            name = null;
+            if (Settings.Values.TryGetValue(KeyPickerChat, out stored))
+            {
+                string text = stored as string;
+                if (!string.IsNullOrEmpty(text)) chatId = text;
+            }
+            if (Settings.Values.TryGetValue(KeyPickerName, out stored))
+            {
+                string text = stored as string;
+                if (!string.IsNullOrEmpty(text)) name = text;
+            }
+            ClearPickerReturn();
+        }
+
+        /// <summary>Drops a remembered chat that nobody needs any more.</summary>
+        public static void ClearPickerReturn()
+        {
+            Settings.Values[KeyPickerChat] = "";
+            Settings.Values[KeyPickerName] = "";
+        }
+
         /// <summary>
         /// When the user last had a section on screen, in the clock the rows carry.
         /// `default(DateTime)` means never, which is before every row.

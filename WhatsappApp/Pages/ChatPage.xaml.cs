@@ -2919,6 +2919,7 @@ namespace WhatsappApp.Pages
             // tile opens the unfiltered picker and every file type stays
             // reachable; Photo, Video and Audio remain as quick filters.
             AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+            RememberChatForPicker();
             try
             {
                 ImagePickerService.RequestFile();
@@ -2933,6 +2934,17 @@ namespace WhatsappApp.Pages
         private void AttachmentPhotoButton_Click(object sender, RoutedEventArgs e)
         {
             RequestFilteredFiles(new[] { ".jpg", ".jpeg", ".png", ".gif", ".bmp" });
+        }
+
+        /// <summary>
+        /// A FileOpenPicker continuation can bring the app back cold: the chat that
+        /// opened the picker is remembered so the return lands here and not on the
+        /// chat list.
+        /// </summary>
+        private void RememberChatForPicker()
+        {
+            if (_contact == null) return;
+            SessionService.SetPickerReturn(_contact.Id, _contact.Name);
         }
 
         private void AttachmentVideoButton_Click(object sender, RoutedEventArgs e)
@@ -2962,6 +2974,7 @@ namespace WhatsappApp.Pages
         private void RequestFilteredFiles(IList<string> extensions)
         {
             AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
+            RememberChatForPicker();
             try
             {
                 FileOpenPicker picker = new FileOpenPicker();

@@ -98,7 +98,7 @@ test('una chiamata persa che arriva senza rotta non e raggiungibile', () => {
 
 test('a tile tap that the mapper does not route to the chat page stops opening it', () => {
   const broken = files();
-  broken.app = broken.app.replace('return new Uri(ChatPageUri, UriKind.Relative);',
+  broken.app = broken.app.replace(/return new Uri\(ChatPageUri, UriKind\.Relative\);/g,
     'return new Uri(HomePageUri, UriKind.Relative);');
   assert.match(launchRouteProblems(broken).join('\n'), /chat page/);
 });
