@@ -277,6 +277,11 @@ namespace WhatsappApp.Protocol.Client
             BinaryNode offer = call.Child("offer");
             if (offer == null) return null;
 
+            // What the offer carries beyond this model goes to the log first: a real call
+            // is the capture that shows what the far end sends, and a child dropped in
+            // silence is a capture lost.
+            LogUnknownOfferParts(offer);
+
             var profile = new CallWireProfile();
             profile.CallerPn = offer.Attrs["caller_pn"];
             profile.CallerCountryCode = offer.Attrs["caller_country_code"];
@@ -307,6 +312,58 @@ namespace WhatsappApp.Protocol.Client
             }
 
             return profile.IsEmpty ? null : profile;
+        }
+
+        /// <summary>
+        /// Where the wire says what this client does not model. The protocol core does not
+        /// log - the app owns the log - and this seam is the only place the two meet.
+        /// </summary>
+        internal static Action<string> WireLog = delegate { };
+
+        /// <summary>One line to the app's log, when the app has wired one.</summary>
+        private static void Say(string line)
+        {
+            Action<string> log = WireLog;
+            if (log != null) log(line);
+        }
+
+        /// <summary>
+        /// What this client does not model, on the wire and in the log: the names, what they
+        /// carried, and how much. One line each, so pulling the log after a real call is the
+        /// capture the relay dialog is read from and not a blank.
+        /// </summary>
+        private static void LogUnknownOfferParts(BinaryNode offer)
+        {
+            foreach (KeyValuePair<string, string> attr in offer.Attrs)
+            {
+                if (attr.Key == "caller_pn" || attr.Key == "caller_country_code"
+                    || attr.Key == "joinable") continue;
+
+                Say("call wire: the offer carries the attribute " + attr.Key
+                    + " this client does not model, valued " + Truncate(attr.Value));
+            }
+
+            IList<BinaryNode> children = offer.Children();
+            for (int i = 0; i < children.Count; i++)
+            {
+                BinaryNode child = children[i];
+                string tag = child.Tag;
+
+                if (tag == "metadata" || tag == "rte" || tag == "voip_settings"
+                    || tag == "relay" || tag == "group_info" || tag == "av_upgrade"
+                    || tag == "link_info") continue;
+
+                Say("call wire: the offer carries the child " + tag
+                    + " this client does not model, with " + child.Attrs.Count
+                    + " attribute(s) and " + child.Children().Count + " child(ren)");
+            }
+        }
+
+        /// <summary>A value kept to one readable log line.</summary>
+        private static string Truncate(string value)
+        {
+            if (string.IsNullOrEmpty(value)) return "(none)";
+            return value.Length <= 256 ? value : value.Substring(0, 256) + "...";
         }
 
         /// <summary>The attributes, on the verb, after `call-id` and `call-creator`.</summary>

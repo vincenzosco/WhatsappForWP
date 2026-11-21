@@ -587,6 +587,10 @@ namespace WhatsappApp.Services
         private NativeConnection()
         {
             Status = "no account opened yet";
+
+            // The protocol core says what it cannot model through the seam the app owns:
+            // the log is where a real call becomes the capture the relay dialog is read from.
+            CallWireProfile.WireLog = Diag.Ok;
         }
 
         /// <summary>True while an account is open. False before a login and after the end of one.</summary>
