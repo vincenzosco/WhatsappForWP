@@ -265,10 +265,12 @@ namespace WhatsappApp.Pages
 
             string detail = kind + " · " + state;
             if (call.WasAnswered) detail = detail + " · " + CallDuration(call.ConnectedSeconds);
-            if (call.Phase == CallPhase.Active)
+            // The note answers why nothing is heard yet, and that is the wait for the other
+            // phone to answer. An active call carries audio; the ended one says why it stopped.
+            if (call.Phase == CallPhase.Ringing || call.Phase == CallPhase.Connecting)
             {
                 detail = detail + "\n" + Loc.Get("Call_NoAudio",
-                    "No audio yet: this build only signals the call.");
+                    "Call audio starts when the other phone answers.");
             }
             else if (call.Phase == CallPhase.Ended && !string.IsNullOrEmpty(call.EndedReason))
             {
