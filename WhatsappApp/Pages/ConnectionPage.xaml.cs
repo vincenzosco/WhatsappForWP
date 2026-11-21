@@ -37,6 +37,27 @@ namespace WhatsappApp.Pages
             LinkDeviceButton.Content = Loc.Get("ConnectionPage_LinkDevice.Content", "Link a device");
             LinkDeviceHint.Text = Loc.Get("ConnectionPage_LinkDeviceHint.Text",
                 "Linking a device replaces the account this phone uses.");
+            DisconnectButton.Content = Loc.Get("ConnectionPage_Disconnect.Content", "Disconnect");
+            DisconnectHint.Text = Loc.Get("ConnectionPage_DisconnectHint.Text",
+                "The account leaves this phone. The chats on it go with it.");
+        }
+
+        /// <summary>
+        /// Unlinks this phone: the person is asked first, because the chats on the
+        /// phone go with the account. Then the pairing screen, which is what an app
+        /// with no account shows.
+        /// </summary>
+        private void DisconnectButton_Click(object sender, RoutedEventArgs e)
+        {
+            string title = Loc.Get("ConnectionPage_DisconnectTitle", "Disconnect this phone?");
+            string message = Loc.Get("ConnectionPage_DisconnectMessage",
+                "The account leaves this phone, and the chats on it with it.");
+            MessageBoxResult answer = MessageBox.Show(message, title, MessageBoxButton.OKCancel);
+            if (answer != MessageBoxResult.OK) return;
+
+            DataService.Instance.ForgetAccount();
+            Diag.Ok("account: disconnected from the account screen");
+            NavigationService.Navigate(new Uri("/Pages/PairPage.xaml", UriKind.Relative));
         }
 
         protected override void OnNavigatedTo(NavigationEventArgs e)

@@ -22,12 +22,14 @@
                 <shell:ApplicationBarMenuItem x:Uid="Home_PinChatsAppBarMenuItem" Text="Pin chats" Click="PinChatsAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_UnpinAllAppBarMenuItem" Text="Unpin all" Click="UnpinAllAppBarMenuItem_Click"/>
                 <shell:ApplicationBarMenuItem x:Uid="Home_ResyncChatsAppBarMenuItem" Text="Resync chats" Click="ResyncChatsAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_SettingsAppBarMenuItem" Text="Settings" Click="SettingsAppBarMenuItem_Click"/>
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
         <shell:ApplicationBar x:Key="StatusApplicationBar" IsVisible="True" IsMenuEnabled="True">
             <shell:ApplicationBarIconButton x:Name="RefreshStatusAppBarButton" x:Uid="Home_RefreshStatusAppBarButton" IconUri="/Assets/Reference/refresh.png" Text="Refresh" Click="RefreshStatusApplicationBarButton_Click"/>
             <shell:ApplicationBar.MenuItems>
                 <shell:ApplicationBarMenuItem x:Uid="Home_MarkStatusesAppBarMenuItem" Text="Mark all as viewed" Click="MarkAllStatusesAppBarMenuItem_Click"/>
+                <shell:ApplicationBarMenuItem x:Uid="Home_SettingsAppBarMenuItem" Text="Settings" Click="SettingsAppBarMenuItem_Click"/>
             </shell:ApplicationBar.MenuItems>
         </shell:ApplicationBar>
         <shell:ApplicationBar x:Key="CallsApplicationBar" IsVisible="True" IsMenuEnabled="True">

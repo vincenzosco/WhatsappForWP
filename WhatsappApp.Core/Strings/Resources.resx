@@ -499,6 +499,18 @@
   <data name="ConnectionPage_LinkDeviceHint.Text" xml:space="preserve">
     <value>Linking a device replaces the account this phone uses.</value>
   </data>
+  <data name="ConnectionPage_Disconnect.Content" xml:space="preserve">
+    <value>Disconnect</value>
+  </data>
+  <data name="ConnectionPage_DisconnectHint.Text" xml:space="preserve">
+    <value>The account leaves this phone. The chats on it go with it.</value>
+  </data>
+  <data name="ConnectionPage_DisconnectTitle" xml:space="preserve">
+    <value>Disconnect this phone?</value>
+  </data>
+  <data name="ConnectionPage_DisconnectMessage" xml:space="preserve">
+    <value>The account leaves this phone, and the chats on it with it.</value>
+  </data>
   <data name="ConnectionPage_ClientIdle" xml:space="preserve">
     <value>Not connected.</value>
   </data>

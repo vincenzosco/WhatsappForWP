@@ -3941,6 +3941,32 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// Forgets the account on this phone: every chat with its messages, the saved
+        /// names, the call history and the session itself. The next start has no
+        /// account and opens the pair page - and none of the old account is left for
+        /// the next one to inherit.
+        /// </summary>
+        public void ForgetAccount()
+        {
+            // The socket is closed first: a connection kept alive would keep talking
+            // for an account this phone no longer holds.
+            NativeConnection.Instance.Stop();
+
+            var ids = new List<string>();
+            for (int i = 0; i < _contacts.Count; i++)
+            {
+                var contact = _contacts[i];
+                if (contact != null && !string.IsNullOrEmpty(contact.Id)) ids.Add(contact.Id);
+            }
+            for (int i = 0; i < ids.Count; i++) DeleteChat(ids[i]);
+
+            NameCache.Clear();
+            CallLogStore.Reset();
+            NativeCredentialStorage.Session().Clear();
+            Diag.Ok("account: forgotten on this phone (" + ids.Count + " chat(s))");
+        }
+
+        /// <summary>
         /// The three counts the home tab strip shows as badges, read out of the same
         /// collections the lists bind: unread messages, statuses not watched yet, and
         /// missed calls in the log. They are answers about the present, so they are
