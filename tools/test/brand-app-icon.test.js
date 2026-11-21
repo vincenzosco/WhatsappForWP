@@ -1,9 +1,8 @@
-// The identity assets must carry the logo the owner supplied
-// (tools/brand/logo-source.png) - the green bubble in its white sticker outline -
-// and not the transparent placeholders the official package keeps for tiles it
-// composes at runtime. Those drew as nothing on a coloured tile. This pins the
-// generator's source, the generated full-bleed squares' opaque corners, and the
-// family the manifests name being generated at all.
+// The identity assets must carry the bubble the released build drew
+// (official/logo.png) - the green bubble in its white outline - and not the flat
+// square or the sticker on a white card that replaced it: both read as "no
+// logo". This pins the generator's source and the shape of the app-list icon,
+// whose field is the bubble's own transparency and not a card.
 const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
@@ -61,26 +60,26 @@ function firstRows(file, rows) {
   return out;
 }
 
-test('the full-bleed squares keep their corners opaque like the logo they carry', () => {
+test('the app-list icon is the bubble on its own field, not a card', () => {
+  // The bubble's field is transparent and that is the point: the list's own
+  // background shows around the mark. A white card behind it is what hid the
+  // logo on the tile, and a flat square is what made it unreadable.
   for (const file of [
     path.join(root, 'WhatsappApp', 'Assets', 'WhatsAppLogo.png'),
-    path.join(root, 'WhatsappApp', 'Assets', 'SmallLogo.scale-240.png'),
-    path.join(root, 'WhatsappApp', 'Assets', 'Square71x71Logo.scale-240.png'),
-    path.join(root, 'WhatsappApp', 'Assets', 'StoreLogo.scale-240.png'),
-    path.join(root, 'tools', 'brand', 'logo-source.png'),
+    path.join(root, 'tools', 'brand', 'official', 'logo.png'),
   ]) {
     const row = firstRows(file, 3)[0];
     const alpha = row[3];
-    assert.ok(alpha > 200, file + ' must be an opaque square, found corner alpha ' + alpha);
+    assert.ok(alpha < 40, file + ' must keep the bubble\'s own field, found corner alpha ' + alpha);
   }
 });
 
-test('the generator draws every identity surface from the owner\'s logo', () => {
+test('the generator draws every identity surface from the bubble', () => {
   const src = fs.readFileSync(path.join(root, 'tools', 'make-brand-assets.js'), 'utf8');
-  assert.match(src, /logo-source\.png/, 'the owner\'s logo is the source');
+  assert.match(src, /official\/'?\)?\s*,\s*'logo\.png'|OFFICIAL, 'logo\.png'/, 'the bubble is the source');
   assert.ok(
     !/copy\(\s*'WhatsAppLogo\.png'\s*,\s*'logo\.png'\s*\)/.test(src),
-    'the app icon must not be the floating bubble glyph (logo.png)'
+    'the app icon is drawn, not copied raw'
   );
   for (const name of [
     'WhatsAppLogo.png', 'TileIcon.png', 'Logo.scale-240.png',

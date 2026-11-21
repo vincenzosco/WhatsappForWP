@@ -175,9 +175,17 @@ function blank(w, h) {
  * a mark that fills the asset looks zoomed and, on the wide tile, cropped. The
  * frame keeps the mark large but whole.
  */
+// The frame around an inset mark is the mark's own green, edge to edge: on the
+// Start screen a transparent frame is just empty space around a floating square,
+// and a green of its own only shows as a second square inside the first.
 function inset(img, size, fraction) {
   const side = Math.max(1, Math.round(size * fraction));
   const canvas = blank(size, size);
+  const edge = [img.data[0], img.data[1], img.data[2], 255];
+  for (let i = 0; i < canvas.data.length; i += 4) {
+    canvas.data[i] = edge[0]; canvas.data[i + 1] = edge[1]; canvas.data[i + 2] = edge[2];
+    canvas.data[i + 3] = edge[3];
+  }
   const scaled = resample(img, side, side);
   const at = Math.round((size - side) / 2);
   for (let y = 0; y < side; y++) {
@@ -323,9 +331,9 @@ function copy(name, from) {
   console.log(`${name.padEnd(32)} copied from official/${from}`);
 }
 
-function write(name, img) {
+function write(name, img, from) {
   fs.writeFileSync(path.join(OUT_DIR, name), encodePNG(img));
-  console.log(`${name.padEnd(32)} ${img.width}x${img.height} from brand/logo-source.png`);
+  console.log(`${name.padEnd(32)} ${img.width}x${img.height} from ${from || 'the brand art'}`);
 }
 
 // The lock screen badge: one colour is all a badge gets. The bubble's green is
@@ -354,33 +362,41 @@ function main() {
   copy('SplashScreen.scale-240.png', 'SplashScreen-1152x1920.png');
   copy('ChatBackground.jpg', 'Background.jpg');
 
-  const logo = decodePNG(
-    fs.readFileSync(path.join(__dirname, 'brand', 'logo-source.png')), 'logo-source.png');
+  // The identity mark is the bubble the released build drew
+  // (official/logo.png): the green bubble in its white outline, on whatever
+  // background the surface has. That is the mark a person recognises - the one
+  // the history shows working - and both things drawn since, the flat square
+  // and the sticker on a white card, read as "no logo".
+  const mark = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'logo.png')), 'logo.png');
 
-  // The app-list icon is the logo full bleed: the sticker's own white edge is the
-  // frame, so the mark still reads at the list's 62x62. A floating glyph with
-  // transparent corners became a green blob there, which is what hid the logo.
-  write('WhatsAppLogo.png', resample(logo, 160, 160));
+  // The app-list icon is the bubble itself, as the released build drew it. Its
+  // field is transparent and that is the point: the list's own background shows
+  // around the mark instead of a card standing in for it.
+  write('WhatsAppLogo.png', resample(mark, 160, 160), 'official/logo.png');
 
-  // The tiles: the mark inside a frame, so it does not look zoomed. The wide
-  // frame carries the wide tile's proportion, or the system crops it.
-  write('TileIcon.png', inset(logo, 200, TileInset));
-  write('TileIcon.scale-240.png', inset(logo, 480, TileInset));
-  write('TileIconWide.png', banner(logo, 310, 150, WideInset));
-  write('TileIconWide.scale-240.png', banner(logo, 744, 360, WideInset));
+  // The tiles: the official green square - the bubble on the brand green -
+  // inside the frame, so it does not look zoomed. The wide frame carries the
+  // wide tile's proportion, or the system crops it.
+  const icon = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'Icon1.png')), 'Icon1.png');
 
-  // The visuals Package.appxmanifest names, at the sizes it asks for. These were
-  // transparent placeholders copied from the official package and drew as
-  // nothing on a coloured tile - the logo missing from the wide tile above all.
-  write('Logo.scale-240.png', inset(logo, 360, TileInset));
-  write('SmallLogo.scale-240.png', resample(logo, 106, 106));
-  write('Square71x71Logo.scale-240.png', resample(logo, 170, 170));
-  write('WideLogo.scale-240.png', banner(logo, 744, 360, WideInset));
-  write('StoreLogo.scale-240.png', resample(logo, 120, 120));
+  write('TileIcon.png', inset(icon, 200, TileInset), 'official/Icon1.png');
+  write('TileIcon.scale-240.png', inset(icon, 480, TileInset), 'official/Icon1.png');
+  write('TileIconWide.png', banner(icon, 310, 150, WideInset), 'official/Icon1.png');
+  write('TileIconWide.scale-240.png', banner(icon, 744, 360, WideInset), 'official/Icon1.png');
+
+  // The visuals Package.appxmanifest names, at the sizes it asks for: the same
+  // green square and bubble, so every one of them carries the mark on whatever
+  // background the shell paints. These were transparent placeholders copied
+  // from the official package and drew as nothing on a coloured tile.
+  write('Logo.scale-240.png', inset(icon, 360, TileInset), 'official/Icon1.png');
+  write('SmallLogo.scale-240.png', inset(icon, 106, TileInset), 'official/Icon1.png');
+  write('Square71x71Logo.scale-240.png', inset(icon, 170, TileInset), 'official/Icon1.png');
+  write('WideLogo.scale-240.png', banner(icon, 744, 360, WideInset), 'official/Icon1.png');
+  write('StoreLogo.scale-240.png', inset(icon, 120, TileInset), 'official/Icon1.png');
 
   // The lock screen badge, the one surface that is monochrome.
-  write('LockScreenBadge.scale-100.png', badge(logo, 24));
-  write('LockScreenBadge.scale-240.png', badge(logo, 58));
+  write('LockScreenBadge.scale-100.png', badge(mark, 24), 'official/logo.png');
+  write('LockScreenBadge.scale-240.png', badge(mark, 58), 'official/logo.png');
 
   if (PREVIEW) {
     preview(decodePNG(fs.readFileSync(path.join(OUT_DIR, 'TileIcon.scale-240.png'))), 'TileIcon.scale-240.png', 40);
