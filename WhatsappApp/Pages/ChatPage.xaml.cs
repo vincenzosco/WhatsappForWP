@@ -277,16 +277,19 @@ namespace WhatsappApp.Pages
                 DataContext = contact;
                 _messageSelectionMode = false;
                 _selectedMessages.Clear();
+
+                // The state of the bar's buttons before the bar is on screen: a button
+                // whose `IsEnabled` moves while the bar is showing is one the phone keeps
+                // drawing grey, and a grey call button is a call nobody places. A group is
+                // not called from here: `CallSignaling` builds an offer to a single address,
+                // and a button that offered a group call the app cannot make would be a
+                // promise it breaks.
+                _callHeaderButton.IsEnabled = !GroupDirectory.IsGroup(contact.Id);
                 ApplicationBar = _chatAppBar;
 
                 ContactNameText.Text = (string.IsNullOrEmpty(contact.Name)
                     ? DataService.DisplayNameForJid(contact.Id)
                     : contact.Name).ToUpperInvariant();
-
-// A group is not called from here: `CallSignaling` builds an offer to a single
-// address, and a button that offered a group call the app cannot make would be a
-// promise it breaks.
-                _callHeaderButton.IsEnabled = !GroupDirectory.IsGroup(contact.Id);
 
                 // No presence: WhatsApp does not expose it through the server we
                 // use, and saying "online" or "last seen at HH:mm" was a lie. What
@@ -491,6 +494,10 @@ namespace WhatsappApp.Pages
         private void CallHeaderButton_Click(object sender, EventArgs e)
         {
             if (_contact == null || string.IsNullOrEmpty(_contact.Id)) return;
+
+            // The press and its failure used to be the same silence: a call that never
+            // started left no line anywhere. This one separates them.
+            Diag.Ok("calls: the call button is pressed for " + _contact.Id);
 
             if (GroupDirectory.IsGroup(_contact.Id))
             {
