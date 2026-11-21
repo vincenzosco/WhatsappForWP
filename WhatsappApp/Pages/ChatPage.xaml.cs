@@ -2901,10 +2901,32 @@ namespace WhatsappApp.Pages
                 AttachmentPhotoButton, AttachmentAlbumsButton, AttachmentVideoButton,
                 AttachmentContactButton, AttachmentAudioButton, AttachmentLocationButton
             };
+
+            // The mark is 54 px on the panel's own 128 px tile. A tile the formula
+            // makes smaller keeps that ratio: the mark stays inside its band and
+            // above the label instead of running into it.
+            double mark = Math.Round(side * 54 / 128);
             for (int i = 0; i < tiles.Length; i++)
             {
                 tiles[i].Width = side;
                 tiles[i].Height = side;
+
+                // The button is square but its content is not: without the stretch the
+                // tile's three proportional rows collapse to the height of the mark and
+                // the label is drawn over it. The XAP panel stretches the tile the same
+                // way.
+                tiles[i].HorizontalContentAlignment = HorizontalAlignment.Stretch;
+                tiles[i].VerticalContentAlignment = VerticalAlignment.Stretch;
+
+                Grid inner = tiles[i].Content as Grid;
+                if (inner == null) continue;
+                for (int j = 0; j < inner.Children.Count; j++)
+                {
+                    Image image = inner.Children[j] as Image;
+                    if (image == null) continue;
+                    image.Width = mark;
+                    image.Height = mark;
+                }
             }
         }
 
