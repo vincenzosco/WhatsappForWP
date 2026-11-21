@@ -37,11 +37,9 @@ namespace WhatsappApp.Services
         /// </summary>
         public static async Task RunAsync()
         {
-            if (!NativeInterop.IsSupported)
-            {
-                bool available = VoiceNoteEncoder.IsAvailable;
-                return;
-            }
+            // A refused probe is the evidence the second question wants, so the two
+            // questions below are asked whatever the loader answered.
+            bool codecReady = VoiceNoteEncoder.IsAvailable;
 
             bool inPackage = false;
             IStorageItem item = null;
