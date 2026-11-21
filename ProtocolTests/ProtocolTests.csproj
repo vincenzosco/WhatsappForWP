@@ -27,7 +27,7 @@
     <DebugType>full</DebugType>
     <Optimize>false</Optimize>
     <OutputPath>bin\Debug\</OutputPath>
-    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <DefineConstants>DEBUG;TRACE;PARITY</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -35,7 +35,7 @@
     <DebugType>pdbonly</DebugType>
     <Optimize>true</Optimize>
     <OutputPath>bin\Release\</OutputPath>
-    <DefineConstants>TRACE</DefineConstants>
+    <DefineConstants>TRACE;PARITY</DefineConstants>
     <ErrorReport>prompt</ErrorReport>
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
@@ -60,6 +60,9 @@
          that uses WinRT types and only the phone can compile it. -->
     <Compile Include="..\WhatsappApp\Protocol\**\*.cs"
              Exclude="..\WhatsappApp\Protocol\Transport\WebSocketTransport.cs;..\WhatsappApp\Protocol\Transport\CallMediaSocket.cs" />
+    <!-- The Opus codec (Concentus) runs anywhere managed code runs, which is the whole
+         reason it replaced the native one: it is tested here, frame by frame. -->
+    <Compile Include="..\WhatsappApp\Opus\**\*.cs" />
     <!-- The app-side files whose logic is testable off the phone: the start-up rule
          and the rotation of the live tile. Named one by one and not by folder,
          because Services/ is otherwise WinRT code this project cannot compile. -->

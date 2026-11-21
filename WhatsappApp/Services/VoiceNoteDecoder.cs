@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using System.Runtime.InteropServices;
+using Concentus.Structs;
 using WhatsappApp.Protocol.Media;
 
 namespace WhatsappApp.Services
@@ -8,12 +8,12 @@ namespace WhatsappApp.Services
     /// <summary>
     /// A received voice note, turned into a file this phone can play.
     ///
-    /// A WhatsApp voice note is Ogg/Opus, and WP8.1 has no Opus decoder -
+    /// A WhatsApp voice note is Ogg/Opus, and WP8.1 has no Opus decoder of its own -
     /// `MediaElement` opens the file and answers `MediaFailed`, which is the note that
-    /// "arrives and does not play". The decoder was already in `waopus.dll` (libopus'
-    /// `opus_decoder.c`, compiled for the encoder's arithmetic), so the missing half was
-    /// these three functions and a WAV writer: PCM is the one thing this platform plays
-    /// without help.
+    /// "arrives and does not play". The decoder is `Concentus` (`WhatsappApp/Opus`), the
+    /// pure C# port of libopus 1.1.2 in fixed point: a native one cannot run here, the
+    /// phone answers `DllImport cannot be used on user-defined methods` to every such
+    /// call. PCM is the one thing this platform plays without help.
     ///
     /// The output is **16 kHz** whatever the note was: libopus resamples while it decodes,
     /// and a thirty-second note is 960 KB of WAV instead of 2.9 MB - on a phone with a
@@ -36,16 +36,6 @@ namespace WhatsappApp.Services
 
         private const int WavHeaderBytes = 44;
 
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr wa_opus_decode_create(int sampleRate, int channels);
-
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int wa_opus_decode(IntPtr decoder, byte[] packet, int length,
-            short[] pcm, int capacityPerChannel);
-
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void wa_opus_decode_destroy(IntPtr decoder);
-
         /// <summary>
         /// The file as a PCM WAV, or null when this is not Ogg/Opus, when the package has no
         /// decoder, or when a packet came back refused.
@@ -56,12 +46,6 @@ namespace WhatsappApp.Services
 
             OggOpus.Content content = OggOpus.Read(ogg);
             if (content == null || content.Packets.Count == 0) return null;
-
-            if (!VoiceNoteEncoder.IsAvailable)
-            {
-                Diag.Ok("voice: an Ogg/Opus note arrived and this package has no decoder for it");
-                return null;
-            }
 
             byte[] pcm = Decode(content);
             if (pcm == null) return null;
@@ -82,24 +66,14 @@ namespace WhatsappApp.Services
         /// </summary>
         private static byte[] Decode(OggOpus.Content content)
         {
-            if (!NativeInterop.IsSupported) return null;
-
-            IntPtr decoder = IntPtr.Zero;
-
+            OpusDecoder decoder;
             try
             {
-                decoder = wa_opus_decode_create(PlaybackRate, content.Channels);
+                decoder = OpusDecoder.Create(PlaybackRate, content.Channels);
             }
             catch (Exception ex)
             {
-                Diag.Failed("voice: the Opus decoder is not loadable", ex);
-                return null;
-            }
-
-            if (decoder == IntPtr.Zero)
-            {
-                Diag.Ok("voice: the decoder refused " + PlaybackRate + " Hz, "
-                    + content.Channels + " channel(s)");
+                Diag.Failed("voice: the Opus decoder", ex);
                 return null;
             }
 
@@ -116,7 +90,7 @@ namespace WhatsappApp.Services
                 {
                     byte[] packet = content.Packets[i];
 
-                    int got = wa_opus_decode(decoder, packet, packet.Length, samples,
+                    int got = decoder.Decode(packet, 0, packet.Length, samples, 0,
                         MaxSamplesPerChannel);
 
                     if (got <= 0)
@@ -151,10 +125,6 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("voice: decoding an Ogg/Opus note", ex);
                 return null;
-            }
-            finally
-            {
-                wa_opus_decode_destroy(decoder);
             }
         }
 

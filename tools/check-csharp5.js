@@ -20,11 +20,18 @@ const path = require('path');
 const { stripComments } = require('./csharp');
 
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-// WhatsappApp.Core compila gli stessi sorgenti di WhatsappApp (li linka), quindi
-// una radice basta per quelli; WhatsappApp.Tasks ha file suoi (il task di sfondo)
-// e va letto anche lui: lo compila lo stesso compilatore C# 5.
+// WhatsappApp.Core compiles the same sources as WhatsappApp (it links them), so one
+// root covers both; WhatsappApp.Tasks has files of its own (the background task) and
+// is read too: the same C# 5 compiler builds it.
 const SCAN_ROOTS = ['WhatsappApp', 'WhatsappApp.Tasks'];
 const SKIP_DIRS = new Set(['bin', 'obj', 'node_modules', '.git', 'AppPackages']);
+// Vendored third-party code (Concentus, the C# Opus port, under the BSD license kept
+// in WhatsappApp/Opus/Concentus-LICENSE.txt) is checked by its own upstream and by the
+// compiler; this gate polices the code written here. The tree is C# 5 compatible apart
+// from two false positives of these rules - `out int name` in a parameter list is C# 2,
+// and a lambda inside a field initializer is C# 3 - so skipping it loses nothing the
+// toolchain would catch.
+const VENDORED = new Set(['WhatsappApp/Opus']);
 
 const RULES = [
   { name: 'interpolated string', re: /\$@?"/ },
@@ -113,7 +120,9 @@ function walk(dir, out) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       if (SKIP_DIRS.has(entry.name)) continue;
-      walk(path.join(dir, entry.name), out);
+      const child = path.join(dir, entry.name);
+      if (VENDORED.has(path.relative(PROJECT_ROOT, child).split(path.sep).join('/'))) continue;
+      walk(child, out);
     } else if (entry.name.endsWith('.cs')) {
       out.push(path.join(dir, entry.name));
     }

@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Threading.Tasks;
+using Concentus.Enums;
+using Concentus.Structs;
 using Windows.Storage;
 using Windows.Storage.Streams;
 using WhatsappApp.Protocol.Media;
@@ -12,11 +13,12 @@ namespace WhatsappApp.Services
     /// <summary>
     /// A recording, turned into the Ogg/Opus a WhatsApp voice note is made of.
     ///
-    /// Why a native encoder: WhatsApp's own clients play a `ptt` only as Ogg/Opus, and this
-    /// platform has no Opus encoder (WP8.1 plays Opus, it does not make it). The encoder
-    /// lives in `waopus.dll`, built by `tools/build-opus-arm.bat` from libopus and
-    /// `tools/opus/waopus.c`; what crosses the boundary is one pointer and one frame at a
-    /// time, so nothing of the format is in C.
+    /// Where the encoder comes from: WhatsApp's own clients play a `ptt` only as Ogg/Opus,
+    /// and this platform has no Opus encoder of its own. A native one was tried first and
+    /// the phone settled the question - `DllImport cannot be used on user-defined methods`,
+    /// the answer every Silverlight app gets - so the codec here is `Concentus`
+    /// (`WhatsappApp/Opus`), the pure C# port of libopus 1.1.2 in fixed point. It is part
+    /// of this assembly: there is nothing to load and nothing to refuse.
     ///
     /// The input is the **PCM WAV** the recorder writes (`AudioRecorder`), and not the M4A:
     /// an M4A would have to be AAC-decoded first, and the platform's decoder is not
@@ -33,25 +35,6 @@ namespace WhatsappApp.Services
 
         /// <summary>The format's own ceiling for one packet (RFC 6716, section 3.4).</summary>
         private const int MaxPacketBytes = 1275;
-
-        /// <summary>What `wa_opus_api` has to answer: this file's shape of the DLL.</summary>
-        private const int ExpectedApi = 1;
-
-        private static bool _asked;
-        private static bool _available;
-
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int wa_opus_api();
-
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern IntPtr wa_opus_create(int sampleRate, int channels, int bitrate);
-
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern int wa_opus_frame(IntPtr encoder, short[] pcm,
-            int samplesPerChannel, byte[] output, int capacity);
-
-        [DllImport("waopus.dll", CallingConvention = CallingConvention.Cdecl)]
-        private static extern void wa_opus_destroy(IntPtr encoder);
 
         /// <summary>A note that is now Ogg/Opus, and how long it plays.</summary>
         public sealed class Encoded
@@ -74,12 +57,6 @@ namespace WhatsappApp.Services
         public static async Task<Encoded> FromWavAsync(string wavFileName)
         {
             if (string.IsNullOrEmpty(wavFileName)) return null;
-            if (!NativeInterop.IsSupported)
-            {
-                ReportUnsupported();
-                return null;
-            }
-            if (!Available()) return null;
 
             byte[] bytes;
             try
@@ -159,117 +136,75 @@ namespace WhatsappApp.Services
         /// </summary>
         private static List<byte[]> Encode(Wave wave)
         {
-            if (!NativeInterop.IsSupported) return null;
-
-            IntPtr encoder = wa_opus_create(wave.SampleRate, wave.Channels, 0);
-            if (encoder == IntPtr.Zero)
-            {
-                Diag.Ok("voice: the encoder refused " + wave.SampleRate + " Hz, "
-                    + wave.Channels + " channel(s)");
-                return null;
-            }
-
+            OpusEncoder encoder;
             try
             {
-                int perFrame = wave.SampleRate / (1000 / FrameMilliseconds);
-                int sampleCount = perFrame * wave.Channels;
-                var samples = new short[sampleCount];
-                var packet = new byte[MaxPacketBytes];
-                var packets = new List<byte[]>();
-
-                int at = wave.DataOffset;
-                int end = wave.DataOffset + wave.DataLength;
-
-                while (end - at >= sampleCount * 2)
-                {
-                    for (int i = 0; i < sampleCount; i++)
-                    {
-                        samples[i] = (short)(wave.Bytes[at] | (wave.Bytes[at + 1] << 8));
-                        at += 2;
-                    }
-
-                    int size = wa_opus_frame(encoder, samples, perFrame, packet, packet.Length);
-                    if (size <= 0)
-                    {
-                        Diag.Ok("voice: the encoder refused a frame (" + size + ")");
-                        return null;
-                    }
-
-                    var one = new byte[size];
-                    System.Buffer.BlockCopy(packet, 0, one, 0, size);
-                    packets.Add(one);
-                }
-
-                if (packets.Count == 0)
-                {
-                    Diag.Ok("voice: the recording is shorter than one 20 ms frame");
-                    return null;
-                }
-
-                return packets;
-            }
-            finally
-            {
-                wa_opus_destroy(encoder);
-            }
-        }
-
-        /// <summary>
-        /// Whether this package's `waopus.dll` loads at all: the encoder and the decoder
-        /// are the same file, so this one answer covers both (asked at start-up by
-        /// `AudioCodecCheck`).
-        /// </summary>
-        public static bool IsAvailable
-        {
-            get
-            {
-                if (!NativeInterop.IsSupported)
-                {
-                    ReportUnsupported();
-                    return false;
-                }
-                return Available();
-            }
-        }
-
-        private static void ReportUnsupported()
-        {
-            NativeInterop.ReportUnavailable("voice: Opus codec");
-        }
-
-        /// <summary>
-        /// Whether the encoder can be loaded, asked once per process. A package without the
-        /// DLL (a build before the encoder landed) is a fallback, not a crash: the call
-        /// throws `DllNotFoundException` the first time and nothing after.
-        /// </summary>
-        private static bool Available()
-        {
-            if (!NativeInterop.IsSupported)
-            {
-                ReportUnsupported();
-                return false;
-            }
-            if (_asked) return _available;
-            _asked = true;
-
-            try
-            {
-                int api = wa_opus_api();
-                _available = api == ExpectedApi;
-
-                if (!_available)
-                {
-                    Diag.Ok("voice: the Opus encoder speaks api " + api
-                        + " and this build speaks " + ExpectedApi + ", so notes go as audio");
-                }
+                encoder = OpusEncoder.Create(wave.SampleRate, wave.Channels,
+                    OpusApplication.OPUS_APPLICATION_VOIP);
             }
             catch (Exception ex)
             {
-                _available = false;
-                Diag.Failed("voice: the Opus encoder is not loadable, so notes go as audio", ex);
+                Diag.Ok("voice: the encoder refused " + wave.SampleRate + " Hz, "
+                    + wave.Channels + " channel(s) (" + ex.Message + ")");
+                return null;
             }
 
-            return _available;
+            int perFrame = wave.SampleRate / (1000 / FrameMilliseconds);
+            int sampleCount = perFrame * wave.Channels;
+            var samples = new short[sampleCount];
+            var packet = new byte[MaxPacketBytes];
+            var packets = new List<byte[]>();
+
+            int at = wave.DataOffset;
+            int end = wave.DataOffset + wave.DataLength;
+
+            while (end - at >= sampleCount * 2)
+            {
+                for (int i = 0; i < sampleCount; i++)
+                {
+                    samples[i] = (short)(wave.Bytes[at] | (wave.Bytes[at + 1] << 8));
+                    at += 2;
+                }
+
+                int size;
+                try
+                {
+                    size = encoder.Encode(samples, 0, perFrame, packet, 0, packet.Length);
+                }
+                catch (Exception ex)
+                {
+                    Diag.Ok("voice: the encoder refused a frame (" + ex.Message + ")");
+                    return null;
+                }
+
+                if (size <= 0)
+                {
+                    Diag.Ok("voice: the encoder refused a frame (" + size + ")");
+                    return null;
+                }
+
+                var one = new byte[size];
+                System.Buffer.BlockCopy(packet, 0, one, 0, size);
+                packets.Add(one);
+            }
+
+            if (packets.Count == 0)
+            {
+                Diag.Ok("voice: the recording is shorter than one 20 ms frame");
+                return null;
+            }
+
+            return packets;
+        }
+
+        /// <summary>
+        /// Whether the codec is part of this package. It is managed code in this assembly
+        /// (`WhatsappApp/Opus`), so the answer cannot change between phones: a note goes out
+        /// as Ogg/Opus and one that arrives is decoded to a WAV that plays.
+        /// </summary>
+        public static bool IsAvailable
+        {
+            get { return true; }
         }
 
         /// <summary>
