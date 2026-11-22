@@ -51,6 +51,9 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The `ib` child that carries the unified-session telemetry.</summary>
         public const string UnifiedSessionChild = "unified_session";
 
+        /// <summary>The namespace the push registration travels on (`FunXMPP.SendClientConfig`, 2.17.52).</summary>
+        public const string PushNamespace = "urn:xmpp:whatsapp:push";
+
         /// <summary>How much backlog this client asks for when the server offers a preview.</summary>
         public const int OfflineBatchCount = 100;
 
@@ -72,6 +75,46 @@ namespace WhatsappApp.Protocol.Client
             iq.Attrs.Add("xmlns", PassiveNamespace);
             iq.Attrs.Add("id", Hex(random.Bytes(8)));
             iq.Content = new List<BinaryNode> { child };
+
+            return iq;
+        }
+
+        /// <summary>
+        /// The push registration: where the platform will deliver this phone's
+        /// notifications, and the client's own config around it. This is the
+        /// `urn:xmpp:whatsapp:push` `config` the client reference sends at login
+        /// (`AppState.SendPushConfig` -> `FunXMPP.SendClientConfig`, attributes from
+        /// `Mpns.ClientConfig`): from here on the server pushes to the channel and
+        /// the phone shows the notifications by itself, even with this app closed.
+        ///
+        /// The attributes are copied one by one because the server's answer depends
+        /// on the pair set, not on any one value: `platform=microsoft`, the language
+        /// and locale (`lg`, `lc`), `clear=0`, the notification preview flag,
+        /// `default=1`, `groups=1`, and `version=2` - the reference sends 3 when it
+        /// schedules a voip task and 2 otherwise, and nothing here does.
+        /// </summary>
+        public static BinaryNode PushConfigIq(string channelUri, string lang, string locale, bool preview, IRandomSource random)
+        {
+            if (string.IsNullOrEmpty(channelUri)) throw new ProtocolException("a push config without a channel uri registers nothing");
+            if (random == null) throw new ProtocolException("a push config needs randomness for its id");
+
+            var config = new BinaryNode("config");
+            config.Attrs.Add("id", channelUri);
+            config.Attrs.Add("platform", "microsoft");
+            config.Attrs.Add("lg", lang ?? string.Empty);
+            config.Attrs.Add("lc", locale ?? string.Empty);
+            config.Attrs.Add("clear", "0");
+            config.Attrs.Add("preview", preview ? "1" : "0");
+            config.Attrs.Add("default", "1");
+            config.Attrs.Add("groups", "1");
+            config.Attrs.Add("version", "2");
+
+            var iq = new BinaryNode("iq");
+            iq.Attrs.Add("to", PairingSession.ServerJid);
+            iq.Attrs.Add("type", "set");
+            iq.Attrs.Add("xmlns", PushNamespace);
+            iq.Attrs.Add("id", Hex(random.Bytes(8)));
+            iq.Content = new List<BinaryNode> { config };
 
             return iq;
         }

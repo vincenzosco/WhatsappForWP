@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Threading.Tasks;
 using WhatsappApp.Protocol;
 using WhatsappApp.Protocol.Client;
@@ -778,6 +779,12 @@ namespace WhatsappApp.Services
             _running = true;
             int generation = ++_generation;
 
+            // The phone's notification channel comes up with the connection: the
+            // registration is a login sentence, and a login with no channel uri in
+            // hand would send none (see AnnounceClientStateAsync).
+            PushChannel.Start();
+            PushChannel.UriChanged += OnPushUriChanged;
+
             // The loop runs for the life of the process, and it answers for its own
             // fault: `Guarded` records what it cannot survive, so nobody has to await
             // it here - which is what the pragma is for (C# 5 will not let a `void`
@@ -1353,11 +1360,53 @@ namespace WhatsappApp.Services
                 DateTime now = DateTime.UtcNow;
                 await session.SendAsync(ClientState.UnifiedSession(now));
                 Diag.Ok("native: unified session " + ClientState.UnifiedSessionId(now));
+
+                // The third sentence: where to push. The phone's own notification
+                // channel, registered with the server like the client reference does
+                // at every login (`AppState.SendPushConfig`): from here on the platform
+                // shows arriving notifications by itself, even with this app closed.
+                // No uri, no sentence - the next login with one sends it.
+                Uri pushUri = PushChannel.ChannelUri;
+                if (pushUri != null)
+                {
+                    CultureInfo ui = CultureInfo.CurrentUICulture;
+                    string lang = ui.TwoLetterISOLanguageName;
+                    string locale = RegionInfo.CurrentRegion.TwoLetterISORegionName;
+                    await session.SendAsync(ClientState.PushConfigIq(pushUri.ToString(), lang, locale, true, _random));
+                    Diag.Ok("native: the push config went out");
+                }
             }
             catch (Exception error)
             {
                 Diag.Failed("NativeConnection/client state", error);
             }
+        }
+
+        /// <summary>
+        /// The platform hands out a new channel uri from time to time, and a
+        /// registration naming the old one points at nothing. The same sentence the
+        /// login sends goes out again on the live socket; with no socket in hand the
+        /// next login's sentence covers it.
+        /// </summary>
+        private void OnPushUriChanged(object sender, EventArgs args)
+        {
+            NativeSession session = _session;
+            Uri pushUri = PushChannel.ChannelUri;
+            if (session == null || pushUri == null || !IsLoggedIn) return;
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("NativeConnection/push config", ResendPushConfigAsync(session, pushUri));
+#pragma warning restore 4014
+        }
+
+        /// <summary>The re-sent registration: the login's third sentence, on demand.</summary>
+        private async Task ResendPushConfigAsync(NativeSession session, Uri pushUri)
+        {
+            CultureInfo ui = CultureInfo.CurrentUICulture;
+            string lang = ui.TwoLetterISOLanguageName;
+            string locale = RegionInfo.CurrentRegion.TwoLetterISORegionName;
+            await session.SendAsync(ClientState.PushConfigIq(pushUri.ToString(), lang, locale, true, _random));
+            Diag.Ok("native: the push config went out again (the channel uri changed)");
         }
 
         /// <summary>
