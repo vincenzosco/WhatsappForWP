@@ -881,6 +881,12 @@ namespace WhatsappApp.Pages
 
             var menu = new Microsoft.Phone.Controls.ContextMenu();
 
+            // The official client's hold menus run without the zoom effect
+            // (`<toolkit:ContextMenu IsZoomEnabled="False">`); ours match it. A menu that
+            // closes forgets itself, so a later tap on the row cannot reopen a stale one.
+            menu.IsZoomEnabled = false;
+            menu.Closed += delegate { if (_holdMenu == menu) _holdMenu = null; };
+
             AddHoldItem(menu, pinned
                 ? Loc.Get("ChatsPage_Unpin", "unpin")
                 : Loc.Get("ChatsPage_Pin", "pin"),
@@ -908,6 +914,19 @@ namespace WhatsappApp.Pages
             Microsoft.Phone.Controls.ContextMenuService.SetContextMenu(row, menu);
             _holdMenu = menu;
             menu.IsOpen = true;
+        }
+
+        /// <summary>
+        /// Keeps the row menu open when the finger lifts. The Toolkit reads a manipulation
+        /// completing while the menu's opening is still animating as a reason to dismiss
+        /// it, and that completion is exactly the release of the long-press that opened
+        /// the menu. While a menu is open the release is ours to consume.
+        /// </summary>
+        private void ChatRow_ReleaseGuard(object sender, System.Windows.Input.ManipulationCompletedEventArgs e)
+        {
+            if (_holdMenu == null) return;
+            e.Handled = true;
+            Diag.Ok("HomePage/menu kept on release");
         }
 
         /// <summary>One item of a hold menu: the words it carries and what it does.</summary>

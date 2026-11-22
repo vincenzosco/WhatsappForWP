@@ -2115,6 +2115,11 @@ namespace WhatsappApp.Pages
             CloseActionMenu();
 
             var menu = new Microsoft.Phone.Controls.ContextMenu();
+            // The official client's hold menus run without the zoom effect
+            // (`<toolkit:ContextMenu IsZoomEnabled="False">`); ours match it, and a menu
+            // that closes forgets itself so no later gesture reopens a stale one.
+            menu.IsZoomEnabled = false;
+            menu.Closed += delegate { if (_actionMenu == menu) _actionMenu = null; };
             for (int i = 0; i < actions.Count; i++)
             {
                 var item = new Microsoft.Phone.Controls.MenuItem();
@@ -2367,6 +2372,17 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void Bubble_ManipulationCompleted(object sender, System.Windows.Input.ManipulationCompletedEventArgs e)
         {
+            // The Toolkit dismisses a menu when a manipulation completes while its opening
+            // is still animating, and that completion is the release of the long-press
+            // that opened the menu. While a hold menu is open the release is marked
+            // handled, so the menu stays on the screen the user just asked for.
+            if (_actionMenu != null && _actionMenu.IsOpen)
+            {
+                e.Handled = true;
+                Diag.Ok("ChatPage/menu kept on release");
+                return;
+            }
+
             var row = sender as FrameworkElement;
             if (row == null) return;
 
