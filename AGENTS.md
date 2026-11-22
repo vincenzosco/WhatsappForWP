@@ -52,6 +52,18 @@
   `WhatsappApp.Tasks` and `ProtocolTests`; the scripts in `tools/` still carry Italian
   headers written before this rule, are counted as debt, and are translated when touched.
 
+## The phone
+
+- **The app is never installed on the phone from here.** Every deploy wipes the
+  account, the chats and the logs. A build is delivered as the XAP on the
+  desktop, named with its version, and the phone is left alone.
+- **Every delivered change bumps the version by one.** The fix goes in with the
+  old number and the bump is its own `Version 1.3.12.x` commit, in the three
+  files that carry it: `Package.appxmanifest`, `WMAppManifest.xml`,
+  `AssemblyInfo.cs`.
+- When the user does authorize an install, take an ISETool snapshot first and
+  restore it afterwards - the snapshot is the only thing that survives a deploy.
+
 ## The rest
 
 The rules for the code itself live in `.agents/skills/maintain-the-app/SKILL.md`
