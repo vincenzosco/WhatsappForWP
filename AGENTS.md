@@ -54,6 +54,13 @@
 
 ## The phone
 
+- **The agent never installs on the device.** No `AppDeployCmd`, no `ISETool`
+  write, not even through the script: the person applies a build, the agent
+  builds it and puts it on the desktop. Reading is fine - the log comes off the
+  phone with `ISETool ts`, which only copies.
+- **The phone's log is read before the work is called done.** What it says is
+  the evidence for what to fix and for what a fix changed; a change that is
+  supposed to show there is checked against it.
 - **A build reaches the phone only through `tools/Aggiorna-WhatsApp.cmd`**, the
   thing a person double clicks next to the XAP. It runs
   `tools/phone-update.ps1`, which takes an ISETool snapshot, applies the package
@@ -64,16 +71,16 @@
   removal takes the account, the chats and the logs with it: the next start
   prints `start: no account stored, the pair page` and the person is back at
   the QR code.
-- **Every delivered change bumps the version by one.** The fix goes in with the
+- **Every delivered change bumps the version by one, every time.** The fix goes in with the
   old number and the bump is its own `Version 1.3.12.x` commit, in the three
   files that carry it: `Package.appxmanifest`, `WMAppManifest.xml`,
   `AssemblyInfo.cs`. The version is not only bookkeeping: the update door is
   refused outright when the package does not carry a higher number than the one
   already on the phone.
 - The delivery is the XAP on the desktop, named with its version, with
-  `Aggiorna-WhatsApp.cmd` beside it. A build is never installed from here
-  without that script: its snapshot is the only thing that survives a bare
-  install, and it prints where the snapshot stands.
+  `Aggiorna-WhatsApp.cmd` beside it. That script is the only door to the phone
+  and it is the person who opens it: its snapshot is the only thing that
+  survives a bare install, and it prints where the snapshot stands.
 
 ## The rest
 
