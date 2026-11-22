@@ -717,9 +717,27 @@
             <Button Grid.Column="2" Width="56" MinWidth="0" MinHeight="0" Padding="0"
                     BorderThickness="0" Background="Transparent"
                     Click="ReplyClose_Tapped">
-                <Path Data="M0,0 L10,10 M10,0 L0,10"
-                      Stroke="#FF666666" StrokeThickness="2"
-                      Width="14" Height="14" Stretch="Fill"/>
+                <Path Stroke="#FF666666" StrokeThickness="2"
+                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                      Width="24" Height="24">
+                    <!-- IconClose -->
+                    <Path.Data>
+                        <PathGeometry>
+                            <PathGeometry.Figures>
+                                <PathFigure StartPoint="6,6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="18,18"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                                <PathFigure StartPoint="18,6">
+                                    <PathFigure.Segments>
+                                        <LineSegment Point="6,18"/>
+                                    </PathFigure.Segments>
+                                </PathFigure>
+                            </PathGeometry.Figures>
+                        </PathGeometry>
+                    </Path.Data>
+                </Path>
             </Button>
         </Grid>
 
