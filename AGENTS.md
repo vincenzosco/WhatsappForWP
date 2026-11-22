@@ -54,15 +54,26 @@
 
 ## The phone
 
-- **The app is never installed on the phone from here.** Every deploy wipes the
-  account, the chats and the logs. A build is delivered as the XAP on the
-  desktop, named with its version, and the phone is left alone.
+- **A build reaches the phone only through `tools/Aggiorna-WhatsApp.cmd`**, the
+  thing a person double clicks next to the XAP. It runs
+  `tools/phone-update.ps1`, which takes an ISETool snapshot, applies the package
+  with `AppDeployCmd /update` - the one door that replaces the package and
+  leaves the app's storage alone - and where the platform refuses that, it
+  installs and restores the snapshot over the emptied storage. A bare
+  `AppDeployCmd /install` (or `/installlaunch`) removes the app first and the
+  removal takes the account, the chats and the logs with it: the next start
+  prints `start: no account stored, the pair page` and the person is back at
+  the QR code.
 - **Every delivered change bumps the version by one.** The fix goes in with the
   old number and the bump is its own `Version 1.3.12.x` commit, in the three
   files that carry it: `Package.appxmanifest`, `WMAppManifest.xml`,
-  `AssemblyInfo.cs`.
-- When the user does authorize an install, take an ISETool snapshot first and
-  restore it afterwards - the snapshot is the only thing that survives a deploy.
+  `AssemblyInfo.cs`. The version is not only bookkeeping: the update door is
+  refused outright when the package does not carry a higher number than the one
+  already on the phone.
+- The delivery is the XAP on the desktop, named with its version, with
+  `Aggiorna-WhatsApp.cmd` beside it. A build is never installed from here
+  without that script: its snapshot is the only thing that survives a bare
+  install, and it prints where the snapshot stands.
 
 ## The rest
 
