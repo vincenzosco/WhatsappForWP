@@ -90,7 +90,8 @@ test('the two words are localized in both languages', () => {
 test('an incoming reaction lands on the row it names and is written back', () => {
   const data = read(path.join('WhatsappApp', 'Services', 'DataService.cs'));
   assert.match(data, /public void ApplyReaction\(string chatId, string messageId, string emoji\)/);
-  assert.match(data, /messages\[i\]\.Reaction = emoji;/, 'the row carries it');
+  assert.match(data, /messages\[i\]\.Reaction = string\.IsNullOrEmpty\(emoji\) \? null : emoji;/,
+    'the row carries it, and an empty one clears it');
   assert.match(data, /RewriteTailAsync\(chatId, messages\)/, 'and the conversation is written back');
   assert.match(data, /ApplyNativeQuote\(message, incoming\.Encoded\)/, 'the quote arrives too');
   assert.match(data, /LoadCachedMessagesAsync\(chatId\)/,
@@ -118,4 +119,23 @@ test('the chosen emoji is on the bubble before the wire says anything', () => {
   assert.match(react, /message\.Reaction = emoji;/);
   assert.ok(react.indexOf('message.Reaction = emoji;') < react.indexOf('SendReactionAsync'),
     'the emoji lands first: the person watching this screen chose it and sees it');
+});
+test('an incoming un-react clears the badge instead of falling into the media path', () => {
+  // A reaction is a message of its own: the target lives in its key, the emoji in its
+  // text. The other side taking a reaction back sends the same message with an empty
+  // text, so the reaction branch has to be entered by the key being there, not by the
+  // emoji being filled - otherwise the removal drops through to the media reader and
+  // the old badge stays on the bubble for good.
+  const native = read(path.join('WhatsappApp', 'Services', 'NativeConnection.cs'));
+  const branch = native.slice(native.indexOf('ReactionOf()'), native.indexOf('return;', native.indexOf('ReactionOf()')));
+  assert.match(branch, /!string\.IsNullOrEmpty\(reaction\.MessageId\)/,
+    'the key decides that this is a reaction');
+  assert.doesNotMatch(branch, /IsNullOrEmpty\(reaction\.Emoji\)/,
+    'an empty emoji no longer hides the message from the reaction branch');
+
+  const data = read(path.join('WhatsappApp', 'Services', 'DataService.cs'));
+  const apply = data.slice(data.indexOf('private async Task ApplyReactionAsync'),
+    data.indexOf('\n        private ', data.indexOf('private async Task ApplyReactionAsync') + 10));
+  assert.match(apply, /Reaction = string\.IsNullOrEmpty\(emoji\) \? null : emoji/,
+    'an empty emoji clears the badge');
 });

@@ -1557,14 +1557,18 @@ namespace WhatsappApp.Services
             if (incoming.Content != null)
             {
                 Message.Reaction reaction = incoming.Content.ReactionOf();
-                if (!string.IsNullOrEmpty(reaction.Emoji))
+                // A reaction carries its target in the key and its emoji in the text;
+                // an empty text is the other side taking the reaction back, and it is
+                // a reaction all the same - the key is what says so, not the emoji.
+                if (!string.IsNullOrEmpty(reaction.MessageId))
                 {
                     var answered = new HistoryMessage();
                     answered.Jid = incoming.Chat;
                     answered.Encoded = incoming.Content.Encode();
 
                     if (MessageArrived != null) MessageArrived(this, answered);
-                    Diag.Ok("native: reaction " + reaction.Emoji + " arrived for " + reaction.MessageId);
+                    Diag.Ok("native: reaction " + (reaction.Emoji == null || reaction.Emoji.Length == 0 ? "(removed)" : reaction.Emoji)
+                        + " arrived for " + reaction.MessageId);
                     return;
                 }
             }

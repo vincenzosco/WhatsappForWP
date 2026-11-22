@@ -3093,7 +3093,8 @@ namespace WhatsappApp.Services
             for (int i = 0; i < messages.Count; i++)
             {
                 if (messages[i] == null || messages[i].Id != messageId) continue;
-                messages[i].Reaction = emoji;
+                // An empty emoji is the reaction taken back: the badge goes with it.
+                messages[i].Reaction = string.IsNullOrEmpty(emoji) ? null : emoji;
                 break;
             }
 
