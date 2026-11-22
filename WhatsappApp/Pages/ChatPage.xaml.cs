@@ -170,7 +170,8 @@ namespace WhatsappApp.Pages
         /// </summary>
         private bool _left;
 
-        private Popup _actionPopup;
+        private Microsoft.Phone.Controls.ContextMenu _actionMenu;
+        private Popup _promptPopup;
 
         // The bars live in Resources, where the x:Name fields the generator writes are
         // left null because FindName never looks inside a ResourceDictionary. The page
@@ -440,10 +441,11 @@ namespace WhatsappApp.Pages
 
             AttachmentPickerOverlay.Visibility = Visibility.Collapsed;
 
-            // A `Popup` lives in the root layer, not in this page: leaving with the
-            // message menu or a prompt open floats it over the next screen, with its
-            // buttons still wired to the chat that is gone.
-            if (_actionPopup != null) _actionPopup.IsOpen = false;
+            // The menu is the platform's own, but it is still ours to open: leaving with
+            // it up would float it over the next screen, with its items still wired to the
+            // chat that is gone. The prompt is a Popup of ours and floats the same way.
+            CloseActionMenu();
+            if (_promptPopup != null) _promptPopup.IsOpen = false;
 
             _left = true;
 
@@ -2097,79 +2099,50 @@ namespace WhatsappApp.Pages
             MessageTextBox.SelectionStart = MessageTextBox.Text.Length;
         }
 
+        /// <summary>
+        /// The menu, at the platform's own: the `ContextMenu` of the Windows Phone Toolkit
+        /// is the menu the rest of the phone opens on a hold - the same shape, the same
+        /// dismissal, the same zoom. The popup that stood in for it was drawn by hand, looked
+        /// like nothing else on the phone and answered to none of its gestures.
+        ///
+        /// The headers are written lowercase because that is how the platform writes its own
+        /// menu items.
+        /// </summary>
         private void ShowActionPopup(FrameworkElement anchor, IList<PopupAction> actions)
         {
             if (anchor == null || actions == null || actions.Count == 0) return;
 
-            if (_actionPopup != null) _actionPopup.IsOpen = false;
+            CloseActionMenu();
 
-            StackPanel items = new StackPanel();
+            var menu = new Microsoft.Phone.Controls.ContextMenu();
             for (int i = 0; i < actions.Count; i++)
             {
-                Button button = new Button();
-                button.Content = actions[i].Text;
-                button.Tag = actions[i];
-                button.Height = 48;
-                button.MinHeight = 0;
-                button.HorizontalContentAlignment = HorizontalAlignment.Left;
-                button.Padding = new Thickness(16, 0, 16, 0);
-                button.Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x10, 0x1C, 0x20));
-                button.Foreground = new SolidColorBrush(Colors.White);
-                button.BorderThickness = new Thickness(0);
-                button.Click += PopupAction_Click;
-                items.Children.Add(button);
+                var item = new Microsoft.Phone.Controls.MenuItem();
+                item.Header = actions[i].Text;
+                item.Tag = actions[i];
+                item.Click += PopupAction_Click;
+                menu.Items.Add(item);
             }
 
-            double width = ActualWidth;
-            double height = ActualHeight;
-            double menuWidth = Math.Min(280.0, width - 24.0);
-            double menuHeight = Math.Min(actions.Count * 48.0, height - 32.0);
-            Border menu = new Border();
-            menu.Width = menuWidth;
-            menu.MaxHeight = menuHeight;
-            menu.Background = new SolidColorBrush(Color.FromArgb(0xF2, 0x10, 0x1C, 0x20));
-            menu.BorderBrush = new SolidColorBrush(Color.FromArgb(0xFF, 0x25, 0xD3, 0x66));
-            menu.BorderThickness = new Thickness(1);
-            menu.Child = new ScrollViewer { Content = items, MaxHeight = menuHeight };
+            Microsoft.Phone.Controls.ContextMenuService.SetContextMenu(anchor, menu);
+            _actionMenu = menu;
+            menu.IsOpen = true;
+        }
 
-            Point origin = anchor.TransformToVisual(null).Transform(new Point(0, 0));
-            double x = Math.Max(12.0, Math.Min(origin.X, width - menuWidth - 12.0));
-            double y = origin.Y + anchor.ActualHeight;
-            if (y + menuHeight > height) y = Math.Max(8.0, origin.Y - menuHeight);
-
-            Grid overlay = new Grid();
-            overlay.Width = width;
-            overlay.Height = height;
-            overlay.Background = new SolidColorBrush(Colors.Transparent);
-
-            Button dismiss = new Button();
-            dismiss.Width = width;
-            dismiss.Height = height;
-            dismiss.MinWidth = 0;
-            dismiss.MinHeight = 0;
-            dismiss.IsTabStop = false;
-            dismiss.Background = new SolidColorBrush(Colors.Transparent);
-            dismiss.BorderThickness = new Thickness(0);
-            dismiss.Click += delegate { if (_actionPopup != null) _actionPopup.IsOpen = false; };
-            overlay.Children.Add(dismiss);
-
-            menu.HorizontalAlignment = HorizontalAlignment.Left;
-            menu.VerticalAlignment = VerticalAlignment.Top;
-            menu.Margin = new Thickness(x, y, 0, 0);
-            overlay.Children.Add(menu);
-
-            _actionPopup = new Popup();
-            _actionPopup.Child = overlay;
-            _actionPopup.IsOpen = true;
+        private void CloseActionMenu()
+        {
+            if (_actionMenu == null) return;
+            _actionMenu.IsOpen = false;
+            _actionMenu = null;
         }
 
         private void PopupAction_Click(object sender, RoutedEventArgs e)
         {
-            Button button = sender as Button;
-            PopupAction action = button == null ? null : button.Tag as PopupAction;
+            var item = sender as Microsoft.Phone.Controls.MenuItem;
+            PopupAction action = item == null ? null : item.Tag as PopupAction;
             if (action == null) return;
 
-            if (_actionPopup != null) _actionPopup.IsOpen = false;
+            CloseActionMenu();
             if (action.Click != null) action.Click(sender, e);
             else if (action.Invoke != null) action.Invoke();
         }
@@ -2217,7 +2190,7 @@ namespace WhatsappApp.Pages
                 cancel.Margin = new Thickness(0, 0, 8, 0);
                 cancel.Click += delegate(object sender, RoutedEventArgs e)
                 {
-                    if (_actionPopup != null) _actionPopup.IsOpen = false;
+                    if (_promptPopup != null) _promptPopup.IsOpen = false;
                     completion.TrySetResult(false);
                 };
                 buttons.Children.Add(cancel);
@@ -2233,7 +2206,7 @@ namespace WhatsappApp.Pages
             accept.Foreground = new SolidColorBrush(Colors.White);
             accept.Click += delegate(object sender, RoutedEventArgs e)
             {
-                if (_actionPopup != null) _actionPopup.IsOpen = false;
+                if (_promptPopup != null) _promptPopup.IsOpen = false;
                 completion.TrySetResult(true);
             };
             buttons.Children.Add(accept);
@@ -2250,9 +2223,9 @@ namespace WhatsappApp.Pages
             card.Child = content;
             overlay.Children.Add(card);
 
-            _actionPopup = new Popup();
-            _actionPopup.Child = overlay;
-            _actionPopup.IsOpen = true;
+            _promptPopup = new Popup();
+            _promptPopup.Child = overlay;
+            _promptPopup.IsOpen = true;
             return completion.Task;
         }
 
@@ -2507,7 +2480,7 @@ namespace WhatsappApp.Pages
             }
 
             PopupAction reply = new PopupAction();
-            reply.Text = Loc.Get("ChatPage_Reply", "Reply");
+            reply.Text = Loc.Get("ChatPage_Reply", "reply");
             reply.Invoke = delegate { StartReply(message); };
             actions.Add(reply);
 
@@ -2515,7 +2488,7 @@ namespace WhatsappApp.Pages
             if (CanRevokeForEveryone(message))
             {
                 PopupAction everyone = new PopupAction();
-                everyone.Text = Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone");
+                everyone.Text = Loc.Get("ChatPage_DeleteEveryone", "delete for everyone");
                 everyone.Invoke = delegate
                 {
                     Guarded.RunGuardedAsync("ChatPage/revoke", ConfirmRevokeAsync(message));
@@ -2524,7 +2497,7 @@ namespace WhatsappApp.Pages
             }
 
             PopupAction delete = new PopupAction();
-            delete.Text = Loc.Get("ChatPage_DeleteHere", "Delete here");
+            delete.Text = Loc.Get("ChatPage_DeleteHere", "delete here");
             delete.Invoke = delegate
             {
                 Guarded.RunGuardedAsync("ChatPage/delete here", ConfirmDeleteHereAsync(message));
@@ -2603,7 +2576,7 @@ namespace WhatsappApp.Pages
         private System.Threading.Tasks.Task ExplainRevokeFailureAsync()
         {
             return ShowNoticeAsync(
-                Loc.Get("ChatPage_DeleteEveryone", "Delete for everyone"),
+                Loc.Get("ChatPage_RevokeFailedTitle", "Delete for everyone"),
                 Loc.Get("ChatPage_DeleteEveryoneFailed",
                     "WhatsApp did not take the message back. The message is still here; try again when the phone is connected."),
                 Loc.Get("Common_Ok", "OK"));

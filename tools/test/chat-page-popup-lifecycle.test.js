@@ -21,10 +21,12 @@ function bodyAt(source, signature) {
 }
 
 test('the message menu and the prompt close when the chat page leaves', () => {
-  // A Popup is hosted in the root layer, not in the page: one left open floats the
-  // dead chat's menu over the next screen, with its buttons still wired to the page
-  // that left. Only an explicit close on navigation keeps that from happening.
+  // A menu or a prompt left open floats the dead chat's over the next screen, with its
+  // items still wired to the page that left. Only an explicit close on navigation keeps
+  // that from happening.
   const leaving = bodyAt(code, 'protected override void OnNavigatedFrom');
-  assert.match(leaving, /_actionPopup\.IsOpen = false/,
-    'the shared popup field is closed on the way out');
+  assert.match(leaving, /CloseActionMenu\(\)/,
+    'the hold menu is closed on the way out');
+  assert.match(leaving, /_promptPopup\.IsOpen = false/,
+    'the prompt, a Popup of ours, is closed too');
 });

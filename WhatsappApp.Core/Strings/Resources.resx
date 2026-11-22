@@ -125,13 +125,16 @@
     <value>OK</value>
   </data>
   <data name="ChatPage_Reply" xml:space="preserve">
-    <value>Reply</value>
+    <value>reply</value>
   </data>
   <data name="ChatPage_You" xml:space="preserve">
     <value>You</value>
   </data>
-  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+  <data name="ChatPage_RevokeFailedTitle" xml:space="preserve">
     <value>Delete for everyone</value>
+  </data>
+  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+    <value>delete for everyone</value>
   </data>
   <data name="ChatPage_DeleteEveryoneTitle" xml:space="preserve">
     <value>Delete for everyone?</value>
@@ -266,7 +269,7 @@
     <value>Try again</value>
   </data>
   <data name="ChatPage_DeleteHere" xml:space="preserve">
-    <value>Delete here</value>
+    <value>delete here</value>
   </data>
   <data name="ChatPage_DeleteHereTitle" xml:space="preserve">
     <value>Delete this message?</value>
@@ -353,28 +356,28 @@
     <value>Cancel</value>
   </data>
   <data name="ChatsPage_Pin" xml:space="preserve">
-    <value>Pin</value>
+    <value>pin</value>
   </data>
   <data name="ChatsPage_Unpin" xml:space="preserve">
-    <value>Unpin</value>
+    <value>unpin</value>
   </data>
   <data name="ChatsPage_AddTile" xml:space="preserve">
-    <value>Add to Start</value>
+    <value>add to start</value>
   </data>
   <data name="ChatsPage_RemoveTile" xml:space="preserve">
-    <value>Remove from Start</value>
+    <value>remove from start</value>
   </data>
   <data name="ChatsPage_Mute" xml:space="preserve">
-    <value>Mute</value>
+    <value>mute</value>
   </data>
   <data name="ChatsPage_Unmute" xml:space="preserve">
-    <value>Unmute</value>
+    <value>unmute</value>
   </data>
   <data name="ChatsPage_ShowInPeople" xml:space="preserve">
-    <value>Show in People</value>
+    <value>show in people</value>
   </data>
   <data name="ChatsPage_Delete" xml:space="preserve">
-    <value>Delete chat</value>
+    <value>delete chat</value>
   </data>
   <data name="ChatsPage_DeleteTitle" xml:space="preserve">
     <value>Delete this chat?</value>

@@ -33,6 +33,7 @@ namespace WhatsappApp.Pages
         private bool _ready;
         private int _section;
         private bool _homeSearching;
+        private Microsoft.Phone.Controls.ContextMenu _holdMenu;
         private readonly ObservableCollection<Contact> _matches = new ObservableCollection<Contact>();
         private bool _searching;
         private DispatcherTimer _callTicker;
@@ -217,6 +218,10 @@ namespace WhatsappApp.Pages
             DeactivateChats();
             StatusView.Deactivate();
             CallsView.Deactivate();
+
+            // The row menu is ours to open and ours to close: left up it would float over
+            // the next screen with its items still wired to the chat that is gone.
+            CloseHoldMenu();
 
             DataService.Instance.MessageArrived -= OnBadgeChanged;
             DataService.Instance.StatusesChanged -= OnStatusesChanged;
@@ -860,36 +865,65 @@ namespace WhatsappApp.Pages
             ShowChatMenu(row, contact);
         }
 
+        /// <summary>
+        /// The row menu, in the platform's own menu: the `ContextMenu` of the Windows Phone
+        /// Toolkit is what the rest of the phone opens on a hold - the same shape, the same
+        /// dismissal, the same zoom. The headers are written lowercase because that is how
+        /// the platform writes its own menu items.
+        /// </summary>
         private void ShowChatMenu(FrameworkElement row, Contact contact)
         {
             string id = contact.Id;
             bool pinned = contact.IsPinned;
             bool muted = contact.IsMuted;
-            ShowActionMenu(contact.Name);
 
-            AddModalOption(pinned
-                ? Loc.Get("ChatsPage_Unpin", "Unpin")
-                : Loc.Get("ChatsPage_Pin", "Pin"),
+            CloseHoldMenu();
+
+            var menu = new Microsoft.Phone.Controls.ContextMenu();
+
+            AddHoldItem(menu, pinned
+                ? Loc.Get("ChatsPage_Unpin", "unpin")
+                : Loc.Get("ChatsPage_Pin", "pin"),
                 delegate { DataService.Instance.SetPinned(id, !pinned); });
-            AddModalOption(muted
-                ? Loc.Get("ChatsPage_Unmute", "Unmute")
-                : Loc.Get("ChatsPage_Mute", "Mute"),
+            AddHoldItem(menu, muted
+                ? Loc.Get("ChatsPage_Unmute", "unmute")
+                : Loc.Get("ChatsPage_Mute", "mute"),
                 delegate { DataService.Instance.SetMuted(id, !muted); });
 
             bool tiled = PinnedTile.IsPinned(id);
-            AddModalOption(tiled
-                ? Loc.Get("ChatsPage_RemoveTile", "Remove from Start")
-                : Loc.Get("ChatsPage_AddTile", "Add to Start"),
+            AddHoldItem(menu, tiled
+                ? Loc.Get("ChatsPage_RemoveTile", "remove from start")
+                : Loc.Get("ChatsPage_AddTile", "add to start"),
                 async delegate { await TogglePinnedTileAsync(id, contact.Name, contact.LastIncomingMessage); });
 
             if (PeopleHub.CanShow(id))
             {
-                AddModalOption(Loc.Get("ChatsPage_ShowInPeople", "Show in People"),
+                AddHoldItem(menu, Loc.Get("ChatsPage_ShowInPeople", "show in people"),
                     delegate { PeopleHub.Show(id, contact.Name, BoundsOf(row)); });
             }
 
-            AddModalOption(Loc.Get("ChatsPage_Delete", "Delete chat"),
+            AddHoldItem(menu, Loc.Get("ChatsPage_Delete", "delete chat"),
                 async delegate { await ConfirmDeleteAsync(id); });
+
+            Microsoft.Phone.Controls.ContextMenuService.SetContextMenu(row, menu);
+            _holdMenu = menu;
+            menu.IsOpen = true;
+        }
+
+        /// <summary>One item of a hold menu: the words it carries and what it does.</summary>
+        private static void AddHoldItem(Microsoft.Phone.Controls.ContextMenu menu, string header, Action chosen)
+        {
+            var item = new Microsoft.Phone.Controls.MenuItem();
+            item.Header = header;
+            item.Click += delegate { chosen(); };
+            menu.Items.Add(item);
+        }
+
+        private void CloseHoldMenu()
+        {
+            if (_holdMenu == null) return;
+            _holdMenu.IsOpen = false;
+            _holdMenu = null;
         }
 
         private static Rect BoundsOf(FrameworkElement row)

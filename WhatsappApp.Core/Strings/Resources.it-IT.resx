@@ -125,13 +125,16 @@
     <value>OK</value>
   </data>
   <data name="ChatPage_Reply" xml:space="preserve">
-    <value>Rispondi</value>
+    <value>rispondi</value>
   </data>
   <data name="ChatPage_You" xml:space="preserve">
     <value>Tu</value>
   </data>
-  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+  <data name="ChatPage_RevokeFailedTitle" xml:space="preserve">
     <value>Elimina per tutti</value>
+  </data>
+  <data name="ChatPage_DeleteEveryone" xml:space="preserve">
+    <value>elimina per tutti</value>
   </data>
   <data name="ChatPage_DeleteEveryoneTitle" xml:space="preserve">
     <value>Eliminare per tutti?</value>
@@ -266,7 +269,7 @@
     <value>Riprova</value>
   </data>
   <data name="ChatPage_DeleteHere" xml:space="preserve">
-    <value>Elimina solo qui</value>
+    <value>elimina solo qui</value>
   </data>
   <data name="ChatPage_DeleteHereTitle" xml:space="preserve">
     <value>Eliminare questo messaggio?</value>
@@ -353,28 +356,28 @@
     <value>Annulla</value>
   </data>
   <data name="ChatsPage_Pin" xml:space="preserve">
-    <value>Fissa</value>
+    <value>fissa</value>
   </data>
   <data name="ChatsPage_Unpin" xml:space="preserve">
-    <value>Togli il fissaggio</value>
+    <value>togli il fissaggio</value>
   </data>
   <data name="ChatsPage_AddTile" xml:space="preserve">
-    <value>Aggiungi alla schermata iniziale</value>
+    <value>aggiungi alla schermata iniziale</value>
   </data>
   <data name="ChatsPage_RemoveTile" xml:space="preserve">
-    <value>Togli dalla schermata iniziale</value>
+    <value>togli dalla schermata iniziale</value>
   </data>
   <data name="ChatsPage_Mute" xml:space="preserve">
-    <value>Silenzia</value>
+    <value>silenzia</value>
   </data>
   <data name="ChatsPage_Unmute" xml:space="preserve">
-    <value>Togli il silenzio</value>
+    <value>togli il silenzio</value>
   </data>
   <data name="ChatsPage_ShowInPeople" xml:space="preserve">
-    <value>Mostra in People</value>
+    <value>mostra in people</value>
   </data>
   <data name="ChatsPage_Delete" xml:space="preserve">
-    <value>Elimina chat</value>
+    <value>elimina chat</value>
   </data>
   <data name="ChatsPage_DeleteTitle" xml:space="preserve">
     <value>Eliminare questa chat?</value>

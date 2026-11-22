@@ -75,10 +75,10 @@ test('the reference bytes are what the protocol tests compare against', () => {
 
 test('the two words are localized in both languages', () => {
   for (const [file, reply] of [
-    [path.join('WhatsappApp', 'Strings', 'en-US', 'Resources.resw'), 'Reply'],
-    [path.join('WhatsappApp', 'Strings', 'it-IT', 'Resources.resw'), 'Rispondi'],
-    [path.join('WhatsappApp.Core', 'Strings', 'Resources.resx'), 'Reply'],
-    [path.join('WhatsappApp.Core', 'Strings', 'Resources.it-IT.resx'), 'Rispondi'],
+    [path.join('WhatsappApp', 'Strings', 'en-US', 'Resources.resw'), 'reply'],
+    [path.join('WhatsappApp', 'Strings', 'it-IT', 'Resources.resw'), 'rispondi'],
+    [path.join('WhatsappApp.Core', 'Strings', 'Resources.resx'), 'reply'],
+    [path.join('WhatsappApp.Core', 'Strings', 'Resources.it-IT.resx'), 'rispondi'],
   ]) {
     const text = fs.readFileSync(path.join(root, file), 'utf8');
     assert.ok(text.includes('ChatPage_Reply'), file + ' names the reply');
