@@ -42,7 +42,7 @@ test('the steps judge the printed output, not the exit code', () => {
   // $LASTEXITCODE installs over a refused update without noticing.
   assert.doesNotMatch(update, /\$LASTEXITCODE/,
     'the exit code is never trusted');
-  assert.match(update, /-notmatch "Errore"/,
+  assert.match(update, /-notmatch "Errore\|Error"/,
     'the printed answer decides');
 });
 
@@ -67,4 +67,23 @@ test('AGENTS.md sends every update through the script', () => {
   // does not quietly go back to `/installlaunch`.
   assert.match(agents, /Aggiorna-WhatsApp\.cmd/, 'the phone section names the script');
   assert.doesNotMatch(agents, /AppDeployCmd\.exe \/installlaunch/, 'the wiping command is gone from the rules');
+});
+test('a failure is read in either language the tool prints', () => {
+  // AppDeployCmd prints `Errore` on an Italian toolchain and `Error` on an English
+  // one. Judging only the Italian word lets a failed update - or a failed restore -
+  // pass for success, which is the exact lie this script exists to prevent.
+  const judges = update.match(/-(?:not)?match "[^"]+"/g) || [];
+  const failureWords = judges.filter((j) => /Errore/.test(j));
+  assert.ok(failureWords.length >= 3, 'the printed output is judged at each door');
+  for (const judge of failureWords) {
+    assert.match(judge, /Errore\|Error/,
+      'and the judge catches both words: ' + judge);
+  }
+});
+
+test('an empty answer is not a success', () => {
+  // A tool that printed nothing proved nothing. Only a non-empty answer that carries
+  // no failure word counts as the door having worked.
+  assert.match(update, /-notmatch "Errore\|Error"[\s\S]{0,40}Trim\(\)|Trim\(\)[\s\S]{0,80}-notmatch "Errore\|Error"/,
+    'the success decision requires output that is both present and clean');
 });

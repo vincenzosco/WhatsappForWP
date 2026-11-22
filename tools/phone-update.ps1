@@ -74,7 +74,10 @@ Write-Output ("    " + $files.Count + " file salvati.")
 Write-Output ("")
 Write-Output ("2/4 Aggiornamento in loco (lo storage resta al suo posto)")
 $out = & $deploy /update $Xap /targetdevice:0 2>&1 | Out-String
-$updated = ($out -notmatch "Errore")
+# The tool prints `Errore` in Italian and `Error` in English, and it exits 0 even
+# when it failed, so the answer counts only when it is present and carries neither
+# word. A blank answer proved nothing.
+$updated = ($out.Trim() -ne "" -and $out -notmatch "Errore|Error")
 
 if ($updated) {
     Write-Output "    Fatto: il pacchetto e' nuovo e i dati sono quelli di prima."
@@ -90,7 +93,7 @@ if (-not $updated) {
     Write-Output ("")
     Write-Output ("3/4 Installazione, poi ripristino dello snapshot")
     $out2 = & $deploy /install $Xap /targetdevice:0 2>&1 | Out-String
-    $installed = ($out2 -notmatch "Errore")
+    $installed = ($out2.Trim() -ne "" -and $out2 -notmatch "Errore|Error")
     if (-not $installed) {
         Write-Output "    L'installazione non e' riuscita:"
         foreach ($line in ($out2 -split "`r?`n")) {
@@ -102,7 +105,7 @@ if (-not $updated) {
     # emptied the store is exactly what it is here to undo, and a restore over
     # a store that still holds the same words is a no-op.
     $out3 = & $ise rs de $productId $backup 2>&1 | Out-String
-    if ($out3 -match "Errore") {
+    if ($out3 -match "Errore|Error") {
         Write-Output "    Il ripristino non e' riuscito:"
         foreach ($line in ($out3 -split "`r?`n")) {
             if ($line.Trim() -ne "") { Write-Output ("    " + $line) }
@@ -123,7 +126,7 @@ if (-not $updated) {
 Write-Output ("")
 Write-Output ("4/4 Controllo finale")
 $out = & $deploy /launch $productId /targetdevice:0 2>&1 | Out-String
-if ($out -match "Errore") {
+if ($out -match "Errore|Error") {
     Write-Output "    L'avvio automatico non e' riuscito (schermo spento?): apri l'app a mano."
 }
 
