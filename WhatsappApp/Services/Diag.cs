@@ -183,6 +183,16 @@ namespace WhatsappApp.Services
         }
 
         /// <summary>
+        /// A line that already carries its own words and its own level, written as it
+        /// stands. The tail the previous run left is the one case: adding a level to it
+        /// gave every carried line a second `ok:` and the tail read as a stutter.
+        /// </summary>
+        public static void Raw(string line)
+        {
+            Write(line);
+        }
+
+        /// <summary>
         /// The same, for the lines that have to be on disk at once.
         ///
         /// `Ok` waits for the flush interval, so up to a second of

@@ -46,7 +46,7 @@ namespace WhatsappApp.Services
                 for (int i = 0; i < lines.Length; i++)
                 {
                     if (lines[i].Length == 0) continue;
-                    Diag.Ok("  " + lines[i]);
+                    Diag.Raw("  " + lines[i]);
                 }
                 Diag.Flush(true);
             }
