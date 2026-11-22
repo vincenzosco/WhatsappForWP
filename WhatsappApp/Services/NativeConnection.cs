@@ -1549,6 +1549,26 @@ namespace WhatsappApp.Services
                 return;
             }
 
+            // A reaction is not a bubble and has no words: it is an emoji on a message this
+            // chat already has. Without this it fell into the media path below, which has no
+            // reader for it and reported "carries nothing this client reads yet" - the emoji
+            // a person had just chosen was thrown away. It goes to the row it names
+            // (`DataService.ApplyReaction`) and the conversation does not move.
+            if (incoming.Content != null)
+            {
+                Message.Reaction reaction = incoming.Content.ReactionOf();
+                if (!string.IsNullOrEmpty(reaction.Emoji))
+                {
+                    var answered = new HistoryMessage();
+                    answered.Jid = incoming.Chat;
+                    answered.Encoded = incoming.Content.Encode();
+
+                    if (MessageArrived != null) MessageArrived(this, answered);
+                    Diag.Ok("native: reaction " + reaction.Emoji + " arrived for " + reaction.MessageId);
+                    return;
+                }
+            }
+
             if (incoming.Text == null)
             {
                 await ReadMediaAsync(incoming);

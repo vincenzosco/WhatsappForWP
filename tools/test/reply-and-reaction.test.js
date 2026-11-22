@@ -93,4 +93,29 @@ test('an incoming reaction lands on the row it names and is written back', () =>
   assert.match(data, /messages\[i\]\.Reaction = emoji;/, 'the row carries it');
   assert.match(data, /RewriteTailAsync\(chatId, messages\)/, 'and the conversation is written back');
   assert.match(data, /ApplyNativeQuote\(message, incoming\.Encoded\)/, 'the quote arrives too');
+  assert.match(data, /LoadCachedMessagesAsync\(chatId\)/,
+    'a chat that was not open has its rows read first');
+});
+
+test('a live reaction is taken out of the dispatch before the media path drops it', () => {
+  // A reaction has no words, so it used to fall into `ReadMediaAsync`, which has no
+  // reader for it and reports "carries nothing this client reads yet" - the emoji a
+  // person had just chosen was thrown away.
+  const native = read(path.join('WhatsappApp', 'Services', 'NativeConnection.cs'));
+  const dispatch = native.slice(native.indexOf('if (incoming.Content == null && incoming.Text == null)'),
+    native.indexOf('var message = new HistoryMessage();'));
+  const reactionAt = dispatch.indexOf('ReactionOf()');
+  const mediaAt = dispatch.indexOf('ReadMediaAsync(incoming)');
+  assert.ok(reactionAt >= 0, 'the dispatch looks for a reaction');
+  assert.ok(mediaAt > reactionAt, 'and it does so before the media path, which drops it');
+  assert.match(dispatch, /MessageArrived\(this, answered\)/, 'the emoji reaches the row it names');
+});
+
+test('the chosen emoji is on the bubble before the wire says anything', () => {
+  const page = read(path.join('WhatsappApp', 'Pages', 'ChatPage.xaml.cs'));
+  const react = page.slice(page.indexOf('private async System.Threading.Tasks.Task ReactAsync'),
+    page.indexOf('private void ShowMessageMenu'));
+  assert.match(react, /message\.Reaction = emoji;/);
+  assert.ok(react.indexOf('message.Reaction = emoji;') < react.indexOf('SendReactionAsync'),
+    'the emoji lands first: the person watching this screen chose it and sees it');
 });

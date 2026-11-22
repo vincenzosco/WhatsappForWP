@@ -3065,16 +3065,30 @@ namespace WhatsappApp.Services
         /// <summary>
         /// An emoji on a message already here: the row it names carries it from now on, and
         /// the conversation is written back so it is still there when the page is closed. A
-        /// reaction for a message this chat does not have is nothing to apply and nothing to
-        /// report - the sender answered a row of their own screen.
+        /// chat that was not open when the emoji arrived has its rows read first, so a
+        /// reaction is never thrown away with the conversation it belongs to. One for a
+        /// message this chat does not have is nothing to apply and nothing to report - the
+        /// sender answered a row of their own screen.
         /// </summary>
         public void ApplyReaction(string chatId, string messageId, string emoji)
         {
             chatId = ChatIdFor(chatId);
             if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
 
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/reaction", ApplyReactionAsync(chatId, messageId, emoji));
+#pragma warning restore 4014
+        }
+
+        private async Task ApplyReactionAsync(string chatId, string messageId, string emoji)
+        {
             ObservableCollection<ChatMessage> messages;
-            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+            if (!_chatMessages.TryGetValue(chatId, out messages) || messages.Count == 0)
+            {
+                await LoadCachedMessagesAsync(chatId);
+                _chatMessages.TryGetValue(chatId, out messages);
+            }
+            if (messages == null) return;
 
             for (int i = 0; i < messages.Count; i++)
             {
@@ -3083,9 +3097,7 @@ namespace WhatsappApp.Services
                 break;
             }
 
-#pragma warning disable 4014
-            Guarded.RunGuardedAsync("DataService/reaction", RewriteTailAsync(chatId, messages));
-#pragma warning restore 4014
+            await RewriteTailAsync(chatId, messages);
         }
 
         public void RemoveMessage(string chatId, string messageId)

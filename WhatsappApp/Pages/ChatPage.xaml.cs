@@ -2406,19 +2406,22 @@ namespace WhatsappApp.Pages
         }
 
         /// <summary>
-        /// The emoji answering one message: it goes out as a reaction of its own and lands on
-        /// the bubble at once, before the server has said anything. A message the wire has no
-        /// id for yet answers nothing, so there is no reaction to send and none to draw.
+        /// The emoji answering one message: it goes on the bubble at once, before the wire has
+        /// said anything - the person watching this screen chose it and sees it - and then it
+        /// goes out as a reaction of its own. A message the wire has no id for yet answers
+        /// nothing, so there is no reaction to send and none to draw.
         /// </summary>
         private async System.Threading.Tasks.Task ReactAsync(ChatMessage message, string emoji)
         {
             if (message == null || string.IsNullOrEmpty(message.Id)) return;
 
+            message.Reaction = emoji;
+
             try
             {
                 await NativeConnection.Instance.SendReactionAsync(message.ChatId, message.Id,
                     !message.IsIncoming, emoji);
-                message.Reaction = emoji;
+                Diag.Ok("send: reaction " + emoji + " on " + message.Id);
             }
             catch (Exception ex)
             {
