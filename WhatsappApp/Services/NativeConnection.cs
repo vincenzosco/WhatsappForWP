@@ -1925,14 +1925,73 @@ namespace WhatsappApp.Services
             if (string.IsNullOrEmpty(body)) throw new ProtocolException("there is nothing to send");
 
             NativeSession session = OpenSession();
-
             Message message = Message.TextMentioning(body, mentionedJids);
+            return await SendWordsAsync(session, jid, message, body);
+        }
+
+        /// <summary>
+        /// A text answering one message: the words go as an extended text whose `contextInfo`
+        /// names the message answered - its id, its author, its words (see
+        /// `Message.TextReply`). It travels like any other text and the row it makes is a row
+        /// like any other: the quote is inside that row, not a message of its own.
+        /// </summary>
+        public async Task<string> SendReplyAsync(string jid, string body, string quoteId, string quoteAuthor, string quoteText)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a message needs a chat to go to");
+            if (string.IsNullOrEmpty(body)) throw new ProtocolException("there is nothing to send");
+            if (string.IsNullOrEmpty(quoteId)) throw new ProtocolException("a reply needs the message it answers");
+
+            NativeSession session = OpenSession();
+            Message message = Message.TextReply(body, quoteId, quoteAuthor, quoteText);
+            return await SendWordsAsync(session, jid, message, body);
+        }
+
+        /// <summary>
+        /// An emoji answering one message: a message whose only content is the reaction
+        /// (`Message.React`). It goes out like a text but makes no row in the conversation
+        /// and leaves the chat's preview where it was - a reaction answers a message, it does
+        /// not say anything - so the row text handed to both paths is empty.
+        /// </summary>
+        public async Task<string> SendReactionAsync(string jid, string messageId, bool fromMe, string emoji)
+        {
+            if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a reaction needs a chat to answer in");
+            if (string.IsNullOrEmpty(messageId)) throw new ProtocolException("a reaction needs the message it answers");
+            if (string.IsNullOrEmpty(emoji)) throw new ProtocolException("a reaction needs an emoji");
+
+            NativeSession session = OpenSession();
+            Message message = Message.React(jid, fromMe, messageId, emoji);
 
             if (OutgoingMessage.IsGroup(jid))
             {
-                return await SendGroupAsync(session, jid, message, OutgoingMessage.TextType, null, body);
+                return await SendGroupAsync(session, jid, message, OutgoingMessage.TextType, null, "");
             }
 
+            return await SendDirectAsync(session, jid, message, "");
+        }
+
+        /// <summary>
+        /// Any text-shaped message to one chat: the group route or the direct one, whichever
+        /// the chat is. Both add the row to the chat and return its id.
+        /// </summary>
+        private async Task<string> SendWordsAsync(NativeSession session, string jid, Message message, string rowText)
+        {
+            if (OutgoingMessage.IsGroup(jid))
+            {
+                return await SendGroupAsync(session, jid, message, OutgoingMessage.TextType, null, rowText);
+            }
+
+            return await SendDirectAsync(session, jid, message, rowText);
+        }
+
+        /// <summary>
+        /// One message to one chat's devices. The devices are asked for on every send rather
+        /// than cached, because a contact who linked a new phone - or removed one - would
+        /// otherwise be written to at the device list they had yesterday. What is *not*
+        /// re-done is the session: an established one is what the ratchet is for
+        /// (`DeviceDirectory.Session`).
+        /// </summary>
+        private async Task<string> SendDirectAsync(NativeSession session, string jid, Message message, string rowText)
+        {
             // The clock starts before the first question: what is bounded is the whole wait in
             // front of the stanza, not each question on its own (`SendBudget`).
             SendBudget budget = SendClock();
@@ -1960,7 +2019,7 @@ namespace WhatsappApp.Services
                 KeepSessions(target.Devices, store);
             }
 
-            _chats.AddOutgoing(jid, id, body, timestamp);
+            _chats.AddOutgoing(jid, id, rowText, timestamp);
             Diag.Ok("native: " + id + " to " + target.To + " over " + target.Devices.Count + " device(s) "
                 + SealedFor(target.Devices));
 

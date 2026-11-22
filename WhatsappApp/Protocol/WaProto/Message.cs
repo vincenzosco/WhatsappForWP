@@ -3,11 +3,12 @@ using System.Collections.Generic;
 namespace WhatsappApp.Protocol.WaProto
 {
     /// <summary>
-    /// `Message` - the protobuf behind every chat message, and the five fields of it this
+    /// `Message` - the protobuf behind every chat message, and the fields of it this
     /// milestone reads or writes: the plain words, the sender-key distribution a group
     /// message carries, the extended text a phone sends with a quote or a link preview,
-    /// the protocol message that revokes or edits, and the device-sent wrapper one of
-    /// our own copies travels in.
+    /// the protocol message that revokes or edits, the device-sent wrapper one of
+    /// our own copies travels in, and the reaction that answers one message with an
+    /// emoji.
     ///
     /// Only those fields are named; every other one is skipped, because a peer on a newer
     /// build is free to add fields and a decoder that stopped at the first unknown one
@@ -31,6 +32,32 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>`ExtendedTextMessage.contextInfo`, and inside it `mentionedJid`.</summary>
         public const int ContextInfoField = 17;
         public const int MentionedJidField = 15;
+
+        /// <summary>
+        /// The three fields of `ContextInfo` a reply carries: the id of the message being
+        /// answered, who wrote it, and its words. Printed from the published definition
+        /// (`ProtocolTests/Vectors/MessageFixture.cs`): `stanzaId` is field 1,
+        /// `participant` field 2 and `quotedMessage` field 3 - a message answering
+        /// "Hello, WhatsApp!" encodes as `8a 01 2a 0a 02 49 44 12 10 ...
+        /// 1a 12 0a 10 48 65 6c 6c 6f ...`.
+        /// </summary>
+        public const int QuoteStanzaIdField = 1;
+        public const int QuoteParticipantField = 2;
+        public const int QuoteMessageField = 3;
+
+        /// <summary>
+        /// `Message.reactionMessage` - a message that is only an emoji answering another
+        /// one. Field 46, as the reference writes it (`f2 02` is the varint 370: field 46,
+        /// wire type 2). Inside it the message answered is `key` (field 1) and the emoji
+        /// is `text` (field 2), and inside the key the chat is field 1, `fromMe` field 2
+        /// and the message id field 3.
+        /// </summary>
+        public const int ReactionField = 46;
+        public const int ReactionKeyField = 1;
+        public const int ReactionTextField = 2;
+        public const int ReactionKeyRemoteJidField = 1;
+        public const int ReactionKeyFromMeField = 2;
+        public const int ReactionKeyIdField = 3;
 
         /// <summary>The encoded `ImageMessage`: a photo.</summary>
         public const int ImageField = 3;
@@ -105,6 +132,9 @@ namespace WhatsappApp.Protocol.WaProto
 
         /// <summary>`extendedTextMessage`, field 6, kept encoded.</summary>
         public byte[] ExtendedTextMessage;
+
+        /// <summary>`reactionMessage`, field 46, kept encoded.</summary>
+        public byte[] ReactionMessage;
 
         /// <summary>
         /// The four media, as they arrived.
@@ -279,6 +309,203 @@ namespace WhatsappApp.Protocol.WaProto
         }
 
         /// <summary>
+        /// A message answering another one: the words as an extended text, and the message
+        /// answered inside the `contextInfo` - its id, its author and its words. A quote
+        /// of no words is just a text: a reply to a photo quotes the photo's caption, and
+        /// the picture itself is the other phone's business.
+        /// </summary>
+        public static Message TextReply(string body, string quoteStanzaId, string quoteParticipant, string quoteText)
+        {
+            if (body == null) throw new ProtocolException("a reply needs words");
+            if (string.IsNullOrEmpty(quoteStanzaId)) return Text(body);
+
+            var quoted = new ProtoWriter();
+            if (!string.IsNullOrEmpty(quoteText)) quoted.Text(1, quoteText);
+
+            var context = new ProtoWriter();
+            context.Text(QuoteStanzaIdField, quoteStanzaId);
+            if (!string.IsNullOrEmpty(quoteParticipant)) context.Text(QuoteParticipantField, quoteParticipant);
+            context.Bytes(QuoteMessageField, quoted.ToArray());
+
+            var message = new Message();
+            message.ExtendedTextMessage = new ProtoWriter()
+                .Text(1, body)
+                .Bytes(ContextInfoField, context.ToArray())
+                .ToArray();
+            return message;
+        }
+
+        /// <summary>
+        /// An emoji answering one message: a `Message` whose only content is the reaction.
+        /// The message answered is named by its chat, by whether this phone wrote it, and
+        /// by its id - the same three a receipt names.
+        /// </summary>
+        public static Message React(string remoteJid, bool fromMe, string messageId, string emoji)
+        {
+            if (string.IsNullOrEmpty(messageId)) throw new ProtocolException("a reaction needs the message it answers");
+            if (string.IsNullOrEmpty(emoji)) throw new ProtocolException("a reaction needs an emoji");
+
+            var key = new ProtoWriter();
+            if (!string.IsNullOrEmpty(remoteJid)) key.Text(ReactionKeyRemoteJidField, remoteJid);
+            if (fromMe) key.Varint(ReactionKeyFromMeField, 1);
+            key.Text(ReactionKeyIdField, messageId);
+
+            var reaction = new ProtoWriter();
+            reaction.Bytes(ReactionKeyField, key.ToArray());
+            reaction.Text(ReactionTextField, emoji);
+
+            var message = new Message();
+            message.ReactionMessage = reaction.ToArray();
+            return message;
+        }
+
+        /// <summary>The message this one answers, when it is a reply: id, author, words.</summary>
+        public struct Quote
+        {
+            public string StanzaId;
+            public string Participant;
+            public string Text;
+        }
+
+        /// <summary>
+        /// The message answered by a reply, from the `contextInfo` (field 17) of its
+        /// extended text. All three parts are empty for a message that answers nothing.
+        /// </summary>
+        public Quote Quoted()
+        {
+            var answer = new Quote();
+            if (ExtendedTextMessage == null) return answer;
+
+            byte[] context = null;
+            var reader = new ProtoReader(ExtendedTextMessage);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == ContextInfoField && field.WireType == 2) context = reader.ReadBytes(field.WireType);
+                else reader.SkipField(field.WireType);
+            }
+            if (context == null) return answer;
+
+            reader = new ProtoReader(context);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == QuoteStanzaIdField && field.WireType == 2)
+                {
+                    byte[] id = reader.ReadBytes(field.WireType);
+                    answer.StanzaId = System.Text.Encoding.UTF8.GetString(id, 0, id.Length);
+                }
+                else if (field.Number == QuoteParticipantField && field.WireType == 2)
+                {
+                    byte[] jid = reader.ReadBytes(field.WireType);
+                    answer.Participant = System.Text.Encoding.UTF8.GetString(jid, 0, jid.Length);
+                }
+                else if (field.Number == QuoteMessageField && field.WireType == 2)
+                {
+                    answer.Text = QuotedWords(reader.ReadBytes(field.WireType));
+                }
+                else reader.SkipField(field.WireType);
+            }
+
+            return answer;
+        }
+
+        /// <summary>
+        /// The words inside a quoted `Message`, whatever carried them: the plain
+        /// `conversation` (field 1) or the text of an extended one (field 6, text 1).
+        /// A quote of a photo answers its caption and has no words of its own.
+        /// </summary>
+        private static string QuotedWords(byte[] quotedMessage)
+        {
+            byte[] extended = null;
+            var reader = new ProtoReader(quotedMessage);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == ConversationField && field.WireType == 2)
+                {
+                    byte[] words = reader.ReadBytes(field.WireType);
+                    return System.Text.Encoding.UTF8.GetString(words, 0, words.Length);
+                }
+                if (field.Number == ExtendedTextField && field.WireType == 2) extended = reader.ReadBytes(field.WireType);
+                else reader.SkipField(field.WireType);
+            }
+            if (extended == null) return null;
+
+            reader = new ProtoReader(extended);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == 1 && field.WireType == 2)
+                {
+                    byte[] words = reader.ReadBytes(field.WireType);
+                    return System.Text.Encoding.UTF8.GetString(words, 0, words.Length);
+                }
+                reader.SkipField(field.WireType);
+            }
+            return null;
+        }
+
+        /// <summary>The emoji of a reaction message, and the message it answers.</summary>
+        public struct Reaction
+        {
+            public string Emoji;
+            public string RemoteJid;
+            public bool FromMe;
+            public string MessageId;
+        }
+
+        /// <summary>
+        /// The reaction this message is, or the empty one when it is any other kind of
+        /// message. The emoji is `text` (field 2) and the message answered is `key`
+        /// (field 1) of `reactionMessage` (field 38).
+        /// </summary>
+        public Reaction ReactionOf()
+        {
+            var answer = new Reaction();
+            if (ReactionMessage == null) return answer;
+
+            byte[] key = null;
+            var reader = new ProtoReader(ReactionMessage);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                if (field.Number == ReactionTextField && field.WireType == 2)
+                {
+                    byte[] emoji = reader.ReadBytes(field.WireType);
+                    answer.Emoji = System.Text.Encoding.UTF8.GetString(emoji, 0, emoji.Length);
+                }
+                else if (field.Number == ReactionKeyField && field.WireType == 2) key = reader.ReadBytes(field.WireType);
+                else reader.SkipField(field.WireType);
+            }
+
+            if (key != null)
+            {
+                reader = new ProtoReader(key);
+                while (reader.HasMore)
+                {
+                    ProtoField field = reader.ReadField();
+                    if (field.Number == ReactionKeyRemoteJidField && field.WireType == 2)
+                    {
+                        byte[] jid = reader.ReadBytes(field.WireType);
+                        answer.RemoteJid = System.Text.Encoding.UTF8.GetString(jid, 0, jid.Length);
+                    }
+                    else if (field.Number == ReactionKeyFromMeField && field.WireType == 0)
+                    {
+                        answer.FromMe = reader.ReadVarint() != 0;
+                    }
+                    else if (field.Number == ReactionKeyIdField && field.WireType == 2)
+                    {
+                        byte[] id = reader.ReadBytes(field.WireType);
+                        answer.MessageId = System.Text.Encoding.UTF8.GetString(id, 0, id.Length);
+                    }
+                    else reader.SkipField(field.WireType);
+                }
+            }
+
+            return answer;
+        }
+        /// <summary>
         /// A message with words that name people: an extended text whose `contextInfo`
         /// (field 17) lists each mentioned JID as `mentionedJid` (field 15). Without any
         /// mention it is a plain `conversation`, as `Text` makes it.
@@ -344,6 +571,7 @@ namespace WhatsappApp.Protocol.WaProto
                 .Bytes(SenderKeyDistributionField, SenderKeyDistributionMessage)
                 .Bytes(ImageField, ImageMessage)
                 .Bytes(ExtendedTextField, ExtendedTextMessage)
+                .Bytes(ReactionField, ReactionMessage)
                 .Bytes(DocumentField, DocumentMessage)
                 .Bytes(AudioField, AudioMessage)
                 .Bytes(VideoField, VideoMessage)
@@ -377,6 +605,10 @@ namespace WhatsappApp.Protocol.WaProto
 
                     case ExtendedTextField:
                         message.ExtendedTextMessage = ReadBytesLaidOutAsBytes(reader, field);
+                        break;
+
+                    case ReactionField:
+                        message.ReactionMessage = ReadBytesLaidOutAsBytes(reader, field);
                         break;
 
                     case ImageField:

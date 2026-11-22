@@ -2263,6 +2263,20 @@ namespace WhatsappApp.Pages
 
         private async void AddAndSendMessage(ChatMessage message)
         {
+            // A reply carries the message it answers: the quote goes on the row and
+            // travels inside the words' context info (`SendWordsAsync`). The bar closes
+            // with the send - the next words answer nothing again.
+            if (_replyTo != null && string.IsNullOrEmpty(message.QuoteId))
+            {
+                message.QuoteId = _replyTo.Id;
+                message.QuoteText = _replyTo.ShownText;
+                message.QuoteParticipant = _replyTo.IsIncoming
+                    ? (string.IsNullOrEmpty(_replyTo.SenderId) ? _replyTo.ChatId : _replyTo.SenderId)
+                    : NativeConnection.Instance.Jid;
+                message.QuoteAuthor = QuotedAuthorName(_replyTo);
+                CancelReply();
+            }
+
             // DataService is the only insertion point: _messages is the same
             // ObservableCollection observed by the conversation list.
             DataService.Instance.AddMessage(_contact.Id, message);
@@ -2293,7 +2307,7 @@ namespace WhatsappApp.Pages
                 // Mentions picked from the @ menu go with the text they were written into.
                 List<string> mentions = _pendingMentions.Count > 0 ? new List<string>(_pendingMentions) : null;
                 _pendingMentions.Clear();
-                message.Id = await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text, mentions);
+                message.Id = await SendWordsAsync(message, mentions);
 
                 // Written is not sent: the tick is the server's answer, and it has not
                 // arrived yet. See WaitForAck for what happens when it never does.
@@ -2340,9 +2354,162 @@ namespace WhatsappApp.Pages
             ShowMessageMenu(element, message);
         }
 
+        /// <summary>How far the finger can pull a bubble before it holds still.</summary>
+        private const double ReplySwipeLimit = 120;
+
+        /// <summary>How far the finger goes before a lift answers the message.</summary>
+        private const double ReplySwipeThreshold = 72;
+
+        /// <summary>The message being answered, and the bar over the keyboard that names it.</summary>
+        private ChatMessage _replyTo;
+
+        /// <summary>
+        /// A finger on a bubble: the row follows it to the right, the way a modern client
+        /// answers a message. No further than the limit - a drag past it holds the row still
+        /// instead of pulling it off the screen - and a vertical drag is still a scroll,
+        /// because only the row's own transform is touched.
+        /// </summary>
+        private void Bubble_ManipulationDelta(object sender, System.Windows.Input.ManipulationDeltaEventArgs e)
+        {
+            var row = sender as FrameworkElement;
+            if (row == null) return;
+
+            double travel = e.CumulativeManipulation.Translation.X;
+            if (travel < 0) travel = 0;
+            if (travel > ReplySwipeLimit) travel = ReplySwipeLimit;
+
+            var move = row.RenderTransform as TranslateTransform;
+            if (move == null)
+            {
+                move = new TranslateTransform();
+                row.RenderTransform = move;
+            }
+            move.X = travel;
+        }
+
+        /// <summary>
+        /// The finger is up: past the threshold this opens the reply, and anywhere else the
+        /// row just goes back where it was. The travel is cleared either way - the row is
+        /// reused for the next message and would otherwise carry the drag with it.
+        /// </summary>
+        private void Bubble_ManipulationCompleted(object sender, System.Windows.Input.ManipulationCompletedEventArgs e)
+        {
+            var row = sender as FrameworkElement;
+            if (row == null) return;
+
+            var move = row.RenderTransform as TranslateTransform;
+            double travel = move == null ? 0 : move.X;
+            if (move != null) move.X = 0;
+
+            if (travel < ReplySwipeThreshold) return;
+
+            var message = row.DataContext as ChatMessage;
+            if (message != null) StartReply(message);
+        }
+
+        /// <summary>
+        /// Answering one message: the bar over the keyboard names it, and the next words go
+        /// out with the quote inside them. The bar closes with its cross or with the send.
+        /// </summary>
+        private void StartReply(ChatMessage message)
+        {
+            if (message == null) return;
+
+            _replyTo = message;
+            ReplyAuthorText.Text = QuotedAuthorName(message);
+            ReplyBodyText.Text = string.IsNullOrEmpty(message.ShownText) ? "" : message.ShownText;
+            ReplyBar.Visibility = Visibility.Visible;
+        }
+
+        private void CancelReply()
+        {
+            _replyTo = null;
+            ReplyBar.Visibility = Visibility.Collapsed;
+        }
+
+        private void ReplyClose_Tapped(object sender, RoutedEventArgs e)
+        {
+            CancelReply();
+        }
+
+        /// <summary>
+        /// The emoji answering one message: it goes out as a reaction of its own and lands on
+        /// the bubble at once, before the server has said anything. A message the wire has no
+        /// id for yet answers nothing, so there is no reaction to send and none to draw.
+        /// </summary>
+        private async System.Threading.Tasks.Task ReactAsync(ChatMessage message, string emoji)
+        {
+            if (message == null || string.IsNullOrEmpty(message.Id)) return;
+
+            try
+            {
+                await NativeConnection.Instance.SendReactionAsync(message.ChatId, message.Id,
+                    !message.IsIncoming, emoji);
+                message.Reaction = emoji;
+            }
+            catch (Exception ex)
+            {
+                Diag.Failed("ChatPage/react", ex);
+            }
+        }
+
+        /// <summary>
+        /// The words of one row on their way out: a plain text, or a reply carrying the
+        /// message it answers - the same words either way, and the quote is inside them
+        /// (`Message.TextReply`) rather than a second message.
+        /// </summary>
+        private async System.Threading.Tasks.Task<string> SendWordsAsync(ChatMessage message,
+            System.Collections.Generic.IList<string> mentions)
+        {
+            if (!string.IsNullOrEmpty(message.QuoteId))
+            {
+                return await NativeConnection.Instance.SendReplyAsync(message.ChatId, message.Text,
+                    message.QuoteId, message.QuoteParticipant, message.QuoteText);
+            }
+
+            return await NativeConnection.Instance.SendTextAsync(message.ChatId, message.Text, mentions);
+        }
+
+        /// <summary>
+        /// Who wrote the message a quote names: the sender's name in a group, the contact's
+        /// own name in a chat of two, and this phone's own name for a row it wrote.
+        /// </summary>
+        private static string QuotedAuthorName(ChatMessage message)
+        {
+            string who = message.IsIncoming
+                ? (string.IsNullOrEmpty(message.SenderId) ? message.ChatId : message.SenderId)
+                : NativeConnection.Instance.Jid;
+            string name = DataService.DisplayNameForJid(who);
+            return string.IsNullOrEmpty(name) ? Loc.Get("ChatPage_You", "You") : name;
+        }
+
         private void ShowMessageMenu(FrameworkElement bubble, ChatMessage message)
         {
             var actions = new List<PopupAction>();
+
+            // The six a modern client answers with, in the order its row shows them. The
+            // emoji are what the row says: they are the same in every language, so there is
+            // nothing to look up and nothing to translate.
+            string[] reactions =
+            {
+                "\U0001F44D", "\u2764\ufe0f", "\U0001F602", "\U0001F62E", "\U0001F622", "\U0001F64F"
+            };
+            for (int i = 0; i < reactions.Length; i++)
+            {
+                string emoji = reactions[i];
+                PopupAction react = new PopupAction();
+                react.Text = emoji;
+                react.Invoke = delegate
+                {
+                    Guarded.RunGuardedAsync("ChatPage/react", ReactAsync(message, emoji));
+                };
+                actions.Add(react);
+            }
+
+            PopupAction reply = new PopupAction();
+            reply.Text = Loc.Get("ChatPage_Reply", "Reply");
+            reply.Invoke = delegate { StartReply(message); };
+            actions.Add(reply);
 
             // Copy is not offered because the phone platform exposes no clipboard API.
             if (CanRevokeForEveryone(message))
@@ -2515,8 +2682,7 @@ namespace WhatsappApp.Pages
                 }
                 else
                 {
-                    message.Id = await NativeConnection.Instance.SendTextAsync(
-                        DataService.Instance.ChatIdFor(_contact.Id), message.Text);
+                    message.Id = await SendWordsAsync(message, null);
                     WaitForAck(message);
                 }
             }

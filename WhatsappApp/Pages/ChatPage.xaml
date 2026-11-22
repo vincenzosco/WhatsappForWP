@@ -81,6 +81,9 @@
                  bubble inside the list would be a message the conversation has
                  to scroll past, and it comes and goes on its own. -->
             <RowDefinition Height="Auto"/>
+            <!-- What a swipe on a bubble opens: a row of its own above the input
+                 strip, which the list does not move when it comes and goes. -->
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -128,7 +131,9 @@
                     <!-- Margin 24 a destra e a sinistra: sono le due colonne fisse di
                          MessageBubbleContainer (24 * zoom), non un margine scelto a
                          occhio. La bolla ci sta dentro e si ferma a MaxWidth. -->
-                    <Grid Margin="24,0,24,0" HorizontalAlignment="Stretch" Hold="Bubble_Holding">
+                    <Grid Margin="24,0,24,0" HorizontalAlignment="Stretch" Hold="Bubble_Holding"
+                          ManipulationDelta="Bubble_ManipulationDelta"
+                          ManipulationCompleted="Bubble_ManipulationCompleted">
                         <!-- Incoming bubble: a flat rectangle with the 15 x 10
                              tail at its top-left corner, the shape every reference
                              screenshot shows. The three tail points are (0,0),
@@ -144,6 +149,20 @@
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
+                                <!-- The message this one answers: its own block above the
+                                     words, with who wrote it and what it said. -->
+                                <Border Background="#33000000" Padding="8,4,8,4" Margin="0,0,0,4"
+                                        Visibility="{Binding ShowsQuote, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding QuoteAuthor}" FontSize="14" FontWeight="Bold"
+                                                   Foreground="{StaticResource WhatsAppAccentTextBrush}"
+                                                   TextTrimming="WordEllipsis"/>
+                                        <TextBlock Text="{Binding QuoteText}" FontSize="14"
+                                                   Foreground="{StaticResource ChatBubbleMetaBrush}"
+                                                   TextWrapping="Wrap" MaxHeight="48"
+                                                   TextTrimming="WordEllipsis"/>
+                                    </StackPanel>
+                                </Border>
                                 <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
@@ -333,6 +352,11 @@
                                 <TextBlock Text="{Binding FormattedTime}"
                                            HorizontalAlignment="Right" Margin="0,3,0,0"
                                            Foreground="{StaticResource ChatBubbleMetaBrush}" FontSize="13"/>
+                                <!-- The emoji someone answered this message with, at the
+                                     foot of the bubble and only when there is one. -->
+                                <TextBlock Text="{Binding Reaction}" FontSize="18"
+                                           HorizontalAlignment="Right" Margin="0,0,0,2"
+                                           Visibility="{Binding ShowsReaction, Converter={StaticResource BoolToVisibility}}"/>
                             </StackPanel>
                         </Border>
 
@@ -352,6 +376,20 @@
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
+                                <!-- The message this one answers, drawn the same way it is
+                                     in the received bubble. -->
+                                <Border Background="#33000000" Padding="8,4,8,4" Margin="0,0,0,4"
+                                        Visibility="{Binding ShowsQuote, Converter={StaticResource BoolToVisibility}}">
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding QuoteAuthor}" FontSize="14" FontWeight="Bold"
+                                                   Foreground="{StaticResource WhatsAppAccentTextBrush}"
+                                                   TextTrimming="WordEllipsis"/>
+                                        <TextBlock Text="{Binding QuoteText}" FontSize="14"
+                                                   Foreground="{StaticResource ChatBubbleMetaBrush}"
+                                                   TextWrapping="Wrap" MaxHeight="48"
+                                                   TextTrimming="WordEllipsis"/>
+                                    </StackPanel>
+                                </Border>
                                 <Border CornerRadius="0"
                                         Margin="0,0,0,4"
                                         Visibility="{Binding Type, Converter={StaticResource MsgTypeToImageVis}}"
@@ -572,6 +610,11 @@
                                                FontSize="12"
                                                Foreground="{StaticResource WhatsAppAccentTextBrush}"/>
                                 </Button>
+                                <!-- The emoji someone answered this message with, at the
+                                     foot of the bubble and only when there is one. -->
+                                <TextBlock Text="{Binding Reaction}" FontSize="18"
+                                           HorizontalAlignment="Right" Margin="0,0,0,2"
+                                           Visibility="{Binding ShowsReaction, Converter={StaticResource BoolToVisibility}}"/>
                             </StackPanel>
                         </Border>
                     </Grid>
@@ -651,9 +694,38 @@
             </Border>
         </Grid>
 
+        <!-- The reply bar: what a swipe on a bubble opens, over the input strip.
+             It names the message being answered, and the cross closes it - the way
+             to say "not this one" without leaving the keyboard. -->
+        <Grid x:Name="ReplyBar" Grid.Row="3" Visibility="Collapsed"
+              Background="White">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <Border Grid.Column="0" Width="5" Margin="8,8,0,8"
+                    Background="{StaticResource WhatsAppAccentBrush}"/>
+            <StackPanel Grid.Column="1" Margin="10,8,10,8" VerticalAlignment="Center">
+                <TextBlock x:Name="ReplyAuthorText" FontSize="15" FontWeight="Bold"
+                           Foreground="{StaticResource WhatsAppAccentDarkBrush}"
+                           TextTrimming="WordEllipsis"/>
+                <TextBlock x:Name="ReplyBodyText" FontSize="14"
+                           Foreground="#FF666666"
+                           TextTrimming="WordEllipsis"/>
+            </StackPanel>
+            <Button Grid.Column="2" Width="56" MinWidth="0" MinHeight="0" Padding="0"
+                    BorderThickness="0" Background="Transparent"
+                    Click="ReplyClose_Tapped">
+                <Path Data="M0,0 L10,10 M10,0 L0,10"
+                      Stroke="#FF666666" StrokeThickness="2"
+                      Width="14" Height="14" Stretch="Fill"/>
+            </Button>
+        </Grid>
+
         <!-- Input area: the white strip of the official app, with the box a
              shade darker so the field reads as a field. -->
-        <Grid Grid.Row="3" Background="Transparent">
+        <Grid Grid.Row="4" Background="Transparent">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>

@@ -37,6 +37,11 @@ namespace WhatsappApp.Models
     {
         private string _id;
         private string _text;
+        private string _quoteId;
+        private string _quoteAuthor;
+        private string _quoteParticipant;
+        private string _quoteText;
+        private string _reaction;
         private string _senderId;
         private string _senderName;
         private string _chatId;
@@ -122,6 +127,82 @@ namespace WhatsappApp.Models
         public string ShownText
         {
             get { return EmojiText.Compatible(_text); }
+        }
+
+        /// <summary>
+        /// The message this one answers, when it is a reply: its id, who wrote it and what
+        /// it said. The id and the address are what the quote needs to travel again on a
+        /// retry; the name is what the quote block draws.
+        /// </summary>
+        [DataMember]
+        public string QuoteId
+        {
+            get { return _quoteId; }
+            set
+            {
+                _quoteId = value;
+                OnPropertyChanged();
+                OnPropertyChanged("ShowsQuote");
+            }
+        }
+
+        [DataMember]
+        public string QuoteAuthor
+        {
+            get { return _quoteAuthor; }
+            set
+            {
+                _quoteAuthor = value;
+                OnPropertyChanged();
+                OnPropertyChanged("ShowsQuote");
+            }
+        }
+
+        [DataMember]
+        public string QuoteParticipant
+        {
+            get { return _quoteParticipant; }
+            set { _quoteParticipant = value; OnPropertyChanged(); }
+        }
+
+        [DataMember]
+        public string QuoteText
+        {
+            get { return _quoteText; }
+            set
+            {
+                _quoteText = value;
+                OnPropertyChanged();
+                OnPropertyChanged("ShowsQuote");
+            }
+        }
+
+        /// <summary>Whether this message answers one: the quote block is drawn only then.</summary>
+        public bool ShowsQuote
+        {
+            get { return !string.IsNullOrEmpty(_quoteText) || !string.IsNullOrEmpty(_quoteAuthor); }
+        }
+
+        /// <summary>
+        /// The emoji someone answered this message with. Empty until one arrives, and the
+        /// one this phone has last seen is the one the bubble shows.
+        /// </summary>
+        [DataMember]
+        public string Reaction
+        {
+            get { return _reaction; }
+            set
+            {
+                _reaction = value;
+                OnPropertyChanged();
+                OnPropertyChanged("ShowsReaction");
+            }
+        }
+
+        /// <summary>Whether this message was answered with an emoji: the badge is drawn only then.</summary>
+        public bool ShowsReaction
+        {
+            get { return !string.IsNullOrEmpty(_reaction); }
         }
 
         [DataMember]

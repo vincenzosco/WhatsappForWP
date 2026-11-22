@@ -90,9 +90,16 @@ function sessionSaveProblems(files) {
 
   const sendMethods = [
     'public async Task<string> SendTextAsync(string jid, string body, IList<string> mentionedJids)',
+    'public async Task<string> SendReplyAsync(string jid, string body, string quoteId, string quoteAuthor, string quoteText)',
+    'public async Task<string> SendReactionAsync(string jid, string messageId, bool fromMe, string emoji)',
     'public async Task<string> RevokeAsync(string jid, string messageId)',
     'public async Task<string> SendMediaAsync(string jid, byte[] file, string mediaType, string mimeType,'
   ];
+
+  // The path every text-shaped message shares: a send that hands its words to it writes
+  // its sessions back there (`SendDirectAsync` is that path).
+  const sharedPath = methodBody(connection,
+    'private async Task<string> SendDirectAsync(NativeSession session, string jid, Message message, string rowText)');
 
   for (const signature of sendMethods) {
     const body = methodBody(connection, signature);
@@ -103,14 +110,20 @@ function sessionSaveProblems(files) {
       continue;
     }
 
-    const at = body.indexOf('KeepSessions(');
+    let owner = body;
+    let at = body.indexOf('KeepSessions(');
+    if (at < 0 && /SendWordsAsync\(|SendDirectAsync\(/.test(body)) {
+      owner = sharedPath || '';
+      at = owner.indexOf('KeepSessions(');
+    }
+
     if (at < 0) {
       problems.push(`${CONNECTION}: ${name} never writes its sessions back (no KeepSessions): ` +
         'the next message re-encrypts a key the receiver has already spent');
       continue;
     }
 
-    if (enclosingBlock(body, at) !== 'finally') {
+    if (enclosingBlock(owner, at) !== 'finally') {
       problems.push(`${CONNECTION}: ${name} writes its sessions back outside a finally - a ` +
         'send that throws after encrypting leaves the store behind the chain');
     }

@@ -623,6 +623,50 @@ namespace ProtocolTests
             return padded;
         }
 
+        [Test]
+        public static void AReactionIsTheReferencesOwnBytes()
+        {
+            byte[] expected = Hex(MessageFixture.ReactionEncoded);
+
+            Assert.ByteArraysEqual(expected,
+                Message.React(MessageFixture.ReactionChat, true, MessageFixture.ReactionTo,
+                    MessageFixture.ReactionEmoji).Encode());
+
+            // And the same bytes read back name the message answered and the emoji.
+            Message.Reaction got = Message.Decode(expected).ReactionOf();
+            Assert.AreEqual(MessageFixture.ReactionEmoji, got.Emoji);
+            Assert.AreEqual(MessageFixture.ReactionTo, got.MessageId);
+            Assert.AreEqual(MessageFixture.ReactionChat, got.RemoteJid);
+            Assert.IsTrue(got.FromMe);
+        }
+
+        [Test]
+        public static void AReplyIsTheReferencesOwnBytes()
+        {
+            byte[] expected = Hex(MessageFixture.ReplyEncoded);
+
+            Assert.ByteArraysEqual(expected,
+                Message.TextReply(MessageFixture.ReplyBody, MessageFixture.ReplyQuotedId,
+                    MessageFixture.ReplyQuotedAuthor, MessageFixture.ReplyQuotedBody).Encode());
+
+            // And the quote inside it reads back: the id, its author, its words.
+            Message.Quote got = Message.Decode(expected).Quoted();
+            Assert.AreEqual(MessageFixture.ReplyQuotedId, got.StanzaId);
+            Assert.AreEqual(MessageFixture.ReplyQuotedAuthor, got.Participant);
+            Assert.AreEqual(MessageFixture.ReplyQuotedBody, got.Text);
+        }
+
+        [Test]
+        public static void AReactionAnswersNothingElse()
+        {
+            Message.Reaction none = Message.Text("Hi").ReactionOf();
+            Assert.AreEqual(null, none.Emoji);
+            Assert.AreEqual(null, none.MessageId);
+
+            Message.Quote noQuote = Message.Text("Hi").Quoted();
+            Assert.AreEqual(null, noQuote.StanzaId);
+        }
+
         private static byte[] Hex(string text)
         {
             var bytes = new byte[text.Length / 2];

@@ -124,6 +124,12 @@
   <data name="Common_Ok" xml:space="preserve">
     <value>OK</value>
   </data>
+  <data name="ChatPage_Reply" xml:space="preserve">
+    <value>Reply</value>
+  </data>
+  <data name="ChatPage_You" xml:space="preserve">
+    <value>You</value>
+  </data>
   <data name="ChatPage_DeleteEveryone" xml:space="preserve">
     <value>Delete for everyone</value>
   </data>

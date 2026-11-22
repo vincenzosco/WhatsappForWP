@@ -848,6 +848,18 @@ namespace WhatsappApp.Services
         {
             if (incoming == null || string.IsNullOrEmpty(incoming.Jid)) return;
 
+            // A reaction is not a row: it is an emoji on a message this chat already has
+            // (`Message.ReactionOf`). It goes on the row it names and the list does not move.
+            if (incoming.Encoded != null)
+            {
+                Message.Reaction reaction = Message.Decode(incoming.Encoded).ReactionOf();
+                if (!string.IsNullOrEmpty(reaction.Emoji))
+                {
+                    ApplyReaction(incoming.Jid, reaction.MessageId, reaction.Emoji);
+                    return;
+                }
+            }
+
             var message = new ChatMessage();
             message.Id = incoming.Id;
             message.ChatId = incoming.Jid;
@@ -869,8 +881,30 @@ namespace WhatsappApp.Services
             // A photo, a voice note, a video or a document: the encoded message is where
             // its keys are, and the same decoding serves a live message and a history row.
             ApplyNativeMedia(message, incoming.Encoded);
+            ApplyNativeQuote(message, incoming.Encoded);
 
             OnNetworkMessageReceived(this, message);
+        }
+
+        /// <summary>
+        /// The message a reply answers, applied to the row: its id, who wrote it and what it
+        /// said, which is what the quote block draws and what a retry sends again. A message
+        /// that answers nothing keeps none of them and the block stays hidden
+        /// (`Message.Quoted`).
+        /// </summary>
+        private static void ApplyNativeQuote(ChatMessage message, byte[] encoded)
+        {
+            if (message == null || encoded == null) return;
+
+            Message.Quote quote = Message.Decode(encoded).Quoted();
+            if (string.IsNullOrEmpty(quote.StanzaId)) return;
+
+            message.QuoteId = quote.StanzaId;
+            message.QuoteParticipant = quote.Participant;
+            message.QuoteText = quote.Text;
+            message.QuoteAuthor = string.IsNullOrEmpty(quote.Participant)
+                ? Loc.Get("ChatPage_You", "You")
+                : DisplayNameForJid(quote.Participant);
         }
 
         /// <summary>
@@ -3028,6 +3062,32 @@ namespace WhatsappApp.Services
         /// could not delete at all. A conversation with nothing left deletes the file
         /// instead, because `SaveAsync` refuses to write an empty one.
         /// </summary>
+        /// <summary>
+        /// An emoji on a message already here: the row it names carries it from now on, and
+        /// the conversation is written back so it is still there when the page is closed. A
+        /// reaction for a message this chat does not have is nothing to apply and nothing to
+        /// report - the sender answered a row of their own screen.
+        /// </summary>
+        public void ApplyReaction(string chatId, string messageId, string emoji)
+        {
+            chatId = ChatIdFor(chatId);
+            if (string.IsNullOrEmpty(chatId) || string.IsNullOrEmpty(messageId)) return;
+
+            ObservableCollection<ChatMessage> messages;
+            if (!_chatMessages.TryGetValue(chatId, out messages)) return;
+
+            for (int i = 0; i < messages.Count; i++)
+            {
+                if (messages[i] == null || messages[i].Id != messageId) continue;
+                messages[i].Reaction = emoji;
+                break;
+            }
+
+#pragma warning disable 4014
+            Guarded.RunGuardedAsync("DataService/reaction", RewriteTailAsync(chatId, messages));
+#pragma warning restore 4014
+        }
+
         public void RemoveMessage(string chatId, string messageId)
         {
             chatId = ChatIdFor(chatId);
