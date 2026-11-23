@@ -134,6 +134,15 @@ namespace WhatsappApp.Services
         /// </summary>
         private readonly HashSet<string> _offeredCalls = new HashSet<string>();
 
+        /// <summary>
+        /// Where each call's stanzas are addressed: the `to` the offer was built with. A call
+        /// answers an address, not a person, and the one on the screen - the chat's row - can
+        /// be the other spelling of it: the log of a call to MAMMA has the offer on
+        /// `179585517920463@lid` and its terminate on `393492556507@s.whatsapp.net`, and the
+        /// server answered `error="439"` to the second.
+        /// </summary>
+        private readonly Dictionary<string, string> _callJids = new Dictionary<string, string>();
+
         /// <summary>The call offers this run has already put in front of the user, by id.</summary>
         private readonly HashSet<string> _announcedCalls = new HashSet<string>();
 
@@ -266,6 +275,44 @@ namespace WhatsappApp.Services
             lock (_offeredCalls)
             {
                 return _offeredCalls.Remove(id);
+            }
+        }
+
+        /// <summary>Remembers where a call's stanzas go, under the call id.</summary>
+        private void KeepCallJid(string callId, string jid)
+        {
+            if (string.IsNullOrEmpty(callId) || string.IsNullOrEmpty(jid)) return;
+
+            lock (_callJids)
+            {
+                if (_callJids.Count >= MaxAwaitingAck) _callJids.Clear();
+                _callJids[callId] = jid;
+            }
+        }
+
+        /// <summary>
+        /// Where a call's stanzas go, or null when the call was never offered from here - an
+        /// incoming one answers the address its own offer named.
+        /// </summary>
+        private string CallJidFor(string callId)
+        {
+            if (string.IsNullOrEmpty(callId)) return null;
+
+            lock (_callJids)
+            {
+                string jid;
+                return _callJids.TryGetValue(callId, out jid) ? jid : null;
+            }
+        }
+
+        /// <summary>Forgets where a call was addressed, when the call is over.</summary>
+        private void ForgetCallJid(string callId)
+        {
+            if (string.IsNullOrEmpty(callId)) return;
+
+            lock (_callJids)
+            {
+                _callJids.Remove(callId);
             }
         }
 
@@ -4414,6 +4461,9 @@ namespace WhatsappApp.Services
                 // The store is therefore read once more, where the flag is about to be used.
                 await RefreshEstablishedAsync(target);
 
+                // Every later stanza of this call answers this address.
+                KeepCallJid(callId, target.To);
+
                 // The devices of the person being called, and none of this account's own: a
                 // call is offered to somebody else, and a list that carries our own companions
                 // spends four offers of five on this account (`DirectSend.CalleeOnly`).
@@ -5020,10 +5070,13 @@ namespace WhatsappApp.Services
         {
             NativeSession session = OpenSession();
             string creator = CallCreatorFor(callId);
+            string to = CallJidFor(callId);
+            if (to == null) to = jid;
 
-            await session.SendAsync(Calls.Terminate(callId, jid, creator, reason));
+            await session.SendAsync(Calls.Terminate(callId, to, creator, reason));
             ForgetPlacedCall(callId);
             ForgetCallCreator(callId);
+            ForgetCallJid(callId);
             StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason);
         }
@@ -5039,10 +5092,13 @@ namespace WhatsappApp.Services
         {
             NativeSession session = OpenSession();
             string creator = CallCreatorFor(callId);
+            string to = CallJidFor(callId);
+            if (to == null) to = jid;
 
-            await session.SendAsync(Calls.Terminate(callId, jid, creator, reason, durationSeconds, videoState));
+            await session.SendAsync(Calls.Terminate(callId, to, creator, reason, durationSeconds, videoState));
             ForgetPlacedCall(callId);
             ForgetCallCreator(callId);
+            ForgetCallJid(callId);
             StopCallMedia();
             Diag.Ok("native: ended the call " + callId + " reason " + reason
                 + " after " + durationSeconds + " s");
