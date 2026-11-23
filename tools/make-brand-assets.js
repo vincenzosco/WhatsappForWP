@@ -168,6 +168,33 @@ function blank(w, h) {
 }
 
 /**
+ * The mark as a white glyph on a transparent field: the light parts of the
+ * bubble - its outline and the handset - painted white, its green parts
+ * dropped. The shell paints the square behind the app-list mark
+ * (Package.appxmanifest's BackgroundColor), so a mark carrying its own green
+ * disappears on that green and the person sees a flat square - which is what
+ * the phone showed. Dropping the green lets the shell's own square come
+ * through the bubble's body, and the client reference draws its own app-list
+ * marks exactly this way: white pixels, transparent field, no colour of their
+ * own (`Images/Tile44x44.png`, 13% white on transparent).
+ */
+function glyph(img) {
+  const out = blank(img.width, img.height);
+  for (let i = 0; i < img.width * img.height; i++) {
+    const r = img.data[i * 4];
+    const g = img.data[i * 4 + 1];
+    const b = img.data[i * 4 + 2];
+    const a = img.data[i * 4 + 3];
+    if (a === 0 || Math.min(r, g, b) <= 128) continue;
+    out.data[i * 4] = 255;
+    out.data[i * 4 + 1] = 255;
+    out.data[i * 4 + 2] = 255;
+    out.data[i * 4 + 3] = a;
+  }
+  return out;
+}
+
+/**
  * The icon shrunk inside a transparent square frame: `fraction` is the share
  * of the side the icon covers (0.78 = 11% of breathing room per side).
  *
@@ -331,6 +358,14 @@ function copy(name, from) {
   console.log(`${name.padEnd(32)} copied from official/${from}`);
 }
 
+// The same drawing under the unqualified name a manifest speaks
+// (`SmallLogo.scale-240.png` -> `SmallLogo.png`).
+function alias(name) {
+  const base = name.replace('.scale-240', '');
+  fs.copyFileSync(path.join(OUT_DIR, name), path.join(OUT_DIR, base));
+  console.log(`${base.padEnd(32)} same drawing under the manifest's own name`);
+}
+
 function write(name, img, from) {
   fs.writeFileSync(path.join(OUT_DIR, name), encodePNG(img));
   console.log(`${name.padEnd(32)} ${img.width}x${img.height} from ${from || 'the brand art'}`);
@@ -361,6 +396,7 @@ function main() {
   // The splash and the chat background are the official package's own drawings.
   copy('SplashScreen.scale-240.png', 'SplashScreen-1152x1920.png');
   copy('ChatBackground.jpg', 'Background.jpg');
+  alias('SplashScreen.scale-240.png');
 
   // The identity mark is the bubble the released build drew
   // (official/logo.png): the green bubble in its white outline, on whatever
@@ -369,10 +405,11 @@ function main() {
   // and the sticker on a white card, read as "no logo".
   const mark = decodePNG(fs.readFileSync(path.join(OFFICIAL, 'logo.png')), 'logo.png');
 
-  // The app-list icon is the bubble itself, as the released build drew it. Its
-  // field is transparent and that is the point: the list's own background shows
-  // around the mark instead of a card standing in for it.
-  write('WhatsAppLogo.png', resample(mark, 160, 160), 'official/logo.png');
+  // The app-list icon is the bubble itself, as the released build drew it -
+  // and as a white glyph, the way the shell needs it: the square behind the
+  // mark is painted by the platform (the manifest's BackgroundColor), and the
+  // bubble's own green on that green is what drew a flat square with no logo.
+  write('WhatsAppLogo.png', glyph(resample(mark, 160, 160)), 'official/logo.png');
 
   // The tiles: the official green square - the bubble on the brand green -
   // inside the frame, so it does not look zoomed. The wide frame carries the
@@ -389,10 +426,23 @@ function main() {
   // background the shell paints. These were transparent placeholders copied
   // from the official package and drew as nothing on a coloured tile.
   write('Logo.scale-240.png', inset(icon, 360, TileInset), 'official/Icon1.png');
-  write('SmallLogo.scale-240.png', inset(icon, 106, TileInset), 'official/Icon1.png');
+  // The 44x44 slot is an app-list mark like the one above: a white glyph, not
+  // the green square.
+  write('SmallLogo.scale-240.png', glyph(resample(mark, 106, 106)), 'official/logo.png');
+  write('SmallLogo.png', glyph(resample(mark, 106, 106)), 'official/logo.png');
   write('Square71x71Logo.scale-240.png', inset(icon, 170, TileInset), 'official/Icon1.png');
   write('WideLogo.scale-240.png', banner(icon, 744, 360, WideInset), 'official/Icon1.png');
   write('StoreLogo.scale-240.png', inset(icon, 120, TileInset), 'official/Icon1.png');
+
+  // The same drawings under the exact names the manifests also use. The
+  // platform resolves `Foo.png` to `Foo.scale-240.png` for some of these and
+  // not for others, and a file named exactly as the manifest names it is found
+  // either way - so every name a manifest speaks exists as it speaks it.
+  alias('Logo.scale-240.png');
+  alias('Square71x71Logo.scale-240.png');
+  alias('WideLogo.scale-240.png');
+  alias('StoreLogo.scale-240.png');
+  alias('LockScreenBadge.scale-240.png');
 
   // The lock screen badge, the one surface that is monochrome.
   write('LockScreenBadge.scale-100.png', badge(mark, 24), 'official/logo.png');
