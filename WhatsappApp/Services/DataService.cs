@@ -3102,6 +3102,10 @@ namespace WhatsappApp.Services
 
         private async Task ApplyReactionAsync(string chatId, string messageId, string emoji)
         {
+            // Folded first: the rows are held under the folded id, and so is the tail this
+            // writes back at the end - which is what keeps one chat on one file.
+            chatId = ChatIdFor(chatId);
+
             ObservableCollection<ChatMessage> messages;
             if (!_chatMessages.TryGetValue(chatId, out messages) || messages.Count == 0)
             {
@@ -3164,6 +3168,10 @@ namespace WhatsappApp.Services
         /// </summary>
         private void RefreshPreview(string chatId)
         {
+            // Folded first, for the same reason as the reaction: the rows are under the folded
+            // id. `FindContact` already looks under both spellings, so the row is still found.
+            chatId = ChatIdFor(chatId);
+
             var contact = FindContact(chatId);
             if (contact == null) return;
 
