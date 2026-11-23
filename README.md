@@ -10,6 +10,7 @@
 > not a sign that the project was vibecoded: the agents were used to look at WhatsApp's own app
 > and see what the protocol does on the wire. The rest - the client, the protocol stack, the
 > pages - is for the most part the work of a human.
+> **THE PROJECT IS NOT VIBE-CODED, INSTEAD IT'S AI-ASSISTED ENGINEERING**
 
 <p align="center">
   <strong>A WhatsApp client that runs on a 2014 phone, written from the protocol up.</strong><br>
