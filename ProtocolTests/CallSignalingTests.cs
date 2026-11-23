@@ -591,8 +591,12 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The call node names the caller, the callee and the stanza id: the three attributes
-        /// the spec's own examples write and the ones the server routes by.
+        /// The call node names the callee and the stanza id, and the caller travels inside the
+        /// verb. That is what both decompiled senders write: `WriteVoipNode` adds `to` and a
+        /// generated `id` and nothing else, and the Android sender hands its writer the jid
+        /// and the stanza id. The five a captured node carries beside them - `from`, `version`,
+        /// `platform`, `offline`, `t` - are the server's delivery stamps: the run of this app
+        /// that wrote all five got no ack and no answer of any kind.
         /// </summary>
         [Test]
         public static void TheCallNodeNamesTheCallerAndTheCallee()
@@ -600,14 +604,18 @@ namespace ProtocolTests
             BinaryNode call = CallSignaling.Offer(CallId, Peer, "39389@s.whatsapp.net:4",
                 new List<CallAudio>(), null, new List<CallKeyPayload>(), null);
 
-            Assert.AreEqual("39389@s.whatsapp.net:4", call.Attrs["from"], "the caller is on the node");
-            Assert.AreEqual(Peer, call.Attrs["to"], "and the callee");
-            Assert.AreEqual(CallId, call.Attrs["id"], "and the id the ack will name");
-            Assert.AreEqual(CallSignaling.ClientVersion, call.Attrs["version"],
-                "the version the callee reads, as both captured offers carry it");
-            Assert.AreEqual(CallSignaling.ClientPlatform, call.Attrs["platform"], "and the platform");
-            Assert.AreEqual("0", call.Attrs["offline"], "an offer that is not an offline copy");
-            Assert.IsTrue(!string.IsNullOrEmpty(call.Attrs["t"]), "and the moment it was made");
+            Assert.AreEqual(Peer, call.Attrs["to"], "the node says where it goes");
+            Assert.AreEqual(CallId, call.Attrs["id"], "and carries the id a receipt answers");
+
+            BinaryNode offer = call.Children()[0];
+            Assert.AreEqual("39389@s.whatsapp.net:4", offer.Attrs["call-creator"],
+                "the caller is named inside the verb, where the other phone reads it");
+
+            Assert.IsTrue(!call.Attrs.Contains("from"),
+                "the sender does not write the server's stamps");
+            Assert.IsTrue(!call.Attrs.Contains("version"), "nor what it is");
+            Assert.IsTrue(!call.Attrs.Contains("platform"), "nor what it runs on");
+            Assert.IsTrue(!call.Attrs.Contains("offline"), "nor whether the copy was offline");
         }
 
         /// <summary>
@@ -735,8 +743,8 @@ namespace ProtocolTests
 
             string shape = CallSignaling.Describe(call);
 
-            Assert.IsTrue(shape.StartsWith("call[from,version,platform,to,id,offline,t]", StringComparison.Ordinal),
-                "the node and its attributes, in the order a real offer writes them");
+            Assert.IsTrue(shape.StartsWith("call[to,id]", StringComparison.Ordinal),
+                "the node and its attributes, the two a sender writes");
             Assert.IsTrue(shape.Contains("offer[call-id,call-creator] with "), "the verb and its attributes");
             Assert.IsTrue(shape.Contains("device-identity"), "and the identity is in the shape");
             Assert.IsTrue(!shape.Contains("4,2"), "and the ciphertext is not");

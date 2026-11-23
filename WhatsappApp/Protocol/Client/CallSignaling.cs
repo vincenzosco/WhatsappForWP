@@ -1879,53 +1879,43 @@ namespace WhatsappApp.Protocol.Client
             return children[0];
         }
 
-        /// <summary>The node around one verb: `to` and `id` on it, and the verb inside.</summary>
-        private static BinaryNode Wrap(string callId, string to, BinaryNode verb)
-        {
-            return Wrap(callId, to, null, verb);
-        }
+        /// <summary>The id a call stanza goes out under. The app generates it
+        /// (`NewCallId`, the same sixteen hex the message path writes), because the
+        /// reference sender gives every verb its own generated id
+        /// (`FunXMPP.GenerateMessageId`) and keeps the call id inside the verb. Until
+        /// something names one, the call id is what goes out - a stanza with no id at all
+        /// is one no receipt can answer.
+        /// </summary>
+        internal static Func<string> NewStanzaId;
 
         /// <summary>
-        /// The same node with the caller on it: `from`, `to`, `id`.
+        /// The node around one verb: `to` and `id` on it, and the verb inside.
         ///
-        /// The attribute is the spec's (`wacrg.org`, "Call offer": `from` is the JID of the
-        /// caller, and the copy the callee receives always carries it); the reference client is
-        /// said to leave it to the server on the way out, and this client writes it because the
-        /// server has already shown it will route nothing at all for a call it cannot attribute
-        /// - the log has two offers and no ack, while an ordinary message
-        /// with the same routing got `class="message"` in under a second.
-        ///
-        /// It goes first, before `to` and `id`, because that is the order the spec's examples
-        /// write and the writer here emits attributes in insertion order.
+        /// Two attributes, and only two, because that is what both decompiled senders
+        /// write: the official WP8.1 one (`VoipSignaling.WriteVoipNode` adds `to`, then a
+        /// generated `id`, and nothing else) and the Android one (`OutgoingSignalingHandler
+        /// .sendCallStanza` hands its sender the jid and the stanza id). The five a captured
+        /// node carries beside them - `from`, `version`, `platform`, `offline`, `t` - are
+        /// what the server stamps on the way to the other phone, and a sender that writes
+        /// `from` itself is doing the server's work with the wrong value: the run that sent
+        /// all five got no ack and no answer of any kind, while an ordinary message on the
+        /// same socket was answered in under a second.
         /// </summary>
-        private static BinaryNode Wrap(string callId, string to, string from, BinaryNode verb)
+        private static BinaryNode Wrap(string callId, string to, BinaryNode verb)
         {
             var node = new BinaryNode(Tag);
-
-            // The five attributes a real offer carries, in the order both captured nodes write
-            // them (`<call from="…" version="2.26.42.74" platform="android" id="…" offline="0"
-            // t="…">`): the caller, what it is, the id, whether the offer is an offline copy,
-            // and when it was made. Only an offer passes `from` here, so only an offer gets the
-            // four that describe its sender.
-            if (!string.IsNullOrEmpty(from))
-            {
-                node.Attrs.Add("from", from);
-                node.Attrs.Add("version", ClientVersion);
-                node.Attrs.Add("platform", ClientPlatform);
-            }
-
             node.Attrs.Add("to", to);
-            node.Attrs.Add("id", callId);
-
-            if (!string.IsNullOrEmpty(from))
-            {
-                node.Attrs.Add("offline", "0");
-                node.Attrs.Add("t", Now());
-            }
-
+            node.Attrs.Add("id", NewStanzaId != null ? NewStanzaId() : callId);
             node.Content = new List<BinaryNode> { verb };
 
             return node;
+        }
+
+        /// <summary>The same node for a verb that echoes the creator: the identity travels
+        /// inside the verb (`call-creator`), which is where the other phone reads it.</summary>
+        private static BinaryNode Wrap(string callId, string to, string callCreator, BinaryNode verb)
+        {
+            return Wrap(callId, to, verb);
         }
 
         /// <summary>

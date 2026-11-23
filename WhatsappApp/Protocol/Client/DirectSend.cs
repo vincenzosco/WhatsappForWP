@@ -86,6 +86,65 @@ namespace WhatsappApp.Protocol.Client
         }
 
         /// <summary>
+        /// The devices a call is offered to: the other account's, without one of this
+        /// account's own.
+        ///
+        /// Why a call filters what a message does not: a message has a sent copy to keep and
+        /// this account's other devices are where that copy goes (`OutgoingMessage.Node`). A
+        /// call has no copy - nobody rings themselves - so an offer that reaches this
+        /// account's own devices is an offer spent on this account. The run that placed one
+        /// call sent five offers and four of them were this account's own (`150375613116620@lid`
+        /// and its companions, the same addresses the peer-request lines name as ours): the
+        /// person being called was asked once, from a list of five.
+        ///
+        /// The match is on the account and not on the whole jid: this account's devices are
+        /// spelled `...:9@lid`, `...:88@lid`, and a device suffix is not another account. Both
+        /// spellings of this account are passed in - the number and the lid are one person.
+        /// </summary>
+        public static IList<KeyValuePair<string, SessionRecord>> CalleeOnly(
+            IList<KeyValuePair<string, SessionRecord>> devices, IList<string> ownJids)
+        {
+            if (devices == null) throw new ProtocolException("a call needs the devices it is offered to");
+
+            var ours = new List<string>();
+            if (ownJids != null)
+            {
+                for (int i = 0; i < ownJids.Count; i++)
+                {
+                    string user = UserOf(ownJids[i]);
+                    if (!string.IsNullOrEmpty(user) && !ours.Contains(user)) ours.Add(user);
+                }
+            }
+
+            var callees = new List<KeyValuePair<string, SessionRecord>>();
+            for (int i = 0; i < devices.Count; i++)
+            {
+                string device = devices[i].Key;
+                if (string.IsNullOrEmpty(device)) continue;
+                if (ours.Contains(UserOf(device))) continue;
+
+                callees.Add(devices[i]);
+            }
+
+            return callees;
+        }
+
+        /// <summary>
+        /// The account a device belongs to: the part before its `:device`, without the family
+        /// it is spelled in. `150375613116620:9@lid` and `150375613116620@lid` are two devices
+        /// of one account, and this is what they have in common.
+        /// </summary>
+        private static string UserOf(string jid)
+        {
+            if (string.IsNullOrEmpty(jid)) return null;
+
+            int at = jid.IndexOf('@');
+            string user = at < 0 ? jid : jid.Substring(0, at);
+            int device = user.IndexOf(':');
+            return device < 0 ? user : user.Substring(0, device);
+        }
+
+        /// <summary>
         /// The devices of `targets` that still need a bundle: the ones with no session, and
         /// no more. An established session is the ratchet, and asking for its keys again is
         /// a round trip nobody reads.

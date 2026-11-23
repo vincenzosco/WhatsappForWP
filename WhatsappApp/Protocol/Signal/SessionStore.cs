@@ -40,13 +40,26 @@ namespace WhatsappApp.Protocol.Signal
         private readonly ISessionStorage _storage;
         private readonly IRandomSource _random;
 
+        /// <summary>
+        /// How one account's two spellings fold into one, or null when the store is used
+        /// without an app that knows the pairs. It belongs to the app (`NameBook.Canonical`)
+        /// and not to this class: a protocol core does not decide who is the same person.
+        /// </summary>
+        private readonly Func<string, string> _canonical;
+
         public SessionStore(ISessionStorage storage, IRandomSource random)
+            : this(storage, random, null)
+        {
+        }
+
+        public SessionStore(ISessionStorage storage, IRandomSource random, Func<string, string> canonical)
         {
             if (storage == null) throw new ProtocolException("a session store needs somewhere to store");
             if (random == null) throw new ProtocolException("a session store needs a source for the keys its sessions draw");
 
             _storage = storage;
             _random = random;
+            _canonical = canonical;
         }
 
         /// <summary>
@@ -54,24 +67,44 @@ namespace WhatsappApp.Protocol.Signal
         /// that is not whole. That is the same answer on purpose - a damaged record is not a
         /// session and the caller starts a new one - and it is what keeps a torn file from
         /// becoming an exception in the middle of a decryption (review focus 2).
+        ///
+        /// A miss is asked again under the peer's other spelling. The store is keyed on the
+        /// device jid as the send spelled it, so a chat first written by number keeps its
+        /// session under the number while a call addressed by the lid finds nothing there -
+        /// and seals its call key as a pre-key message, the one shape a phone has to open a
+        /// session to read, on the one stanza whose silence is a phone that does not ring.
         /// </summary>
         public SessionRecord Load(string peer)
         {
             if (string.IsNullOrEmpty(peer)) throw new ProtocolException("a session is stored under a peer's name");
 
             byte[] stored;
-            if (!_storage.TryRead(Key(peer), out stored)) return null;
+            if (_storage.TryRead(Key(peer), out stored)) return SessionRecord.Decode(stored, _random);
 
-            return SessionRecord.Decode(stored, _random);
+            string paired = PairedKey(peer);
+            if (paired != null && _storage.TryRead(paired, out stored))
+            {
+                return SessionRecord.Decode(stored, _random);
+            }
+
+            return null;
         }
 
-        /// <summary>Writes a session, replacing the one that was there.</summary>
+        /// <summary>
+        /// Writes a session, replacing the one that was there. It is written under both
+        /// spellings when the app knows the pair, so the next send finds it whatever address
+        /// it uses.
+        /// </summary>
         public void Save(string peer, SessionRecord session)
         {
             if (string.IsNullOrEmpty(peer)) throw new ProtocolException("a session is stored under a peer's name");
             if (session == null) throw new ProtocolException("there is no session to save");
 
-            _storage.Write(Key(peer), session.Encode());
+            byte[] encoded = session.Encode();
+            _storage.Write(Key(peer), encoded);
+
+            string paired = PairedKey(peer);
+            if (paired != null) _storage.Write(paired, encoded);
         }
 
         /// <summary>Forgets a peer, which is what a blocked contact or a re-pair does.</summary>
@@ -80,6 +113,23 @@ namespace WhatsappApp.Protocol.Signal
             if (string.IsNullOrEmpty(peer)) throw new ProtocolException("a session is stored under a peer's name");
 
             _storage.Remove(Key(peer));
+
+            string paired = PairedKey(peer);
+            if (paired != null) _storage.Remove(paired);
+        }
+
+        /// <summary>
+        /// The key the same device would be under if the two had always used one spelling,
+        /// or null when there is no second spelling to try.
+        /// </summary>
+        private string PairedKey(string peer)
+        {
+            if (_canonical == null) return null;
+
+            string folded = _canonical(peer);
+            if (string.IsNullOrEmpty(folded) || folded == peer) return null;
+
+            return Key(folded);
         }
 
         private static string Key(string peer)

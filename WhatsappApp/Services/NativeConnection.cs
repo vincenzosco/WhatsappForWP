@@ -592,6 +592,10 @@ namespace WhatsappApp.Services
             // The protocol core says what it cannot model through the seam the app owns:
             // the log is where a real call becomes the capture the relay dialog is read from.
             CallWireProfile.WireLog = Diag.Ok;
+
+            // And the id a call stanza goes out under: the reference gives every verb a
+            // generated id, and this app already generates the ones its messages carry.
+            CallSignaling.NewStanzaId = NewCallId;
         }
 
         /// <summary>True while an account is open. False before a login and after the end of one.</summary>
@@ -4410,8 +4414,26 @@ namespace WhatsappApp.Services
                 // The store is therefore read once more, where the flag is about to be used.
                 await RefreshEstablishedAsync(target);
 
+                // The devices of the person being called, and none of this account's own: a
+                // call is offered to somebody else, and a list that carries our own companions
+                // spends four offers of five on this account (`DirectSend.CalleeOnly`).
+                IList<KeyValuePair<string, SessionRecord>> callees =
+                    DirectSend.CalleeOnly(target.Devices, OurJids());
+                for (int i = 0; i < target.Devices.Count; i++)
+                {
+                    if (callees.Contains(target.Devices[i])) continue;
+
+                    Diag.Ok("native: the call " + callId + " is not offered to " + target.Devices[i].Key
+                        + ", which is one of this account's own devices");
+                }
+
+                if (callees.Count == 0)
+                {
+                    throw new ProtocolException("the device list of " + jid + " names nobody but this phone");
+                }
+
                 callKey = CallKeyExchange.NewCallKey(_random);
-                keys = CallKeyExchange.Wrap(callKey, target.Devices, _random);
+                keys = CallKeyExchange.Wrap(callKey, callees, _random);
 
                 Diag.Ok("native: the call " + callId + " is sealed for " + target.Devices.Count
                     + " device(s) of " + jid);
@@ -5461,7 +5483,7 @@ namespace WhatsappApp.Services
         {
             if (_sessions != null) return _sessions;
 
-            _sessions = new SessionStore(await StorageAsync(), _random);
+            _sessions = new SessionStore(await StorageAsync(), _random, NameCache.Book.Canonical);
 
             return _sessions;
         }
