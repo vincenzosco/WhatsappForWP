@@ -852,25 +852,6 @@ namespace WhatsappApp.Protocol.Client
         /// answered is built by the overload below.
         /// </summary>
         /// <summary>
-        /// The client version a call node announces.
-        ///
-        /// Why it is not this app's own number: the two call nodes captured
-        /// from other phones both carry it - `version="2.26.42.74" platform="android"` and
-        /// `version="2.26.42.77" platform="iphone"` - and the callee reads it to decide which
-        /// features the caller can do. A version that reads as an ancient build is a call the
-        /// other phone has no reason to ring for; this is the version of the protocol core the
-        /// shapes here were written against, and it is what a callee is told.
-        /// </summary>
-        public const string ClientVersion = "2.26.42.74";
-
-        /// <summary>
-        /// The platform word a call node announces, for the same reason as the version: the
-        /// captured offers carry `android` and `iphone`, and a call node without either is a
-        /// caller the other phone knows nothing about.
-        /// </summary>
-        public const string ClientPlatform = "android";
-
-        /// <summary>
         /// How old an offline copy of a call may be before it is not answered at all, in
         /// seconds.
         ///
@@ -896,12 +877,6 @@ namespace WhatsappApp.Protocol.Client
             if (signal == null || !signal.Offline || signal.Timestamp <= 0) return false;
 
             return signal.AgeSeconds > MaxOfflineAgeSeconds;
-        }
-
-        /// <summary>The unix time a call node is stamped with, in seconds.</summary>
-        private static string Now()
-        {
-            return UnixTime().ToString(CultureInfo.InvariantCulture);
         }
 
         /// <summary>An attribute read as a long, or the fallback when it is absent or not one.</summary>
