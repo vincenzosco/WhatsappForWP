@@ -51,6 +51,13 @@ namespace WhatsappApp.Services
                 // normal state, not a failure. Not logged: a FileNotFoundException line in the
                 // log hid the real fault.
                 IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileNameFor(chatId));
+                if (item == null)
+                {
+                    // The name the build before the escape wrote. Every tail on the phone is
+                    // named that way, and reading only the new one would have emptied every
+                    // conversation at once; the next snapshot rewrites it under the new name.
+                    item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(LegacyFileNameFor(chatId));
+                }
                 if (item == null) return new List<ChatMessage>();
                 return await ReadAsync((StorageFile)item);
             }
@@ -115,8 +122,9 @@ namespace WhatsappApp.Services
         /// phone (`DataService.RestoreRowsFromTheirTailsAsync` puts them
         /// back).
         ///
-        /// The id is the one the rows carry, not the one in the file name: `FileNameFor` drops
-        /// `@` and `.`, so a name can only say roughly whose file it is.
+        /// The id is the one the rows carry, not the one in the file name: the name is that
+        /// id with what a file cannot hold written out in hex, so it names one chat exactly,
+        /// but it is not meant to be read by eye.
         /// </summary>
         public static async Task<List<KeyValuePair<string, List<ChatMessage>>>> TailsAsync()
         {
@@ -278,14 +286,22 @@ namespace WhatsappApp.Services
             try
             {
                 // A chat that was never saved has no file to drop: the state of every chat
-                // deleted before it was opened, not a failure.
-                IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(FileNameFor(chatId));
-                if (item != null) await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
+                // deleted before it was opened, not a failure. Both names: one written before
+                // the escape and one after, and a tail left alive brings the chat back.
+                await DeleteNamedAsync(FileNameFor(chatId));
+                await DeleteNamedAsync(LegacyFileNameFor(chatId));
             }
             catch (Exception ex)
             {
                 Diag.Failed("MessageCache.Delete", ex);
             }
+        }
+
+        /// <summary>One file by name: a chat that has no copy of it has nothing to drop.</summary>
+        private static async Task DeleteNamedAsync(string name)
+        {
+            IStorageItem item = await ApplicationData.Current.LocalFolder.TryGetItemAsync(name);
+            if (item != null) await item.DeleteAsync(StorageDeleteOption.PermanentDelete);
         }
 
         /// <summary>
@@ -467,14 +483,47 @@ namespace WhatsappApp.Services
         /// file name does not accept.</summary>
         private static string FileNameFor(string chatId)
         {
+            return Encode(chatId, false);
+        }
+
+        /// <summary>
+        /// The name the build before the escape wrote: the punctuation dropped on the floor.
+        /// Kept as the fallback `LoadAsync` reads, because every tail already on the phone is
+        /// named this way.
+        /// </summary>
+        private static string LegacyFileNameFor(string chatId)
+        {
+            return Encode(chatId, true);
+        }
+
+        /// <summary>
+        /// The tail's name. Every character that cannot go in a file name is written out as
+        /// `_` and four hex digits of its own code unit, `_` included, so the name cannot
+        /// collide: dropping the punctuation instead named two different chats one file -
+        /// `393401234567:12@s.whatsapp.net` and `39340123456712@s.whatsapp.net` - and their
+        /// two conversations then read and wrote each other's rows. Four digits and an
+        /// escaped escape character keep it reversible in principle, which is what keeps it
+        /// one name per chat in fact.
+        /// </summary>
+        private static string Encode(string chatId, bool dropInstead)
+        {
             var builder = new StringBuilder("messages_");
             for (int i = 0; i < chatId.Length; i++)
             {
                 char c = chatId[i];
                 if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z')
-                    || (c >= '0' && c <= '9') || c == '-' || c == '_')
+                    || (c >= '0' && c <= '9') || c == '-')
                 {
                     builder.Append(c);
+                }
+                else if (dropInstead)
+                {
+                    if (c == '_') builder.Append(c);
+                }
+                else
+                {
+                    builder.Append('_');
+                    builder.Append(((int)c).ToString("X4"));
                 }
             }
             builder.Append(".json");
