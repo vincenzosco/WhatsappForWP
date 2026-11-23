@@ -1,7 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Deployment xmlns="http://schemas.microsoft.com/windowsphone/2014/deployment" AppPlatformVersion="8.1">
   <DefaultLanguage xmlns="" code="en-US" />
-  <App xmlns="" ProductID="{7ccc5b77-3cf2-4020-92a7-9542b250bb49}" Title="WhatsApp" RuntimeType="Silverlight" Version="1.3.12.80" Genre="apps.normal" Author="Vincenzo" Description="WhatsApp per Windows Phone 8.1" SDOptOut="false" BackUpOptOut="false" NotificationService="WNS" Publisher="Vincenzo" PublisherID="{00000000-0000-0000-0000-000000000000}">
+  <App xmlns="" ProductID="{7ccc5b77-3cf2-4020-92a7-9542b250bb49}" Title="WhatsApp" RuntimeType="Silverlight" Version="1.3.12.81" Genre="apps.normal" Author="Vincenzo" Description="WhatsApp per Windows Phone 8.1" SDOptOut="false" BackUpOptOut="false" NotificationService="WNS" Publisher="Vincenzo" PublisherID="{00000000-0000-0000-0000-000000000000}">
     <IconPath IsRelative="true" IsResource="false">Assets\WhatsAppLogo.png</IconPath>
     <Capabilities>
       <Capability Name="ID_CAP_NETWORKING" />
