@@ -288,15 +288,11 @@ namespace WhatsappApp.Pages
             }
             CallDetailText.Text = detail;
 
+            // The call screen is opened by the app, once, when a call starts ringing. A
+            // redraw of this banner is not a reason to open it again, and opening it from here
+            // - which happened on every return to the page and on every tick - defeated the
+            // hardware Back: the screen was pushed again within a tick of arriving home.
             bool ringing = call.Phase == CallPhase.Ringing;
-            PhoneApplicationFrame frame = RootFrame;
-            bool onCallPage = frame != null && frame.CurrentSource != null
-                && frame.CurrentSource.ToString().EndsWith("/Pages/CallPage.xaml", StringComparison.OrdinalIgnoreCase);
-            if (ringing && !onCallPage)
-            {
-                NavigateToPage("CallPage", null);
-                return;
-            }
 
             bool live = call.Phase == CallPhase.Connecting || call.Phase == CallPhase.Active;
             // An ended call keeps one button - the one that takes the banner down. With
