@@ -3725,7 +3725,13 @@ namespace WhatsappApp.Services
             {
                 HistoryConversation row = rows[i];
                 if (row == null || !GroupDirectory.IsGroup(row.Jid)) continue;
-                if (!string.IsNullOrEmpty(row.Name)) continue;
+
+                // A row named only after its own address - `Gruppo 1203634…` - is not named
+                // either: it is the placeholder this list writes when nobody has said what the
+                // group is called, and the server knows the subject that replaces it. Skipping
+                // every row that had a name kept the placeholder for ever, which is what the
+                // account of 2026-11-23 showed on every group row.
+                if (!ChatListMerge.LooksLikeFallback(row.Name, row.Jid)) continue;
 
                 // Read, not written: a group is marked asked when the server answers (below),
                 // because a query that failed is a question still open.
