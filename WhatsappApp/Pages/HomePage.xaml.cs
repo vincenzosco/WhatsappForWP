@@ -862,7 +862,22 @@ namespace WhatsappApp.Pages
             if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
 
             e.Handled = true;
-            ShowChatMenu(row, contact);
+            ShowChatMenu(row, contact, true);
+        }
+
+        /// <summary>
+        /// The row's menu, attached as soon as the row is on the screen. A menu that only
+        /// exists after the hold has been seen never opens: the list's own gesture handling
+        /// takes the hold first, and the toolkit's `ContextMenuService` - what the official
+        /// app's own lists open their menus with - answers a hold on an element that already
+        /// carries a menu. This is that attachment.
+        /// </summary>
+        private void ChatRow_Loaded(object sender, RoutedEventArgs e)
+        {
+            FrameworkElement row = sender as FrameworkElement;
+            if (row == null) return;
+
+            ShowChatMenu(row, row.DataContext as Contact, false);
         }
 
         /// <summary>
@@ -870,9 +885,14 @@ namespace WhatsappApp.Pages
         /// Toolkit is what the rest of the phone opens on a hold - the same shape, the same
         /// dismissal, the same zoom. The headers are written lowercase because that is how
         /// the platform writes its own menu items.
+        ///
+        /// It is built whether it is opened or not: the menu is what a hold on the row
+        /// answers to, and the toolkit finds it by the row it is attached to.
         /// </summary>
-        private void ShowChatMenu(FrameworkElement row, Contact contact)
+        private void ShowChatMenu(FrameworkElement row, Contact contact, bool open)
         {
+            if (contact == null || string.IsNullOrEmpty(contact.Id)) return;
+
             string id = contact.Id;
             bool pinned = contact.IsPinned;
             bool muted = contact.IsMuted;
@@ -912,8 +932,11 @@ namespace WhatsappApp.Pages
                 async delegate { await ConfirmDeleteAsync(id); });
 
             Microsoft.Phone.Controls.ContextMenuService.SetContextMenu(row, menu);
-            _holdMenu = menu;
-            menu.IsOpen = true;
+            if (open)
+            {
+                _holdMenu = menu;
+                menu.IsOpen = true;
+            }
         }
 
         /// <summary>
@@ -924,7 +947,10 @@ namespace WhatsappApp.Pages
         /// </summary>
         private void ChatRow_ReleaseGuard(object sender, System.Windows.Input.ManipulationCompletedEventArgs e)
         {
-            if (_holdMenu == null) return;
+            FrameworkElement row = sender as FrameworkElement;
+            Microsoft.Phone.Controls.ContextMenu open = row == null ? null
+                : Microsoft.Phone.Controls.ContextMenuService.GetContextMenu(row);
+            if (_holdMenu == null && (open == null || !open.IsOpen)) return;
             e.Handled = true;
             Diag.Ok("HomePage/menu kept on release");
         }
