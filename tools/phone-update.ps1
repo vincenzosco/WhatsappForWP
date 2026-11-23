@@ -132,7 +132,17 @@ if ($out -match "Errore|Error") {
 
 $check = Join-Path $env:TEMP "phone-update-check"
 if (Test-Path $check) { Remove-Item -Recurse -Force $check }
-& $ise ts de $productId $check 2>&1 | Out-Null
+$read = & $ise ts de $productId $check 2>&1 | Out-String
+
+# A read that could not be made is not a verdict. The phone may be asleep or
+# unplugged at this point, and "the session is not on the phone" is what a person
+# reads as having lost the account and the chats - which the two lines above did
+# not say.
+if ($read -match "Errore|Error") {
+    Write-Output "    Non ho potuto leggere lo storage: il telefono e' spento, bloccato o scollegato."
+    Write-Output "    Questo NON significa che i dati siano persi: rifai il controllo con il telefono acceso."
+    exit 0
+}
 
 $session = Get-ChildItem -Recurse $check -Filter "session-settings.txt" -ErrorAction SilentlyContinue | Select-Object -First 1
 $chats = Get-ChildItem -Recurse $check -Filter "chats.json" -ErrorAction SilentlyContinue | Select-Object -First 1

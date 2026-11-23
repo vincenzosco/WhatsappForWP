@@ -87,3 +87,14 @@ test('an empty answer is not a success', () => {
   assert.match(update, /-notmatch "Errore\|Error"[\s\S]{0,40}Trim\(\)|Trim\(\)[\s\S]{0,80}-notmatch "Errore\|Error"/,
     'the success decision requires output that is both present and clean');
 });
+
+test('a read back that failed is not reported as data loss', () => {
+  // "La sessione NON e' sul telefono" is what a person reads as "my account and
+  // my chats are gone". It may only mean the phone was locked and the store could
+  // not be read at all, so the read has to say which of the two happened before
+  // any verdict is printed.
+  const verify = update.slice(update.indexOf('4/4'));
+  assert.match(verify, /\$read\b/, 'the read back keeps what the tool answered');
+  assert.match(verify, /-match "Errore\|Error"/, 'and a read that could not be made is named as one');
+  assert.match(verify, /NON significa/, 'without telling the person the data is gone');
+});
