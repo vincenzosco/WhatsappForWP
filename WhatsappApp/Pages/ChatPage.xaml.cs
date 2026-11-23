@@ -466,7 +466,10 @@ namespace WhatsappApp.Pages
             if (_contact != null && _messages != null)
             {
 #pragma warning disable 4014
-                MessageCache.SaveAsync(_contact.Id, _messages);
+                // The canonical id: the snapshot and the rewrite name the tail after it, and
+                // a save under the row's own id left a second, diverging file for the same
+                // chat that the two readers then disagreed about.
+                MessageCache.SaveAsync(DataService.Instance.ChatIdFor(_contact.Id), _messages);
 #pragma warning restore 4014
             }
 

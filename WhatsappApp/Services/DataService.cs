@@ -1331,13 +1331,19 @@ namespace WhatsappApp.Services
                 Contact contact = _contacts[i];
                 if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
 
+                // The messages are filed under the canonical id, not under the row's own:
+                // looking the row id up skipped every chat filed under a `@lid` or with a
+                // device on it, and its messages were the ones lost in the kill this
+                // snapshot exists to survive.
+                string key = ChatIdFor(contact.Id);
+
                 ObservableCollection<ChatMessage> messages;
-                if (!_chatMessages.TryGetValue(contact.Id, out messages)) continue;
+                if (!_chatMessages.TryGetValue(key, out messages)) continue;
                 if (messages == null || messages.Count == 0) continue;
 
                 var tail = new ChatMessage[messages.Count];
                 messages.CopyTo(tail, 0);
-                tails.Add(new KeyValuePair<string, ChatMessage[]>(contact.Id, tail));
+                tails.Add(new KeyValuePair<string, ChatMessage[]>(key, tail));
             }
 
             return tails;
@@ -3981,6 +3987,14 @@ namespace WhatsappApp.Services
         {
             if (string.IsNullOrEmpty(chatId)) return;
 
+            // Two spellings, each where it belongs. The messages, the tail file and the
+            // hidden flag are held under the canonical id (a message is folded before it is
+            // filed, and the list reads the same folded id), while the row the person tapped
+            // is filed under its own. Deleting by the row's id alone found none of the three
+            // for a chat filed under a `@lid` or with a device still on it: the chat came
+            // back at the next refresh, and again at the next start from the tail it left.
+            string canonical = ChatIdFor(chatId);
+
             var contact = FindContact(chatId);
             if (contact != null)
             {
@@ -3991,9 +4005,9 @@ namespace WhatsappApp.Services
             // Taken before it is removed: the files of a video, a note or a document are on
             // the phone and nothing else knows which ones belonged to this conversation.
             ObservableCollection<ChatMessage> goneMessages = null;
-            _chatMessages.TryGetValue(chatId, out goneMessages);
+            _chatMessages.TryGetValue(canonical, out goneMessages);
 
-            _chatMessages.Remove(chatId);
+            _chatMessages.Remove(canonical);
             _historyRequested.Remove(chatId);
 
             if (goneMessages != null)
@@ -4004,12 +4018,18 @@ namespace WhatsappApp.Services
 #pragma warning restore 4014
             }
 
-            ChatPreferences.Hide(chatId);
+            ChatPreferences.Hide(canonical);
             NotificationService.Forget(chatId);
             PublishBadge();
 
 #pragma warning disable 4014
-            MessageCache.DeleteAsync(chatId);
+            // Both spellings: a tail written before the fold was named after the row, and
+            // one left alive here is what brings the deleted chat back at the next start.
+            MessageCache.DeleteAsync(canonical);
+            if (!string.Equals(canonical, chatId, StringComparison.Ordinal))
+            {
+                MessageCache.DeleteAsync(chatId);
+            }
 #pragma warning restore 4014
         }
 
