@@ -287,44 +287,120 @@ namespace WhatsappApp.Protocol.Media
                     record, recordLength);
                 if (view == null || view.Type != Dtls.TypeHandshake) continue;
 
-                DtlsHandshakeMessage message;
-                try
+                // Walked as fragments: the Finished can share a record with what came before
+                // it, and a reader of one message per record missed it then.
+                int pieceAt = 0;
+                while (pieceAt + Dtls.HandshakeHeaderLength <= view.Fragment.Length)
                 {
-                    message = DtlsHandshakeMessage.Parse(view.Fragment, 0, view.Fragment.Length);
-                }
-                catch (ProtocolException)
-                {
-                    continue;
-                }
+                    DtlsHandshakeFragment piece;
+                    try
+                    {
+                        piece = DtlsHandshakeFragment.Parse(view.Fragment, pieceAt,
+                            view.Fragment.Length - pieceAt);
+                    }
+                    catch (ProtocolException)
+                    {
+                        break;
+                    }
 
-                if (message.Type == Dtls.HandshakeFinished) return _finalFlight;
+                    if (piece == null) break;
+                    pieceAt += piece.FramedLength;
+
+                    if (piece.Type == Dtls.HandshakeFinished) return _finalFlight;
+                }
             }
 
             return null;
         }
 
+        /// <summary>
+        /// The pieces of one handshake message, in the order they arrive. A peer may send any
+        /// fragment it likes (`Dtls.cs` says so, and RFC 6347 4.2.3 requires a receiver to
+        /// handle them); the client half has always put them back together, and this half read
+        /// one message per record and dropped the rest in silence - so a handshake fragmented
+        /// at the path MTU was answered by nothing at all, and the call hung up on a silence
+        /// with no line in the log to say why.
+        /// </summary>
+        private readonly DtlsHandshakeReassembler _reassembler = new DtlsHandshakeReassembler();
+
         private byte[] Read(byte[] fragment)
         {
-            DtlsHandshakeMessage message;
-            try
+            var outbound = new List<byte>();
+            int offset = 0;
+
+            while (offset + Dtls.HandshakeHeaderLength <= fragment.Length)
             {
-                message = DtlsHandshakeMessage.Parse(fragment, 0, fragment.Length);
-            }
-            catch (ProtocolException)
-            {
-                return null;
+                // A fragment, not necessarily a message: `DtlsHandshakeFragment.Parse` answers
+                // null when the record ends inside one, which is a truncated datagram and not
+                // a reason to end the handshake by itself.
+                DtlsHandshakeFragment piece;
+                try
+                {
+                    piece = DtlsHandshakeFragment.Parse(fragment, offset, fragment.Length - offset);
+                }
+                catch (ProtocolException ex)
+                {
+                    // A record this server cannot read at all is a peer it cannot talk to. Said
+                    // out loud: the silence it replaces was an answered call that never spoke.
+                    Fail(ex.Message);
+                    return null;
+                }
+
+                if (piece == null) break;
+                offset += piece.FramedLength;
+
+                // A hello that arrives again is a lost flight, not a new handshake: re-sending
+                // what was already built keeps the transcript the two ends hashed the same. It
+                // is answered before the reassembler, which rightly ignores a message it has
+                // already handed over.
+                if (piece.Type == Dtls.HandshakeClientHello && _stage == StageAwaitingFinished)
+                {
+                    return _flight;
+                }
+
+                try
+                {
+                    _reassembler.Accept(piece);
+                }
+                catch (ProtocolException ex)
+                {
+                    Fail(ex.Message);
+                    return null;
+                }
+
+                // Only whole messages, and only in order: a fragment that completes nothing
+                // hands over nothing.
+                DtlsHandshakeMessage message;
+                while ((message = _reassembler.TakeNext()) != null)
+                {
+                    byte[] next;
+                    try
+                    {
+                        next = Handle(message);
+                    }
+                    catch (ProtocolException ex)
+                    {
+                        Fail(ex.Message);
+                        return null;
+                    }
+
+                    if (next != null) outbound.AddRange(next);
+                    if (_stage == StageFailed || _stage == StageDone)
+                    {
+                        return outbound.Count == 0 ? null : outbound.ToArray();
+                    }
+                }
             }
 
+            return outbound.Count == 0 ? null : outbound.ToArray();
+        }
+
+        /// <summary>One whole handshake message, in the order the two ends numbered them.</summary>
+        private byte[] Handle(DtlsHandshakeMessage message)
+        {
             if (message.Type == Dtls.HandshakeFinished)
             {
                 return VerifyClientFinished(message);
-            }
-
-            if (_stage == StageAwaitingFinished && message.Type == Dtls.HandshakeClientHello)
-            {
-                // A repeated hello is a lost flight, not a new handshake: re-sending what was
-                // already built keeps the transcript the two ends hashed the same.
-                return _flight;
             }
 
             // A repeated key exchange is a lost datagram, not a second one. The bytes are
