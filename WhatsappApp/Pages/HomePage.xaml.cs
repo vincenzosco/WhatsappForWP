@@ -223,6 +223,12 @@ namespace WhatsappApp.Pages
             // the next screen with its items still wired to the chat that is gone.
             CloseHoldMenu();
 
+            // The call ticker re-shows the banner every second, and a ringing call shows
+            // it by opening the call screen. Left running here it pushed CallPage again
+            // within a tick of the hardware Back, and there was no way out of a ringing
+            // call. `OnNavigatedTo` shows the call again and starts it back up.
+            StopCallTicker();
+
             DataService.Instance.MessageArrived -= OnBadgeChanged;
             DataService.Instance.StatusesChanged -= OnStatusesChanged;
             DataService.Instance.CallsScanCompleted -= OnCallsScanCompleted;
