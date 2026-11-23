@@ -26,6 +26,9 @@ namespace ProtocolTests
         public const string PeerDevice = "15551230000:5@s.whatsapp.net";
         public const string PeerUser = "15551230000@s.whatsapp.net";
 
+        /// <summary>Another member's device: the copy sealed for it is not ours to open.</summary>
+        public const string ForeignDevice = "15557770000:2@s.whatsapp.net";
+
         [Test]
         public static void AGroupMessageIsReadWithItsParticipant()
         {
@@ -43,6 +46,34 @@ namespace ProtocolTests
 
             Assert.IsTrue(world.Sessions.LoadSenderKey(GroupJid + "/" + PeerDevice) != null,
                 "the sender key that came with it is stored, which is what makes the next message readable");
+        }
+
+        [Test]
+        public static void TheSenderKeyIsTakenFromTheCopySealedForThisDevice()
+        {
+            var world = new World();
+
+            // The distribution goes to one device of every recipient, a `to[jid]` each, in
+            // whatever order the sender wrote them. The copy this phone can open is the one
+            // sealed for it: the first in the list is another member's more often than not,
+            // and opening that one threw - a throw that was swallowed as not worth losing the
+            // message for - so the key was never stored and every later message of that
+            // member was dropped as one waiting for a key that never came.
+            BinaryNode stanza = world.PeerSendsGroupToSeveral(GroupJid, "ciao a tutti", "G0000040");
+
+            IncomingMessage incoming = IncomingMessage.Read(stanza, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.IsTrue(incoming != null, "a group message arrives");
+            Assert.AreEqual("ciao a tutti", incoming.Text,
+                "the copy sealed for this device is the one that is opened");
+
+            BinaryNode keyless = world.PeerSendsGroup(GroupJid, "e dopo", "G0000041", false);
+            IncomingMessage second = IncomingMessage.Read(keyless, world.Us, world.Sessions,
+                world.PreKeys, new SeenMessages(64), new SignalSessions.CounterRandom());
+
+            Assert.AreEqual("e dopo", second.Text,
+                "and the key was kept: the next message opens with no key of its own");
         }
 
         [Test]
@@ -305,6 +336,7 @@ namespace ProtocolTests
             private readonly SessionStore _otherSessions = new SessionStore(new Memory(), new SignalSessions.CounterRandom());
             private readonly SenderKeyRecord _theirKey;
             private readonly SessionRecord _theirSession;
+            private readonly SessionRecord _foreignSession;
 
             public World()
             {
@@ -315,8 +347,20 @@ namespace ProtocolTests
                 byte[] id = oneTime.Child("id").Bytes();
                 byte[] value = oneTime.Child("value").Bytes();
 
-                PreKeyBundle ours = DeviceDirectory.Bundles(BundleAnswer(id, value))[0].Value;
+                PreKeyBundle ours = DeviceDirectory.Bundles(BundleAnswer(Us, OurDevice, id, value))[0].Value;
                 _theirSession = DeviceDirectory.Session(OurDevice, ours, Other, _otherSessions,
+                    new SignalSessions.CounterRandom());
+
+                // A second recipient, so the distribution can travel with one copy per device
+                // the way the reference fans it out - and so the first copy in the list can be
+                // one this phone has no business opening.
+                Credentials foreign = Credentials.Create(new SignalSessions.CounterRandom());
+                BinaryNode foreignUpload = PreKeyUpload.Node(foreign, new PreKeyStore(new Memory()),
+                    new SignalSessions.CounterRandom(), 5);
+                BinaryNode foreignOneTime = foreignUpload.Child("list").Children()[0];
+                PreKeyBundle foreignBundle = DeviceDirectory.Bundles(BundleAnswer(foreign, ForeignDevice,
+                    foreignOneTime.Child("id").Bytes(), foreignOneTime.Child("value").Bytes()))[0].Value;
+                _foreignSession = DeviceDirectory.Session(ForeignDevice, foreignBundle, Other, _otherSessions,
                     new SignalSessions.CounterRandom());
 
                 _theirKey = SenderKeyRecord.Create(GroupJid, new SignalSessions.CounterRandom());
@@ -361,21 +405,66 @@ namespace ProtocolTests
                 return stanza;
             }
 
+            public BinaryNode PeerSendsGroupToSeveral(string groupJid, string body, string id)
+            {
+                WhatsappApp.Protocol.WaProto.Message payload = WhatsappApp.Protocol.WaProto.Message.Text(body);
+
+                var content = new List<BinaryNode>();
+                content.Add(KeyNodeForTwo(SenderKeys.DistributionMessage(groupJid, _theirKey)));
+
+                BinaryNode group = new BinaryNode("enc");
+                group.Attrs.Add("v", "2");
+                group.Attrs.Add("type", "skmsg");
+                group.Content = SenderKeys.Ciphertext(groupJid, _theirKey, payload.Encode());
+                content.Add(group);
+
+                var stanza = new BinaryNode("message");
+                stanza.Attrs.Add("from", groupJid);
+                stanza.Attrs.Add("to", groupJid);
+                stanza.Attrs.Add("participant", PeerDevice);
+                stanza.Attrs.Add("id", id);
+                stanza.Attrs.Add("t", "1760000000");
+                stanza.Attrs.Add("type", "text");
+                stanza.Content = content;
+
+                return stanza;
+            }
+
             /// <summary>The pairwise node: one `to[this device]` holding the encrypted sender key.</summary>
             private BinaryNode KeyNode(string groupJid, byte[] distribution)
             {
+                return Participants(ToDevice(OurDevice, _theirSession, distribution));
+            }
+
+            /// <summary>
+            /// The same distribution fanned out to two devices, the other member's first: the
+            /// shape the reference writes (`whatsmeow`, `send.go`) and the one this phone
+            /// receives.
+            /// </summary>
+            private BinaryNode KeyNodeForTwo(byte[] distribution)
+            {
+                return Participants(
+                    ToDevice(ForeignDevice, _foreignSession, distribution),
+                    ToDevice(OurDevice, _theirSession, distribution));
+            }
+
+            private static BinaryNode ToDevice(string jid, SessionRecord session, byte[] distribution)
+            {
                 BinaryNode enc = new BinaryNode("enc");
                 enc.Attrs.Add("v", "2");
-                enc.Attrs.Add("type", _theirSession.PreKeyPending ? "pkmsg" : "msg");
-                enc.Content = _theirSession.Encrypt(distribution);
+                enc.Attrs.Add("type", session.PreKeyPending ? "pkmsg" : "msg");
+                enc.Content = session.Encrypt(distribution);
 
                 BinaryNode device = new BinaryNode("to");
-                device.Attrs.Add("jid", OurDevice);
+                device.Attrs.Add("jid", jid);
                 device.Content = new List<BinaryNode> { enc };
+                return device;
+            }
 
+            private static BinaryNode Participants(params BinaryNode[] devices)
+            {
                 var participants = new BinaryNode("participants");
-                participants.Content = new List<BinaryNode> { device };
-
+                participants.Content = new List<BinaryNode>(devices);
                 return participants;
             }
 
@@ -447,21 +536,21 @@ namespace ProtocolTests
                 return stanza;
             }
 
-            private BinaryNode BundleAnswer(byte[] oneTimeId, byte[] oneTimeValue)
+            private BinaryNode BundleAnswer(Credentials who, string jid, byte[] oneTimeId, byte[] oneTimeValue)
             {
                 var registration = new BinaryNode("registration");
-                registration.Content = BigEndian(Us.RegistrationId, 4);
+                registration.Content = BigEndian(who.RegistrationId, 4);
 
                 var identity = new BinaryNode("identity");
-                identity.Content = X3dh.Typed(Us.IdentityPublicKey);
+                identity.Content = X3dh.Typed(who.IdentityPublicKey);
 
                 var signedPreKey = new BinaryNode("skey");
                 var signedPreKeyId = new BinaryNode("id");
-                signedPreKeyId.Content = BigEndian(Us.SignedPreKeyId, 3);
+                signedPreKeyId.Content = BigEndian(who.SignedPreKeyId, 3);
                 var signedPreKeyValue = new BinaryNode("value");
-                signedPreKeyValue.Content = X3dh.Typed(Us.SignedPreKeyPublic);
+                signedPreKeyValue.Content = X3dh.Typed(who.SignedPreKeyPublic);
                 var signature = new BinaryNode("signature");
-                signature.Content = Us.SignedPreKeySignature;
+                signature.Content = who.SignedPreKeySignature;
                 signedPreKey.Content = new List<BinaryNode> { signedPreKeyId, signedPreKeyValue, signature };
 
                 var oneTime = new BinaryNode("key");
@@ -472,7 +561,7 @@ namespace ProtocolTests
                 oneTime.Content = new List<BinaryNode> { id, value };
 
                 var user = new BinaryNode("user");
-                user.Attrs.Add("jid", OurDevice);
+                user.Attrs.Add("jid", jid);
                 user.Content = new List<BinaryNode> { registration, identity, signedPreKey, oneTime };
 
                 var list = new BinaryNode("list");
