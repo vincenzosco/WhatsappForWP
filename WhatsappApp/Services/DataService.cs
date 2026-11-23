@@ -762,9 +762,19 @@ namespace WhatsappApp.Services
         /// that order: a banner that ended a call the other phone still believes is ringing
         /// would leave the two logs disagreeing about the same call.
         /// </summary>
+        /// <summary>A terminate on its way out: the tick fires every second, the send does not.</summary>
+        private bool _endingCall;
+
         public async Task EndUnansweredCallAsync()
         {
             if (!_call.Occupied) return;
+
+            // The one-second tick of both call screens lands here again while the first
+            // terminate is still on the wire: `Occupied` only clears once the send has come
+            // back, so without this flag a slow socket was told the call was over once a
+            // second, for as long as the send took.
+            if (_endingCall) return;
+            _endingCall = true;
 
             string callId = _call.CallId;
             string peer = _call.PeerJid;
@@ -777,6 +787,10 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("DataService/call timeout", ex);
+            }
+            finally
+            {
+                _endingCall = false;
             }
 
             if (_call.End(callId, incoming ? "missed" : "timeout")) RaiseCallChanged();
