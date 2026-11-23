@@ -355,7 +355,7 @@ namespace WhatsappApp.Protocol.Client
                 throw new ProtocolException("the group message " + id + " names no participant");
             }
 
-            BinaryNode distribution = PairwiseEnc(message);
+            BinaryNode distribution = PairwiseEnc(message, credentials);
             if (distribution != null) TakeSenderKey(distribution, participant, groupJid, credentials, preKeys, sessions, random);
 
             BinaryNode cipher = CipherEnc(message);
@@ -533,33 +533,28 @@ namespace WhatsappApp.Protocol.Client
         /// except the ones that carry a new member's key - which is exactly the bug this test
         /// caught.
         /// </summary>
-        private static BinaryNode PairwiseEnc(BinaryNode message)
+        private static BinaryNode PairwiseEnc(BinaryNode message, Credentials credentials)
         {
             BinaryNode direct = message.Child("enc");
             if (direct != null && direct.Attrs["type"] != SenderKeys.CipherType) return direct;
 
-            BinaryNode found = DeviceEnc(message.Children());
+            // The copy that can be opened here is the one sealed for THIS account. A group
+            // stanza carries one `to[jid]` per device and the first in the list is somebody
+            // else's more often than not: taking it on faith opened a copy sealed for another
+            // device, the decrypt threw, the throw was swallowed below, and the sender key was
+            // never stored - so every later message of that member was dropped as one waiting
+            // for a key that never came. The pairwise path has filtered by these two addresses
+            // since `EncNamed` was written; this one did not.
+            string mine = User(credentials == null ? null : credentials.Jid);
+            string lid = User(credentials == null ? null : credentials.Lid);
+            bool known = mine != null || lid != null;
+
+            BinaryNode found = EncNamed(message.Children(), mine, lid, known);
             if (found != null) return found;
 
             BinaryNode participants = message.Child("participants");
 
-            return participants == null ? null : DeviceEnc(participants.Children());
-        }
-
-        /// <summary>The first `to[jid]` in a list, whatever the OS/device order is.</summary>
-        private static BinaryNode DeviceEnc(IList<BinaryNode> children)
-        {
-            if (children == null) return null;
-
-            for (int i = 0; i < children.Count; i++)
-            {
-                if (children[i].Tag != "to") continue;
-
-                BinaryNode enc = children[i].Child("enc");
-                if (enc != null) return enc;
-            }
-
-            return null;
+            return participants == null ? null : EncNamed(participants.Children(), mine, lid, known);
         }
 
         /// <summary>The group ciphertext of the stanza: the `enc` whose type is `skmsg`.</summary>
