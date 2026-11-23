@@ -10,6 +10,7 @@
 > sono un segno che il progetto sia vibecoded: gli agenti sono serviti a guardare l'app di WhatsApp
 > stessa e vedere cosa fa il protocollo sulla rete. Il resto - il client, lo stack del protocollo,
 > le pagine - è per la maggior parte lavoro di una persona.
+> IL PROGETTO NON è VIBECODED, MA BENSì è AI-ASSISTED ENGINEERING**
 
 <p align="center">
   <strong>Un client WhatsApp che gira su un telefono del 2014, scritto partendo dal protocollo.</strong><br>
