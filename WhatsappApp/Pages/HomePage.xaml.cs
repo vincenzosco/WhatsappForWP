@@ -925,7 +925,7 @@ namespace WhatsappApp.Pages
             if (PeopleHub.CanShow(id))
             {
                 AddHoldItem(menu, Loc.Get("ChatsPage_ShowInPeople", "show in people"),
-                    delegate { PeopleHub.Show(id, contact.Name, BoundsOf(row)); });
+                    delegate { PeopleHub.Show(id, contact.Name); });
             }
 
             AddHoldItem(menu, Loc.Get("ChatsPage_Delete", "delete chat"),
@@ -969,26 +969,6 @@ namespace WhatsappApp.Pages
             if (_holdMenu == null) return;
             _holdMenu.IsOpen = false;
             _holdMenu = null;
-        }
-
-        private static Rect BoundsOf(FrameworkElement row)
-        {
-            if (row == null) return new Rect(0, 0, 0, 0);
-            try
-            {
-                UIElement root = Application.Current == null ? null : Application.Current.RootVisual as UIElement;
-                if (root == null) return new Rect(0, 0, row.ActualWidth, row.ActualHeight);
-                Point origin = row.TransformToVisual(root).Transform(new Point(0, 0));
-                return new Rect(origin.X, origin.Y, row.ActualWidth, row.ActualHeight);
-            }
-            catch (Exception ex)
-            {
-                // A row that cannot be placed is not a reason to lose the menu, but the
-                // run that cannot place one has to say so: the People hub then opens on
-                // a rectangle nobody measured.
-                Diag.Failed("HomePage/BoundsOf", ex);
-                return new Rect(0, 0, 0, 0);
-            }
         }
 
         private static async Task TogglePinnedTileAsync(string chatId, string name, string body)

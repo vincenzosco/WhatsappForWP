@@ -32,14 +32,18 @@ test('a person is offered whatever spelling the list has them under', () => {
 
 test('the card of a person carries its number and the name the list shows', () => {
   const show = slice(hub, 'public static void Show(', 3000);
-  assert.match(show, /contact\.Phones\.Add/, 'the number is on the card');
+  assert.match(show, /SaveContactTask\(\)/,
+    'the People page is the one the phone runs: `ShowContactCard` answers NotImplementedException');
+  assert.match(show, /task\.MobilePhone = number/, 'the number is on it');
   assert.match(show, /"\+" \+ digits/, 'with the plus the phone dials');
+  assert.match(show, /task\.Show\(\)/, 'and the page is opened');
 });
 
 test('the card of a group is its subject', () => {
   const show = slice(hub, 'public static void Show(', 3000);
   assert.match(show, /IsGroup\(/, 'a group is recognized');
-  assert.match(show, /ContactManager\.ShowContactCard\(/, 'and shown on a card like any other');
+  assert.match(show, /task\.FirstName = string\.IsNullOrEmpty\(shown\) \? jid : shown/,
+    'and what the page gets is the subject the list shows');
 });
 
 test('the menu asks before it draws the entry', () => {
