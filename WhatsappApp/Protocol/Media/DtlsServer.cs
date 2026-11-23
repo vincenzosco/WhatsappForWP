@@ -758,7 +758,13 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public bool IsTrusted
         {
-            get { return _server.IsComplete; }
+            get
+            {
+                // The Finished, and the SRTP profile the two ends selected: RFC 5764, section
+                // 5, says a handshake without it is one to abort. A client that declined the
+                // profile was trusted for a call that could only ever be silence.
+                return _server.IsComplete && _server.SrtpAgreed;
+            }
         }
 
         public string Failure

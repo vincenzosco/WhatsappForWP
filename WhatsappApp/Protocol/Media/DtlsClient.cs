@@ -661,7 +661,12 @@ namespace WhatsappApp.Protocol.Media
             get
             {
                 return _stage == StageDone && _certificateListed && _signatureVerified
-                    && _expectedCertificate != null;
+                    && _expectedCertificate != null
+                    // And the media agreement: RFC 5764, section 5, says a handshake that did
+                    // not select the SRTP protection profile is one to abort. The flag was
+                    // computed from the server's answer and then read by nobody, so a peer
+                    // that declined the profile got a ready, trusted, silent call.
+                    && _srtpAgreed;
             }
         }
 
