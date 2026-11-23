@@ -293,9 +293,15 @@ namespace WhatsappApp.Pages
             }
 
             bool live = call.Phase == CallPhase.Connecting || call.Phase == CallPhase.Active;
+            // An ended call keeps one button - the one that takes the banner down. With
+            // `Ended` all three collapsed, and a banner with nothing to tap on it stayed
+            // until the app was restarted. `EndCall_Click` has always known how to dismiss
+            // an ended call; the button just was never on the screen to be tapped.
+            bool over = call.Phase == CallPhase.Ended;
             AcceptCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
             DeclineCallButton.Visibility = ringing ? Visibility.Visible : Visibility.Collapsed;
-            EndCallButton.Visibility = live ? Visibility.Visible : Visibility.Collapsed;
+            EndCallButton.Visibility = (live || over) ? Visibility.Visible : Visibility.Collapsed;
+            EndCallButton.Content = over ? Loc.Get("Call_Close", "Close") : Loc.Get("Call_End", "End");
             StartCallTicker();
         }
 
