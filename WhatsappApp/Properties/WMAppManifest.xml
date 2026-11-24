@@ -5,6 +5,7 @@
     <IconPath IsRelative="true" IsResource="false">Assets\WhatsAppLogo.png</IconPath>
     <Capabilities>
       <Capability Name="ID_CAP_NETWORKING" />
+      <Capability Name="ID_CAP_PUSH_NOTIFICATION" />
       <Capability Name="ID_CAP_REMOVABLE_STORAGE" />
       <Capability Name="ID_CAP_CONTACTS" />
       <Capability Name="ID_CAP_MICROPHONE" />
