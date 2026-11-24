@@ -67,6 +67,19 @@ test("the channel is the platform's own, named like the reference's", () => {
   assert.ok(/UriChanged/.test(src), "the channel says when its uri changes");
 });
 
+test("a new push channel is opened before it is bound to shell notifications", () => {
+  const src = read(CHANNEL);
+  const start = src.slice(src.indexOf("public static void Start()"), src.indexOf("private static void OnChannelUriUpdated"));
+  const open = start.indexOf("channel.Open()");
+  const toast = start.indexOf("channel.BindToShellToast()");
+  const tile = start.indexOf("channel.BindToShellTile()");
+
+  assert.ok(open >= 0, "a new channel is opened");
+  assert.ok(toast >= 0 && tile >= 0, "the channel is bound to toast and tile notifications");
+  assert.ok(open < toast && open < tile,
+    "WP8.1 requires Open before BindToShellToast and BindToShellTile on a new channel");
+});
+
 test("the registration goes out at login, when the phone has a channel uri", () => {
   const src = read(CONN);
 

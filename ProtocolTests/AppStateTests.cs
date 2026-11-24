@@ -5,6 +5,7 @@ using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Crypto;
 using WhatsappApp.Protocol.WABinary;
 using WhatsappApp.Protocol.WaProto;
+using WhatsappApp.Protocol.Media;
 using ProtocolTests.Vectors;
 
 namespace ProtocolTests
@@ -262,7 +263,7 @@ namespace ProtocolTests
             readable.Attrs.Add("name", Collection);
 
             var snapshot = new BinaryNode("snapshot");
-            snapshot.Content = Convert.FromBase64String(AppStateFixture.Snapshot);
+            snapshot.Content = Convert.FromBase64String(AppStateFixture.ExternalReference);
             readable.Content = new List<BinaryNode> { snapshot };
 
             var sync = new BinaryNode("sync");
@@ -277,17 +278,58 @@ namespace ProtocolTests
 
             Assert.AreEqual(1, read.Count, "the collection that parses is read");
             Assert.AreEqual(Collection, read[0].Name);
-            Assert.IsTrue(read[0].Snapshot != null, "and it arrives with its snapshot");
+            Assert.IsTrue(read[0].SnapshotReference != null, "and its external reference is kept");
 
             Assert.AreEqual(1, skipped.Count, "the one that does not parse is named, not swallowed");
             Assert.IsTrue(skipped[0].StartsWith("regular_low:", StringComparison.Ordinal),
                 "the line says which collection failed: " + skipped[0]);
 
-            // The whole point of isolating the decode: the names of the readable collection
-            // are still read, instead of an empty address book.
+            // The whole point of isolating the decode: the readable collection still reaches
+            // its external blob, instead of an empty address book.
+            var fetcher = new MediaTests.ScriptedFetcher();
+            fetcher.Add("https://mmg.whatsapp.net/v/t62/state", Convert.FromBase64String(AppStateFixture.ExternalBlob));
+            AppStateSync.ResolveSnapshotAsync(read[0], fetcher).GetAwaiter().GetResult();
             AppStateResult applied = AppStateSync.Apply(read[0], Keys());
             Assert.AreEqual(2, applied.Contacts.Count,
                 "one unreadable collection does not cost the names of the others");
+        }
+
+        [Test]
+        public static void AnExternalSnapshotBlobIsOpenedBeforeTheSnapshotIsDecoded()
+        {
+            var collectionNode = new BinaryNode("collection");
+            collectionNode.Attrs.Add("name", Collection);
+            var snapshotNode = new BinaryNode("snapshot");
+            snapshotNode.Content = Convert.FromBase64String(AppStateFixture.ExternalReference);
+            collectionNode.Content = new List<BinaryNode> { snapshotNode };
+            var sync = new BinaryNode("sync");
+            sync.Content = new List<BinaryNode> { collectionNode };
+            var answer = new BinaryNode("iq");
+            answer.Content = new List<BinaryNode> { sync };
+
+            IList<string> skipped;
+            IList<AppStateCollection> collections = AppStateSync.Read(answer, out skipped);
+
+            Assert.AreEqual(1, collections.Count, "the external reference is a readable collection");
+            Assert.AreEqual(0, skipped.Count, "the reference bytes are not parsed as a SyncdSnapshot");
+            Assert.IsTrue(collections[0].Snapshot == null, "the encrypted blob is fetched separately");
+            ExternalBlobReference blob = collections[0].SnapshotReference;
+            Assert.AreEqual("/v/t62/state", blob.DirectPath);
+            Assert.AreEqual("state-handle", blob.Handle);
+            Assert.AreEqual(468L, blob.FileSizeBytes);
+            Assert.AreEqual(32, blob.MediaKey.Length);
+            Assert.ByteArraysEqual(Hex("fe421841d3f25f93cf9791fc765ebbcbf3361ae437ed8456d507858cc5fcd8cc"), blob.FileSha256);
+            Assert.ByteArraysEqual(Hex("e06cd24703a27531b9799780bb81c24c766639bb33dcb9834d776733bc1f0d07"), blob.FileEncSha256);
+
+            var fetcher = new MediaTests.ScriptedFetcher();
+            fetcher.Add("https://mmg.whatsapp.net/v/t62/state", Convert.FromBase64String(AppStateFixture.ExternalBlob));
+            AppStateSync.ResolveSnapshotAsync(collections[0], fetcher).GetAwaiter().GetResult();
+            Assert.IsTrue(collections[0].SnapshotReference == null, "the reference is cleared after resolution");
+            Assert.IsTrue(collections[0].Snapshot != null, "the downloaded bytes are decoded as a SyncdSnapshot");
+            AppStateResult applied = AppStateSync.Apply(collections[0], Keys());
+            Assert.AreEqual(2, applied.Contacts.Count, "the external snapshot's saved names are applied");
+            Assert.AreEqual("Mamma", applied.Contacts[0].Name);
+            Assert.AreEqual("Papà", applied.Contacts[1].Name);
         }
 
         // ------------------------------------------------------------------ the helpers
@@ -314,6 +356,14 @@ namespace ProtocolTests
             }
 
             throw new AssertionException("expected a ProtocolException but nothing was thrown: " + because);
+        }
+
+        private static byte[] Hex(string hex)
+        {
+            var bytes = new byte[hex.Length / 2];
+            for (int i = 0; i < bytes.Length; i++)
+                bytes[i] = (byte)Convert.ToInt32(hex.Substring(i * 2, 2), 16);
+            return bytes;
         }
 
         private static AppStateKeyset Keys()

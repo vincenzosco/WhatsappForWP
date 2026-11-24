@@ -15,9 +15,9 @@ namespace WhatsappApp.Protocol.Media
     /// because the length is what HKDF's output depends on: expanding to 80 bytes would give
     /// three different keys.
     ///
-    /// One mapping is not a message's media at all: `md-msg-hist`, the history WhatsApp
-    /// downloads behind a notification, which `Defaults/index.ts` maps to `History`. The
-    /// keys are derived the same way - the type word is all that differs - so the whole
+    /// Two mappings are not message media: `md-msg-hist`, the history WhatsApp downloads
+    /// behind a notification, and `md-app-state`, the snapshots downloaded during app-state
+    /// sync. Their keys are derived the same way - the type word is all that differs - so the whole
     /// scheme above holds for it too.
     /// </summary>
     public static class MediaKeys
@@ -34,6 +34,9 @@ namespace WhatsappApp.Protocol.Media
         /// </summary>
         public const string History = "md-msg-hist";
 
+        /// <summary>The key domain for an app-state snapshot external blob.</summary>
+        public const string AppState = "md-app-state";
+
         private const int IvLength = 16;
         private const int CipherKeyLength = 32;
         private const int MacKeyLength = 32;
@@ -47,6 +50,7 @@ namespace WhatsappApp.Protocol.Media
             if (mediaType == Audio) return "Audio";
             if (mediaType == Document) return "Document";
             if (mediaType == History) return "History";
+            if (mediaType == AppState) return "App State";
 
             throw new ProtocolException("not a media type this client knows: " + mediaType);
         }

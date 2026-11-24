@@ -61,10 +61,12 @@ namespace WhatsappApp.Services
                     channel.ChannelUriUpdated += OnChannelUriUpdated;
                     channel.ErrorOccurred += OnChannelError;
 
+                    // New channels must be opened before shell bindings are requested.
+                    // Existing channels have already been opened by the platform.
+                    if (channel.ChannelUri == null) channel.Open();
+
                     if (!channel.IsShellToastBound) channel.BindToShellToast();
                     if (!channel.IsShellTileBound) channel.BindToShellTile();
-
-                    if (channel.ChannelUri == null) channel.Open();
 
                     _channel = channel;
                     TakeUri(channel.ChannelUri);

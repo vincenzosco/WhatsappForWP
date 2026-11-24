@@ -3988,11 +3988,13 @@ namespace WhatsappApp.Services
             for (int i = 0; i < collections.Count; i++)
             {
                 AppStateCollection collection = collections[i];
-                if (collection.Snapshot == null && collection.Patches.Count == 0) continue;
+                if (collection.Snapshot == null && collection.SnapshotReference == null
+                    && collection.Patches.Count == 0) continue;
 
                 AppStateResult applied;
                 try
                 {
+                    await AppStateSync.ResolveSnapshotAsync(collection, new WinRtMediaFetcher());
                     applied = AppStateSync.Apply(collection, _appStateKeys);
                 }
                 catch (ProtocolException error)

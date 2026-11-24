@@ -362,6 +362,76 @@ namespace WhatsappApp.Protocol.WaProto
     }
 
     /// <summary>
+    /// A snapshot stored as an external media blob (`ExternalBlobReference` in WAProto).
+    /// The fields retain the server-provided URL path and hashes so the caller can fetch,
+    /// authenticate and decrypt the blob before it tries to decode a SyncdSnapshot.
+    /// </summary>
+    public sealed class ExternalBlobReference
+    {
+        public byte[] MediaKey;
+        public string DirectPath;
+        public string Handle;
+        public long FileSizeBytes;
+        public byte[] FileSha256;
+        public byte[] FileEncSha256;
+
+        public static ExternalBlobReference Decode(byte[] bytes)
+        {
+            if (bytes == null) throw new ProtocolException("no external blob reference to read");
+
+            var blob = new ExternalBlobReference();
+            var reader = new ProtoReader(bytes);
+            while (reader.HasMore)
+            {
+                ProtoField field = reader.ReadField();
+                switch (field.Number)
+                {
+                    case 1:
+                        blob.MediaKey = reader.ReadBytes(field.WireType);
+                        break;
+                    case 2:
+                        blob.DirectPath = Utf8(reader.ReadBytes(field.WireType));
+                        break;
+                    case 3:
+                        blob.Handle = Utf8(reader.ReadBytes(field.WireType));
+                        break;
+                    case 4:
+                        if (field.WireType == 0) blob.FileSizeBytes = (long)reader.ReadVarint();
+                        else reader.SkipField(field.WireType);
+                        break;
+                    case 5:
+                        blob.FileSha256 = reader.ReadBytes(field.WireType);
+                        break;
+                    case 6:
+                        blob.FileEncSha256 = reader.ReadBytes(field.WireType);
+                        break;
+                    default:
+                        reader.SkipField(field.WireType);
+                        break;
+                }
+            }
+
+            if (blob.MediaKey == null || blob.MediaKey.Length != 32)
+                throw new ProtocolException("an external app-state blob needs a 32-byte mediaKey");
+            if (string.IsNullOrEmpty(blob.DirectPath))
+                throw new ProtocolException("an external app-state blob needs a directPath");
+            if (blob.FileSizeBytes <= 0)
+                throw new ProtocolException("an external app-state blob needs a fileSizeBytes");
+            if (blob.FileSha256 == null || blob.FileSha256.Length != 32)
+                throw new ProtocolException("an external app-state blob needs a 32-byte fileSha256");
+            if (blob.FileEncSha256 == null || blob.FileEncSha256.Length != 32)
+                throw new ProtocolException("an external app-state blob needs a 32-byte fileEncSha256");
+
+            return blob;
+        }
+
+        private static string Utf8(byte[] bytes)
+        {
+            return bytes == null ? null : Encoding.UTF8.GetString(bytes, 0, bytes.Length);
+        }
+    }
+
+    /// <summary>
     /// One version of an app state collection: `<snapshot>` in the answer to a sync, with
     /// every record in it and the MAC over the whole set
     /// (`SyncdSnapshot`: `version` 1, `records` 2, `mac` 3, `keyId` 4).

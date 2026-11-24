@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Text;
+using System.Threading.Tasks;
+using WhatsappApp.Protocol.Media;
+using WhatsappApp.Protocol.Transport;
 using WhatsappApp.Protocol.Crypto;
 using WhatsappApp.Protocol.WABinary;
 using WhatsappApp.Protocol.WaProto;
@@ -93,6 +96,7 @@ namespace WhatsappApp.Protocol.Client
     {
         public string Name;
         public SyncdSnapshot Snapshot;
+        public ExternalBlobReference SnapshotReference;
         public IList<SyncdPatch> Patches = new List<SyncdPatch>();
     }
 
@@ -221,7 +225,7 @@ namespace WhatsappApp.Protocol.Client
                     BinaryNode snapshot = node.Child("snapshot");
                     if (snapshot != null && snapshot.Bytes() != null)
                     {
-                        collection.Snapshot = SyncdSnapshot.Decode(snapshot.Bytes());
+                        collection.SnapshotReference = ExternalBlobReference.Decode(snapshot.Bytes());
                     }
 
                     // A patch is either a child of the collection or of a `<patches>` wrapper,
@@ -254,6 +258,18 @@ namespace WhatsappApp.Protocol.Client
             return collections;
         }
 
+        /// <summary>Resolves an external snapshot reference using the same media path as other encrypted blobs.</summary>
+        public static async Task ResolveSnapshotAsync(AppStateCollection collection,
+            IMediaFetcher fetcher)
+        {
+            if (collection == null) throw new ProtocolException("there is no app state collection to resolve");
+            if (collection.SnapshotReference == null) return;
+
+            byte[] bytes = await AppStateSnapshotBlob.FetchAsync(fetcher, collection.SnapshotReference);
+            collection.Snapshot = SyncdSnapshot.Decode(bytes);
+            collection.SnapshotReference = null;
+        }
+
         /// <summary>
         /// One collection, verified and read.
         ///
@@ -281,11 +297,8 @@ namespace WhatsappApp.Protocol.Client
 
                 if (snapshot.KeyId == null)
                 {
-                    // An external snapshot: a `ExternalBlobReference` and a download of its
-                    // own, which this client does not fetch. The answer is to say so, not to
-                    // read the reference's fields as a snapshot's.
                     throw new ProtocolException("the " + collection.Name
-                        + " snapshot is an external blob, which this client does not download");
+                        + " snapshot has no key id");
                 }
 
                 for (int i = 0; i < snapshot.Records.Count; i++)
