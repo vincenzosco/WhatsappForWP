@@ -12,6 +12,7 @@ using WhatsappApp.Protocol.Client;
 using WhatsappApp.Protocol.Media;
 using WhatsappApp.Protocol.WaProto;
 using WhatsappApp.Protocol.WABinary;
+using WhatsappApp.Services;
 
 namespace WhatsappApp.Services
 {
@@ -119,6 +120,9 @@ namespace WhatsappApp.Services
         private int _syncPercent;
         private int _syncedMessages;
         private bool _syncInProgress;
+        private readonly object _historyActivityGate = new object();
+        private bool _historySyncAllowed = true;
+        private IDisposable _historySyncActivity;
 
         // Index by id: without this every incoming message scanned the whole
         // contact list (FirstOrDefault) to find the chat.
@@ -223,6 +227,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private async System.Threading.Tasks.Task LoadCachedStatusesAsync()
         {
+            using (LoadingActivity.Begin("cached statuses"))
+            {
             List<ChatMessage> cached = await StatusCache.LoadAsync();
             if (cached.Count == 0) return;
 
@@ -260,6 +266,7 @@ namespace WhatsappApp.Services
 
             RaiseStatusesChanged();
             Diag.Ok("status: " + added + " status(es) of the last day are back on screen");
+            }
         }
 
         /// <summary>
@@ -269,6 +276,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private async System.Threading.Tasks.Task LoadCachedChatsAsync()
         {
+            using (LoadingActivity.Begin("cached chats"))
+            {
             // Before the rows: ApplyChat immediately asks which are pinned, muted or
             // deleted, and a file not yet read would answer no to all three.
             await ChatPreferences.LoadAsync();
@@ -330,6 +339,7 @@ namespace WhatsappApp.Services
             // next message happened to arrive in that chat - which is why the fix of
             // could ship and leave the Start screen exactly as it was.
             PublishPinnedTiles();
+            }
         }
 
         /// <summary>Call log, filled by a scan of WhatsApp's own log.</summary>
@@ -365,6 +375,7 @@ namespace WhatsappApp.Services
         /// a minute ago disappeared the moment the next chunk arrived.
         /// </summary>
         private readonly List<CallLogEntry> _localCalls = new List<CallLogEntry>();
+        private IDisposable _callSetupActivity;
 
         public CallSession Call
         {
@@ -451,11 +462,13 @@ namespace WhatsappApp.Services
 
                     case CallKind.Accept:
                         changed = _call.Connect(signal.CallId);
+                        ReleaseCallSetupActivity();
                         break;
 
                     case CallKind.Reject:
                     case CallKind.Terminate:
                         changed = _call.End(signal.CallId, signal.Reason);
+                        if (changed) ReleaseCallSetupActivity();
                         break;
                 }
             }
@@ -477,6 +490,44 @@ namespace WhatsappApp.Services
             if (changed) RaiseCallChanged();
         }
 
+        private void OnCallStateChanged(object sender, EventArgs e)
+        {
+            if (_call.Phase == CallPhase.Connecting && _call.State == CallState.PreAcceptReceived)
+            {
+                if (_callSetupActivity == null)
+                    _callSetupActivity = LoadingActivity.Begin("incoming call setup");
+                return;
+            }
+
+            ReleaseCallSetupActivity();
+        }
+
+        private void ReleaseCallSetupActivity()
+        {
+            if (_callSetupActivity == null) return;
+            _callSetupActivity.Dispose();
+            _callSetupActivity = null;
+        }
+
+        private void ReleaseHistorySyncActivity()
+        {
+            lock (_historyActivityGate)
+            {
+                if (_historySyncActivity == null) return;
+                _historySyncActivity.Dispose();
+                _historySyncActivity = null;
+            }
+        }
+
+        private void SetHistorySyncAllowed(bool allowed)
+        {
+            lock (_historyActivityGate)
+            {
+                _historySyncAllowed = allowed;
+                if (!allowed) ReleaseHistorySyncActivity();
+            }
+        }
+
         /// <summary>
         /// Answers the call that is ringing. The signal goes out first and the state follows
         /// it: a banner that said "in call" for an `accept` the socket never carried would be
@@ -486,6 +537,8 @@ namespace WhatsappApp.Services
         {
             if (_call.Phase != CallPhase.Ringing) return;
 
+            using (LoadingActivity.Begin("accept call"))
+            {
             string callId = _call.CallId;
             string peer = _call.PeerJid;
 
@@ -502,6 +555,7 @@ namespace WhatsappApp.Services
             }
 
             if (_call.Connect(callId)) RaiseCallChanged();
+            }
         }
 
         /// <summary>
@@ -563,6 +617,7 @@ namespace WhatsappApp.Services
             }
 
             if (_call.End(callId, reason)) RaiseCallChanged();
+            ReleaseCallSetupActivity();
         }
 
         /// <summary>
@@ -582,6 +637,8 @@ namespace WhatsappApp.Services
 
             string callId;
 
+            using (LoadingActivity.Begin("start call"))
+            {
             try
             {
                 callId = await NativeConnection.Instance.OfferCallAsync(jid, video);
@@ -593,6 +650,7 @@ namespace WhatsappApp.Services
             }
 
             if (_call.Dial(callId, JidUtils.Normalize(jid), video)) RaiseCallChanged();
+            }
         }
 
         /// <summary>
@@ -626,6 +684,7 @@ namespace WhatsappApp.Services
         /// <summary>Takes the ended call off the screen.</summary>
         public void DismissCall()
         {
+            ReleaseCallSetupActivity();
             _call.Clear();
             RaiseCallChanged();
         }
@@ -815,6 +874,7 @@ namespace WhatsappApp.Services
 
         private DataService()
         {
+            _call.StateChanged += OnCallStateChanged;
             _contacts = new ObservableCollection<Contact>();
             _calls = new ObservableCollection<CallLogEntry>();
             _statuses = new ObservableCollection<ChatMessage>();
@@ -970,6 +1030,8 @@ namespace WhatsappApp.Services
 
         private async Task ApplyNativeMediaAsync(MediaArrival arrival)
         {
+            using (LoadingActivity.Begin("incoming media"))
+            {
             try
             {
                 MediaInfo info = arrival.Info;
@@ -992,6 +1054,7 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("DataService/ApplyNativeMediaAsync", ex);
             }
+            }
         }
 
         /// <summary>
@@ -1012,6 +1075,8 @@ namespace WhatsappApp.Services
 
         private async Task RequestNativeMediaAsync(ChatMessage message)
         {
+            using (LoadingActivity.Begin("message media"))
+            {
             MediaInfo info = message.Media;
             if (info == null)
             {
@@ -1041,6 +1106,7 @@ namespace WhatsappApp.Services
                 // what a person reads as "this phone is broken".
                 message.IsMediaLoading = false;
                 Diag.Failed("DataService/request media", ex);
+            }
             }
         }
 
@@ -1102,6 +1168,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private void OnNativeHistoryFinished(object sender, WhatsappApp.Protocol.WaProto.HistorySync sync)
         {
+            ReleaseHistorySyncActivity();
+
             HistoryComplete = true;
 
             // The bar is over: the sync is all here. The counts are cleared so the next sync
@@ -1170,6 +1238,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task ResyncChatsAsync()
         {
+            using (LoadingActivity.Begin("resync chats"))
+            {
             Diag.Ok("chats: resync asked");
 
             await ChatCache.DeleteAsync();
@@ -1191,6 +1261,7 @@ namespace WhatsappApp.Services
             await NativeConnection.Instance.RestartAsync();
 
             Diag.Ok("chats: resync done");
+            }
         }
 
         public async Task<bool> SaveSnapshotAsync()
@@ -1705,6 +1776,13 @@ namespace WhatsappApp.Services
         /// </summary>
         private void OnNativeSyncProgress(object sender, int percent)
         {
+            lock (_historyActivityGate)
+            {
+                if (!_historySyncAllowed) return;
+                if (_historySyncActivity == null)
+                    _historySyncActivity = LoadingActivity.Begin("history sync");
+            }
+
             _syncPercent = percent;
             _syncInProgress = true;
             RaiseSyncProgressChanged();
@@ -1761,8 +1839,17 @@ namespace WhatsappApp.Services
             ClearCalls();
 
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("DataService/scan calls", NativeConnection.Instance.ScanCallsAsync());
+            Guarded.RunGuardedAsync("DataService/scan calls",
+                RunScanCallsAsync());
 #pragma warning restore 4014
+        }
+
+        private async Task RunScanCallsAsync()
+        {
+            using (LoadingActivity.Begin("call log scan"))
+            {
+                await NativeConnection.Instance.ScanCallsAsync();
+            }
         }
 
         /// <summary>
@@ -1954,6 +2041,8 @@ namespace WhatsappApp.Services
 
         private async Task ApplyStatusBytesAsync(MediaArrival arrival)
         {
+            using (LoadingActivity.Begin("incoming status media"))
+            {
             try
             {
                 ChatMessage row = FindStatus(arrival.Id);
@@ -1978,6 +2067,7 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("DataService/status media", ex);
+            }
             }
         }
 
@@ -2004,6 +2094,8 @@ namespace WhatsappApp.Services
 
         private async Task RequestStatusMediaAsync(ChatMessage row)
         {
+            using (LoadingActivity.Begin("status media"))
+            {
             MediaInfo info = row.Media;
             if (info == null || !info.IsFetchable)
             {
@@ -2031,6 +2123,7 @@ namespace WhatsappApp.Services
             {
                 row.IsMediaLoading = false;
                 Diag.Failed("DataService/status media request", ex);
+            }
             }
         }
 
@@ -2197,8 +2290,16 @@ namespace WhatsappApp.Services
         public void ScanStatuses()
         {
 #pragma warning disable 4014
-            Guarded.RunGuardedAsync("DataService/scan statuses", NativeConnection.Instance.ScanStatusesAsync());
+            Guarded.RunGuardedAsync("DataService/scan statuses", RunScanStatusesAsync());
 #pragma warning restore 4014
+        }
+
+        private async Task RunScanStatusesAsync()
+        {
+            using (LoadingActivity.Begin("status scan"))
+            {
+                await NativeConnection.Instance.ScanStatusesAsync();
+            }
         }
 
         /// <summary>
@@ -2211,7 +2312,10 @@ namespace WhatsappApp.Services
             string canonical = ChatIdFor(chatId);
             if (string.IsNullOrEmpty(canonical)) return;
 
-            await NativeConnection.Instance.RequestChatHistoryAsync(canonical, ChatHistoryOnDemandCount);
+            using (LoadingActivity.Begin("chat history"))
+            {
+                await NativeConnection.Instance.RequestChatHistoryAsync(canonical, ChatHistoryOnDemandCount);
+            }
         }
 
         /// <summary>How much of a chat an on-demand request asks for: more than one screen of history.</summary>
@@ -3521,6 +3625,12 @@ namespace WhatsappApp.Services
         /// </summary>
         public void BeginHistory()
         {
+            lock (_historyActivityGate)
+            {
+                _historySyncAllowed = true;
+                ReleaseHistorySyncActivity();
+                _historySyncActivity = LoadingActivity.Begin("history sync");
+            }
             HistoryComplete = false;
             _historyRequested.Clear();
         }
@@ -3528,6 +3638,7 @@ namespace WhatsappApp.Services
         /// <summary>Clears the in-memory state before this process starts showing a different account.</summary>
         public async Task ResetForNewAccountAsync()
         {
+            SetHistorySyncAllowed(false);
             _resettingAccount = true;
             List<ChatMessage> oldMessages = new List<ChatMessage>();
             foreach (ObservableCollection<ChatMessage> messages in _chatMessages.Values)
@@ -3552,6 +3663,8 @@ namespace WhatsappApp.Services
             _historyRequested.Clear();
             _historyArrived.Clear();
             _batchOpen = false;
+            ReleaseCallSetupActivity();
+            ReleaseHistorySyncActivity();
             _activeChatId = null;
             _listening = false;
             HistoryComplete = false;
@@ -4074,6 +4187,9 @@ namespace WhatsappApp.Services
         /// </summary>
         public void ForgetAccount()
         {
+            ReleaseCallSetupActivity();
+            SetHistorySyncAllowed(false);
+
             // The socket is closed first: a connection kept alive would keep talking
             // for an account this phone no longer holds.
             NativeConnection.Instance.Stop();
@@ -4296,6 +4412,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public void RefreshChatList()
         {
+            using (LoadingActivity.Begin("chat list refresh"))
+            {
             IList<WhatsappApp.Protocol.WaProto.HistoryConversation> rows = NativeConnection.Instance.ChatRows;
             int applied = 0;
             int keptGroups = 0;
@@ -4346,6 +4464,7 @@ namespace WhatsappApp.Services
             for (int i = 0; i < _contacts.Count; i++)
             {
                 if (_contacts[i] != null) PlaceContact(_contacts[i]);
+            }
             }
         }
 

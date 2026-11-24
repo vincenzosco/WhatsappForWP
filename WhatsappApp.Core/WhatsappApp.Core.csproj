@@ -103,7 +103,7 @@
     <Compile Include="..\WhatsappApp\Protocol\**\*.cs">
       <Link>Protocol\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Compile>
-    <Compile Include="..\WhatsappApp\Services\**\*.cs">
+    <Compile Include="..\WhatsappApp\Services\**\*.cs" Exclude="..\WhatsappApp\Services\LoadingIndicator.cs">
       <Link>Services\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Compile>
     <Compile Include="..\WhatsappApp\Models\**\*.cs">

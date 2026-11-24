@@ -171,6 +171,8 @@ namespace WhatsappApp.Pages
 
         private async Task RequestPictureAsync()
         {
+            using (LoadingActivity.Begin("contact picture"))
+            {
             try
             {
                 AvatarAnswer picture = await NativeConnection.Instance.RequestAvatarAsync(_contact.Id, false);
@@ -191,6 +193,7 @@ namespace WhatsappApp.Pages
             catch (Exception ex)
             {
                 Diag.Failed("ContactInfoPage/picture", ex);
+            }
             }
         }
 

@@ -211,6 +211,7 @@ namespace WhatsappApp.Services
 
         /// <summary>The real state: one of the fifteen `CallState` values.</summary>
         public CallState State { get; private set; }
+        public event EventHandler StateChanged;
 
         /// <summary>The short version the pages draw, worked out from `State`.</summary>
         public CallPhase Phase
@@ -365,6 +366,7 @@ namespace WhatsappApp.Services
             StartedAt = DateTime.UtcNow;
             ConnectedAt = default(DateTime);
             State = CallState.ReceivedCall;
+            RaiseStateChanged();
 
             return true;
         }
@@ -385,6 +387,7 @@ namespace WhatsappApp.Services
             StartedAt = DateTime.UtcNow;
             ConnectedAt = default(DateTime);
             State = CallState.Calling;
+            RaiseStateChanged();
 
             return true;
         }
@@ -411,6 +414,7 @@ namespace WhatsappApp.Services
 
             // Straight on to the state the call is really in; see the note above.
             State = CallState.Active;
+            RaiseStateChanged();
             return true;
         }
 
@@ -427,6 +431,7 @@ namespace WhatsappApp.Services
             if (State != CallState.Calling && State != CallState.PreCalling) return false;
 
             State = CallState.PreAcceptReceived;
+            RaiseStateChanged();
             return true;
         }
 
@@ -443,6 +448,7 @@ namespace WhatsappApp.Services
 
             EndedReason = reason;
             State = CallState.Ending;
+            RaiseStateChanged();
             return true;
         }
 
@@ -517,6 +523,7 @@ namespace WhatsappApp.Services
             StartedAt = default(DateTime);
             ConnectedAt = default(DateTime);
             State = CallState.None;
+            RaiseStateChanged();
         }
 
         /// <summary>
@@ -525,6 +532,12 @@ namespace WhatsappApp.Services
         /// A message with no call id on it is never a match. Otherwise anything that
         /// forgot the id could end whatever call happens to be on screen.
         /// </summary>
+        private void RaiseStateChanged()
+        {
+            EventHandler handler = StateChanged;
+            if (handler != null) handler(this, EventArgs.Empty);
+        }
+
         private bool SpeaksOf(string callId)
         {
             return !string.IsNullOrEmpty(callId) && CallId == callId;

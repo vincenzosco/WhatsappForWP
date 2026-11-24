@@ -840,7 +840,9 @@ namespace WhatsappApp.Pages
         /// </summary>
         private async System.Threading.Tasks.Task BindAfterCacheAsync(string chatId, bool historyRequested)
         {
-            await DataService.Instance.LoadCachedMessagesAsync(chatId);
+            using (LoadingActivity.Begin("chat opening"))
+            {
+                await DataService.Instance.LoadCachedMessagesAsync(chatId);
 
             // The reader may have left while the burst was coming, and the list
             // must be bound even then: leaving it unbound is an empty conversation
@@ -881,10 +883,11 @@ namespace WhatsappApp.Pages
             // the list as it lands (`OnMessagesChanged`); the wait is only to say, in the log,
             // that this account has nothing older in this chat. Waiting for it *before*
             // binding left the whole conversation empty whenever the burst never closed.
-            if (historyRequested)
-            {
-                await WaitForHistoryAsync(chatId);
-                if (_messages.Count == 0) Diag.Ok("history arrived empty for " + chatId);
+                if (historyRequested)
+                {
+                    await WaitForHistoryAsync(chatId);
+                    if (_messages.Count == 0) Diag.Ok("history arrived empty for " + chatId);
+                }
             }
         }
 

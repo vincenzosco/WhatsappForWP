@@ -9,7 +9,7 @@ const signaling = fs.readFileSync(
   path.join(ROOT, 'WhatsappApp/Protocol/Client/CallSignaling.cs'), 'utf8');
 const vocabulary = new Set(fs.readFileSync(
   path.join(__dirname, 'fixtures', 'apk-call-tokens.txt'), 'utf8')
-  .split('\n').filter(line => line && !line.startsWith('#')));
+  .split(/\r?\n/).filter(line => line && !line.startsWith('#')));
 
 // The WABinary dictionary of the WhatsApp APK carries every name the protocol can say as
 // a token. A name that is not in it cannot travel: it would have to be written out in full,

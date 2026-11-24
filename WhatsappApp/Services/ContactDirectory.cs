@@ -72,6 +72,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public static async Task LoadAsync()
         {
+            using (LoadingActivity.Begin("phone contacts"))
+            {
             try
             {
                 ContactStore store = await ContactManager.RequestStoreAsync();
@@ -136,6 +138,7 @@ namespace WhatsappApp.Services
             catch (Exception ex)
             {
                 Diag.Failed("ContactDirectory/Load", ex);
+            }
             }
         }
 

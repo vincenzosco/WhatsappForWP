@@ -208,6 +208,7 @@ Call_MediaUntrusted = Handshake not verified
 Call_Accept = Accept
 Call_Decline = Decline
 Call_End = End
+LoadingIndicator_Loading = Loading
 Call_Start = Call
 Call_Calling = Calling...
 Call_Close = Close

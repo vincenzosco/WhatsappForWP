@@ -35,7 +35,7 @@ test('the bind asks whether it is the active chat by its canonical id', () => {
   // the older-rows pager, so the conversation opened at its top and an arriving
   // message never followed it (`AtBottom` is false up there).
   const start = page.indexOf('private async System.Threading.Tasks.Task BindAfterCacheAsync');
-  const bind = page.slice(start, start + 1200);
+  const bind = page.slice(start, start + 5000);
   assert.match(bind, /bool isActiveChat = .*ChatIdFor\(chatId\)/,
     'the check folds the id it was handed');
   assert.doesNotMatch(bind, /ActiveChatId == chatId/,

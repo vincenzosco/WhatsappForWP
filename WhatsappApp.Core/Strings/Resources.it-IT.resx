@@ -673,6 +673,9 @@
   <data name="Call_End" xml:space="preserve">
     <value>Chiudi</value>
   </data>
+  <data name="LoadingIndicator_Loading" xml:space="preserve">
+    <value>Caricamento</value>
+  </data>
   <data name="Call_Start" xml:space="preserve">
     <value>Chiama</value>
   </data>

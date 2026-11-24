@@ -33,11 +33,11 @@
 - Produces `LoadingActivity.Begin(string name) : IDisposable`, `LoadingActivity.IsActive`, and `LoadingActivity.Changed : event EventHandler`.
 - Each returned lease releases exactly once; disposing twice is harmless. The counter publishes only active/inactive transitions, not every count mutation.
 
-- [ ] **Step 1: Add failing C# tests** for initial inactive state, one lease activates, two leases remain active after the first release, final release deactivates, and double-dispose does not underflow or emit a duplicate transition.
-- [ ] **Step 2: Include `LoadingActivity.cs` in the ProtocolTests project and run** `node tools/test-protocol.js`; confirm the new tests fail before implementation.
-- [ ] **Step 3: Implement the smallest thread-safe counter** with a private lease type using `Interlocked.Exchange` for idempotent release and an event raised outside the lock.
-- [ ] **Step 4: Run** `node tools/test-protocol.js` and verify the lease tests pass.
-- [ ] **Step 5: Add a Node regression test** that guards the interface and idempotent release contract; run `node --test tools/test/loading-activity.test.js`.
+- [x] **Step 1: Add failing C# tests** for initial inactive state, one lease activates, two leases remain active after the first release, final release deactivates, and double-dispose does not underflow or emit a duplicate transition.
+- [x] **Step 2: Include `LoadingActivity.cs` in the ProtocolTests project and run** `node tools/test-protocol.js`; confirm the new tests fail before implementation.
+- [x] **Step 3: Implement the smallest thread-safe counter** with a private lease type using `Interlocked.Exchange` for idempotent release and an event raised outside the lock.
+- [x] **Step 4: Run** `node tools/test-protocol.js` and verify the lease tests pass.
+- [x] **Step 5: Add a Node regression test** that guards the interface and idempotent release contract; run `node --test tools/test/loading-activity.test.js`.
 
 ### Task 2: Attach a localized SystemTray indicator to every active page
 
@@ -53,10 +53,10 @@
 - `LoadingIndicator.Refresh()` updates `IsVisible` on the UI dispatcher; a missing dispatcher/page is a no-op.
 - Resource key: `LoadingIndicator_Loading` in both languages.
 
-- [ ] **Step 1: Add a failing source regression** for startup wiring, navigation reattachment, localized text, and active-state reflection.
-- [ ] **Step 2: Run** `node --test tools/test/loading-activity.test.js`; confirm it fails on missing adapter/wiring/key.
-- [ ] **Step 3: Implement the adapter** with one `ProgressIndicator { IsIndeterminate = true, Text = Loc.Get(...), IsVisible = ... }`; on each frame `Navigated`, attach it with `SystemTray.SetProgressIndicator(page, indicator)` and update visibility. Subscribe once from `App.StartServicesOnce` while on the UI thread.
-- [ ] **Step 4: Run** `node tools/check-resw.js --strict`, `node tools/check-csharp5.js`, the focused Node test, and `node tools/check-project-files.js`.
+- [x] **Step 1: Add a failing source regression** for startup wiring, navigation reattachment, localized text, and active-state reflection.
+- [x] **Step 2: Run** `node --test tools/test/loading-activity.test.js`; confirm it fails on missing adapter/wiring/key.
+- [x] **Step 3: Implement the adapter** with one `ProgressIndicator { IsIndeterminate = true, Text = Loc.Get(...), IsVisible = ... }`; on each frame `Navigated`, attach it with `SystemTray.SetProgressIndicator(page, indicator)` and update visibility. Subscribe once from `App.StartServicesOnce` while on the UI thread.
+- [x] **Step 4: Run** `node tools/check-resw.js --strict`, `node tools/check-csharp5.js`, the focused Node test, and `node tools/check-project-files.js`.
 
 ### Task 3: Cover chat opening and app-owned data/cache loads
 
@@ -71,11 +71,11 @@
 - Use `using (LoadingActivity.Begin("..."))` around finite awaited loads.
 - Chat-opening lease covers cache load, initial bind/scroll, and the existing bounded per-chat history wait; it releases on all exits and does not access UI after `_left`.
 
-- [ ] **Step 1: Add failing regression assertions** for `BindAfterCacheAsync` scope, cache/status restoration, sync completion, list refresh/scan entry points, avatar enrichment, and guaranteed release in `finally`/`using` scopes.
-- [ ] **Step 2: Run** the focused test and confirm the uncovered call paths fail.
-- [ ] **Step 3: Instrument the chat open** from before `LoadCachedMessagesAsync` through bind/scroll and the existing history wait; ensure the lease is disposed if the page is left or the wait throws.
-- [ ] **Step 4: Instrument actual async data retrievals** in `DataService` and existing cache/avatar/name/contact services: cached chats/statuses, chat/status history sync, manual resync, list refresh reads, calls/status scans, and avatar retrieval/decode. Instrument phone-contact lookup only when it runs in the foreground; do not instrument `SaveSnapshotAsync`, routine socket reads, or idle polling.
-- [ ] **Step 5: Run** `node --test tools/test/loading-activity.test.js`, `node tools/check-fire-and-forget.js`, `node tools/check-csharp5.js`, and `node tools/test-protocol.js`.
+- [x] **Step 1: Add failing regression assertions** for `BindAfterCacheAsync` scope, cache/status restoration, sync completion, list refresh/scan entry points, avatar enrichment, and guaranteed release in `finally`/`using` scopes.
+- [x] **Step 2: Run** the focused test and confirm the uncovered call paths fail.
+- [x] **Step 3: Instrument the chat open** from before `LoadCachedMessagesAsync` through bind/scroll and the existing history wait; ensure the lease is disposed if the page is left or the wait throws.
+- [x] **Step 4: Instrument actual async data retrievals** in `DataService` and existing cache/avatar/name/contact services: cached chats/statuses, chat/status history sync, manual resync, list refresh reads, calls/status scans, and avatar retrieval/decode. Instrument phone-contact lookup only when it runs in the foreground; do not instrument `SaveSnapshotAsync`, routine socket reads, or idle polling.
+- [x] **Step 5: Run** `node --test tools/test/loading-activity.test.js`, `node tools/check-fire-and-forget.js`, `node tools/check-csharp5.js`, and `node tools/test-protocol.js`.
 
 ### Task 4: Cover user-visible media, status, and page retrievals
 
@@ -90,10 +90,10 @@
 - Media and status download/decode activities use the same coordinator as data/cache reads.
 - Existing `IsMediaLoading`, status loading panel, and history percentage remain unchanged as detailed local progress.
 
-- [ ] **Step 1: Add failing checks** for media download, status media download/view, contact avatar request/decode and call avatar decode leases.
-- [ ] **Step 2: Run** the focused test to establish the red result.
-- [ ] **Step 3: Add balanced leases** around message media and status media requests (including storage/decrypt/apply), status image retrieval/decode, contact picture lookup/decode, and call avatar decode. Reuse existing try/catch logging and ensure every early return releases.
-- [ ] **Step 4: Run** focused tests, `node tools/check-memory.js`, `node tools/check-status-viewer.js`, `node tools/check-fire-and-forget.js`, and localization checks.
+- [x] **Step 1: Add failing checks** for media download, status media download/view, contact avatar request/decode and call avatar decode leases.
+- [x] **Step 2: Run** the focused test to establish the red result.
+- [x] **Step 3: Add balanced leases** around message media and status media requests (including storage/decrypt/apply), status image retrieval/decode, contact picture lookup/decode, and call avatar decode. Reuse existing try/catch logging and ensure every early return releases.
+- [x] **Step 4: Run** focused tests, `node tools/check-memory.js`, `node tools/check-status-viewer.js`, `node tools/check-fire-and-forget.js`, and localization checks.
 
 ### Task 5: Track finite VoIP call setup, not ringing or active conversation
 
@@ -110,11 +110,11 @@
 - Media transport emits/bridges state transitions so the coordinator holds a lease only for an attached `CallTransportState.Handshaking` transport; release on `Ready`, `Failed`, detach, termination, or replacement. `Waiting` is not active loading.
 - Call state must not be tracked by a page lifetime; navigation to chat does not orphan the lease.
 
-- [ ] **Step 1: Add failing source checks** proving offer/accept/key paths are leased, transport handshake state is observed, and `Ringing`/`Active`/waiting nomination do not independently hold the indicator.
-- [ ] **Step 2: Run** the focused test and establish failure on current call paths.
-- [ ] **Step 3: Instrument finite offer, key unwrap, incoming acceptance, and media handshake transitions** with idempotent leases and release on all terminal outcomes.
-- [ ] **Step 4: Preserve call signaling and UI behavior**; do not lease the 45-second unanswered ringing period, call duration, Opus/audio pump, or transport-ready state.
-- [ ] **Step 5: Run** focused checks, `node --test tools/test/call-ticker-stops-on-leave.test.js`, C# 5 guard, and protocol tests.
+- [x] **Step 1: Add failing source checks** proving offer/accept/key paths are leased, transport handshake state is observed, and `Ringing`/`Active`/waiting nomination do not independently hold the indicator.
+- [x] **Step 2: Run** the focused test and establish failure on current call paths.
+- [x] **Step 3: Instrument finite offer, key unwrap, incoming acceptance, and media handshake transitions** with idempotent leases and release on all terminal outcomes.
+- [x] **Step 4: Preserve call signaling and UI behavior**; do not lease the 45-second unanswered ringing period, call duration, Opus/audio pump, or transport-ready state.
+- [x] **Step 5: Run** focused checks, `node --test tools/test/call-ticker-stops-on-leave.test.js`, C# 5 guard, and protocol tests.
 
 ### Task 6: Full verification, version bump, build, and delivery artifacts
 
@@ -125,10 +125,17 @@
 - Update: `docs/superpowers/plans/2026-11-24-systemtray-loading.md` with execution deviations.
 - Create only the requested build artifacts: versioned desktop XAP and `Aggiorna-WhatsApp.cmd` beside it.
 
-- [ ] **Step 1: Run all project gates** listed in `.agents/skills/test-the-app/SKILL.md` and `node --test "tools/test/**/*.test.js"`; resolve failures before bumping the version.
-- [ ] **Step 2: Bump each of the three version entries** from `1.3.12.85` to `1.3.12.86` and check they match.
-- [ ] **Step 3: Build Release ARM** with `MSYS_NO_PATHCONV=1 "C:/Program Files (x86)/MSBuild/14.0/Bin/MSBuild.exe" WhatsappApp/WhatsApp.csproj /p:Configuration=Release /p:Platform=ARM /v:minimal /nologo`.
-- [ ] **Step 4: Copy the built XAP to** `C:\Users\Vincenzo\Desktop\WhatsApp-1.3.12.86-ARM-Release.xap` and place `Aggiorna-WhatsApp.cmd` beside it; never run the update script or install to the phone.
-- [ ] **Step 5: Review** `git diff --check`, version consistency, generated XAP existence, and clean deliverables; append only actual deviations to the plan.
-- [ ] **Step 6: Commit** the completed implementation and plan with a short imperative, no AI attribution; push `origin master` as required by repository workflow.
+- [x] **Step 1: Run all project gates** listed in `.agents/skills/test-the-app/SKILL.md` and `node --test "tools/test/**/*.test.js"`; resolve failures before bumping the version.
+- [x] **Step 2: Bump each of the three version entries** from `1.3.12.85` to `1.3.12.86` and check they match.
+- [x] **Step 3: Build Release ARM** with `MSYS_NO_PATHCONV=1 "C:/Program Files (x86)/MSBuild/14.0/Bin/MSBuild.exe" WhatsappApp/WhatsApp.csproj /p:Configuration=Release /p:Platform=ARM /v:minimal /nologo`.
+- [x] **Step 4: Copy the built XAP to** `C:\Users\Vincenzo\Desktop\WhatsApp-1.3.12.86-ARM-Release.xap` and place `Aggiorna-WhatsApp.cmd` beside it; never run the update script or install to the phone.
+- [x] **Step 5: Review** `git diff --check`, version consistency, generated XAP existence, and clean deliverables; append only actual deviations to the plan.
+- [x] **Step 6: Commit** the completed implementation and plan with a short imperative, no AI attribution; push `origin master` as required by repository workflow.
 - [ ] **Step 7: Report** test/build evidence and clearly state that phone verification still awaits the operator's update and a fresh device log.
+
+## What execution changed about this plan
+
+- `LoadingIndicator.cs` is app-only UI code, so the shared `WhatsappApp.Core.csproj` service glob explicitly excludes it. The first ARM build exposed a duplicate-type warning; a source regression test was observed failing before the exclusion was added, and the next ARM build completed without that warning.
+- The full test and gate suite was repeated after the exclusion. Device verification remains pending; no install command was run.
+- The independent review found that late history progress could reacquire the tray lease after an account reset. A failing source regression was observed first; progress is now gated by account lifecycle, and downloaded history from a replaced connection is discarded before it mutates account data.
+- Final verification after that correction: 786 protocol tests passed; 829 Node tests passed with one skip; all `tools/check-*.js` guards passed; Release ARM build succeeded with the existing `CS0168` warning in `OpusEncoder.cs` and packaging warning `APPX4001`. The XAP and update script were copied to Desktop; the script was not run.

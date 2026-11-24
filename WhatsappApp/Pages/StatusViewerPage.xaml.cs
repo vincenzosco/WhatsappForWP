@@ -467,6 +467,8 @@ namespace WhatsappApp.Pages
             ChatMessage row = _status;
             _decoding = true;
 
+            using (LoadingActivity.Begin("status picture"))
+            {
             try
             {
                 BitmapImage bitmap = await row.LoadBitmapAsync(ViewerDecodePixels);
@@ -504,6 +506,7 @@ namespace WhatsappApp.Pages
                 // `Refresh` was turned away by the flag above, and the one now on screen
                 // has to be drawn by the call that comes after it.
                 if (row != _status) Refresh();
+            }
             }
         }
 

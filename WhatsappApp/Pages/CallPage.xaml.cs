@@ -354,6 +354,8 @@ namespace WhatsappApp.Pages
 
         private async Task DecodeAvatarAsync(string jid, string data)
         {
+            using (LoadingActivity.Begin("call avatar"))
+            {
             BitmapImage bitmap = await ImageHelper.FromBase64Async(data, PicturePixels);
             if (bitmap == null || jid != _avatarJid) return;
 
@@ -361,6 +363,7 @@ namespace WhatsappApp.Pages
             CallPhoto.Visibility = Visibility.Visible;
             AvatarCircle.Visibility = Visibility.Collapsed;
             InitialsText.Visibility = Visibility.Collapsed;
+            }
         }
 
         /// <summary>

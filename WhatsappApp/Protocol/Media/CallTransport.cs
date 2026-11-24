@@ -197,6 +197,8 @@ namespace WhatsappApp.Protocol.Media
             get { return _state; }
         }
 
+        public event EventHandler StateChanged;
+
         /// <summary>
         /// The address the peer nominated, which is where everything now goes. Null until a check
         /// nominates a pair.
@@ -401,10 +403,12 @@ namespace WhatsappApp.Protocol.Media
             if (first == null || first.Length == 0)
             {
                 _state = CallTransportState.Handshaking;
+                RaiseStateChanged();
                 return;
             }
 
             _state = CallTransportState.Handshaking;
+            RaiseStateChanged();
             _lastOutbound = first;
             outbound.Add(first);
         }
@@ -470,6 +474,7 @@ namespace WhatsappApp.Protocol.Media
             _media = new CallMediaSession(localKey, localSalt, _localSsrc,
                 remoteKey, remoteSalt, _remoteSsrc);
             _state = CallTransportState.Ready;
+            RaiseStateChanged();
         }
 
         private void ReadMedia(byte[] datagram)
@@ -487,6 +492,13 @@ namespace WhatsappApp.Protocol.Media
         {
             if (_failure == null) _failure = reason;
             _state = CallTransportState.Failed;
+            RaiseStateChanged();
+        }
+
+        private void RaiseStateChanged()
+        {
+            EventHandler handler = StateChanged;
+            if (handler != null) handler(this, EventArgs.Empty);
         }
 
         private static bool Same(StunEndpoint left, StunEndpoint right)

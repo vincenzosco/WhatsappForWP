@@ -108,6 +108,7 @@
     <Compile Include="Controls\CallsPane.xaml.cs">
       <DependentUpon>CallsPane.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Services\LoadingIndicator.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Converters\Converters.cs" />
     <Compile Include="Pages\ChatPage.xaml.cs">

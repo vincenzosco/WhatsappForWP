@@ -3593,6 +3593,7 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task<bool> ApplyHistoryAsync(HistorySyncNotification notification)
         {
+            int generation = _generation;
             HistorySync sync;
 
             try
@@ -3627,6 +3628,14 @@ namespace WhatsappApp.Services
                 // so the phone's log says which blob to look at - and the answer is false, so
                 // the stanza stays unacknowledged and the server offers it again.
                 Diag.Failed("NativeConnection/history", error);
+                return false;
+            }
+
+            // A blob download can outlive the connection that requested it. A replaced or
+            // forgotten account must not receive rows from that old connection's continuation.
+            if (generation != _generation)
+            {
+                Diag.Ok("native: history from a replaced connection was ignored");
                 return false;
             }
 
@@ -4396,6 +4405,8 @@ namespace WhatsappApp.Services
         /// </summary>
         private async Task ReceiveCallKeyAsync(CallSignal signal)
         {
+            using (LoadingActivity.Begin("incoming call key"))
+            {
             string peer = string.IsNullOrEmpty(signal.From) ? signal.To : signal.From;
 
             try
@@ -4425,6 +4436,7 @@ namespace WhatsappApp.Services
             {
                 Diag.Failed("native: the call key of " + signal.CallId + " from " + peer, ex);
             }
+            }
         }
 
         /// <summary>
@@ -4447,6 +4459,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task<string> OfferCallAsync(string jid, bool video)
         {
+            using (LoadingActivity.Begin("prepare call offer"))
+            {
             if (string.IsNullOrEmpty(jid)) throw new ProtocolException("a call is made to somebody");
 
             string callId = NewCallId();
@@ -4650,6 +4664,7 @@ namespace WhatsappApp.Services
             _callKeyForMedia = callKey;
 
             return callId;
+            }
         }
 
         /// <summary>
@@ -4731,6 +4746,8 @@ namespace WhatsappApp.Services
         public async Task StartCallMediaAsync(
             string callId, byte[] callKey, bool caller, string fingerprint = null)
         {
+            using (LoadingActivity.Begin("prepare call media"))
+            {
             if (string.IsNullOrEmpty(callId)) return;
 
             if (callKey == null || callKey.Length != CallKeys.CallKeyLength)
@@ -4803,6 +4820,7 @@ namespace WhatsappApp.Services
                 + " as the " + (caller ? "DTLS client" : "DTLS server")
                 + ", SSRC " + setup.LocalSsrc + " to " + setup.RemoteSsrc
                 + (fingerprint == null ? " without a fingerprint to pin" : " pinned to the peer's fingerprint"));
+            }
         }
 
         /// <summary>
@@ -5063,6 +5081,8 @@ namespace WhatsappApp.Services
         /// </summary>
         public async Task AcceptCallAsync(string callId, string jid)
         {
+            using (LoadingActivity.Begin("prepare call acceptance"))
+            {
             NativeSession session = OpenSession();
             string creator = CallCreatorFor(callId);
             byte[] key = await RequireIncomingCallKeyAsync(session, callId, jid, creator);
@@ -5100,6 +5120,7 @@ namespace WhatsappApp.Services
             // was already verified before the accept went out, so this path cannot strand the
             // remote hello on a key that did not open locally.
             await StartCallMediaAsync(callId, key, false, null);
+            }
         }
 
         /// <summary>

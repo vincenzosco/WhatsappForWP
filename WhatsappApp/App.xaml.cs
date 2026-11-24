@@ -393,6 +393,7 @@ namespace WhatsappApp
         /// <summary>Restores foreground state after the phone reactivates this app.</summary>
         private void OnActivated(object sender, ActivatedEventArgs e)
         {
+            LoadingIndicator.Refresh();
             EnterForegroundFromActivation();
             EnsureStartupPage();
 
@@ -427,6 +428,7 @@ namespace WhatsappApp
         /// </summary>
         private void EnterForegroundFromActivation()
         {
+            LoadingIndicator.Refresh();
             StartServicesOnce();
             NotificationService.SetForeground(true);
 
@@ -584,6 +586,7 @@ namespace WhatsappApp
             Guarded.RunGuardedAsync("Diag/StartRun", StartDiagnosticsAsync());
 #pragma warning restore 4014
 
+            LoadingIndicator.Start(_rootFrame);
             BackNavigator.Start();
             DataService.Instance.Start();
 

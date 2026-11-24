@@ -60,6 +60,8 @@ namespace WhatsappApp.Protocol.Transport
         private DatagramSocket _socket;
         private CallTransport _transport;
         private ThreadPoolTimer _timer;
+        private readonly object _activityGate = new object();
+        private IDisposable _handshakeActivity;
 
         private HostName _remoteAddress;
         private string _remotePort;
@@ -169,11 +171,18 @@ namespace WhatsappApp.Protocol.Transport
         {
             if (transport == null) throw new ProtocolException("a media socket needs a transport");
 
-            lock (_gate)
+            lock (_activityGate)
             {
-                _transport = transport;
-                _attachedMs = NowMilliseconds();
-                _reported = null;
+                lock (_gate)
+                {
+                    if (_transport != null) _transport.StateChanged -= OnTransportStateChanged;
+                    _transport = transport;
+                    _attachedMs = NowMilliseconds();
+                    _reported = null;
+                    _transport.StateChanged += OnTransportStateChanged;
+                }
+
+                UpdateHandshakeActivityForState(transport.State);
             }
 
             Diag.Ok("call media: the path is attached to UDP " + Port);
@@ -218,13 +227,17 @@ namespace WhatsappApp.Protocol.Transport
             if (transport == null) return;
 
             string state;
+            CallTransportState transportState;
             lock (_path)
             {
-                state = transport.State
+                transportState = transport.State;
+                state = transportState
                     + (transport.Peer == null ? " with no peer" : " with the peer " + Describe(transport.Peer))
                     + (transport.IsTrusted ? ", trusted" : ", not trusted")
                     + (transport.Failure == null ? "" : ", stopped: " + transport.Failure);
             }
+
+            UpdateHandshakeActivity(transport);
 
             // The remembering is on the state and not on the text: the counters and the millisecond
             // below move, and a line that changed for those reasons would be a log per packet.
@@ -273,15 +286,61 @@ namespace WhatsappApp.Protocol.Transport
         {
             if (transport == null) return;
 
-            lock (_gate)
+            lock (_activityGate)
             {
-                if (_transport != transport) return;
+                lock (_gate)
+                {
+                    if (_transport != transport) return;
 
-                _transport = null;
-                _reported = null;
+                    _transport.StateChanged -= OnTransportStateChanged;
+                    _transport = null;
+                    _reported = null;
+                }
+
+                ReleaseHandshakeActivity();
             }
 
             Diag.Ok("call media: the path is off UDP " + Port);
+        }
+
+        private void OnTransportStateChanged(object sender, EventArgs e)
+        {
+            CallTransport transport = sender as CallTransport;
+            if (transport == null) return;
+
+            UpdateHandshakeActivity(transport);
+        }
+
+        private void UpdateHandshakeActivity(CallTransport transport)
+        {
+            lock (_activityGate)
+            {
+                lock (_gate)
+                {
+                    if (!ReferenceEquals(_transport, transport)) return;
+                }
+
+                UpdateHandshakeActivityForState(transport.State);
+            }
+        }
+
+        private void UpdateHandshakeActivityForState(CallTransportState state)
+        {
+            if (state == CallTransportState.Handshaking)
+            {
+                if (_handshakeActivity == null)
+                    _handshakeActivity = LoadingActivity.Begin("call media handshake");
+                return;
+            }
+
+            ReleaseHandshakeActivity();
+        }
+
+        private void ReleaseHandshakeActivity()
+        {
+            if (_handshakeActivity == null) return;
+            _handshakeActivity.Dispose();
+            _handshakeActivity = null;
         }
 
         /// <summary>
@@ -453,15 +512,22 @@ namespace WhatsappApp.Protocol.Transport
             ThreadPoolTimer timer;
             DatagramSocket socket;
 
-            lock (_gate)
+            lock (_activityGate)
             {
-                if (_closed) return;
-                _closed = true;
+                lock (_gate)
+                {
+                    if (_closed) return;
+                    _closed = true;
 
-                timer = _timer;
-                socket = _socket;
-                _timer = null;
-                _socket = null;
+                    if (_transport != null) _transport.StateChanged -= OnTransportStateChanged;
+                    _transport = null;
+                    timer = _timer;
+                    socket = _socket;
+                    _timer = null;
+                    _socket = null;
+                }
+
+                ReleaseHandshakeActivity();
             }
 
             // A probe whose socket is closing will never be answered: completing it says so, and

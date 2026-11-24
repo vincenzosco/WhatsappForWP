@@ -176,6 +176,30 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void StateChangedTracksRingingPreAcceptActiveAndEndTransitions()
+        {
+            var session = new CallSession();
+            int changes = 0;
+            EventHandler handler = delegate { changes++; };
+            session.StateChanged += handler;
+            try
+            {
+                session.Ring(CallId, Peer, false);
+                session.Connect(CallId);
+                session.End(CallId, "ended");
+                session.Clear();
+                session.Dial("OTHER", Peer, false);
+                session.PreAccept("OTHER");
+
+                Assert.AreEqual(6, changes);
+            }
+            finally
+            {
+                session.StateChanged -= handler;
+            }
+        }
+
+        [Test]
         public static void TheFifteenOfficialStatesAreAllMappedToAPhase()
         {
             // The enum has to hold the official list, all fifteen. A state added later

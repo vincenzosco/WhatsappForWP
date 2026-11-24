@@ -123,6 +123,7 @@ namespace WhatsappApp.Services
             // and seventy of them is what a small phone cannot afford while it scrolls.
             int fetched = 0;
             int limit = MemoryProfile.Instance.AvatarsToEnrich;
+            IDisposable activity = null;
 
             try
             {
@@ -160,6 +161,7 @@ namespace WhatsappApp.Services
                     }
 
                     if (!FirstAsk(id)) continue;
+                    if (activity == null) activity = LoadingActivity.Begin("chat avatars");
 
                     // The wait is outside the catch block on purpose: the WP8.1 compiler
                     // answers CS1985 to an await inside one (C# 5 syntax, see
@@ -258,6 +260,7 @@ namespace WhatsappApp.Services
             }
             finally
             {
+                if (activity != null) activity.Dispose();
                 bool again = false;
 
                 lock (Gate)
