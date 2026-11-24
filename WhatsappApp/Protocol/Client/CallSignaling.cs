@@ -100,20 +100,21 @@ namespace WhatsappApp.Protocol.Client
     /// whether the call can be joined, and the three children the official client attaches
     /// (`metadata`, `rte`, `voip_settings`).
     ///
-    /// They are one object because they arrive together - the offer captured on 4 November
-    /// 2026 carries all six - and because they are the only fields of an offer whose values
-    /// this build has never seen. `Offer` writes each one only when it has a value, so an empty
-    /// profile produces exactly the offer this app sent before this type existed.
+    /// They are one object because they arrive together, and because they are the fields of an
+    /// offer whose values this build has never seen. `Offer` writes each one only when it has a
+    /// value, so an empty profile produces exactly the offer this app sent before this type
+    /// existed.
+    ///
+    /// Four names once stood here and are gone: `caller_pn`, `caller_country_code`, `av_upgrade`
+    /// and `link_info`. None of them exists in the WABinary dictionary of the APK
+    /// (`X/AbstractC40951ro.java`), none is read by its offer parser (`wa_call_parse_xmpp_offer`),
+    /// and none is written by the WP8 client (`VoipSignaling.WriteVoipNode`). Writing them was
+    /// this app guessing at the wire - the far end has no idea what they mean.
     /// </summary>
     public sealed class CallWireProfile
     {
-        /// <summary>`caller_pn`: the caller's own number, spelled as the official client does.</summary>
-        public string CallerPn;
-
-        /// <summary>`caller_country_code`: the caller's country, spelled as the official client does.</summary>
-        public string CallerCountryCode;
-
-        /// <summary>`joinable`: whether the call can be joined; null leaves the attribute out.</summary>
+        /// <summary>`joinable`: whether the call can be joined; null leaves the attribute out.
+        /// The APK reads it off every offer ("Handle MESSAGE Offer call_id: %s (joinable: %s, ...").</summary>
         public bool? Joinable;
 
         /// <summary>The `metadata` child, whole, as a captured node carries it.</summary>
@@ -125,13 +126,18 @@ namespace WhatsappApp.Protocol.Client
         /// <summary>The `voip_settings` child, whole.</summary>
         public BinaryNode VoipSettings;
 
-        /// <summary>
-        /// The children the parser registers after `voip_settings`, in its own order: `relay`,
-        /// `group_info`, `av_upgrade`, `link_info`. They are copied whole, like the three
-        /// above, because nothing in this build knows what their attributes mean.
-        /// </summary>
+        /// <summary>The `relay` child, whole: the APK reads it off every offer ("Handle MESSAGE
+        /// Offer ... with relay information (num_relays %d, transaction_id %d)").</summary>
         public BinaryNode Relay;
+
+        /// <summary>The `group_info` child, whole.</summary>
         public BinaryNode GroupInfo;
+
+        /// <summary>
+        /// The children the offer deserializer registers after `group_info`, in its own order:
+        /// `av_upgrade`, `link_info`. They are copied whole, like the three above, because
+        /// nothing in this build knows what their attributes mean.
+        /// </summary>
         public BinaryNode AvUpgrade;
         public BinaryNode LinkInfo;
 
@@ -139,11 +145,10 @@ namespace WhatsappApp.Protocol.Client
         /// `metadata`'s own fields, as the callee's parser names them: it reads the node and
         /// refuses the offer with `Metadata node not found`, so the node is not decoration.
         /// ``ver`` is the shape of the node, `peer_abtest_bucket` the bucket this side is in,
-        /// and `peer_abtest_bucket_id_list` the ones it can name.
+        /// and `peer_abtest_bucket` the abtest bucket it says.
         /// </summary>
         public string MetadataVersion;
         public string PeerAbtestBucket;
-        public string PeerAbtestBucketIds;
 
         /// <summary>
         /// `voip_settings`'s own fields: `type`, and `uncompressed`, which says the params are
@@ -168,7 +173,6 @@ namespace WhatsappApp.Protocol.Client
             var node = new BinaryNode("metadata");
             node.Attrs.Add("ver", string.IsNullOrEmpty(MetadataVersion) ? "1" : MetadataVersion);
             if (!string.IsNullOrEmpty(PeerAbtestBucket)) node.Attrs.Add("peer_abtest_bucket", PeerAbtestBucket);
-            if (!string.IsNullOrEmpty(PeerAbtestBucketIds)) node.Attrs.Add("peer_abtest_bucket_id_list", PeerAbtestBucketIds);
             return node;
         }
 
@@ -186,24 +190,15 @@ namespace WhatsappApp.Protocol.Client
 
         /// <summary>
         /// The offer's own fields as this account can state them, without a capture and without
-        /// guessing: the caller is the number inside this account's own JID (read, never
-        /// typed), a call this client places is one person calling one person and so cannot be
-        /// joined, and the country is the one the caller passes in.
-        ///
-        /// That last one is the only value the app has to be told: a JID carries digits and no
-        /// country, and the letter code is not derivable from them. Null for an account whose
-        /// JID is not a phone number - a `@lid` is an identifier, not a number - so nothing is
-        /// invented for it.
+        /// guessing: a call this client places is one person calling one person and so cannot be
+        /// joined. The caller is not stated here at all: `call-creator` is the caller, the APK
+        /// asserts it is present on every payload it builds, and there is no second spelling of
+        /// it in the protocol to make up.
         /// </summary>
-        public static CallWireProfile ForAccount(string ownJid, string countryCode)
+        public static CallWireProfile ForAccount()
         {
             var profile = new CallWireProfile();
-            profile.CallerPn = PhoneNumbers.UserDigits(ownJid);
-            profile.CallerCountryCode = countryCode;
-
-            // Only a call this account can actually be joined in may say it is joinable, and
-            // this client only ever offers one-to-one calls.
-            if (profile.CallerPn != null) profile.Joinable = false;
+            profile.Joinable = false;
 
             return profile.IsEmpty ? null : profile;
         }
@@ -215,8 +210,6 @@ namespace WhatsappApp.Protocol.Client
         public string ToStore()
         {
             var parts = new List<string>();
-            if (!string.IsNullOrEmpty(CallerPn)) parts.Add("caller_pn=" + CallerPn);
-            if (!string.IsNullOrEmpty(CallerCountryCode)) parts.Add("caller_country_code=" + CallerCountryCode);
             if (Joinable.HasValue) parts.Add("joinable=" + (Joinable.Value ? "true" : "false"));
 
             return string.Join(";", parts.ToArray());
@@ -241,9 +234,7 @@ namespace WhatsappApp.Protocol.Client
                 string name = parts[i].Substring(0, at).Trim();
                 string value = parts[i].Substring(at + 1).Trim();
 
-                if (name == "caller_pn") profile.CallerPn = value;
-                else if (name == "caller_country_code") profile.CallerCountryCode = value;
-                else if (name == "joinable") profile.Joinable = value == "true";
+                if (name == "joinable") profile.Joinable = value == "true";
             }
 
             return profile.IsEmpty ? null : profile;
@@ -254,8 +245,7 @@ namespace WhatsappApp.Protocol.Client
         {
             get
             {
-                return string.IsNullOrEmpty(CallerPn) && string.IsNullOrEmpty(CallerCountryCode)
-                    && !Joinable.HasValue && Metadata == null && Rte == null && VoipSettings == null
+                return !Joinable.HasValue && Metadata == null && Rte == null && VoipSettings == null
                     && Relay == null && GroupInfo == null && AvUpgrade == null && LinkInfo == null
                     && string.IsNullOrEmpty(MetadataVersion) && string.IsNullOrEmpty(VoipSettingsType);
             }
@@ -283,8 +273,6 @@ namespace WhatsappApp.Protocol.Client
             LogUnknownOfferParts(offer);
 
             var profile = new CallWireProfile();
-            profile.CallerPn = offer.Attrs["caller_pn"];
-            profile.CallerCountryCode = offer.Attrs["caller_country_code"];
 
             string joinable = offer.Attrs["joinable"];
             bool word;
@@ -302,7 +290,6 @@ namespace WhatsappApp.Protocol.Client
             {
                 profile.MetadataVersion = profile.Metadata.Attrs["ver"];
                 profile.PeerAbtestBucket = profile.Metadata.Attrs["peer_abtest_bucket"];
-                profile.PeerAbtestBucketIds = profile.Metadata.Attrs["peer_abtest_bucket_id_list"];
             }
 
             if (profile.VoipSettings != null)
@@ -336,8 +323,7 @@ namespace WhatsappApp.Protocol.Client
         {
             foreach (KeyValuePair<string, string> attr in offer.Attrs)
             {
-                if (attr.Key == "caller_pn" || attr.Key == "caller_country_code"
-                    || attr.Key == "joinable") continue;
+                if (attr.Key == "joinable") continue;
 
                 Say("call wire: the offer carries the attribute " + attr.Key
                     + " this client does not model, valued " + Truncate(attr.Value));
@@ -371,8 +357,6 @@ namespace WhatsappApp.Protocol.Client
         {
             if (verb == null) return;
 
-            if (!string.IsNullOrEmpty(CallerPn)) verb.Attrs.Add("caller_pn", CallerPn);
-            if (!string.IsNullOrEmpty(CallerCountryCode)) verb.Attrs.Add("caller_country_code", CallerCountryCode);
             if (Joinable.HasValue) verb.Attrs.Add("joinable", Joinable.Value ? "true" : "false");
         }
 
@@ -391,7 +375,7 @@ namespace WhatsappApp.Protocol.Client
             BinaryNode settings = VoipSettingsNode();
             if (settings != null) children.Add(settings);
 
-            // `relay`, `group_info`, `av_upgrade`, `link_info`: the order the parser's own
+            // `relay`, `group_info`, `av_upgrade`, `link_info`: the order the deserializer's own
             // name table gives them, one after the other (see the table on `Offer`).
             if (Relay != null) children.Add(Relay);
             if (GroupInfo != null) children.Add(GroupInfo);
@@ -1045,8 +1029,11 @@ namespace WhatsappApp.Protocol.Client
         /// - receipt not an offer child: the receipt stanza of the same unit
         /// - &lt;unknown&gt; a sentinel, not an element
         ///
-        /// and on the verb, in the same order: `call-creator`, then the caller's own
-        /// `caller_pn`, `caller_country_code`, `joinable`, and `device_class` beside them.
+        /// and on the verb, in the same order: `call-creator`, then `joinable`.
+        ///
+        /// Two names that used to sit in that sentence are gone, because no source says them:
+        /// `caller_pn` and `caller_country_code` are not in the WABinary dictionary, not read by
+        /// `wa_call_parse_xmpp_offer`, not written by `WriteVoipNode`, and not in the APK itself.
         ///
         /// Two children have no place in that table because the pool already carried their
         /// names from another translation unit - `video`, `net`, `capability`, `destination`

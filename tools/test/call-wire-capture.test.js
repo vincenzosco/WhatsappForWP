@@ -31,7 +31,8 @@ test('the offer leaves a line for everything this client does not model', () => 
   assert.match(native, /CallWireProfile\.WireLog = Diag\.Ok/,
     'and the app wires the seam to its own log');
   assert.match(log, /voip_settings/, 'the modelled children are the named ones kept');
-  assert.match(log, /caller_pn/, 'the modelled attributes are the named ones kept');
+  assert.doesNotMatch(log, /caller_pn/,
+    'and `caller_pn` is no longer modelled, so it is logged like anything else unknown');
   assert.match(log, /Children\(\)/, 'the children are walked');
   assert.match(log, /offer\.Attrs/, 'the attributes are walked');
 });

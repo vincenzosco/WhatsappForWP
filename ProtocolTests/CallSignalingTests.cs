@@ -48,11 +48,9 @@ namespace ProtocolTests
         }
 
         [Test]
-        public static void AWireProfileWritesTheCallerFieldsOnTheVerb()
+        public static void AWireProfileWritesOnlyWhatTheProtocolCanSay()
         {
             var profile = new CallWireProfile();
-            profile.CallerPn = "393892672185";
-            profile.CallerCountryCode = "IT";
             profile.Joinable = true;
 
             BinaryNode offer = CallSignaling.Offer(CallId, Peer, "me@lid", null,
@@ -60,9 +58,12 @@ namespace ProtocolTests
             BinaryNode verb = offer.Children()[0];
 
             Assert.AreEqual("offer", verb.Tag);
-            Assert.AreEqual("393892672185", verb.Attrs["caller_pn"]);
-            Assert.AreEqual("IT", verb.Attrs["caller_country_code"]);
             Assert.AreEqual("true", verb.Attrs["joinable"]);
+
+            // `caller_pn` and `caller_country_code` are not written: they are in no source of
+            // the protocol, so the far end cannot know what they mean.
+            Assert.IsTrue(verb.Attrs["caller_pn"] == null, "the invented attribute is gone");
+            Assert.IsTrue(verb.Attrs["caller_country_code"] == null, "and so is its country");
         }
 
         [Test]
@@ -74,8 +75,6 @@ namespace ProtocolTests
             var verb = new BinaryNode("offer");
             verb.Attrs.Add("call-creator", "231790946025638@lid");
             verb.Attrs.Add("call-id", CallId);
-            verb.Attrs.Add("caller_pn", "393492556507");
-            verb.Attrs.Add("caller_country_code", "IT");
             verb.Attrs.Add("joinable", "false");
             verb.Content = new List<BinaryNode> { metadata };
 
@@ -86,8 +85,6 @@ namespace ProtocolTests
             CallWireProfile profile = CallWireProfile.FromCallNode(call);
 
             Assert.IsTrue(profile != null, "the fields of a captured offer are read back");
-            Assert.AreEqual("393492556507", profile.CallerPn);
-            Assert.AreEqual("IT", profile.CallerCountryCode);
             Assert.AreEqual("false", profile.Joinable.Value ? "true" : "false");
             Assert.IsTrue(profile.Metadata != null, "metadata comes back whole");
         }
@@ -125,36 +122,34 @@ namespace ProtocolTests
         }
 
         /// <summary>
-        /// The offer's own fields, as this account can state them without a capture: the number
-        /// inside its own JID, the country it belongs to, and `joinable=false` for a call one
-        /// person places to one person. The stored line is what the app writes down once.
+        /// The offer's own fields, as this account can state them without a capture: just
+        /// `joinable=false`, because a call one person places to one person cannot be joined.
+        /// The caller is not invented - `call-creator` is the caller, and the APK has no second
+        /// spelling of it.
         /// </summary>
         [Test]
         public static void TheAccountFillsTheOffersOwnFields()
         {
-            CallWireProfile profile = CallWireProfile.ForAccount("393892672185:37@s.whatsapp.net", "IT");
+            CallWireProfile profile = CallWireProfile.ForAccount();
 
-            Assert.AreEqual("393892672185", profile.CallerPn, "the number inside this account's JID");
-            Assert.AreEqual("IT", profile.CallerCountryCode, "the country it was told");
             Assert.IsTrue(profile.Joinable.HasValue && !profile.Joinable.Value,
                 "a one-to-one call cannot be joined");
 
             string line = profile.ToStore();
-            Assert.AreEqual("caller_pn=393892672185;caller_country_code=IT;joinable=false", line,
-                "the line the setting keeps");
+            Assert.AreEqual("joinable=false", line, "the line the setting keeps");
 
             CallWireProfile back = CallWireProfile.FromStore(line);
-            Assert.AreEqual(profile.CallerPn, back.CallerPn, "and it reads back the same");
-            Assert.AreEqual(profile.CallerCountryCode, back.CallerCountryCode);
-            Assert.AreEqual(profile.Joinable, back.Joinable);
+            Assert.AreEqual(profile.Joinable, back.Joinable, "and it reads back the same");
         }
 
-        /// <summary>A `@lid` is an identifier, not a number: nothing is invented for it.</summary>
+        /// <summary>The account never invents a caller: `call-creator` is the caller, and there
+        /// is no second spelling of it in the protocol to make up.</summary>
         [Test]
         public static void AnAccountWithNoNumberGetsNoFields()
         {
-            Assert.IsTrue(CallWireProfile.ForAccount("150375613116620:37@lid", null) == null,
-                "no caller_pn, no country, no joinable");
+            CallWireProfile profile = CallWireProfile.ForAccount();
+            Assert.IsTrue(profile.ToStore() == "joinable=false",
+                "nothing but the flag this client can honestly state");
             Assert.IsTrue(CallWireProfile.FromStore(null) == null, "and an empty setting says nothing");
         }
 

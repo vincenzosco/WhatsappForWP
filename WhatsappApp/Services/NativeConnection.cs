@@ -3033,7 +3033,7 @@ namespace WhatsappApp.Services
             CallWireProfile written = CallWireProfile.FromStore(text);
             if (written != null) return written;
 
-            CallWireProfile seed = CallWireProfile.ForAccount(ownJid, SelfCountryCode);
+            CallWireProfile seed = CallWireProfile.ForAccount();
             if (seed == null) return null;
 
             string line = seed.ToStore();
