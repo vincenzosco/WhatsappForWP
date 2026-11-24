@@ -1004,7 +1004,7 @@ namespace WhatsappApp.Services
                     // second again, not the half minute an hour of retrying had reached.
                     attempt = 0;
 
-                    await ReadAsync(session, account);
+                    await ReadAsync(session, account, generation);
                 }
                 catch (ClientRefusedException refused)
                 {
@@ -1072,7 +1072,7 @@ namespace WhatsappApp.Services
         /// it (the classifier, the history sync, the message path); this loop owns only the
         /// two answers that stop it.
         /// </summary>
-        private async Task ReadAsync(NativeSession session, Credentials account)
+        private async Task ReadAsync(NativeSession session, Credentials account, int generation)
         {
             while (true)
             {
@@ -1147,11 +1147,11 @@ namespace WhatsappApp.Services
                     if (kind == InboundKind.Message)
                     {
                         Diag.Step("native: reading message " + node.Attrs["id"]);
-                        await ReadMessageAsync(session, account, node);
+                        await ReadMessageAsync(session, account, node, generation);
 
                         // A stanza can be the one that brings a member's sender key, and
                         // with it the answer to a message of theirs that landed first.
-                        await RetryHeldAsync(session, account, node);
+                        await RetryHeldAsync(session, account, node, generation);
                         continue;
                     }
                 }
@@ -1470,7 +1470,7 @@ namespace WhatsappApp.Services
         /// the chat list would never come back. A stanza that did not open is answered with
         /// `IncomingMessage.RetryReceipt`, which asks the sender to encrypt it again.
         /// </summary>
-        private async Task ReadMessageAsync(NativeSession session, Credentials account, BinaryNode node)
+        private async Task ReadMessageAsync(NativeSession session, Credentials account, BinaryNode node, int generation)
         {
             IncomingMessage incoming = null;
             Exception failure = null;
@@ -1542,7 +1542,7 @@ namespace WhatsappApp.Services
                 //
                 // A sync that did not land is asked for again instead, like any stanza this
                 // phone could not read: the server re-sends what nobody acknowledged.
-                if (await ApplyHistoryAsync(history)) await session.SendAsync(IncomingMessage.Ack(node));
+                if (await ApplyHistoryAsync(history, generation)) await session.SendAsync(IncomingMessage.Ack(node));
                 else await AskAgainAsync(session, node, account);
 
                 return;
@@ -3368,7 +3368,7 @@ namespace WhatsappApp.Services
         /// a retry receipt, and the one whose key is gone again is held again by
         /// `ReadMessageAsync`.
         /// </summary>
-        private async Task RetryHeldAsync(NativeSession session, Credentials account, BinaryNode node)
+        private async Task RetryHeldAsync(NativeSession session, Credentials account, BinaryNode node, int generation)
         {
             if (node == null) return;
 
@@ -3388,7 +3388,7 @@ namespace WhatsappApp.Services
 
             for (int i = 0; i < held.Count; i++)
             {
-                await ReadMessageAsync(session, account, held[i]);
+                await ReadMessageAsync(session, account, held[i], generation);
             }
         }
 
@@ -3591,9 +3591,8 @@ namespace WhatsappApp.Services
         /// device once per link - so an ack over a blob that never downloaded is the rest of
         /// the chat list gone, with no way to ask for it again.
         /// </summary>
-        private async Task<bool> ApplyHistoryAsync(HistorySyncNotification notification)
+        private async Task<bool> ApplyHistoryAsync(HistorySyncNotification notification, int generation)
         {
-            int generation = _generation;
             HistorySync sync;
 
             try

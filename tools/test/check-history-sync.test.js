@@ -59,10 +59,18 @@ test('un ack prima del sync butta via la storia una volta sola', () => {
   assert.match(historySyncProblems(broken).join('\n'), /before the history sync is looked at/);
 });
 
+test('un sync decifrato da una connessione sostituita non usa la generazione corrente', () => {
+  const broken = files();
+  broken.connection = broken.connection
+    .replace(/ApplyHistoryAsync\(history, generation\)/, 'ApplyHistoryAsync(history)');
+
+  assert.match(historySyncProblems(broken).join('\\n'), /read loop generation/);
+});
+
 test('un sync che non atterra si richiede invece di essere ackato', () => {
   const broken = files();
   broken.connection = broken.connection
-    .replace(/if \(await ApplyHistoryAsync\(history\)\) await session\.SendAsync\(IncomingMessage\.Ack\(node\)\);\r?\n                else await AskAgainAsync\(session, node, account\);/,
+    .replace(/if \(await ApplyHistoryAsync\(history, generation\)\) await session\.SendAsync\(IncomingMessage\.Ack\(node\)\);\r?\n                else await AskAgainAsync\(session, node, account\);/,
       'await ApplyHistoryAsync(history);\n                await session.SendAsync(IncomingMessage.Ack(node));');
 
   assert.match(historySyncProblems(broken).join('\n'), /ApplyHistoryAsync/);

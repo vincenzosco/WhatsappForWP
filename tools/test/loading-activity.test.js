@@ -50,20 +50,29 @@ test('forgetting an account releases an unfinished history-sync activity', () =>
   assert.match(data, /private void ReleaseHistorySyncActivity\(\)[\s\S]*?_historySyncActivity\.Dispose\(\)[\s\S]*?_historySyncActivity = null/);
 });
 
-test('late history progress cannot reacquire a lease after account reset', () => {
+test('history from a replaced connection cannot be applied to the new account', () => {
   const data = source('WhatsappApp/Services/DataService.cs');
   const progress = data.slice(data.indexOf('private void OnNativeSyncProgress'), data.indexOf('private void OnNativeCalls'));
   const forget = data.slice(data.indexOf('public void ForgetAccount()'), data.indexOf('public int UnreadChats()'));
   const begin = data.slice(data.indexOf('public void BeginHistory()'), data.indexOf('public async Task ResetForNewAccountAsync()'));
   const reset = data.slice(data.indexOf('public async Task ResetForNewAccountAsync()'), data.indexOf('public bool MarkHistoryRequested'));
   const native = source('WhatsappApp/Services/NativeConnection.cs');
+  const readLoop = native.slice(native.indexOf('private async Task ReadAsync'), native.indexOf('private async Task ReadNotificationAsync'));
+  const messageReader = native.slice(native.indexOf('private async Task ReadMessageAsync'), native.indexOf('private async Task RetryHeldAsync'));
   const history = native.slice(native.indexOf('private async Task<bool> ApplyHistoryAsync'), native.indexOf('private void ApplySync'));
   assert.match(progress, /_historyActivityGate[\s\S]*?_historySyncAllowed/);
   assert.match(forget, /SetHistorySyncAllowed\(false\)[\s\S]*?NativeConnection\.Instance\.Stop\(\)/);
   assert.match(begin, /_historySyncAllowed = true[\s\S]*?LoadingActivity\.Begin\("history sync"\)/);
   assert.match(reset, /SetHistorySyncAllowed\(false\)/);
   assert.match(data, /private void SetHistorySyncAllowed\(bool allowed\)[\s\S]*?_historyActivityGate[\s\S]*?ReleaseHistorySyncActivity\(\)/);
-  assert.match(history, /int generation = _generation[\s\S]*?generation != _generation[\s\S]*?return false;[\s\S]*?ApplySync\(sync\)/);
+  assert.match(native, /await ReadAsync\(session, account, generation\)/);
+  assert.match(readLoop, /ReadAsync\(NativeSession session, Credentials account, int generation\)/);
+  assert.match(readLoop, /await ReadMessageAsync\(session, account, node, generation\)/);
+  assert.match(messageReader, /ReadMessageAsync\(NativeSession session, Credentials account, BinaryNode node, int generation\)/);
+  assert.match(messageReader, /ApplyHistoryAsync\(history, generation\)/);
+  assert.match(history, /ApplyHistoryAsync\(HistorySyncNotification notification, int generation\)/);
+  assert.match(history, /generation != _generation[\s\S]*?return false;[\s\S]*?ApplySync\(sync\)/);
+  assert.doesNotMatch(history, /int generation = _generation/);
 });
 
 test('application startup starts the tray adapter once with its root frame', () => {

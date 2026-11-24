@@ -100,13 +100,14 @@ function historySyncProblems(files) {
   const historyAt = readMessage.indexOf('HistorySyncNotification.From(incoming.Content)');
   const ackAt = readMessage.indexOf('IncomingMessage.Ack(node)');
 
-  if (!readMessage.includes('if (await ApplyHistoryAsync(history))')) {
+  if (!readMessage.includes('if (await ApplyHistoryAsync(history, generation))')) {
     problems.push(`${CONNECTION}: the acknowledgement of a history sync must depend on ` +
-      'ApplyHistoryAsync having applied it (`if (await ApplyHistoryAsync(history))`): the ' +
+      'ApplyHistoryAsync having applied it with the read loop generation ' +
+      '(`if (await ApplyHistoryAsync(history, generation))`): the ' +
       'ack is what tells the server the sync is delivered, and WhatsApp sends it once per ' +
       'link, so an ack over a sync that never landed is the rest of the chat list lost');
   }
-  if (!/if \(await ApplyHistoryAsync\(history\)\)[^\n]*\r?\n\s*else await AskAgainAsync\(session, node, account\);/.test(readMessage)) {
+  if (!/if \(await ApplyHistoryAsync\(history, generation\)\)[^\n]*\r?\n\s*else await AskAgainAsync\(session, node, account\);/.test(readMessage)) {
     problems.push(`${CONNECTION}: a history sync that did not land must be asked for again ` +
       '(`else await AskAgainAsync(session, node, account)`), not acknowledged: a retry ' +
       'receipt leaves the stanza unread, while an ack tells the server it may forget it');
