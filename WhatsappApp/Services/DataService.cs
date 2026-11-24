@@ -1290,18 +1290,26 @@ namespace WhatsappApp.Services
             }
 
             int dropped = 0;
-            for (int i = _contacts.Count - 1; i >= 0; i--)
+
+            // The rows are removed where the list is drawn. An `ObservableCollection` changed
+            // on a worker thread is a change the binding never hears about: the resync dropped
+            // 107 rows in the log and the screen did not move, which is a button that does
+            // nothing until the app restarts.
+            await UiThread.RunAsync(UiThread.Dispatcher(), delegate
             {
-                Contact contact = _contacts[i];
-                if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
+                for (int i = _contacts.Count - 1; i >= 0; i--)
+                {
+                    Contact contact = _contacts[i];
+                    if (contact == null || string.IsNullOrEmpty(contact.Id)) continue;
 
-                string canonical = ChatIdFor(contact.Id);
-                if (!string.IsNullOrEmpty(canonical) && named.ContainsKey(canonical)) continue;
+                    string canonical = ChatIdFor(contact.Id);
+                    if (!string.IsNullOrEmpty(canonical) && named.ContainsKey(canonical)) continue;
 
-                _contacts.RemoveAt(i);
-                _contactIndex.Remove(contact.Id);
-                dropped++;
-            }
+                    _contacts.RemoveAt(i);
+                    _contactIndex.Remove(contact.Id);
+                    dropped++;
+                }
+            });
 
             if (dropped > 0)
             {
@@ -1457,7 +1465,10 @@ namespace WhatsappApp.Services
                 // The name is not the tail's: the step that names a row - the address book,
                 // the LID pairs, the number - is `ApplyChat`, and this row takes it there.
                 // So does the refusal: a hidden chat or a channel is not a row.
-                ApplyChat(row);
+                //
+                // On the UI thread, like the drops above: a row added to the list from a
+                // worker thread is a row the screen never hears about.
+                await UiThread.RunAsync(UiThread.Dispatcher(), delegate { ApplyChat(row); });
 
                 if (FindContact(chatId) != null) rows++;
             }
@@ -1468,7 +1479,7 @@ namespace WhatsappApp.Services
                 return;
             }
 
-            SortContacts();
+            await UiThread.RunAsync(UiThread.Dispatcher(), SortContacts);
             Diag.Ok("cache: " + rows + " conversation(s) given back by their tails (" + tails
                 + " on the phone)");
 
