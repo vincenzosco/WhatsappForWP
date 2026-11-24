@@ -1558,6 +1558,18 @@ namespace WhatsappApp.Services
 
             if (incoming == null) return;
 
+            // The confirmation of delivery. The `ack` above answers the server, and the server
+            // then stops bringing the stanza back - but the person who wrote the message is
+            // told nothing, and a device that never confirms is a device the server has no
+            // reason to push to. WhatsApp answers every message it can read with a `receipt`
+            // of type `delivery`, and that is what makes the next message arrive without
+            // restarting the app to collect what piled up.
+            //
+            // An echo of this account's own message is not confirmed: it came from another
+            // device of ours, and a receipt for it would name a message the sender already
+            // knows arrived.
+            if (!incoming.IsOurEcho) await ConfirmDeliveryAsync(session, incoming);
+
             if (incoming.Refused == IncomingRefusal.AlreadyRead)
             {
                 // The key this copy needed was spent the first time the message arrived, and a
@@ -3075,6 +3087,29 @@ namespace WhatsappApp.Services
         public int UnreadFor(string jid)
         {
             return _chats.UnreadFor(jid);
+        }
+
+        /// <summary>
+        /// The confirmation of delivery: the `receipt` that tells the one who wrote a message
+        /// that it arrived. The shape is the reference's own (`FunXMPP.SendReceipt`): the
+        /// first id on the node, `type` beside it, and the time only where the type means one
+        /// - `read` carries the moment it was read, `delivery` needs none.
+        ///
+        /// It is the half this app was missing. The `ack` answers the server and the server
+        /// then stops re-sending, but nobody told the sender, and a device that never confirms
+        /// is one the server keeps feeding through the backlog instead of the socket - which
+        /// is a message that arrives when the app restarts and not when it is sent.
+        /// </summary>
+        private async Task ConfirmDeliveryAsync(NativeSession session, IncomingMessage incoming)
+        {
+            if (incoming == null) return;
+            if (string.IsNullOrEmpty(incoming.Id) || string.IsNullOrEmpty(incoming.From)) return;
+
+            await session.SendAsync(IncomingMessage.Receipt(incoming.From,
+                new List<string> { incoming.Id }, "delivery", NowSeconds()));
+
+            Diag.Ok("native: confirmed " + incoming.Id + " to " + incoming.From
+                + " as delivered");
         }
 
         /// <summary>Marks a chat's messages read: the receipt is what stops the peer's phone showing them unread.</summary>
