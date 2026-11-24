@@ -131,11 +131,11 @@
 - [x] **Step 4: Copy the built XAP to** `C:\Users\Vincenzo\Desktop\WhatsApp-1.3.12.86-ARM-Release.xap` and place `Aggiorna-WhatsApp.cmd` beside it; never run the update script or install to the phone.
 - [x] **Step 5: Review** `git diff --check`, version consistency, generated XAP existence, and clean deliverables; append only actual deviations to the plan.
 - [x] **Step 6: Commit** the completed implementation and plan with a short imperative, no AI attribution; push `origin master` as required by repository workflow.
-- [ ] **Step 7: Report** test/build evidence and clearly state that phone verification still awaits the operator's update and a fresh device log.
+- [x] **Step 7: Report** test/build evidence and clearly state that phone verification still awaits the operator's update and a fresh device log.
 
 ## What execution changed about this plan
 
 - `LoadingIndicator.cs` is app-only UI code, so the shared `WhatsappApp.Core.csproj` service glob explicitly excludes it. The first ARM build exposed a duplicate-type warning; a source regression test was observed failing before the exclusion was added, and the next ARM build completed without that warning.
 - The full test and gate suite was repeated after the exclusion. Device verification remains pending; no install command was run.
 - The independent review found that late history progress could reacquire the tray lease after an account reset. A failing source regression was observed first; progress is now gated by account lifecycle, and downloaded history from a replaced connection is discarded before it mutates account data.
-- Final verification after that correction: 786 protocol tests passed; 829 Node tests passed with one skip; all `tools/check-*.js` guards passed; Release ARM build succeeded with the existing `CS0168` warning in `OpusEncoder.cs` and packaging warning `APPX4001`. The XAP and update script were copied to Desktop; the script was not run.
+- Final verification on the pushed `master`: 786 protocol tests passed; all 830 Node tests passed with no skips; every `tools/check-*.js` guard passed. A fresh Release ARM build succeeded with the existing `CS0168` warning in `OpusEncoder.cs` and packaging warning `APPX4001`. The Desktop XAP was recopied from that build and has SHA-256 `809da88d55a2755ec1a22f158d66bdab3e65474da826cffa88ebe4f3d92870da`; `Aggiorna-WhatsApp.cmd` is beside it. The script was not run and the phone has not been updated; device verification still requires the operator's update and a fresh log.
