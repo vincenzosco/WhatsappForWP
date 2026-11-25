@@ -52,12 +52,14 @@
 - Modify version: `WhatsappApp/Package.appxmanifest`, `WhatsappApp/Properties/WMAppManifest.xml`, `WhatsappApp/Properties/AssemblyInfo.cs`
 
 - [x] Run protocol tests (787), all repository Node tests (832), repository static gates, `git diff --check`, and the WP8.1 Release ARM build at version 1.3.12.87.
-- [ ] Bump patch version to 1.3.12.88 in the three version files in a separate `Version 1.3.12.88` commit, then rebuild Release ARM to produce the delivered package.
-- [ ] Review diff and working tree, commit the fix with a short imperative subject, then push `origin master`.
+- [x] Bump patch version to 1.3.12.88 in the three version files in a separate `Version 1.3.12.88` commit, then rebuild Release ARM to produce the delivered package.
+- [x] Review the diff and working tree, create the fix commit and version commit, then push both to `origin master`.
 - [x] Do not deploy; on-device behavior still needs verification.
 
 ## What execution changed about this plan
 
 - The isolation test's valid collection now uses an external-reference fixture and resolves the blob before applying it; preserving an inline snapshot there contradicted the reference format confirmed during implementation.
 - The first full protocol run after the decoding change exposed that outdated test assumption (1 failure); updating the test to the external format restored all 787 protocol tests.
-- Static repository checks passed, all 832 Node tests passed, and the Release ARM build passed at version 1.3.12.87. The release-version commit and final rebuild remain the last steps.
+- Static repository checks passed (all 42 `tools/check-*.js` scripts), all 832 Node tests passed, and all 787 protocol tests passed. The WP8.1 Release ARM rebuild passed at version 1.3.12.88 with only existing Opus warnings.
+- The final XAP was copied to `C:/Users/Vincenzo/Desktop/WhatsApp-1.3.12.88-ARM-Release.xap`; its SHA-256 is `0c2d31ae63963693613385b84d55266ce7892b96676a937b5ba908a3710a4103`. The packaged `AppxManifest.xml` and `WMAppManifest.xml` both report version 1.3.12.88. `Aggiorna-WhatsApp.cmd` is beside it and was not run.
+- Commits `345d6f7` (`Read external app-state snapshots`) and `fbf6c00` (`Version 1.3.12.88`) were pushed to `origin/master`; the local branch was confirmed equal to the remote with a clean tree. On-device behavior remains unverified.
