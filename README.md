@@ -59,7 +59,7 @@ WP8 app bar. A conversation is a page of its own.
 
 What works today:
 
-- text messages, images and voice notes, with sent/delivered/read marks on every bubble, and a **Try again** line under a bubble whose send did not make it
+- text messages, images and voice notes, with sent/delivered/read marks on every bubble, and a **Try again** line under a bubble whose send did not make it; view-once media appears as ordinary media with a visible label and is not consumed by opening
 - a search over the chat list, by name, by what the chat last said, or by the number
 - a long press on a message copies its words, deletes it on this phone, or takes it back from everybody within two days - and a message another device takes back goes from this one too
 - the real chat list from the history sync, avatars, unread counts, groups, and the names saved in the primary phone's WhatsApp address book, which arrive encrypted in the account's app state

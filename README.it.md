@@ -59,7 +59,7 @@ fissa con la barra di WP8. Una conversazione è una pagina a parte.
 
 Cosa funziona oggi:
 
-- messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto, e una riga **Riprova** sotto il fumetto di un invio che non è passato
+- messaggi di testo, immagini e vocali, con le spunte inviato/consegnato/letto su ogni fumetto, e una riga **Riprova** sotto il fumetto di un invio che non è passato; i media "visualizza una volta" appaiono come media normali con un'etichetta visibile e non vengono consumati aprendoli
 - una ricerca sull'elenco chat, per nome, per quello che la chat ha detto l'ultima volta, o per il numero
 - una pressione prolungata su un messaggio ne copia le parole, lo elimina su questo telefono, o lo prende indietro per tutti entro due giorni - e un messaggio che un altro dispositivo prende indietro sparisce anche da questo
 - l'elenco chat vero, dalla sync della history: avatar, non letti, gruppi, e i nomi salvati nella rubrica WhatsApp del telefono principale, che arrivano cifrati nell'app state dell'account

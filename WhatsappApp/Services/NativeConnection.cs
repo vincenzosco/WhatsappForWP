@@ -1699,6 +1699,7 @@ namespace WhatsappApp.Services
             message.Text = NamedMentions(incoming);
             message.Timestamp = incoming.Timestamp;
             message.IsFromMe = false;
+            message.IsViewOnce = incoming.Content != null && incoming.Content.IsViewOnce;
             // Who wrote it, for a group: the row's chat is the group, so the sender has to
             // travel with the message or the bubble would say the group wrote it. Without
             // its device, because this one is shown to a person, and on the canonical
@@ -3432,6 +3433,7 @@ namespace WhatsappApp.Services
             message.Timestamp = incoming.Timestamp;
             message.Sender = NameCache.Book.Canonical(incoming.Sender);
             message.SenderName = incoming.PushName;
+            message.IsViewOnce = incoming.Content.IsViewOnce;
             message.Encoded = incoming.Content.Encode();
 
             if (_chats.AddIncoming(message))

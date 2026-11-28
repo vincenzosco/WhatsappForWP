@@ -8,6 +8,8 @@ const ROOT = path.join(__dirname, '..', '..');
 const message = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Models/ChatMessage.cs'), 'utf8');
 const cache = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Services/MessageCache.cs'), 'utf8');
 const data = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Services/DataService.cs'), 'utf8');
+const native = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Services/NativeConnection.cs'), 'utf8');
+const history = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Protocol/WaProto/HistorySync.cs'), 'utf8');
 const page = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Pages/ChatPage.xaml'), 'utf8');
 const english = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Strings/en-US/Resources.resw'), 'utf8');
 const italian = fs.readFileSync(path.join(ROOT, 'WhatsappApp/Strings/it-IT/Resources.resw'), 'utf8');
@@ -26,6 +28,14 @@ test('view-once wrappers retain a serializable flag and draw an explicit localiz
     'English has the visible label');
   assert.match(italian, /<data name="ChatPage_ViewOnce\.Text"/,
     'Italian has the visible label');
-  assert.match(data, /IsViewOnce\s*=\s*decoded\.IsViewOnce/,
-    'the decoded wrapper flag reaches the chat row');
+  assert.match(history, /public bool IsViewOnce;/,
+    'history rows can carry wrapper metadata that is not in the normalized encoding');
+  assert.match(history, /target\.IsViewOnce\s*=\s*decoded\.IsViewOnce/,
+    'the history decoder captures wrapper identity before normalizing the message');
+  assert.match(native, /message\.IsViewOnce\s*=\s*incoming\.Content\.IsViewOnce/,
+    'the live media reader saves the flag before encoding normalized content');
+  assert.match(data, /message\.IsViewOnce\s*=\s*incoming\.IsViewOnce/,
+    'the live row adapter carries the saved flag to the model');
+  assert.match(data, /message\.IsViewOnce\s*=\s*message\.IsViewOnce\s*\|\|\s*decoded\.IsViewOnce/,
+    'decoding normalized content does not erase its preserved wrapper flag');
 });

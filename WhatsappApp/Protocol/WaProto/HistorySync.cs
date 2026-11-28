@@ -300,6 +300,9 @@ namespace WhatsappApp.Protocol.WaProto
         public long Timestamp;
         public string Sender;
 
+        /// <summary>Whether the encoded message was inside a view-once wrapper.</summary>
+        public bool IsViewOnce;
+
         /// <summary>The sender's name as the server reported it: groups only.</summary>
         public string SenderName;
 
@@ -376,7 +379,9 @@ namespace WhatsappApp.Protocol.WaProto
                             if (encoded != null)
                             {
                                 target.Encoded = encoded;
-                                target.Text = Message.Decode(encoded).Body();
+                                Message decoded = Message.Decode(encoded);
+                                target.IsViewOnce = decoded.IsViewOnce;
+                                target.Text = decoded.Body();
                             }
                             break;
                         }

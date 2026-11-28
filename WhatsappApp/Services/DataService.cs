@@ -951,6 +951,7 @@ namespace WhatsappApp.Services
             // the newest message of its chat. Dropping the flag turned every message of the
             // sync into a new one: a toast each and a chat row counted once more.
             message.IsHistory = incoming.IsHistory;
+            message.IsViewOnce = incoming.IsViewOnce;
 
             // A photo, a voice note, a video or a document: the encoded message is where
             // its keys are, and the same decoding serves a live message and a history row.
@@ -996,7 +997,7 @@ namespace WhatsappApp.Services
             if (message == null || encoded == null) return;
 
             Message decoded = Message.Decode(encoded);
-            message.IsViewOnce = decoded.IsViewOnce;
+            message.IsViewOnce = message.IsViewOnce || decoded.IsViewOnce;
             MediaInfo info = MediaMessages.Of(decoded);
             if (info == null) return;
 

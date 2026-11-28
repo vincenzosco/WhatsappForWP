@@ -152,6 +152,35 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ViewOnceIdentitySurvivesHistoryMessageDecoding()
+        {
+            byte[] image = new ProtoWriter().Bytes(8, new byte[32]).ToArray();
+            byte[] content = new ProtoWriter()
+                .Bytes(Message.ViewOnceV2Field,
+                    new ProtoWriter().Bytes(1,
+                        new ProtoWriter().Bytes(Message.ImageField, image).ToArray()).ToArray())
+                .ToArray();
+            byte[] web = new ProtoWriter()
+                .Bytes(1, new ProtoWriter()
+                    .Text(1, "393000000000@s.whatsapp.net")
+                    .Text(3, "3EB0ONCE")
+                    .ToArray())
+                .Bytes(2, content)
+                .ToArray();
+            byte[] conversation = new ProtoWriter()
+                .Text(1, "393000000000@s.whatsapp.net")
+                .Bytes(2, new ProtoWriter().Bytes(1, web).ToArray())
+                .ToArray();
+            byte[] sync = new ProtoWriter().Bytes(2, conversation).ToArray();
+
+            HistoryMessage message = HistorySync.Decode(sync).Conversations[0].Messages[0];
+
+            Assert.IsTrue(message.IsViewOnce, "history decoding preserves the wrapper identity");
+            Assert.IsTrue(Message.Decode(message.Encoded).ImageMessage != null,
+                "history media remains normalized and readable");
+        }
+
+        [Test]
         public static void AnUnknownFieldCostsNothing()
         {
             byte[] plain = Hex(HistoryFixture.Plain);
