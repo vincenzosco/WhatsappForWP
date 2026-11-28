@@ -149,6 +149,10 @@
                                 HorizontalAlignment="Left"
                                 Visibility="{Binding IsIncoming, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
+                                <TextBlock x:Uid="ChatPage_ViewOnce" FontSize="12"
+                                           Foreground="{StaticResource ChatBubbleMetaBrush}"
+                                           Margin="0,0,0,4"
+                                           Visibility="{Binding IsViewOnce, Converter={StaticResource BoolToVisibility}}"/>
                                 <!-- The message this one answers: its own block above the
                                      words, with who wrote it and what it said. -->
                                 <Border Background="#33000000" Padding="8,4,8,4" Margin="0,0,0,4"
@@ -376,6 +380,10 @@
                                 HorizontalAlignment="Right"
                                 Visibility="{Binding IsOutgoing, Converter={StaticResource BoolToVisibility}}">
                             <StackPanel Margin="10,6,10,4">
+                                <TextBlock x:Uid="ChatPage_ViewOnce" FontSize="12"
+                                           Foreground="{StaticResource ChatBubbleMetaBrush}"
+                                           Margin="0,0,0,4"
+                                           Visibility="{Binding IsViewOnce, Converter={StaticResource BoolToVisibility}}"/>
                                 <!-- The message this one answers, drawn the same way it is
                                      in the received bubble. -->
                                 <Border Background="#33000000" Padding="8,4,8,4" Margin="0,0,0,4"

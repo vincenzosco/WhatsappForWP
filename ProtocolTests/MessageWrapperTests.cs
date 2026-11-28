@@ -28,6 +28,23 @@ namespace ProtocolTests
         }
 
         [Test]
+        public static void ViewOnceWrappersKeepTheirIdentityAfterUnwrapping()
+        {
+            int[] viewOnceWrappers = { 37, 55, 59 };
+            for (int i = 0; i < viewOnceWrappers.Length; i++)
+            {
+                Message message = Message.Decode(Wrap(viewOnceWrappers[i], Photo()));
+                Assert.IsTrue(message.IsViewOnce,
+                    "view-once wrapper field " + viewOnceWrappers[i] + " remains identifiable");
+                Assert.IsTrue(MediaMessages.Of(message) != null,
+                    "the ordinary media decoder still sees wrapped media");
+            }
+
+            Message ordinary = Message.Decode(Wrap(40, Photo()));
+            Assert.IsFalse(ordinary.IsViewOnce, "ephemeral media is not view-once media");
+        }
+
+        [Test]
         public static void EveryWrapperOfTheReferenceListIsLookedInside()
         {
             int[] wrappers = { 37, 40, 53, 55, 58, 59, 91, 96, 103 };

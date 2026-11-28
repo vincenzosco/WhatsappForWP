@@ -475,7 +475,8 @@ namespace WhatsappApp.Services
                 MediaMimeType = message.MediaMimeType,
                 MediaFileName = message.MediaFileName,
                 MediaType = message.MediaType,
-                IsHistory = true
+                IsHistory = true,
+                IsViewOnce = message.IsViewOnce
             };
         }
 

@@ -155,6 +155,9 @@ namespace WhatsappApp.Protocol.WaProto
         /// <summary>`deviceSentMessage`, field 31, kept encoded.</summary>
         public byte[] DeviceSentMessage;
 
+        /// <summary>Whether the original content was inside a view-once wrapper.</summary>
+        public bool IsViewOnce;
+
         /// <summary>`call`, field 10, kept encoded: a call offer's media key.</summary>
         public byte[] Call;
 
@@ -640,11 +643,11 @@ namespace WhatsappApp.Protocol.WaProto
                         break;
 
                     case ViewOnceField:
+                    case ViewOnceV2Field:
+                    case ViewOnceV2ExtensionField:
                     case EphemeralField:
                     case DocumentWithCaptionField:
-                    case ViewOnceV2Field:
                     case EditedField:
-                    case ViewOnceV2ExtensionField:
                     case AssociatedChildField:
                     case GroupStatusField:
                     case GroupStatusV2Field:
@@ -655,7 +658,15 @@ namespace WhatsappApp.Protocol.WaProto
                             // makes before it reads a single field. A wrapper with no message
                             // in it is no content and the read goes on.
                             Message inner = Unwrap(ReadBytesLaidOutAsBytes(reader, field));
-                            if (inner != null) return inner;
+                            if (inner != null)
+                            {
+                                if (field.Number == ViewOnceField || field.Number == ViewOnceV2Field
+                                    || field.Number == ViewOnceV2ExtensionField)
+                                {
+                                    inner.IsViewOnce = true;
+                                }
+                                return inner;
+                            }
                             break;
                         }
 

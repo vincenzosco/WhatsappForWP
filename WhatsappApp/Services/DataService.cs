@@ -995,7 +995,9 @@ namespace WhatsappApp.Services
         {
             if (message == null || encoded == null) return;
 
-            MediaInfo info = MediaMessages.Of(Message.Decode(encoded));
+            Message decoded = Message.Decode(encoded);
+            message.IsViewOnce = decoded.IsViewOnce;
+            MediaInfo info = MediaMessages.Of(decoded);
             if (info == null) return;
 
             message.Media = info;
@@ -3719,7 +3721,10 @@ namespace WhatsappApp.Services
             {
                 for (int i = 0; i < list.Count; i++)
                 {
-                    if (list[i] != null && list[i].Id == message.Id) return;
+                    if (list[i] == null || list[i].Id != message.Id) continue;
+
+                    MergeHistoryMessage(list[i], message);
+                    return;
                 }
             }
 
@@ -3734,6 +3739,33 @@ namespace WhatsappApp.Services
             RefreshPreview(message.ChatId);
             Contact row = FindContact(message.ChatId);
             if (row != null) PlaceContact(row);
+        }
+
+        /// <summary>
+        /// History has the media keys and wrapper metadata the slim cache intentionally omits.
+        /// Fill only missing cached fields: a receipt status and any local media state belong to
+        /// the existing row and must not be reset by the duplicate.
+        /// </summary>
+        private static void MergeHistoryMessage(ChatMessage existing, ChatMessage incoming)
+        {
+            if (existing == null || incoming == null) return;
+
+            if (string.IsNullOrEmpty(existing.Text)) existing.Text = incoming.Text;
+            if (string.IsNullOrEmpty(existing.SenderId)) existing.SenderId = incoming.SenderId;
+            if (string.IsNullOrEmpty(existing.SenderName)) existing.SenderName = incoming.SenderName;
+            if (string.IsNullOrEmpty(existing.ChatId)) existing.ChatId = incoming.ChatId;
+            if (string.IsNullOrEmpty(existing.QuoteId)) existing.QuoteId = incoming.QuoteId;
+            if (string.IsNullOrEmpty(existing.QuoteAuthor)) existing.QuoteAuthor = incoming.QuoteAuthor;
+            if (string.IsNullOrEmpty(existing.QuoteParticipant)) existing.QuoteParticipant = incoming.QuoteParticipant;
+            if (string.IsNullOrEmpty(existing.QuoteText)) existing.QuoteText = incoming.QuoteText;
+            if (existing.Media == null) existing.Media = incoming.Media;
+            if (string.IsNullOrEmpty(existing.MediaType)) existing.MediaType = incoming.MediaType;
+            if (string.IsNullOrEmpty(existing.MediaMimeType)) existing.MediaMimeType = incoming.MediaMimeType;
+            if (string.IsNullOrEmpty(existing.MediaFileName)) existing.MediaFileName = incoming.MediaFileName;
+            if (existing.Type == MessageType.Text && incoming.Type != MessageType.Text)
+                existing.Type = incoming.Type;
+            existing.IsViewOnce = existing.IsViewOnce || incoming.IsViewOnce;
+            existing.IsHistory = true;
         }
 
         /// <summary>

@@ -65,6 +65,7 @@ namespace WhatsappApp.Models
         private string _avatarData;     // profile picture, base64
         private bool _isGroup;          // the chat is a group
         private bool _isHistory;        // old message, sent when the chat is opened
+        private bool _isViewOnce;       // the original message used a view-once wrapper
         private int _unreadCount;       // chat-list row: how many unread messages
         private string _relatedMessageId;   // message touched by a revocation or an edit
         private string _callId;             // call id, from WhatsApp's call log
@@ -560,6 +561,14 @@ namespace WhatsappApp.Models
         {
             get { return _isHistory; }
             set { _isHistory = value; OnPropertyChanged(); }
+        }
+
+        /// <summary>Whether the original message arrived in a view-once wrapper.</summary>
+        [DataMember]
+        public bool IsViewOnce
+        {
+            get { return _isViewOnce; }
+            set { _isViewOnce = value; OnPropertyChanged(); }
         }
 
         /// <summary>

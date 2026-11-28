@@ -211,6 +211,9 @@
   <data name="ChatPage_Me" xml:space="preserve">
     <value>Me</value>
   </data>
+  <data name="ChatPage_ViewOnce.Text" xml:space="preserve">
+    <value>View once</value>
+  </data>
   <data name="ChatPage_Retry.Text" xml:space="preserve">
     <value>Try again</value>
   </data>
